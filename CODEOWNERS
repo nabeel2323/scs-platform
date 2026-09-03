@@ -1,0 +1,44 @@
+# CODEOWNERS — Smart Commerce & Supply Platform
+# Each module path has a CODEOWNER for boundary enforcement.
+
+# Root configs
+*                           @scs/platform-admin
+/package.json               @scs/platform-admin
+/turbo.json                 @scs/platform-admin
+/tsconfig.base.json         @scs/platform-admin
+
+# Infrastructure
+/infra/                     @scs/platform-devops
+
+# Shared packages
+/packages/contracts/        @scs/platform-arch
+/packages/event-types/      @scs/platform-arch
+/packages/ui-kit/           @scs/platform-frontend
+/packages/env/              @scs/platform-admin
+
+# Apps
+/apps/api/src/modules/identity/       @scs/platform-identity
+/apps/api/src/modules/merchant/       @scs/platform-merchant
+/apps/api/src/modules/catalog/        @scs/platform-catalog
+/apps/api/src/modules/inventory/      @scs/platform-catalog
+/apps/api/src/modules/pricing/        @scs/platform-catalog
+/apps/api/src/modules/promotions/     @scs/platform-orders
+/apps/api/src/modules/orders/         @scs/platform-orders
+/apps/api/src/modules/reviews/        @scs/platform-trust
+/apps/api/src/modules/support/        @scs/platform-trust
+/apps/api/src/modules/notifications/  @scs/platform-comms
+/apps/api/src/modules/analytics/      @scs/platform-data
+/apps/api/src/modules/audit/          @scs/platform-admin
+/apps/api/src/modules/delivery/       @scs/platform-delivery
+/apps/api/src/modules/payments/       @scs/platform-finance
+/apps/api/src/modules/ads/            @scs/platform-ads
+/apps/api/src/modules/ai/             @scs/platform-ai
+/apps/api/src/common/                 @scs/platform-arch
+/apps/web/                            @scs/platform-frontend
+/apps/admin/                          @scs/platform-frontend
+
+# Mobile
+/mobile/                    @scs/platform-mobile
+
+# Docs
+/docs/                      @scs/platform-arch

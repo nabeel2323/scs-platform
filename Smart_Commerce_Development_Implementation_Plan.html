@@ -1,0 +1,1752 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Commerce &amp; Supply Platform — Development &amp; Implementation Plan</title>
+<meta name="description" content="Developer-ready specification: architecture, cross-cutting foundations, canonical data model, order state machine, and phase-by-phase implementation for the Smart Commerce & Supply Platform.">
+<style>
+:root{
+  --brand:#174a5b; --brand-500:#1e6178; --brand-700:#0f3340; --brand-100:#e7f0f3; --brand-050:#f2f7f9;
+  --ink:#16232b; --muted:#5b6b74; --line:#d9e2e6; --bg:#f2f5f6; --surface:#ffffff;
+  --ok:#1b7a4b; --ok-bg:#eaf5ef; --warn:#b45309; --warn-bg:#fdf3e7; --err:#b3372f; --err-bg:#fbeeec;
+  --info:#1d5fa8; --info-bg:#e8f1f9; --code-bg:#0f2b36; --amber:#c98a2d;
+  --font:"Inter","Segoe UI",system-ui,-apple-system,Roboto,"Noto Sans Arabic","Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,"SFMono-Regular",Menlo,monospace;
+  --radius:10px; --shadow:0 1px 2px rgba(22,35,43,.06),0 4px 14px rgba(22,35,43,.05);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{line-height:1.25;margin:0 0 .5em;font-weight:700;letter-spacing:-.01em}
+p{margin:.5em 0 .9em}
+ul,ol{margin:.4em 0 .9em;padding-inline-start:1.5em}
+li{margin:.28em 0}
+a{color:var(--brand-500)}
+code{font-family:var(--mono);font-size:.86em;background:var(--brand-050);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+pre{background:var(--code-bg);color:#dcebf1;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.4px;line-height:1.55}
+pre code{background:none;border:none;color:inherit;padding:0;white-space:pre}
+strong{font-weight:700}
+.small{font-size:12.8px;color:var(--muted)}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(140deg,#0c2831 0%,#123c4a 45%,#1e6178 100%);color:#fff;padding:58px 24px 74px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(640px 320px at 88% 12%,rgba(255,255,255,.09),transparent 62%),radial-gradient(520px 300px at 6% 100%,rgba(201,138,45,.16),transparent 60%)}
+.hero-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+.kicker{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#9fc6d4;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+.hero h1{font-size:clamp(28px,4.4vw,44px);color:#fff;margin-bottom:8px}
+.hero .sub{font-size:clamp(16px,2vw,20px);color:#cfe4ec;font-weight:600;margin-bottom:20px}
+.hero .lede{max-width:800px;color:#b9d2dc;font-size:14.5px}
+.meta-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:4px 13px;font-size:12.5px;font-weight:600;color:#e6f1f5}
+.chip.gold{background:rgba(201,138,45,.2);border-color:rgba(201,138,45,.5);color:#f4d9ab}
+
+/* ---------- Layout & TOC ---------- */
+.layout{max-width:1180px;margin:-40px auto 0;display:grid;grid-template-columns:264px minmax(0,1fr);gap:26px;padding:0 24px 72px;position:relative;z-index:2}
+.toc{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 28px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 12px;font-size:13px}
+.toc-title{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:4px 10px 8px}
+.toc a{display:block;color:var(--ink);text-decoration:none;padding:5px 10px;border-radius:6px;line-height:1.35}
+.toc a:hover{background:var(--brand-050)}
+.toc a.active{background:var(--brand);color:#fff;font-weight:600}
+.toc .grp{margin:10px 0 4px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:4px 10px;border-top:1px solid var(--line);padding-top:10px}
+.toc .grp:first-of-type{border-top:none}
+.toc-toggle{display:none}
+
+/* ---------- Sections ---------- */
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px 34px;margin:0 0 26px;scroll-margin-top:20px}
+.sec>h2{display:flex;align-items:baseline;gap:12px;font-size:23px;color:var(--brand-700);border-bottom:2px solid var(--brand-100);padding-bottom:12px;margin-bottom:16px}
+.sec>h2 .no{font-size:13px;font-weight:800;color:#fff;background:var(--brand);border-radius:6px;padding:3px 9px;letter-spacing:.04em;flex:none;transform:translateY(-2px)}
+.sec h3{font-size:17px;color:var(--brand);margin:26px 0 8px}
+.sec h4{font-size:14.5px;color:var(--ink);margin:18px 0 6px}
+.part-banner{background:linear-gradient(120deg,var(--brand-700),var(--brand-500));color:#fff;border-radius:var(--radius);padding:26px 32px;margin:0 0 26px;box-shadow:var(--shadow)}
+.part-banner h2{font-size:24px;color:#fff;margin:0 0 6px}
+.part-banner p{margin:0;color:#cfe4ec;font-size:14px;max-width:860px}
+
+/* ---------- Tables ---------- */
+.tblwrap{overflow-x:auto;margin:12px 0 18px}
+table{width:100%;border-collapse:collapse;font-size:13.2px;line-height:1.5}
+table.wide{font-size:12.2px}
+th{background:#eaf1f4;color:#123f4b;text-align:start;padding:8px 11px;border:1px solid var(--line);font-weight:700;font-size:12.3px;letter-spacing:.02em}
+td{padding:7px 11px;border:1px solid var(--line);vertical-align:top}
+tbody tr:nth-child(even) td{background:#f8fafb}
+td code, th code{font-size:.92em}
+
+/* ---------- Callouts ---------- */
+.callout{border-radius:8px;padding:13px 17px;margin:15px 0;border-inline-start:4px solid var(--brand);background:var(--brand-100);font-size:14px}
+.callout b:first-child{color:var(--brand-700)}
+.callout.improve{border-color:var(--ok);background:var(--ok-bg)}
+.callout.improve b:first-child{color:var(--ok)}
+.callout.fence{border-color:var(--err);background:var(--err-bg)}
+.callout.fence b:first-child{color:var(--err)}
+.callout.gate{border-color:#123f4b;background:#eaf1f4}
+.callout.gate b:first-child{color:#123f4b}
+.callout.warn{border-color:var(--warn);background:var(--warn-bg)}
+.callout.warn b:first-child{color:var(--warn)}
+
+/* ---------- Method badges ---------- */
+.m{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 7px;letter-spacing:.04em;vertical-align:middle}
+.m-get{background:var(--ok-bg);color:var(--ok)}
+.m-post{background:var(--info-bg);color:var(--info)}
+.m-patch{background:var(--warn-bg);color:var(--warn)}
+.m-del{background:var(--err-bg);color:var(--err)}
+.m-ws{background:#efe7f7;color:#7a4a9e}
+
+/* ---------- Status pills ---------- */
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:700}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.pending{background:var(--info-bg);color:var(--info)}
+.pill.working{background:var(--brand-100);color:var(--brand)}
+.pill.transit{background:var(--info-bg);color:var(--info)}
+.pill.done{background:var(--ok-bg);color:var(--ok)}
+.pill.dead{background:#eef1f3;color:#5b6b74}
+.pill.disputed{background:var(--err-bg);color:var(--err)}
+
+/* ---------- Flow diagram ---------- */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:var(--brand-050);border:1px dashed var(--line);padding:12px 14px;border-radius:8px;font-size:13px;margin:12px 0}
+.flow .st{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 11px;font-weight:600;color:var(--brand-700);box-shadow:0 1px 2px rgba(22,35,43,.05)}
+.flow .st.key{border-color:var(--brand);background:var(--brand-100)}
+.flow .ar{color:var(--brand-500);font-weight:800}
+
+/* ---------- Phase cards ---------- */
+.phase{border:1px solid var(--line);border-radius:var(--radius);margin:22px 0;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.phase-head{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 20px;background:linear-gradient(90deg,var(--brand-100),rgba(231,240,243,0))}
+.ph-chip{flex:none;font-weight:800;font-size:13px;color:#fff;background:var(--brand);border-radius:8px;padding:5px 12px;letter-spacing:.03em}
+.ph-chip.p0{background:#5b6b74}.ph-chip.p2{background:#1d5fa8}.ph-chip.p3{background:var(--ok)}.ph-chip.p4{background:var(--brand-500)}.ph-chip.p5{background:var(--amber)}.ph-chip.p6{background:#7a4a9e}.ph-chip.p7{background:var(--brand-700)}
+.phase-head h3{margin:0;font-size:17.5px;color:var(--brand-700)}
+.ph-window{margin-inline-start:auto;flex:none;font-size:12px;font-weight:700;color:var(--brand-700);background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.phase-body{padding:6px 20px 18px}
+.phase-body h4{color:var(--brand);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px}
+
+/* ---------- Misc ---------- */
+.tag{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:2px 8px;letter-spacing:.03em;vertical-align:middle}
+.tag.t-ok{background:var(--ok-bg);color:var(--ok)}
+.tag.t-warn{background:var(--warn-bg);color:var(--warn)}
+.tag.t-info{background:var(--info-bg);color:var(--info)}
+.tag.t-mut{background:#eef1f3;color:var(--muted)}
+.kbd{font-family:var(--mono);font-size:11.5px;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:14px 0}
+.mini{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:#fff}
+.mini b{display:block;color:var(--brand-700);margin-bottom:4px;font-size:14px}
+.mini span{font-size:13px;color:var(--muted)}
+.toc-foot{margin-top:12px;padding:8px 10px 2px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+footer.pagefoot{background:var(--brand-700);color:#b9d2dc;padding:28px 24px;text-align:center;font-size:13px}
+footer.pagefoot b{color:#fff}
+@media (max-width:1080px){
+  .layout{grid-template-columns:1fr}
+  .toc{position:static;max-height:none;display:none;margin-bottom:22px}
+  .toc.open{display:block}
+  .toc-toggle{display:inline-flex;align-items:center;gap:8px;position:static;margin:0 0 14px;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:13.5px;font-family:var(--font);cursor:pointer;box-shadow:var(--shadow)}
+}
+@media (max-width:640px){
+  .sec{padding:22px 18px}
+  .phase-body{padding:4px 14px 16px}
+}
+@media print{
+  .hero{padding:24px;background:#123c4a}
+  .toc,.toc-toggle{display:none!important}
+  .layout{display:block;max-width:none;padding:0}
+  .sec,.phase{box-shadow:none;break-inside:auto}
+  body{background:#fff;font-size:11px}
+  pre{white-space:pre-wrap}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="kicker">Developer-Ready Specification · v1.0</span>
+    <h1>Smart Commerce &amp; Supply Platform</h1>
+    <div class="sub">Development &amp; Implementation Plan</div>
+    <p class="lede">The strategic plan translated into executable engineering instructions: modular-monolith architecture with an enforced ownership matrix, cross-cutting foundations with concrete contracts, the full canonical DDL, the order state machine as executable documentation, and phase-by-phase work orders with migrations, endpoints, playbooks, and scope fences.</p>
+    <div class="meta-chips">
+      <span class="chip">NestJS Modular Monolith</span>
+      <span class="chip">Drizzle + PostgreSQL 16 + PostGIS</span>
+      <span class="chip">Flutter · 4 flavors</span>
+      <span class="chip">pnpm + Turborepo · zod → OpenAPI contracts</span>
+      <span class="chip gold">§n cites the source plan · [Improvement] marks additions</span>
+      <span class="chip">September 2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" id="toc" aria-label="Table of contents">
+    <div class="toc-title">Contents</div>
+    <div class="grp">Part I — Foundations</div>
+    <a href="#s0">0 · Getting Started</a>
+    <a href="#s1">1 · Architecture Overview</a>
+    <a href="#s2">2 · Cross-Cutting Foundations</a>
+    <a href="#s3">3 · Canonical Data Model</a>
+    <a href="#s4">4 · Order State Machine</a>
+    <div class="grp">Part II — Delivery &amp; Governance</div>
+    <a href="#s5">5 · Phase Breakdown 0–7</a>
+    <a href="#s6">6 · Critical Path &amp; Dependencies</a>
+    <a href="#s7">7 · Testing &amp; Quality Gates</a>
+    <a href="#s8">8 · Risk Register</a>
+    <div class="grp">Appendices</div>
+    <a href="#apa">A · Domain Event Taxonomy</a>
+    <a href="#apb">B · Phase 1 API Index</a>
+    <div class="toc-foot">Source: <i>Smart_Commerce_Platform_Implementation_and_UX_Plan.md</i> — cited as §n. Companion .md of this spec ships alongside.</div>
+  </nav>
+
+  <main class="content">
+
+  <button class="toc-toggle" onclick="document.getElementById('toc').classList.toggle('open')">☰ Contents</button>
+
+  <div class="part-banner">
+    <h2>Part I — Foundations</h2>
+    <p>What to build and how it fits together: engineering ground rules and Sprint 0, the architecture with an enforced module-ownership matrix, the ten cross-cutting foundations with concrete contracts (permissions, keys, Redis, search, media, notifications, realtime, telemetry, security, analytics), the complete canonical DDL for Phase 1 plus forward-compatible extensions, and the order state machine.</p>
+  </div>
+
+  <!-- ================= SECTION 0 ================= -->
+  <section class="sec" id="s0">
+    <h2><span class="no">0</span>Getting Started &amp; Engineering Ground Rules</h2>
+
+    <h3>0.1 Prerequisites &amp; local bootstrap</h3>
+    <p>Toolchain: <b>Node 20 LTS + pnpm 9</b>, <b>Flutter 3.22+</b> (Android 8 / iOS 14 minimum targets), <b>Docker Desktop</b> with Compose. All services run locally via Compose — no cloud account needed for development.</p>
+<pre><code>git clone &lt;repo&gt; &amp;&amp; cd scs-platform
+pnpm install                                   # workspace + turbo pipeline
+docker compose -f infra/docker-compose.dev.yml up -d
+#   → postgres:16-postgis, redis:7, minio (S3), mailhog
+pnpm --filter @scs/api dev                     # NestJS on :3000, OpenAPI at /docs
+pnpm --filter @scs/web dev                     # Next.js retailer/merchant web on :3100
+pnpm --filter @scs/admin dev                   # Admin console on :3200
+cd mobile &amp;&amp; flutter run --flavor retail -t lib/main_retail.dart
+pnpm db:migrate &amp;&amp; pnpm db:seed                # Drizzle migrations + fixtures</code></pre>
+
+    <h3>0.2 Engineering decisions locked by this document</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>#</th><th>Decision</th><th>Choice</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><td>E1</td><td>Monorepo tooling</td><td>pnpm workspaces + Turborepo</td><td>Affected-only pipelines keep CI fast; single lockfile across <code>apps/</code>, <code>packages/</code> <b>[Improvement]</b></td></tr>
+        <tr><td>E2</td><td>ORM &amp; migrations</td><td><b>Drizzle ORM + drizzle-kit</b></td><td>Per-module schema files preserve §2.2 boundaries (Prisma’s single schema file would dissolve them); SQL-first, forward-only migrations <b>[Improvement]</b></td></tr>
+        <tr><td>E3</td><td>Validation &amp; contracts</td><td>zod → OpenAPI 3.1 → generated TS/Dart clients</td><td>Contracts are the single source of truth for §2.5’s versioned API; zero hand-written DTO drift <b>[Improvement]</b></td></tr>
+        <tr><td>E4</td><td>Feature flags</td><td><code>flags</code> table + typed client</td><td>Phase-gated code (e.g., P3 payment states) ships dark; flags per-market, audit-logged <b>[Improvement]</b></td></tr>
+        <tr><td>E5</td><td>Partition automation</td><td>pg_partman for <code>analytics_events</code>, <code>driver_locations</code>, <code>ad_events</code></td><td>§3.2 partitioning without hand-rolled cron <b>[Improvement]</b></td></tr>
+        <tr><td>E6</td><td>Architecture lint</td><td><code>eslint-plugin-boundaries</code> in CI</td><td>Boundary rules not machine-checked decay within one sprint <b>[Improvement]</b></td></tr>
+        <tr><td>E7</td><td>Load testing</td><td>k6 scripts in <code>infra/load/</code></td><td>§9.1 requires load gates at each phase exit <b>[Improvement]</b></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>0.3 Definition of Done (every story)</h3>
+    <ol>
+      <li>OpenAPI contract updated in <code>packages/contracts</code>; generated clients compile.</li>
+      <li>Unit + integration tests (Testcontainers); domain-module coverage ≥ 85% (§9.1).</li>
+      <li>Migration reviewed for lock impact; forward-only; tested on staging.</li>
+      <li>Object-level authorization check on every new protected route (§3.9).</li>
+      <li>Telemetry: at least one metric or structured log for the new path (§3.8).</li>
+      <li>User-facing changes emit the analytics events defined in §3.10.</li>
+      <li>Phase-gated behavior sits behind a feature flag (E4).</li>
+      <li>Module README updated; ADR written for any deviation from this spec.</li>
+      <li>CI green including contract tests; E2E updated if a critical flow changed.</li>
+    </ol>
+
+    <h3>0.4 Sprint 0 — bootstrap tasks (Week 1)</h3>
+    <ol>
+      <li>Monorepo scaffold (E1), shared tsconfig, ESLint + Prettier + boundary lint (E6), CI skeleton.</li>
+      <li>Dev Compose stack (Postgres+PostGIS, Redis, MinIO, Mailhog) with healthchecks.</li>
+      <li>NestJS bootstrap: Helmet, CORS allowlist, pino with <code>requestId</code>, global RFC 7807 filter, OTel SDK, <code>/healthz</code> + <code>/readyz</code>.</li>
+      <li>Drizzle setup (E2) + migration <code>0001_identity</code> + role/permission seeds.</li>
+      <li>Auth OTP end-to-end — proves the whole stack in week one.</li>
+      <li><code>packages/contracts</code> pipeline: zod → OpenAPI → TS/Dart clients; Schemathesis in CI.</li>
+      <li>Flutter flavor scaffold (<code>retail</code>, <code>wholesale</code>) with design tokens + API client.</li>
+      <li>Next.js <code>web</code> + <code>admin</code> scaffolds on <code>ui-kit</code> with auth session handling.</li>
+      <li>Audit middleware + outbox dispatcher skeleton.</li>
+      <li>k6 smoke script against health + auth flow (E7).</li>
+    </ol>
+  </section>
+
+  <!-- ================= SECTION 1 ================= -->
+  <section class="sec" id="s1">
+    <h2><span class="no">1</span>Architecture Overview (§2)</h2>
+
+    <h3>1.1 Topology &amp; locked decisions</h3>
+    <p>One deployable NestJS application (Modular Monolith) behind an API gateway/LB; PostgreSQL 16 + PostGIS 3.4 as the data core; Redis 7 for cache/ephemeral state; S3-compatible storage + CDN; Flutter (four flavors) and Next.js as clients; FCM/SMS/Maps behind adapters (§2.1, Source §16).</p>
+<pre><code>Flutter (wholesale│retail│driver│consumer flavors) ─┐
+Next.js web (retailer/merchant) · admin console ────┼─▶ LB / API Gateway ─▶ NestJS modular monolith
+                                                    │      modules: identity · merchant · catalog · inventory ·
+                                                    │      pricing · promotions · orders · reviews · support ·
+                                                    │      notifications · analytics · audit
+                                                    │      (+ delivery P2 · payments P3 · ads P5 · ai P6)
+                                                    ▼
+                              PostgreSQL 16 + PostGIS · Redis 7 · S3 + CDN
+                                                    │
+                              FCM · SMS (×2 providers) · Mapbox · payments (P3) · LLM (P6)</code></pre>
+    <div class="callout fence"><b>Non-negotiable constraints.</b> No module reads another module’s tables · no service extraction before a §2.6 trigger is met · one database, one deployable until Phase 4+ triggers (§2.2).</div>
+
+    <h3>1.2 Module boundaries &amp; ownership matrix (§2.2)</h3>
+    <div class="callout"><b>The authoritative reference for where new code goes</b> — every table, event, and public service call has exactly one owning module. <b>[Improvement]</b></div>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Module</th><th>Code path</th><th>Owns tables</th><th>Publishes</th><th>Consumes</th></tr></thead>
+      <tbody>
+        <tr><td>identity</td><td><code>identity/</code></td><td>users, organizations, organization_members, roles, permissions, sessions</td><td><code>identity.user.registered</code></td><td>—</td></tr>
+        <tr><td>merchant</td><td><code>merchant/</code></td><td>stores, warehouses, business_documents, verification_requests</td><td><code>merchant.verification.approved</code></td><td><code>identity.user.registered</code></td></tr>
+        <tr><td>catalog</td><td><code>catalog/</code></td><td>categories, brands, products, product_variants, product_media, import_jobs</td><td><code>catalog.product.published</code>, <code>catalog.import.completed</code></td><td><code>merchant.verification.approved</code></td></tr>
+        <tr><td>inventory</td><td><code>inventory/</code></td><td>inventory_items, stock_movements</td><td><code>inventory.stock.reserved/released</code></td><td><code>order.accepted</code>, <code>order.cancelled</code></td></tr>
+        <tr><td>pricing</td><td><code>pricing/</code></td><td>price_lists, price_tiers</td><td><code>pricing.price_list.updated</code></td><td><code>catalog.product.published</code></td></tr>
+        <tr><td>promotions</td><td><code>promotions/</code></td><td>promotions, promotion_redemptions</td><td>—</td><td><code>order.submitted</code></td></tr>
+        <tr><td>orders</td><td><code>orders/</code></td><td>carts, cart_items, master_orders, orders, order_items, order_financial_breakdown, order_status_history</td><td><code>order.*</code></td><td><code>inventory.stock.reserved</code>, <code>merchant.verification.approved</code></td></tr>
+        <tr><td>reviews</td><td><code>reviews/</code></td><td>reviews, trust_snapshots</td><td><code>review.created</code></td><td><code>order.completed</code></td></tr>
+        <tr><td>support</td><td><code>support/</code></td><td>disputes, dispute_events, conversations, messages</td><td><code>dispute.*</code></td><td><code>order.status.changed</code></td></tr>
+        <tr><td>notifications</td><td><code>notifications/</code></td><td>notifications, notification_preferences, device_tokens</td><td><code>notification.dispatched</code></td><td>all domain events (template-mapped)</td></tr>
+        <tr><td>analytics</td><td><code>analytics/</code></td><td>analytics_events</td><td>—</td><td>all domain events + client <code>track()</code></td></tr>
+        <tr><td>audit</td><td><code>audit/</code></td><td>audit_logs, outbox_events</td><td>—</td><td>all domain events (outbox infra)</td></tr>
+        <tr><td>delivery <span class="tag t-info">P2</span></td><td><code>delivery/</code></td><td>drivers, driver_vehicles, service_zones, delivery_jobs, delivery_job_events, driver_locations, proofs_of_delivery</td><td><code>delivery.*</code></td><td><code>order.status.changed</code></td></tr>
+        <tr><td>payments <span class="tag t-ok">P3</span></td><td><code>payments/</code></td><td>payments, ledger_accounts, ledger_entries, settlements, settlement_lines, refunds, subscription_plans, merchant_subscriptions</td><td><code>payment.*</code>, <code>settlement.completed</code></td><td><code>order.submitted</code>, <code>order.status.changed</code></td></tr>
+        <tr><td>ads <span class="tag t-warn">P5</span></td><td><code>ads/</code></td><td>campaigns, ad_items, ad_events</td><td><code>ad.*</code></td><td>—</td></tr>
+        <tr><td>ai <span class="tag t-mut">P6</span></td><td><code>ai/</code></td><td>reorder_suggestions, ai_requests</td><td>—</td><td><code>order.completed</code>, analytics</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Module folder layout (uniform)</h4>
+<pre><code>modules/orders/
+├── orders.module.ts        # wires controllers, service, repo, event handlers
+├── orders.controller.ts    # HTTP /v1/orders* — thin, delegates to service
+├── orders.service.ts       # application service — the ONLY public surface other modules may call
+├── orders.repo.ts          # Drizzle queries, private to module
+├── dto/                    # zod schemas re-exported from packages/contracts
+├── events/                 # event payloads + outbox writers
+├── guards/                 # org-scope + permission guards
+└── __tests__/              # unit + integration (Testcontainers)</code></pre>
+
+    <h4>Boundary rules (enforced, §2.2)</h4>
+    <ol>
+      <li>Cross-module calls only via exported <b>application services</b>.</li>
+      <li>Side effects via <code>outbox_events</code> written in the same transaction — never fire-and-forget.</li>
+      <li>Cross-module read models built by the consuming module from events.</li>
+      <li>Public contracts versioned in <code>packages/contracts</code>.</li>
+      <li>Extraction only on scale divergence, team boundary, or fault isolation (§2.6 rule 5).</li>
+    </ol>
+    <p class="small">CI runs the boundary lint (E6) and fails on violations; each module path has a CODEOWNER.</p>
+
+    <h3>1.3 Repository structure (§2.3)</h3>
+<pre><code>scs-platform/
+├── apps/
+│   ├── api/                    # NestJS modular monolith (src/modules/* per §1.2)
+│   ├── web/                    # Next.js: marketing + retailer/merchant app
+│   └── admin/                  # Next.js: platform admin console
+├── mobile/
+│   ├── lib/                    # shared: router, state (Riverpod), offline queue
+│   ├── flavors/                # wholesale | retail | driver | consumer entry points
+│   └── packages/mobile-core/   # design tokens, api client, auth, i18n (ARB)
+├── packages/
+│   ├── contracts/              # zod schemas → OpenAPI 3.1 → generated TS/Dart clients
+│   ├── ui-kit/                 # web design system (TAIF tokens)
+│   ├── event-types/            # domain + analytics event schemas (versioned)
+│   └── env/                    # zod-validated environment schemas per app
+├── infra/
+│   ├── docker-compose.dev.yml
+│   ├── k8s/                    # manifests/Helm per environment (§1.4)
+│   ├── load/                   # k6 scenarios (E7)
+│   └── ci/                     # pipeline definitions (§7.4)
+└── docs/                       # ADRs, module READMEs, runbooks</code></pre>
+
+    <h3>1.4 Environments (§2.4)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Env</th><th>Purpose</th><th>Data</th><th>Rules</th></tr></thead>
+      <tbody>
+        <tr><td>dev</td><td>Local + shared dev</td><td>Seeded fixtures</td><td>Compose parity with prod images; resets via <code>db:reset</code></td></tr>
+        <tr><td>preview</td><td>Per-PR ephemeral</td><td>Anonymized subset</td><td>Auto-provisioned by CI; smoke + contract tests; torn down on merge</td></tr>
+        <tr><td>staging</td><td>Pre-prod integration, load tests</td><td>Prod-like, anonymized</td><td>Payment sandbox, FCM test project; k6 gates run here</td></tr>
+        <tr><td>prod</td><td>Live</td><td>Real</td><td>Migration-gated deploys, blue-green rollout, PITR backups</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Configuration is 12-factor: every app validates its environment through <code>packages/env</code> zod schemas at boot and fails fast. Secrets live in the platform secret manager — never in repo.</p>
+
+    <h3>1.5 API &amp; engineering conventions (§2.5)</h3>
+    <ul>
+      <li>REST over HTTPS at <code>/v1</code>, JSON, camelCase. Errors are RFC 7807 with a stable <code>type</code> URI per error family.</li>
+      <li><code>Idempotency-Key</code> required on checkout, all order state transitions, and (P3) payment intents — Redis-backed 24 h store.</li>
+      <li>Cursor pagination; whitelisted filters; optimistic concurrency via <code>If-Match</code> ETag on catalog/admin mutations.</li>
+      <li>Rate limits: Redis token bucket with <code>X-RateLimit-*</code> headers; OTP additionally throttles by phone number.</li>
+      <li>Trunk-based branching; short-lived PRs (&lt; 400 lines, reviewed &lt; 24 h); Conventional Commits; release branches per Flutter flavor. <code>main</code> is always deployable.</li>
+    </ul>
+<pre><code>{
+  "type": "https://api.scsp.dev/errors/order/invalid-transition",
+  "title": "Invalid order transition",
+  "status": 409,
+  "detail": "Order cannot move from DELIVERED to PREPARING.",
+  "instance": "/v1/orders/ord_9f3c/status"
+}</code></pre>
+  </section>
+
+  <!-- ================= SECTION 2 ================= -->
+  <section class="sec" id="s2">
+    <h2><span class="no">2</span>Cross-Cutting Foundations (§3)</h2>
+
+    <h3>2.1 Identity &amp; RBAC (§3.1)</h3>
+    <p>Phone-first identity. A <b>User</b> may belong to multiple <b>Organizations</b> via <code>organization_members</code> with a role; roles are named permission sets; permission keys are <code>module:resource:action</code>. JWT access tokens (15 min) carry <code>sub</code>, <code>activeOrg</code>, <code>role</code>, and a permission digest; refresh tokens (30 d) rotate with reuse detection — a replayed token revokes the whole chain.</p>
+<pre><code>{
+  "sub": "usr_7k2...",
+  "activeOrg": "org_9ab...",
+  "orgType": "WHOLESALER",
+  "role": "OWNER",
+  "perms": "o(AKdm9vLPjxWqtzUZ79vzw==)",   // salted digest; guards verify server-side
+  "iat": 1756845600, "exp": 1756846500, "jti": "s_5Hk9..."
+}</code></pre>
+    <h4>Seeded permission catalog (roles compose these; PLATFORM_ADMIN holds all)</h4>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Module</th><th>Keys</th></tr></thead>
+      <tbody>
+        <tr><td>identity</td><td><code>identity:user:manage</code></td></tr>
+        <tr><td>merchant</td><td><code>merchant:store:write</code> · <code>merchant:document:upload</code></td></tr>
+        <tr><td>catalog</td><td><code>catalog:product:write</code> · <code>catalog:product:publish</code> · <code>catalog:import:run</code></td></tr>
+        <tr><td>inventory</td><td><code>inventory:stock:read</code> · <code>inventory:stock:adjust</code></td></tr>
+        <tr><td>pricing / promotions</td><td><code>pricing:price-list:write</code> · <code>promotions:write</code></td></tr>
+        <tr><td>orders</td><td><code>orders:read</code> · <code>orders:accept</code> · <code>orders:reject</code> · <code>orders:fulfill</code> · <code>orders:cancel</code></td></tr>
+        <tr><td>reviews / support / analytics</td><td><code>reviews:write</code> · <code>support:dispute:handle</code> · <code>analytics:own:read</code></td></tr>
+        <tr><td>admin</td><td><code>admin:verification:decide</code> · <code>admin:moderation:decide</code> · <code>admin:orders:read</code> · <code>admin:kpi:read</code> · <code>admin:audit:read</code></td></tr>
+        <tr><td><span class="tag t-info">P2</span> delivery</td><td><code>delivery:job:assign</code> · <code>delivery:job:fulfill</code></td></tr>
+        <tr><td><span class="tag t-ok">P3</span> finance</td><td><code>finance:refund:approve</code> · <code>finance:settlement:run</code> · <code>subscriptions:manage</code></td></tr>
+        <tr><td><span class="tag t-warn">P5</span> ads</td><td><code>ads:campaign:write</code></td></tr>
+      </tbody>
+    </table></div>
+<pre><code>@UseGuards(JwtAuthGuard, OrgScopeGuard, PermissionsGuard)   // OrgScopeGuard asserts resource.org_id === token.activeOrg
+@RequirePermissions('orders:accept')
+@Post(':id/accept')
+async accept(@Param('id') id: string, @Body() dto: AcceptOrderDto, @Req() req: AuthedRequest) {
+  return this.orders.acceptAll(id, req.auth, dto.idempotencyKey);
+}</code></pre>
+    <p class="small">Org switching: <code>POST /v1/auth/switch-org</code> issues a new scoped token after membership check <b>[Improvement]</b>. Device sessions are listable and remotely revocable.</p>
+
+    <h3>2.2 Database conventions (§3.2)</h3>
+<pre><code>-- canonical table header (every table)
+id          uuid primary key,          -- UUIDv7 generated in the application layer (E2)
+created_at  timestamptz not null default now(),
+updated_at  timestamptz not null default now()</code></pre>
+    <ul>
+      <li>PostgreSQL 16 + PostGIS 3.4; all timestamps <code>timestamptz</code> UTC.</li>
+      <li><b>Money:</b> <code>bigint</code> minor units + ISO <code>char(3)</code> currency. No floats. One active currency per market at MVP.</li>
+      <li><b>Statuses:</b> <code>varchar</code> + CHECK. <b>JSONB</b> only for rule payloads — never for queryable core fields. Soft delete only where restore is a product need.</li>
+      <li>UUIDv7 is app-generated (PG16 lacks it natively); time-ordered keys keep B-tree locality and cursor pagination cheap (§7.2 #6).</li>
+      <li><b>Migrations:</b> <code>drizzle-kit generate</code> → hand-review → CI check (<code>lock_timeout</code>, no implicit rewrites) → staging → prod window. Forward-only; immutable once merged.</li>
+      <li><b>Indexes:</b> FK by default; partial on hot queues; GIN on <code>tsvector</code>; GiST on <code>geography</code>. Monthly RANGE partitions per §3.12.</li>
+    </ul>
+
+    <h3>2.3 Redis usage (§3.3)</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Use</th><th>Key pattern</th><th>TTL</th><th>Pattern</th></tr></thead>
+      <tbody>
+        <tr><td>Sessions / refresh chain</td><td><code>sess:{userId}:{sessionId}</code></td><td>30 d, rotate</td><td>Write-through on rotation; revoke = delete</td></tr>
+        <tr><td>OTP + attempts</td><td><code>otp:{phone}</code> / <code>otp:att:{phone}</code></td><td>90 s / 15 m</td><td>INCR attempts; lock after 5</td></tr>
+        <tr><td>Rate limits</td><td><code>rl:{scope}:{id}:{bucket}</code></td><td>sliding</td><td>Token bucket → <code>X-RateLimit-*</code></td></tr>
+        <tr><td>Idempotency keys</td><td><code>idem:{key}</code></td><td>24 h</td><td>Store first response hash; replay returns it</td></tr>
+        <tr><td>Product / price caches</td><td><code>cache:prod:{id}</code> · <code>price:{variant}:{list}</code></td><td>60 s–5 m</td><td>Cache-aside; invalidate on catalog/pricing events</td></tr>
+        <tr><td>WS presence</td><td><code>presence:{userId}</code></td><td>heartbeat</td><td>Gateway reads on fan-out</td></tr>
+        <tr><td>Dispatch / settlement locks</td><td><code>lock:{jobId}</code></td><td>bounded</td><td><code>SET NX PX</code> with fencing token</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Carts live in PostgreSQL (auditability, cross-device resume); Redis caches hot reads only. Never store the only copy of business data in Redis.</p>
+
+    <h3>2.4 Search strategy (§3.4)</h3>
+    <p>Phase 1 runs PostgreSQL FTS behind a port so the OpenSearch swap is an adapter change, not a rewrite:</p>
+<pre><code>export interface SearchIndexer {
+  upsertProduct(doc: ProductSearchDoc): Promise&lt;void&gt;;   // called from catalog event handlers
+  removeProduct(productId: string): Promise&lt;void&gt;;
+  query(q: SearchQuery): Promise&lt;{ items: SearchHit[]; cursor?: string }&gt;;
+}
+export interface ProductSearchDoc {
+  productId: string; storeId: string; name: string; nameAr?: string;
+  brand?: string; categoryPath: string; sku?: string; barcode?: string;
+  priceMinor?: number; moq?: number; rating?: number; storeBadges: string[];
+}</code></pre>
+    <ul>
+      <li>Arabic normalization before indexing and on query strings: strip diacritics · fold alef variants (أإآ→ا) · taa-marbuta→haa (ة→ه) · unify ya (ى→ي). <b>[Improvement: concrete folding rules]</b></li>
+      <li>SKU/barcode exact-match takes a fast path (no trigram).</li>
+      <li><b>OpenSearch trigger:</b> search p95 &gt; 300 ms sustained one week, catalog &gt; 150k SKUs, or relevance failure → deploy cluster, backfill via replay, flip adapter.</li>
+    </ul>
+
+    <h3>2.5 Media pipeline (§3.5)</h3>
+    <ol>
+      <li>Client requests <code>POST /v1/media/presign</code> with filename, contentType, sizeBytes.</li>
+      <li>API validates the type/size whitelist (images ≤ 10 MB) and returns a presigned S3 PUT URL + object key.</li>
+      <li>Client uploads <b>directly to S3</b> — media never traverses the API.</li>
+      <li>Client commits the object key; API enqueues a post-processing job (Redis stream).</li>
+      <li>Worker produces renditions: 200/600 px thumbs, WebP + AVIF, blurhash; strips EXIF; sniffs mimetype.</li>
+      <li>Worker writes <code>product_media</code> rows (url, thumb, blurhash, alt_text).</li>
+      <li>CDN invalidates on update; immutable long-lived cache headers.</li>
+    </ol>
+
+    <h3>2.6 Notification dispatch (§3.6)</h3>
+<pre><code>notifications.dispatch({
+  userId, templateKey: 'order.submitted',
+  params: { orderNo, storeName, totalMinor, currency },
+  channels: ['PUSH','IN_APP']            // routing rules below may override
+});</code></pre>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Template key</th><th>Trigger event</th><th>Channels</th><th>Category</th></tr></thead>
+      <tbody>
+        <tr><td><code>otp.login</code></td><td>OTP requested</td><td>SMS + PUSH</td><td>Transactional</td></tr>
+        <tr><td><code>order.submitted</code></td><td><code>order.submitted</code></td><td>PUSH + IN_APP (merchant)</td><td>Transactional</td></tr>
+        <tr><td><code>order.accepted / partially_accepted / rejected</code></td><td>same-name events</td><td>PUSH + IN_APP (buyer)</td><td>Transactional</td></tr>
+        <tr><td><code>order.ready</code></td><td>→ READY</td><td>PUSH + IN_APP</td><td>Transactional</td></tr>
+        <tr><td><code>order.delivered</code> <span class="tag t-info">P2</span></td><td><code>delivery.pod.submitted</code></td><td>PUSH + IN_APP</td><td>Transactional</td></tr>
+        <tr><td><code>order.sla.warning</code></td><td>SLA timer at T−2 h</td><td>PUSH + SMS (merchant)</td><td>Transactional</td></tr>
+        <tr><td><code>payment.receipt</code> <span class="tag t-ok">P3</span></td><td><code>payment.captured</code></td><td>IN_APP + EMAIL</td><td>Transactional</td></tr>
+        <tr><td><code>restock.suggestion</code> <span class="tag t-mut">P4+</span></td><td><code>reorder.suggestion.served</code></td><td>IN_APP + PUSH digest</td><td>Behavioral</td></tr>
+        <tr><td><code>promo.campaign</code> <span class="tag t-mut">P4+</span></td><td>campaign scheduler</td><td>PUSH, consent-gated, ≤ 2/wk</td><td>Promotional</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Dispatch fires <b>only</b> from domain events via the outbox — handlers never call <code>dispatch</code> inline. Quiet hours (22:00–07:00) for Behavioral/Promotional. SMS fails over between two providers; WhatsApp fallback where dominant (R7, R12).</p>
+
+    <h3>2.7 Realtime WebSocket protocol (§3.7)</h3>
+    <p>Gateway at <code>/realtime</code> (Socket.IO, Redis adapter). <b>[Improvement: explicit message contracts]</b></p>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Message</th><th>Direction</th><th>Payload</th><th>Room / notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>hello</code></td><td>C→S</td><td><code>{ token }</code></td><td>JWT handshake; server derives allowed rooms</td></tr>
+        <tr><td><code>subscribe</code></td><td>C→S</td><td><code>{ rooms: [...] }</code></td><td>Server enforces entitlement per room</td></tr>
+        <tr><td><code>order.status</code></td><td>S→C</td><td><code>{ orderId, from, to, at }</code></td><td><code>order:{id}</code>, <code>org:{id}</code></td></tr>
+        <tr><td><code>delivery.location</code></td><td>S→C</td><td><code>{ jobId, lat, lng, accuracyM, at }</code></td><td><code>job:{id}</code> — batched 3–5 s</td></tr>
+        <tr><td><code>delivery.eta</code></td><td>S→C</td><td><code>{ jobId, etaSeconds, rangeMin, rangeMax }</code></td><td>ETA is a <b>range</b> until calibrated (I9)</td></tr>
+        <tr><td><code>notification.new</code></td><td>S→C</td><td><code>{ id, templateKey, payload }</code></td><td><code>user:{id}</code></td></tr>
+        <tr><td><code>location.batch</code></td><td>C→S</td><td><code>{ jobId?, points: [...] }</code></td><td>driver flavor only; 5–15 s adaptive</td></tr>
+        <tr><td><code>resync</code></td><td>C→S</td><td><code>{ lastEventId }</code></td><td>Replay missed events or instruct REST resync</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout"><b>Resilience contract.</b> On reconnect the client sends <code>resync</code>; the server replays missed <code>order.status</code> events or responds <code>{ action: "rest", resource: "/v1/orders?since=..." }</code>. The WebSocket is an optimization — REST remains the source of truth (§9.2 scenario 7).</div>
+
+    <h3>2.8 Observability stack (§3.8)</h3>
+    <p>OpenTelemetry auto-instrumentation with one span per module service call; pino structured logs carrying <code>requestId</code>/<code>traceId</code>; RED metrics per endpoint. <b>[Improvement: canonical metric names]</b></p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Metric</th><th>Type</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td><code>http_server_request_duration_seconds{route,method,status}</code></td><td>histogram</td><td>1</td></tr>
+        <tr><td><code>orders_submitted_total</code> · <code>orders_accepted_total</code> · <code>orders_completed_total</code></td><td>counter</td><td>1</td></tr>
+        <tr><td><code>order_sla_breach_total</code> · <code>outbox_lag_seconds</code> · <code>outbox_dispatched_total</code></td><td>counter / gauge</td><td>1</td></tr>
+        <tr><td><code>otp_send_failures_total{provider}</code> · <code>cache_hit_ratio{family}</code> · <code>db_pool_wait_ms</code> · <code>ws_active_sockets</code></td><td>mixed</td><td>1</td></tr>
+        <tr><td><code>delivery_dispatch_lag_seconds</code> · <code>delivery_eta_error_seconds</code></td><td>gauge</td><td>2</td></tr>
+        <tr><td><code>webhook_failures_total</code> · <code>webhook_duplicates_total</code> · <code>reconciliation_exceptions_total</code></td><td>counter</td><td>3</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Log shape: <code>{"ts","level","reqId","module","userId?","orgId?","msg",...context}</code>. SLOs: Phase 1 → API 99.5% availability, checkout p95 &lt; 800 ms; full budgets in §7.3. Alerts page ops on-call from day one of pilot.</p>
+
+    <h3>2.9 Security baseline (§3.9)</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Control</th><th>Implementation</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td>Transport</td><td>TLS 1.2+, HSTS, Helmet defaults</td><td>1</td></tr>
+        <tr><td>AuthN</td><td>Short JWT + rotating refresh with reuse detection</td><td>1</td></tr>
+        <tr><td>AuthZ</td><td>Org-scope guard + <b>object-level check on every protected resource</b> (<code>assertOrgScope(resource.orgId, token.activeOrg)</code>)</td><td>1</td></tr>
+        <tr><td>OTP abuse</td><td>Per-phone throttle, device lockout, signup velocity rules (device fingerprint)</td><td>1</td></tr>
+        <tr><td>Audit trail</td><td>Append-only <code>audit_logs</code> for verification decisions, refunds, price overrides, impersonation, flag changes</td><td>1</td></tr>
+        <tr><td>Secrets / supply chain</td><td>Secret manager; CI secret + dependency scanning; lockfile-only installs</td><td>1</td></tr>
+        <tr><td>Backups</td><td>PITR + daily snapshots; <b>quarterly restore drills</b></td><td>1</td></tr>
+        <tr><td>Pen test</td><td>External test before Phase 3 payments go live</td><td>3</td></tr>
+        <tr><td>Data classification</td><td>PII / financial / location tiers; role-gated access; location retention per §3.12</td><td>2+</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>2.10 Analytics event taxonomy (§3.10)</h3>
+    <p>Client <code>track()</code> and server domain events both land in <code>analytics_events</code> (monthly partitions). Property schemas versioned in <code>packages/event-types</code>. <b>[Improvement: property contracts]</b></p>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Event</th><th>Key properties</th><th>Emitted by</th></tr></thead>
+      <tbody>
+        <tr><td><code>search_performed</code></td><td><code>query, filters, resultsCount</code></td><td>web/mobile</td></tr>
+        <tr><td><code>product_viewed</code></td><td><code>productId, storeId, source</code></td><td>web/mobile</td></tr>
+        <tr><td><code>cart_item_added / removed</code></td><td><code>variantId, qty, storeId</code></td><td>web/mobile</td></tr>
+        <tr><td><code>checkout_started</code></td><td><code>masterCartId, storeCount, valueMinor</code></td><td>web/mobile</td></tr>
+        <tr><td><code>order_submitted</code></td><td><code>masterOrderId, orderIds[], valueMinor</code></td><td>server</td></tr>
+        <tr><td><code>order_accepted / order_completed</code></td><td><code>orderId, acceptLatencyMs</code></td><td>server</td></tr>
+        <tr><td><code>reorder_used</code></td><td><code>sourceOrderId, newOrderId</code></td><td>web/mobile</td></tr>
+        <tr><td><code>import_completed</code></td><td><code>rows, created, updated, failed</code></td><td>server</td></tr>
+        <tr><td><code>verification_submitted / decided</code></td><td><code>orgId, decision, reviewLatencyMs</code></td><td>server</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Activation funnels are defined over these events (wholesaler: registered → verified → catalog ≥ 20 → first order → repeat ×3; retailer: registered → area set → first search → first order → completed → repeat). Admin dashboards consume the same pipeline — one source of truth.</p>
+  </section>
+
+  <!-- ================= SECTION 3 ================= -->
+  <section class="sec" id="s3">
+    <h2><span class="no">3</span>Canonical Data Model (§4)</h2>
+    <div class="callout"><b>Conventions.</b> App-generated UUIDv7 primary keys · <code>timestamptz</code> UTC · money as <code>bigint</code> minor units + <code>char(3)</code> currency · statuses as <code>varchar</code> + CHECK. Migration files map to the numbering in §5.1.2. <b>[Improvement: §4 entity tables materialized as executable DDL]</b></div>
+
+    <h3>3.1 Identity &amp; access — migration <code>0001_identity</code></h3>
+<pre><code>create table users (
+  id         uuid primary key,
+  phone      varchar(20) not null unique,
+  email      varchar(254) unique,
+  full_name  varchar(160) not null,
+  locale     varchar(10) not null default 'en',
+  status     varchar(12) not null default 'ACTIVE' check (status in ('ACTIVE','SUSPENDED','DELETED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table organizations (
+  id                  uuid primary key,
+  type                varchar(12) not null check (type in ('WHOLESALER','RETAILER','LOGISTICS','PLATFORM')),
+  name                varchar(160) not null,
+  legal_name          varchar(200),
+  tax_id              varchar(64),
+  country             char(2) not null,                    -- ISO 3166-1 alpha-2
+  verification_status varchar(12) not null default 'PENDING'
+                      check (verification_status in ('PENDING','IN_REVIEW','VERIFIED','REJECTED','SUSPENDED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index organizations_type_idx on organizations (type, verification_status);
+
+create table roles (
+  id    uuid primary key,
+  key   varchar(40) not null unique,       -- OWNER, ADMIN, MANAGER, STAFF, DRIVER, PLATFORM_ADMIN
+  name  varchar(80) not null
+);
+
+create table permissions (
+  id  uuid primary key,
+  key varchar(64) not null unique          -- module:resource:action (§2.1 catalog)
+);
+
+create table role_permissions (
+  role_id       uuid not null references roles(id) on delete cascade,
+  permission_id uuid not null references permissions(id) on delete cascade,
+  primary key (role_id, permission_id)
+);
+
+create table organization_members (
+  id         uuid primary key,
+  org_id     uuid not null references organizations(id) on delete cascade,
+  user_id    uuid not null references users(id) on delete cascade,
+  role_id    uuid not null references roles(id),
+  status     varchar(12) not null default 'ACTIVE' check (status in ('ACTIVE','INVITED','REVOKED')),
+  created_at timestamptz not null default now(),
+  unique (org_id, user_id)
+);
+
+create table sessions (                    -- refresh chain with rotation + reuse detection (§2.1)
+  id          uuid primary key,
+  user_id     uuid not null references users(id) on delete cascade,
+  token_hash  char(64) not null unique,    -- sha-256 of refresh token
+  device      varchar(160),
+  ip          inet,
+  expires_at  timestamptz not null,
+  revoked_at  timestamptz,
+  replaced_by uuid references sessions(id),
+  created_at  timestamptz not null default now()
+);
+create index sessions_user_idx on sessions (user_id) where revoked_at is null;</code></pre>
+
+    <h3>3.2 Merchant &amp; stores — migration <code>0002_merchant</code></h3>
+<pre><code>create table stores (
+  id               uuid primary key,
+  org_id           uuid not null references organizations(id) on delete cascade,
+  name             varchar(160) not null,
+  kind             varchar(10) not null default 'WHOLESALE' check (kind in ('WHOLESALE','RETAIL','BOTH')),
+  address          text,
+  location         geography(point, 4326),
+  service_radius_m integer,
+  hours            jsonb,                                  -- {"sun":[["08:00","13:00"],...]}
+  status           varchar(10) not null default 'PENDING' check (status in ('PENDING','ACTIVE','SUSPENDED','CLOSED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index stores_location_idx on stores using gist (location);
+create index stores_org_idx on stores (org_id, status);
+
+create table warehouses (
+  id         uuid primary key,
+  store_id   uuid not null references stores(id) on delete cascade,
+  name       varchar(120) not null,
+  location   geography(point, 4326),
+  is_default boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table business_documents (
+  id         uuid primary key,
+  store_id   uuid not null references stores(id) on delete cascade,
+  type       varchar(40) not null,          -- configurable doc set per market (Source §9.1)
+  url        text not null,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table verification_requests (
+  id          uuid primary key,
+  org_id      uuid not null references organizations(id),
+  store_id    uuid references stores(id),
+  doc_type    varchar(40) not null,
+  doc_url     text not null,
+  status      varchar(12) not null default 'SUBMITTED'
+              check (status in ('SUBMITTED','IN_REVIEW','APPROVED','REJECTED')),
+  reviewer_id uuid references users(id),
+  decision    varchar(400),                 -- mandatory on reject (§3.9 audit)
+  created_at  timestamptz not null default now(),
+  decided_at  timestamptz
+);
+create index verification_requests_queue_idx on verification_requests (status, created_at)
+  where status in ('SUBMITTED','IN_REVIEW');</code></pre>
+
+    <h3>3.3 Catalog &amp; media — migration <code>0003_catalog</code></h3>
+<pre><code>create table categories (
+  id         uuid primary key,
+  parent_id  uuid references categories(id),
+  path       varchar(400) not null unique,  -- materialized path: 'food/breakfast/cereal'
+  name       varchar(120) not null,
+  slug       varchar(140) not null unique,
+  sort_order integer not null default 0,
+  is_active  boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table brands (
+  id   uuid primary key,
+  name varchar(120) not null,
+  slug varchar(140) not null unique
+);
+
+create table products (
+  id              uuid primary key,
+  store_id        uuid not null references stores(id),
+  category_id     uuid references categories(id),
+  brand_id        uuid references brands(id),
+  name            varchar(200) not null,
+  slug            varchar(220) not null,
+  description     text,
+  status          varchar(10) not null default 'DRAFT'
+                  check (status in ('DRAFT','ACTIVE','ARCHIVED','REJECTED')),
+  moderation_note varchar(400),
+  search_vector   tsvector,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  unique (store_id, slug)
+);
+create index products_store_status_idx on products (store_id, status) where deleted_at is null;
+create index products_search_idx on products using gin (search_vector);
+create index products_category_idx on products (category_id) where deleted_at is null;
+
+create table product_variants (
+  id           uuid primary key,
+  product_id   uuid not null references products(id) on delete cascade,
+  sku          varchar(64),
+  barcode      varchar(64),
+  unit         varchar(12) not null,        -- PIECE, BOX, CASE, KG, L
+  package_size numeric(10,3),
+  attributes   jsonb not null default '{}',
+  is_default   boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index product_variants_sku_idx on product_variants (sku) where sku is not null;
+create index product_variants_barcode_idx on product_variants (barcode) where barcode is not null;
+
+create table product_media (
+  id         uuid primary key,
+  product_id uuid not null references products(id) on delete cascade,
+  url        text not null,
+  thumb_url  text,
+  blurhash   varchar(60),
+  alt_text   varchar(300),                   -- mandatory for a11y/SEO
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table import_jobs (
+  id           uuid primary key,
+  store_id     uuid not null references stores(id),
+  file_url     text not null,
+  mapping      jsonb,                        -- column → field map, auto-mapped then user-corrected
+  status       varchar(10) not null default 'UPLOADED'
+               check (status in ('UPLOADED','MAPPING','VALIDATED','IMPORTING','REVIEW','COMPLETED','FAILED')),
+  errors       jsonb,                        -- [{row, field, message}]
+  stats        jsonb,                        -- {rows, created, updated, failed}
+  created_by   uuid not null references users(id),
+  created_at   timestamptz not null default now(),
+  completed_at timestamptz
+);</code></pre>
+
+    <h3>3.4 Inventory — migration <code>0004_inventory</code></h3>
+<pre><code>create table inventory_items (
+  id            uuid primary key,
+  variant_id    uuid not null references product_variants(id) on delete cascade,
+  warehouse_id  uuid not null references warehouses(id),
+  qty_on_hand   integer not null default 0 check (qty_on_hand &gt;= 0),
+  qty_reserved  integer not null default 0 check (qty_reserved &gt;= 0),
+  reorder_point integer not null default 0,
+  updated_at    timestamptz not null default now(),
+  unique (variant_id, warehouse_id)
+);
+create index inventory_items_low_idx on inventory_items (warehouse_id)
+  where (qty_on_hand - qty_reserved) &lt;= reorder_point;
+
+create table stock_movements (            -- append-only ledger; every change reconstructable (§4.4)
+  id         uuid primary key,
+  item_id    uuid not null references inventory_items(id),
+  delta      integer not null,
+  reason     varchar(8) not null check (reason in ('ADJUST','RESERVE','RELEASE','SALE','CANCEL')),
+  ref_type   varchar(20),                 -- 'order' | 'import' | 'admin'
+  ref_id     uuid,
+  actor_id   uuid references users(id),
+  created_at timestamptz not null default now()
+);
+create index stock_movements_item_idx on stock_movements (item_id, created_at desc);</code></pre>
+    <div class="callout"><b>Reservation policy (I3).</b> Stock is reserved at merchant <b>acceptance</b>, not at cart — <code>RESERVE</code> rows are written in the same transaction as the <code>order.accepted</code> event; <code>RELEASE</code> on partial-accept leftovers and cancellation.</div>
+
+    <h3>3.5 Pricing &amp; promotions — migrations <code>0005_pricing</code>, <code>0007_promotions</code></h3>
+<pre><code>create table price_lists (
+  id         uuid primary key,
+  store_id   uuid not null references stores(id),
+  name       varchar(120) not null,
+  channel    varchar(4) not null default 'B2B' check (channel in ('B2B','B2C')),  -- B2C activates P4 (§7.2 #4)
+  audience   varchar(10) not null default 'PUBLIC' check (audience in ('PUBLIC','SEGMENT','CONTRACT')),
+  currency   char(3) not null default 'SAR',
+  valid_from timestamptz,
+  valid_to   timestamptz,
+  status     varchar(9) not null default 'ACTIVE' check (status in ('DRAFT','ACTIVE','ARCHIVED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index price_lists_store_idx on price_lists (store_id, channel, status);
+
+create table price_tiers (
+  id              uuid primary key,
+  price_list_id   uuid not null references price_lists(id) on delete cascade,
+  variant_id      uuid not null references product_variants(id),
+  min_qty         integer not null check (min_qty &gt;= 1),
+  max_qty         integer,                 -- null = unbounded
+  unit_price_minor bigint not null check (unit_price_minor &gt;= 0),
+  unique (price_list_id, variant_id, min_qty),
+  check (max_qty is null or max_qty &gt;= min_qty)
+);
+create index price_tiers_resolve_idx on price_tiers (variant_id, price_list_id, min_qty);
+
+create table promotions (
+  id           uuid primary key,
+  store_id     uuid references stores(id),  -- null = platform-funded
+  type         varchar(14) not null check (type in ('PERCENT','FIXED','QTY_DISCOUNT','TIME_LIMITED','BUY_X_GET_Y','BUNDLE','SEGMENT','GEO')),
+  conditions   jsonb not null default '{}', -- e.g. {"minQty":24,"segment":"NEW","zone":"north"}
+  value        numeric(12,4) not null,
+  currency     char(3),
+  starts_at    timestamptz not null,
+  ends_at      timestamptz,
+  budget_minor bigint,
+  usage_limit  integer,
+  status       varchar(8) not null default 'DRAFT' check (status in ('DRAFT','ACTIVE','PAUSED','ENDED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table promotion_redemptions (
+  id             uuid primary key,
+  promotion_id   uuid not null references promotions(id),
+  order_id       uuid not null,             -- FK added in 0006_orders
+  discount_minor bigint not null check (discount_minor &gt;= 0),
+  created_at     timestamptz not null default now(),
+  unique (promotion_id, order_id)
+);</code></pre>
+    <p class="small">Phase 1 implements PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED; remaining types are data-gated, not code-gated (Source §6.3).</p>
+
+    <h3>3.6 Cart &amp; orders — migration <code>0006_orders</code> (the transactional core)</h3>
+<pre><code>create table carts (
+  id            uuid primary key,
+  buyer_org_id  uuid not null references organizations(id),
+  buyer_user_id uuid not null references users(id),
+  channel       varchar(4) not null default 'B2B' check (channel in ('B2B','B2C')),
+  status        varchar(10) not null default 'ACTIVE' check (status in ('ACTIVE','CONVERTED','ABANDONED')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table cart_items (
+  id         uuid primary key,
+  cart_id    uuid not null references carts(id) on delete cascade,
+  variant_id uuid not null references product_variants(id),
+  store_id   uuid not null references stores(id),      -- supplier grouping
+  qty        integer not null check (qty &gt;= 1),
+  note       varchar(400),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index cart_items_cart_idx on cart_items (cart_id, store_id);
+
+create table master_orders (                     -- buyer's purchase intent (Source §7.2)
+  id            uuid primary key,
+  buyer_org_id  uuid not null references organizations(id),
+  buyer_user_id uuid not null references users(id),
+  channel       varchar(4) not null default 'B2B' check (channel in ('B2B','B2C')),
+  status        varchar(22) not null,            -- derived from sub-orders (§4)
+  totals_minor  bigint not null default 0,
+  currency      char(3) not null,
+  placed_at     timestamptz not null default now(),
+  completed_at  timestamptz
+);
+create index master_orders_buyer_idx on master_orders (buyer_org_id, placed_at desc);
+
+create table orders (                            -- sub-order per supplier, from day one (§7.2 #2)
+  id                 uuid primary key,
+  master_order_id    uuid not null references master_orders(id),
+  store_id           uuid not null references stores(id),
+  status             varchar(22) not null default 'SUBMITTED',
+  fulfillment_method varchar(18) not null default 'PICKUP'
+                     check (fulfillment_method in ('PICKUP','MERCHANT_DELIVERY','PLATFORM_DELIVERY')),
+  buyer_note         varchar(400),
+  placed_at          timestamptz not null default now(),
+  accepted_at        timestamptz,
+  sla_at             timestamptz,                -- confirmation SLA deadline (§4)
+  delivered_at       timestamptz,
+  completed_at       timestamptz,
+  cancelled_at       timestamptz,
+  cancel_reason      varchar(400)
+);
+create index orders_store_active_idx on orders (store_id, status)
+  where status in ('PENDING_CONFIRMATION','PARTIALLY_ACCEPTED','ACCEPTED','PREPARING','READY');
+create index orders_master_idx on orders (master_order_id);
+create index orders_buyer_history_idx on orders (store_id, placed_at desc);
+
+create table order_items (
+  id               uuid primary key,
+  order_id         uuid not null references orders(id) on delete cascade,
+  variant_id       uuid not null references product_variants(id),
+  qty              integer not null check (qty &gt;= 1),
+  qty_confirmed    integer,                      -- set on accept/partial-accept
+  unit_price_minor bigint not null,              -- SNAPSHOT at checkout — the audit record (§4.5)
+  tier_min_qty     integer,                      -- quantity tier applied
+  promo_snapshot   jsonb,
+  line_total_minor bigint not null,
+  created_at       timestamptz not null default now()
+);
+create index order_items_order_idx on order_items (order_id);
+
+create table order_financial_breakdown (        -- ledger shadow from P1; activates P3 (I5)
+  order_id           uuid primary key references orders(id) on delete cascade,
+  products_minor     bigint not null default 0,
+  discount_minor     bigint not null default 0,
+  delivery_fee_minor bigint not null default 0,
+  tax_minor          bigint not null default 0,
+  commission_minor   bigint not null default 0,
+  merchant_net_minor bigint not null default 0,
+  currency           char(3) not null,
+  finalized_at       timestamptz
+);
+
+create table order_status_history (             -- every transition, every actor (§4.7)
+  id          uuid primary key,
+  order_id    uuid not null references orders(id) on delete cascade,
+  from_status varchar(22),
+  to_status   varchar(22) not null,
+  actor_type  varchar(9) not null check (actor_type in ('BUYER','MERCHANT','DRIVER','ADMIN','SYSTEM')),
+  actor_id    uuid,
+  reason      varchar(400),
+  created_at  timestamptz not null default now()
+);
+create index order_status_history_order_idx on order_status_history (order_id, created_at);</code></pre>
+
+    <h3>3.7 Trust, support &amp; communications — migrations <code>0008_trust</code>, <code>0009_comms</code></h3>
+<pre><code>create table reviews (                          -- order-gated: one review per subject per order (§4.8)
+  id           uuid primary key,
+  order_id     uuid not null references orders(id),
+  reviewer_id  uuid not null references users(id),
+  subject_type varchar(7) not null check (subject_type in ('STORE','DRIVER','BUYER')),
+  subject_id   uuid not null,
+  rating       smallint not null check (rating between 1 and 5),
+  content      varchar(1000),
+  status       varchar(9) not null default 'PUBLISHED' check (status in ('PUBLISHED','HIDDEN','REMOVED')),
+  created_at   timestamptz not null default now(),
+  unique (order_id, reviewer_id, subject_type)
+);
+create index reviews_subject_idx on reviews (subject_type, subject_id) where status = 'PUBLISHED';
+
+create table trust_snapshots (
+  id          uuid primary key,
+  store_id    uuid not null references stores(id),
+  dimensions  jsonb not null,                    -- Source §9.2 dimensions
+  score       numeric(5,2),
+  badges      jsonb not null default '[]',       -- VERIFIED | TRUSTED | FAST_FULFILLMENT
+  computed_at timestamptz not null default now()
+);
+create index trust_snapshots_store_idx on trust_snapshots (store_id, computed_at desc);
+
+create table disputes (
+  id         uuid primary key,
+  order_id   uuid not null references orders(id),
+  opened_by  uuid not null references users(id),
+  reason     varchar(40) not null,
+  state      varchar(9) not null default 'OPEN'
+             check (state in ('OPEN','EVIDENCE','RESPONSE','REVIEW','RESOLVED','CLOSED')),
+  resolution varchar(400),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+
+create table dispute_events (
+  id         uuid primary key,
+  dispute_id uuid not null references disputes(id) on delete cascade,
+  actor_id   uuid references users(id),
+  action     varchar(30) not null,
+  note       varchar(600),
+  attachment text,
+  created_at timestamptz not null default now()
+);
+
+create table conversations (                     -- order-linked chat only (Source §9.4)
+  id         uuid primary key,
+  order_id   uuid not null references orders(id),
+  created_at timestamptz not null default now(),
+  unique (order_id)
+);
+
+create table messages (
+  id              uuid primary key,
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  sender_id       uuid not null references users(id),
+  body            varchar(2000),
+  attachments     jsonb not null default '[]',
+  created_at      timestamptz not null default now()
+);
+create index messages_conversation_idx on messages (conversation_id, created_at);
+
+create table device_tokens (
+  id         uuid primary key,
+  user_id    uuid not null references users(id) on delete cascade,
+  platform   varchar(7) not null check (platform in ('IOS','ANDROID','WEB')),
+  app_flavor varchar(10) not null check (app_flavor in ('WHOLESALE','RETAIL','DRIVER','CONSUMER')),
+  token      text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, token)
+);
+
+create table notifications (
+  id           uuid primary key,
+  user_id      uuid not null references users(id) on delete cascade,
+  template_key varchar(60) not null,
+  category     varchar(14) not null check (category in ('TRANSACTIONAL','PROMOTIONAL','BEHAVIORAL')),
+  payload      jsonb not null default '{}',
+  read_at      timestamptz,
+  created_at   timestamptz not null default now()
+);
+create index notifications_unread_idx on notifications (user_id, created_at desc) where read_at is null;
+
+create table notification_preferences (
+  user_id  uuid not null references users(id) on delete cascade,
+  category varchar(14) not null,
+  channel  varchar(6) not null check (channel in ('PUSH','SMS','EMAIL')),
+  enabled  boolean not null default true,
+  primary key (user_id, category, channel)
+);</code></pre>
+
+    <h3>3.8 Platform tables — migration <code>0010_platform</code></h3>
+<pre><code>create table audit_logs (                       -- append-only; written by middleware (§3.9)
+  id         uuid primary key,
+  actor_id   uuid references users(id),
+  action     varchar(60) not null,               -- verification.decide, refund.create, flag.change
+  resource   varchar(120) not null,              -- 'order:ord_9f3c'
+  before     jsonb,
+  after      jsonb,
+  ip         inet,
+  created_at timestamptz not null default now()
+);
+create index audit_logs_resource_idx on audit_logs (resource, created_at desc);
+create index audit_logs_actor_idx on audit_logs (actor_id, created_at desc);
+
+create table outbox_events (                    -- transactional outbox (§2.6)
+  id             uuid primary key,
+  aggregate_type varchar(30) not null,
+  aggregate_id   uuid not null,
+  event_type     varchar(60) not null,
+  payload        jsonb not null,
+  dispatched_at  timestamptz,
+  created_at     timestamptz not null default now()
+);
+create index outbox_pending_idx on outbox_events (created_at) where dispatched_at is null;
+
+create table analytics_events (                 -- monthly RANGE partitions (pg_partman, E5)
+  id          uuid not null default gen_random_uuid(),
+  name        varchar(60) not null,
+  user_id     uuid,
+  org_id      uuid,
+  session_id  varchar(64),
+  app_flavor  varchar(10),
+  props       jsonb not null default '{}',
+  received_at timestamptz not null default now(),
+  primary key (received_at, id)
+) partition by range (received_at);
+-- example partition (pg_partman creates on schedule):
+-- create table analytics_events_2026_09 partition of analytics_events
+--   for values from ('2026-09-01') to ('2026-10-01');
+
+create table flags (                            -- feature flags (E4) [Improvement]
+  key         varchar(60) primary key,
+  value       jsonb not null,                    -- boolean | rollout {pct} | per-market map
+  description varchar(200),
+  updated_by  uuid references users(id),
+  updated_at  timestamptz not null default now()
+);</code></pre>
+
+    <h3>3.9 Forward-compatible DDL — Phase 2 delivery (migrations <code>0013</code>–<code>0016</code>)</h3>
+<pre><code>create table drivers (
+  id         uuid primary key,
+  user_id    uuid not null references users(id) unique,
+  org_id     uuid references organizations(id),          -- null = independent network driver
+  license_no varchar(60) not null,
+  status     varchar(11) not null default 'PENDING'
+             check (status in ('PENDING','ACTIVE','SUSPENDED','TERMINATED')),
+  rating_avg numeric(3,2),
+  created_at timestamptz not null default now()
+);
+
+create table driver_vehicles (
+  id          uuid primary key,
+  driver_id   uuid not null references drivers(id) on delete cascade,
+  type        varchar(11) not null check (type in ('MOTORCYCLE','CAR','VAN','TRUCK')),
+  capacity_kg integer,
+  plate_no    varchar(20)
+);
+
+create table service_zones (
+  id        uuid primary key,
+  name      varchar(120) not null,
+  geom      geography(polygon, 4326) not null,
+  is_active boolean not null default true
+);
+create index service_zones_geom_idx on service_zones using gist (geom);
+
+create table delivery_jobs (
+  id           uuid primary key,
+  order_id     uuid not null references orders(id) unique,
+  driver_id    uuid references drivers(id),
+  status       varchar(16) not null default 'UNASSIGNED'
+               check (status in ('UNASSIGNED','OFFERED','ASSIGNED','PICKED_UP','OUT_FOR_DELIVERY','DELIVERED','FAILED','CANCELLED')),
+  assigned_at  timestamptz,
+  accepted_at  timestamptz,
+  delivered_at timestamptz,
+  fee_minor    bigint,
+  eta_seconds  integer,
+  created_at   timestamptz not null default now()
+);
+create index delivery_jobs_driver_idx on delivery_jobs (driver_id, status);
+create index delivery_jobs_unassigned_idx on delivery_jobs (created_at) where status = 'UNASSIGNED';
+
+create table delivery_job_events (
+  id         uuid primary key,
+  job_id     uuid not null references delivery_jobs(id) on delete cascade,
+  event      varchar(30) not null,
+  data       jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table driver_locations (                 -- monthly partitions; raw points 90 days (§4.11)
+  driver_id   uuid not null,
+  lat         double precision not null,
+  lng         double precision not null,
+  accuracy_m  real,
+  recorded_at timestamptz not null,
+  primary key (driver_id, recorded_at)
+) partition by range (recorded_at);
+
+create table proofs_of_delivery (
+  id             uuid primary key,
+  job_id         uuid not null references delivery_jobs(id) unique,
+  method         varchar(9) not null check (method in ('OTP','PHOTO','SIGNATURE')),
+  otp_verified   boolean,
+  photo_url      text,
+  signature_url  text,
+  recipient_name varchar(120),
+  location       geography(point, 4326),
+  delivered_at   timestamptz not null default now()
+);</code></pre>
+
+    <h3>3.10 Forward-compatible DDL — Phase 3 payments &amp; ledger (migrations <code>0017</code>–<code>0020</code>)</h3>
+<pre><code>create table payments (
+  id           uuid primary key,
+  order_id     uuid not null references orders(id),
+  provider     varchar(20) not null,
+  provider_ref varchar(120) unique,            -- correlation id from provider webhook (I10)
+  amount_minor bigint not null check (amount_minor &gt; 0),
+  currency     char(3) not null,
+  method       varchar(9) not null check (method in ('CARD','WALLET','COD','TRANSFER')),
+  status       varchar(10) not null default 'INITIATED'
+               check (status in ('INITIATED','AUTHORIZED','CAPTURED','FAILED','REFUNDED','CANCELLED')),
+  created_at   timestamptz not null default now(),
+  captured_at  timestamptz
+);
+create index payments_order_idx on payments (order_id);
+
+create table ledger_accounts (
+  id         uuid primary key,
+  owner_type varchar(9) not null check (owner_type in ('MERCHANT','DRIVER','PLATFORM')),
+  owner_id   uuid not null,
+  currency   char(3) not null,
+  unique (owner_type, owner_id, currency)
+);
+
+create table ledger_entries (                   -- append-only double-entry; debits = credits per tx_ref
+  id           uuid primary key,
+  tx_ref       uuid not null,
+  account_id   uuid not null references ledger_accounts(id),
+  direction    varchar(6) not null check (direction in ('DEBIT','CREDIT')),
+  amount_minor bigint not null check (amount_minor &gt; 0),
+  ref_type     varchar(11) not null check (ref_type in ('ORDER','PAYMENT','SETTLEMENT','REFUND','FEE')),
+  ref_id       uuid not null,
+  memo         varchar(200),
+  created_at   timestamptz not null default now()
+);
+create index ledger_entries_tx_idx on ledger_entries (tx_ref);
+create index ledger_entries_account_idx on ledger_entries (account_id, created_at desc);
+
+create table settlements (
+  id          uuid primary key,
+  period_from timestamptz not null,
+  period_to   timestamptz not null,
+  status      varchar(11) not null default 'OPEN' check (status in ('OPEN','CALCULATED','APPROVED','PAID')),
+  created_at  timestamptz not null default now()
+);
+
+create table settlement_lines (
+  id            uuid primary key,
+  settlement_id uuid not null references settlements(id) on delete cascade,
+  account_id    uuid not null references ledger_accounts(id),
+  net_minor     bigint not null,
+  payout_id     uuid
+);
+
+create table refunds (
+  id           uuid primary key,
+  payment_id   uuid not null references payments(id),
+  order_id     uuid not null references orders(id),
+  amount_minor bigint not null check (amount_minor &gt; 0),
+  reason_code  varchar(30) not null,
+  status       varchar(9) not null default 'PENDING' check (status in ('PENDING','PROCESSED','REJECTED')),
+  created_by   uuid not null references users(id),
+  created_at   timestamptz not null default now()
+);
+
+create table subscription_plans (
+  id          uuid primary key,
+  key         varchar(6) not null unique,       -- FREE, PRO
+  price_minor bigint not null,
+  currency    char(3) not null,
+  features    jsonb not null default '{}'
+);
+
+create table merchant_subscriptions (
+  id           uuid primary key,
+  org_id       uuid not null references organizations(id),
+  plan_id      uuid not null references subscription_plans(id),
+  status       varchar(9) not null default 'ACTIVE' check (status in ('ACTIVE','PAST_DUE','CANCELLED')),
+  period_start timestamptz not null,
+  period_end   timestamptz not null
+);</code></pre>
+
+    <h3>3.11 Forward-compatible DDL — Phases 4–6 (migrations <code>0021</code>–<code>0025</code>)</h3>
+<pre><code>-- Phase 4
+create table consumer_profiles (
+  user_id            uuid primary key references users(id),
+  default_address_id uuid,
+  marketing_consent  boolean not null default false
+);
+create table consumer_addresses (
+  id         uuid primary key,
+  user_id    uuid not null references users(id) on delete cascade,
+  label      varchar(60),
+  location   geography(point, 4326) not null,
+  address    text not null,
+  is_default boolean not null default false
+);
+create table store_service_areas (
+  id       uuid primary key,
+  store_id uuid not null references stores(id) on delete cascade,
+  geom     geography(polygon, 4326) not null,
+  channel  varchar(4) not null default 'B2C'
+);
+create index store_service_areas_geom_idx on store_service_areas using gist (geom);
+
+-- Phase 5
+create table campaigns (
+  id              uuid primary key,
+  store_id        uuid not null references stores(id),
+  objective       varchar(18) not null check (objective in ('SPONSORED_PRODUCT','SPONSORED_STORE','SPONSORED_OFFER','SEARCH','GEO')),
+  budget_minor    bigint not null check (budget_minor &gt; 0),
+  daily_cap_minor bigint,
+  starts_at       timestamptz not null,
+  ends_at         timestamptz,
+  status          varchar(8) not null default 'DRAFT' check (status in ('DRAFT','ACTIVE','PAUSED','ENDED')),
+  created_at      timestamptz not null default now()
+);
+create table ad_events (                        -- monthly partitions
+  id          uuid not null default gen_random_uuid(),
+  campaign_id uuid not null references campaigns(id),
+  kind        varchar(11) not null check (kind in ('IMPRESSION','CLICK','CONVERSION')),
+  user_id     uuid,
+  placement   varchar(20),
+  cost_minor  bigint not null default 0,
+  occurred_at timestamptz not null default now(),
+  primary key (occurred_at, id)
+) partition by range (occurred_at);
+
+-- Phase 6
+create table reorder_suggestions (
+  id          uuid primary key,
+  buyer_ref   uuid not null,
+  variant_id  uuid not null references product_variants(id),
+  expected_at timestamptz not null,
+  qty         integer not null check (qty &gt;= 1),
+  confidence  numeric(4,3),
+  served_at   timestamptz,
+  acted_at    timestamptz
+);
+create index reorder_suggestions_buyer_idx on reorder_suggestions (buyer_ref, expected_at desc);
+
+create table ai_requests (                      -- AI Gateway audit (Source §12.3)
+  id            uuid primary key,
+  capability    varchar(24) not null check (capability in ('GENERATE_DESCRIPTION','SUMMARIZE','EXTRACT','CLASSIFY','RECOMMEND','FORECAST')),
+  provider      varchar(30) not null,
+  model         varchar(60),
+  user_id       uuid references users(id),
+  input_tokens  integer,
+  output_tokens integer,
+  cost_minor    bigint,
+  created_at    timestamptz not null default now()
+);</code></pre>
+
+    <h3>3.12 Partitioning &amp; retention strategy</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Table</th><th>Strategy</th><th>Hot window</th><th>Cold path</th></tr></thead>
+      <tbody>
+        <tr><td><code>analytics_events</code></td><td>RANGE monthly (pg_partman)</td><td>60 days</td><td>Parquet on S3 → warehouse (I11)</td></tr>
+        <tr><td><code>driver_locations</code></td><td>RANGE monthly</td><td>90 days raw</td><td>Aggregated trip traces only (Source §18.2)</td></tr>
+        <tr><td><code>ad_events</code></td><td>RANGE monthly</td><td>90 days</td><td>Parquet on S3</td></tr>
+        <tr><td><code>outbox_events</code></td><td>prune 30 days after dispatch</td><td>—</td><td>— (transport, not history)</td></tr>
+        <tr><td><code>audit_logs</code> · <code>ledger_entries</code> · <code>stock_movements</code> · <code>order_status_history</code></td><td><b>never partition, never delete</b></td><td>—</td><td>Append-only regulatory records (Source §30.3)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 4 ================= -->
+  <section class="sec" id="s4">
+    <h2><span class="no">4</span>Order State Machine (§5)</h2>
+    <p>Statuses: <code>DRAFT · SUBMITTED · PENDING_CONFIRMATION · ACCEPTED · PARTIALLY_ACCEPTED · PAYMENT_PENDING · PREPARING · READY · ASSIGNED · PICKED_UP · OUT_FOR_DELIVERY · DELIVERED · COMPLETED · CANCELLED · REJECTED · DISPUTED</code>. The delivery states and <code>PAYMENT_PENDING</code> exist in the Phase 1 machine but are unreachable until P2/P3 features ship — the FSM is complete from day one so later phases add behavior, not schema.</p>
+
+    <div class="flow">
+      <span class="st">Draft</span><span class="ar">→</span><span class="st">Submitted</span><span class="ar">→</span><span class="st">Pending Confirmation</span><span class="ar">→</span><span class="st key">Accepted / Partial</span><span class="ar">→</span><span class="st">Payment Pending*</span><span class="ar">→</span><span class="st">Preparing</span><span class="ar">→</span><span class="st">Ready</span><span class="ar">→</span><span class="st">Assigned*</span><span class="ar">→</span><span class="st">Picked Up*</span><span class="ar">→</span><span class="st">Out for Delivery*</span><span class="ar">→</span><span class="st key">Delivered</span><span class="ar">→</span><span class="st">Completed</span>
+    </div>
+    <p class="small">* Unreachable until P2/P3. Terminal side-states: Cancelled, Rejected, Disputed (≤ 72 h after delivery).</p>
+
+    <h4>Status semantics — shared with the design system (icon + color + text, never color alone)</h4>
+    <p>
+      <span class="pill pending">Pending</span>&nbsp;
+      <span class="pill working">Accepted</span>&nbsp;
+      <span class="pill working">Preparing</span>&nbsp;
+      <span class="pill transit">Out for delivery</span>&nbsp;
+      <span class="pill done">Delivered</span>&nbsp;
+      <span class="pill dead">Cancelled</span>&nbsp;
+      <span class="pill disputed">Disputed</span>
+    </p>
+
+    <h3>4.1 Transition matrix (guards &amp; side effects)</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>From</th><th>Trigger (actor)</th><th>To</th><th>Guards &amp; side effects</th></tr></thead>
+      <tbody>
+        <tr><td>DRAFT</td><td>Checkout (buyer)</td><td>SUBMITTED</td><td>Validate MOQ per line; resolve + snapshot prices; write financial breakdown; emit <code>order.submitted</code></td></tr>
+        <tr><td>SUBMITTED</td><td>Auto</td><td>PENDING_CONFIRMATION</td><td>Notify merchant; start confirmation SLA timer (12 h default → <code>sla_at</code>)</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-all</td><td>ACCEPTED</td><td>Reserve inventory (same tx); re-validate prices → delta requires line-level confirm (<b>re-price guard</b>, I2)</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-partial</td><td>PARTIALLY_ACCEPTED</td><td>Reserve confirmed qty only; release the rest; buyer notified of per-line deltas</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Reject / SLA expiry</td><td>REJECTED / CANCELLED</td><td>Reason mandatory; notify buyer; nothing reserved</td></tr>
+        <tr><td>ACCEPTED / PARTIAL</td><td>Auto (prepay off — P1 default)</td><td>PREPARING</td><td>Payment on account; flag <code>prepayEnabled</code> flips this in P3</td></tr>
+        <tr><td>ACCEPTED / PARTIAL</td><td>Auto (prepay on, P3)</td><td>PAYMENT_PENDING</td><td>Payment intent created; proceeds only on webhook</td></tr>
+        <tr><td>PAYMENT_PENDING</td><td>Payment webhook (P3)</td><td>PREPARING</td><td>Idempotent handler; failure → retry / CANCELLED per policy (I10)</td></tr>
+        <tr><td>PREPARING</td><td>Merchant</td><td>READY</td><td>Notify buyer; fulfillment branch: pickup handover code, or create <code>delivery_jobs</code> → ASSIGNED (P2)</td></tr>
+        <tr><td>READY</td><td>Pickup code verified</td><td>DELIVERED</td><td>Handover OTP verified at pickup</td></tr>
+        <tr><td>ASSIGNED → OUT_FOR_DELIVERY</td><td>Driver (P2)</td><td>PICKED_UP → DELIVERED</td><td>Pickup verification; live tracking; POD (OTP/photo/signature + geo + recipient)</td></tr>
+        <tr><td>DELIVERED</td><td>Financial closure</td><td>COMPLETED</td><td>Breakdown finalized; review window opens</td></tr>
+        <tr><td>DELIVERED / COMPLETED</td><td>Dispute (≤ 72 h)</td><td>DISPUTED</td><td>Evidence bundle attached; support workflow</td></tr>
+        <tr><td>any pre-DELIVERED</td><td>Cancellation policy</td><td>CANCELLED</td><td>Free until ACCEPTED; policy fee after; release reservations; sub-order scope only</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4.2 Implementation pattern</h3>
+    <p>Every transition is a single transactional unit: <b>guard → mutate → history row → outbox row → idempotency record</b>.</p>
+<pre><code>async transition(orderId: string, to: OrderStatus, actor: Actor, reason?: string, idemKey?: string) {
+  return this.db.transaction(async (tx) =&gt; {
+    await this.idem.seenOrReplay(idemKey, tx);                 // 1. idempotency
+    const order = await tx.repo.orders.lockForUpdate(orderId);  // 2. row lock — no lost transitions
+    const guard = this.fsm.guard(order.status, to);             // 3. FSM guard — only transition source
+    if (!guard.allowed) throw new InvalidTransitionProblem(order.status, to);
+    await guard.sideEffects(tx, order, actor);                  // 4. stock, re-price check, webhooks
+    await tx.repo.orders.setStatus(orderId, to);
+    await tx.repo.statusHistory.insert({ orderId, from: order.status, to, actor, reason });
+    await tx.repo.outbox.insert({                               // 5. exactly one event
+      aggregateType: 'order', aggregateId: orderId,
+      eventType: 'order.status.changed',
+      payload: { orderId, from: order.status, to, at: new Date() },
+    });
+  });
+}</code></pre>
+    <p class="small">Rules encoded once, reused everywhere: no controller calls repo directly; no transition bypasses <code>transition()</code>; the FSM guard table lives in <code>orders/fsm.ts</code> as data — the matrix above is executable documentation.</p>
+
+    <h3>4.3 Policies</h3>
+    <ul>
+      <li><b>Re-price guard (I2):</b> if the merchant’s price list changed between checkout and acceptance, the acceptance endpoint returns <code>409 price_changed</code> with per-line deltas; the merchant explicitly confirms each changed line (<code>POST /orders/{id}/items/{itemId}/confirm</code>).</li>
+      <li><b>Idempotency:</b> transition endpoints accept <code>Idempotency-Key</code>; replays return the original result, never a second transition (Source §30.3).</li>
+      <li><b>SLA timers:</b> delayed job fires at <code>sla_at − 2h</code> (warning) and at <code>sla_at</code> (auto-CANCELLED, reason <code>SLA_EXPIRED</code>, buyer notified).</li>
+      <li><b>Partial cancellation:</b> only the affected sub-order changes; <code>master_orders.status</code> is derived (worst-of).</li>
+      <li><b>Dispute window:</b> 72 h from DELIVERED; opening a dispute freezes <code>order_financial_breakdown.finalized_at</code> (P3: freezes settlement lines).</li>
+    </ul>
+  </section>
+
+  <div class="part-banner">
+    <h2>Part II — Delivery &amp; Governance</h2>
+    <p>How it ships: phase-by-phase work orders with modules, migrations, endpoints, frontend tasks, playbooks, exit gates, and binding scope fences; the dependency chain and parallelization lanes; test strategy, CI/CD pipeline, and quality budgets; and the consolidated risk register.</p>
+  </div>
+
+  <!-- ================= SECTION 5 ================= -->
+  <section class="sec" id="s5">
+    <h2><span class="no">5</span>Phase-by-Phase Implementation Breakdown (§6)</h2>
+    <div class="callout"><b>Principle.</b> Each phase ends with a deployable increment and a KPI go/no-go gate (Source §19). Scope fences are <b>binding</b> — items beyond them require a Product Council decision with a KPI hypothesis (Source §37, I13).</div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p0">PHASE 0</span><h3>Market Validation &amp; Design</h3><span class="ph-window">4–8 weeks</span></div>
+      <div class="phase-body">
+        <h4>Engineering scope (light — no product features)</h4>
+        <ol>
+          <li>Execute Sprint 0 (§0.4) completely — the Phase 1 team starts M1 on a green pipeline.</li>
+          <li>Tech spikes with written ADRs: PostGIS distance/zone queries; SMS/OTP benchmark across <b>two</b> providers (R12); FCM latency; Mapbox vs. MapLibre cost; payment provider availability.</li>
+          <li><b>Catalog intake template</b> (Excel) built and used to collect anchor-supplier catalogs manually — it becomes the P1 bulk-import contract.</li>
+          <li>ERD review against §3 DDL; freeze migration plan <code>0001</code>–<code>0012</code>.</li>
+          <li>Prototype instrumentation: usability tests logged into the KPI baseline.</li>
+        </ol>
+        <div class="callout gate"><b>Exit gate (Source §20.3):</b> merchants committed to catalogs · retailer group willing to buy · first procurement flow clear.</div>
+        <div class="callout fence"><b>Fences:</b> no product code beyond Sprint 0 · no cloud prod environment.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip">PHASE 1</span><h3>Launchable B2B MVP</h3><span class="ph-window">12–18 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> an operating B2B marketplace in one area — registration, verification, catalog, tiered pricing, search, cart, ordering, accept/reject, statuses, notifications, basic ratings (Source §21.1). Fulfillment = self-pickup or merchant-managed delivery.</p>
+
+        <h4>Milestones</h4>
+        <div class="tblwrap"><table class="wide">
+          <thead><tr><th>Milestone</th><th>Weeks</th><th>Backend</th><th>Frontend / mobile</th></tr></thead>
+          <tbody>
+            <tr><td>M1 Foundation</td><td>1–3</td><td>identity + audit + outbox + middleware hardened</td><td>auth screens both flavors; web/admin auth</td></tr>
+            <tr><td>M2 Merchant onboarding</td><td>3–6</td><td>merchant module: stores, documents, verification queue</td><td>Store wizard, DocUploader, admin verification console</td></tr>
+            <tr><td>M3 Catalog &amp; pricing</td><td>5–8</td><td>catalog + inventory + pricing; media pipeline; moderation</td><td>Product editor, TierLadder editor, ImportWizard</td></tr>
+            <tr><td>M4 Discovery &amp; cart</td><td>7–10</td><td>PG FTS + filters; favorites; multi-supplier cart</td><td>Search, store/product pages, cart</td></tr>
+            <tr><td>M5 Ordering</td><td>9–12</td><td>orders module: checkout, FSM, accept/partial/reject, reorder, notifications</td><td>Order flows, OrderTimeline, notification center</td></tr>
+            <tr><td>M6 Trust &amp; admin</td><td>12–14</td><td>reviews; disputes-lite; admin KPIs; analytics funnel</td><td>Ratings UI; admin order monitor + KPI dashboard</td></tr>
+            <tr><td>M7 Hardening &amp; pilot</td><td>14–16+</td><td>k6 load tests, security review, fixes</td><td>Usability passes; pilot launch support</td></tr>
+          </tbody>
+        </table></div>
+
+        <h4>Migrations (in order)</h4>
+<pre><code>0001_identity.sql        users, organizations, roles, permissions, organization_members, sessions
+0002_merchant.sql        stores, warehouses, business_documents, verification_requests
+0003_catalog.sql         categories, brands, products, product_variants, product_media, import_jobs
+0004_inventory.sql       inventory_items, stock_movements
+0005_pricing.sql         price_lists, price_tiers
+0006_orders.sql          carts, cart_items, master_orders, orders, order_items,
+                         order_financial_breakdown, order_status_history
+0007_promotions.sql      promotions, promotion_redemptions (+ FK to orders)
+0008_trust.sql           reviews, trust_snapshots, disputes, dispute_events
+0009_comms.sql           conversations, messages, device_tokens, notifications, notification_preferences
+0010_platform.sql        audit_logs, outbox_events, analytics_events (+first partitions), flags
+0011_search.sql          pg_trgm extension, tsvector triggers, Arabic normalization function
+0012_seed.sql            roles, permissions, categories, flags, FREE plan (idempotent)</code></pre>
+
+        <h4>API endpoints (full index in Appendix B)</h4>
+        <div class="tblwrap"><table class="wide">
+          <thead><tr><th>Group</th><th>Endpoints</th></tr></thead>
+          <tbody>
+            <tr><td>Auth</td><td><span class="m m-post">POST</span> <code>/v1/auth/otp/request</code> · <span class="m m-post">POST</span> <code>/v1/auth/otp/verify</code> · <span class="m m-post">POST</span> <code>/v1/auth/refresh</code> · <span class="m m-post">POST</span> <code>/v1/auth/logout</code> · <span class="m m-post">POST</span> <code>/v1/auth/switch-org</code> <b>[Improvement]</b></td></tr>
+            <tr><td>Users</td><td><span class="m m-get">GET</span>/<span class="m m-patch">PATCH</span> <code>/v1/me</code> · <span class="m m-get">GET</span> <code>/v1/me/organizations</code> · <span class="m m-post">POST</span> <code>/v1/me/devices</code></td></tr>
+            <tr><td>Organizations</td><td><span class="m m-post">POST</span> <code>/v1/organizations</code> · <span class="m m-get">GET</span> <code>/v1/organizations/{id}/members</code> · <span class="m m-post">POST</span> <code>/v1/organizations/{id}/members</code></td></tr>
+            <tr><td>Merchant</td><td><span class="m m-post">POST</span> <code>/v1/stores</code> · <span class="m m-patch">PATCH</span> <code>/v1/stores/{id}</code> · <span class="m m-post">POST</span> <code>/v1/stores/{id}/documents</code> · <span class="m m-get">GET</span> <code>/v1/stores/{id}</code> (public)</td></tr>
+            <tr><td>Catalog</td><td><span class="m m-post">POST</span> <code>/v1/products</code> · <span class="m m-patch">PATCH</span> <code>/v1/products/{id}</code> · <span class="m m-post">POST</span> <code>/v1/products/{id}/variants</code> · <span class="m m-post">POST</span> <code>/v1/media/presign</code> · <span class="m m-post">POST</span> <code>/v1/catalog/imports</code> · <span class="m m-get">GET</span> <code>/v1/catalog/imports/{jobId}</code></td></tr>
+            <tr><td>Inventory</td><td><span class="m m-get">GET</span> <code>/v1/inventory</code> · <span class="m m-patch">PATCH</span> <code>/v1/inventory/{itemId}</code> · <span class="m m-get">GET</span> <code>/v1/inventory/low-stock</code></td></tr>
+            <tr><td>Pricing</td><td><span class="m m-post">POST</span> <code>/v1/price-lists</code> · <span class="m m-post">POST</span> <code>/v1/price-lists/{id}/tiers</code> · <span class="m m-get">GET</span> <code>/v1/products/{id}/pricing</code></td></tr>
+            <tr><td>Promotions</td><td><span class="m m-post">POST</span> <code>/v1/promotions</code> · <span class="m m-get">GET</span> <code>/v1/promotions</code> · <span class="m m-get">GET</span> <code>/v1/offers/nearby</code></td></tr>
+            <tr><td>Search</td><td><span class="m m-get">GET</span> <code>/v1/search</code> · <span class="m m-get">GET</span> <code>/v1/categories</code> · <span class="m m-get">GET</span> <code>/v1/categories/{id}/products</code></td></tr>
+            <tr><td>Cart</td><td><span class="m m-get">GET</span> <code>/v1/cart</code> · <span class="m m-post">POST</span> <code>/v1/cart/items</code> · <span class="m m-patch">PATCH</span> <code>/v1/cart/items/{id}</code> · <span class="m m-del">DELETE</span> <code>/v1/cart/items/{id}</code></td></tr>
+            <tr><td>Orders</td><td><span class="m m-post">POST</span> <code>/v1/checkout</code> · <span class="m m-get">GET</span> <code>/v1/orders</code> · <span class="m m-get">GET</span> <code>/v1/orders/{id}</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/accept</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/reject</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/items/{itemId}/confirm</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/status</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/cancel</code> · <span class="m m-post">POST</span> <code>/v1/orders/{id}/reorder</code></td></tr>
+            <tr><td>Reviews</td><td><span class="m m-post">POST</span> <code>/v1/orders/{id}/review</code> · <span class="m m-get">GET</span> <code>/v1/stores/{id}/reviews</code></td></tr>
+            <tr><td>Notifications</td><td><span class="m m-get">GET</span> <code>/v1/notifications</code> · <span class="m m-patch">PATCH</span> <code>/v1/notifications/{id}/read</code> · <span class="m m-get">GET</span>/<span class="m m-patch">PATCH</span> <code>/v1/notification-preferences</code></td></tr>
+            <tr><td>Admin</td><td><span class="m m-get">GET</span> <code>/v1/admin/verifications</code> · <span class="m m-post">POST</span> <code>/v1/admin/verifications/{id}/decision</code> · <span class="m m-get">GET</span> <code>/v1/admin/orders</code> · <span class="m m-get">GET</span> <code>/v1/admin/merchants</code> · <span class="m m-get">GET</span> <code>/v1/admin/kpis</code> · <span class="m m-get">GET</span> <code>/v1/admin/audit-logs</code></td></tr>
+            <tr><td>Realtime</td><td><span class="m m-ws">WS</span> <code>/v1/realtime</code> — rooms <code>user:{id}</code> · <code>org:{id}</code> · <code>order:{id}</code>; events per §2.7</td></tr>
+          </tbody>
+        </table></div>
+        <p class="small">All order-mutating endpoints require <code>Idempotency-Key</code> (§1.5). Contracts live in <code>packages/contracts</code> — if it is not in OpenAPI, it does not exist.</p>
+
+        <div class="callout fence"><b>Scope fences (Source §21.5 + additions): do NOT build</b> — independent delivery marketplace (<code>delivery_jobs</code> untouched) · B2C · advanced advertising · complex ML · ERP accounting · credit system · multi-party settlement · microservices · multi-warehouse/branch · real-time GPS · public API · multi-currency · chat UI (schema ships, UI deferred).</div>
+
+        <h4>Operational playbooks (ready before pilot)</h4>
+        <p class="small">Concierge catalog import · verification review SLA (48 h) · order-blocking incident (&lt; 30 min response) · drop-off reason logging (first 30 days) · OTP/SMS provider failover drill.</p>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 1 + §21.6):</b> activation rate · first-order conversion · completion rate · repeat-order rate · active merchants; merchant publishes without tech support; full order runs end-to-end; RBAC/backups/audit verified; funnel measurable; ops ownership assigned.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p2">PHASE 2</span><h3>Delivery &amp; Tracking</h3><span class="ph-window">8–12 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> <code>delivery/</code> module — driver onboarding (reuses verification_requests), zones, jobs + events, batched location ingestion (Redis stream → partitioned inserts), POD, geofence event engine, earnings. Dispatch maturity <b>2A→2B→2C</b>: manual admin assignment → PostGIS KNN + Mapbox Matrix suggestions → live tracking + Mapbox Directions ETA.</p>
+        <h4>Migrations &amp; endpoints</h4>
+        <p class="small">Migrations: <code>0013_drivers</code> · <code>0014_zones</code> · <code>0015_delivery</code> · <code>0016_locations_partitions</code>. Endpoints: <span class="m m-post">POST</span> <code>/v1/delivery/jobs</code> (internal) · <span class="m m-get">GET</span> <code>/v1/driver/jobs/available</code> · <span class="m m-post">POST</span> <code>/v1/driver/jobs/{id}/accept</code> · <span class="m m-post">POST</span> <code>/v1/driver/jobs/{id}/status</code> (idempotent) · <span class="m m-post">POST</span> <code>/v1/driver/locations:batch</code> · <span class="m m-post">POST</span> <code>/v1/driver/jobs/{id}/pod</code> · <span class="m m-get">GET</span> <code>/v1/orders/{id}/tracking</code> · <span class="m m-get">GET</span> <code>/v1/admin/dispatch</code>. WS adds <code>delivery.location</code> / <code>delivery.eta</code>.</p>
+        <p><b>Mobile:</b> driver flavor — duty toggle, job offers with countdown, pickup verify, navigation deep-link, POD capture, offline queue with replay, earnings. <b>Admin:</b> dispatch console (live map + unassigned queue + suggestions).</p>
+        <p class="small"><b>Playbooks:</b> driver recruitment/verification · late/failed delivery · dispatch backlog (trigger: &gt; 10 unassigned &gt; 15 min).</p>
+        <div class="callout fence"><b>Fences:</b> no route optimization (2D) · no fleet APIs · no multi-stop batching.</div>
+        <div class="callout gate"><b>Exit gate (Source §22.3):</b> delivery cost/time/success/cancellation/assignment-time data reliable; volume justifies operating cost.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p3">PHASE 3</span><h3>Payments, Settlement &amp; Monetization</h3><span class="ph-window">8–12 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> <code>payments/</code> module — provider adapter port (<code>authorize/capture/refund/parseWebhook/reconcile</code>); activate the double-entry ledger; settlement engine (weekly cycles; merchant + driver payouts per Source §17.4 composition); commission engine (waivers → category rates); Free/Pro subscriptions; refunds; daily reconciliation job.</p>
+        <p class="small">Migrations: <code>0017_payments</code> · <code>0018_ledger</code> · <code>0019_settlements</code> · <code>0020_subscriptions</code>. Endpoints: <span class="m m-post">POST</span> <code>/v1/payments/intents</code> · <span class="m m-post">POST</span> <code>/v1/webhooks/{provider}</code> (signature-verified, idempotent) · <span class="m m-get">GET</span> <code>/v1/finance/settlements</code> · <span class="m m-post">POST</span> <code>/v1/admin/refunds</code> · <span class="m m-get">GET</span> <code>/v1/merchant/subscription</code> + upgrade.</p>
+        <p><b>Frontend:</b> hosted provider SDK checkout (card data never enters platform scope); COD two-step capture at POD; payment status in order timeline; admin finance console (payments monitor, settlement runs, refund approvals, reconciliation exceptions, revenue reports).</p>
+        <div class="callout warn"><b>Non-negotiables (I10).</b> Payment state transitions <b>only</b> on provider webhook · correlation IDs + idempotency end-to-end · ledger writes only from confirmed payment state · <code>order_financial_breakdown</code> has been shadow-populated since P1 — this phase <i>activates</i> it, not retrofits it.</div>
+        <p class="small"><b>Playbooks:</b> payment failure · chargeback · COD shortfall · reconciliation exception triage (target &lt; 0.5%).</p>
+        <div class="callout fence"><b>Fences:</b> no trade credit (P7, regulated partners only) · no multi-currency · no split payments.</div>
+        <div class="callout gate"><b>Exit gate (Source §23.3):</b> unit economics visible and improving · payment success rate · reconciliation accuracy · refunds/disputes support proven.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p4">PHASE 4</span><h3>B2C Marketplace</h3><span class="ph-window">10–14 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> activate <code>price_lists.channel='B2C'</code> (zero migration — §6.2 #4); serviceability areas; org-less consumer identity; consumer checkout (prepaid + COD); favorites; <b>Smart Reorder v1</b> (rules: median replenishment interval × last qty; <code>reorder_suggestions</code> served via digest).</p>
+        <p class="small">Migrations: <code>0021_consumer</code> · <code>0022_service_areas</code>. Endpoints: <span class="m m-get">GET</span> <code>/v1/consumer/stores/nearby</code> · <span class="m m-get">GET</span> <code>/v1/consumer/products</code> · <span class="m m-post">POST</span> <code>/v1/consumer/orders</code> · <span class="m m-get">GET</span> <code>/v1/reorder/suggestions</code>.</p>
+        <p><b>Frontend:</b> consumer flavor (nearby stores, store/product pages, cart, checkout, live tracking reusing P2, ratings, favorites, reorder card); consumer web SEO surface. <b>GTM:</b> staged store onboarding by readiness score (Source §24.3).</p>
+        <div class="callout fence"><b>Fences:</b> single-store consumer carts at launch · no consumer credit · no subscription commerce.</div>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 4):</b> B2C MAU · conversion · repeat consumer order rate · AOV.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p5">PHASE 5</span><h3>Advertising &amp; Merchant Analytics</h3><span class="ph-window">12–16 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> <code>ads/</code> module — campaigns, ad items, placements (SEARCH_RESULT, CATEGORY, STORE_PAGE, HOME), budget pacing (daily caps, Redis counters), frequency capping, event pipeline into partitioned <code>ad_events</code>, ROAS reporting, ad policy moderation queue.</p>
+        <p class="small">Migrations: <code>0023_campaigns</code> · <code>0024_ad_events_partitions</code>. Endpoints: <span class="m m-post">POST</span> <code>/v1/ads/campaigns</code> · <span class="m m-get">GET</span> <code>/v1/ads/campaigns/{id}/report</code> · <span class="m m-post">POST</span> <code>/v1/ads/events:batch</code> · <span class="m m-get">GET</span> <code>/v1/analytics/merchant/*</code>.</p>
+        <p><b>Frontend:</b> campaign wizard, ads reporting, analytics dashboards; admin ad-ops console.</p>
+        <div class="callout warn"><b>Ranking guardrail (Source §11.2).</b> Max 1–2 sponsored slots per page, clearly labeled; organic quality dominant; organic conversion monitored as a release-blocking metric.</div>
+        <div class="callout fence"><b>Fences:</b> no ML ranking — rules + quality score only.</div>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 5):</b> ad revenue · ROAS · merchant ad retention · incremental orders — with no organic degradation.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p6">PHASE 6</span><h3>AI &amp; Optimization</h3><span class="ph-window">12–20 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> <code>ai/</code> module behind the AI Gateway port (<code>GENERATE_DESCRIPTION · SUMMARIZE · EXTRACT · CLASSIFY · RECOMMEND · FORECAST</code>) with routing, caching, cost metering, <code>ai_requests</code> audit. Features by KPI: Smart Reorder v2 (repeat-purchase lift) · AI Product Assistant incl. OCR from supplier invoices (time-to-publish) · recommendations Level 2→3 (CTR/conversion) · demand forecasting (MAPE) · price anomaly detection.</p>
+        <p class="small">Migration: <code>0025_ai</code>. Platform: offline evaluation harness, A/B framework, feature store (lite), batch scoring — delivered as a <b>thin separate AI service</b> consuming platform events (first sanctioned extraction, §2.6 rule 5).</p>
+        <div class="callout fence"><b>Fences:</b> every AI feature carries a KPI and kill criteria; no feature ships without an A/B plan (Source §26.2).</div>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 6):</b> recommendation lift · forecast accuracy · reorder adoption · AI-assisted task completion.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p7">PHASE 7</span><h3>Commerce Infrastructure</h3><span class="ph-window">Continuous</span></div>
+      <div class="phase-body">
+        <p><b>Backend:</b> multi-branch/warehouse; advanced employee roles; per-market configurable verification/tax/document rules; ERP/accounting adapters via outbound webhooks + exports; fleet APIs; regulated trade-credit partners; market intelligence (aggregated/anonymized); developer platform (OAuth2 client-credentials, public <code>/v1</code>, rate limits); delivery maturity 2D–2E (batching, Mapbox Optimization).</p>
+        <p><b>Architecture evolution:</b> regional cells (API + PG + Redis + OpenSearch per city) with global control plane; extraction candidates per §2.6 triggers. <b>Playbooks:</b> region-launch runbook with unit-economics checklist before/after (Source §28.3).</p>
+        <div class="callout fence"><b>Fences:</b> no region launches without stable retention in the previous region (Source §35.4).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SECTION 6 ================= -->
+  <section class="sec" id="s6">
+    <h2><span class="no">6</span>Critical Path &amp; Dependencies (§7)</h2>
+    <h3>6.1 Cross-phase critical chain (§7.1)</h3>
+<pre><code>Phase 0 gate (catalog commitments + retailer intent)
+   └─▶ Phase 1 spine: auth → RBAC → catalog+pricing → search → cart → order FSM → notifications
+          └─▶ Phase 2 delivery  (needs READY→ASSIGNED transitions + fulfillment stubs)
+                 └─▶ Phase 3 payments  (needs order volume + ledger shadow data)
+                        └─▶ Phase 4 B2C  (needs delivery + payments + channel-scoped pricing)
+                               └─▶ Phase 5 ads/analytics  (needs audience + event volume)
+                                      └─▶ Phase 6 AI  (needs behavioral + transaction data)
+                                           └─▶ Phase 7 scale  (needs proven unit economics + ops maturity)</code></pre>
+    <div class="callout improve"><b>[Improvement] Story-level sequencing rules.</b> The <code>orders</code> module cannot begin checkout until <code>pricing</code> exposes <code>resolvePrice(variantId, listId, qty)</code>; the notifications dispatcher must land by M5 or order E2E fails; the admin verification queue must be live before the first real merchant signs up (M2); <code>packages/contracts</code> v0 for a module freezes before its UI work starts.</div>
+
+    <h3>6.2 Expensive-to-retrofit decisions — correct in Phase 1 or never (§7.2)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>#</th><th>Decision</th><th>Where enforced in this spec</th><th>Cost of getting it wrong</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>User/Org/Role/Permission separation</td><td>§2.1, <code>0001_identity</code></td><td>Identity re-design breaks every table and token</td></tr>
+        <tr><td>2</td><td>Master order + sub-orders per supplier</td><td>§3.6, <code>0006_orders</code></td><td>Settlement, returns, ratings corrupted at multi-supplier scale</td></tr>
+        <tr><td>3</td><td>Price/promotion snapshots + financial breakdown</td><td>§3.5–3.6 (<code>unit_price_minor</code>, breakdown table)</td><td>Audit and P3 ledger lose historical truth</td></tr>
+        <tr><td>4</td><td><code>price_lists.channel</code> + <code>audience</code></td><td>§3.5 DDL — present from day one</td><td>P4 requires a pricing migration under live traffic</td></tr>
+        <tr><td>5</td><td>Event taxonomy + transactional outbox</td><td>§2.6, App. A, <code>outbox_events</code></td><td>Analytics/notifications/search silently diverge</td></tr>
+        <tr><td>6</td><td>UUIDv7 + <code>organization_id</code> scoping</td><td>§2.2, §2.9</td><td>Multi-tenancy retrofit = highest-severity security class</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>6.3 Parallelization lanes (§7.3)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Lane</th><th>Tracks</th><th>Constraint</th></tr></thead>
+      <tbody>
+        <tr><td>A (core)</td><td>auth → catalog → orders → notifications</td><td>The critical path — never starved; 2 engineers minimum</td></tr>
+        <tr><td>B (surfaces)</td><td>web app, admin console, marketing site</td><td>Consumes Lane A contracts only — no direct API assumptions</td></tr>
+        <tr><td>C (data)</td><td>event pipeline, funnels, KPI dashboards</td><td>Contracts frozen at M4</td></tr>
+        <tr><td>D (ops)</td><td>onboarding playbooks, merchant recruiting, support tooling</td><td>Runs from Phase 0</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 7 ================= -->
+  <section class="sec" id="s7">
+    <h2><span class="no">7</span>Testing &amp; Quality Gates (§9)</h2>
+    <h3>7.1 Test strategy (§9.1)</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Layer</th><th>Scope</th><th>Tooling</th><th>Gate</th></tr></thead>
+      <tbody>
+        <tr><td>Unit</td><td>Pricing resolution, tier selection, FSM guards, ledger math</td><td>Vitest</td><td>≥ 85% domain coverage; CI-blocking</td></tr>
+        <tr><td>Integration</td><td>Module APIs + real PG/PostGIS/Redis</td><td>Vitest + Testcontainers</td><td>CI-blocking</td></tr>
+        <tr><td>Contract</td><td>OpenAPI conformance; generated clients compile</td><td>Schemathesis vs. contracts</td><td>CI-blocking</td></tr>
+        <tr><td>E2E</td><td>Critical flows on staging</td><td>Playwright + API suites</td><td>Pre-release</td></tr>
+        <tr><td>Load</td><td>Checkout, search, location ingestion, webhook storms</td><td>k6 (E7)</td><td>p95 budgets at every phase exit</td></tr>
+        <tr><td>Security</td><td>SAST, dependency + secrets scan; pen test</td><td>CI + external</td><td>Pen test blocking for P3</td></tr>
+        <tr><td>Mobile</td><td>Device matrix (low-end Android priority), offline sim, RTL screenshots</td><td>Firebase Test Lab</td><td>Pre-release</td></tr>
+        <tr><td>Usability</td><td>Merchant task flows with real users</td><td>Moderated sessions</td><td>Phase-exit criterion</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>7.2 Automated critical-scenario suite (§9.2) — required E2E cases</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>#</th><th>Scenario</th><th>Given / When / Then</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Accept after stock change</td><td>Stock = 5; buyer orders 8; merchant partial-accepts 5 → <b>then</b> reserved = 5, buyer sees per-line delta, order PARTIALLY_ACCEPTED</td></tr>
+        <tr><td>2</td><td>Tier resolution + snapshot</td><td>3 tiers; qty lands in tier 2 → <b>then</b> <code>unit_price_minor</code> = tier-2 price on the item, not current list price</td></tr>
+        <tr><td>3</td><td>Re-price guard</td><td>Price list edited post-checkout; merchant accepts → <b>then</b> <code>409 price_changed</code> with deltas; confirm endpoint completes with new price</td></tr>
+        <tr><td>4</td><td>Payment failure + duplicate webhook</td><td>Failed intent retried; same webhook twice → <b>then</b> one transition, second ignored, idempotent 200</td></tr>
+        <tr><td>5</td><td>Driver failure mid-delivery (P2)</td><td>Job ASSIGNED, driver offline → <b>then</b> reassignment returns job to UNASSIGNED with events intact</td></tr>
+        <tr><td>6</td><td>Weak connectivity replay</td><td>3 queued status updates posted after reconnect → <b>then</b> applied in order, final state correct</td></tr>
+        <tr><td>7</td><td>WebSocket interruption</td><td>Socket drops mid-order → <b>then</b> <code>resync</code> + REST produces the same final state as a never-disconnected client</td></tr>
+        <tr><td>8</td><td>Dispute after POD</td><td>Dispute opened with photo evidence → <b>then</b> evidence bundle immutable, history shows DISPUTED actor</td></tr>
+        <tr><td>9</td><td>Partial multi-supplier cancellation</td><td>3-supplier master order; one sub-order cancelled → <b>then</b> other two untouched; master status derived correctly</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>7.3 Non-functional budgets (§9.3)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Metric</th><th>Budget</th><th>Verified by</th></tr></thead>
+      <tbody>
+        <tr><td>API read p95 / write p95</td><td>&lt; 400 ms / &lt; 800 ms</td><td>k6 profile per phase exit</td></tr>
+        <tr><td>Search p95</td><td>&lt; 300 ms</td><td>k6 + OTel dashboards</td></tr>
+        <tr><td>Mobile cold start (mid-range Android)</td><td>&lt; 2.5 s</td><td>Firebase Test Lab</td></tr>
+        <tr><td>Web first meaningful paint</td><td>&lt; 1.8 s</td><td>Lighthouse CI</td></tr>
+        <tr><td>Checkout availability (SLO)</td><td>99.9%</td><td>Alerting</td></tr>
+        <tr><td>Crash-free sessions</td><td>≥ 99.5%</td><td>Crash reporting</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>7.4 CI/CD pipeline</h3>
+<pre><code>PR:      lint → typecheck → boundary-lint (E6) → unit → integration → contract (Schemathesis)
+         → build (docker api/web/admin; flutter debug builds)
+         → preview env deploy → smoke tests
+
+main:    all of PR + E2E (staging) + k6 smoke + Lighthouse CI + axe-core (a11y)
+         → staging deploy (auto) → migration gate (reviewed, forward-only)
+
+release: prod blue-green deploy (manual approval) → migration window → post-deploy
+         smoke + error-budget watch for 1 h → automatic rollback on SLO breach</code></pre>
+    <p class="small">Quality gates enforced by CI: coverage ≥ 85% on domain modules · zero boundary-lint violations · OpenAPI diff reviewed when <code>packages/contracts</code> changes · migration SQL diff reviewed when <code>drizzle/</code> changes · no new dependency without lockfile entry.</p>
+  </section>
+
+  <!-- ================= SECTION 8 ================= -->
+  <section class="sec" id="s8">
+    <h2><span class="no">8</span>Risk Register &amp; Mitigations (§8.1)</h2>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>ID</th><th>Risk</th><th>Impact</th><th>Mitigation</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>Weak supply at launch</td><td>Retailers find nothing; churn</td><td>Anchor suppliers in P0; concierge import; intake template</td><td>0–1</td></tr>
+        <tr><td>R2</td><td>Weak demand</td><td>Merchants see no value</td><td>Small launch area, field sales, first-order incentives</td><td>1</td></tr>
+        <tr><td>R3</td><td>Poor product data quality</td><td>Weak search/conversion</td><td>ImportWizard validation; moderation queue; AI assist later</td><td>1–6</td></tr>
+        <tr><td>R4</td><td>Premature complexity</td><td>Delayed launch</td><td>Scope fences are CI/PR-enforceable; monolith only (§1.2)</td><td>All</td></tr>
+        <tr><td>R5</td><td>Fraud / fake accounts</td><td>Financial + trust loss</td><td>Verification flow, device fingerprinting, velocity rules, rate limits</td><td>1–3</td></tr>
+        <tr><td>R6</td><td>Negative unit economics</td><td>Growth amplifies losses</td><td>Contribution margin per order in admin KPIs; phase gates</td><td>All</td></tr>
+        <tr><td>R7</td><td>Single-provider dependency</td><td>Operational outage</td><td>Adapter ports + benchmarked second provider per spike</td><td>1–3</td></tr>
+        <tr><td>R8</td><td>Payment webhook loss/duplication</td><td>Money mismatch</td><td>Signed idempotent webhooks; ledger invariants tested; daily reconciliation</td><td>3</td></tr>
+        <tr><td>R9</td><td>Delivery experience failure</td><td>Trust damage</td><td>Start manual dispatch (2A); ETA ranges; POD mandatory</td><td>2</td></tr>
+        <tr><td>R10</td><td>Location-data privacy breach</td><td>Legal + trust</td><td>90-day raw retention (§3.12); purpose-scoped access</td><td>2</td></tr>
+        <tr><td>R11</td><td>Arabic search relevance</td><td>Discovery failure</td><td>Normalization layer (§2.4); search→order conversion monitored; OpenSearch trigger pre-agreed</td><td>1</td></tr>
+        <tr><td>R12</td><td>SMS OTP delivery variance</td><td>Signup drop-off</td><td>Two providers from day one; WhatsApp fallback</td><td>1</td></tr>
+        <tr><td>R13</td><td>Scope creep from merchants</td><td>Launch slip</td><td>Feature Addition Decision Framework via Product Council</td><td>All</td></tr>
+        <tr><td>R14</td><td>Key-person dependency</td><td>Bus factor</td><td>Contracts as source of truth; pairing; runbooks in docs/</td><td>All</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout improve"><b>Improvement register — implemented, not restated.</b> The source plan’s I1–I14 are embedded in this spec: I1→§4.1 matrix · I2→§4.3 re-price guard · I3→§3.4 reservation policy · I4→§3.5 <code>channel</code> column · I5→§3.6 breakdown table · I6→§2.6 outbox · I7→§1.3 flavors · I8→§2.4 normalization · I9→§2.7 contracts · I10→§5.3 non-negotiables · I11→§3.12 partitioning · I12→§5.1 playbooks/SLAs · I13→§5 fences · I14→design-system RTL strategy.</div>
+  </section>
+
+  <!-- ================= APPENDICES ================= -->
+  <section class="sec" id="apa">
+    <h2><span class="no">A</span>Appendix A — Domain Event Taxonomy</h2>
+    <p class="small">Naming: <code>&lt;module&gt;.&lt;entity&gt;.&lt;action&gt;</code>. All events flow through <code>outbox_events</code> with at-least-once delivery; consumers dedupe on event id.</p>
+    <ul>
+      <li><b>Identity / Merchant:</b> <code>identity.user.registered</code> · <code>merchant.store.created</code> · <code>merchant.verification.submitted/approved</code></li>
+      <li><b>Catalog / Inventory / Pricing:</b> <code>catalog.product.published/rejected</code> · <code>catalog.import.completed</code> · <code>inventory.stock.adjusted/reserved/released</code> · <code>pricing.price_list.updated</code></li>
+      <li><b>Orders:</b> <code>order.submitted</code> · <code>order.accepted</code> · <code>order.partially_accepted</code> · <code>order.rejected</code> · <code>order.status.changed</code> · <code>order.cancelled</code> · <code>order.completed</code></li>
+      <li><b>Trust / Support:</b> <code>review.created</code> · <code>dispute.opened/resolved</code> · <code>notification.dispatched</code></li>
+      <li><b>Phase 2:</b> <code>delivery.job.created/assigned/accepted</code> · <code>delivery.job.status.changed</code> · <code>delivery.pod.submitted</code> · <code>delivery.eta.updated</code></li>
+      <li><b>Phase 3:</b> <code>payment.initiated/captured/failed/refunded</code> · <code>settlement.completed</code></li>
+      <li><b>Phase 4–5:</b> <code>consumer.order.placed</code> · <code>reorder.suggestion.served</code> · <code>ad.campaign.launched</code> · <code>ad.impression/click/conversion</code></li>
+    </ul>
+  </section>
+
+  <section class="sec" id="apb">
+    <h2><span class="no">B</span>Appendix B — Phase 1 API Endpoint Index</h2>
+    <p>Canonical index at <code>packages/contracts/openapi.json</code> (generated). Group summary — identical to §5.1; in case of divergence <b>the OpenAPI file wins</b>. Adding an endpoint without a contract change fails CI.</p>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Module</th><th>Count</th><th>Methods / paths (abbreviated)</th></tr></thead>
+      <tbody>
+        <tr><td>auth</td><td>5</td><td>otp/request · otp/verify · refresh · logout · switch-org</td></tr>
+        <tr><td>users</td><td>4</td><td>me (GET/PATCH) · me/organizations · me/devices</td></tr>
+        <tr><td>organizations</td><td>3</td><td>create · members list · members add</td></tr>
+        <tr><td>merchant</td><td>4</td><td>stores create/update · documents upload · public store get</td></tr>
+        <tr><td>catalog</td><td>6</td><td>products create/update · variants · media/presign · imports ×2</td></tr>
+        <tr><td>inventory</td><td>3</td><td>list · adjust · low-stock</td></tr>
+        <tr><td>pricing</td><td>3</td><td>price-lists create · tiers · product pricing</td></tr>
+        <tr><td>promotions</td><td>3</td><td>create · list · offers/nearby</td></tr>
+        <tr><td>search</td><td>3</td><td>search · categories · category products</td></tr>
+        <tr><td>cart</td><td>4</td><td>get · add · update · remove</td></tr>
+        <tr><td>orders</td><td>9</td><td>checkout · list · get · accept · reject · item-confirm · status · cancel · reorder</td></tr>
+        <tr><td>reviews</td><td>2</td><td>create · store reviews</td></tr>
+        <tr><td>notifications</td><td>4</td><td>list · mark-read · preferences get/update</td></tr>
+        <tr><td>admin</td><td>6</td><td>verifications ×2 · orders · merchants · kpis · audit-logs</td></tr>
+        <tr><td>realtime</td><td>1</td><td>WS /v1/realtime</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  </main>
+</div>
+
+<footer class="pagefoot">
+  <p><b>Smart Commerce &amp; Supply Platform</b> — Development &amp; Implementation Plan · v1.0 · September 2026</p>
+  <p>Derived from the Technical &amp; Operational Implementation Plan and UI/UX Design Strategy · Companion: <i>Smart_Commerce_Development_Implementation_Plan.md</i></p>
+</footer>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  function setActive(id){
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (map[id]) map[id].classList.add('active');
+  }
+  if ('IntersectionObserver' in window) {
+    var current = null;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) {
+          if (current !== e.target.id) { current = e.target.id; setActive(current); }
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    targets.forEach(function(t){ io.observe(t); });
+  }
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      setActive(a.getAttribute('href').slice(1));
+      document.getElementById('toc').classList.remove('open');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Smart Commerce & Supply Platform - Final Project Plan</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+:root { --ink:#17202a; --muted:#5e6b75; --accent:#174a5b; --light:#eef4f6; --line:#d8e1e5; }
+*{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);line-height:1.55;font-size:10.4pt;margin:0;background:#fff}
+h1{font-size:24pt;line-height:1.15;color:var(--accent);margin:0 0 8px} h2{font-size:16pt;color:var(--accent);margin:26px 0 9px;border-bottom:1px solid var(--line);padding-bottom:4px;page-break-after:avoid} h3{font-size:12.5pt;color:#214b57;margin:18px 0 6px;page-break-after:avoid}
+p{margin:7px 0} ul,ol{margin:6px 0 9px 22px} li{margin:3px 0}
+.cover{padding:28mm 8mm 16mm;min-height:245mm;display:flex;flex-direction:column;justify-content:center} .kicker{font-size:11pt;letter-spacing:.6px;color:var(--muted);font-weight:bold;text-transform:uppercase}.tagline{font-size:13pt;margin:13px 0 26px;color:#33454e}.meta{color:var(--muted);font-size:10pt}
+.callout{background:var(--light);border-left:4px solid var(--accent);padding:10px 12px;margin:11px 0;page-break-inside:avoid}.decision{background:#f5f6f2;border-left-color:#68704a}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:10px 0}.card{border:1px solid var(--line);padding:9px;border-radius:4px;page-break-inside:avoid}.card b{display:block;color:var(--accent);margin-bottom:3px}
+table{width:100%;border-collapse:collapse;margin:10px 0 14px;font-size:9.2pt;page-break-inside:auto} thead{display:table-header-group} tr{page-break-inside:avoid} th,td{border:1px solid var(--line);padding:6px 7px;vertical-align:top} th{background:#eaf0f2;color:#173f4b;text-align:left}
+code,.mono{font-family:"DejaVu Sans Mono",monospace;font-size:9pt;background:#f3f5f6;padding:1px 3px;border-radius:2px} pre{background:#f4f6f7;border:1px solid var(--line);padding:9px;white-space:pre-wrap;font-size:8.8pt;page-break-inside:avoid}
+.small{font-size:9pt;color:var(--muted)} .toc{columns:2;column-gap:28px}.toc a{color:var(--accent);text-decoration:none}.pagebreak{page-break-before:always}.footer-note{font-size:8.5pt;color:var(--muted);margin-top:25px}
+.section-intro{color:#37474f}.emph{font-weight:bold;color:var(--accent)}
+@media print{a{text-decoration:none;color:inherit}}
+</style>
+</head><body>
+<section class="cover">
+<div class="kicker">Final Project Document</div>
+<h1>Smart Commerce & Supply Platform</h1>
+<div class="tagline">B2B + B2C + Logistics + Advertising + Data &amp; AI</div>
+<p><b>Vision:</b> Transform the local trade supply chain from relationship-driven communication and manual ordering into a trusted digital network connecting suppliers, retailers, consumers, delivery, and data in one platform.</p>
+<div class="callout decision"><b>Central strategic recommendation:</b> Launch B2B first in a defined geographic market and product category. Add delivery and settlement capabilities next, then expand into B2C, advertising, and data/AI only after repeat transactions and sustainable unit economics are demonstrated.</div>
+<div class="meta"><b>Prepared as:</b> Strategic, technical, product, operational, and go-to-market planning document<br><b>Date:</b> September 2026</div>
+</section>
+
+<section class="pagebreak">
+<h2>Executive Summary</h2>
+<p>The proposed project is a multi-sided digital platform for local trade, procurement, and distribution. It starts with the wholesale market, connecting wholesalers with retailers, and then expands progressively into delivery, payments, consumer commerce, digital advertising, analytics, and artificial intelligence. The objective is not to build another online store, but to create <span class="emph">digital infrastructure for local commerce</span>.</p>
+<p>The platform's core value comes from combining four needs in one environment: supplier and product discovery, B2B purchasing, delivery execution and tracking, and the use of transaction data to improve purchasing, selling, pricing, and promotion decisions.</p>
+<p>The project should not launch all capabilities in a single release. It should be delivered in consecutive phases, with Phase 1 producing a commercially usable product that can be deployed to real merchants. Every later phase should be conditional on measurable growth, usage, operating readiness, and unit economics.</p>
+<h3>What differentiates the project?</h3>
+<ul><li>B2B wholesale-to-retail marketplace with quantity pricing, promotions, purchasing, RFQ, and negotiation.</li><li>A delivery network that can be operated by the merchant, trusted independent drivers, or logistics partners.</li><li>Merchant and driver verification, ratings, reputation, and trust scoring.</li><li>Personalized content and offers based on behavior, location, interests, and transaction history.</li><li>A data and business-intelligence engine that can later support demand forecasting, smart reorder, and price intelligence.</li><li>An advertising platform that turns the marketplace into a sales and marketing channel, not merely a transaction channel.</li></ul>
+<h3>Guiding implementation principle</h3>
+<p>The architecture should be scalable from day one, but the first release must not attempt to solve every future requirement. The recommended starting point is a <b>Modular Monolith</b> with clear domain boundaries, PostgreSQL + PostGIS, Flutter for mobile, Next.js for web, NestJS + TypeScript for backend services, Redis for caching/temporary state, WebSockets for real-time functions, and integrations for maps and notifications.</p>
+</section>
+
+<h2>2. Vision, Mission, and Objectives</h2>
+<h3>2.1 Vision</h3><p>Become the core digital infrastructure for local commerce in every market the platform enters, enabling merchants to discover suppliers and manage procurement, orders, delivery, collections, and analytics from a single environment.</p>
+<h3>2.2 Mission</h3><p>Enable wholesalers and retailers to increase sales while reducing procurement cost and operational time, and later enable consumers to access local stores and products through a trusted, fast, and intelligent platform.</p>
+<h3>2.3 Objectives</h3>
+<ul><li>Digitize wholesale procurement and supply operations.</li><li>Increase wholesalers' reach to retailers and customers.</li><li>Reduce the time and cost required to find suppliers and place orders.</li><li>Provide a measurable delivery and tracking system.</li><li>Build reputation and trust records for merchants, buyers, and delivery providers.</li><li>Provide paid marketing and advertising tools for merchants.</li><li>Use data to provide commercial recommendations and analytics.</li><li>Build diversified revenue streams rather than relying only on transaction commission.</li><li>Expand gradually into new cities, categories, and markets.</li></ul>
+<h3>2.4 Long-term scope</h3>
+<table><thead><tr><th>Layer</th><th>Purpose</th><th>Target phase</th></tr></thead><tbody>
+<tr><td>B2B Marketplace</td><td>Connect wholesalers and retailers and execute purchasing</td><td>1-3</td></tr>
+<tr><td>Logistics</td><td>Delivery assignment, tracking, and proof of delivery</td><td>2-3</td></tr>
+<tr><td>Payments &amp; Settlement</td><td>Payments, collections, settlement, and commissions</td><td>3-4</td></tr>
+<tr><td>B2C</td><td>Connect consumers to local retail stores</td><td>4</td></tr>
+<tr><td>Advertising</td><td>Sponsored advertising and targeting</td><td>5</td></tr>
+<tr><td>Data &amp; AI</td><td>Recommendations, forecasting, reorder, and price intelligence</td><td>5-6</td></tr>
+<tr><td>Commerce OS</td><td>ERP/accounting integrations, credit partnerships, APIs, and advanced services</td><td>7+</td></tr>
+</tbody></table>
+
+<h2>3. Problem Statement and Value Proposition</h2>
+<h3>3.1 Wholesaler problems</h3><ul><li>Limited reach beyond the existing relationship network.</li><li>Manual updates of price lists and promotions through phone calls and messaging.</li><li>Weak visibility into real demand, active areas, and fast-moving categories.</li><li>Orders, delivery, and collections managed through disconnected tools.</li><li>Difficulty building a recurring digital channel that brings customers back.</li></ul>
+<h3>3.2 Retailer problems</h3><ul><li>Manual supplier discovery and price comparison.</li><li>Limited visibility into actual stock, promotions, and availability.</li><li>Repeated ordering through phone calls or messaging.</li><li>High time cost of collecting goods from multiple suppliers.</li><li>Weak historical data about purchases and prices.</li></ul>
+<h3>3.3 Consumer problems</h3><ul><li>Difficulty discovering nearby stores and their available products.</li><li>Unclear offers, prices, and availability.</li><li>Need to visit or contact multiple stores.</li></ul>
+<h3>3.4 Value Proposition</h3>
+<table><thead><tr><th>User</th><th>Core promise</th><th>Value indicator</th></tr></thead><tbody>
+<tr><td>Wholesaler</td><td>List products, reach more stores, and manage orders and delivery in one place.</td><td>More orders + lower acquisition cost</td></tr>
+<tr><td>Retailer</td><td>Discover better suppliers and prices and reorder stock quickly.</td><td>Less time + better price + higher availability</td></tr>
+<tr><td>Delivery driver</td><td>Receive trusted jobs with clear visibility into tasks and earnings.</td><td>Better utilization + transparency</td></tr>
+<tr><td>Consumer</td><td>Discover nearby stores and products and order easily.</td><td>Convenience + speed + transparency</td></tr>
+<tr><td>Platform</td><td>Build a repeat transaction network around which multiple monetization layers can be built.</td><td>GMV + commissions + subscriptions + ads + data services</td></tr>
+</tbody></table>
+
+<h2>4. Business Model and Commerce Ecosystem</h2>
+<h3>4.1 Multi-sided model</h3>
+<p>The platform evolves from a B2B marketplace into a multi-sided local commerce network. Each side increases the value of the others: more suppliers improve selection; more buyers make registration more attractive for suppliers; a reliable delivery network reduces friction; and more transactions generate data that can improve conversion, sales, and advertising revenue.</p>
+<h3>4.2 Revenue engines</h3>
+<table><thead><tr><th>Source</th><th>Description</th><th>Priority</th></tr></thead><tbody>
+<tr><td>Transaction commission</td><td>Percentage of order value or category-specific flat fee.</td><td>Medium at launch, high later</td></tr>
+<tr><td>Merchant subscription</td><td>Free / Pro / Business / Enterprise plans.</td><td>High after value is proven</td></tr>
+<tr><td>Delivery fees</td><td>Service and delivery fees with a platform share where the network is operated by the platform.</td><td>Medium</td></tr>
+<tr><td>Advertising</td><td>Sponsored Products / Stores / Offers / Search Ads.</td><td>High after audience scale</td></tr>
+<tr><td>Data services</td><td>Reports, trends, pricing, and market indicators for merchants.</td><td>Later</td></tr>
+<tr><td>Enterprise integrations</td><td>ERP, API, and advanced integrations for larger organizations.</td><td>Later</td></tr>
+<tr><td>Financial services</td><td>Payment/settlement service fees through regulated partners where permitted.</td><td>Later</td></tr>
+</tbody></table>
+<h3>4.3 Unit economics</h3>
+<p>Economics must be measured per order and per merchant, not only as total revenue. Important measures include GMV, average order value, platform contribution per order, delivery cost, payment fee, support cost, CAC, and repeat-order rate. These measures determine whether expansion creates value or simply increases losses.</p>
+<div class="callout"><b>Launch pricing principle:</b> Avoid a high entry barrier. Make joining and discovering the platform easy. Use a temporary commission waiver or introductory plans to reduce trial friction, then introduce monetization after repeat usage is demonstrated.</div>
+
+<h2>5. Roles and User Experience</h2>
+<h3>5.1 Core roles</h3>
+<table><thead><tr><th>Role</th><th>Core modules</th><th>Priority</th></tr></thead><tbody>
+<tr><td>Wholesale Merchant</td><td>Catalog, Inventory, Pricing, Orders, Promotions, Customers, Delivery, Analytics</td><td>Phase 1</td></tr>
+<tr><td>Retail Merchant</td><td>Search, Suppliers, Cart, Orders, Reorder, Favorites</td><td>Phase 1</td></tr>
+<tr><td>Delivery Driver</td><td>Jobs, Navigation, Status, Proof of Delivery, Earnings</td><td>Phase 2</td></tr>
+<tr><td>Consumer</td><td>Stores, Products, Cart, Checkout, Tracking</td><td>Phase 4</td></tr>
+<tr><td>Platform Admin</td><td>KYC, Moderation, Orders, Finance, Support, Ads, Analytics</td><td>Day 1</td></tr>
+<tr><td>Merchant Employee</td><td>Permission-based access</td><td>Early if required</td></tr>
+<tr><td>Delivery Company</td><td>Fleet, Drivers, Jobs, Settlement</td><td>Advanced</td></tr>
+</tbody></table>
+<h3>5.2 Account model</h3><p>A user should not be represented by a single role such as Wholesaler or Retailer. Separate <b>User</b>, <b>Organization</b>, <b>Role</b>, and <b>Permission</b>. A person may own one company, work for another, or manage a store and warehouse. The platform should support this without redesigning the data model later.</p>
+<h3>5.3 Core user journeys</h3>
+<table><thead><tr><th>Journey</th><th>Steps</th></tr></thead><tbody>
+<tr><td>Wholesaler</td><td>Register → Verify → Create store → Add products → Set price → Publish → Receive order → Accept → Prepare → Pickup/Delivery → Complete</td></tr>
+<tr><td>Retailer</td><td>Register → Set area → Browse/Search → Compare → Cart → Order → Track → Receive → Rate → Reorder</td></tr>
+<tr><td>Driver</td><td>Register → Verify → Work zones/vehicle → Receive job → Accept → Pickup → Navigate → Deliver → Prove delivery → Close job</td></tr>
+<tr><td>Consumer</td><td>Set location → Discover store → Product → Cart → Pay/COD where supported → Track → Rate</td></tr>
+</tbody></table>
+
+<h2>6. Products, Inventory, Pricing, and Promotions</h2>
+<h3>6.1 Product model</h3>
+<table><thead><tr><th>Entity</th><th>Main fields</th></tr></thead><tbody>
+<tr><td>Product</td><td>name, brand, category, SKU, barcode, description, media, status</td></tr>
+<tr><td>ProductVariant</td><td>variant, size, package, unit, weight, attributes</td></tr>
+<tr><td>InventoryItem</td><td>warehouse, quantity_on_hand, reserved, available, reorder_point</td></tr>
+<tr><td>PriceList</td><td>currency, unit, effective dates, customer segment</td></tr>
+<tr><td>PriceTier</td><td>min quantity, max quantity, unit price</td></tr>
+<tr><td>Promotion</td><td>type, conditions, dates, scope, budget, usage limits</td></tr>
+</tbody></table>
+<h3>6.2 Quantity pricing</h3><p>Tiered pricing must be supported from the start because B2B does not operate as a single-price retail catalog. Prices may differ by quantity, customer group, promotion, geography, or contract. The actual agreed price at order completion must also be preserved for auditability.</p>
+<h3>6.3 Promotion engine</h3>
+<ul><li>Percentage or fixed-amount discount.</li><li>Buy X Get Y.</li><li>Quantity-based discounts.</li><li>Time-limited promotion.</li><li>First-order offer.</li><li>Offer for a customer segment.</li><li>Geographic offer.</li><li>Platform-exclusive offer.</li><li>Bundles and product baskets.</li></ul>
+<h3>6.4 Bulk import</h3><p>Bulk Import is an adoption requirement, not a secondary convenience. Merchants should be able to import Excel/CSV files, preview results, validate errors, and publish safely. Later, OCR/AI can extract product data from invoices and supplier price lists.</p>
+<div class="callout"><b>Merchant UX principle:</b> every manual data-entry step should have a faster path where possible: Excel import, copy from an existing product, duplicate a list, import an image/invoice, or accept an automatic suggestion.</div>
+
+<h2>7. Orders, Procurement, RFQ, and Negotiation</h2>
+<h3>7.1 Order lifecycle</h3>
+<table><thead><tr><th>Status</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Draft</td><td>Cart has not yet become an order.</td></tr><tr><td>Submitted</td><td>Order has been sent.</td></tr><tr><td>Pending Confirmation</td><td>Waiting for merchant confirmation.</td></tr><tr><td>Accepted</td><td>Order accepted.</td></tr><tr><td>Partially Accepted</td><td>Some items accepted.</td></tr><tr><td>Payment Pending</td><td>Payment is required/pending.</td></tr><tr><td>Preparing</td><td>Being prepared.</td></tr><tr><td>Ready</td><td>Ready for pickup/delivery.</td></tr><tr><td>Assigned</td><td>Delivery job assigned.</td></tr><tr><td>Picked Up</td><td>Driver has collected the order.</td></tr><tr><td>Out for Delivery</td><td>In transit.</td></tr><tr><td>Delivered</td><td>Delivered to recipient.</td></tr><tr><td>Completed</td><td>Financial/operational process closed.</td></tr><tr><td>Cancelled / Rejected</td><td>Cancelled or rejected.</td></tr><tr><td>Disputed</td><td>Under dispute.</td></tr>
+</tbody></table>
+<h3>7.2 Master Order / Sub Orders</h3><p>As the marketplace grows, one purchase may contain products from multiple merchants. Use a <b>Master Order</b> representing the buyer's purchase intent, with separate <b>Sub Orders</b> per supplier. This simplifies settlement, delivery, returns, commissions, and status management.</p>
+<h3>7.3 Request for Quotation (RFQ)</h3><p>RFQ allows a retailer to publish a bulk purchase request and receive offers from multiple wholesalers. It turns the platform from a catalog into a competitive procurement marketplace and is particularly useful for large, recurring, contract-based, or price-sensitive purchases.</p>
+<h3>7.4 Counter-offer negotiation</h3><p>The buyer can propose a price for a specified quantity and the merchant can accept, reject, or issue a counter-offer. The complete negotiation history should be retained as an unambiguous record for future reference and dispute resolution.</p>
+
+<h2>8. Delivery and Tracking</h2>
+<h3>8.1 Fulfillment models</h3><ul><li>Self-pickup from wholesaler warehouse/store.</li><li>Delivery by wholesaler employee.</li><li>Delivery by a trusted driver linked to the merchant.</li><li>Delivery by an independent driver in the platform network.</li><li>Delivery by a partner logistics company.</li></ul>
+<h3>8.2 Driver selection</h3><p>The dispatch engine should consider distance, ETA, driver availability, vehicle capacity/type, rating, success rate, service zone, task cost, and current workload. Rules can be simple in the first release, then evolve into an optimization engine once sufficient delivery data exists.</p>
+<h3>8.3 Real-time tracking</h3><p>The mobile app should send driver location using an adaptive update rate and show status, location, and ETA to the relevant users. GPS frequency should increase during an active trip and decrease when the driver is stationary, balancing tracking quality, battery consumption, and infrastructure cost.</p>
+<h3>8.4 Proof of Delivery</h3><ul><li>OTP or delivery code.</li><li>Recipient signature when required.</li><li>Delivery photo.</li><li>Date and time.</li><li>Geographic location.</li><li>Recipient name.</li></ul>
+<h3>8.5 Geofencing</h3><p>Later, geofencing can trigger events such as driver approaching, entering the delivery zone, arriving at the exact location, or exceeding the promised window. Treat these as first-class system events linked to orders, notifications, and analytics.</p>
+
+<h2>9. Trust, Ratings, and Disputes</h2>
+<h3>9.1 Verification</h3><p>The platform needs a clear verification path for merchants and delivery providers. Required documents depend on country and sector, so KYC/business verification should be configurable rather than hard-coded for one market.</p>
+<h3>9.2 Trust Score</h3><p>The Trust Score must be explainable enough that it does not become an opaque punishment mechanism. Public-facing badges such as <b>Verified Merchant</b>, <b>Trusted Merchant</b>, and <b>Fast Fulfillment</b> can provide clear signals without exposing every detail of the ranking algorithm.</p>
+<table><thead><tr><th>Dimension</th><th>Example inputs</th></tr></thead><tbody>
+<tr><td>Order reliability</td><td>Completion rate, cancellations, disputes</td></tr><tr><td>Payment</td><td>On-time payment behavior, overdue amounts</td></tr><tr><td>Quality</td><td>Customer ratings, product mismatch</td></tr><tr><td>Operations</td><td>Response time, preparation time</td></tr><tr><td>Delivery</td><td>Carrier reliability, successful delivery</td></tr><tr><td>History</td><td>Activity duration and completed transactions</td></tr>
+</tbody></table>
+<h3>9.3 Disputes</h3><p>Disputes should be attached to the order itself and support photos, video, proof of delivery, and conversation history. Suggested flow: Open dispute → collect evidence → request other party response → platform review → decision → settlement/closure.</p>
+<h3>9.4 Chat</h3><p>Offer chat linked to an order rather than a generic messaging system. Order-linked messages support negotiation and coordination and later become useful evidence in dispute handling.</p>
+
+<h2>10. B2C Consumer Commerce Phase</h2>
+<p>B2C should follow a strong base of retailers and recurring orders. Launching it too early increases complexity and fragments the team. When launched, its purpose is to turn participating retail stores into digital points of sale that can accept consumer demand.</p>
+<h3>10.1 B2C capabilities</h3><ul><li>Discover nearby stores.</li><li>Product catalogs.</li><li>Search and categories.</li><li>Offers.</li><li>Cart and checkout.</li><li>Delivery or pickup selection.</li><li>Tracking.</li><li>Ratings.</li><li>Favorites.</li><li>Smart Reorder.</li></ul>
+<h3>10.2 Subscription vs. commission</h3><p>Retailers may be offered a choice of low fixed subscription, per-order commission, or a hybrid model. The best option should be determined from measured economics: order frequency, order value, and acquisition/servicing cost per store.</p>
+<h3>10.3 Smart Reorder for consumers</h3><p>The system can learn the buying frequency of recurring products and recommend reordering around the expected replenishment date. This turns the app from an occasional shopping tool into a service with recurring utility.</p>
+
+<h2>11. Advertising and Intelligent Personalization</h2>
+<h3>11.1 Advertising types</h3>
+<table><thead><tr><th>Type</th><th>Function</th></tr></thead><tbody>
+<tr><td>Sponsored Product</td><td>Increase product visibility in search/category results.</td></tr><tr><td>Sponsored Store</td><td>Increase store visibility.</td></tr><tr><td>Sponsored Offer</td><td>Highlight an active promotion.</td></tr><tr><td>Search Ads</td><td>Keyword-driven advertising.</td></tr><tr><td>Geo Ads</td><td>Target users in a geographic area.</td></tr><tr><td>Retargeting</td><td>Re-engage users who interacted with a product/store.</td></tr><tr><td>Campaign Bundle</td><td>Combine multiple placements and goals.</td></tr>
+</tbody></table>
+<h3>11.2 Ad decision engine</h3><p>The engine can balance relevance, quality, budget, competition, and probability of click/purchase, with controls that prevent unsuitable ads from reaching users. Record impressions, clicks, conversions, orders, revenue, and ROAS.</p>
+<div class="callout"><b>Important commercial principle:</b> advertising must not destroy search quality. Product quality, relevance, and merchant trust must remain strong ranking factors alongside paid placement.</div>
+<h3>11.3 Personalization</h3><p>Users should not all see the same home page. Ranking can consider location, behavior, purchase history, search history, preferred categories, typical price range, and interaction history. Start with transparent rules and move to ML ranking once enough data exists.</p>
+
+<h2>12. Data and Artificial Intelligence</h2>
+<h3>12.1 Proposed AI/data capabilities</h3><ul><li>Smart Reorder for merchants and consumers.</li><li>Demand Forecasting.</li><li>Price Intelligence and price anomaly detection.</li><li>Smart Basket optimization.</li><li>Product and supplier recommendations.</li><li>AI Product Assistant for product entry and descriptions.</li><li>Natural-language sales and inventory analysis.</li><li>Suspicious activity and fraud/anomaly detection.</li></ul>
+<h3>12.2 Recommendation maturity</h3>
+<table><thead><tr><th>Level</th><th>Approach</th></tr></thead><tbody><tr><td>1</td><td>Rules: best sellers, nearby, active offers, related products</td></tr><tr><td>2</td><td>Collaborative / similarity-based recommendations</td></tr><tr><td>3</td><td>Ranking model based on behavior and conversion</td></tr><tr><td>4</td><td>Forecasting and Next Best Action</td></tr><tr><td>5</td><td>AI assistant combining data, execution, and recommendations</td></tr></tbody></table>
+<h3>12.3 AI Gateway</h3><p>Do not bind the platform to one AI model provider. An AI Gateway should expose a unified interface for description generation, summarization, data extraction, classification, and recommendations, allowing providers or models to be changed without redesigning the product.</p>
+<h3>12.4 Data governance</h3><ul><li>Define who owns data and who can access it.</li><li>Record data source and collection time.</li><li>Separate user data from analytical datasets where appropriate.</li><li>Define retention and deletion policies.</li><li>Control developer and employee access.</li><li>Do not use sensitive merchant data in ways that violate contracts or law.</li></ul>
+
+<h2>13. Advanced Strategic Capabilities</h2>
+<h3>13.1 Smart Basket</h3><p>Instead of optimizing each product independently, the platform can propose the lowest-cost or best-value basket across suppliers, considering unit price, minimum order, delivery cost, stock availability, supplier trust, and expected delivery time.</p>
+<h3>13.2 RFQ Marketplace</h3><p>Retailers can publish large procurement needs and receive multiple supplier offers. This supports large orders, contracts, recurring procurement, and price competition.</p>
+<h3>13.3 Digital Procurement Lists</h3><p>Retailers can save weekly or monthly procurement lists and execute them with one action, while suggested quantities are refreshed using stock levels and expected demand.</p>
+<h3>13.4 Market Intelligence</h3><p>After marketplace scale is achieved, the platform can provide aggregated indicators for demand trends, average prices, emerging categories, and seasonality. Data must be aggregated/anonymized where required and handled consistently with contracts and local law.</p>
+<h3>13.5 Merchant Mini ERP</h3><p>The platform can later expand into sales, inventory, expenses, customers, suppliers, and profitability. This makes the product part of daily merchant operations and increases retention.</p>
+
+<h2>14. Full Marketing Strategy</h2>
+<h3>14.1 Market-entry principle</h3><p>The biggest marketplace challenge is the <b>chicken-and-egg problem</b>. Do not launch across an entire city or country at once. Choose one geographic area and one clear commercial category, then build real density in that area.</p>
+<h3>14.2 Staged go-to-market</h3>
+<table><thead><tr><th>Stage</th><th>Marketing goal</th><th>Tactics</th></tr></thead><tbody>
+<tr><td>Pre-launch</td><td>Build supply</td><td>Recruit anchor suppliers, create catalogs with them, collect retailer target list</td></tr>
+<tr><td>Pilot</td><td>Prove transactions</td><td>Defined area, direct support, introductory offers, manual follow-up</td></tr>
+<tr><td>Growth</td><td>Increase density</td><td>Referral, field sales, content, exclusive offers, partnerships</td></tr>
+<tr><td>Scale</td><td>Expand geographically</td><td>Launch one area at a time and improve CAC/LTV</td></tr>
+<tr><td>Monetize</td><td>Convert activity into revenue</td><td>Subscriptions, ads, commissions, advanced services</td></tr>
+</tbody></table>
+<h3>14.3 Wholesaler acquisition</h3><ul><li>Free registration or founding offer.</li><li>Onboarding team visits the merchant and adds the catalog on their behalf.</li><li>First catalog upload at no charge.</li><li>Reports showing product views and orders.</li><li>Platform-exclusive campaigns.</li><li>Short training and simple educational content.</li><li>Incentives tied to first completed orders, not registrations alone.</li></ul>
+<h3>14.4 Retailer acquisition</h3><ul><li>First-order incentives.</li><li>Referral rewards tied to real completed transactions.</li><li>Show estimated savings versus traditional purchasing when reliable data exists.</li><li>Exclusive offers from anchor suppliers.</li><li>Educational content showing how the platform saves procurement time.</li><li>Field sales teams in launch areas.</li></ul>
+<h3>14.5 Marketing channels</h3>
+<table><thead><tr><th>Channel</th><th>Role</th><th>Measurement</th></tr></thead><tbody>
+<tr><td>Field Sales</td><td>Build supply and demand locally.</td><td>Cost per activated merchant</td></tr>
+<tr><td>WhatsApp / Direct Outreach</td><td>Early reach and follow-up.</td><td>Response / activation</td></tr>
+<tr><td>Social Media</td><td>Awareness, offers, and merchant stories.</td><td>Reach / leads / orders</td></tr>
+<tr><td>Search / SEO</td><td>Capture purchase intent.</td><td>Organic conversions</td></tr>
+<tr><td>Referral</td><td>Reduce CAC.</td><td>K-factor + referred orders</td></tr>
+<tr><td>Partnerships</td><td>Reach business communities and associations.</td><td>Activated businesses</td></tr>
+<tr><td>Content</td><td>Build trust and expertise.</td><td>Engagement + assisted conversion</td></tr>
+</tbody></table>
+<h3>14.6 Messaging by audience</h3>
+<table><thead><tr><th>Audience</th><th>Recommended message</th></tr></thead><tbody>
+<tr><td>Wholesaler</td><td>Expand wholesale sales, reach more stores, and manage orders and delivery from one place.</td></tr>
+<tr><td>Retailer</td><td>Find suppliers, compare prices and offers, and reorder your stock quickly.</td></tr>
+<tr><td>Driver</td><td>Receive trusted jobs, clear tracking, and better control of your earnings and service areas.</td></tr>
+<tr><td>Consumer</td><td>Discover nearby stores, order easily, and track your order to delivery.</td></tr>
+</tbody></table>
+<h3>14.7 Growth loops</h3><ul><li>Wholesaler adds products → more assortment → more searches → more orders → more supplier attraction.</li><li>Retailer orders repeatedly → becomes high-value customer → invites others → demand increases.</li><li>Exclusive offer → visits → orders → conversion data → better targeting → better offers.</li><li>Completed order → stronger rating/trust → better ranking → additional orders.</li></ul>
+<h3>14.8 Referral program</h3><p>Rewards should be tied to value events such as a first paid order or a set of completed orders. Purchase credit or fee reductions can be better than direct cash incentives, with abuse-prevention controls.</p>
+<h3>14.9 Loyalty</h3><p>Build loyalty at platform level: points for orders, reorders, referrals, ratings, and consistency. Rewards should improve purchase frequency and retention, not create unprofitable discounting.</p>
+
+<h2>15. UX and Conversion Strategy</h2>
+<h3>15.1 UX principles</h3><ul><li>Minimize the steps required to complete an order.</li><li>Show the most relevant information first.</li><li>Clearly display price, quantity, and minimum order quantity.</li><li>Make delivery cost and arrival time transparent.</li><li>Provide reorder from previous orders.</li><li>Make order status persistent and easy to resume.</li><li>Support local language and full RTL where required.</li></ul>
+<h3>15.2 Merchant activation</h3><p>True wholesaler activation is not registration. It is: <b>verified + sufficient products published + first order</b>. Onboarding should be designed around this sequence, using progress indicators and direct assistance.</p>
+<h3>15.3 Retailer activation</h3><p>True retailer activation is: registration + area selection + supplier discovery + first order (or meaningful saved supplier) + first completed purchase. Every screen before that milestone should reduce friction.</p>
+<h3>15.4 Non-intrusive notifications</h3><p>Separate notifications into Transactional, Promotional, and Behavioral. Order-related notifications are operational; promotional notifications should follow consent and market rules. Personalization should increase relevance, not notification volume.</p>
+
+<h2>16. Proposed Technical Architecture</h2>
+<h3>16.1 Architecture principle</h3><p>Start with a Modular Monolith with clear domain boundaries, then extract individual modules into independent services only when scale, isolation, or operational independence creates a real need. This preserves development speed while avoiding premature microservice complexity.</p>
+<h3>16.2 Core technologies</h3>
+<table><thead><tr><th>Area</th><th>Recommended technology</th><th>Rationale</th></tr></thead><tbody>
+<tr><td>Mobile</td><td>Flutter</td><td>Cross-platform development with high code/UI reuse.</td></tr>
+<tr><td>Web</td><td>Next.js</td><td>Modern web applications, SEO, and dynamic interfaces.</td></tr>
+<tr><td>Backend</td><td>NestJS + TypeScript</td><td>Structured architecture, scalable services, HTTP/WebSockets, and event patterns.</td></tr>
+<tr><td>Database</td><td>PostgreSQL</td><td>Strong relational model for orders, payments, catalog, and transactional data.</td></tr>
+<tr><td>Spatial</td><td>PostGIS</td><td>Geospatial search, zones, distances, and delivery.</td></tr>
+<tr><td>Cache / State</td><td>Redis</td><td>Caching, rate limiting, temporary state, queues/pub-sub.</td></tr>
+<tr><td>Realtime</td><td>WebSockets</td><td>Delivery tracking, live status, and chat.</td></tr>
+<tr><td>Notifications</td><td>Firebase Cloud Messaging</td><td>Multi-platform push notifications.</td></tr>
+<tr><td>Object Storage</td><td>S3-compatible storage</td><td>Images, video, and files outside the relational database.</td></tr>
+<tr><td>Search</td><td>PostgreSQL initially, then OpenSearch</td><td>Simple start, richer search at catalog scale.</td></tr>
+<tr><td>Maps</td><td>Mapbox / Google Maps / MapLibre</td><td>Maps, directions, ETA, and geographic coverage based on market fit.</td></tr>
+<tr><td>Observability</td><td>OpenTelemetry + backend monitoring</td><td>Tracing, metrics, logs, and production monitoring.</td></tr>
+<tr><td>Deployment</td><td>Docker + CI/CD</td><td>Repeatable environments and gradual scaling.</td></tr>
+</tbody></table>
+<h3>16.3 Logical design</h3>
+<pre>Flutter Apps (Wholesale / Retail / Driver / Consumer)
+                 + Next.js Web + Admin Portal
+                          |
+                 API Gateway / BFF
+                          |
+                 NestJS Modular Backend
+                          |
+      Auth / Catalog / Pricing / Orders / Delivery /
+      Payments / Promotions / Reviews / Ads / Analytics
+                          |
+      PostgreSQL + PostGIS / Redis / Object Storage
+                          |
+      Search / Analytics / Maps / Payments / FCM / AI / ERP</pre>
+<h3>16.4 Backend module boundaries</h3>
+<table><thead><tr><th>Module</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td>Identity &amp; Access</td><td>Users, organizations, roles, permissions, sessions</td></tr>
+<tr><td>Merchant</td><td>Stores, branches, verification</td></tr>
+<tr><td>Catalog</td><td>Products, variants, media</td></tr>
+<tr><td>Inventory</td><td>Stock, warehouses, reservations</td></tr>
+<tr><td>Pricing</td><td>Price lists and quantity tiers</td></tr>
+<tr><td>Promotions</td><td>Campaigns, offers, rules</td></tr>
+<tr><td>Orders</td><td>Cart, orders, state machine</td></tr>
+<tr><td>Delivery</td><td>Drivers, jobs, tracking</td></tr>
+<tr><td>Payments</td><td>Transactions, webhooks, settlement</td></tr>
+<tr><td>Reviews &amp; Trust</td><td>Ratings and reputation</td></tr>
+<tr><td>Advertising</td><td>Campaigns, budgets, measurement</td></tr>
+<tr><td>Notifications</td><td>Push, SMS, email, in-app</td></tr>
+<tr><td>Analytics</td><td>Events, KPIs, reports</td></tr>
+<tr><td>Support</td><td>Tickets and disputes</td></tr>
+</tbody></table>
+
+<h2>17. Data and Financial Model</h2>
+<h3>17.1 Core entities</h3><p>User, Organization, OrganizationMember, Role, Permission, Store, Warehouse, Category, Brand, Product, ProductVariant, InventoryItem, PriceList, PriceTier, Promotion, Cart, Order, OrderItem, Payment, Settlement, Delivery, Driver, DriverLocation, Review, Dispute, Conversation, Message, Campaign, Impression, Click, Notification, AuditLog.</p>
+<h3>17.2 Financial ledger</h3><p>Do not rely on a single <code>total</code> field to represent an order financially. Separate product value, discount, tax where applicable, platform commission, delivery fee, payment fee, and the net payable to each party. Build a ledger with debit/credit entries and transaction references because multi-party settlement becomes essential as the platform scales.</p>
+<h3>17.3 Webhooks and reconciliation</h3><p>A checkout confirmation page is not sufficient proof of payment. Payment success should be confirmed by a trusted provider callback/webhook, using idempotency and correlation IDs, then ledger entries should be created from a known payment state.</p>
+<h3>Conceptual order financial composition</h3>
+<table><thead><tr><th>Item</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Order Amount</td><td>Value of products</td></tr><tr><td>Discount</td><td>Merchant/platform-funded discount</td></tr><tr><td>Delivery Fee</td><td>Delivery charge</td></tr><tr><td>Tax</td><td>Market-specific tax</td></tr><tr><td>Platform Commission</td><td>Platform fee</td></tr><tr><td>Payment Fee</td><td>Payment provider fee</td></tr><tr><td>Merchant Net</td><td>Net payable to merchant</td></tr><tr><td>Driver Net</td><td>Net payable to driver</td></tr><tr><td>Platform Net</td><td>Platform net share</td></tr>
+</tbody></table>
+
+<h2>18. Security, Compliance, and Privacy</h2>
+<h3>18.1 Key controls</h3><ul><li>HTTPS/TLS for all communications.</li><li>Encryption of sensitive data at rest where appropriate.</li><li>Short-lived JWTs + refresh token rotation.</li><li>RBAC and resource permissions at organization level.</li><li>Rate limiting and abuse prevention.</li><li>Audit logs for sensitive actions.</li><li>Secrets management; never store secrets in source control.</li><li>Backups and restoration testing.</li><li>Employee/support access policies.</li><li>API authorization checks on every protected resource.</li></ul>
+<h3>18.2 Location privacy</h3><p>Location is one of the most operationally sensitive datasets in the project. Collect it only when needed, define the purpose, and reduce precision or retention duration when the business need no longer requires it. Separate active delivery location from permanent historical tracking unless there is a clear operational or legal requirement.</p>
+<h3>18.3 Compliance</h3><p>Identity, invoicing, tax, e-commerce, payments, consumer protection, and logistics requirements vary by country. Verification, tax, document, and policy rules should therefore be configurable by market, with local legal review before launching regulated financial or credit functionality.</p>
+
+<h2>19. Phased Development Roadmap</h2>
+<p>Each phase must add a measurable commercial capability, not merely a collection of features. A phase ends with a deployable product increment, followed by a decision based on real usage, economics, and operational readiness. Planning durations below are indicative, not promises; actual duration depends on team size, integrations, testing, and market requirements.</p>
+<table><thead><tr><th>Phase</th><th>Goal</th><th>Planning window</th><th>Output</th></tr></thead><tbody>
+<tr><td>0 - Validation</td><td>Validate problem and market</td><td>4-8 weeks</td><td>Market map, anchor merchants, MVP definition</td></tr>
+<tr><td>1 - B2B MVP</td><td>Launch first usable marketplace</td><td>12-18 weeks</td><td>Operating B2B marketplace</td></tr>
+<tr><td>2 - Delivery</td><td>Integrate delivery and tracking</td><td>8-12 weeks</td><td>Delivery network and live operations</td></tr>
+<tr><td>3 - Payments &amp; Monetization</td><td>Payments, settlement, subscriptions</td><td>8-12 weeks</td><td>Revenue engine</td></tr>
+<tr><td>4 - B2C</td><td>Open the platform to consumers</td><td>10-14 weeks</td><td>B2C marketplace</td></tr>
+<tr><td>5 - Ads &amp; Intelligence</td><td>Advertising and merchant analytics</td><td>12-16 weeks</td><td>Ad platform + analytics</td></tr>
+<tr><td>6 - AI &amp; Optimization</td><td>Prediction and automation</td><td>12-20 weeks</td><td>AI-assisted commerce</td></tr>
+<tr><td>7 - Scale</td><td>Geographic expansion and integrations</td><td>Continuous</td><td>Commerce Infrastructure</td></tr>
+</tbody></table>
+
+<h2>20. Phase 0 - Market Validation and Design</h2>
+<h3>20.1 Objectives</h3><ul><li>Confirm that the problem is real and painful enough to drive repeated use or payment.</li><li>Select the first city/area and commercial category.</li><li>Identify 20-50 potential anchor merchants.</li><li>Define the initial pricing model.</li><li>Build a UX prototype and test the ordering flow.</li></ul>
+<h3>20.2 Deliverables</h3><ul><li>Stakeholder and role map.</li><li>Customer personas.</li><li>Value proposition per segment.</li><li>Competitive map.</li><li>Prioritized MVP backlog.</li><li>Wireframes/prototype.</li><li>Pilot go-to-market plan.</li><li>KPIs and baseline.</li></ul>
+<h3>20.3 Gate to Phase 1</h3><p>Do not enter full development until there is practical evidence that merchants will provide catalogs and accept orders, a group of retailers is willing to use the platform, and the first procurement flow is clear.</p>
+
+<h2>21. Phase 1 - Launchable B2B MVP</h2>
+<h3>21.1 Phase objective</h3><p>Launch a practical platform in a defined area connecting wholesalers and retailers. The MVP should support registration, merchant profiles, product and price display, search, cart creation, B2B ordering, accept/reject, status updates, notifications, and basic ratings. Self-pickup or manually managed/third-party delivery may be used at this stage; a full independent delivery marketplace is intentionally deferred.</p>
+<h3>21.2 Wholesaler capabilities</h3><ul><li>Store and business profile creation.</li><li>Basic verification.</li><li>Category, product, and media management.</li><li>Excel/CSV import.</li><li>Manual available-stock management.</li><li>Quantity pricing.</li><li>Basic promotions.</li><li>Order management.</li><li>Customer list.</li><li>Order notifications.</li></ul>
+<h3>21.3 Retailer capabilities</h3><ul><li>Account and store profile.</li><li>Location/area setting.</li><li>Search and filters.</li><li>Merchant and product pages.</li><li>Cart.</li><li>Purchase order.</li><li>Order history.</li><li>Reorder from a previous order.</li><li>Favorites / saved suppliers.</li><li>Ratings.</li></ul>
+<h3>21.4 Admin capabilities</h3><ul><li>User and merchant management.</li><li>Verification review.</li><li>Category management.</li><li>Moderation of violating products.</li><li>Order monitoring.</li><li>Basic support and disputes.</li><li>KPI reports.</li><li>Audit logs.</li></ul>
+<h3>21.5 Do not build in Phase 1</h3><ul><li>Full independent delivery marketplace.</li><li>Broad B2C.</li><li>Advanced advertising system.</li><li>Complex ML.</li><li>Full ERP accounting.</li><li>Large microservice estate.</li><li>Credit system.</li><li>Complex multi-party settlement before transaction volume exists.</li></ul>
+<h3>21.6 Launch readiness standard</h3>
+<table><thead><tr><th>Area</th><th>Minimum standard</th></tr></thead><tbody>
+<tr><td>Product</td><td>A merchant can publish products without continuous technical support.</td></tr><tr><td>Transaction</td><td>A complete B2B order can be executed end-to-end.</td></tr><tr><td>Support</td><td>Clear support and dispute path.</td></tr><tr><td>Performance</td><td>Acceptable response time in normal use.</td></tr><tr><td>Security</td><td>RBAC, API protection, logs, backups.</td></tr><tr><td>Analytics</td><td>Registration → activation → order → completion measurement.</td></tr><tr><td>Operations</td><td>Assigned ownership for onboarding and live operations.</td></tr>
+</tbody></table>
+
+<h2>22. Phase 2 - Delivery and Tracking</h2>
+<h3>22.1 Components</h3><ul><li>Driver registration and verification.</li><li>Driver task board.</li><li>Manual then automated assignment.</li><li>Trip/job status state machine.</li><li>GPS tracking.</li><li>ETA.</li><li>Proof of delivery.</li><li>Geofencing.</li><li>Task and earnings history.</li><li>Logistics monitoring dashboard.</li></ul>
+<h3>22.2 Internal maturity path</h3>
+<table><thead><tr><th>Level</th><th>Capability</th></tr></thead><tbody><tr><td>2A</td><td>Manual driver assignment + task statuses</td></tr><tr><td>2B</td><td>Driver suggestion based on distance and availability</td></tr><tr><td>2C</td><td>Live tracking and ETA</td></tr><tr><td>2D</td><td>Trip batching and route optimization</td></tr><tr><td>2E</td><td>Multi-sided delivery network</td></tr></tbody></table>
+<h3>22.3 Gate to Phase 3</h3><p>Move forward when delivery volume is high enough to justify operating cost, and there is reliable data on delivery cost, delivery time, success rate, and cancellation rate.</p>
+
+<h2>23. Phase 3 - Payments, Settlement, and Profitability</h2>
+<h3>23.1 Components</h3><ul><li>Payment abstraction layer.</li><li>Integration with one or more payment providers.</li><li>Cash on Delivery where appropriate.</li><li>Financial ledger.</li><li>Settlement cycles.</li><li>Commission engine.</li><li>Merchant subscriptions.</li><li>Refunds.</li><li>Payment reconciliation.</li><li>Financial reporting.</li></ul>
+<h3>23.2 Monetization models</h3><ul><li>Gradual category or plan-based commission.</li><li>Pro merchant subscriptions.</li><li>Delivery fees.</li><li>Paid value-added services.</li></ul>
+<h3>23.3 Gate to Phase 4</h3><p>Technical payment availability is not enough. The platform needs positive or improvable unit economics, transaction-cost visibility, meaningful repeat ordering, merchant satisfaction, and support processes capable of handling refunds and disputes.</p>
+
+<h2>24. Phase 4 - B2C Marketplace</h2>
+<h3>24.1 Objectives</h3><ul><li>Turn existing retail stores into digital stores.</li><li>Acquire consumer traffic.</li><li>Add a new demand channel for retailers.</li><li>Build daily/weekly purchase loops in suitable categories.</li></ul>
+<h3>24.2 Consumer features</h3><p>Discover by location, search, categories, offers, cart, checkout, tracking, ratings, favorites, and Smart Reorder.</p>
+<h3>24.3 B2C launch strategy</h3><p>Do not open B2C to every retailer simultaneously. Start with the most ready stores: clear assortment, reliable fulfillment, and realistic delivery coverage. Expand store count based on conversion and completion rates.</p>
+
+<h2>25. Phase 5 - Advertising and Analytics</h2>
+<h3>25.1 Advertising MVP</h3><ul><li>Create campaign.</li><li>Select product/store.</li><li>Set budget.</li><li>Set duration.</li><li>Geo-targeting.</li><li>Select placements.</li><li>Report impressions, clicks, and orders.</li></ul>
+<h3>25.2 Merchant analytics</h3><ul><li>Views.</li><li>Conversion.</li><li>Top products.</li><li>Sales over time.</li><li>Customer behavior.</li><li>Repeat-order rate.</li><li>Promotion performance.</li><li>Internal price comparison where permitted.</li></ul>
+<h3>25.3 Gate to Phase 6</h3><p>Do not scale advertising until there is enough audience and interaction volume to create real advertiser value. Merchants must have evidence of a real audience with meaningful purchase intent.</p>
+
+<h2>26. Phase 6 - AI and Optimization</h2>
+<h3>26.1 Priority</h3><p>Prioritize AI capabilities that produce measurable business outcomes: smart reorder, product entry, recommendations, forecasting, and anomaly detection.</p>
+<h3>26.2 AI rule</h3><p>Every AI feature must have a KPI. Smart Reorder is measured by lift in repeat purchase rate; Product AI by time-to-publish a correct product; recommendations by CTR, conversion, and attributed revenue. Do not use AI simply because AI is available.</p>
+
+<h2>27. Phase 7 - Commerce Infrastructure</h2>
+<ul><li>Structured geographic expansion.</li><li>Multiple branches and warehouses.</li><li>Advanced merchant employee roles and permissions.</li><li>ERP/API integrations.</li><li>Accounting integrations.</li><li>Delivery companies and fleet integrations.</li><li>Trade-credit partnerships through regulated financial partners.</li><li>Market intelligence.</li><li>Developer platform and partner APIs.</li></ul>
+<div class="callout decision"><b>End-state vision:</b> once merchants depend on the platform for procurement, inventory, orders, delivery, payments, and intelligence, the product becomes closer to a <b>Commerce Operating System</b> than a marketplace alone.</div>
+
+<h2>28. KPIs and Growth Gates</h2>
+<h3>28.1 North Star Metric</h3><p>The recommended North Star is the number of completed and repeated transactions between real merchants, not registration count. Monthly completed/repeated GMV can serve as the central commercial metric, supported by retention metrics.</p>
+<h3>28.2 KPI dashboard</h3>
+<table><thead><tr><th>Area</th><th>Metrics</th></tr></thead><tbody>
+<tr><td>Supply</td><td>Active merchants, active products, stock availability</td></tr><tr><td>Demand</td><td>Active retailers, orders, GMV, AOV</td></tr><tr><td>Retention</td><td>Repeat order rate, D30/D60/D90 retention</td></tr><tr><td>Marketplace</td><td>Conversion, fill rate, cancellation rate</td></tr><tr><td>Logistics</td><td>ETA accuracy, delivery success, cost/order</td></tr><tr><td>Financial</td><td>Revenue, take rate, CAC, LTV, contribution margin</td></tr><tr><td>Ads</td><td>CTR, conversion, ROAS</td></tr><tr><td>Product</td><td>Activation, feature adoption, crash/error rate</td></tr>
+</tbody></table>
+<h3>28.3 Stage gates</h3><p>Every transition gate should consider three dimensions: <b>usage, economics, and operations</b>. Do not move forward because the product has many features; move forward because the current capability is used repeatedly, creates economic value, and the operating team can absorb the next level of scale.</p>
+<h3>28.4 Suggested stage metrics</h3>
+<table><thead><tr><th>Phase</th><th>Decision metrics</th></tr></thead><tbody>
+<tr><td>1</td><td>Activation, first order, completion rate, repeat order, active merchants</td></tr><tr><td>2</td><td>Delivery success, ETA, cost/order, delivery cancellation, assignment time</td></tr><tr><td>3</td><td>Payment success, reconciliation accuracy, contribution/order, revenue/merchant</td></tr><tr><td>4</td><td>B2C MAU, conversion, repeat consumer order, AOV</td></tr><tr><td>5</td><td>Ad revenue, ROAS, merchant ad retention, incremental orders</td></tr><tr><td>6</td><td>Recommendation lift, forecast accuracy, reorder adoption, AI-assisted task completion</td></tr>
+</tbody></table>
+
+<h2>29. Priority Backlog</h2>
+<h3>29.1 P0 - required before launch</h3><p>Authentication/OTP; Users/Organizations/Roles; merchant onboarding and verification; store profile; catalog/categories/products; basic inventory; pricing/price tiers; search/filters; cart/B2B order; order state machine; merchant order management; retailer order history; basic notifications; admin portal; audit logs; baseline analytics.</p>
+<h3>29.2 P1 - early after launch</h3><p>Bulk import; advanced promotions; favorites/saved suppliers; reorder; chat; driver module; live tracking; proof of delivery; payments.</p>
+<h3>29.3 P2 - after growth proof</h3><p>RFQ; negotiation; Smart Basket; B2C; subscriptions; advertising; price intelligence; advanced recommendations.</p>
+<h3>29.4 P3 - scale</h3><p>Demand forecasting; ERP integrations; delivery optimization; trade-credit partnerships; developer APIs; advanced AI assistant.</p>
+
+<h2>30. Quality and Testing</h2>
+<h3>30.1 Test types</h3><ul><li>Unit tests for domain logic and modules.</li><li>Integration tests for orders, payments, notifications.</li><li>API contract tests.</li><li>End-to-end tests for critical flows.</li><li>Load/performance tests before scale expansion.</li><li>Security tests and dependency scanning.</li><li>Mobile device testing.</li><li>Usability testing with real merchants.</li></ul>
+<h3>30.2 Critical scenarios</h3><ul><li>Merchant accepts an order, then inventory changes.</li><li>Multiple quantity price tiers.</li><li>Order changes after acceptance according to policy.</li><li>Payment failure and retry.</li><li>Duplicate payment webhook.</li><li>Driver failure during delivery.</li><li>Weak mobile connectivity.</li><li>WebSocket interruption.</li><li>Dispute after proof of delivery.</li><li>Partial cancellation in a multi-supplier order.</li></ul>
+<h3>30.3 Engineering principle</h3><p>Every financial event and order-state change must be traceable and reconstructable from logs. Sensitive operations should be idempotent when the same request arrives more than once.</p>
+
+<h2>31. Operations and Customer Service</h2>
+<h3>31.1 Pre-scale operating functions</h3><ul><li>Merchant onboarding.</li><li>Verification.</li><li>Catalog assistance.</li><li>Order support.</li><li>Delivery operations.</li><li>Payment reconciliation.</li><li>Dispute handling.</li><li>Fraud review.</li></ul>
+<h3>31.2 Operational SLA</h3><p>Define response targets by issue type: order, payment, delivery, or account. Exact numbers should be set after market discovery, but response time, resolution time, and user satisfaction should be measured from day one.</p>
+<h3>31.3 Playbooks</h3><p>Create a playbook for recurring incidents such as payment failure, missing order, missing item, late driver, unresponsive merchant, compromised account, dispute, or promotion abuse.</p>
+
+<h2>32. Risks and Mitigation</h2>
+<table><thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead><tbody>
+<tr><td>Weak supply</td><td>Retailer cannot find what is needed.</td><td>Start with anchor suppliers and curated catalog.</td></tr>
+<tr><td>Weak demand</td><td>Merchant sees little value.</td><td>Field sales + referral + exclusive offers + small launch area.</td></tr>
+<tr><td>Poor product data</td><td>Weak search and conversion.</td><td>Bulk validation + moderation + AI assistance.</td></tr>
+<tr><td>Delivery problems</td><td>Poor customer experience.</td><td>Start with limited assignment and measure ETA/POD.</td></tr>
+<tr><td>Premature complexity</td><td>Delayed launch.</td><td>Modular Monolith and strict MVP scope.</td></tr>
+<tr><td>Fraud/fake accounts</td><td>Financial loss and lower trust.</td><td>Verification + rate limits + fraud rules.</td></tr>
+<tr><td>Negative economics</td><td>Growth increases losses.</td><td>Contribution margin per order + CAC/LTV discipline.</td></tr>
+<tr><td>Single-provider dependency</td><td>Operational risk.</td><td>Abstraction layers and strategic alternatives.</td></tr>
+<tr><td>Financial disputes</td><td>Losses or reputation damage.</td><td>Ledger + evidence + dispute workflow.</td></tr>
+<tr><td>Low digital adoption</td><td>Merchants do not use the app.</td><td>Human onboarding, product import, simple UX.</td></tr>
+</tbody></table>
+
+<h2>33. Recommended Team</h2>
+<h3>33.1 MVP team</h3>
+<table><thead><tr><th>Role</th><th>Focus</th></tr></thead><tbody>
+<tr><td>Product Manager / Founder</td><td>Vision, priorities, market validation</td></tr><tr><td>UX/UI</td><td>User journeys and design system</td></tr><tr><td>Flutter Engineer(s)</td><td>Mobile applications</td></tr><tr><td>Frontend Engineer</td><td>Next.js web</td></tr><tr><td>Backend Engineer(s)</td><td>NestJS and PostgreSQL</td></tr><tr><td>QA</td><td>Testing and E2E flows</td></tr><tr><td>DevOps/Cloud</td><td>CI/CD, infrastructure, monitoring</td></tr><tr><td>Operations</td><td>Onboarding and merchant support</td></tr>
+</tbody></table>
+<h3>33.2 Post-growth additions</h3><p>Data/ML Engineer, mobile specialists, Security Engineer, SRE, Product Marketing, Growth, Account Managers, Logistics Operations, Finance/Reconciliation, and multi-level customer support.</p>
+
+<h2>34. Financial and Commercial Planning Framework</h2>
+<h3>34.1 Variables to model</h3><ul><li>Monthly GMV.</li><li>Order count.</li><li>Average order value.</li><li>Take rate.</li><li>Subscription revenue.</li><li>Advertising revenue.</li><li>Delivery revenue/cost.</li><li>Payment cost.</li><li>CAC by channel.</li><li>LTV by segment.</li><li>Contribution margin.</li><li>Operating and support cost.</li></ul>
+<h3>34.2 Growth scenarios</h3>
+<table><thead><tr><th>Scenario</th><th>Description</th></tr></thead><tbody><tr><td>Conservative</td><td>Slow growth, one-city focus, strong activation discipline.</td></tr><tr><td>Base</td><td>Balanced growth with gradual geographic expansion.</td></tr><tr><td>Aggressive</td><td>Faster expansion after economics and operating readiness are proven.</td></tr></tbody></table>
+<p>Do not lock final financial assumptions before the launch market, categories, price levels, acquisition cost, delivery cost, and payment fees are known. Build a separate financial model as soon as the target market is selected.</p>
+
+<h2>35. Phase 1 Actual Launch Plan</h2>
+<h3>35.1 Before launch</h3><ul><li>Select a specific launch area.</li><li>Sign/align a group of anchor suppliers.</li><li>Build a real initial catalog.</li><li>Select a Pilot retailer group.</li><li>Train the operations team.</li><li>Test every critical ordering flow.</li><li>Prepare marketing materials.</li><li>Set up analytics and support.</li></ul>
+<h3>35.2 First 30 days</h3><ul><li>Manually oversee every order where necessary.</li><li>Communicate daily with a small merchant group.</li><li>Record failure and drop-off reasons.</li><li>Remove any step that blocks the first order.</li><li>Collect real success stories.</li><li>Run small tests across multiple acquisition channels.</li></ul>
+<h3>35.3 Days 31-90</h3><ul><li>Increase merchant count based on data.</li><li>Target adjacent areas with commercial density.</li><li>Add Bulk Import and Reorder early where useful.</li><li>Expand promotions and referral.</li><li>Start a delivery pilot when order volume justifies it.</li></ul>
+<h3>35.4 Discipline rules</h3><ul><li>Do not expand geographically before retention is stable.</li><li>Do not spend heavily on broad advertising before acceptable CAC is known.</li><li>Do not add features unless they improve a KPI or reduce a clearly identified operating cost.</li><li>Do not open B2C broadly before retailer readiness is proven.</li></ul>
+
+<h2>36. Competitive Moat</h2>
+<p>The interface can be copied. The accumulated network cannot be copied easily. The proposed moat has five connected layers: supplier density in target areas, real transaction data, trust and reputation history, delivery network, and data-driven procurement/intelligence tools.</p>
+<table><thead><tr><th>Moat layer</th><th>How it compounds</th></tr></thead><tbody>
+<tr><td>Supply density</td><td>Number of active suppliers and catalogs in targeted areas</td></tr><tr><td>Demand density</td><td>Active buyers and repeat orders</td></tr><tr><td>Trust graph</td><td>Transaction history, ratings, and commitment</td></tr><tr><td>Logistics network</td><td>Historical delivery time, cost, and driver capability data</td></tr><tr><td>Data intelligence</td><td>Search, purchasing, pricing, and reorder behavior</td></tr><tr><td>Merchant lock-in</td><td>Inventory, orders, analytics, and integrations</td></tr>
+</tbody></table>
+<div class="callout decision"><b>Most important strategic decision:</b> success will not come from the number of features. It will come from building real transaction density in a defined area, then using those transactions to build trust, logistics, data, and intelligence. At that point organic network effects become possible and expansion becomes less risky.</div>
+
+<h2>37. Product Governance and Decision-Making</h2>
+<h3>37.1 Product Council</h3><p>Review KPIs, churn/lost customers, order economics, risks, and proposed features on a regular cadence. Every major feature should have a hypothesis, KPI, cost estimate, and success/stop criterion.</p>
+<h3>37.2 Feature lifecycle</h3><p class="mono">Idea → Discovery → Prototype → Pilot → Release → Measure → Improve / Kill</p><p>This prevents a large backlog of unused features and protects delivery speed and commercial focus.</p>
+<h3>37.3 Data governance</h3><p>Define data-access responsibility, what merchants can see, and what must be aggregated or hidden. Do not sell or share sensitive merchant data in a way that reveals individual competitive intelligence.</p>
+
+<h2>38. Final Recommendations</h2>
+<h3>38.1 Decisions recommended now</h3><ol>
+<li>Adopt a B2B-first vision rather than launching full B2B/B2C simultaneously.</li>
+<li>Select a local launch market and first category before full development.</li>
+<li>Use Flutter for mobile, Next.js for web, and NestJS for backend unless team constraints make another stack materially better.</li>
+<li>Use PostgreSQL + PostGIS as the data core and Redis for speed and temporary state.</li>
+<li>Use a Modular Monolith in Phase 1 with clear domain boundaries.</li>
+<li>Build analytics, auditability, and ledger-ready architecture from the start even if some modules are simplified in the MVP.</li>
+<li>Design Product, Order, and Payment APIs as independent contracts so B2C, logistics, and advertising can be added later.</li>
+<li>Treat merchant onboarding, catalog quality, and repeat ordering as higher priorities than feature count.</li>
+<li>Manage the project through KPI-linked phase gates, not a calendar alone.</li>
+</ol>
+
+<h2>39. Selected Official Technical References</h2>
+<p class="small">These references support the current architectural direction. Final technology decisions should also consider team experience, cost, launch country, compliance requirements, and service-provider availability.</p>
+<table><thead><tr><th>Source</th><th>Link</th><th>Use</th></tr></thead><tbody>
+<tr><td>Flutter - Supported deployment platforms</td><td>https://docs.flutter.dev/reference/supported-platforms</td><td>Supported platforms and versions.</td></tr>
+<tr><td>Flutter - Architectural overview</td><td>https://docs.flutter.dev/resources/architectural-overview</td><td>Cross-platform architecture and code reuse.</td></tr>
+<tr><td>Next.js Documentation</td><td>https://nextjs.org/docs</td><td>Next.js and App Router documentation.</td></tr>
+<tr><td>NestJS - Microservices</td><td>https://docs.nestjs.com/microservices/basics</td><td>Microservice and event patterns.</td></tr>
+<tr><td>NestJS - WebSockets</td><td>https://docs.nestjs.com/websockets/gateways</td><td>WebSocket/Gateway support.</td></tr>
+<tr><td>Firebase Cloud Messaging for Flutter</td><td>https://firebase.google.com/docs/cloud-messaging/flutter/get-started</td><td>Push notifications.</td></tr>
+<tr><td>Mapbox Directions API</td><td>https://docs.mapbox.com/api/navigation/directions/</td><td>Routes, ETA, navigation.</td></tr>
+<tr><td>Mapbox Matrix API</td><td>https://docs.mapbox.com/api/navigation/matrix/</td><td>Travel-time and distance matrices.</td></tr>
+<tr><td>Mapbox Optimization API</td><td>https://docs.mapbox.com/api/navigation/optimization/</td><td>Trip and vehicle route optimization.</td></tr>
+<tr><td>OpenTelemetry Documentation</td><td>https://opentelemetry.io/docs/</td><td>Traces, metrics, and logs.</td></tr>
+</tbody></table>
+
+<h2>40. Appendix A - Key Terms</h2>
+<table><thead><tr><th>Term</th><th>Definition</th></tr></thead><tbody>
+<tr><td>B2B</td><td>Business-to-business commerce, here mainly wholesaler-to-retailer.</td></tr><tr><td>B2C</td><td>Retailer-to-consumer commerce.</td></tr><tr><td>Marketplace</td><td>Platform connecting sellers and buyers and managing their interaction.</td></tr><tr><td>GMV</td><td>Gross Merchandise Value of traded goods, before selected fees/costs according to the financial definition used.</td></tr><tr><td>RFQ</td><td>Request for Quotation from a buyer to one or more suppliers.</td></tr><tr><td>ETA</td><td>Estimated Time of Arrival.</td></tr><tr><td>KYC</td><td>Identity/business verification procedures required by the market.</td></tr><tr><td>RBAC</td><td>Role-Based Access Control.</td></tr><tr><td>Ledger</td><td>Structured financial record of entries, transactions, and settlements.</td></tr><tr><td>Geofencing</td><td>Logic triggered by entering or leaving a defined geographic area.</td></tr><tr><td>Smart Reorder</td><td>Reorder suggestion or execution based on history and expected demand.</td></tr><tr><td>ROAS</td><td>Return on Ad Spend.</td></tr><tr><td>CAC</td><td>Customer Acquisition Cost.</td></tr><tr><td>LTV</td><td>Customer Lifetime Value.</td></tr><tr><td>Modular Monolith</td><td>One deployable application divided internally into independent domain modules.</td></tr><tr><td>Microservices</td><td>Independent services that can be developed, deployed, and scaled separately.</td></tr>
+</tbody></table>
+
+<h2>41. Appendix B - Feature Addition Decision Framework</h2>
+<table><thead><tr><th>Question</th><th>Required answer</th></tr></thead><tbody>
+<tr><td>What problem does it solve?</td><td>Specific and observable.</td></tr><tr><td>Who is affected?</td><td>Clear user segment.</td></tr><tr><td>What is the impact?</td><td>KPI, cost, or revenue impact.</td></tr><tr><td>Does it affect the North Star?</td><td>Directly or through a defensible mechanism.</td></tr><tr><td>Is there a manual workaround?</td><td>Use it during pilot before automating everything.</td></tr><tr><td>What is the build and operating cost?</td><td>Estimated.</td></tr><tr><td>What happens if we do not build it?</td><td>Explicit opportunity cost.</td></tr><tr><td>When do we stop it?</td><td>Predefined kill criteria.</td></tr>
+</tbody></table>
+<p>This framework prevents the project from turning into an oversized feature backlog and protects launch speed and commercial focus.</p>
+<p class="footer-note">End of document.</p>
+</body></html>

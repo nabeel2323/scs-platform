@@ -1,0 +1,1295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Commerce &amp; Supply Platform — Implementation Plan &amp; UI/UX Strategy</title>
+<meta name="description" content="Technical & Operational Implementation Plan and Advanced UI/UX Design Strategy for the Smart Commerce & Supply Platform (Phases 0–7).">
+<style>
+:root{
+  --brand:#174a5b; --brand-500:#1e6178; --brand-700:#0f3340; --brand-100:#e7f0f3; --brand-050:#f2f7f9;
+  --ink:#16232b; --muted:#5b6b74; --line:#d9e2e6; --bg:#f2f5f6; --surface:#ffffff;
+  --ok:#1b7a4b; --ok-bg:#eaf5ef; --warn:#b45309; --warn-bg:#fdf3e7; --err:#b3372f; --err-bg:#fbeeec;
+  --info:#1d5fa8; --info-bg:#e8f1f9; --code-bg:#0f2b36; --amber:#c98a2d;
+  --font:"Inter","Segoe UI",system-ui,-apple-system,Roboto,"Noto Sans Arabic","Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,"SFMono-Regular",Menlo,monospace;
+  --radius:10px; --shadow:0 1px 2px rgba(22,35,43,.06),0 4px 14px rgba(22,35,43,.05);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{line-height:1.25;margin:0 0 .5em;font-weight:700;letter-spacing:-.01em}
+p{margin:.5em 0 .9em}
+ul,ol{margin:.4em 0 .9em;padding-inline-start:1.5em}
+li{margin:.28em 0}
+a{color:var(--brand-500)}
+code{font-family:var(--mono);font-size:.86em;background:var(--brand-050);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+pre{background:var(--code-bg);color:#dcebf1;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.8px;line-height:1.55}
+pre code{background:none;border:none;color:inherit;padding:0;white-space:pre}
+strong{font-weight:700}
+.small{font-size:12.8px;color:var(--muted)}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(140deg,#0c2831 0%,#123c4a 45%,#1e6178 100%);color:#fff;padding:58px 24px 74px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(640px 320px at 88% 12%,rgba(255,255,255,.09),transparent 62%),radial-gradient(520px 300px at 6% 100%,rgba(201,138,45,.16),transparent 60%)}
+.hero-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+.kicker{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#9fc6d4;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+.hero h1{font-size:clamp(28px,4.4vw,44px);color:#fff;margin-bottom:8px}
+.hero .sub{font-size:clamp(16px,2vw,20px);color:#cfe4ec;font-weight:600;margin-bottom:20px}
+.hero .lede{max-width:760px;color:#b9d2dc;font-size:14.5px}
+.meta-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:4px 13px;font-size:12.5px;font-weight:600;color:#e6f1f5}
+.chip.gold{background:rgba(201,138,45,.2);border-color:rgba(201,138,45,.5);color:#f4d9ab}
+
+/* ---------- Layout & TOC ---------- */
+.layout{max-width:1180px;margin:-40px auto 0;display:grid;grid-template-columns:264px minmax(0,1fr);gap:26px;padding:0 24px 72px;position:relative;z-index:2}
+.toc{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 28px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 12px;font-size:13px}
+.toc-title{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:4px 10px 8px}
+.toc a{display:block;color:var(--ink);text-decoration:none;padding:5px 10px;border-radius:6px;line-height:1.35}
+.toc a:hover{background:var(--brand-050)}
+.toc a.active{background:var(--brand);color:#fff;font-weight:600}
+.toc .grp{margin:10px 0 4px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:4px 10px;border-top:1px solid var(--line);padding-top:10px}
+.toc .grp:first-of-type{border-top:none}
+.toc-toggle{display:none}
+
+/* ---------- Sections ---------- */
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px 34px;margin:0 0 26px;scroll-margin-top:20px}
+.sec>h2{display:flex;align-items:baseline;gap:12px;font-size:23px;color:var(--brand-700);border-bottom:2px solid var(--brand-100);padding-bottom:12px;margin-bottom:16px}
+.sec>h2 .no{font-size:13px;font-weight:800;color:#fff;background:var(--brand);border-radius:6px;padding:3px 9px;letter-spacing:.04em;flex:none;transform:translateY(-2px)}
+.sec h3{font-size:17px;color:var(--brand);margin:26px 0 8px}
+.sec h4{font-size:14.5px;color:var(--ink);margin:18px 0 6px}
+.part-banner{background:linear-gradient(120deg,var(--brand-700),var(--brand-500));color:#fff;border-radius:var(--radius);padding:26px 32px;margin:0 0 26px;box-shadow:var(--shadow)}
+.part-banner h2{font-size:24px;color:#fff;margin:0 0 6px}
+.part-banner p{margin:0;color:#cfe4ec;font-size:14px;max-width:820px}
+
+/* ---------- Tables ---------- */
+.tblwrap{overflow-x:auto;margin:12px 0 18px}
+table{width:100%;border-collapse:collapse;font-size:13.2px;line-height:1.5}
+th{background:#eaf1f4;color:#123f4b;text-align:start;padding:8px 11px;border:1px solid var(--line);font-weight:700;font-size:12.3px;letter-spacing:.02em}
+td{padding:7px 11px;border:1px solid var(--line);vertical-align:top}
+tbody tr:nth-child(even) td{background:#f8fafb}
+td code, th code{font-size:.92em}
+
+/* ---------- Callouts ---------- */
+.callout{border-radius:8px;padding:13px 17px;margin:15px 0;border-inline-start:4px solid var(--brand);background:var(--brand-100);font-size:14px}
+.callout b:first-child{color:var(--brand-700)}
+.callout.improve{border-color:var(--ok);background:var(--ok-bg)}
+.callout.improve b:first-child{color:var(--ok)}
+.callout.fence{border-color:var(--err);background:var(--err-bg)}
+.callout.fence b:first-child{color:var(--err)}
+.callout.gate{border-color:#123f4b;background:#eaf1f4}
+.callout.gate b:first-child{color:#123f4b}
+.callout.warn{border-color:var(--warn);background:var(--warn-bg)}
+.callout.warn b:first-child{color:var(--warn)}
+
+/* ---------- Phase cards ---------- */
+.phase{border:1px solid var(--line);border-radius:var(--radius);margin:22px 0;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.phase-head{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 20px;background:linear-gradient(90deg,var(--brand-100),rgba(231,240,243,0))}
+.ph-chip{flex:none;font-weight:800;font-size:13px;color:#fff;background:var(--brand);border-radius:8px;padding:5px 12px;letter-spacing:.03em}
+.ph-chip.p0{background:#5b6b74}.ph-chip.p2{background:#1d5fa8}.ph-chip.p3{background:var(--ok)}.ph-chip.p4{background:var(--brand-500)}.ph-chip.p5{background:var(--amber)}.ph-chip.p6{background:#7a4a9e}.ph-chip.p7{background:var(--brand-700)}
+.phase-head h3{margin:0;font-size:17.5px;color:var(--brand-700)}
+.ph-window{margin-inline-start:auto;flex:none;font-size:12px;font-weight:700;color:var(--brand-700);background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.phase-body{padding:6px 20px 18px}
+.phase-body h4{color:var(--brand);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px}
+
+/* ---------- Flow diagram ---------- */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:var(--brand-050);border:1px dashed var(--line);padding:12px 14px;border-radius:8px;font-size:13px;margin:12px 0}
+.flow .st{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 11px;font-weight:600;color:var(--brand-700);box-shadow:0 1px 2px rgba(22,35,43,.05)}
+.flow .st.key{border-color:var(--brand);background:var(--brand-100)}
+.flow .ar{color:var(--brand-500);font-weight:800}
+
+/* ---------- Cards grid ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:14px 0}
+.mini{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:#fff}
+.mini b{display:block;color:var(--brand-700);margin-bottom:4px;font-size:14px}
+.mini span{font-size:13px;color:var(--muted)}
+
+/* ---------- Design system previews ---------- */
+.sw-row{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.swatch{width:132px;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11px;background:#fff;box-shadow:0 1px 2px rgba(22,35,43,.06)}
+.swatch .c{height:42px}
+.swatch .l{padding:6px 8px;font-family:var(--mono);color:var(--ink);line-height:1.45}
+.swatch .l b{font-family:var(--font)}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:12px;font-weight:700}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.pending{background:var(--info-bg);color:var(--info)}
+.pill.working{background:var(--brand-100);color:var(--brand)}
+.pill.transit{background:var(--info-bg);color:var(--info)}
+.pill.done{background:var(--ok-bg);color:var(--ok)}
+.pill.dead{background:#eef1f3;color:#5b6b74}
+.pill.disputed{background:var(--err-bg);color:var(--err)}
+.demo{border:1px solid var(--line);border-radius:8px;padding:16px;margin:12px 0;background:#fbfdfd}
+.demo h5{margin:0 0 10px;font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.ladder{display:flex;flex-direction:column;gap:6px;max-width:420px}
+.tier{display:grid;grid-template-columns:110px 1fr 92px;gap:10px;align-items:center;font-size:12.5px}
+.tier .bar{height:16px;border-radius:4px;background:var(--brand-100);position:relative;overflow:hidden}
+.tier .bar i{position:absolute;inset:0;background:var(--brand-500)}
+.tier.hit{background:#fff;border:1px solid var(--brand);border-radius:6px;padding:4px 6px}
+.tier.hit .bar i{background:var(--brand)}
+.tier .pr{font-family:var(--mono);font-weight:700;color:var(--brand-700);text-align:end}
+.reorder-card{border:1px solid var(--line);border-radius:8px;max-width:560px;background:#fff;overflow:hidden}
+.reorder-card .rc-h{display:flex;justify-content:space-between;align-items:center;background:var(--brand);color:#fff;padding:9px 14px;font-size:13px;font-weight:700}
+.rc-row{display:grid;grid-template-columns:1fr 92px 70px 84px;gap:8px;align-items:center;padding:9px 14px;border-top:1px solid var(--line);font-size:12.8px}
+.rc-row .nm{font-weight:600}
+.rc-row .cy{font-size:11.5px;color:var(--muted)}
+.rc-row .q{font-family:var(--mono);text-align:center}
+.rc-row .p{text-align:end;font-family:var(--mono);font-weight:700}
+.badge-up{color:var(--warn);font-weight:700;font-size:11px}
+.rc-cta{display:flex;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--brand-050)}
+
+/* ---------- Misc ---------- */
+.btn{display:inline-block;background:var(--brand);color:#fff;font-weight:700;font-size:13px;border-radius:8px;padding:8px 16px;text-decoration:none}
+.kbd{font-family:var(--mono);font-size:11.5px;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+.tag{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:2px 8px;letter-spacing:.03em;vertical-align:middle}
+.tag.t-ok{background:var(--ok-bg);color:var(--ok)}
+.tag.t-warn{background:var(--warn-bg);color:var(--warn)}
+.tag.t-info{background:var(--info-bg);color:var(--info)}
+.tag.t-mut{background:#eef1f3;color:var(--muted)}
+.toc-foot{margin-top:12px;padding:8px 10px 2px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+footer.pagefoot{background:var(--brand-700);color:#b9d2dc;padding:28px 24px;text-align:center;font-size:13px}
+footer.pagefoot b{color:#fff}
+.divider{border:none;border-top:1px solid var(--line);margin:22px 0}
+
+@media (max-width:1080px){
+  .layout{grid-template-columns:1fr}
+  .toc{position:static;max-height:none;display:none;margin-bottom:22px}
+  .toc.open{display:block}
+  .toc-toggle{display:inline-flex;align-items:center;gap:8px;position:static;margin:0 0 14px;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:13.5px;font-family:var(--font);cursor:pointer;box-shadow:var(--shadow)}
+  .layout-inner{display:contents}
+}
+@media (max-width:640px){
+  .sec{padding:22px 18px}
+  .phase-body{padding:4px 14px 16px}
+  .rc-row{grid-template-columns:1fr 70px 60px;grid-auto-rows:auto}
+  .rc-row .p{grid-column:1/-1;text-align:start}
+}
+@media print{
+  .hero{padding:24px;background:#123c4a}
+  .toc,.toc-toggle{display:none!important}
+  .layout{display:block;max-width:none;padding:0}
+  .sec,.phase{box-shadow:none;break-inside:auto}
+  body{background:#fff;font-size:11px}
+  pre{white-space:pre-wrap}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="kicker">Execution-Ready Deliverable · v1.0</span>
+    <h1>Smart Commerce &amp; Supply Platform</h1>
+    <div class="sub">Technical &amp; Operational Implementation Plan + Advanced UI/UX Design Strategy</div>
+    <p class="lede">A phase-gated engineering and design program for the B2B-first local commerce network — translating the strategic plan into modules, schemas, APIs, phase gates, and a complete design system across Wholesaler, Retailer, Driver, and Admin experiences.</p>
+    <div class="meta-chips">
+      <span class="chip">Phases 0–7</span>
+      <span class="chip">Modular Monolith · NestJS · PostgreSQL + PostGIS</span>
+      <span class="chip">Flutter (4 flavors) · Next.js</span>
+      <span class="chip gold">B2B First → Delivery → Payments → B2C → Ads → AI</span>
+      <span class="chip">September 2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" id="toc" aria-label="Table of contents">
+    <div class="toc-title">Contents</div>
+    <div class="grp">Part I — Implementation</div>
+    <a href="#s1">1 · Scope &amp; Deliverables</a>
+    <a href="#s2">2 · Architecture Baseline</a>
+    <a href="#s3">3 · Cross-Cutting Foundations</a>
+    <a href="#s4">4 · Core Data Model</a>
+    <a href="#s5">5 · Order State Machine</a>
+    <a href="#s6">6 · Phase Plans 0–7</a>
+    <a href="#s7">7 · Critical Path &amp; Dependencies</a>
+    <a href="#s8">8 · Risk &amp; Improvement Registers</a>
+    <a href="#s9">9 · Testing &amp; Quality Gates</a>
+    <a href="#s10">10 · Operations Readiness</a>
+    <div class="grp">Part II — UI/UX Strategy</div>
+    <a href="#s11">11 · Philosophy &amp; Principles</a>
+    <a href="#s12">12 · TAIF Design System</a>
+    <a href="#s13">13 · Interaction Model by Role</a>
+    <a href="#s14">14 · Journeys &amp; Screen Flows</a>
+    <a href="#s15">15 · Advanced Interfaces</a>
+    <a href="#s16">16 · Accessibility (WCAG 2.2 AA)</a>
+    <a href="#s17">17 · Localization &amp; RTL</a>
+    <a href="#s18">18 · Responsive Layout</a>
+    <a href="#s19">19 · UX Performance</a>
+    <a href="#s20">20 · Design Operations</a>
+    <div class="grp">Appendices</div>
+    <a href="#apa">A · Event Taxonomy</a>
+    <a href="#apb">B · Phase 1 API Index</a>
+    <div class="toc-foot">Source: <i>Smart_Commerce_Supply_Platform_Final_Plan.html</i> — references cited as “Source §n”.</div>
+  </nav>
+
+  <main class="content">
+
+  <button class="toc-toggle" onclick="document.getElementById('toc').classList.toggle('open')">☰ Contents</button>
+
+  <div class="part-banner">
+    <h2>Part I — Technical &amp; Operational Implementation Plan</h2>
+    <p>Locked architecture decisions, module boundaries, cross-cutting foundations, the canonical data model and order state machine, then a phase-by-phase execution plan (Phase 0 → Phase 7) with scope fences and KPI gates. Every addition beyond the source plan is marked <b>[Improvement]</b>.</p>
+  </div>
+
+  <!-- ================= SECTION 1 ================= -->
+  <section class="sec" id="s1">
+    <h2><span class="no">1</span>Scope &amp; Deliverable Map</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Deliverable</th><th>Contents</th><th>Primary owner</th></tr></thead>
+      <tbody>
+        <tr><td>Architecture baseline</td><td>Locked decisions, module boundaries, repo topology, conventions</td><td>Backend lead / Architect</td></tr>
+        <tr><td>Cross-cutting foundations</td><td>Identity/RBAC, data conventions, search, media, notifications, realtime, observability, security, analytics taxonomy</td><td>Platform engineering</td></tr>
+        <tr><td>Core data model</td><td>Phase 1 entity spine + forward-compatible extensions per phase</td><td>Backend + Data</td></tr>
+        <tr><td>Order state machine</td><td>Canonical statuses, transitions, guards, policies</td><td>Backend + Product</td></tr>
+        <tr><td>Phase plans 0–7</td><td>Tasks, modules, schema deltas, API deltas, scope fences, exit gates</td><td>All leads</td></tr>
+        <tr><td>Critical path &amp; dependencies</td><td>Sequencing, parallelization, “expensive-to-retrofit” decisions</td><td>PM / Architect</td></tr>
+        <tr><td>Risk register</td><td>Source risks + technical risks with mitigations</td><td>PM / Architect</td></tr>
+        <tr><td>UI/UX strategy</td><td>Design system, interaction models, journeys, a11y, RTL, advanced UI</td><td>Design lead</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout"><b>How to read.</b> Part I is the engineering program; Part II is the design strategy. “Source §n” references point to sections of the original strategic plan; <b>[Improvement]</b> marks deliberate additions or clarifications introduced by this document with rationale.</div>
+  </section>
+
+  <!-- ================= SECTION 2 ================= -->
+  <section class="sec" id="s2">
+    <h2><span class="no">2</span>Architecture Baseline</h2>
+
+    <h3>2.1 Locked decisions (Source §16, §38.1)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Decision area</th><th>Choice</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Delivery model</td><td>B2B-first, phase-gated expansion (delivery → payments → B2C → ads → AI)</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Architecture</td><td><b>Modular Monolith</b> with strict domain boundaries; extract services only on proven need</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Backend</td><td>NestJS + TypeScript — single deployable, modular</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Database</td><td>PostgreSQL 16 + PostGIS 3.4</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Cache / state</td><td>Redis 7</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Mobile</td><td>Flutter — <b>one codebase, four flavors</b> (Wholesale / Retail / Driver / Consumer) <b>[Improvement]</b></td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Web</td><td>Next.js (App Router) — retailer/merchant web + marketing; Admin console</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Realtime</td><td>WebSockets via NestJS Gateway (Socket.IO)</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Push</td><td>Firebase Cloud Messaging</td><td><span class="tag t-ok">Locked</span></td></tr>
+        <tr><td>Search</td><td>PostgreSQL FTS + trigram at MVP → OpenSearch when scale/relevance demands</td><td><span class="tag t-info">Staged</span></td></tr>
+        <tr><td>Maps</td><td>Provider-agnostic adapter; Mapbox as reference implementation</td><td><span class="tag t-ok">Locked as adapter</span></td></tr>
+        <tr><td>Object storage / Observability / Deploy</td><td>S3-compatible + CDN · OpenTelemetry · Docker + CI/CD</td><td><span class="tag t-ok">Locked</span></td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>2.2 Module map (one module per bounded context — Source §16.4)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Module</th><th>Responsibility</th><th>First built</th></tr></thead>
+      <tbody>
+        <tr><td>Identity &amp; Access</td><td>Users, organizations, roles, permissions, sessions, OTP</td><td>Phase 1</td></tr>
+        <tr><td>Merchant</td><td>Stores, branches, verification (KYC), business hours</td><td>Phase 1</td></tr>
+        <tr><td>Catalog</td><td>Categories, brands, products, variants, media, bulk import</td><td>Phase 1</td></tr>
+        <tr><td>Inventory</td><td>Stock, warehouses (single-location MVP), reservations, movements</td><td>Phase 1</td></tr>
+        <tr><td>Pricing</td><td>Price lists, quantity tiers, segment/channel resolution</td><td>Phase 1</td></tr>
+        <tr><td>Promotions</td><td>Campaigns, rules, redemptions</td><td>Phase 1 (basic)</td></tr>
+        <tr><td>Orders</td><td>Cart, master/sub orders, state machine, acceptance, history</td><td>Phase 1</td></tr>
+        <tr><td>Reviews &amp; Trust</td><td>Ratings, badges, trust score inputs</td><td>Phase 1 (ratings)</td></tr>
+        <tr><td>Notifications / Analytics / Support</td><td>Multi-channel dispatch · events, funnels, KPIs · tickets, disputes</td><td>Phase 1</td></tr>
+        <tr><td>Delivery</td><td>Drivers, jobs, tracking, POD, dispatch</td><td>Phase 2</td></tr>
+        <tr><td>Payments</td><td>Transactions, webhooks, ledger, settlement, refunds</td><td>Phase 3 <span class="tag t-mut">ledger shadow P1</span></td></tr>
+        <tr><td>Advertising</td><td>Campaigns, budgets, placements, measurement</td><td>Phase 5</td></tr>
+        <tr><td>AI Services</td><td>Gateway, reorder, forecasting, assistants</td><td>Phase 6</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Boundary rules (enforced by lint &amp; review)</h4>
+    <ol>
+      <li>Modules interact only through exported <b>application services</b> (in-process). No module reads another module’s tables directly.</li>
+      <li>Cross-module side effects occur via <b>domain events</b> written to a transactional <b>outbox</b> (<code>outbox_events</code>) and dispatched asynchronously — never fire-and-forget inside a request.</li>
+      <li>Read models that span modules (search results, order lists with product names) are built by query/projection services owned by the consuming module, or denormalized at write time via events.</li>
+      <li>Public HTTP/WS contracts are versioned (<code>/v1/...</code>) and defined in <code>packages/contracts</code> (OpenAPI + generated TS types), shared with web and mobile.</li>
+      <li>Extraction to a separate service is permitted only when a module shows (a) scale divergence, (b) team-ownership boundary, or (c) fault-isolation need (Source §16.1). First likely candidates: delivery-location ingestion and the ads/analytics event pipeline.</li>
+    </ol>
+
+    <h3>2.3 Repository &amp; app topology</h3>
+<pre><code>scs-platform/
+├── apps/
+│   ├── api/              # NestJS modular monolith
+│   ├── web/              # Next.js: marketing + retailer/merchant web app
+│   └── admin/            # Next.js: platform admin console
+├── mobile/               # Flutter single codebase
+│   └── flavors: wholesale | retail | driver | consumer
+├── packages/
+│   ├── contracts/        # OpenAPI specs, DTOs, generated clients
+│   ├── ui-kit/           # web design-system components (Part II)
+│   ├── event-types/      # domain + analytics event schemas
+│   └── mobile-core/      # shared Flutter packages: design system, api client, auth
+└── infra/                # docker-compose, IaC, CI/CD pipelines</code></pre>
+    <div class="callout improve"><b>[Improvement] One Flutter codebase, four flavors.</b> Four separate apps triple the maintenance surface and fragment the design system. A single codebase with product flavors shares the design system, API client, auth, and offline layer (~60–70% code reuse) while producing four independently branded, store-listed apps with per-role release cadence — directly supporting the lean MVP team (Source §33.1).</div>
+
+    <h3>2.4 Environments</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Env</th><th>Purpose</th><th>Data</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>dev</td><td>Local + shared dev</td><td>Seeded fixtures</td><td>docker-compose parity with prod images</td></tr>
+        <tr><td>preview</td><td>Per-PR ephemeral</td><td>Anonymized subset</td><td>Auto-provisioned by CI; smoke-tested</td></tr>
+        <tr><td>staging</td><td>Pre-prod, integration, load tests</td><td>Prod-like, anonymized</td><td>Payment sandbox, FCM test project</td></tr>
+        <tr><td>prod</td><td>Live</td><td>Real</td><td>Migration-gated deploys, blue-green rollout</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>2.5 API conventions</h3>
+    <ul>
+      <li>REST over HTTPS, <code>/v1</code> major-versioned paths, JSON, camelCase fields.</li>
+      <li><b>Auth:</b> <code>Authorization: Bearer &lt;JWT&gt;</code> — 15-minute access tokens, rotating refresh tokens with reuse detection.</li>
+      <li><b>Idempotency:</b> <code>Idempotency-Key</code> required on checkout, payment initiations, and state transitions (Source §30.3). Redis-backed 24&nbsp;h key store.</li>
+      <li><b>Pagination:</b> cursor-based (<code>?limit=50&amp;cursor=</code>); filters/sorts whitelisted per endpoint.</li>
+      <li><b>Concurrency:</b> optimistic version field (<code>If-Match</code> ETag) on mutable catalog/admin resources.</li>
+      <li><b>Rate limiting:</b> Redis token bucket per user/IP/role; <code>X-RateLimit-*</code> headers; stricter buckets on OTP/auth.</li>
+      <li><b>Outbound webhooks (P3+):</b> HMAC-SHA256 signed, timestamp + nonce replay protection, at-least-once with retry/backoff.</li>
+    </ul>
+    <p><b>Errors — RFC 7807 <code>application/problem+json</code>:</b></p>
+<pre><code>{
+  "type": "https://api.example.com/errors/order/invalid-transition",
+  "title": "Invalid order transition",
+  "status": 409,
+  "detail": "Order cannot move from DELIVERED to PREPARING.",
+  "instance": "/v1/orders/ord_9f3c/status"
+}</code></pre>
+
+    <h3>2.6 Domain events &amp; the outbox pattern</h3>
+    <ul>
+      <li>Naming: <code>&lt;module&gt;.&lt;entity&gt;.&lt;action&gt;</code> — e.g. <code>order.status.changed</code>, <code>delivery.job.assigned</code>, <code>payment.captured</code>.</li>
+      <li>Every state-changing service method writes business rows <b>and</b> outbox rows in one DB transaction; a dispatcher publishes to the in-process bus (later, to a broker) with at-least-once delivery; consumers dedupe on event id.</li>
+      <li>This guarantees notifications, analytics, search indexing, and (later) ledger writes never silently miss an order event — the #1 reliability risk in marketplaces. <b>[Improvement — implicit in Source §30.3, made explicit]</b></li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 3 ================= -->
+  <section class="sec" id="s3">
+    <h2><span class="no">3</span>Cross-Cutting Foundations</h2>
+
+    <h3>3.1 Identity, organizations, RBAC (Source §5.2)</h3>
+    <ul>
+      <li>Phone-first identity (OTP), email optional. A <b>User</b> may belong to multiple <b>Organizations</b> via <code>OrganizationMember</code> with a role — a person can own a wholesale company and manage a retail store without data-model changes.</li>
+      <li>Permission keys follow <code>module:resource:action</code> (e.g. <code>catalog:product:publish</code>, <code>orders:accept</code>, <code>finance:refund</code>). Roles are named permission sets; guards check org scope + permission on <b>every</b> protected route and object.</li>
+      <li>JWT carries <code>sub</code>, active-org claim, role, permission digest; switching active organization issues a scoped token.</li>
+      <li>Session management: device list, remote revoke, refresh rotation with theft detection.</li>
+    </ul>
+
+    <h3>3.2 Database conventions</h3>
+    <ul>
+      <li>PostgreSQL 16, PostGIS 3.4; all timestamps <code>timestamptz</code> (UTC). Primary keys: <b>UUIDv7</b> (time-ordered — index- and cursor-friendly).</li>
+      <li><b>Money:</b> integer minor units + ISO currency code. No floats, ever. Single active currency per market at MVP <b>[Improvement]</b> to avoid multi-currency ambiguity.</li>
+      <li>Statuses: <code>varchar</code> + CHECK constraints; JSONB for rule payloads only (promotion conditions, targeting) — never for queryable core fields.</li>
+      <li>Indexing: FK indexes by default; partial indexes on hot queues (e.g. <code>orders WHERE status IN ('PENDING_CONFIRMATION','PREPARING')</code>); GIN on <code>tsvector</code>; GiST on <code>geography</code>.</li>
+      <li>Partitioning (monthly RANGE): <code>driver_locations</code> (P2), <code>analytics_events</code> (P1), <code>ad_events</code> (P5); archived to object storage as Parquet.</li>
+      <li>Migrations: forward-only, CI-gated, reviewed for lock impact; never auto-applied in prod.</li>
+    </ul>
+
+    <h3>3.3 Redis usage</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Use</th><th>Key pattern</th><th>TTL</th></tr></thead>
+      <tbody>
+        <tr><td>Refresh tokens / sessions</td><td><code>sess:{userId}:{sessionId}</code></td><td>30d rotate</td></tr>
+        <tr><td>OTP codes + attempt counters</td><td><code>otp:{phone}</code> / <code>otp:att:{phone}</code></td><td>90 s / 15 m</td></tr>
+        <tr><td>Rate limits</td><td><code>rl:{role}:{userId}:{bucket}</code></td><td>sliding window</td></tr>
+        <tr><td>Idempotency keys</td><td><code>idem:{key}</code></td><td>24 h</td></tr>
+        <tr><td>Catalog read caches / price resolution</td><td><code>cache:prod:{id}</code> · <code>price:{variant}:{list}</code></td><td>60 s–5 m</td></tr>
+        <tr><td>WS presence / dispatch locks</td><td><code>presence:{userId}</code> · <code>lock:{jobId}</code></td><td>heartbeat / bounded</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Cart lives in PostgreSQL (auditability, cross-device resume); Redis caches hot reads only.</p>
+
+    <h3>3.4 Search strategy (staged)</h3>
+    <ul>
+      <li><b>Phase 1:</b> PostgreSQL <code>tsvector</code> + <code>pg_trgm</code> fuzzy matching behind a <code>SearchIndexer</code> port. Arabic normalization layer: diacritics stripping, alef/hamza/taa-marbuta folding. Exact-match fast path for SKU/barcode.</li>
+      <li><b>Trigger to OpenSearch:</b> p95 search latency &gt; 300 ms, active catalog &gt; ~150k SKUs, or measurable relevance failure. The port abstraction means backfill is one adapter + a reindex job, not a rewrite.</li>
+    </ul>
+
+    <h3>3.5 Media pipeline</h3>
+    <p>Presigned S3 PUT direct from clients (large files never traverse the API); async post-processing queue: thumbnails, WebP/AVIF variants, blurhash placeholders, EXIF strip, mimetype sniffing; CDN in front; <code>alt_text</code> captured in schema for accessibility/SEO.</p>
+
+    <h3>3.6 Notifications</h3>
+    <ul>
+      <li>Channel-agnostic dispatch: <code>NotificationService.dispatch(userId, templateKey, params, channels)</code>.</li>
+      <li>Routing rules: OTP → SMS + push; order events → push + in-app; promotions → push only with consent (Source §15.4 Transactional / Promotional / Behavioral separation).</li>
+      <li>FCM adapter first; SMS adapter with <b>multi-provider failover</b> (Source risk: single-provider dependency) and WhatsApp fallback where dominant; email from Phase 3.</li>
+      <li>Quiet hours + per-category preference center; promo sends throttled per user.</li>
+    </ul>
+
+    <h3>3.7 Realtime (WebSockets)</h3>
+    <ul>
+      <li>Socket.IO gateway at <code>/realtime</code>, JWT-authenticated; rooms: <code>user:{id}</code>, <code>org:{id}</code>, <code>order:{id}</code>, <code>job:{id}</code>.</li>
+      <li>Server → client: <code>order.status</code>, <code>delivery.location</code> (batched 3–5 s), <code>delivery.eta</code>, <code>notification.new</code>. Client → server: <code>location.batch</code> (driver), <code>subscribe</code>.</li>
+      <li>Resilience: on reconnect, clients REST-resync state — WebSocket is an optimization, never the source of truth (Source §30.2 “WebSocket interruption”).</li>
+    </ul>
+
+    <h3>3.8 Observability</h3>
+    <p>OpenTelemetry auto-instrumentation (HTTP, PG, Redis) with spans per module service; <code>pino</code> structured logs with <code>requestId</code> correlation; RED metrics per endpoint + business counters (<code>orders_submitted</code>, <code>webhook_failures</code>, <code>dispatch_lag_seconds</code>). SLOs per phase (Phase 1: 99.5% API availability; checkout p95 &lt; 800 ms). Alert routing into ops on-call from day one of pilot.</p>
+
+    <h3>3.9 Security baseline (Source §18.1, operationalized)</h3>
+    <ul>
+      <li>TLS everywhere, HSTS; secrets in a secret manager — never in repo.</li>
+      <li>Short-lived JWTs + rotation; org-scoped RBAC guard + <b>object-level authorization on every resource</b> — the most common vulnerability class in multi-tenant SaaS.</li>
+      <li>OTP throttling + device lockout; Phase 1 fraud rules: signup velocity, duplicate accounts by device fingerprint, order-value outliers.</li>
+      <li>Audit log (append-only: actor, action, resource, before/after, IP) mandatory for verification decisions, refunds, price overrides, admin impersonation.</li>
+      <li>Backups: PITR + daily snapshots; <b>quarterly restore drills</b>. CI: dependency scanning, SAST, secret scanning; external pen test before Phase 3 payments go live.</li>
+      <li>Data classification tiers (PII / financial / location) with role-gated access and location-specific retention (Source §18.2).</li>
+    </ul>
+
+    <h3>3.10 Analytics taxonomy</h3>
+    <p>Client <code>track()</code> SDK → collector → <code>analytics_events</code> (partitioned monthly) on the same event bus as domain events. Canonical activation funnels (Source §15.2–15.3), instrumented from day one:</p>
+    <div class="flow">
+      <span class="st">Wholesaler: registered</span><span class="ar">→</span><span class="st">verified</span><span class="ar">→</span><span class="st">catalog ≥ 20 SKUs</span><span class="ar">→</span><span class="st key">first order received</span><span class="ar">→</span><span class="st">repeat ×3</span>
+    </div>
+    <div class="flow">
+      <span class="st">Retailer: registered</span><span class="ar">→</span><span class="st">area set</span><span class="ar">→</span><span class="st">first search</span><span class="ar">→</span><span class="st key">first order placed</span><span class="ar">→</span><span class="st">completed</span><span class="ar">→</span><span class="st">repeat</span>
+    </div>
+    <p class="small">Naming <code>object_action</code> snake_case; property schemas versioned in <code>packages/event-types</code>; breaking property changes require a new version.</p>
+  </section>
+
+  <!-- ================= SECTION 4 ================= -->
+  <section class="sec" id="s4">
+    <h2><span class="no">4</span>Core Data Model — Phase 1 Spine</h2>
+
+    <h3>4.1 Identity &amp; access</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Entity</th><th>Key fields</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>users</code></td><td>phone (unique), email, full_name, locale, status</td><td>Phone-first; email optional</td></tr>
+        <tr><td><code>organizations</code></td><td>type (WHOLESALER/RETAILER/LOGISTICS/PLATFORM), name, legal_name, tax_id, country, verification_status</td><td>Source §5.2 — org ≠ user</td></tr>
+        <tr><td><code>organization_members</code></td><td>user_id, org_id, role_id, member_status</td><td>Many-to-many</td></tr>
+        <tr><td><code>roles / permissions</code></td><td>permission key <code>module:resource:action</code></td><td>Seeded per phase</td></tr>
+        <tr><td><code>verification_requests</code></td><td>org_id, store_id, doc_type, doc_url, status, reviewer_id, decision</td><td>Configurable doc sets per market (Source §9.1)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4.2 Merchant &amp; stores</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Entity</th><th>Key fields</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>stores</code></td><td>org_id, name, address, <code>location geography(Point,4326)</code>, service_radius, hours</td><td>PostGIS point + optional zone</td></tr>
+        <tr><td><code>warehouses</code></td><td>store_id, name, location</td><td>Single default warehouse in MVP</td></tr>
+        <tr><td><code>business_documents</code></td><td>store_id, type, url, expires_at</td><td>KYC evidence</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4.3 Catalog · inventory · pricing · promotions</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Entity</th><th>Key fields</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>categories</code></td><td>parent_id, path, name, slug</td><td>Materialized path for cheap subtree reads</td></tr>
+        <tr><td><code>products</code></td><td>store_id, category_id, brand_id, name, status (DRAFT/ACTIVE/ARCHIVED/REJECTED), search_vector</td><td>Moderation status per Source §21.4</td></tr>
+        <tr><td><code>product_variants</code></td><td>sku, barcode, unit, package_size, attributes jsonb</td><td>Unit/packaging model per Source §6.1</td></tr>
+        <tr><td><code>import_jobs</code></td><td>file_url, mapping jsonb, status, errors jsonb</td><td>Bulk import (Source §6.4)</td></tr>
+        <tr><td><code>inventory_items</code></td><td>qty_on_hand, qty_reserved, reorder_point</td><td><code>available = on_hand − reserved</code></td></tr>
+        <tr><td><code>stock_movements</code></td><td>delta, reason (ADJUST/RESERVE/RELEASE/SALE/CANCEL), ref_id, actor</td><td><b>Immutable ledger</b> (Source §30.3)</td></tr>
+        <tr><td><code>price_lists</code></td><td>channel (B2B/B2C), audience (PUBLIC/SEGMENT/CONTRACT), currency, validity</td><td><code>channel</code> added in Phase 1 though only B2B is active — avoids a Phase 4 migration <b>[Improvement]</b></td></tr>
+        <tr><td><code>price_tiers</code></td><td>min_qty, max_qty, unit_price_minor</td><td>Quantity ladder per Source §6.2</td></tr>
+        <tr><td><code>promotions</code></td><td>type, conditions jsonb, value, dates, budget, usage_limit</td><td>Phase 1 types: %, fixed, quantity, time-limited</td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout"><b>Inventory policy.</b> Stock is reserved <b>at merchant acceptance</b>, not at cart — carts are advisory in B2D B2B (long-lived, multi-supplier). Resolves the Source test scenario “merchant accepts an order, then inventory changes” (§30.2). <b>[Improvement — explicit policy]</b></div>
+    <div class="callout"><b>Pricing policy.</b> Resolved price is computed at checkout and <b>snapshotted onto the order item</b> — the order is the audit record of what was agreed (Source §6.2).</div>
+
+    <h3>4.4 Cart &amp; orders (Source §7.1–7.2)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Entity</th><th>Key fields</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>master_orders</code></td><td>buyer_org, channel (B2B/B2C), status, totals</td><td>Buyer’s purchase intent</td></tr>
+        <tr><td><code>orders</code> (sub)</td><td>master_order_id, store_id, status, fulfillment_method (PICKUP/MERCHANT_DELIVERY/PLATFORM_DELIVERY)</td><td>One per supplier, from day one</td></tr>
+        <tr><td><code>order_items</code></td><td>qty, qty_confirmed, <b>unit_price_snapshot, tier_applied, promotion_snapshot, line_total_minor</b></td><td>Immutable financial snapshot</td></tr>
+        <tr><td><code>order_financial_breakdown</code></td><td>products, discount, delivery, tax, commission, merchant_net</td><td><b>Ledger shadow from Phase 1</b> (Source §38.1 #6); becomes double-entry in Phase 3</td></tr>
+        <tr><td><code>order_status_history</code></td><td>from_status, to_status, actor, reason, at</td><td>Every transition, every actor</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4.5 Trust, support, comms, audit</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Entity</th><th>Key fields / notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>reviews</code></td><td>order-gated; subject STORE/DRIVER/BUYER; rating 1–5; moderated</td></tr>
+        <tr><td><code>trust_snapshots</code></td><td>dimensions per Source §9.2; explainable badges (Verified / Trusted / Fast Fulfillment)</td></tr>
+        <tr><td><code>disputes / dispute_events</code></td><td>evidence = POD, chat, photos; full timeline (Source §9.3)</td></tr>
+        <tr><td><code>conversations / messages</code></td><td><b>Order-linked chat only</b> (Source §9.4) — Phase 1 fast-follow</td></tr>
+        <tr><td><code>notifications / preferences</code></td><td>category TRANSACTIONAL/PROMOTIONAL/BEHAVIORAL; preference-gated</td></tr>
+        <tr><td><code>audit_logs / analytics_events / outbox_events</code></td><td>append-only; monthly partitions; Parquet archive; transactional outbox</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>4.6 Later-phase entities — designed now, built later</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Phase</th><th>Entities (designed, deferred)</th></tr></thead>
+      <tbody>
+        <tr><td>2</td><td><code>drivers</code>, <code>driver_vehicles</code>, <code>service_zones</code> (PostGIS polygons), <code>delivery_jobs</code>, <code>delivery_job_events</code>, <code>driver_locations</code> (partitioned), <code>proofs_of_delivery</code></td></tr>
+        <tr><td>3</td><td><code>payments</code>, <code>payment_attempts</code>, <code>ledger_accounts</code>, <code>ledger_entries</code>, <code>settlements</code>, <code>payouts</code>, <code>refunds</code>, <code>subscription_plans</code>, <code>merchant_subscriptions</code></td></tr>
+        <tr><td>4</td><td><code>consumer_profiles</code>, <code>consumer_addresses</code>, <code>store_service_areas</code> (channel-aware pricing activates on <code>price_lists.channel</code>)</td></tr>
+        <tr><td>5</td><td><code>campaigns</code>, <code>ad_items</code>, <code>ad_events</code> (partitioned), <code>placement_configs</code></td></tr>
+        <tr><td>6</td><td><code>reorder_suggestions</code>, <code>forecast_snapshots</code>, <code>ai_requests</code> (gateway audit)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 5 ================= -->
+  <section class="sec" id="s5">
+    <h2><span class="no">5</span>Canonical Order State Machine</h2>
+    <p>Statuses (Source §7.1): <code>DRAFT · SUBMITTED · PENDING_CONFIRMATION · ACCEPTED · PARTIALLY_ACCEPTED · PAYMENT_PENDING · PREPARING · READY · ASSIGNED · PICKED_UP · OUT_FOR_DELIVERY · DELIVERED · COMPLETED · CANCELLED · REJECTED · DISPUTED</code></p>
+
+    <div class="flow">
+      <span class="st">Draft</span><span class="ar">→</span><span class="st">Submitted</span><span class="ar">→</span><span class="st">Pending Confirmation</span><span class="ar">→</span><span class="st key">Accepted / Partial</span><span class="ar">→</span><span class="st">Payment Pending*</span><span class="ar">→</span><span class="st">Preparing</span><span class="ar">→</span><span class="st">Ready</span><span class="ar">→</span><span class="st">Assigned*</span><span class="ar">→</span><span class="st">Picked Up*</span><span class="ar">→</span><span class="st">Out for Delivery*</span><span class="ar">→</span><span class="st key">Delivered</span><span class="ar">→</span><span class="st">Completed</span>
+    </div>
+    <p class="small">* Payment Pending and the delivery states activate in Phases 2–3; the machine supports them from Phase 1. Terminal side-states: Cancelled, Rejected, Disputed (≤72 h after delivery).</p>
+
+    <h3>Transition matrix (guards &amp; side effects)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>From</th><th>Trigger (actor)</th><th>To</th><th>Guards &amp; side effects</th></tr></thead>
+      <tbody>
+        <tr><td>DRAFT</td><td>Checkout (buyer)</td><td>SUBMITTED</td><td>Validate MOQ per line; resolve + snapshot prices; emit <code>order.submitted</code></td></tr>
+        <tr><td>SUBMITTED</td><td>Auto</td><td>PENDING_CONFIRMATION</td><td>Notify merchant (push + in-app); start confirmation SLA timer (default 12 h)</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-all</td><td>ACCEPTED</td><td>Reserve inventory; re-validate prices → if price list changed, show delta and require line-level confirm (re-price guard)</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-partial</td><td>PARTIALLY_ACCEPTED</td><td>Reserve confirmed qty only; release rest; buyer notified of deltas</td></tr>
+        <tr><td>PENDING_CONFIRMATION</td><td>Reject / SLA expiry</td><td>REJECTED / CANCELLED</td><td>Reason mandatory; buyer notified</td></tr>
+        <tr><td>ACCEPTED / PARTIAL</td><td>Auto (prepay off)</td><td>PREPARING</td><td>Phase 1 default: payment on account</td></tr>
+        <tr><td>ACCEPTED / PARTIAL</td><td>Auto (prepay on, P3)</td><td>PAYMENT_PENDING</td><td>Payment link/checkout created</td></tr>
+        <tr><td>PAYMENT_PENDING</td><td>Payment webhook (P3)</td><td>PREPARING</td><td>Idempotent handler; on failure → retry / CANCELLED per policy</td></tr>
+        <tr><td>PREPARING</td><td>Merchant</td><td>READY</td><td>Buyer notified; fulfillment branch: pickup handover, or create <code>delivery_job</code> (P2) → ASSIGNED</td></tr>
+        <tr><td>ASSIGNED → OUT_FOR_DELIVERY</td><td>Driver (P2)</td><td>PICKED_UP → DELIVERED</td><td>Pickup verification, live tracking, POD (OTP/signature/photo + geo + recipient)</td></tr>
+        <tr><td>DELIVERED</td><td>Financial closure</td><td>COMPLETED</td><td><code>order_financial_breakdown</code> finalized; review window opens</td></tr>
+        <tr><td>DELIVERED / COMPLETED</td><td>Dispute (≤72 h)</td><td>DISPUTED</td><td>Evidence bundle attached; support workflow</td></tr>
+        <tr><td>any pre-DELIVERED</td><td>Cancellation policy</td><td>CANCELLED</td><td>Free until ACCEPTED; policy-driven fee after; release reservations</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Policies</h3>
+    <ul>
+      <li><b>Re-price guard [Improvement]:</b> if a merchant’s price list changed between checkout and acceptance, the acceptance screen surfaces the delta per line; the merchant confirms explicitly — prevents silent margin erosion and disputes (Source §30.2 scenario).</li>
+      <li><b>Every transition</b> writes <code>order_status_history</code>, emits <code>order.status.changed</code> (outbox), and triggers exactly one user-facing notification.</li>
+      <li><b>Idempotency:</b> transition endpoints accept <code>Idempotency-Key</code>; repeated requests return the same result (Source §30.3).</li>
+      <li><b>Partial cancellation</b> in multi-supplier orders affects only the relevant sub-order; the master order status derives from sub-order states.</li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 6 ================= -->
+  <section class="sec" id="s6">
+    <h2><span class="no">6</span>Phase Plans — Phase 0 → Phase 7</h2>
+    <div class="callout"><b>Principle.</b> Each phase adds a <b>measurable commercial capability</b> and ends with a deployable increment plus a KPI-based go/no-go gate (Source §19, §28.3). Durations are planning windows, not commitments.</div>
+
+    <!-- Phase 0 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p0">PHASE 0</span><h3>Market Validation &amp; Design</h3><span class="ph-window">4–8 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Confirm the problem is real, pick the launch area + category, define the MVP, and remove the largest unknowns before committing engineering capacity (Source §20).</p>
+        <h4>Workstreams</h4>
+        <ul>
+          <li><b>Research / Ops:</b> market &amp; supply mapping; one city area + one commercial category; 20–50 anchor wholesaler targets (Source §20.1); competitive map; pricing model hypothesis (launch waiver per Source §4.3).</li>
+          <li><b>Design:</b> personas; journey maps; clickable Figma prototype of the retailer ordering flow + wholesaler acceptance flow; usability tests with ≥ 8 real merchants; iterate to ≥ 80% task completion.</li>
+          <li><b>Engineering (light):</b> monorepo scaffold, CI/CD skeleton, dev environment; tech spikes — PostGIS geo queries, SMS/OTP provider benchmark (2+ providers), FCM, Mapbox vs. MapLibre cost, payment provider availability; ERD first cut.</li>
+          <li><b>Data:</b> event taxonomy + KPI baseline definition. <b>GTM:</b> pilot plan (Source §14.2 stages).</li>
+        </ul>
+        <h4>Deliverables (Source §20.2)</h4>
+        <p>Stakeholder/role map · personas · per-segment value propositions · competitive map · prioritized MVP backlog (P0 list, Source §29.1) · wireframes/prototype · pilot GTM plan · KPI baseline.</p>
+        <div class="callout gate"><b>Exit gate (Source §20.3):</b> practical evidence that (a) merchants will hand over catalogs and accept orders, (b) a retailer group is willing to buy through the platform, (c) the first procurement flow is clear end-to-end.</div>
+        <div class="callout improve"><b>[Improvement] Catalog intake template first.</b> Build the Excel intake template in Phase 0 and use it to collect anchor-supplier catalogs manually. It de-risks Phase 1 bulk import (the template <i>becomes</i> the import contract) and guarantees the pilot launches with real catalog depth — the #1 marketplace launch risk (Source §32 “Weak supply”).</div>
+      </div>
+    </div>
+
+    <!-- Phase 1 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip">PHASE 1</span><h3>Launchable B2B MVP</h3><span class="ph-window">12–18 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> An operating B2B marketplace in one area — registration, verification, catalog, tiered pricing, search, cart, ordering, accept/reject, statuses, notifications, basic ratings (Source §21.1). Fulfillment = self-pickup or merchant-managed delivery.</p>
+        <h4>Milestone plan</h4>
+        <div class="tblwrap"><table>
+          <thead><tr><th>Milestone</th><th>Weeks</th><th>Scope</th></tr></thead>
+          <tbody>
+            <tr><td>M1 — Foundation</td><td>1–3</td><td>Monorepo, CI/CD, envs; OTP auth; users/orgs/roles/permissions; audit log; outbox; error/rate-limit middleware</td></tr>
+            <tr><td>M2 — Merchant onboarding</td><td>3–6</td><td>Store profile + location pin; business docs upload; admin verification queue; activation checklist UI</td></tr>
+            <tr><td>M3 — Catalog &amp; pricing</td><td>5–8</td><td>Categories/brands; products + variants; media pipeline; manual inventory; price lists + tiers; moderation</td></tr>
+            <tr><td>M4 — Discovery &amp; cart</td><td>7–10</td><td>PG full-text search + filters; store &amp; product pages; favorites; multi-supplier cart; MOQ guards</td></tr>
+            <tr><td>M5 — Ordering</td><td>9–12</td><td>Checkout; master/sub-orders; state machine; accept/partial/reject; history; reorder; notifications</td></tr>
+            <tr><td>M6 — Trust &amp; admin</td><td>12–14</td><td>Ratings; admin console (merchants, moderation, order monitor, disputes-lite, KPI dashboard); funnel analytics</td></tr>
+            <tr><td>M7 — Hardening &amp; pilot</td><td>14–16+</td><td>Load tests; security review; bulk import; pilot launch per Source §35 (30-day manual oversight → days 31–90 growth)</td></tr>
+          </tbody>
+        </table></div>
+        <h4>Surfaces &amp; schema</h4>
+        <p>Backend modules per §2.2 · Flutter <i>retail</i> + <i>wholesale</i> flavors · Next.js web + admin console + marketing site · Schema = §4 Phase 1 spine (incl. <code>channel</code> column and ledger shadow) · Full API index in Appendix B.</p>
+        <div class="callout fence"><b>Explicitly out of scope (Source §21.5 + additions):</b> no independent delivery marketplace · no B2C · no advanced advertising · no complex ML · no ERP accounting · no credit system · no complex multi-party settlement · no microservices estate · <b>[additions]</b> no multi-warehouse/branch · no real-time GPS · no public API · single currency · chat as fast-follow.</div>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 1 + §21.6):</b> activation rate · first-order conversion · completion rate · repeat-order rate · active merchants; merchant can publish without tech support; complete order runs end-to-end; RBAC/backups/audit in place; funnel measurable; ops ownership assigned.</div>
+        <p><b>Critical-path chain:</b> auth → RBAC → catalog+pricing → search → cart → checkout → order FSM → notifications. Parallelizable: admin console (from M4), bulk import, web app, marketing site.</p>
+        <p class="small"><b>Risks &amp; improvements:</b> catalog quality (bulk import + concierge import + row-level validation UX) · SMS OTP variance (multi-provider failover) · Arabic search relevance (normalization layer; monitor search→order conversion) · merchant response latency (SLA timers + phone escalation).</p>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p2">PHASE 2</span><h3>Delivery &amp; Tracking</h3><span class="ph-window">8–12 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Operate a delivery network — driver registration/verification, job board, assignment (manual → suggested), GPS tracking, ETA, POD, geofencing, earnings, logistics monitoring (Source §22.1).</p>
+        <h4>Workstreams</h4>
+        <ul>
+          <li><b>Backend:</b> Delivery module — drivers, vehicles, service zones (PostGIS), jobs + events, batched location ingestion, POD (OTP + photo; signature later), geofence event engine, earnings; dispatch maturity <b>2A → 2B → 2C</b> (Source §22.2): manual admin assignment → distance/availability suggestions (PostGIS KNN + Mapbox Matrix) → live tracking + ETA (Mapbox Directions). 2D/2E deferred to Phase 7.</li>
+          <li><b>Mobile:</b> <i>driver</i> flavor — duty toggle, job offers with accept countdown, pickup verification, navigation deep-link, POD capture, offline-tolerant queued updates, earnings.</li>
+          <li><b>Web/Admin:</b> dispatch console (manual assignment + live map); logistics dashboard (ETA accuracy, active jobs, exceptions).</li>
+          <li><b>Ops:</b> driver recruitment/verification playbook; zone design; late/failed delivery playbooks.</li>
+        </ul>
+        <h4>API deltas</h4>
+        <div class="tblwrap"><table>
+          <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /v1/delivery/jobs</code></td><td>Create job when order READY (internal, from FSM)</td></tr>
+            <tr><td><code>GET /v1/driver/jobs/available</code> · <code>POST /v1/driver/jobs/{id}/accept</code></td><td>Driver job board</td></tr>
+            <tr><td><code>POST /v1/driver/jobs/{id}/status</code></td><td>Pickup/depart/deliver transitions (idempotent)</td></tr>
+            <tr><td><code>POST /v1/driver/locations:batch</code></td><td>Batched GPS points (5–15 s adaptive) — not per-point HTTP</td></tr>
+            <tr><td><code>POST /v1/driver/jobs/{id}/pod</code></td><td>OTP verify / photo / signature + geo + recipient</td></tr>
+            <tr><td><code>GET /v1/orders/{id}/tracking</code> · WS <code>job:{id}</code></td><td>Buyer-facing status, driver position, ETA</td></tr>
+          </tbody>
+        </table></div>
+        <p class="small"><b>Schema:</b> §4.6 Phase 2 row; <code>driver_locations</code> monthly partitions; retention — raw points 90 days, aggregated trip traces after (Source §18.2). <b>Out of scope:</b> route optimization (2D), fleet APIs (P7), multi-stop batching.</p>
+        <div class="callout gate"><b>Exit gate (Source §22.3 + §28.4 row 2):</b> delivery volume justifies operating cost; reliable data on delivery cost, time, success rate, cancellation rate, assignment time; ETA accuracy tracked from week one.</div>
+        <p class="small"><b>Risks &amp; improvements:</b> location cost/battery (adaptive frequency + batched ingestion) · ETA over-promising (publish ranges “25–40 min” until calibrated) · driver churn (transparent earnings, fair zones).</p>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p3">PHASE 3</span><h3>Payments, Settlement &amp; Monetization</h3><span class="ph-window">8–12 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Payment abstraction, provider integration, COD, double-entry ledger, settlement cycles, commission engine, subscriptions, refunds, reconciliation, financial reporting (Source §23.1).</p>
+        <h4>Workstreams</h4>
+        <ul>
+          <li><b>Backend:</b> provider-agnostic adapter (<code>authorize / capture / refund / parseWebhook / reconcile</code>); <b>activate the double-entry ledger</b> (immutable <code>ledger_entries</code>, Source §17.2); settlement engine (weekly cycles; merchant + driver payouts; composition per Source §17.4); commission engine (waivers → category rates); Free/Pro subscriptions; refunds with reason codes; daily reconciliation job (Source §17.3).</li>
+          <li><b>Payments UX:</b> hosted provider page/SDK (card data never enters platform scope); COD two-step capture confirmed at POD; payment status in order timeline.</li>
+          <li><b>Admin:</b> finance console — payments monitor, settlement runs, refund approvals, reconciliation exceptions, revenue reports.</li>
+        </ul>
+        <p class="small"><b>Schema:</b> §4.6 Phase 3 row. Ledger invariants enforced + tested: <i>sum(debits) = sum(credits) per transaction; entries append-only; every money movement references an order/payment/settlement.</i> <b>API deltas:</b> <code>POST /v1/payments/intents</code> · signed idempotent <code>/v1/webhooks/{provider}</code> · <code>GET /v1/finance/settlements</code> · <code>POST /v1/admin/refunds</code> · subscription endpoints.</p>
+        <div class="callout warn"><b>Never trust the checkout page (Source §17.3).</b> Payment state transitions only on provider webhook; correlation IDs + idempotency keys end-to-end; ledger writes originate from confirmed payment state only.</div>
+        <div class="callout improve"><b>[Improvement] Ledger shadow.</b> <code>order_financial_breakdown</code> has been stored since Phase 1, so Phase 3 <i>activates</i> the ledger rather than retrofitting it (Source §38.1 #6 made concrete).</div>
+        <div class="callout gate"><b>Exit gate (Source §23.3 + §28.4 row 3):</b> positive-or-improvable unit economics · payment success rate · reconciliation accuracy (100% auto-reconciled; exceptions &lt; 0.5%) · support processes proven on refunds/disputes.</div>
+      </div>
+    </div>
+
+    <!-- Phase 4 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p4">PHASE 4</span><h3>B2C Marketplace</h3><span class="ph-window">10–14 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Turn proven retail stores into digital storefronts; acquire consumer traffic; add a demand channel; build weekly purchase loops (Source §24.1). <b>Do not open B2C broadly</b> — start with the most ready stores (Source §24.3).</p>
+        <ul>
+          <li><b>Backend:</b> activate <code>price_lists.channel = B2C</code> (no migration — designed in Phase 1); serviceability areas; org-less consumer identity; consumer checkout (prepaid + COD); favorites; <b>Smart Reorder v1 (rules-based)</b> — median replenishment interval + last-order quantity.</li>
+          <li><b>Mobile:</b> <i>consumer</i> flavor — nearby stores, store/product pages, cart, checkout, live tracking (reuses Phase 2), ratings, favorites, reorder card. <b>Web:</b> consumer SEO surface.</li>
+          <li><b>API deltas:</b> <code>GET /v1/consumer/stores/nearby</code> · <code>GET /v1/consumer/products</code> · <code>POST /v1/consumer/orders</code> · <code>GET /v1/reorder/suggestions</code>.</li>
+        </ul>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 4):</b> B2C MAU · conversion · repeat consumer order rate · AOV; store expansion driven by conversion + completion rates.</div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p5">PHASE 5</span><h3>Advertising &amp; Merchant Analytics</h3><span class="ph-window">12–16 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Ads MVP (campaign create, product/store selection, budget, duration, geo-targeting, placements, impressions/clicks/orders reporting) + merchant analytics (Source §25.1–25.2).</p>
+        <ul>
+          <li><b>Advertising module:</b> campaigns, ad items, placements (SEARCH_RESULT, CATEGORY, STORE_PAGE, HOME), budget pacing with daily caps, frequency capping, event pipeline into partitioned <code>ad_events</code>, ROAS reporting, ad policy moderation.</li>
+          <li><b>Analytics:</b> merchant dashboards (§15.2); event pipeline hardening (Parquet archive, warehouse-ready).</li>
+          <li><b>API deltas:</b> <code>POST /v1/ads/campaigns</code> · <code>GET /v1/ads/campaigns/{id}/report</code> · <code>GET /v1/analytics/merchant/*</code> · beacon <code>POST /v1/ads/events:batch</code>.</li>
+        </ul>
+        <div class="callout warn"><b>Ranking guardrails (Source §11.2).</b> Max 1–2 sponsored slots per result page, clearly labeled “Sponsored”; organic quality and relevance must remain dominant ranking factors — organic conversion rate is monitored as a guardrail metric.</div>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 5):</b> ad revenue · ROAS · merchant ad retention · incremental (lifted) orders — with no degradation in organic conversion.</div>
+      </div>
+    </div>
+
+    <!-- Phase 6 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p6">PHASE 6</span><h3>AI &amp; Optimization</h3><span class="ph-window">12–20 weeks</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> AI capabilities with measurable business outcomes only — <b>every AI feature has a KPI</b> (Source §26.2).</p>
+        <ul>
+          <li><b>AI Gateway (Source §12.3):</b> provider-agnostic interface (<code>generate_description · summarize · extract · classify · recommend · forecast</code>) with routing, caching, cost metering, audit (<code>ai_requests</code>); models swappable without product redesign.</li>
+          <li><b>Features by KPI:</b> Smart Reorder v2 (repeat-purchase lift) · AI Product Assistant incl. OCR from supplier invoices (time-to-publish a correct product) · Recommendations Level 2 → 3 (CTR, conversion, attributed revenue) · Demand forecasting (MAPE, stock-out reduction) · Price intelligence + anomaly detection (governed per Source §37.3).</li>
+          <li><b>Platform:</b> offline evaluation harness, online A/B framework, feature store (lite), batch scoring — run as a <b>thin separate AI service</b> (first sanctioned extraction if desired).</li>
+        </ul>
+        <div class="callout gate"><b>Exit gate (Source §28.4 row 6):</b> recommendation lift · forecast accuracy · reorder adoption · AI-assisted task completion; any feature that fails its KPI in A/B is killed (Source §37.2 lifecycle).</div>
+      </div>
+    </div>
+
+    <!-- Phase 7 -->
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip p7">PHASE 7</span><h3>Commerce Infrastructure</h3><span class="ph-window">Continuous</span></div>
+      <div class="phase-body">
+        <p><b>Objective:</b> Structured geographic expansion + integrations → the “Commerce Operating System” end-state (Source §27).</p>
+        <ul>
+          <li>Multi-branch / multi-warehouse operations; advanced employee roles; per-market configurable verification/tax/document rules (Source §18.3).</li>
+          <li>ERP/accounting integrations via adapter pattern (QuickBooks/Xero/local ERP); delivery-company fleet APIs; regulated trade-credit partnerships; market intelligence (aggregated/anonymized, Source §13.4); developer platform (OAuth2 client-credentials, public API, outbound webhooks, rate limits).</li>
+          <li>Delivery maturity 2D–2E: trip batching, route optimization (Mapbox Optimization), multi-sided network. Service extraction candidates: location ingestion, ads/event pipeline, AI service.</li>
+          <li>Expansion playbook: one area at a time (Source §14.2 “Scale”), each wave carrying a unit-economics checklist — CAC, contribution margin, delivery cost per order (Source §28.3).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SECTION 7 ================= -->
+  <section class="sec" id="s7">
+    <h2><span class="no">7</span>Critical Path &amp; Dependency Map</h2>
+    <h3>7.1 Cross-phase critical chain</h3>
+<pre><code>Phase 0 gate (catalog commitments + retailer intent)
+   └─▶ Phase 1 spine: auth → RBAC → catalog+pricing → search → cart → order FSM → notifications
+          └─▶ Phase 2 delivery  (needs READY→ASSIGNED transitions + fulfillment stubs)
+                 └─▶ Phase 3 payments  (needs order volume + ledger shadow data)
+                        └─▶ Phase 4 B2C  (needs delivery + payments + channel-scoped pricing)
+                               └─▶ Phase 5 ads/analytics  (needs audience + event volume)
+                                      └─▶ Phase 6 AI  (needs behavioral + transaction data)
+                                           └─▶ Phase 7 scale  (needs proven unit economics + ops maturity)</code></pre>
+    <h3>7.2 Expensive-to-retrofit decisions — must be correct in Phase 1</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>#</th><th>Decision</th><th>Why it cannot wait</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>User / Organization / Role / Permission separation</td><td>Re-designing identity mid-flight breaks every table and token</td><td>§5.2</td></tr>
+        <tr><td>2</td><td>Master order + sub-orders per supplier</td><td>Retrofitting multi-supplier orders corrupts settlement, returns, ratings</td><td>§7.2</td></tr>
+        <tr><td>3</td><td>Order-item price/promotion snapshots + <code>order_financial_breakdown</code></td><td>Auditability and the Phase 3 ledger depend on historical truth</td><td>§6.2, §17.2</td></tr>
+        <tr><td>4</td><td><code>price_lists.channel</code> + <code>audience</code> columns</td><td>Phase 4 B2C reuses the same pricing tables — no migration</td><td>§10.1</td></tr>
+        <tr><td>5</td><td>Domain event taxonomy + transactional outbox</td><td>Analytics, notifications, search indexing, ledger all consume events</td><td>§30.3</td></tr>
+        <tr><td>6</td><td>UUIDv7 keys + <code>organization_id</code> scoping on all merchant data</td><td>Multi-tenancy retrofit is the highest-severity security risk class</td><td>§18.1</td></tr>
+      </tbody>
+    </table></div>
+    <h3>7.3 Parallelization lanes</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Lane</th><th>Tracks</th><th>Constraint</th></tr></thead>
+      <tbody>
+        <tr><td>Lane A (core)</td><td>Auth → catalog → orders → notifications</td><td>The critical path — never starved</td></tr>
+        <tr><td>Lane B (surfaces)</td><td>Web app, admin console, marketing site</td><td>Depends on Lane A contracts only (via <code>packages/contracts</code>)</td></tr>
+        <tr><td>Lane C (data)</td><td>Event pipeline, dashboards, funnels</td><td>Contracts frozen at M4</td></tr>
+        <tr><td>Lane D (ops)</td><td>Onboarding playbooks, merchant recruiting, support tooling</td><td>Runs from Phase 0</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 8 ================= -->
+  <section class="sec" id="s8">
+    <h2><span class="no">8</span>Risk Register &amp; Improvement Register</h2>
+    <h3>8.1 Risk register (Source §32 + engineering additions)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>ID</th><th>Risk</th><th>Impact</th><th>Mitigation</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td>R1</td><td>Weak supply at launch</td><td>Retailers find nothing; churn</td><td>Anchor suppliers in P0; concierge catalog import; intake template</td><td>0–1</td></tr>
+        <tr><td>R2</td><td>Weak demand</td><td>Merchants see no value</td><td>Small launch area, field sales, first-order incentives, referral tied to completed orders</td><td>1</td></tr>
+        <tr><td>R3</td><td>Poor product data quality</td><td>Weak search/conversion</td><td>Import validation, moderation queue, AI-assisted entry later</td><td>1–6</td></tr>
+        <tr><td>R4</td><td>Premature complexity</td><td>Delayed launch</td><td>Strict scope fences per phase; modular monolith (not microservices)</td><td>All</td></tr>
+        <tr><td>R5</td><td>Fraud / fake accounts</td><td>Financial + trust loss</td><td>Verification, device fingerprinting, velocity rules, rate limits</td><td>1–3</td></tr>
+        <tr><td>R6</td><td>Negative unit economics</td><td>Growth amplifies losses</td><td>Contribution margin per order; CAC/LTV gates per phase</td><td>All</td></tr>
+        <tr><td>R7</td><td>Single-provider dependency (SMS, payments, maps)</td><td>Operational outage</td><td>Abstraction adapters + benchmarked second providers</td><td>1–3</td></tr>
+        <tr><td>R8</td><td>Payment webhook loss/duplication</td><td>Money mismatches</td><td>Signed idempotent webhooks, ledger, daily reconciliation</td><td>3</td></tr>
+        <tr><td>R9</td><td>Delivery experience failure</td><td>Trust damage</td><td>Start manual dispatch (2A); measure ETA/POD before automation</td><td>2</td></tr>
+        <tr><td>R10</td><td>Location-data privacy breach</td><td>Legal + trust</td><td>Purpose-scoped collection, 90-day raw retention, access controls</td><td>2</td></tr>
+        <tr><td>R11</td><td>Arabic search relevance</td><td>Discovery failure</td><td>Normalization layer; OpenSearch trigger criteria defined in advance</td><td>1</td></tr>
+        <tr><td>R12</td><td>SMS OTP delivery variance</td><td>Signup drop-off</td><td>Multi-provider failover + retry + WhatsApp fallback</td><td>1</td></tr>
+        <tr><td>R13</td><td>Scope creep from merchants</td><td>Launch slip</td><td>Feature Addition Decision Framework (Source §41) enforced by Product Council</td><td>All</td></tr>
+        <tr><td>R14</td><td>Key-person dependency (small team)</td><td>Bus factor</td><td><code>packages/contracts</code> as source of truth; pairing; runbooks</td><td>All</td></tr>
+      </tbody>
+    </table></div>
+    <h3>8.2 Improvement register (deviations &amp; additions beyond the Source)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>ID</th><th>Area</th><th>Ambiguity / risk in Source</th><th>Recommendation</th><th>Applies</th></tr></thead>
+      <tbody>
+        <tr><td>I1</td><td>Orders</td><td>SUBMITTED vs PENDING_CONFIRMATION unclear</td><td>Canonical transition matrix — SUBMITTED is transient, auto-advances</td><td>P1</td></tr>
+        <tr><td>I2</td><td>Pricing</td><td>Cart-vs-acceptance price drift unaddressed</td><td>Re-price guard at merchant acceptance with per-line delta confirmation</td><td>P1</td></tr>
+        <tr><td>I3</td><td>Inventory</td><td>“Accept then stock changes” scenario unresolved</td><td>Reserve-at-acceptance policy + immutable stock movements</td><td>P1</td></tr>
+        <tr><td>I4</td><td>Data model</td><td>B2C pricing reuse not specified</td><td><code>channel</code> + <code>audience</code> on price lists from day one</td><td>P1 → P4</td></tr>
+        <tr><td>I5</td><td>Finance</td><td>Ledger deferred to P3 risks retrofit</td><td>Ledger shadow from P1; activate in P3</td><td>P1/P3</td></tr>
+        <tr><td>I6</td><td>Reliability</td><td>Event consistency implicit</td><td>Transactional outbox + idempotent consumers from day one</td><td>P1</td></tr>
+        <tr><td>I7</td><td>Mobile</td><td>Four apps implied, cost unclear</td><td>Single Flutter codebase, four flavors</td><td>P1+</td></tr>
+        <tr><td>I8</td><td>Search</td><td>Arabic quality unaddressed</td><td>Normalization (diacritics/hamza folding) + predefined OpenSearch trigger</td><td>P1</td></tr>
+        <tr><td>I9</td><td>Delivery</td><td>GPS cost/battery strategy unspecified</td><td>Adaptive frequency + batched ingestion + WS; ETA ranges until calibrated</td><td>P2</td></tr>
+        <tr><td>I10</td><td>Payments</td><td>“Checkout page is not proof” stated, mechanism unspecified</td><td>Webhook-only state transitions; correlation IDs; daily reconciliation job</td><td>P3</td></tr>
+        <tr><td>I11</td><td>Analytics</td><td>Event volume on OLTP PG unaddressed</td><td>Monthly partitions + Parquet archival from P2; warehouse-ready</td><td>P1+</td></tr>
+        <tr><td>I12</td><td>Ops</td><td>SLA numbers deferred indefinitely</td><td>Provisional SLAs at pilot, measured and revised monthly</td><td>P1</td></tr>
+        <tr><td>I13</td><td>Governance</td><td>Feature lifecycle enforcement unclear</td><td>Product Council cadence + kill criteria per feature (Source §37)</td><td>All</td></tr>
+        <tr><td>I14</td><td>Localization</td><td>RTL required but no technical strategy</td><td>Logical CSS properties, mirrored icon set, ARB/next-intl, pseudo-RTL CI checks</td><td>P1</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 9 ================= -->
+  <section class="sec" id="s9">
+    <h2><span class="no">9</span>Testing &amp; Quality Gates</h2>
+    <h3>9.1 Test strategy (Source §30.1)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Layer</th><th>Scope</th><th>Tooling (reference)</th><th>Gate</th></tr></thead>
+      <tbody>
+        <tr><td>Unit</td><td>Domain logic: pricing resolution, tier selection, FSM guards, ledger math</td><td>Jest</td><td>≥ 85% on domain modules</td></tr>
+        <tr><td>Integration</td><td>Module APIs + DB: orders, pricing, reservations, notifications</td><td>Testcontainers (PG+PostGIS, Redis)</td><td>CI-blocking</td></tr>
+        <tr><td>Contract</td><td>OpenAPI conformance; generated clients compile</td><td>Schemathesis</td><td>CI-blocking</td></tr>
+        <tr><td>E2E</td><td>Critical flows on staging</td><td>Playwright (web) + API tests</td><td>Pre-release</td></tr>
+        <tr><td>Load</td><td>Checkout, search, location ingestion, webhook storms</td><td>k6</td><td>p95 budgets before each phase gate</td></tr>
+        <tr><td>Security</td><td>SAST, dependency + secrets scan; pen test</td><td>CI + external</td><td>P3 blocking</td></tr>
+        <tr><td>Mobile</td><td>Device matrix (low-end Android priority), offline simulation, RTL screenshots</td><td>Firebase Test Lab</td><td>Pre-release</td></tr>
+        <tr><td>Usability</td><td>Merchant task flows with real users each phase</td><td>Moderated sessions</td><td>Phase exit criterion</td></tr>
+      </tbody>
+    </table></div>
+    <h3>9.2 Automated critical-scenario suite (Source §30.2)</h3>
+    <ol>
+      <li>Merchant accepts order after inventory changed → reserve-at-acceptance + partial-accept path.</li>
+      <li>Multiple quantity price tiers resolve and snapshot correctly.</li>
+      <li>Order modification after acceptance per policy (re-price guard).</li>
+      <li>Payment failure + retry; duplicate webhook ignored idempotently (P3).</li>
+      <li>Driver failure mid-delivery → reassignment flow (P2).</li>
+      <li>Weak connectivity: queued status updates replay in order (P2).</li>
+      <li>WebSocket interruption → REST resync produces correct final state.</li>
+      <li>Dispute after POD → evidence bundle integrity.</li>
+      <li>Partial cancellation in a multi-supplier order → only the affected sub-order changes.</li>
+    </ol>
+    <h3>9.3 Non-functional budgets</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Metric</th><th>Budget</th></tr></thead>
+      <tbody>
+        <tr><td>API read p95 / write p95</td><td>&lt; 400 ms / &lt; 800 ms</td></tr>
+        <tr><td>Search p95</td><td>&lt; 300 ms</td></tr>
+        <tr><td>Mobile cold start</td><td>&lt; 2.5 s on mid-range Android</td></tr>
+        <tr><td>Checkout availability (SLO)</td><td>99.9%</td></tr>
+        <tr><td>Crash-free sessions</td><td>≥ 99.5%</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 10 ================= -->
+  <section class="sec" id="s10">
+    <h2><span class="no">10</span>Operations Readiness</h2>
+    <h3>10.1 Operating functions (Source §31.1) — staffed before pilot</h3>
+    <p>Merchant onboarding (incl. concierge catalog import) · verification · catalog assistance · order support · delivery operations (P2) · payment reconciliation (P3) · dispute handling · fraud review.</p>
+    <h3>10.2 Provisional SLAs (set at pilot, revised monthly — Source §31.2)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Issue type</th><th>First response</th><th>Resolution target</th></tr></thead>
+      <tbody>
+        <tr><td>Order-blocking (cannot order / cannot accept)</td><td>&lt; 30 min</td><td>&lt; 4 h</td></tr>
+        <tr><td>Payment incident</td><td>&lt; 30 min</td><td>Same day</td></tr>
+        <tr><td>Delivery exception (P2)</td><td>&lt; 15 min</td><td>&lt; 2 h</td></tr>
+        <tr><td>Account / access</td><td>&lt; 2 h</td><td>&lt; 24 h</td></tr>
+        <tr><td>General inquiry</td><td>&lt; 4 h</td><td>&lt; 48 h</td></tr>
+      </tbody>
+    </table></div>
+    <h3>10.3 Playbooks (Source §31.3 + additions)</h3>
+    <p>Payment failure · missing order · missing item · late driver · unresponsive merchant · compromised account · dispute · promotion abuse · <b>additions:</b> OTP delivery outage (SMS failover) · webhook provider outage · dispatch backlog · catalog import corruption rollback.</p>
+    <h3>10.4 Launch operations plan (Source §35)</h3>
+    <ul>
+      <li><b>Before launch:</b> area selected; anchors signed; real catalog loaded; pilot retailer group chosen; ops team trained; every critical flow tested; marketing ready; analytics + support live.</li>
+      <li><b>First 30 days:</b> manual oversight of every order where needed; daily merchant communication; drop-off reason log; remove any step blocking first orders; collect success stories; small multi-channel acquisition tests.</li>
+      <li><b>Days 31–90:</b> grow merchant count from data; adjacent high-density areas; add Bulk Import + Reorder early; expand promotions + referral; start delivery pilot when volume justifies.</li>
+      <li><b>Discipline rules (Source §35.4):</b> no geographic expansion before retention stabilizes; no broad ad spend before CAC is known; no feature without KPI/cost justification; no broad B2C before retailer readiness.</li>
+    </ul>
+  </section>
+
+  <!-- ================= PART II ================= -->
+  <div class="part-banner">
+    <h2>Part II — Advanced UI/UX Design Strategy</h2>
+    <p>One design system (TAIF Commerce Design System) across Flutter and web; per-role interaction models for Wholesaler, Retailer, Driver, and Admin; detailed screen flows for onboarding, catalog management, order placement, and delivery tracking; accessibility, RTL localization, responsive behavior, and advanced interfaces — Smart Reorder and data-visualization dashboards — with live component previews below.</p>
+  </div>
+
+  <!-- ================= SECTION 11 ================= -->
+  <section class="sec" id="s11">
+    <h2><span class="no">11</span>Design Philosophy &amp; Experience Principles</h2>
+    <div class="callout"><b>Positioning.</b> The product must feel like a <b>trade tool first and a marketplace second</b>. Users are working — replenishing stock, accepting orders, driving — not browsing. Density, speed, and clarity outrank delight.</div>
+    <div class="grid2">
+      <div class="mini"><b>1 · Speed to value</b><span>Every screen answers “what do I do next?” within two seconds.</span></div>
+      <div class="mini"><b>2 · Price &amp; quantity truth</b><span>Unit price, pack size, and MOQ always visible on cards and lists — never hidden behind a detail page.</span></div>
+      <div class="mini"><b>3 · Status is first-class</b><span>Order state is persistent, resumable, live-updating (Source §15.1).</span></div>
+      <div class="mini"><b>4 · Trust surfaces everywhere</b><span>Verification badges, ratings, fulfillment signals at every decision point (Source §9.2).</span></div>
+      <div class="mini"><b>5 · Thumb-first / pointer-first</b><span>Mobile = large targets, bottom-anchored actions; web/admin = keyboard speed, dense grids.</span></div>
+      <div class="mini"><b>6 · Offline-tolerant</b><span>Graceful degradation; user work is never lost (queued actions with visible pending state).</span></div>
+      <div class="mini"><b>7 · RTL first-class</b><span>RTL is a layout mode, not a mirror hack (Source §15.1).</span></div>
+      <div class="mini"><b>8 · One primary action</b><span>Destructive actions always confirmed with consequence text.</span></div>
+      <div class="mini"><b>9 · Empty states teach</b><span>“Import your catalog” — never dead ends (activation focus, Source §15.2–15.3).</span></div>
+      <div class="mini"><b>10 · Accessibility = ship gate</b><span>WCAG 2.2 AA is a release criterion, not a wishlist (§16).</span></div>
+    </div>
+  </section>
+
+  <!-- ================= SECTION 12 ================= -->
+  <section class="sec" id="s12">
+    <h2><span class="no">12</span>TAIF Commerce Design System (TCDS)</h2>
+    <p>One token-based system across Flutter (all four flavors), Next.js web, and the admin console — the design layer of <code>packages/ui-kit</code> + <code>mobile-core</code> (Part I §2.3). The swatches, pills, ladder, and reorder card below are rendered live from the system tokens.</p>
+
+    <h3>12.1 Color tokens</h3>
+    <div class="sw-row">
+      <div class="swatch"><div class="c" style="background:#174a5b"></div><div class="l"><b>brand/600</b><br>#174A5B</div></div>
+      <div class="swatch"><div class="c" style="background:#1e6178"></div><div class="l"><b>brand/500</b><br>#1E6178</div></div>
+      <div class="swatch"><div class="c" style="background:#e7f0f3"></div><div class="l"><b>brand/100</b><br>#E7F0F3</div></div>
+      <div class="swatch"><div class="c" style="background:#b45309"></div><div class="l"><b>commerce/600</b><br>#B45309</div></div>
+      <div class="swatch"><div class="c" style="background:#1b7a4b"></div><div class="l"><b>success/600</b><br>#1B7A4B</div></div>
+      <div class="swatch"><div class="c" style="background:#b3372f"></div><div class="l"><b>error/600</b><br>#B3372F</div></div>
+      <div class="swatch"><div class="c" style="background:#1d5fa8"></div><div class="l"><b>info/600</b><br>#1D5FA8</div></div>
+      <div class="swatch"><div class="c" style="background:linear-gradient(90deg,#f2f5f6,#5b6b75,#16232b)"></div><div class="l"><b>neutral/50–900</b><br>slate ramp</div></div>
+    </div>
+    <p class="small"><b>commerce/600</b> (amber) is reserved exclusively for commercial attention — promotions, price drops, savings callouts — so it never competes with system semantics.</p>
+
+    <h3>12.2 Order-status semantics — StatusPill preview</h3>
+    <div class="demo">
+      <h5>Live component preview · StatusPill</h5>
+      <span class="pill pending">Pending confirmation</span>
+      <span class="pill working">Accepted</span>
+      <span class="pill working">Preparing</span>
+      <span class="pill transit">Out for delivery</span>
+      <span class="pill done">Delivered</span>
+      <span class="pill dead">Cancelled</span>
+      <span class="pill disputed">Disputed</span>
+      <p class="small" style="margin:10px 0 0">Icon + color + text — never color-only (WCAG). Maps 1:1 to the order FSM (§5).</p>
+    </div>
+
+    <h3>12.3 Typography &amp; numerals</h3>
+    <ul>
+      <li><b>Latin:</b> Inter (variable). <b>Arabic:</b> IBM Plex Sans Arabic. Fallbacks <code>system-ui, "Segoe UI"</code> — no webfont dependency required.</li>
+      <li><b>Tabular numerals everywhere numbers align</b> (prices, quantities, ledgers): <code>font-variant-numeric: tabular-nums</code> / Flutter <code>FontFeature.tabularFigures()</code>.</li>
+      <li>Scale: display 28 · h1 24 · h2 20 · h3 17 · body 16 (mobile) / 15 (desktop) · small 13 · caption 12. Minimum input font 16 px to prevent iOS focus zoom.</li>
+    </ul>
+
+    <h3>12.4 Spacing, radius, elevation, motion</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Token set</th><th>Values</th></tr></thead>
+      <tbody>
+        <tr><td>Spacing (4-pt grid)</td><td>4 · 8 · 12 · 16 · 24 · 32 · 48 · 64</td></tr>
+        <tr><td>Radius</td><td>input 4 · card 8 · sheet 12 · pill full</td></tr>
+        <tr><td>Elevation</td><td>e1 rest cards · e2 dropdowns · e3 modals/toasts</td></tr>
+        <tr><td>Motion</td><td>micro 100 ms · standard 200 ms · sheet 300 ms — all gated by <code>prefers-reduced-motion</code></td></tr>
+        <tr><td>Touch target</td><td>≥ 48×48 dp mobile (driver ≥ 56 dp) / 44 px web</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>12.5 TierLadder preview — the B2B pricing hero widget</h3>
+    <div class="demo">
+      <h5>Live component preview · TierLadder (basmati rice 5 kg · MOQ 6)</h5>
+      <div class="ladder">
+        <div class="tier"><span>6 – 23 units</span><div class="bar"><i style="width:78%"></i></div><span class="pr">5.20</span></div>
+        <div class="tier hit"><span>24 – 95 units</span><div class="bar"><i style="width:88%"></i></div><span class="pr">4.75</span></div>
+        <div class="tier"><span>96+ units</span><div class="bar"><i style="width:100%"></i></div><span class="pr">4.40</span></div>
+      </div>
+      <p class="small" style="margin:10px 0 0">Bars scale with discount; the buyer’s current quantity highlights the active tier; QuantityStepper shows the inline hint “Buy 24+ → 4.75”.</p>
+    </div>
+
+    <h3>12.6 Core component inventory</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Component</th><th>Purpose</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><b>QuantityStepper</b></td><td>The B2B hero control</td><td>Large ± targets, direct entry, inline tier hint, MOQ floor guard</td></tr>
+        <tr><td><b>TierLadder</b></td><td>Visual quantity-price ladder</td><td>PDP + pricing editor; current quantity highlighted</td></tr>
+        <tr><td><b>StatusPill / OrderTimeline</b></td><td>Order/job state &amp; history</td><td>Consumes <code>order_status_history</code>; live step pulses</td></tr>
+        <tr><td><b>SupplierCard / ProductCard</b></td><td>Discovery surfaces</td><td>Price, MOQ badge, rating, trust badge, distance; sponsored variant labeled</td></tr>
+        <tr><td><b>DataGrid</b></td><td>Web/admin catalog, orders, queues</td><td>Sticky header, inline edit, bulk select, saved views, keyboard nav</td></tr>
+        <tr><td><b>ImportWizard</b></td><td>Excel/CSV bulk import</td><td>Upload → auto-mapping → row-level validation → publish review</td></tr>
+        <tr><td>MapPinPicker · OTPInput · DocUploader · SignaturePad · PhotoCapture</td><td>Operational inputs</td><td>Progress + retry; signature captures strokes + consent line</td></tr>
+        <tr><td>KpiCard · Sparkline · ChartCard · RangeCompare</td><td>Analytics</td><td>Tabular numerals; semantic colors; CSV export on every chart</td></tr>
+        <tr><td>EmptyState · SkeletonBlock · OfflineBanner · QueuedActionChip</td><td>System states</td><td>EmptyState always carries one CTA; queued chips show replay status</td></tr>
+        <tr><td><b>ActivationChecklist</b></td><td>Merchant activation tracker</td><td>“Verified ✓ · Products 4/20 · First order —” (Source §15.2)</td></tr>
+        <tr><td>SponsoredSlot</td><td>Ads (P5)</td><td>“Sponsored” label, tinted border, capped at 1–2 per page</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 13 ================= -->
+  <section class="sec" id="s13">
+    <h2><span class="no">13</span>Interaction Model by Role</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Dimension</th><th>Wholesaler</th><th>Retailer</th><th>Driver</th><th>Admin</th></tr></thead>
+      <tbody>
+        <tr><td>Mental model</td><td>“Command center” — queues &amp; SLAs</td><td>“Procurement companion” — a shopping list that fills itself</td><td>“Focus mode” — one job at a time</td><td>“Operations console” — queues &amp; evidence</td></tr>
+        <tr><td>Primary surface</td><td>Web-first + mobile companion</td><td>Mobile-first + web</td><td>Mobile only (driver flavor)</td><td>Desktop web only</td></tr>
+        <tr><td>Hero action</td><td>Accept order in ≤ 3 taps from push</td><td>Reorder in ≤ 3 taps</td><td>Complete POD with zero retyping</td><td>Clear a verification queue</td></tr>
+        <tr><td>Density</td><td>High (tables)</td><td>Medium (cards)</td><td>Minimal (one task)</td><td>Very high (grids + split pane)</td></tr>
+        <tr><td>Top nav</td><td>Today · Orders · Catalog · Inventory · Pricing · Promotions · Customers · Analytics</td><td>Home · Search · Cart · Orders · Account</td><td>Duty · Jobs · Earnings</td><td>Overview · Verifications · Merchants · Products · Orders · Disputes · Finance · Analytics</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>13.1 Wholesaler — Command Center</h3>
+    <ul>
+      <li><b>Home = Today:</b> new-orders queue with SLA countdown (amber → red), verification status, low-stock alerts (from <code>reorder_point</code>), activation checklist until first order.</li>
+      <li>Order acceptance is the revenue-critical flow: push → order detail (stock check + price-delta guard) → Accept All / Partial / Reject → buyer auto-notified. Designed for ≤ 3 taps.</li>
+      <li>Web carries catalog/pricing bulk work (DataGrid + ImportWizard); mobile carries alerts, quick accept, scanning.</li>
+    </ul>
+    <h3>13.2 Retailer — Procurement Companion</h3>
+    <ul>
+      <li><b>Home:</b> Smart Reorder strip (“Restock Suggestions”) → saved suppliers → offers nearby → categories.</li>
+      <li>Search-first with barcode scan; long-press any product to compare across suppliers (price, MOQ, rating, distance, delivery option).</li>
+      <li>Cart groups by supplier with per-supplier subtotals, MOQ progress bars (“12/24 to unlock 4.75”), and per-supplier delivery method.</li>
+    </ul>
+    <h3>13.3 Driver — Focus Mode</h3>
+    <ul>
+      <li>Full-screen single-task UI; 56 dp+ targets; high-contrast day/night themes (dark mode ships here first — night driving).</li>
+      <li>Status changes work offline and replay (QueuedActionChip); earnings and duty hours one tap from any screen.</li>
+      <li>Text is minimal; icons + large numerals carry meaning; voice-note attachment for exception reporting.</li>
+    </ul>
+    <h3>13.4 Admin — Operations Console</h3>
+    <ul>
+      <li>Queue-centric split pane: list left, evidence/detail right (verification documents, order audit trail, dispute evidence bundle).</li>
+      <li>Live order board (status columns + filters) and dispatch map from Phase 2; every object exposes its <code>audit_logs</code> in a slide-over.</li>
+      <li>Keyboard-first: <span class="kbd">j</span>/<span class="kbd">k</span> list navigation, <span class="kbd">A</span> approve, <span class="kbd">X</span> reject, <span class="kbd">/</span> search — the console is an operator’s cockpit.</li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 14 ================= -->
+  <section class="sec" id="s14">
+    <h2><span class="no">14</span>Key User Journeys &amp; Screen Flows</h2>
+
+    <h3>14.1 Wholesaler onboarding &amp; activation</h3>
+    <div class="flow">
+      <span class="st">Role Select</span><span class="ar">→</span><span class="st">Phone + OTP</span><span class="ar">→</span><span class="st">Organization</span><span class="ar">→</span><span class="st">Store Wizard ①②③</span><span class="ar">→</span><span class="st">Document Upload</span><span class="ar">→</span><span class="st">Verification Review</span><span class="ar">→</span><span class="st key">Activation Home</span>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th>#</th><th>Screen</th><th>Key UI elements</th><th>Design intent</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Role Select</td><td>Two large cards (Sell wholesale / Buy for my store)</td><td>Sets flavor + onboarding track</td></tr>
+        <tr><td>2</td><td>Phone + OTP</td><td>OTPInput, resend w/ countdown, WhatsApp fallback</td><td>OTP friction is the #1 drop-off</td></tr>
+        <tr><td>3</td><td>Organization</td><td>Name, type, optional tax ID (“add later”)</td><td>Progressive disclosure — verify later</td></tr>
+        <tr><td>4</td><td>Store Wizard ①–③</td><td>Autosaved steps, MapPinPicker, category chips</td><td>Exit &amp; resume anytime; progress ring</td></tr>
+        <tr><td>5</td><td>Document Upload</td><td>DocUploader (progress/retry), configurable doc set per market</td><td>Clear “why we need this” microcopy</td></tr>
+        <tr><td>6</td><td>Verification Review</td><td>Status timeline + ETA + support CTA</td><td>Kills the “black hole” anxiety</td></tr>
+        <tr><td>7</td><td><b>Activation Home</b></td><td>ActivationChecklist (Verified ✓ · Products 4/20 · First order —) + CTA with three paths: manual / Excel import / concierge import</td><td>Activation = the product goal (Source §15.2)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>14.2 Catalog management &amp; bulk import</h3>
+    <div class="flow">
+      <span class="st">Catalog Grid</span><span class="ar">→</span><span class="st">Product Editor (Basics · Packaging &amp; Pricing · Media)</span><span class="ar">→</span><span class="st key">Publish</span>
+      <span style="width:100%"></span>
+      <span class="st">Import</span><span class="ar">→</span><span class="st">Upload</span><span class="ar">→</span><span class="st">Column Mapping</span><span class="ar">→</span><span class="st">Validation Report</span><span class="ar">→</span><span class="st">Import Progress</span><span class="ar">→</span><span class="st key">Publish Review</span>
+    </div>
+    <ul>
+      <li><b>Catalog Grid (web):</b> DataGrid with status filters (Draft / Active / Low stock / Rejected), inline stock edit, bulk actions (activate, archive, duplicate).</li>
+      <li><b>Product Editor:</b> autosaved drafts; “duplicate product” and “copy pricing from…” accelerators (Source §6.4 UX principle); barcode scan prefills name/brand; TierLadder editor with live buyer-facing preview.</li>
+      <li><b>ImportWizard:</b> auto-mapped columns with manual override; row-level errors (missing price, bad category, duplicate SKU) with downloadable corrected template; async progress; nothing goes live unreviewed.</li>
+    </ul>
+
+    <h3>14.3 Retailer order placement</h3>
+    <div class="flow">
+      <span class="st">Home</span><span class="ar">→</span><span class="st">Search / Scan</span><span class="ar">→</span><span class="st">Results</span><span class="ar">→</span><span class="st">Product Page</span><span class="ar">→</span><span class="st">QuantityStepper</span><span class="ar">→</span><span class="st">Cart (per supplier)</span><span class="ar">→</span><span class="st">Checkout</span><span class="ar">→</span><span class="st">Confirmation</span><span class="ar">→</span><span class="st">Tracking</span><span class="ar">→</span><span class="st key">Rate &amp; Reorder</span>
+    </div>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Step</th><th>Screen &amp; elements</th><th>Details</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Home</td><td>Restock Suggestions strip (Smart Reorder §15.1), saved suppliers, offers, categories</td></tr>
+        <tr><td>2</td><td>Search</td><td>Query + barcode scan; filters: price, MOQ, delivery, rating, distance; sponsored slots labeled</td></tr>
+        <tr><td>3</td><td>Product Page</td><td>TierLadder, stock badge, supplier strip (rating, badges, distance), compare-across-suppliers panel</td></tr>
+        <tr><td>4</td><td>Add to Cart</td><td>QuantityStepper with tier auto-highlight; MOQ guard offers “Add minimum (24)” fix-action</td></tr>
+        <tr><td>5</td><td>Cart</td><td>Supplier groups; per-supplier subtotal + delivery method; MOQ progress bars; notes per supplier</td></tr>
+        <tr><td>6</td><td>Checkout</td><td>Buyer note; payment = on account in Phase 1 (Source §21.1); order review</td></tr>
+        <tr><td>7</td><td>Tracking</td><td>OrderTimeline; live map + driver card from Phase 2</td></tr>
+        <tr><td>8</td><td>After delivery</td><td>Rate store (order-gated), one-tap Reorder</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>14.4 Wholesaler order acceptance (hero flow)</h3>
+    <div class="flow">
+      <span class="st">Push “New order — 14 items · 2,340.00”</span><span class="ar">→</span><span class="st">Order Detail</span><span class="ar">→</span><span class="st key">Accept All / Partial / Reject</span><span class="ar">→</span><span class="st">Buyer auto-notified</span><span class="ar">→</span><span class="st">Preparing</span><span class="ar">→</span><span class="st">Ready</span>
+    </div>
+    <ul>
+      <li>Order Detail shows per line: qty, snapshot price, current stock, and <b>price-delta guard</b> flags if the price list changed since checkout (Part I §5.2).</li>
+      <li>Partial Accept: item-level toggles + editable confirmed quantities; unconfirmed items release automatically; the buyer sees exactly what changed.</li>
+      <li>SLA countdown on the card (amber → red); escalation to phone/chat when breaching.</li>
+    </ul>
+
+    <h3>14.5 Driver delivery cycle (Phase 2)</h3>
+    <div class="flow">
+      <span class="st">Duty On</span><span class="ar">→</span><span class="st">Job Offer (countdown)</span><span class="ar">→</span><span class="st">Pickup Verify (code/QR)</span><span class="ar">→</span><span class="st">Navigate</span><span class="ar">→</span><span class="st">Arrive (geofence)</span><span class="ar">→</span><span class="st key">POD Capture</span><span class="ar">→</span><span class="st">Summary</span><span class="ar">→</span><span class="st">Earnings</span>
+    </div>
+    <p>POD Capture: OTP keypad (primary) / photo / signature + recipient name + auto geo-tag — all offline-capable with QueuedActionChip replay. Summary shows fee, duration, distance and suggests the next nearby job.</p>
+
+    <h3>14.6 Consumer journey (Phase 4)</h3>
+    <div class="flow">
+      <span class="st">Location Permission</span><span class="ar">→</span><span class="st">Nearby Stores</span><span class="ar">→</span><span class="st">Store Page</span><span class="ar">→</span><span class="st">Product</span><span class="ar">→</span><span class="st">Cart</span><span class="ar">→</span><span class="st">Checkout (pay / COD)</span><span class="ar">→</span><span class="st">Live Tracking</span><span class="ar">→</span><span class="st key">Rate · Favorite · Reorder</span>
+    </div>
+    <p class="small">Reuses retailer patterns with consumer pricing (<code>channel = B2C</code>), a simpler single-store cart at launch, and Smart Reorder for household replenishment (Source §10.3).</p>
+
+    <h3>14.7 Admin operations console</h3>
+    <ul>
+      <li><b>Verifications queue:</b> list left + document preview right; approve / reject with mandatory reason (audit-logged).</li>
+      <li><b>Order Monitor:</b> status board with filters + SLA colors; drill-down shows full <code>order_status_history</code> + audit trail slide-over.</li>
+      <li><b>Disputes (P2+):</b> split-pane evidence viewer — POD, photos, order-linked chat, financial breakdown side by side; decision templates with structured outcomes.</li>
+      <li><b>Dispatch console (P2):</b> live map + unassigned jobs + driver suggestions (2B) + manual assign.</li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 15 ================= -->
+  <section class="sec" id="s15">
+    <h2><span class="no">15</span>Advanced Interfaces</h2>
+
+    <h3>15.1 Smart Reorder (Source §10.3, §13.3)</h3>
+    <p><b>Rules v1 (Phase 4; merchant-facing variant Phase 5):</b> median reorder interval per product × last-order quantity; confidence from interval variance and order count. UI states: high confidence (brand card), low confidence (neutral, suggestion only), overdue (amber), no history (hidden — never fabricate suggestions).</p>
+    <div class="demo">
+      <h5>Live component preview · Restock Suggestions card (retailer home)</h5>
+      <div class="reorder-card">
+        <div class="rc-h"><span>Restock Suggestions</span><span style="opacity:.85">3 items · est. 1,540.00</span></div>
+        <div class="rc-row"><span class="nm">Basmati Rice 5 kg<div class="cy">Ordered 18d ago · usually every 21d</div></span><span class="q">× 24</span><span class="p">114.00 <span class="badge-up">+5%</span></span></div>
+        <div class="rc-row"><span class="nm">Sunflower Oil 1.8 L<div class="cy">Ordered 20d ago · usually every 28d</div></span><span class="q">× 12</span><span class="p">178.80 <span class="badge-up">−2%</span></span></div>
+        <div class="rc-row"><span class="nm">Tea 450 g<div class="cy">You may be running low (est. stock-out in 4d)</div></span><span class="q">× 6</span><span class="p">97.20</span></div>
+        <div class="rc-cta"><span class="btn">Add all to cart</span></div>
+      </div>
+    </div>
+    <ul>
+      <li><b>Retailer home:</b> strip → detail sheet with per-item qty steppers → <b>“Add all (est. 1,540.00)”</b> single CTA. Price-change badges (“+5% since last order”) preserve trust.</li>
+      <li><b>Merchant Restock Radar (P5):</b> buyers predicted to reorder this week with “Send offer / Remind” — frequency-capped, consent-gated (Source §15.4).</li>
+      <li><b>KPI:</b> repeat-purchase lift (Source §26.2) — the card is measured, not assumed.</li>
+    </ul>
+
+    <h3>15.2 Data-visualization dashboards</h3>
+    <p><b>Merchant dashboard (Phase 5):</b></p>
+<pre><code>┌ KPI row: Orders · Revenue · AOV · Repeat rate   (each with Δ vs previous period)
+├ Sales trend (line, 30/90 days, compare ranges)
+├ Top products (bar list + sparkline + Δ price)
+├ Conversion funnel: views → cart → order → repeat
+└ Promotion ROI table (spend, orders, incremental revenue, sparkline)</code></pre>
+    <p><b>Admin ops dashboard:</b> GMV trend · activation funnel (registration → verified → catalog ≥ 20 → first order) · delivery heatmap (PostGIS) · ETA-accuracy gauge · dispute aging.</p>
+    <div class="callout"><b>Dashboard design rules.</b> The 5-second insight test — a merchant must read any chart’s takeaway in 5 s; tabular numerals; one semantic color language shared with StatusPill; every chart exports CSV; mobile stacks KPI row → trend → lists; empty states say “data starts flowing after your first order.”</div>
+
+    <h3>15.3 Notification &amp; nudge model (Source §15.4)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Category</th><th>Examples</th><th>Channel &amp; cadence</th></tr></thead>
+      <tbody>
+        <tr><td>Transactional</td><td>Order placed/accepted/delivered, POD, payment receipt</td><td>Push + in-app, immediate</td></tr>
+        <tr><td>Behavioral</td><td>Restock suggestion, price drop on favorite, in-cart price change</td><td>Push digest or in-app; max 2/week; quiet hours</td></tr>
+        <tr><td>Promotional</td><td>Offers, campaigns</td><td>Push only with consent; throttled; preference-gated</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 16 ================= -->
+  <section class="sec" id="s16">
+    <h2><span class="no">16</span>Accessibility — WCAG 2.2 AA (ship gate)</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Criterion</th><th>Implementation</th></tr></thead>
+      <tbody>
+        <tr><td>Contrast</td><td>≥ 4.5:1 text, ≥ 3:1 UI components &amp; status colors — token pairs pre-validated</td></tr>
+        <tr><td>Target size</td><td>≥ 48×48 dp mobile (driver app ≥ 56 dp), ≥ 44 px web</td></tr>
+        <tr><td>Non-color status</td><td>StatusPill = icon + color + text; charts carry patterns/labels, not color alone</td></tr>
+        <tr><td>Live updates</td><td><code>aria-live</code> regions for order status changes and driver ETA; Flutter <code>Semantics</code> announcements</td></tr>
+        <tr><td>Keyboard &amp; focus</td><td>Full keyboard paths on web/admin; focus trap in wizards/modals; visible focus ring</td></tr>
+        <tr><td>Forms</td><td>Persistent labels (no placeholder-only), error text linked via <code>aria-describedby</code>, announced on submit</td></tr>
+        <tr><td>Motion</td><td><code>prefers-reduced-motion</code> honored everywhere incl. map tracking</td></tr>
+        <tr><td>Screen readers</td><td>VoiceOver (ar + en) and TalkBack passes per release on critical flows</td></tr>
+        <tr><td>CI</td><td>axe-core on web pages; Flutter accessibility checks in the test suite</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 17 ================= -->
+  <section class="sec" id="s17">
+    <h2><span class="no">17</span>Localization &amp; RTL</h2>
+    <ul>
+      <li><b>Stack:</b> Flutter <code>intl</code> ARB files per flavor; <code>next-intl</code> on web; ICU message syntax; English source strings with professional Arabic review before release.</li>
+      <li><b>RTL implementation:</b> logical CSS properties only (<code>margin-inline-start</code>, <code>inset-inline</code>); Flutter <code>Directionality</code>-driven layouts; mirrored icons (back, chevrons, progress, undo) via an <code>autoMirror</code> flag; <b>not</b> mirrored: media controls, clocks, phone numbers.</li>
+      <li><b>Numerals:</b> Western Arabic numerals (0–9) default for prices/quantities/IDs (B2B convention), toggleable per market config.</li>
+      <li><b>Bidi:</b> mixed-direction product names (Arabic name + Latin brand) wrapped with proper bidi isolation so punctuation never flips.</li>
+      <li><b>Formatting:</b> dates, times, currency, units via ICU per locale; week start + weekend conventions per market.</li>
+      <li><b>QA:</b> pseudo-RTL localization in CI; LTR + RTL golden screenshot tests per screen family; Arabic UX review each release; layout tested at +40% string expansion.</li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 18 ================= -->
+  <section class="sec" id="s18">
+    <h2><span class="no">18</span>Responsive &amp; Adaptive Layout</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Breakpoint</th><th>Range</th><th>Navigation</th><th>Layout behavior</th></tr></thead>
+      <tbody>
+        <tr><td>Compact</td><td>&lt; 600 px</td><td>Bottom NavigationBar (5 max)</td><td>Single column; tables → key-column cards; primary actions bottom-anchored</td></tr>
+        <tr><td>Medium</td><td>600–1024 px</td><td>NavigationRail</td><td>Two-column lists; 4-col grids; sheets become popovers</td></tr>
+        <tr><td>Expanded</td><td>&gt; 1024 px</td><td>Permanent drawer / top nav</td><td>12-col grid; DataGrid full columns; split panes (admin)</td></tr>
+      </tbody>
+    </table></div>
+    <ul>
+      <li>Flutter enforces the same three windows via <code>MediaQuery</code> breakpoints in <code>mobile-core</code>, so all flavors behave identically.</li>
+      <li>Driver app additionally supports landscape map mode; all primary actions live in the bottom 40% thumb zone.</li>
+      <li>Web dashboards collapse by priority: KPIs persist, charts restack, tables drop optional columns — never horizontal page scroll.</li>
+    </ul>
+  </section>
+
+  <!-- ================= SECTION 19 ================= -->
+  <section class="sec" id="s19">
+    <h2><span class="no">19</span>Performance UX Budgets &amp; Instrumentation</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Metric</th><th>Budget</th></tr></thead>
+      <tbody>
+        <tr><td>App cold start (mid-range Android)</td><td>&lt; 2.5 s</td></tr>
+        <tr><td>Perceived list load (skeleton within)</td><td>&lt; 300 ms</td></tr>
+        <tr><td>Image thumbnails on cards</td><td>≤ 60 KB (WebP/AVIF)</td></tr>
+        <tr><td>Web first meaningful paint</td><td>&lt; 1.8 s</td></tr>
+        <tr><td>Scroll jank / dropped frames</td><td>&lt; 1% of frames</td></tr>
+        <tr><td>Order-status push → screen reflects</td><td>&lt; 2 s</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Funnel instrumentation:</b> every journey step maps 1:1 to an analytics event (<code>search_performed</code>, <code>product_viewed</code>, <code>cart_item_added</code>, <code>checkout_started</code>, <code>order_submitted</code>, <code>order_completed</code>, <code>reorder_used</code>, <code>import_completed</code>) feeding Part I §3.10 — one pipeline, no parallel truth.</p>
+    <p><b>Qualitative loop:</b> monthly merchant visit day (Source §14.3 onboarding team), consented session recordings on web, support-ticket reason coding feeding the design-debt register.</p>
+  </section>
+
+  <!-- ================= SECTION 20 ================= -->
+  <section class="sec" id="s20">
+    <h2><span class="no">20</span>Design Operations</h2>
+    <ul>
+      <li><b>Figma structure:</b> Foundations (tokens) → Components (variants incl. RTL + dense) → Patterns → Flows; tokens exported via Style Dictionary into <code>packages/ui-kit</code> (CSS variables) and the Flutter theme — designers and engineers consume the same source.</li>
+      <li><b>Handoff:</b> contracts-first — OpenAPI + tokens, zero redline handoffs; Storybook documents ui-kit; component parity review each sprint.</li>
+      <li><b>Cadence:</b> weekly design–engineering pairing on hero flows; phase-exit usability testing as a gate (Part I §9.1); design-debt register groomed like tech debt.</li>
+    </ul>
+  </section>
+
+  <!-- ================= APPENDICES ================= -->
+  <section class="sec" id="apa">
+    <h2><span class="no">A</span>Appendix A — Domain Event Taxonomy (v1)</h2>
+    <p class="small">Naming: <code>&lt;module&gt;.&lt;entity&gt;.&lt;action&gt;</code>. All events flow through the transactional outbox with at-least-once delivery and idempotent consumers.</p>
+    <ul>
+      <li><b>Identity / Merchant:</b> <code>identity.user.registered</code> · <code>merchant.store.created</code> · <code>merchant.verification.submitted/approved</code></li>
+      <li><b>Catalog / Inventory / Pricing:</b> <code>catalog.product.published/rejected</code> · <code>catalog.import.completed</code> · <code>inventory.stock.adjusted/reserved/released</code> · <code>pricing.price_list.updated</code></li>
+      <li><b>Orders:</b> <code>order.submitted</code> · <code>order.accepted</code> · <code>order.partially_accepted</code> · <code>order.rejected</code> · <code>order.status.changed</code> · <code>order.cancelled</code> · <code>order.completed</code></li>
+      <li><b>Trust / Support:</b> <code>review.created</code> · <code>dispute.opened/resolved</code> · <code>notification.dispatched</code></li>
+      <li><b>Phase 2:</b> <code>delivery.job.created/assigned/accepted</code> · <code>delivery.job.status.changed</code> · <code>delivery.pod.submitted</code> · <code>delivery.eta.updated</code></li>
+      <li><b>Phase 3:</b> <code>payment.initiated/captured/failed/refunded</code> · <code>settlement.completed</code></li>
+      <li><b>Phase 4–5:</b> <code>consumer.order.placed</code> · <code>reorder.suggestion.served</code> · <code>ad.campaign.launched</code> · <code>ad.impression/click/conversion</code></li>
+    </ul>
+  </section>
+
+  <section class="sec" id="apb">
+    <h2><span class="no">B</span>Appendix B — Phase 1 API Endpoint Index (representative)</h2>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Module</th><th>Endpoints</th></tr></thead>
+      <tbody>
+        <tr><td>Auth</td><td><code>POST /v1/auth/otp/request</code> · <code>POST /v1/auth/otp/verify</code> · <code>POST /v1/auth/refresh</code> · <code>POST /v1/auth/logout</code></td></tr>
+        <tr><td>Users</td><td><code>GET/PATCH /v1/me</code> · <code>GET /v1/me/organizations</code> · <code>POST /v1/me/devices</code></td></tr>
+        <tr><td>Organizations</td><td><code>POST /v1/organizations</code> · <code>POST /v1/organizations/{id}/members</code> · <code>GET /v1/organizations/{id}/members</code></td></tr>
+        <tr><td>Merchant</td><td><code>POST /v1/stores</code> · <code>PATCH /v1/stores/{id}</code> · <code>POST /v1/stores/{id}/documents</code> · <code>GET /v1/stores/{id}</code> (public)</td></tr>
+        <tr><td>Catalog</td><td><code>POST /v1/products</code> · <code>PATCH /v1/products/{id}</code> · <code>POST /v1/products/{id}/variants</code> · <code>POST /v1/media/presign</code> · <code>POST /v1/catalog/imports</code> · <code>GET /v1/catalog/imports/{jobId}</code></td></tr>
+        <tr><td>Inventory</td><td><code>GET /v1/inventory</code> · <code>PATCH /v1/inventory/{itemId}</code> · <code>GET /v1/inventory/low-stock</code></td></tr>
+        <tr><td>Pricing</td><td><code>POST /v1/price-lists</code> · <code>POST /v1/price-lists/{id}/tiers</code> · <code>GET /v1/products/{id}/pricing</code></td></tr>
+        <tr><td>Promotions</td><td><code>POST /v1/promotions</code> · <code>GET /v1/promotions</code> · <code>GET /v1/offers/nearby</code></td></tr>
+        <tr><td>Search</td><td><code>GET /v1/search?q=&amp;filters</code> · <code>GET /v1/categories</code> · <code>GET /v1/categories/{id}/products</code></td></tr>
+        <tr><td>Cart</td><td><code>GET /v1/cart</code> · <code>POST /v1/cart/items</code> · <code>PATCH /v1/cart/items/{id}</code> · <code>DELETE /v1/cart/items/{id}</code></td></tr>
+        <tr><td>Orders</td><td><code>POST /v1/checkout</code> · <code>GET /v1/orders</code> · <code>GET /v1/orders/{id}</code> · <code>POST /v1/orders/{id}/accept</code> · <code>POST /v1/orders/{id}/reject</code> · <code>POST /v1/orders/{id}/items/{itemId}/confirm</code> · <code>POST /v1/orders/{id}/status</code> · <code>POST /v1/orders/{id}/cancel</code></td></tr>
+        <tr><td>Reorder / Reviews</td><td><code>POST /v1/orders/{id}/reorder</code> · <code>GET /v1/reorder/suggestions</code> (P4) · <code>POST /v1/orders/{id}/review</code> · <code>GET /v1/stores/{id}/reviews</code></td></tr>
+        <tr><td>Notifications</td><td><code>GET /v1/notifications</code> · <code>PATCH /v1/notifications/{id}/read</code> · <code>GET/PATCH /v1/notification-preferences</code></td></tr>
+        <tr><td>Admin</td><td><code>GET /v1/admin/verifications</code> · <code>POST /v1/admin/verifications/{id}/decision</code> · <code>GET /v1/admin/orders</code> · <code>GET /v1/admin/merchants</code> · <code>GET /v1/admin/kpis</code> · <code>GET /v1/admin/audit-logs</code></td></tr>
+        <tr><td>Realtime (WS)</td><td><code>GET /v1/realtime</code> — rooms <code>user:{id}</code> · <code>org:{id}</code> · <code>order:{id}</code>; events <code>order.status</code> · <code>notification.new</code></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  </main>
+</div>
+
+<footer class="pagefoot">
+  <p><b>Smart Commerce &amp; Supply Platform</b> — Technical &amp; Operational Implementation Plan + Advanced UI/UX Design Strategy · v1.0 · September 2026</p>
+  <p>Source: <i>Smart_Commerce_Supply_Platform_Final_Plan.html</i> · Companion artifact: <i>Smart_Commerce_Platform_Implementation_and_UX_Plan.md</i></p>
+</footer>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  function setActive(id){
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (map[id]) map[id].classList.add('active');
+  }
+  if ('IntersectionObserver' in window) {
+    var current = null;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) {
+          if (current !== e.target.id) { current = e.target.id; setActive(current); }
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    targets.forEach(function(t){ io.observe(t); });
+  }
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      setActive(a.getAttribute('href').slice(1));
+      document.getElementById('toc').classList.remove('open');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@scs/contracts": ["./packages/contracts/src"],
+      "@scs/contracts/*": ["./packages/contracts/src/*"],
+      "@scs/event-types": ["./packages/event-types/src"],
+      "@scs/event-types/*": ["./packages/event-types/src/*"],
+      "@scs/env": ["./packages/env/src"],
+      "@scs/env/*": ["./packages/env/src/*"],
+      "@scs/ui-kit": ["./packages/ui-kit/src"],
+      "@scs/ui-kit/*": ["./packages/ui-kit/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", "coverage", ".next"]
+}
