@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (M1 Foundation scaffold complete — Identity, Audit, Outbox, JWT auth)
+**Last updated:** 2026-09-03 (M2 Merchant Onboarding complete — stores, warehouses, documents, verification, admin console, wizard UI)
 
 ---
 
@@ -74,31 +74,41 @@
 
 **Goal:** Merchant registration, store creation, document upload, verification queue
 
-- [ ] **Merchant module** (migration `0002_merchant`)
-  - [ ] `stores` table (WHOLESALE, RETAIL, BOTH; PostGIS location)
-  - [ ] `warehouses` table
-  - [ ] `business_documents` table
-  - [ ] `verification_requests` table (SUBMITTED, IN_REVIEW, APPROVED, REJECTED)
-  - [ ] `POST /v1/stores` endpoint
-  - [ ] `PATCH /v1/stores/{id}` endpoint
-  - [ ] `POST /v1/stores/{id}/documents` endpoint
-  - [ ] `GET /v1/stores/{id}` (public) endpoint
-  - [ ] `POST /v1/organizations` endpoint
-  - [ ] `GET /v1/organizations/{id}/members` endpoint
-  - [ ] `POST /v1/organizations/{id}/members` endpoint
-- [ ] **Admin verification console**
-  - [ ] `GET /v1/admin/verifications` endpoint
-  - [ ] `POST /v1/admin/verifications/{id}/decision` endpoint
-  - [ ] Verification queue UI (admin console)
-  - [ ] Decision workflow (approve/reject with mandatory reason on reject)
-- [ ] **Frontend / mobile**
-  - [ ] Store wizard (web/mobile)
-  - [ ] Document uploader (web/mobile)
-  - [ ] Admin verification console (web)
-- [ ] **Events**
-  - [ ] `merchant.store.created` event published on store creation
-  - [ ] `merchant.verification.submitted` event published on document upload
-  - [ ] `merchant.verification.approved` event published on approval
+- [x] **Merchant module** (migration `0003_merchant`)
+  - [x] `stores` table (linked to organizations; slug, currency, locale, address JSONB)
+  - [x] `warehouses` table (per-store physical locations)
+  - [x] `business_documents` table (doc types: COMMERCIAL_REG, TAX_CERT, BANK_LETTER, NATIONAL_ID, OTHER)
+  - [x] `verification_requests` table (SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, REVISION)
+  - [x] `POST /v1/stores` endpoint (with slug generation + outbox event)
+  - [x] `PATCH /v1/stores/{id}` endpoint
+  - [x] `GET /v1/stores` endpoint (admin: all; merchant: scoped to org)
+  - [x] `GET /v1/stores/{id}` + `GET /v1/stores/slug/{slug}` endpoints
+  - [x] `POST /v1/stores/{id}/warehouses` endpoint
+  - [x] `GET /v1/stores/{id}/warehouses` + `PATCH /v1/warehouses/{id}` endpoints
+  - [x] `POST /v1/documents` endpoint (register upload)
+  - [x] `POST /v1/documents/{id}/presign` endpoint (presigned download URL)
+  - [x] `GET /v1/documents/org/{orgId}` + `GET /v1/documents/store/{storeId}` endpoints
+  - [x] `POST /v1/stores/{id}/verify` endpoint (submit verification)
+  - [x] `GET /v1/verification/queue` endpoint (admin, permission-gated)
+  - [x] `GET /v1/verification/{id}` endpoint (admin, permission-gated)
+  - [x] `POST /v1/verification/{id}/review` endpoint (approve/reject/revision)
+- [x] **Admin verification console**
+  - [x] Verification queue page with status filters (admin console)
+  - [x] Verification review page with store details, documents, decision form
+  - [x] Decision workflow (approve/reject/revision with mandatory reason on reject)
+  - [x] Admin API client (`lib/api.ts`) for verification + store + document endpoints
+- [x] **Frontend / mobile**
+  - [x] Merchant onboarding wizard (web) — 4-step flow: store info → warehouse → documents → review
+  - [x] Onboarding success page
+  - [x] Web API client (`lib/api.ts`) for merchant endpoints
+  - [x] Home page updated with "Open a Store" link
+- [x] **Events**
+  - [x] `merchant.store.created` event published on store creation
+  - [x] `merchant.verification.submitted` event published on verification submission
+  - [x] `merchant.verification.approved` / `rejected` events published on review
+- [x] **Contracts**
+  - [x] Merchant zod schemas (Store, Warehouse, Document, Verification)
+  - [x] TypeScript type exports for all merchant DTOs
 
 **Exit criteria:** Merchant can register, create store, upload documents; admin can review and verify; events flow through outbox
 
@@ -324,7 +334,7 @@
 | Component | Phase | Status | Notes |
 |---|---|---|---|
 | **Identity & RBAC** | 1 | 🟢 Completed | JWT signing, auth guards, permissions guard, refresh rotation, org switching |
-| **Merchant & Stores** | 1 | ⚪ Not Started | Migration `0002_merchant`; verification workflow |
+| **Merchant & Stores** | 1 | 🟢 Completed | Migration `0003_merchant`; store CRUD; warehouses; documents; verification workflow; admin console; wizard UI |
 | **Catalog & Products** | 1 | ⚪ Not Started | Migration `0003_catalog`; media pipeline; bulk import |
 | **Inventory & Stock** | 1 | ⚪ Not Started | Migration `0004_inventory`; reservation at acceptance |
 | **Pricing & Tiers** | 1 | ⚪ Not Started | Migration `0005_pricing`; tier resolution; B2B/B2C channel |
@@ -464,7 +474,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 **Notes & Blockers**
 
-**Current focus:** M2 Merchant Onboarding — merchant registration, store creation, document upload, verification queue
+**Current focus:** M3 Catalog & Pricing — product catalog, variants, media pipeline, tiered pricing, bulk import
 
 **Blockers:** None (greenfield project)
 
@@ -496,10 +506,21 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: OpenAPI client generation scripts (TypeScript via openapi-typescript, Dart via openapi-generator-cli)
 - 2026-09-03: Identity & RBAC module completed (JWT, refresh rotation, org switching)
 - 2026-09-03: M1 Foundation milestone fully scaffolded
+- 2026-09-03: Migration `0003_merchant` created (stores, warehouses, business_documents, verification_requests)
+- 2026-09-03: Merchant Drizzle schema with FK references to identity tables
+- 2026-09-03: Merchant service with full CRUD (stores, warehouses, documents, verification)
+- 2026-09-03: Merchant controller with 16 endpoints (JWT-authenticated, permission-gated admin routes)
+- 2026-09-03: Contracts package extended with merchant zod schemas (13 schemas + 12 type exports)
+- 2026-09-03: Admin verification console (queue page with filters, review page with decision form)
+- 2026-09-03: Admin API client for verification, store, and document endpoints
+- 2026-09-03: Merchant onboarding wizard (web) — 4-step flow with store/warehouse/docs/review
+- 2026-09-03: Web API client for merchant endpoints
+- 2026-09-03: DOM lib added to web + admin tsconfigs for React event handling
+- 2026-09-03: M2 Merchant Onboarding milestone complete
+- 2026-09-03: All 5 TypeScript projects compile clean after M2
 
 **Decisions pending:**
 - Offline queue skeleton for mobile
-- Merchant onboarding module (M2)
 - Integration tests for auth flow end-to-end
 
 ---

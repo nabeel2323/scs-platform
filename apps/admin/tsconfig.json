@@ -4,6 +4,7 @@
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "outDir": "./dist",
     "baseUrl": "./",

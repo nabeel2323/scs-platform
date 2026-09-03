@@ -7,3 +7,4 @@
 
 export * from '../modules/identity/identity.schema';
 export * from '../modules/audit/audit.schema';
+export * from '../modules/merchant/merchant.schema';

@@ -27,6 +27,10 @@ export default function HomePage() {
           <b>Cart</b>
           <span>Multi-supplier checkout</span>
         </Link>
+        <Link href="/merchant/onboard" style={cardStyle}>
+          <b>Open a Store</b>
+          <span>Merchant onboarding wizard</span>
+        </Link>
       </div>
     </main>
   );
