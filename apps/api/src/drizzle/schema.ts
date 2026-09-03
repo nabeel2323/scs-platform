@@ -8,3 +8,6 @@
 export * from '../modules/identity/identity.schema';
 export * from '../modules/audit/audit.schema';
 export * from '../modules/merchant/merchant.schema';
+export * from '../modules/catalog/catalog.schema';
+export * from '../modules/inventory/inventory.schema';
+export * from '../modules/pricing/pricing.schema';
