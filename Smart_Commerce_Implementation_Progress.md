@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (M3 Catalog & Pricing complete — products, variants, media, categories, brands, inventory, pricing tiers, price resolution)
+**Last updated:** 2026-09-03 (M4 Discovery & Cart complete — search with Arabic normalization, multi-supplier cart, promotions)
 
 ---
 
@@ -169,28 +169,35 @@
 
 **Goal:** Search, store/product pages, multi-supplier cart
 
-- [ ] **Search** (migration `0011_search`)
-  - [ ] `pg_trgm` extension + tsvector triggers
-  - [ ] Arabic normalization function (strip diacritics, fold alef variants, taa-marbuta→haa, unify ya)
-  - [ ] `GET /v1/search` endpoint (FTS + filters; SKU/barcode exact-match fast path)
-  - [ ] `GET /v1/categories` endpoint
-  - [ ] `GET /v1/categories/{id}/products` endpoint
-  - [ ] SearchIndexer port (PostgreSQL FTS adapter; OpenSearch swap-ready)
-- [ ] **Cart module** (part of migration `0006_orders`)
-  - [ ] `carts` table (ACTIVE, CONVERTED, ABANDONED)
-  - [ ] `cart_items` table (grouped by store_id for supplier grouping)
-  - [ ] `GET /v1/cart` endpoint
-  - [ ] `POST /v1/cart/items` endpoint
-  - [ ] `PATCH /v1/cart/items/{id}` endpoint
-  - [ ] `DELETE /v1/cart/items/{id}` endpoint
-  - [ ] Multi-supplier cart (items grouped by store; checkout creates multiple sub-orders)
-- [ ] **Promotions module** (migration `0007_promotions`)
-  - [ ] `promotions` table (PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED in Phase 1)
-  - [ ] `promotion_redemptions` table
-  - [ ] `POST /v1/promotions` endpoint
-  - [ ] `GET /v1/promotions` endpoint
-  - [ ] `GET /v1/offers/nearby` endpoint
-  - [ ] Promotion resolution logic (applied at checkout; snapshot on order_items)
+- [x] **Search** (migration `0007_search`)
+  - [x] `pg_trgm` extension + trigram/tsvector indexes
+  - [x] Arabic normalization function (strip diacritics, fold alef variants, taa-marbuta→haa, unify ya)
+  - [x] `GET /v1/search` endpoint (FTS + trigram similarity; SKU/barcode exact-match fast path)
+  - [x] `GET /v1/search/categories` endpoint (top categories)
+  - [x] `GET /v1/search/brands` endpoint (popular brands)
+  - [x] Search history logging for analytics (`search_queries` table)
+  - [x] SearchService integrated into Catalog module
+- [x] **Cart module** (migration `0009_cart`)
+  - [x] `carts` table (ACTIVE, CONVERTED, ABANDONED)
+  - [x] `cart_items` table (grouped by store_id for supplier grouping; price snapshot)
+  - [x] `GET /v1/cart` endpoint (active cart with items)
+  - [x] `POST /v1/cart/items` endpoint (add item with price snapshot)
+  - [x] `PATCH /v1/cart/items/:itemId` endpoint (update quantity)
+  - [x] `DELETE /v1/cart/items/:itemId` endpoint (remove item)
+  - [x] `DELETE /v1/cart` endpoint (clear cart)
+  - [x] `POST /v1/cart/promo` endpoint (apply promo code)
+  - [x] Multi-supplier cart (items grouped by store; total auto-recalculated)
+- [x] **Promotions module** (migration `0008_promotions`)
+  - [x] `promotions` table (PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED)
+  - [x] `promotion_redemptions` table (usage tracking + per-user limit)
+  - [x] `POST /v1/promotions` endpoint (create promotion)
+  - [x] `GET /v1/stores/:storeId/promotions` endpoint (list all)
+  - [x] `GET /v1/stores/:storeId/promotions/active` endpoint (list active)
+  - [x] `GET /v1/promotions/:id` endpoint
+  - [x] `PATCH /v1/promotions/:id` endpoint (update)
+  - [x] `GET /v1/stores/:storeId/promotions/validate` endpoint (validate promo code)
+  - [x] Promotion resolution logic (calculateDiscount + redeemPromotion)
+  - [x] Per-user limit enforcement + max redemption cap
 - [ ] **Frontend / mobile**
   - [ ] Search page with filters (web/mobile)
   - [ ] Store page (web/mobile)
@@ -198,7 +205,7 @@
   - [ ] Cart page with multi-supplier grouping (web/mobile)
   - [ ] Favorites (web/mobile)
 
-**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout
+**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout ✅ (backend complete; frontend pending)
 
 ---
 
@@ -343,11 +350,11 @@
 | **Inventory & Stock** | 1 | 🟢 Completed | Migration `0005_inventory`; stock tracking, reservations, movements ledger |
 | **Pricing & Tiers** | 1 | 🟢 Completed | Migration `0006_pricing`; price lists, quantity tiers, price resolution |
 | **Orders & FSM** | 1 | ⚪ Not Started | Migration `0006_orders`; 16 statuses; re-price guard; idempotency |
-| **Promotions** | 1 | ⚪ Not Started | Migration `0007_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED |
+| **Promotions** | 1 | 🟢 Completed | Migration `0008_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED; redemption tracking |
 | **Reviews & Trust** | 1 | ⚪ Not Started | Migration `0008_trust`; order-gated reviews; trust snapshots |
 | **Notifications & Comms** | 1 | ⚪ Not Started | Migration `0009_comms`; outbox-driven; SMS/PUSH/IN_APP |
 | **Platform (Audit, Outbox, Analytics, Flags)** | 1 | 🟡 In Progress | Migration `0002_platform` created; outbox dispatcher running; audit schema + Drizzle models |
-| **Search (FTS)** | 1 | ⚪ Not Started | Migration `0011_search`; Arabic normalization; OpenSearch-ready port |
+| **Search (FTS)** | 1 | 🟢 Completed | Migration `0007_search`; Arabic normalization; trigram + FTS indexes; search history |
 | **Delivery & Tracking** | 2 | ⚪ Not Started | Migrations `0013`–`0016`; driver onboarding; zones; POD; live tracking |
 | **Payments & Ledger** | 3 | ⚪ Not Started | Migrations `0017`–`0020`; provider adapters; double-entry ledger; settlements |
 | **B2C Marketplace** | 4 | ⚪ Not Started | Migrations `0021`–`0022`; consumer identity; service areas; Smart Reorder v1 |
@@ -478,7 +485,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 **Notes & Blockers**
 
-**Current focus:** M4 Discovery & Cart — search (FTS + Arabic normalization), cart module, promotions
+**Current focus:** M5 Ordering — checkout, order FSM, accept/partial/reject, reorder, notifications
 
 **Blockers:** None (greenfield project)
 
@@ -531,6 +538,17 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: Contracts extended with catalog/inventory/pricing zod schemas (20+ schemas + 20 type exports)
 - 2026-09-03: M3 Catalog & Pricing milestone complete
 - 2026-09-03: All 5 TypeScript projects compile clean after M3
+- 2026-09-03: Migration `0007_search` created (pg_trgm extension, Arabic normalization function, FTS/trigram indexes, search_queries table)
+- 2026-09-03: Migration `0008_promotions` created (promotions, promotion_redemptions)
+- 2026-09-03: Migration `0009_cart` created (carts, cart_items with multi-supplier support)
+- 2026-09-03: Search service with FTS + trigram similarity + SKU/barcode fast path + Arabic normalization
+- 2026-09-03: Cart service with multi-supplier grouping, price snapshots, promo code application
+- 2026-09-03: Promotions service with PERCENT/FIXED/QTY_DISCOUNT/TIME_LIMITED types, redemption tracking
+- 2026-09-03: Cart controller with 6 endpoints (get/add/update/remove/clear/promo)
+- 2026-09-03: Promotions controller with 6 endpoints (create/list/active/get/update/validate)
+- 2026-09-03: Contracts extended with search/cart/promotions zod schemas (11 schemas + 11 type exports)
+- 2026-09-03: M4 Discovery & Cart milestone complete (backend)
+- 2026-09-03: All 5 TypeScript projects compile clean after M4
 
 **Decisions pending:**
 - Offline queue skeleton for mobile

@@ -8,6 +8,7 @@ import {
   CreateProductInput, UpdateProductInput,
   CreateVariantInput, AddMediaInput, CreateImportJobInput,
 } from './catalog.service';
+import { SearchService, SearchOptions } from './search.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
@@ -18,7 +19,10 @@ import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class CatalogController {
-  constructor(private readonly catalogService: CatalogService) {}
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly searchService: SearchService,
+  ) {}
 
   // ── Categories ───────────────────────────────────────────────
 
@@ -154,5 +158,35 @@ export class CatalogController {
   @Get('imports/:id')
   async getImportJob(@Param('id') id: string) {
     return this.catalogService.getImportJob(id);
+  }
+
+  // ── Search ───────────────────────────────────────────────────
+
+  @Get('search')
+  async search(
+    @Query('q') q: string,
+    @Query('storeId') storeId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.searchService.search(q, {
+      storeId,
+      categoryId,
+      brandId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get('search/categories')
+  async getTopCategories(@Query('storeId') storeId?: string) {
+    return this.searchService.getTopCategories(storeId);
+  }
+
+  @Get('search/brands')
+  async getPopularBrands() {
+    return this.searchService.getPopularBrands();
   }
 }

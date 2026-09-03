@@ -414,6 +414,108 @@ export const ResolvedPriceSchema = z.object({
   tierId: z.string().uuid(),
 });
 
+// ── Search ───────────────────────────────────────────────────
+
+export const SearchQuerySchema = z.object({
+  q: z.string().min(1).max(500),
+  storeId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional(),
+  brandId: z.string().uuid().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+});
+
+export const SearchResultSchema = z.object({
+  items: z.array(z.unknown()),
+  total: z.number(),
+  matchType: z.enum(['exact', 'fuzzy', 'none']),
+  query: z.string(),
+});
+
+// ── Cart ─────────────────────────────────────────────────────
+
+export const AddCartItemSchema = z.object({
+  storeId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  quantity: z.number().int().min(1),
+  priceMinor: z.number().int().min(0),
+  tierMinQty: z.number().int().min(1).optional(),
+});
+
+export const UpdateCartItemSchema = z.object({
+  quantity: z.number().int().min(0),
+});
+
+export const CartItemSchema = z.object({
+  id: z.string().uuid(),
+  cartId: z.string().uuid(),
+  storeId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  quantity: z.number(),
+  priceMinor: z.number(),
+  tierMinQty: z.number(),
+  promoSnapshot: z.record(z.unknown()).nullable(),
+  lineTotalMinor: z.number(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const CartSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  status: z.string(),
+  promoCode: z.string().nullable(),
+  promotionId: z.string().uuid().nullable(),
+  totalMinor: z.number(),
+  items: z.array(CartItemSchema).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+// ── Promotions ───────────────────────────────────────────────
+
+export const PromoTypeSchema = z.enum(['PERCENT', 'FIXED', 'QTY_DISCOUNT', 'TIME_LIMITED']);
+export const PromoScopeSchema = z.enum(['STORE', 'CATEGORY', 'PRODUCT', 'VARIANT']);
+
+export const CreatePromotionSchema = z.object({
+  storeId: z.string().uuid(),
+  code: z.string().max(40).optional(),
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  promoType: PromoTypeSchema,
+  scope: PromoScopeSchema.default('STORE'),
+  scopeId: z.string().uuid().optional(),
+  discountValue: z.number().int().min(0),
+  minOrderMinor: z.number().int().min(0).optional(),
+  maxDiscountMinor: z.number().int().min(0).optional(),
+  maxRedemptions: z.number().int().min(1).optional(),
+  perUserLimit: z.number().int().min(1).optional(),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+});
+
+export const PromotionSchema = z.object({
+  id: z.string().uuid(),
+  storeId: z.string().uuid(),
+  code: z.string().nullable(),
+  name: z.string(),
+  description: z.string().nullable(),
+  promoType: z.string(),
+  scope: z.string(),
+  scopeId: z.string().uuid().nullable(),
+  discountValue: z.number(),
+  minOrderMinor: z.number().nullable(),
+  maxDiscountMinor: z.number().nullable(),
+  maxRedemptions: z.number().nullable(),
+  redemptionCount: z.number(),
+  perUserLimit: z.number().nullable(),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  isActive: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
 // ── Re-exports ───────────────────────────────────────────────
 
 export type OtpRequest = z.infer<typeof OtpRequestSchema>;
@@ -455,3 +557,14 @@ export type PriceList = z.infer<typeof PriceListSchema>;
 export type CreateTier = z.infer<typeof CreateTierSchema>;
 export type PriceTier = z.infer<typeof PriceTierSchema>;
 export type ResolvedPrice = z.infer<typeof ResolvedPriceSchema>;
+
+export type SearchQuery = z.infer<typeof SearchQuerySchema>;
+export type SearchResult = z.infer<typeof SearchResultSchema>;
+export type AddCartItem = z.infer<typeof AddCartItemSchema>;
+export type UpdateCartItem = z.infer<typeof UpdateCartItemSchema>;
+export type CartItem = z.infer<typeof CartItemSchema>;
+export type Cart = z.infer<typeof CartSchema>;
+export type PromoType = z.infer<typeof PromoTypeSchema>;
+export type PromoScope = z.infer<typeof PromoScopeSchema>;
+export type CreatePromotion = z.infer<typeof CreatePromotionSchema>;
+export type Promotion = z.infer<typeof PromotionSchema>;
