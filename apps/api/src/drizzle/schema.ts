@@ -6,3 +6,4 @@
  */
 
 export * from '../modules/identity/identity.schema';
+export * from '../modules/audit/audit.schema';

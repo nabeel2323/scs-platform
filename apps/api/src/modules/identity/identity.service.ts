@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
-import { users, organizations, organizationMembers, sessions } from './identity.schema';
-import { eq } from 'drizzle-orm';
+import { users, organizations, organizationMembers, sessions, roles, rolePermissions, permissions } from './identity.schema';
+import { eq, and } from 'drizzle-orm';
+import crypto from 'node:crypto';
 
 /**
  * Identity service — phone-first identity with multi-org support.
@@ -19,6 +21,7 @@ export class IdentityService {
   constructor(
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
+    private readonly jwt: JwtService,
   ) {}
 
   /**
@@ -26,7 +29,6 @@ export class IdentityService {
    * - Generates 6-digit code
    * - Stores in Redis with 90s TTL
    * - Tracks attempts (max 5 per 15 min)
-   * - Sends via SMS provider (mock in dev)
    */
   async requestOtp(phone: string): Promise<{ success: boolean }> {
     const attemptsKey = `otp:att:${phone}`;
@@ -36,14 +38,10 @@ export class IdentityService {
       throw new Error('Too many OTP attempts. Please try again later.');
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Store OTP with 90s TTL
     await this.redis.client.set(`otp:${phone}`, otp, 'EX', 90);
 
-    // In production: send via SMS provider
-    // For dev: log the OTP
+    // In production: send via SMS provider. Dev: log the OTP.
     console.log(`[OTP] Code for ${phone}: ${otp}`);
 
     return { success: true };
@@ -51,26 +49,19 @@ export class IdentityService {
 
   /**
    * Verify OTP and issue JWT pair.
-   * - Validates OTP from Redis
-   * - Creates or retrieves user
-   * - Issues access token (15 min) + refresh token (30 d)
-   * - Stores session in DB
    */
   async verifyOtp(phone: string, otp: string): Promise<{ accessToken: string; refreshToken: string }> {
     const storedOtp = await this.redis.client.get(`otp:${phone}`);
 
     if (!storedOtp || storedOtp !== otp) {
-      // Increment attempts
       await this.redis.client.incr(`otp:att:${phone}`);
-      await this.redis.client.expire(`otp:att:${phone}`, 900); // 15 min
+      await this.redis.client.expire(`otp:att:${phone}`, 900);
       throw new Error('Invalid OTP');
     }
 
-    // OTP valid — delete it
     await this.redis.client.del(`otp:${phone}`);
     await this.redis.client.del(`otp:att:${phone}`);
 
-    // Find or create user
     const existing = await this.db.db.query.users.findFirst({
       where: eq(users.phone, phone),
     });
@@ -79,7 +70,6 @@ export class IdentityService {
     if (existing) {
       userId = existing.id;
     } else {
-      // Create user (UUIDv7 generated in app layer)
       userId = crypto.randomUUID();
       await this.db.db.insert(users).values({
         id: userId,
@@ -90,19 +80,29 @@ export class IdentityService {
       });
     }
 
-    // Issue JWT tokens (placeholder — implement with @nestjs/jwt)
-    const accessToken = `access_${userId}_${Date.now()}`;
-    const refreshToken = `refresh_${userId}_${Date.now()}`;
+    // Resolve user's org membership and permissions for JWT claims
+    const claims = await this.buildClaims(userId);
+
+    // Sign JWT access token
+    const accessToken = this.jwt.sign({
+      sub: userId,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
+    });
+
+    // Generate opaque refresh token
+    const refreshToken = crypto.randomUUID();
+    const tokenHash = this.hashToken(refreshToken);
 
     // Store session
     const sessionId = crypto.randomUUID();
-    const tokenHash = Buffer.from(refreshToken).toString('base64');
     await this.db.db.insert(sessions).values({
       id: sessionId,
       userId,
       tokenHash,
       device: 'web',
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
     return { accessToken, refreshToken };
@@ -110,45 +110,53 @@ export class IdentityService {
 
   /**
    * Refresh access token using refresh token.
-   * - Validates refresh token
-   * - Rotates: issues new refresh token, revokes old one
-   * - Detects reuse: if old token already revoked, revoke entire chain
+   * Rotation: issues new refresh token, revokes old one.
+   * Reuse detection: if old token already revoked, revoke entire chain.
    */
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; newRefreshToken: string }> {
-    const tokenHash = Buffer.from(refreshToken).toString('base64');
+    const tokenHash = this.hashToken(refreshToken);
 
     const session = await this.db.db.query.sessions.findFirst({
       where: eq(sessions.tokenHash, tokenHash),
     });
 
     if (!session || session.revokedAt) {
+      // Reuse detected — revoke entire chain
+      if (session?.revokedAt) {
+        await this.revokeChain(session.userId);
+      }
       throw new Error('Invalid or expired refresh token');
     }
 
-    // Check if token is expired
     if (new Date() > session.expiresAt) {
       throw new Error('Refresh token expired');
     }
 
-    // Rotate: revoke old session, create new one
+    // Rotate: revoke old, create new
     await this.db.db
       .update(sessions)
       .set({ revokedAt: new Date() })
       .where(eq(sessions.id, session.id));
 
-    const newSessionId = crypto.randomUUID();
-    const newRefreshToken = `refresh_${session.userId}_${Date.now()}`;
-    const newTokenHash = Buffer.from(newRefreshToken).toString('base64');
+    const claims = await this.buildClaims(session.userId);
+
+    const newRefreshToken = crypto.randomUUID();
+    const newTokenHash = this.hashToken(newRefreshToken);
 
     await this.db.db.insert(sessions).values({
-      id: newSessionId,
+      id: crypto.randomUUID(),
       userId: session.userId,
       tokenHash: newTokenHash,
       device: session.device,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
-    const accessToken = `access_${session.userId}_${Date.now()}`;
+    const accessToken = this.jwt.sign({
+      sub: session.userId,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
+    });
 
     return { accessToken, newRefreshToken };
   }
@@ -157,7 +165,7 @@ export class IdentityService {
    * Logout — revoke current session.
    */
   async logout(refreshToken: string): Promise<{ success: boolean }> {
-    const tokenHash = Buffer.from(refreshToken).toString('base64');
+    const tokenHash = this.hashToken(refreshToken);
 
     await this.db.db
       .update(sessions)
@@ -169,22 +177,77 @@ export class IdentityService {
 
   /**
    * Switch active organization.
-   * - Validates membership
-   * - Issues new JWT with updated activeOrg claim
    */
   async switchOrg(userId: string, orgId: string): Promise<{ accessToken: string }> {
-    // Validate membership
     const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: eq(organizationMembers.userId, userId),
+      where: and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.orgId, orgId),
+      ),
     });
 
-    if (!membership || membership.orgId !== orgId) {
+    if (!membership) {
       throw new Error('Not a member of this organization');
     }
 
-    // Issue new access token with updated org
-    const accessToken = `access_${userId}_org_${orgId}_${Date.now()}`;
+    const claims = await this.buildClaims(userId, orgId);
+
+    const accessToken = this.jwt.sign({
+      sub: userId,
+      activeOrg: orgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
+    });
 
     return { accessToken };
+  }
+
+  // ── Helpers ────────────────────────────────────────────────
+
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private async revokeChain(userId: string): Promise<void> {
+    await this.db.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(eq(sessions.userId, userId));
+  }
+
+  private async buildClaims(userId: string, preferredOrgId?: string) {
+    // Get user's org memberships
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: eq(organizationMembers.userId, userId),
+    });
+
+    const activeOrgId = preferredOrgId || memberships[0]?.orgId || null;
+    const activeMembership = memberships.find((m) => m.orgId === activeOrgId);
+
+    // Resolve role
+    let roleKey = 'BUYER';
+    if (activeMembership?.roleId) {
+      const role = await this.db.db.query.roles.findFirst({
+        where: eq(roles.id, activeMembership.roleId),
+      });
+      if (role) roleKey = role.key;
+    }
+
+    // Resolve permissions for the role
+    const permissionList: string[] = [];
+    if (activeMembership?.roleId) {
+      const rolePerms = await this.db.db.query.rolePermissions.findMany({
+        where: eq(rolePermissions.roleId, activeMembership.roleId),
+      });
+
+      for (const rp of rolePerms) {
+        const perm = await this.db.db.query.permissions.findFirst({
+          where: eq(permissions.id, rp.permissionId),
+        });
+        if (perm) permissionList.push(perm.key);
+      }
+    }
+
+    return { activeOrgId, roleKey, permissions: permissionList };
   }
 }

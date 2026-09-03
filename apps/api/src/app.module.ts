@@ -15,6 +15,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/redis/redis.module';
+import { OutboxModule } from './common/outbox/outbox.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RedisModule } from './common/redis/redis.module';
     // ── Infrastructure ───────────────────────────────────────
     DatabaseModule,
     RedisModule,
+    OutboxModule,
 
     // ── Domain modules (Phase 1) ─────────────────────────────
     IdentityModule,

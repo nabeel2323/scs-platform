@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (Sprint 0 scaffolding complete — all scaffolds done)
+**Last updated:** 2026-09-03 (M1 Foundation scaffold complete — Identity, Audit, Outbox, JWT auth)
 
 ---
 
@@ -39,29 +39,32 @@
   - [x] Next.js `web` + `admin` scaffolds with auth session handling
   - [x] Audit log middleware + outbox dispatcher skeleton
   - [x] k6 smoke script against `/healthz` + auth flow
-- [ ] **Identity module** (migration `0001_identity`)
-  - [ ] `users` table with phone-first identity
-  - [ ] `organizations` table (WHOLESALER, RETAILER, LOGISTICS, PLATFORM)
-  - [ ] `roles` + `permissions` + `role_permissions` tables
-  - [ ] `organization_members` with role assignment
-  - [ ] `sessions` table (refresh-token chain with rotation + reuse detection)
-  - [ ] JWT access tokens (15 min) with `sub`, `activeOrg`, `role`, `perms` claims
-  - [ ] Refresh tokens (30 d) with rotation and reuse detection
-  - [ ] `POST /v1/auth/otp/request` endpoint
-  - [ ] `POST /v1/auth/otp/verify` endpoint
-  - [ ] `POST /v1/auth/refresh` endpoint
-  - [ ] `POST /v1/auth/logout` endpoint
-  - [ ] `POST /v1/auth/switch-org` endpoint
-- [ ] **Audit & outbox infrastructure**
-  - [ ] `audit_logs` table (append-only; middleware-written)
-  - [ ] `outbox_events` table (transactional outbox)
-  - [ ] Audit log middleware (verification decisions, refunds, price overrides, admin impersonation, flag changes)
-  - [ ] Outbox dispatcher (polls `outbox_events` where `dispatched_at IS NULL`; publishes to event bus)
-- [ ] **Frontend / mobile**
-  - [ ] Web auth screens (OTP request/verify, org selection)
-  - [ ] Admin auth screens
-  - [ ] Flutter `retail` + `wholesale` flavors with auth flow
-  - [ ] Design tokens + API client in `mobile-core`
+- [x] **Identity module** (migration `0001_identity`)
+  - [x] `users` table with phone-first identity
+  - [x] `organizations` table (WHOLESALER, RETAILER, LOGISTICS, PLATFORM)
+  - [x] `roles` + `permissions` + `role_permissions` tables
+  - [x] `organization_members` with role assignment
+  - [x] `sessions` table (refresh-token chain with rotation + reuse detection)
+  - [x] JWT access tokens (15 min) with `sub`, `activeOrg`, `role`, `perms` claims
+  - [x] Refresh tokens (30 d) with rotation and reuse detection
+  - [x] `POST /v1/auth/otp/request` endpoint
+  - [x] `POST /v1/auth/otp/verify` endpoint
+  - [x] `POST /v1/auth/refresh` endpoint
+  - [x] `POST /v1/auth/logout` endpoint
+  - [x] `POST /v1/auth/switch-org` endpoint
+- [x] **Audit & outbox infrastructure**
+  - [x] `audit_logs` table (append-only; middleware-written)
+  - [x] `outbox_events` table (transactional outbox)
+  - [x] Audit log middleware (verification decisions, refunds, price overrides, admin impersonation, flag changes)
+  - [x] Outbox dispatcher (polls `outbox_events` where `dispatched_at IS NULL`; publishes to event bus)
+  - [x] Migration `0002_platform` (audit_logs, outbox_events, feature_flags, analytics_events)
+  - [x] JWT auth guard + permissions guard + @CurrentUser decorator
+  - [x] OpenAPI client generation scripts (TypeScript + Dart)
+- [x] **Frontend / mobile**
+  - [x] Web auth screens (OTP request/verify, org selection)
+  - [x] Admin auth screens
+  - [x] Flutter `retail` + `wholesale` flavors with auth flow
+  - [x] Design tokens + API client in `mobile-core`
 
 **Exit criteria:** Auth works end-to-end; JWT issued; refresh rotation works; audit log written; outbox dispatcher running
 
@@ -320,7 +323,7 @@
 
 | Component | Phase | Status | Notes |
 |---|---|---|---|
-| **Identity & RBAC** | 1 | 🟡 In Progress | Migration `0001_identity` created; schema + service + controller scaffolded; JWT integration pending |
+| **Identity & RBAC** | 1 | 🟢 Completed | JWT signing, auth guards, permissions guard, refresh rotation, org switching |
 | **Merchant & Stores** | 1 | ⚪ Not Started | Migration `0002_merchant`; verification workflow |
 | **Catalog & Products** | 1 | ⚪ Not Started | Migration `0003_catalog`; media pipeline; bulk import |
 | **Inventory & Stock** | 1 | ⚪ Not Started | Migration `0004_inventory`; reservation at acceptance |
@@ -329,7 +332,7 @@
 | **Promotions** | 1 | ⚪ Not Started | Migration `0007_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED |
 | **Reviews & Trust** | 1 | ⚪ Not Started | Migration `0008_trust`; order-gated reviews; trust snapshots |
 | **Notifications & Comms** | 1 | ⚪ Not Started | Migration `0009_comms`; outbox-driven; SMS/PUSH/IN_APP |
-| **Platform (Audit, Outbox, Analytics, Flags)** | 1 | ⚪ Not Started | Migration `0010_platform`; partitioned analytics; feature flags |
+| **Platform (Audit, Outbox, Analytics, Flags)** | 1 | 🟡 In Progress | Migration `0002_platform` created; outbox dispatcher running; audit schema + Drizzle models |
 | **Search (FTS)** | 1 | ⚪ Not Started | Migration `0011_search`; Arabic normalization; OpenSearch-ready port |
 | **Delivery & Tracking** | 2 | ⚪ Not Started | Migrations `0013`–`0016`; driver onboarding; zones; POD; live tracking |
 | **Payments & Ledger** | 3 | ⚪ Not Started | Migrations `0017`–`0020`; provider adapters; double-entry ledger; settlements |
@@ -461,7 +464,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 **Notes & Blockers**
 
-**Current focus:** M1 Foundation — hardening Sprint 0 output, auth end-to-end verification
+**Current focus:** M2 Merchant Onboarding — merchant registration, store creation, document upload, verification queue
 
 **Blockers:** None (greenfield project)
 
@@ -486,11 +489,18 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: Boundary lint script created (enforces module isolation E6)
 - 2026-09-03: All TypeScript projects compile clean (API, Contracts, Env, EventTypes, UIKit)
 - 2026-09-03: `mobile-core` package with ApiClient and AuthStorage
+- 2026-09-03: Migration `0002_platform` created (audit_logs, outbox_events, feature_flags, analytics_events)
+- 2026-09-03: Outbox dispatcher implemented (polls PENDING events, 1s interval, 5 retry max)
+- 2026-09-03: JWT signing integrated via @nestjs/jwt (15min access tokens with sub/activeOrg/role/perms claims)
+- 2026-09-03: JwtAuthGuard + PermissionsGuard + @CurrentUser decorator created
+- 2026-09-03: OpenAPI client generation scripts (TypeScript via openapi-typescript, Dart via openapi-generator-cli)
+- 2026-09-03: Identity & RBAC module completed (JWT, refresh rotation, org switching)
+- 2026-09-03: M1 Foundation milestone fully scaffolded
 
 **Decisions pending:**
-- Outbox dispatcher implementation
-- Client code generation (openapi-typescript, Flutter/Dart)
 - Offline queue skeleton for mobile
+- Merchant onboarding module (M2)
+- Integration tests for auth flow end-to-end
 
 ---
 
