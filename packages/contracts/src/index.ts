@@ -516,6 +516,98 @@ export const PromotionSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
+// ── Orders ───────────────────────────────────────────────────
+
+export const OrderStatusSchema = z.enum([
+  'DRAFT', 'SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED',
+  'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED',
+  'COMPLETED', 'CANCELLED',
+]);
+
+export const FulfillmentMethodSchema = z.enum([
+  'PICKUP', 'MERCHANT_DELIVERY', 'PLATFORM_DELIVERY',
+]);
+
+export const CheckoutInputSchema = z.object({
+  deliveryAddress: z.record(z.unknown()),
+  notes: z.string().max(2000).optional(),
+  idempotencyKey: z.string().max(64).optional(),
+  fulfillmentMethod: FulfillmentMethodSchema.optional(),
+});
+
+export const OrderItemSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  variantId: z.string().uuid(),
+  sku: z.string(),
+  title: z.string(),
+  quantity: z.number(),
+  qtyConfirmed: z.number().nullable(),
+  unitPriceMinor: z.number(),
+  tierMinQty: z.number(),
+  promoSnapshot: z.record(z.unknown()).nullable(),
+  lineTotalMinor: z.number(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const FinancialBreakdownSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  productsMinor: z.number(),
+  discountMinor: z.number(),
+  deliveryFeeMinor: z.number(),
+  taxMinor: z.number(),
+  commissionMinor: z.number(),
+  merchantNetMinor: z.number(),
+  finalizedAt: z.string().datetime().nullable(),
+});
+
+export const SubOrderSchema = z.object({
+  id: z.string().uuid(),
+  masterOrderId: z.string().uuid(),
+  storeId: z.string().uuid(),
+  buyerId: z.string().uuid(),
+  status: z.string(),
+  fulfillmentMethod: z.string(),
+  promoCode: z.string().nullable(),
+  subtotalMinor: z.number(),
+  discountMinor: z.number(),
+  deliveryFeeMinor: z.number(),
+  taxMinor: z.number(),
+  totalMinor: z.number(),
+  items: z.array(OrderItemSchema).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const MasterOrderSchema = z.object({
+  id: z.string().uuid(),
+  buyerId: z.string().uuid(),
+  status: z.string(),
+  deliveryAddress: z.record(z.unknown()),
+  notes: z.string().nullable(),
+  subOrders: z.array(SubOrderSchema).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const StatusHistoryEntrySchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  fromStatus: z.string().nullable(),
+  toStatus: z.string(),
+  changedBy: z.string().uuid().nullable(),
+  actorType: z.string(),
+  reason: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+export const ItemConfirmationSchema = z.object({
+  itemId: z.string().uuid(),
+  qtyConfirmed: z.number().int().min(0),
+});
+
 // ── Re-exports ───────────────────────────────────────────────
 
 export type OtpRequest = z.infer<typeof OtpRequestSchema>;
@@ -568,3 +660,13 @@ export type PromoType = z.infer<typeof PromoTypeSchema>;
 export type PromoScope = z.infer<typeof PromoScopeSchema>;
 export type CreatePromotion = z.infer<typeof CreatePromotionSchema>;
 export type Promotion = z.infer<typeof PromotionSchema>;
+
+export type OrderStatus = z.infer<typeof OrderStatusSchema>;
+export type FulfillmentMethod = z.infer<typeof FulfillmentMethodSchema>;
+export type CheckoutInput = z.infer<typeof CheckoutInputSchema>;
+export type OrderItem = z.infer<typeof OrderItemSchema>;
+export type FinancialBreakdown = z.infer<typeof FinancialBreakdownSchema>;
+export type SubOrder = z.infer<typeof SubOrderSchema>;
+export type MasterOrder = z.infer<typeof MasterOrderSchema>;
+export type StatusHistoryEntry = z.infer<typeof StatusHistoryEntrySchema>;
+export type ItemConfirmation = z.infer<typeof ItemConfirmationSchema>;

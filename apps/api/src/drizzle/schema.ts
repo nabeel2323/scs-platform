@@ -14,3 +14,4 @@ export * from '../modules/inventory/inventory.schema';
 export * from '../modules/pricing/pricing.schema';
 export * from '../modules/promotions/promotions.schema';
 export * from '../modules/orders/cart.schema';
+export * from '../modules/orders/orders.schema';

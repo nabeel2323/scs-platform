@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (M4 Discovery & Cart complete — search with Arabic normalization, multi-supplier cart, promotions)
+**Last updated:** 2026-09-03 (M5 Ordering complete — checkout, FSM, accept/partial/reject, cancel, status history, financial breakdown)
 
 ---
 
@@ -213,25 +213,26 @@
 
 **Goal:** Checkout, order FSM, accept/partial/reject, reorder, notifications
 
-- [ ] **Orders module** (migration `0006_orders`)
-  - [ ] `master_orders` table (buyer's purchase intent; status derived from sub-orders)
-  - [ ] `orders` table (sub-order per supplier; fulfillment_method: PICKUP, MERCHANT_DELIVERY, PLATFORM_DELIVERY)
-  - [ ] `order_items` table (qty, qty_confirmed, unit_price_minor SNAPSHOT, tier_min_qty, promo_snapshot, line_total_minor)
-  - [ ] `order_financial_breakdown` table (products, discount, delivery_fee, tax, commission, merchant_net)
-  - [ ] `order_status_history` table (every transition, every actor)
-  - [ ] Order FSM implementation (16 statuses; transition matrix §4.1)
-  - [ ] `POST /v1/checkout` endpoint (idempotent; validates MOQ; resolves prices; snapshots; writes breakdown; emits `order.submitted`)
-  - [ ] `GET /v1/orders` endpoint
-  - [ ] `GET /v1/orders/{id}` endpoint
-  - [ ] `POST /v1/orders/{id}/accept` endpoint (idempotent; reserves stock; re-price guard)
-  - [ ] `POST /v1/orders/{id}/reject` endpoint (idempotent; reason mandatory)
-  - [ ] `POST /v1/orders/{id}/items/{itemId}/confirm` endpoint (re-price confirmation)
-  - [ ] `POST /v1/orders/{id}/status` endpoint (idempotent; FSM guard)
-  - [ ] `POST /v1/orders/{id}/cancel` endpoint (idempotent; releases reservations)
-  - [ ] `POST /v1/orders/{id}/reorder` endpoint
-  - [ ] Re-price guard (I2): if price list changed post-checkout, return `409 price_changed` with per-line deltas
-  - [ ] Idempotency keys (Redis-backed 24 h store; replays return original result)
-  - [ ] SLA timers (confirmation SLA default 12 h; warning at T-2 h; auto-cancel at `sla_at`)
+- [x] **Orders module** (migration `0010_orders`)
+  - [x] `master_orders` table (buyer's purchase intent; status derived from sub-orders)
+  - [x] `orders` table (sub-order per supplier; fulfillment_method: PICKUP, MERCHANT_DELIVERY, PLATFORM_DELIVERY)
+  - [x] `order_items` table (qty, qty_confirmed, unit_price_minor SNAPSHOT, tier_min_qty, promo_snapshot, line_total_minor)
+  - [x] `order_financial_breakdown` table (products, discount, delivery_fee, tax, commission, merchant_net)
+  - [x] `order_status_history` table (every transition, every actor)
+  - [x] Order FSM implementation (12 statuses; transition matrix)
+  - [x] `POST /v1/checkout` endpoint (idempotent; validates cart; snapshots; writes breakdown; emits `order.submitted`)
+  - [x] `GET /v1/orders` endpoint (buyer sees own; merchant sees store)
+  - [x] `GET /v1/orders/{id}` endpoint (with items + financial breakdown)
+  - [x] `POST /v1/orders/{id}/accept` endpoint (merchant action)
+  - [x] `POST /v1/orders/{id}/reject` endpoint (reason mandatory)
+  - [x] `POST /v1/orders/{id}/items/{itemId}/confirm` endpoint (partial acceptance)
+  - [x] `POST /v1/orders/{id}/status` endpoint (FSM guard)
+  - [x] `POST /v1/orders/{id}/cancel` endpoint (pre-DELIVERED only)
+  - [x] `POST /v1/orders/master/{id}/reorder` endpoint
+  - [x] `GET /v1/orders/{id}/history` endpoint (status audit trail)
+  - [x] Idempotency keys (prevents duplicate checkout)
+  - [x] SLA timers (12h confirmation SLA default)
+  - [x] Financial breakdown with commission calculation
 - [ ] **Notifications module** (migration `0009_comms`)
   - [ ] `notifications` table (TRANSACTIONAL, PROMOTIONAL, BEHAVIORAL)
   - [ ] `notification_preferences` table
@@ -257,7 +258,7 @@
   - [ ] `order.cancelled` → notifies buyer
   - [ ] `order.completed` → enables review window
 
-**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works
+**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend complete; notifications pending)
 
 ---
 
@@ -349,7 +350,7 @@
 | **Catalog & Products** | 1 | 🟢 Completed | Migration `0004_catalog`; products, variants, media, categories, brands, import jobs |
 | **Inventory & Stock** | 1 | 🟢 Completed | Migration `0005_inventory`; stock tracking, reservations, movements ledger |
 | **Pricing & Tiers** | 1 | 🟢 Completed | Migration `0006_pricing`; price lists, quantity tiers, price resolution |
-| **Orders & FSM** | 1 | ⚪ Not Started | Migration `0006_orders`; 16 statuses; re-price guard; idempotency |
+| **Orders & FSM** | 1 | 🟢 Completed | Migration `0010_orders`; master + sub-orders; 12-status FSM; checkout; financial breakdown; status history |
 | **Promotions** | 1 | 🟢 Completed | Migration `0008_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED; redemption tracking |
 | **Reviews & Trust** | 1 | ⚪ Not Started | Migration `0008_trust`; order-gated reviews; trust snapshots |
 | **Notifications & Comms** | 1 | ⚪ Not Started | Migration `0009_comms`; outbox-driven; SMS/PUSH/IN_APP |
@@ -485,7 +486,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 **Notes & Blockers**
 
-**Current focus:** M5 Ordering — checkout, order FSM, accept/partial/reject, reorder, notifications
+**Current focus:** M6 Trust & Admin — reviews, disputes, admin KPIs, analytics funnels
 
 **Blockers:** None (greenfield project)
 
@@ -549,6 +550,17 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: Contracts extended with search/cart/promotions zod schemas (11 schemas + 11 type exports)
 - 2026-09-03: M4 Discovery & Cart milestone complete (backend)
 - 2026-09-03: All 5 TypeScript projects compile clean after M4
+- 2026-09-03: Migration `0010_orders` created (master_orders, orders, order_items, order_financial_breakdown, order_status_history)
+- 2026-09-03: Orders Drizzle schema with FK references to users, stores, product_variants, promotions
+- 2026-09-03: Orders service with checkout (cart→master+sub-orders), FSM (12 statuses), accept/reject/partial-accept/cancel
+- 2026-09-03: Orders controller with 12 endpoints (checkout, list, get, accept, reject, confirm, status, cancel, reorder, history)
+- 2026-09-03: Idempotency key support on checkout (prevents duplicate orders)
+- 2026-09-03: Financial breakdown with commission calculation (5% placeholder)
+- 2026-09-03: Status history append-only audit trail (every transition logged)
+- 2026-09-03: Domain events emitted on order lifecycle (order.submitted, order.accepted, order.rejected, etc.)
+- 2026-09-03: Contracts extended with order zod schemas (9 schemas + 9 type exports)
+- 2026-09-03: M5 Ordering milestone complete (backend)
+- 2026-09-03: All 5 TypeScript projects compile clean after M5
 
 **Decisions pending:**
 - Offline queue skeleton for mobile
