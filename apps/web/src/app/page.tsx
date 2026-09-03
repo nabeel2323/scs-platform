@@ -10,26 +10,44 @@ export default function HomePage() {
         B2B-first marketplace — retailer &amp; merchant portal
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-        <Link href="/auth/login" style={cardStyle}>
-          <b>Sign In</b>
-          <span>OTP-based phone authentication</span>
+      {/* Primary Actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 32 }}>
+        <Link href="/search" style={cardStyle}>
+          <b>Search Products</b>
+          <span>Browse catalog with filters</span>
         </Link>
         <Link href="/stores" style={cardStyle}>
           <b>Browse Stores</b>
           <span>Discover wholesalers near you</span>
         </Link>
-        <Link href="/orders" style={cardStyle}>
-          <b>My Orders</b>
-          <span>Track &amp; reorder</span>
-        </Link>
         <Link href="/cart" style={cardStyle}>
           <b>Cart</b>
           <span>Multi-supplier checkout</span>
         </Link>
-        <Link href="/merchant/onboard" style={cardStyle}>
-          <b>Open a Store</b>
-          <span>Merchant onboarding wizard</span>
+        <Link href="/orders" style={cardStyle}>
+          <b>My Orders</b>
+          <span>Track &amp; reorder</span>
+        </Link>
+      </div>
+
+      {/* Secondary Actions */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>More</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        <Link href="/notifications" style={cardStyle}>
+          <b>Notifications</b>
+          <span>Order updates &amp; alerts</span>
+        </Link>
+        <Link href="/merchant/orders" style={cardStyle}>
+          <b>Merchant Orders</b>
+          <span>Manage incoming orders</span>
+        </Link>
+        <Link href="/reviews" style={cardStyle}>
+          <b>Reviews &amp; Disputes</b>
+          <span>Rate stores or open disputes</span>
+        </Link>
+        <Link href="/auth/login" style={cardStyle}>
+          <b>Sign In</b>
+          <span>OTP-based phone authentication</span>
         </Link>
       </div>
     </main>

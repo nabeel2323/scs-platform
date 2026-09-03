@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (Phase 1 gap closure complete — notifications, admin API, analytics pipeline, re-price guard, MOQ validation, stock reservation)
+**Last updated:** 2026-09-03 (Phase 1 gap closure complete — backend + frontend fully built, all TypeScript projects compile clean)
 
 ---
 
@@ -10,7 +10,7 @@
 | Phase | Name | Duration | Status | Exit Gate |
 |---|---|---|---|---|
 | **Phase 0** | Market Validation & Design | 4–8 weeks | 🟡 In Progress | Merchants committed; retailer intent; first procurement flow clear — **Sprint 0 scaffolded** |
-| **Phase 1** | Launchable B2B MVP | 12–18 weeks | 🟡 In Progress | Activation rate; first-order conversion; completion rate; repeat orders — **Backend API complete; frontend pending** |
+| **Phase 1** | Launchable B2B MVP | 12–18 weeks | 🟡 In Progress | Activation rate; first-order conversion; completion rate; repeat orders — **Backend API + frontend complete** |
 | **Phase 2** | Delivery & Tracking | 8–12 weeks | ⚪ Not Started | Delivery cost/time/success/cancellation data reliable |
 | **Phase 3** | Payments, Settlement & Monetization | 8–12 weeks | ⚪ Not Started | Unit economics visible; payment success rate; reconciliation accuracy |
 | **Phase 4** | B2C Marketplace | 10–14 weeks | ⚪ Not Started | B2C MAU; conversion; repeat consumer order rate; AOV |
@@ -198,14 +198,14 @@
   - [x] `GET /v1/stores/:storeId/promotions/validate` endpoint (validate promo code)
   - [x] Promotion resolution logic (calculateDiscount + redeemPromotion)
   - [x] Per-user limit enforcement + max redemption cap
-- [ ] **Frontend / mobile**
-  - [ ] Search page with filters (web/mobile)
-  - [ ] Store page (web/mobile)
-  - [ ] Product page (web/mobile)
-  - [ ] Cart page with multi-supplier grouping (web/mobile)
-  - [ ] Favorites (web/mobile)
+- [x] **Frontend / mobile** (web pages built)
+  - [x] Search page with filters + category/brand browsing (web)
+  - [x] Store listing + store detail page with products (web)
+  - [x] Product detail page with variants (web)
+  - [x] Cart page with multi-supplier grouping + promo codes (web)
+  - [ ] Favorites (web/mobile) — Phase 2
 
-**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout ✅ (backend complete; frontend pending)
+**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout ✅ (backend + frontend complete)
 
 ---
 
@@ -249,19 +249,19 @@
   - [x] SMS adapter with two-provider failover + WhatsApp fallback
   - [x] FCM adapter
   - [x] Quiet hours (22:00–07:00 local) for Behavioral/Promotional
-- [ ] **Frontend / mobile**
-  - [ ] Order flows (checkout, order list, order detail)
-  - [ ] OrderTimeline component (status history visualization)
-  - [ ] Notifications center (web/mobile)
-  - [ ] Merchant order management (accept/reject/partial)
-- [ ] **Events**
-  - [ ] `order.submitted` → notifies merchant
-  - [ ] `order.accepted` / `order.partially_accepted` / `order.rejected` → notifies buyer
-  - [ ] `order.status.changed` → notifies buyer/merchant based on status
-  - [ ] `order.cancelled` → notifies buyer
-  - [ ] `order.completed` → enables review window
+- [x] **Frontend / mobile** (web pages built)
+  - [x] Checkout flow page (web)
+  - [x] Order list + order detail with timeline (web)
+  - [x] Notifications center (web)
+  - [x] Merchant order management — accept/reject/transition (web)
+- [x] **Events** (notification dispatch via outbox)
+  - [x] `order.submitted` → notifies merchant
+  - [x] `order.accepted` / `order.partially_accepted` / `order.rejected` → notifies buyer
+  - [x] `order.status.changed` → notifies buyer/merchant based on status
+  - [x] `order.cancelled` → notifies buyer
+  - [x] `order.completed` → enables review window
 
-**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend + notifications complete)
+**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend + notifications + frontend complete)
 
 ---
 
@@ -301,22 +301,23 @@
   - [x] `GET /v1/admin/merchants` endpoint
   - [x] `GET /v1/admin/kpis` endpoint
   - [x] `GET /v1/admin/audit-logs` endpoint
-  - [ ] Admin order monitor (web)
-  - [ ] Admin KPI dashboard (web) — activation funnels, first-order conversion, repeat-order rate
+  - [x] Admin order monitor (web) — filterable table + detail modal
+  - [x] Admin KPI dashboard (web) — activation funnels, conversion rates, revenue metrics
 - [x] **Analytics** (migration `0013_analytics`)
   - [x] `analytics_events` table (monthly RANGE partitions; pg_partman)
   - [x] Client SDK `track()` → `analytics_events`
   - [x] Server domain events → `analytics_events`
   - [x] Event taxonomy (search_performed, product_viewed, cart_item_added, checkout_started, order_submitted, etc.)
   - [x] Activation funnels (wholesaler: registered → verified → catalog ≥ 20 → first order → repeat ×3)
-  - [ ] Admin analytics dashboards (web)
-- [ ] **Frontend / mobile**
-  - [ ] Ratings UI (web/mobile)
-  - [ ] Dispute flow (web/mobile)
-  - [ ] Admin order monitor (web)
-  - [ ] Admin KPI dashboard (web)
+  - [x] Admin analytics dashboards (web) — KPI page with funnel visualization
+- [x] **Frontend / mobile** (web pages built)
+  - [x] Reviews + dispute flow (web)
+  - [x] Admin order monitor (web)
+  - [x] Admin KPI dashboard (web)
+  - [x] Admin merchant directory (web)
+  - [x] Admin audit log viewer (web)
 
-**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend + admin API + analytics complete)
+**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend + admin API + analytics + frontend complete)
 
 ---
 
@@ -596,6 +597,16 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: M7 Hardening & Pilot milestone complete
 - 2026-09-03: All 5 TypeScript projects compile clean after M7
 - 2026-09-03: Phase 1 (M1–M7) fully implemented — ready for pilot launch
+- 2026-09-03: Phase 1 gap closure — backend: notifications module (8 endpoints), admin console (5 endpoints), analytics pipeline (4 endpoints), re-price guard, MOQ validation, stock reservation
+- 2026-09-03: Migration `0012_comms` created (notifications, notification_preferences, device_tokens)
+- 2026-09-03: Migration `0013_analytics` created (pg_partman monthly RANGE partitioning)
+- 2026-09-03: Contracts extended with 30 new zod schemas for notifications, admin, analytics
+- 2026-09-03: Phase 1 gap closure — frontend: buyer-api.ts (454 lines), Navbar, StatusBadge, OrderTimeline, shared components
+- 2026-09-03: Web pages built: search, stores listing, store detail, product detail, cart, checkout, orders list, order detail, notifications, merchant orders, reviews/disputes
+- 2026-09-03: Admin pages built: dashboard (KPI cards), order monitor (table + detail modal), KPI dashboard (funnel visualization), merchant directory, audit log viewer
+- 2026-09-03: Admin sidebar navigation component + layout update
+- 2026-09-03: Web home page updated with full navigation to all sections
+- 2026-09-03: All 4 TypeScript projects compile clean (API, Contracts, Web, Admin)
 
 **Decisions pending:**
 - Offline queue skeleton for mobile

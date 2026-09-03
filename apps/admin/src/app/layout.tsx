@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AdminSidebar } from '../components/AdminSidebar';
 
 export const metadata: Metadata = {
   title: 'SCS Admin',
@@ -8,8 +9,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" dir="ltr">
-      <body style={{ margin: 0, fontFamily: 'Inter, system-ui, sans-serif' }}>
-        {children}
+      <body style={{ margin: 0, fontFamily: 'Inter, system-ui, sans-serif', background: '#f0f4f7' }}>
+        <AdminSidebar />
+        <div style={{ marginLeft: 220, minHeight: '100vh' }}>
+          {children}
+        </div>
       </body>
     </html>
   );
