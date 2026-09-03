@@ -18,6 +18,17 @@ final apiServiceProvider =
 
 final isAuthenticatedProvider = StateProvider<bool>((ref) => false);
 final currentUserPhoneProvider = StateProvider<String>((ref) => '');
+final activeOrgIdProvider = StateProvider<String?>((ref) => null);
+
+// ── Profile ─────────────────────────────────────────────────
+
+final profileProvider = FutureProvider<UserProfile>(
+    (ref) => ref.watch(apiServiceProvider).fetchProfile());
+
+// ── Organizations ───────────────────────────────────────────
+
+final myOrganizationsProvider = FutureProvider<List<OrgMembership>>(
+    (ref) => ref.watch(apiServiceProvider).fetchMyOrganizations());
 
 // ── Search ──────────────────────────────────────────────────
 
@@ -49,3 +60,10 @@ final notificationsProvider = FutureProvider<List<AppNotification>>(
     (ref) => ref.watch(apiServiceProvider).fetchNotifications());
 final unreadCountProvider = FutureProvider<int>(
     (ref) => ref.watch(apiServiceProvider).fetchUnreadCount());
+
+// ── Organization Detail ─────────────────────────────────────
+
+final orgDetailProvider = FutureProvider.family<Organization, String>(
+    (ref, orgId) => ref.watch(apiServiceProvider).fetchOrganization(orgId));
+final orgMembersProvider = FutureProvider.family<List<OrgMember>, String>(
+    (ref, orgId) => ref.watch(apiServiceProvider).fetchOrgMembers(orgId));

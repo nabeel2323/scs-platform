@@ -202,6 +202,217 @@ export class IdentityService {
     return { accessToken };
   }
 
+  // ── Profile ────────────────────────────────────────────────
+
+  /**
+   * Get user profile with active org and memberships.
+   */
+  async getProfile(userId: string) {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new Error('User not found');
+
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: eq(organizationMembers.userId, userId),
+    });
+
+    const orgList = [];
+    for (const m of memberships) {
+      const org = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, m.orgId),
+      });
+      if (org) orgList.push({ ...org, membershipStatus: m.status });
+    }
+
+    return {
+      id: user.id,
+      phone: user.phone,
+      email: user.email,
+      fullName: user.fullName,
+      locale: user.locale,
+      status: user.status,
+      activeOrgId: memberships[0]?.orgId ?? null,
+      organizations: orgList,
+      createdAt: user.createdAt,
+    };
+  }
+
+  /**
+   * Update user profile fields.
+   */
+  async updateProfile(userId: string, data: { fullName?: string; email?: string; locale?: string }) {
+    const updates: Record<string, string> = {};
+    if (data['fullName']) updates['fullName'] = data['fullName'];
+    if (data['email']) updates['email'] = data['email'];
+    if (data['locale']) updates['locale'] = data['locale'];
+    updates['updatedAt'] = new Date().toISOString();
+
+    if (Object.keys(updates).length > 0) {
+      await this.db.db.update(users).set(updates).where(eq(users.id, userId));
+    }
+
+    return this.getProfile(userId);
+  }
+
+  // ── Organizations ──────────────────────────────────────────
+
+  /**
+   * Create a new organization and add the creator as owner.
+   */
+  async createOrg(data: { name: string; type: string; country: string; legalName?: string; taxId?: string }, creatorId: string) {
+    const orgId = crypto.randomUUID();
+    await this.db.db.insert(organizations).values({
+      id: orgId,
+      type: data.type,
+      name: data.name,
+      legalName: data.legalName ?? null,
+      taxId: data.taxId ?? null,
+      country: data.country,
+      verificationStatus: 'PENDING',
+    });
+
+    // Find or use a default OWNER role for the creator
+    const ownerRole = await this.db.db.query.roles.findFirst({
+      where: eq(roles.key, 'OWNER'),
+    });
+
+    if (ownerRole) {
+      await this.db.db.insert(organizationMembers).values({
+        id: crypto.randomUUID(),
+        orgId,
+        userId: creatorId,
+        roleId: ownerRole.id,
+        status: 'ACTIVE',
+      });
+    }
+
+    return this.getOrg(orgId);
+  }
+
+  /**
+   * Get organization by ID.
+   */
+  async getOrg(orgId: string) {
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, orgId),
+    });
+    if (!org) throw new Error('Organization not found');
+    return org;
+  }
+
+  /**
+   * Update organization fields.
+   */
+  async updateOrg(orgId: string, data: { name?: string; legalName?: string; taxId?: string }) {
+    const updates: Record<string, string> = {};
+    if (data['name']) updates['name'] = data['name'];
+    if (data['legalName'] !== undefined) updates['legalName'] = data['legalName'] ?? '';
+    if (data['taxId'] !== undefined) updates['taxId'] = data['taxId'] ?? '';
+    updates['updatedAt'] = new Date().toISOString();
+
+    if (Object.keys(updates).length > 0) {
+      await this.db.db.update(organizations).set(updates).where(eq(organizations.id, orgId));
+    }
+
+    return this.getOrg(orgId);
+  }
+
+  /**
+   * List user's organizations with membership details.
+   */
+  async listUserOrgs(userId: string) {
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: eq(organizationMembers.userId, userId),
+    });
+
+    const result = [];
+    for (const m of memberships) {
+      const org = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, m.orgId),
+      });
+      if (org) {
+        result.push({
+          ...org,
+          membershipStatus: m.status,
+          roleId: m.roleId,
+          joinedAt: m.createdAt,
+        });
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Add a member to an organization.
+   */
+  async addOrgMember(orgId: string, userId: string, roleId: string) {
+    const existing = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+
+    if (existing) {
+      throw new Error('User is already a member of this organization');
+    }
+
+    await this.db.db.insert(organizationMembers).values({
+      id: crypto.randomUUID(),
+      orgId,
+      userId,
+      roleId,
+      status: 'ACTIVE',
+    });
+
+    return { orgId, userId, roleId, status: 'ACTIVE' };
+  }
+
+  /**
+   * List members of an organization.
+   */
+  async listOrgMembers(orgId: string) {
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: eq(organizationMembers.orgId, orgId),
+    });
+
+    const result = [];
+    for (const m of memberships) {
+      const user = await this.db.db.query.users.findFirst({
+        where: eq(users.id, m.userId),
+      });
+      const role = await this.db.db.query.roles.findFirst({
+        where: eq(roles.id, m.roleId),
+      });
+      result.push({
+        userId: m.userId,
+        fullName: user?.fullName ?? 'Unknown',
+        phone: user?.phone ?? '',
+        roleKey: role?.key ?? 'UNKNOWN',
+        status: m.status,
+        joinedAt: m.createdAt,
+      });
+    }
+    return result;
+  }
+
+  /**
+   * Remove a member from an organization.
+   */
+  async removeOrgMember(orgId: string, userId: string) {
+    await this.db.db
+      .delete(organizationMembers)
+      .where(
+        and(
+          eq(organizationMembers.orgId, orgId),
+          eq(organizationMembers.userId, userId),
+        ),
+      );
+
+    return { success: true };
+  }
+
   // ── Helpers ────────────────────────────────────────────────
 
   private hashToken(token: string): string {

@@ -127,7 +127,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
         'ACCEPTED' || 'PARTIALLY_ACCEPTED' => ['CONFIRMED'],
         'CONFIRMED' => ['PREPARING'],
         'PREPARING' => ['READY'],
-        'READY' => ['OUT_FOR_DELIVERY', 'DELIVERED'],
+        'READY' => ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
         'OUT_FOR_DELIVERY' => ['DELIVERED'],
         'DELIVERED' => ['COMPLETED'],
         _ => []

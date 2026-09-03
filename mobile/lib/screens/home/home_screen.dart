@@ -9,8 +9,20 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unread = ref.watch(unreadCountProvider).valueOrNull ?? 0;
+    final profile = ref.watch(profileProvider).valueOrNull;
+    final activeOrg = profile?.organizations
+        .where((o) => o.orgId == profile.activeOrgId)
+        .firstOrNull;
+    final phone = ref.watch(currentUserPhoneProvider);
+    final fullName = profile?.fullName;
+    final avatarLetter = (fullName != null && fullName.isNotEmpty)
+        ? fullName.substring(0, 1)
+        : (phone.isNotEmpty ? phone.substring(0, 1) : '?');
     return Scaffold(
       appBar: AppBar(title: const Text('Smart Commerce'), actions: [
+        IconButton(
+            icon: const Icon(Icons.person_outline),
+            onPressed: () => context.push('/profile')),
         IconButton(
             icon: Badge(
                 label: unread > 0 ? Text('$unread') : null,
@@ -26,14 +38,62 @@ class HomeScreen extends ConsumerWidget {
             }),
       ]),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        Text('Welcome back',
-            style: Theme.of(context)
-                .textTheme
-                .headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Text(ref.watch(currentUserPhoneProvider),
-            style: TextStyle(color: TaifTokens.muted)),
+        Row(children: [
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(
+                    'Welcome back${profile?.fullName != null ? ', ${profile!.fullName}' : ''}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(ref.watch(currentUserPhoneProvider),
+                    style: TextStyle(color: TaifTokens.muted)),
+              ])),
+          GestureDetector(
+            onTap: () => context.push('/profile'),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: TaifTokens.brandPrimary,
+              child: Text(
+                avatarLetter.toUpperCase(),
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ]),
+        if (activeOrg != null) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => context.push('/organizations'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: TaifTokens.ok.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: TaifTokens.ok.withValues(alpha: 0.3)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.business, size: 16, color: Color(0xFF1B7A4B)),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text(activeOrg.orgName,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1B7A4B)))),
+                const Chip(
+                    label: Text('Active', style: TextStyle(fontSize: 10)),
+                    backgroundColor: Color(0xFFDCFCE7),
+                    visualDensity: VisualDensity.compact),
+              ]),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         _sectionTitle(context, 'Browse'),
         const SizedBox(height: 12),
@@ -61,6 +121,11 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(width: 12),
           _navCard(context, 'Reviews', Icons.star, '/reviews',
               TaifTokens.brandAccent),
+        ]),
+        const SizedBox(height: 12),
+        Row(children: [
+          _navCard(context, 'Organizations', Icons.business, '/organizations',
+              const Color(0xFF0891B2)),
         ]),
       ]),
     );

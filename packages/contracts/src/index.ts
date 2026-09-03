@@ -970,3 +970,84 @@ export type TrackResponse = z.infer<typeof TrackResponseSchema>;
 export type TrackBatchResponse = z.infer<typeof TrackBatchResponseSchema>;
 export type EventCount = z.infer<typeof EventCountSchema>;
 export type AnalyticsEventType = z.infer<typeof AnalyticsEventTypeSchema>;
+
+// ── User Profile ─────────────────────────────────────────────
+
+export const UpdateProfileSchema = z.object({
+  fullName: z.string().min(1).max(160).optional(),
+  email: z.string().email().max(254).optional(),
+  locale: z.string().min(2).max(10).optional(),
+});
+
+export const UserProfileSchema = z.object({
+  id: z.string().uuid(),
+  phone: z.string(),
+  email: z.string().nullable(),
+  fullName: z.string(),
+  locale: z.string(),
+  status: z.string(),
+  activeOrgId: z.string().uuid().nullable(),
+  organizations: z.array(z.object({
+    id: z.string().uuid(),
+    type: z.string(),
+    name: z.string(),
+    legalName: z.string().nullable(),
+    taxId: z.string().nullable(),
+    country: z.string(),
+    verificationStatus: z.string(),
+    membershipStatus: z.string(),
+  })),
+  createdAt: z.string().or(z.date()),
+});
+
+// ── Organization Management ──────────────────────────────────
+
+export const CreateOrgSchema = z.object({
+  name: z.string().min(1).max(160),
+  type: z.enum(['WHOLESALER', 'RETAILER', 'LOGISTICS', 'PLATFORM']),
+  country: z.string().length(2),
+  legalName: z.string().max(200).optional(),
+  taxId: z.string().max(64).optional(),
+});
+
+export const UpdateOrgSchema = z.object({
+  name: z.string().min(1).max(160).optional(),
+  legalName: z.string().max(200).optional(),
+  taxId: z.string().max(64).optional(),
+});
+
+export const AddOrgMemberSchema = z.object({
+  userId: z.string().uuid(),
+  roleId: z.string().uuid(),
+});
+
+export const OrgMemberSchema = z.object({
+  userId: z.string().uuid(),
+  fullName: z.string(),
+  phone: z.string(),
+  roleKey: z.string(),
+  status: z.string(),
+  joinedAt: z.string().or(z.date()),
+});
+
+export const OrganizationSchema = z.object({
+  id: z.string().uuid(),
+  type: z.string(),
+  name: z.string(),
+  legalName: z.string().nullable(),
+  taxId: z.string().nullable(),
+  country: z.string(),
+  verificationStatus: z.string(),
+  createdAt: z.string().or(z.date()),
+  updatedAt: z.string().or(z.date()),
+});
+
+// ── Profile & Org Types ──────────────────────────────────────
+
+export type UpdateProfile = z.infer<typeof UpdateProfileSchema>;
+export type UserProfile = z.infer<typeof UserProfileSchema>;
+export type CreateOrg = z.infer<typeof CreateOrgSchema>;
+export type UpdateOrg = z.infer<typeof UpdateOrgSchema>;
+export type AddOrgMember = z.infer<typeof AddOrgMemberSchema>;
+export type OrgMember = z.infer<typeof OrgMemberSchema>;
+export type Organization = z.infer<typeof OrganizationSchema>;

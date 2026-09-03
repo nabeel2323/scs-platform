@@ -407,5 +407,97 @@ class Dispute {
       createdAt: j['createdAt'] ?? '');
 }
 
+/// User profile returned by GET /v1/me.
+class UserProfile {
+  final String id, phone, status, createdAt;
+  final String? email, fullName, locale, activeOrgId;
+  final List<OrgMembership> organizations;
+  UserProfile({
+    required this.id,
+    required this.phone,
+    required this.status,
+    required this.createdAt,
+    this.email,
+    this.fullName,
+    this.locale,
+    this.activeOrgId,
+    this.organizations = const [],
+  });
+  factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
+        id: j['id'] ?? '',
+        phone: j['phone'] ?? '',
+        status: j['status'] ?? '',
+        createdAt: j['createdAt'] ?? '',
+        email: j['email'],
+        fullName: j['fullName'],
+        locale: j['locale'],
+        activeOrgId: j['activeOrgId'],
+        organizations: (j['organizations'] as List? ?? [])
+            .map((e) => OrgMembership.fromJson(e))
+            .toList(),
+      );
+}
+
+/// Membership entry inside UserProfile.
+class OrgMembership {
+  final String orgId, role, orgName, orgType;
+  OrgMembership({
+    required this.orgId,
+    required this.role,
+    required this.orgName,
+    required this.orgType,
+  });
+  factory OrgMembership.fromJson(Map<String, dynamic> j) => OrgMembership(
+        orgId: j['orgId'] ?? '',
+        role: j['role'] ?? '',
+        orgName: j['orgName'] ?? '',
+        orgType: j['orgType'] ?? '',
+      );
+}
+
+/// Organization returned by organization endpoints.
+class Organization {
+  final String id, name, type, country, createdAt;
+  final String? legalName, taxId;
+  Organization({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.country,
+    required this.createdAt,
+    this.legalName,
+    this.taxId,
+  });
+  factory Organization.fromJson(Map<String, dynamic> j) => Organization(
+        id: j['id'] ?? '',
+        name: j['name'] ?? '',
+        type: j['type'] ?? '',
+        country: j['country'] ?? '',
+        createdAt: j['createdAt'] ?? '',
+        legalName: j['legalName'],
+        taxId: j['taxId'],
+      );
+}
+
+/// Member of an organization.
+class OrgMember {
+  final String userId, orgId, roleId, userName;
+  final String? userEmail;
+  OrgMember({
+    required this.userId,
+    required this.orgId,
+    required this.roleId,
+    required this.userName,
+    this.userEmail,
+  });
+  factory OrgMember.fromJson(Map<String, dynamic> j) => OrgMember(
+        userId: j['userId'] ?? '',
+        orgId: j['orgId'] ?? '',
+        roleId: j['roleId'] ?? '',
+        userName: j['userName'] ?? '',
+        userEmail: j['userEmail'],
+      );
+}
+
 String formatMinor(int minor, [String currency = 'SAR']) =>
     '${(minor / 100).toStringAsFixed(2)} $currency';

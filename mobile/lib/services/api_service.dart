@@ -14,6 +14,76 @@ class ApiService {
               .post('/v1/auth/otp/verify', data: {'phone': phone, 'otp': otp}))
           .data;
 
+  // ── Profile ───────────────────────────────────────────────
+  Future<UserProfile> fetchProfile() async =>
+      UserProfile.fromJson((await _dio.get('/v1/me')).data);
+  Future<UserProfile> updateProfile(
+      {String? fullName, String? email, String? locale}) async {
+    final d = <String, dynamic>{};
+    if (fullName != null) d['fullName'] = fullName;
+    if (email != null) d['email'] = email;
+    if (locale != null) d['locale'] = locale;
+    return UserProfile.fromJson((await _dio.patch('/v1/me', data: d)).data);
+  }
+
+  // ── Device Tokens ─────────────────────────────────────────
+  Future<void> registerDevice(
+      {required String token,
+      required String platform,
+      String? appVersion}) async {
+    final d = <String, dynamic>{'token': token, 'platform': platform};
+    if (appVersion != null) d['appVersion'] = appVersion;
+    await _dio.post('/v1/me/devices', data: d);
+  }
+
+  Future<void> unregisterDevice(String token) async =>
+      _dio.delete('/v1/me/devices/$token');
+
+  // ── Organizations ─────────────────────────────────────────
+  Future<List<OrgMembership>> fetchMyOrganizations() async =>
+      (await _dio.get('/v1/me/organizations'))
+          .data
+          .map<OrgMembership>((e) => OrgMembership.fromJson(e))
+          .toList();
+  Future<Organization> createOrganization(
+      {required String name,
+      required String type,
+      required String country,
+      String? legalName,
+      String? taxId}) async {
+    final d = <String, dynamic>{'name': name, 'type': type, 'country': country};
+    if (legalName != null) d['legalName'] = legalName;
+    if (taxId != null) d['taxId'] = taxId;
+    return Organization.fromJson(
+        (await _dio.post('/v1/organizations', data: d)).data);
+  }
+
+  Future<Organization> fetchOrganization(String id) async =>
+      Organization.fromJson((await _dio.get('/v1/organizations/$id')).data);
+  Future<Organization> updateOrganization(String id,
+      {String? name, String? legalName, String? taxId}) async {
+    final d = <String, dynamic>{};
+    if (name != null) d['name'] = name;
+    if (legalName != null) d['legalName'] = legalName;
+    if (taxId != null) d['taxId'] = taxId;
+    return Organization.fromJson(
+        (await _dio.patch('/v1/organizations/$id', data: d)).data);
+  }
+
+  Future<List<OrgMember>> fetchOrgMembers(String orgId) async =>
+      (await _dio.get('/v1/organizations/$orgId/members'))
+          .data
+          .map<OrgMember>((e) => OrgMember.fromJson(e))
+          .toList();
+  Future<void> addOrgMember(String orgId,
+          {required String userId, required String roleId}) async =>
+      _dio.post('/v1/organizations/$orgId/members',
+          data: {'userId': userId, 'roleId': roleId});
+  Future<void> removeOrgMember(String orgId, String userId) async =>
+      _dio.delete('/v1/organizations/$orgId/members/$userId');
+  Future<void> switchOrg(String orgId) async =>
+      _dio.post('/v1/me/switch-org', data: {'orgId': orgId});
+
   // ── Search ────────────────────────────────────────────────
   Future<SearchResult> search(
       {String? q,
@@ -204,4 +274,24 @@ class ApiService {
           {String? reason}) async =>
       _dio.post('/v1/orders/$orderId/status',
           data: {'status': status, if (reason != null) 'reason': reason});
+
+  // ── Merchant Catalog Import ───────────────────────────────
+  Future<Map<String, dynamic>> createImportJob(String storeId,
+      {required String fileName,
+      required String fileType,
+      required int fileSize,
+      Map<String, String>? columnMapping}) async {
+    final d = <String, dynamic>{
+      'fileName': fileName,
+      'fileType': fileType,
+      'fileSize': fileSize,
+    };
+    if (columnMapping != null) d['columnMapping'] = columnMapping;
+    return (await _dio.post('/v1/stores/$storeId/imports', data: d)).data;
+  }
+
+  Future<Map<String, dynamic>> fetchImportJob(String id) async =>
+      (await _dio.get('/v1/imports/$id')).data;
+  Future<void> processImportJob(String id) async =>
+      _dio.post('/v1/imports/$id/process');
 }

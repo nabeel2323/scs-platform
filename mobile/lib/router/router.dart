@@ -15,6 +15,9 @@ import '../screens/orders/order_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/merchant/merchant_orders_screen.dart';
 import '../screens/reviews/reviews_disputes_screen.dart';
+import '../screens/profile/profile_screen.dart';
+import '../screens/organizations/organizations_screen.dart';
+import '../screens/organizations/org_detail_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final isLoggedIn = ref.watch(isAuthenticatedProvider);
@@ -59,6 +62,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, __) => const MerchantOrdersScreen()),
       GoRoute(
           path: '/reviews', builder: (_, __) => const ReviewsDisputesScreen()),
+      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+      GoRoute(
+          path: '/organizations',
+          builder: (_, __) => const OrganizationsScreen()),
+      GoRoute(
+          path: '/organizations/:id',
+          builder: (_, state) =>
+              OrgDetailScreen(orgId: state.pathParameters['id']!)),
     ],
   );
 });
