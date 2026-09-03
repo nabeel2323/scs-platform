@@ -1,0 +1,207 @@
+import 'package:dio/dio.dart';
+import '../models/models.dart';
+
+/// Complete API service matching the web buyer-api.ts endpoints.
+class ApiService {
+  ApiService(this._dio);
+  final Dio _dio;
+
+  // ── Auth ──────────────────────────────────────────────────
+  Future<void> requestOtp(String phone) async =>
+      _dio.post('/v1/auth/otp/request', data: {'phone': phone});
+  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async =>
+      (await _dio
+              .post('/v1/auth/otp/verify', data: {'phone': phone, 'otp': otp}))
+          .data;
+
+  // ── Search ────────────────────────────────────────────────
+  Future<SearchResult> search(
+      {String? q,
+      String? categoryId,
+      String? brandId,
+      String? storeId,
+      int? limit,
+      int? offset}) async {
+    final p = <String, dynamic>{};
+    if (q != null) p['q'] = q;
+    if (categoryId != null) p['categoryId'] = categoryId;
+    if (brandId != null) p['brandId'] = brandId;
+    if (storeId != null) p['storeId'] = storeId;
+    if (limit != null) p['limit'] = limit;
+    if (offset != null) p['offset'] = offset;
+    return SearchResult.fromJson(
+        (await _dio.get('/v1/search', queryParameters: p)).data);
+  }
+
+  Future<List<Category>> fetchCategories() async =>
+      (await _dio.get('/v1/search/categories'))
+          .data
+          .map<Category>((e) => Category.fromJson(e))
+          .toList();
+  Future<List<Brand>> fetchBrands() async =>
+      (await _dio.get('/v1/search/brands'))
+          .data
+          .map<Brand>((e) => Brand.fromJson(e))
+          .toList();
+
+  // ── Products ──────────────────────────────────────────────
+  Future<Product> fetchProduct(String id) async =>
+      Product.fromJson((await _dio.get('/v1/products/$id')).data);
+  Future<List<ProductVariant>> fetchVariants(String productId) async =>
+      (await _dio.get('/v1/products/$productId/variants'))
+          .data
+          .map<ProductVariant>((e) => ProductVariant.fromJson(e))
+          .toList();
+
+  // ── Stores ────────────────────────────────────────────────
+  Future<List<Store>> fetchStores({int? limit, int? offset}) async {
+    final p = <String, dynamic>{};
+    if (limit != null) p['limit'] = limit;
+    if (offset != null) p['offset'] = offset;
+    return (await _dio.get('/v1/stores', queryParameters: p))
+        .data
+        .map<Store>((e) => Store.fromJson(e))
+        .toList();
+  }
+
+  Future<Store> fetchStore(String slugOrId) async =>
+      Store.fromJson((await _dio.get('/v1/stores/$slugOrId')).data);
+  Future<List<Product>> fetchStoreProducts(String storeId,
+      {String? categoryId, int? limit, int? offset}) async {
+    final p = <String, dynamic>{};
+    if (categoryId != null) p['categoryId'] = categoryId;
+    if (limit != null) p['limit'] = limit;
+    if (offset != null) p['offset'] = offset;
+    return (await _dio.get('/v1/stores/$storeId/products', queryParameters: p))
+        .data
+        .map<Product>((e) => Product.fromJson(e))
+        .toList();
+  }
+
+  // ── Cart ──────────────────────────────────────────────────
+  Future<Cart> fetchCart() async =>
+      Cart.fromJson((await _dio.get('/v1/cart')).data);
+  Future<void> addToCart(
+          {required String variantId,
+          required String storeId,
+          required int quantity}) async =>
+      _dio.post('/v1/cart/items', data: {
+        'variantId': variantId,
+        'storeId': storeId,
+        'quantity': quantity
+      });
+  Future<void> updateCartItem(String itemId, int quantity) async =>
+      _dio.patch('/v1/cart/items/$itemId', data: {'quantity': quantity});
+  Future<void> removeCartItem(String itemId) async =>
+      _dio.delete('/v1/cart/items/$itemId');
+  Future<void> clearCart() async => _dio.delete('/v1/cart');
+  Future<void> applyPromo(String code) async =>
+      _dio.post('/v1/cart/promo', data: {'code': code});
+
+  // ── Checkout ──────────────────────────────────────────────
+  Future<MasterOrder> checkout(
+      {required Map<String, dynamic> deliveryAddress,
+      String? notes,
+      String? idempotencyKey,
+      String? fulfillmentMethod}) async {
+    final d = <String, dynamic>{'deliveryAddress': deliveryAddress};
+    if (notes != null) d['notes'] = notes;
+    if (idempotencyKey != null) d['idempotencyKey'] = idempotencyKey;
+    if (fulfillmentMethod != null) d['fulfillmentMethod'] = fulfillmentMethod;
+    return MasterOrder.fromJson((await _dio.post('/v1/checkout',
+            data: d,
+            options: Options(
+                headers: idempotencyKey != null
+                    ? {'Idempotency-Key': idempotencyKey}
+                    : null)))
+        .data);
+  }
+
+  // ── Orders ────────────────────────────────────────────────
+  Future<List<SubOrder>> fetchOrders({String? status}) async {
+    final p = <String, dynamic>{};
+    if (status != null) p['status'] = status;
+    return (await _dio.get('/v1/orders', queryParameters: p))
+        .data
+        .map<SubOrder>((e) => SubOrder.fromJson(e))
+        .toList();
+  }
+
+  Future<SubOrder> fetchOrder(String id) async =>
+      SubOrder.fromJson((await _dio.get('/v1/orders/$id')).data);
+  Future<MasterOrder> fetchMasterOrder(String id) async =>
+      MasterOrder.fromJson((await _dio.get('/v1/orders/master/$id')).data);
+  Future<List<StatusHistoryEntry>> fetchOrderHistory(String orderId) async =>
+      (await _dio.get('/v1/orders/$orderId/history'))
+          .data
+          .map<StatusHistoryEntry>((e) => StatusHistoryEntry.fromJson(e))
+          .toList();
+  Future<void> cancelOrder(String orderId, String reason) async =>
+      _dio.post('/v1/orders/$orderId/cancel', data: {'reason': reason});
+  Future<void> reorder(String masterOrderId) async =>
+      _dio.post('/v1/orders/master/$masterOrderId/reorder');
+
+  // ── Notifications ─────────────────────────────────────────
+  Future<List<AppNotification>> fetchNotifications(
+          {int limit = 50, int offset = 0}) async =>
+      (await _dio.get('/v1/notifications',
+              queryParameters: {'limit': limit, 'offset': offset}))
+          .data
+          .map<AppNotification>((e) => AppNotification.fromJson(e))
+          .toList();
+  Future<int> fetchUnreadCount() async =>
+      (await _dio.get('/v1/notifications/unread-count')).data['count']
+          as int? ??
+      0;
+  Future<void> markNotificationRead(String id) async =>
+      _dio.patch('/v1/notifications/$id/read');
+  Future<void> markAllNotificationsRead() async =>
+      _dio.patch('/v1/notifications/read-all');
+
+  // ── Reviews ───────────────────────────────────────────────
+  Future<Review> createReview(String orderId,
+      {required String subjectId,
+      required String subjectType,
+      required int rating,
+      String? comment}) async {
+    return Review.fromJson(
+        (await _dio.post('/v1/orders/$orderId/review', data: {
+      'subjectId': subjectId,
+      'subjectType': subjectType,
+      'rating': rating,
+      if (comment != null) 'comment': comment
+    }))
+            .data);
+  }
+
+  Future<List<Review>> fetchStoreReviews(String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/reviews'))
+          .data
+          .map<Review>((e) => Review.fromJson(e))
+          .toList();
+
+  // ── Disputes ──────────────────────────────────────────────
+  Future<void> createDispute(String orderId,
+          {required String reason, required String description}) async =>
+      _dio.post('/v1/orders/$orderId/dispute',
+          data: {'reason': reason, 'description': description});
+  Future<List<Dispute>> fetchDisputes({String? status}) async =>
+      (await _dio.get('/v1/disputes${status != null ? '?status=$status' : ''}'))
+          .data
+          .map<Dispute>((e) => Dispute.fromJson(e))
+          .toList();
+
+  // ── Merchant Order Management ─────────────────────────────
+  Future<void> acceptOrder(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/accept');
+  Future<void> rejectOrder(String orderId, String reason) async =>
+      _dio.post('/v1/orders/$orderId/reject', data: {'reason': reason});
+  Future<void> partialAccept(
+          String orderId, List<Map<String, dynamic>> confirmations) async =>
+      _dio.post('/v1/orders/$orderId/items/confirm',
+          data: {'confirmations': confirmations});
+  Future<void> transitionStatus(String orderId, String status,
+          {String? reason}) async =>
+      _dio.post('/v1/orders/$orderId/status',
+          data: {'status': status, if (reason != null) 'reason': reason});
+}

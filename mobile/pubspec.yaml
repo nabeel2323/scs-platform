@@ -27,6 +27,8 @@ dependencies:
   json_annotation: ^4.9.0
   freezed_annotation: ^2.4.1
   drift: ^2.18.0
+  mobile_core:
+    path: packages/mobile-core
 
 dev_dependencies:
   flutter_test:

@@ -629,6 +629,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.0"
+  mobile_core:
+    dependency: "direct main"
+    description:
+      path: "packages/mobile-core"
+      relative: true
+    source: path
+    version: "0.1.0"
   mocktail:
     dependency: "direct dev"
     description:

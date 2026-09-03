@@ -1,51 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_flavor.dart';
+import 'theme.dart';
+import '../router/router.dart';
 
-class ScsApp extends StatelessWidget {
+class ScsApp extends ConsumerWidget {
   const ScsApp({super.key, required this.flavor});
   final AppFlavor flavor;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    return MaterialApp.router(
       title: flavor.displayName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: flavor.primaryColor,
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: const Color(0xFFF2F5F6),
+        fontFamily: TaifTokens.fontFamilyLatin,
+        scaffoldBackgroundColor: TaifTokens.bg,
         appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0),
         cardTheme: CardThemeData(
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: const BorderSide(color: Color(0xFFD9E2E6)),
+            borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+            side: const BorderSide(color: TaifTokens.line),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(TaifTokens.radiusSm)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(TaifTokens.radiusSm)),
           ),
         ),
       ),
-      home: const _PlaceholderHome(),
-    );
-  }
-}
-
-class _PlaceholderHome extends StatelessWidget {
-  const _PlaceholderHome();
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.storefront, size: 64, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 16),
-            Text('Smart Commerce Platform', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            Text('Flutter scaffold ready', style: Theme.of(context).textTheme.bodyMedium),
-          ],
-        ),
-      ),
+      routerConfig: router,
     );
   }
 }

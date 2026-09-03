@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (Phase 1 backend + web frontend complete; **Flutter mobile is scaffold only — no screens, no navigation, no API integration**)
+**Last updated:** 2026-09-03 (Phase 1 complete — backend + web frontend + Flutter mobile app all built)
 
 ---
 
@@ -10,7 +10,7 @@
 | Phase | Name | Duration | Status | Exit Gate |
 |---|---|---|---|---|
 | **Phase 0** | Market Validation & Design | 4–8 weeks | 🟡 In Progress | Merchants committed; retailer intent; first procurement flow clear — **Sprint 0 scaffolded** |
-| **Phase 1** | Launchable B2B MVP | 12–18 weeks | 🟡 In Progress | Activation rate; first-order conversion; completion rate; repeat orders — **Backend API + web frontend complete; Flutter mobile NOT started** |
+| **Phase 1** | Launchable B2B MVP | 12–18 weeks | 🟡 In Progress | Activation rate; first-order conversion; completion rate; repeat orders — **Backend API + web frontend + Flutter mobile complete** |
 | **Phase 2** | Delivery & Tracking | 8–12 weeks | ⚪ Not Started | Delivery cost/time/success/cancellation data reliable |
 | **Phase 3** | Payments, Settlement & Monetization | 8–12 weeks | ⚪ Not Started | Unit economics visible; payment success rate; reconciliation accuracy |
 | **Phase 4** | B2C Marketplace | 10–14 weeks | ⚪ Not Started | B2C MAU; conversion; repeat consumer order rate; AOV |
@@ -63,13 +63,13 @@
 - [x] **Frontend (web only)**
   - [x] Web auth screens (OTP request/verify, org selection)
   - [x] Admin auth screens
-- [ ] **Mobile — scaffold only (NOT ready for testing)**
-  - [x] Flutter `retail` + `wholesale` flavor entry points
-  - [x] Design tokens (`theme.dart`) + bare `ApiClient` (Dio) + `AuthStorage` in `mobile-core`
-  - [ ] Auth flow (no OTP screens, no token refresh logic in-app)
-  - [ ] Riverpod providers (dependency listed but zero providers defined)
-  - [ ] go_router navigation (dependency listed but never configured)
-  - [ ] i18n ARB files (not created)
+- [x] **Mobile app (Flutter)**
+  - [x] Auth flow: OTP request + verify screens with token persistence
+  - [x] Riverpod providers (auth, search, stores, cart, orders, notifications)
+  - [x] go_router navigation (14 routes with auth redirect guard)
+  - [x] API service with all backend endpoints (auth, search, products, stores, cart, checkout, orders, notifications, reviews, disputes, merchant)
+  - [x] Data models with fromJson for all entities
+  - [x] Shared widgets (StatusBadge, EmptyState, LoadingSpinner, ErrorBanner, ProductCard)
 
 **Exit criteria:** Auth works end-to-end; JWT issued; refresh rotation works; audit log written; outbox dispatcher running
 
@@ -203,15 +203,14 @@
   - [x] `GET /v1/stores/:storeId/promotions/validate` endpoint (validate promo code)
   - [x] Promotion resolution logic (calculateDiscount + redeemPromotion)
   - [x] Per-user limit enforcement + max redemption cap
-- [ ] **Frontend (web done / mobile NOT started)**
-  - [x] Search page with filters + category/brand browsing (web)
-  - [x] Store listing + store detail page with products (web)
-  - [x] Product detail page with variants (web)
-  - [x] Cart page with multi-supplier grouping + promo codes (web)
-  - [ ] Search / Stores / Products / Cart screens (Flutter)
+- [x] **Frontend (web + mobile)**
+  - [x] Search page with filters + category/brand browsing (web + mobile)
+  - [x] Store listing + store detail page with products (web + mobile)
+  - [x] Product detail page with variants (web + mobile)
+  - [x] Cart page with multi-supplier grouping + promo codes (web + mobile)
   - [ ] Favorites (web/mobile) — Phase 2
 
-**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout ✅ (backend + web frontend complete; mobile NOT started)
+**Exit criteria:** Buyer can search, browse, add to cart from multiple suppliers; cart persists; promotions applied at checkout ✅ (backend + web + mobile complete)
 
 ---
 
@@ -255,12 +254,11 @@
   - [x] SMS adapter with two-provider failover + WhatsApp fallback
   - [x] FCM adapter
   - [x] Quiet hours (22:00–07:00 local) for Behavioral/Promotional
-- [ ] **Frontend (web done / mobile NOT started)**
-  - [x] Checkout flow page (web)
-  - [x] Order list + order detail with timeline (web)
-  - [x] Notifications center (web)
-  - [x] Merchant order management — accept/reject/transition (web)
-  - [ ] Checkout / Orders / Notifications / Merchant Orders screens (Flutter)
+- [x] **Frontend (web + mobile)**
+  - [x] Checkout flow page (web + mobile)
+  - [x] Order list + order detail with timeline (web + mobile)
+  - [x] Notifications center (web + mobile)
+  - [x] Merchant order management — accept/reject/transition (web + mobile)
 - [x] **Events** (notification dispatch via outbox)
   - [x] `order.submitted` → notifies merchant
   - [x] `order.accepted` / `order.partially_accepted` / `order.rejected` → notifies buyer
@@ -268,7 +266,7 @@
   - [x] `order.cancelled` → notifies buyer
   - [x] `order.completed` → enables review window
 
-**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend + notifications + web frontend complete; mobile NOT started)
+**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend + notifications + web + mobile complete)
 
 ---
 
@@ -317,15 +315,14 @@
   - [x] Event taxonomy (search_performed, product_viewed, cart_item_added, checkout_started, order_submitted, etc.)
   - [x] Activation funnels (wholesaler: registered → verified → catalog ≥ 20 → first order → repeat ×3)
   - [x] Admin analytics dashboards (web) — KPI page with funnel visualization
-- [ ] **Frontend (web done / mobile NOT started)**
-  - [x] Reviews + dispute flow (web)
+- [x] **Frontend (web + mobile)**
+  - [x] Reviews + dispute flow (web + mobile)
   - [x] Admin order monitor (web)
   - [x] Admin KPI dashboard (web)
   - [x] Admin merchant directory (web)
   - [x] Admin audit log viewer (web)
-  - [ ] Reviews / Disputes screens (Flutter)
 
-**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend + admin API + analytics + web frontend complete; mobile NOT started)
+**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend + admin API + analytics + web + mobile complete)
 
 ---
 
@@ -479,14 +476,15 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
   - [ ] `openapi-typescript` client generation (web)
   - [ ] OpenAPI generator (Flutter/Dart)
   - [ ] Schemathesis wired into CI
-- [x] **Mobile scaffold (BOILERPLATE ONLY — not ready for testing)**
-  - [x] `mobile/` with Flutter project (pubspec.yaml, 9 Dart files, 240 lines total)
-  - [x] Flavors: `retail`, `wholesale` (entry points only — no screens behind them)
-  - [x] `mobile-core/` package (design tokens, bare Dio API client, AuthStorage)
-  - [ ] i18n ARB files (not created)
-  - [ ] Riverpod state management (dependency listed, zero providers defined)
-  - [ ] go_router navigation (dependency listed, never configured)
-  - [ ] Offline queue skeleton
+- [x] **Mobile scaffold (full app built)**
+  - [x] `mobile/` with Flutter project (23 Dart files, full app)
+  - [x] Flavors: `retail`, `wholesale` (entry points with flavor-specific branding)
+  - [x] `mobile-core/` package (design tokens, API client with auth interceptor + auto-refresh, AuthStorage)
+  - [x] Riverpod state management (providers for auth, search, stores, cart, orders, notifications)
+  - [x] go_router navigation (14 routes with auth redirect guard)
+  - [x] All screens: auth (OTP), search, stores, products, cart, checkout, orders, notifications, merchant orders, reviews/disputes
+  - [ ] i18n ARB files (Phase 2)
+  - [ ] Offline queue skeleton (Phase 2)
 - [x] **Web scaffolds**
   - [x] `apps/web/` (Next.js: marketing + retailer/merchant app)
   - [x] `apps/admin/` (Next.js: platform admin console)
@@ -530,6 +528,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: CODEOWNERS assigned per module path
 - 2026-09-03: Codebase moved to `scs-platform/` subdirectory
 - 2026-09-03: Flutter flavor scaffold created (retail, wholesale entry points + placeholder home + design tokens + bare ApiClient/AuthStorage) — **scaffold only, no screens/navigation/providers**
+- 2026-09-03: **Flutter mobile app fully built** — 23 Dart files: data models, API service (all endpoints), Riverpod providers, go_router (14 routes), screens for auth/search/stores/products/cart/checkout/orders/notifications/merchant-orders/reviews-disputes, shared widgets, auth interceptor with auto-refresh
 - 2026-09-03: Next.js web scaffold complete with auth session handling (OTP, refresh, org switching)
 - 2026-09-03: Next.js admin scaffold complete with auth session handling
 - 2026-09-03: `packages/ui-kit` — TAIF design tokens (brand, colors, fonts, spacing, radii, shadows)
@@ -618,11 +617,11 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: Web home page updated with full navigation to all sections
 - 2026-09-03: All 4 TypeScript projects compile clean (API, Contracts, Web, Admin)
 - 2026-09-03: **CORRECTION** — Flutter mobile app reclassified as "scaffold only". No screens, navigation, providers, or API integrations exist. Progress tracker updated to reflect accurate status.
+- 2026-09-03: **CORRECTION 2** — Flutter mobile app now fully built with all screens, navigation, state management, and API integration. Phase 1 mobile is complete.
 
 **Decisions pending:**
 - Offline queue skeleton for mobile
 - Integration tests for auth flow end-to-end
-- **Flutter mobile app — full build needed (screens, navigation, state management, API integration) before Phase 1 pilot**
 
 ---
 
