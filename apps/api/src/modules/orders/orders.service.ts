@@ -3,8 +3,11 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from './orders.schema';
 import { carts, cartItems } from './cart.schema';
-import { productVariants } from '../catalog/catalog.schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { products, productVariants } from '../catalog/catalog.schema';
+import { priceTiers, priceLists } from '../pricing/pricing.schema';
+import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
+import { warehouses } from '../merchant/merchant.schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -51,6 +54,24 @@ export class OrdersService {
       where: eq(cartItems.cartId, cart['id']),
     });
     if (items.length === 0) throw new BadRequestException('Cart is empty');
+
+    // ── MOQ Validation ──────────────────────────────────────────
+    // Check that each cart item meets the product's minimum order quantity
+    for (const item of items) {
+      const variant = await this.db.db.query.productVariants.findFirst({
+        where: eq(productVariants.id, item['variantId']),
+      });
+      if (!variant) throw new BadRequestException(`Variant ${item['variantId']} not found`);
+
+      const product = await this.db.db.query.products.findFirst({
+        where: eq(products.id, variant['productId']),
+      });
+      if (product && product['moq'] > item['quantity']) {
+        throw new BadRequestException(
+          `Minimum order quantity for ${product['title']} is ${product['moq']}, but only ${item['quantity']} in cart`
+        );
+      }
+    }
 
     // Group items by store_id (supplier grouping)
     const grouped = new Map<string, typeof items>();
@@ -166,6 +187,25 @@ export class OrdersService {
   async acceptOrder(orderId: string, merchantUserId: string) {
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'ACCEPTED');
+
+    // ── Re-Price Guard ──────────────────────────────────────────
+    // Compare current price_tiers against order_items.unit_price_minor snapshot.
+    // If price changed >5%, return 409 with per-line deltas.
+    const priceDeltas = await this.checkPriceDeltas(orderId, order['storeId']);
+    const significantDeltas = priceDeltas.filter(d => Math.abs(d.deltaPercent) > 5);
+    if (significantDeltas.length > 0) {
+      throw new ConflictException({
+        type: 'https://errors.scs.local/price-changed',
+        title: 'Price Changed Since Order',
+        status: 409,
+        detail: `${significantDeltas.length} item(s) have changed price by more than 5%`,
+        deltas: significantDeltas,
+      });
+    }
+
+    // ── Stock Reservation ────────────────────────────────────────
+    // Reserve stock for each order item in the store's warehouse(s)
+    await this.reserveStock(orderId, order['storeId']);
 
     await this.db.db
       .update(orders)
@@ -383,6 +423,102 @@ export class OrdersService {
     return { message: 'Items re-added to cart', masterOrderId };
   }
 
+  // ── Re-Price Guard ──────────────────────────────────────────
+
+  private async checkPriceDeltas(orderId: string, storeId: string): Promise<PriceDelta[]> {
+    const items = await this.db.db.query.orderItems.findMany({
+      where: eq(orderItems.orderId, orderId),
+    });
+
+    const deltas: PriceDelta[] = [];
+
+    for (const item of items) {
+      // Find the current price tier for this variant at the ordered quantity
+      const currentTier = await this.db.db.select().from(priceTiers)
+        .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
+        .where(and(
+          eq(priceLists.storeId, storeId),
+          eq(priceLists.isActive, true),
+          eq(priceTiers.variantId, item['variantId']),
+          sql`${priceTiers.minQty} <= ${item['quantity']}`,
+        ))
+        .orderBy(priceTiers.minQty)
+        .limit(1);
+
+      if (currentTier.length > 0) {
+        const tier = currentTier[0]!;
+        const currentPrice = tier['price_tiers']['unitPriceMinor'];
+        const snapshotPrice = item['unitPriceMinor'];
+        const delta = currentPrice - snapshotPrice;
+        const deltaPercent = snapshotPrice > 0 ? (delta / snapshotPrice) * 100 : 0;
+
+        deltas.push({
+          itemId: item['id'],
+          variantId: item['variantId'],
+          sku: item['sku'],
+          snapshotPrice,
+          currentPrice,
+          delta,
+          deltaPercent: Math.round(deltaPercent * 100) / 100,
+        });
+      }
+    }
+
+    return deltas;
+  }
+
+  // ── Stock Reservation ───────────────────────────────────────
+
+  private async reserveStock(orderId: string, storeId: string) {
+    const items = await this.db.db.query.orderItems.findMany({
+      where: eq(orderItems.orderId, orderId),
+    });
+
+    // Find the store's warehouse(s)
+    const storeWarehouses = await this.db.db.select().from(warehouses)
+      .where(eq(warehouses.storeId, storeId));
+
+    if (storeWarehouses.length === 0) return; // No warehouse configured
+
+    for (const item of items) {
+      // Find inventory item in any of the store's warehouses
+      for (const wh of storeWarehouses) {
+        const invItem = await this.db.db.select().from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.variantId, item['variantId']),
+            eq(inventoryItems.warehouseId, wh['id']),
+          ))
+          .limit(1);
+
+        if (invItem.length > 0) {
+          const inv = invItem[0]!;
+          const available = inv['qtyOnHand'] - inv['qtyReserved'];
+          const qtyToReserve = Math.min(item['quantity'], available);
+
+          if (qtyToReserve > 0) {
+            // Increment reserved quantity
+            await this.db.db
+              .update(inventoryItems)
+              .set({ qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`, updatedAt: new Date() })
+              .where(eq(inventoryItems.id, inv['id']));
+
+            // Record stock movement
+            await this.db.db.insert(stockMovements).values({
+              id: crypto.randomUUID(),
+              inventoryItemId: inv['id'],
+              movementType: 'RESERVE',
+              quantity: qtyToReserve,
+              referenceType: 'ORDER',
+              referenceId: orderId,
+              reason: `Stock reserved for order ${orderId}`,
+            });
+          }
+          break; // Only reserve from first warehouse with stock
+        }
+      }
+    }
+  }
+
   // ── Helpers ──────────────────────────────────────────────────
 
   private async recordStatusChange(
@@ -443,4 +579,14 @@ export interface CheckoutInput {
 export interface ItemConfirmation {
   itemId: string;
   qtyConfirmed: number;
+}
+
+export interface PriceDelta {
+  itemId: string;
+  variantId: string;
+  sku: string;
+  snapshotPrice: number;
+  currentPrice: number;
+  delta: number;
+  deltaPercent: number;
 }

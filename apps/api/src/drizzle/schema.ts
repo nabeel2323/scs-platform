@@ -17,3 +17,4 @@ export * from '../modules/orders/cart.schema';
 export * from '../modules/orders/orders.schema';
 export * from '../modules/reviews/reviews.schema';
 export * from '../modules/reviews/support.schema';
+export * from '../modules/notifications/notifications.schema';

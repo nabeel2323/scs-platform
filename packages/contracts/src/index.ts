@@ -780,3 +780,193 @@ export type DisputeEvent = z.infer<typeof DisputeEventSchema>;
 export type SendMessage = z.infer<typeof SendMessageSchema>;
 export type Message = z.infer<typeof MessageSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;
+
+// ── Notifications ──────────────────────────────────────────────
+
+export const NotificationTypeSchema = z.enum(['TRANSACTIONAL', 'PROMOTIONAL', 'BEHAVIORAL']);
+export const NotificationChannelSchema = z.enum(['SMS', 'PUSH', 'IN_APP', 'WHATSAPP']);
+export const NotificationStatusSchema = z.enum(['PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED']);
+
+export const NotificationSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  type: NotificationTypeSchema,
+  channel: NotificationChannelSchema,
+  template: z.string(),
+  title: z.string().nullable(),
+  body: z.string(),
+  data: z.record(z.unknown()),
+  status: NotificationStatusSchema,
+  provider: z.string().nullable(),
+  providerMsgId: z.string().nullable(),
+  sentAt: z.string().datetime().nullable(),
+  deliveredAt: z.string().datetime().nullable(),
+  readAt: z.string().datetime().nullable(),
+  failedAt: z.string().datetime().nullable(),
+  failureReason: z.string().nullable(),
+  retryCount: z.number(),
+  createdAt: z.string().datetime(),
+});
+
+export const UpdateNotificationPreferenceSchema = z.object({
+  type: NotificationTypeSchema,
+  channel: NotificationChannelSchema,
+  isEnabled: z.boolean(),
+});
+
+export const NotificationPreferenceSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  type: NotificationTypeSchema,
+  channel: NotificationChannelSchema,
+  isEnabled: z.boolean(),
+  updatedAt: z.string().datetime(),
+});
+
+export const RegisterDeviceTokenSchema = z.object({
+  token: z.string().min(1).max(500),
+  platform: z.enum(['ANDROID', 'IOS', 'WEB']),
+  appVersion: z.string().optional(),
+});
+
+export const UnreadCountSchema = z.object({
+  count: z.number(),
+});
+
+// ── Admin ──────────────────────────────────────────────────────
+
+export const AdminOrderListQuerySchema = z.object({
+  status: z.string().optional(),
+  storeId: z.string().uuid().optional(),
+  buyerId: z.string().uuid().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().min(1).max(100).optional(),
+  offset: z.coerce.number().min(0).optional(),
+});
+
+export const AdminMerchantListQuerySchema = z.object({
+  status: z.string().optional(),
+  verificationStatus: z.string().optional(),
+  limit: z.coerce.number().min(1).max(100).optional(),
+  offset: z.coerce.number().min(0).optional(),
+});
+
+export const PaginatedResultSchema = z.object({
+  data: z.array(z.unknown()),
+  total: z.number(),
+  limit: z.number(),
+  offset: z.number(),
+});
+
+export const ActivationFunnelSchema = z.object({
+  registered: z.number(),
+  verified: z.number(),
+  catalogReady: z.number(),
+  firstOrder: z.number(),
+  repeatThree: z.number(),
+});
+
+export const KpiResponseSchema = z.object({
+  period: z.object({ from: z.string(), to: z.string() }),
+  users: z.object({ total: z.number() }),
+  merchants: z.object({ verified: z.number(), pending: z.number() }),
+  orders: z.object({
+    total: z.number(),
+    completed: z.number(),
+    cancelled: z.number(),
+    completionRate: z.number(),
+    cancellationRate: z.number(),
+  }),
+  revenue: z.object({ totalMinor: z.number() }),
+  conversion: z.object({
+    firstOrderRate: z.number(),
+    repeatOrderRate: z.number(),
+  }),
+  activationFunnel: ActivationFunnelSchema,
+});
+
+export const AuditLogQuerySchema = z.object({
+  action: z.string().optional(),
+  resource: z.string().optional(),
+  actorId: z.string().uuid().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().min(1).max(100).optional(),
+  offset: z.coerce.number().min(0).optional(),
+});
+
+// ── Analytics ──────────────────────────────────────────────────
+
+export const TrackEventSchema = z.object({
+  eventType: z.string().min(1).max(80),
+  sessionId: z.string().optional(),
+  properties: z.record(z.unknown()).optional(),
+  device: z.string().optional(),
+});
+
+export const TrackBatchSchema = z.object({
+  events: z.array(TrackEventSchema).min(1).max(100),
+});
+
+export const TrackResponseSchema = z.object({
+  id: z.string().uuid(),
+  eventType: z.string(),
+  createdAt: z.string(),
+});
+
+export const TrackBatchResponseSchema = z.object({
+  count: z.number(),
+});
+
+export const EventCountSchema = z.object({
+  eventType: z.string(),
+  count: z.number(),
+});
+
+export const AnalyticsEventTypeSchema = z.enum([
+  'search_performed',
+  'product_viewed',
+  'cart_item_added',
+  'cart_item_removed',
+  'checkout_started',
+  'order_submitted',
+  'order_accepted',
+  'order_rejected',
+  'order_delivered',
+  'review_created',
+  'dispute_opened',
+  'merchant_onboarded',
+  'merchant_verified',
+  'page_viewed',
+  'filter_applied',
+]);
+
+// ── Notification Types ─────────────────────────────────────────
+
+export type NotificationType = z.infer<typeof NotificationTypeSchema>;
+export type NotificationChannel = z.infer<typeof NotificationChannelSchema>;
+export type NotificationStatus = z.infer<typeof NotificationStatusSchema>;
+export type Notification = z.infer<typeof NotificationSchema>;
+export type UpdateNotificationPreference = z.infer<typeof UpdateNotificationPreferenceSchema>;
+export type NotificationPreference = z.infer<typeof NotificationPreferenceSchema>;
+export type RegisterDeviceToken = z.infer<typeof RegisterDeviceTokenSchema>;
+export type UnreadCount = z.infer<typeof UnreadCountSchema>;
+
+// ── Admin Types ────────────────────────────────────────────────
+
+export type AdminOrderListQuery = z.infer<typeof AdminOrderListQuerySchema>;
+export type AdminMerchantListQuery = z.infer<typeof AdminMerchantListQuerySchema>;
+export type PaginatedResult = z.infer<typeof PaginatedResultSchema>;
+export type ActivationFunnel = z.infer<typeof ActivationFunnelSchema>;
+export type KpiResponse = z.infer<typeof KpiResponseSchema>;
+export type AuditLogQuery = z.infer<typeof AuditLogQuerySchema>;
+
+// ── Analytics Types ────────────────────────────────────────────
+
+export type TrackEvent = z.infer<typeof TrackEventSchema>;
+export type TrackBatch = z.infer<typeof TrackBatchSchema>;
+export type TrackResponse = z.infer<typeof TrackResponseSchema>;
+export type TrackBatchResponse = z.infer<typeof TrackBatchResponseSchema>;
+export type EventCount = z.infer<typeof EventCountSchema>;
+export type AnalyticsEventType = z.infer<typeof AnalyticsEventTypeSchema>;

@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (M7 Hardening & Pilot complete — load tests, security, playbooks, monitoring, go/no-go checklist)
+**Last updated:** 2026-09-03 (Phase 1 gap closure complete — notifications, admin API, analytics pipeline, re-price guard, MOQ validation, stock reservation)
 
 ---
 
@@ -10,7 +10,7 @@
 | Phase | Name | Duration | Status | Exit Gate |
 |---|---|---|---|---|
 | **Phase 0** | Market Validation & Design | 4–8 weeks | 🟡 In Progress | Merchants committed; retailer intent; first procurement flow clear — **Sprint 0 scaffolded** |
-| **Phase 1** | Launchable B2B MVP | 12–18 weeks | ⚪ Not Started | Activation rate; first-order conversion; completion rate; repeat orders |
+| **Phase 1** | Launchable B2B MVP | 12–18 weeks | 🟡 In Progress | Activation rate; first-order conversion; completion rate; repeat orders — **Backend API complete; frontend pending** |
 | **Phase 2** | Delivery & Tracking | 8–12 weeks | ⚪ Not Started | Delivery cost/time/success/cancellation data reliable |
 | **Phase 3** | Payments, Settlement & Monetization | 8–12 weeks | ⚪ Not Started | Unit economics visible; payment success rate; reconciliation accuracy |
 | **Phase 4** | B2C Marketplace | 10–14 weeks | ⚪ Not Started | B2C MAU; conversion; repeat consumer order rate; AOV |
@@ -233,19 +233,22 @@
   - [x] Idempotency keys (prevents duplicate checkout)
   - [x] SLA timers (12h confirmation SLA default)
   - [x] Financial breakdown with commission calculation
-- [ ] **Notifications module** (migration `0009_comms`)
-  - [ ] `notifications` table (TRANSACTIONAL, PROMOTIONAL, BEHAVIORAL)
-  - [ ] `notification_preferences` table
-  - [ ] `device_tokens` table
-  - [ ] Notification dispatcher (triggered only by domain events via outbox)
-  - [ ] Template registry (otp.login, order.submitted, order.accepted, order.ready, etc.)
-  - [ ] `GET /v1/notifications` endpoint
-  - [ ] `PATCH /v1/notifications/{id}/read` endpoint
-  - [ ] `GET /v1/notification-preferences` endpoint
-  - [ ] `PATCH /v1/notification-preferences` endpoint
-  - [ ] SMS adapter with two-provider failover + WhatsApp fallback
-  - [ ] FCM adapter
-  - [ ] Quiet hours (22:00–07:00 local) for Behavioral/Promotional
+  - [x] Re-price guard on merchant accept (per-line delta check; 409 if >5% change)
+  - [x] MOQ validation at checkout (enforces product.moq against cart item quantity)
+  - [x] Stock reservation on accept (inventory_items.qty_reserved + stock_movements ledger)
+- [x] **Notifications module** (migration `0012_comms`)
+  - [x] `notifications` table (TRANSACTIONAL, PROMOTIONAL, BEHAVIORAL)
+  - [x] `notification_preferences` table
+  - [x] `device_tokens` table
+  - [x] Notification dispatcher (triggered only by domain events via outbox)
+  - [x] Template registry (otp.login, order.submitted, order.accepted, order.ready, etc.)
+  - [x] `GET /v1/notifications` endpoint
+  - [x] `PATCH /v1/notifications/{id}/read` endpoint
+  - [x] `GET /v1/notification-preferences` endpoint
+  - [x] `PATCH /v1/notification-preferences` endpoint
+  - [x] SMS adapter with two-provider failover + WhatsApp fallback
+  - [x] FCM adapter
+  - [x] Quiet hours (22:00–07:00 local) for Behavioral/Promotional
 - [ ] **Frontend / mobile**
   - [ ] Order flows (checkout, order list, order detail)
   - [ ] OrderTimeline component (status history visualization)
@@ -258,7 +261,7 @@
   - [ ] `order.cancelled` → notifies buyer
   - [ ] `order.completed` → enables review window
 
-**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend complete; notifications pending)
+**Exit criteria:** Full order lifecycle works end-to-end; checkout → submit → accept/partial/reject → prepare → ready → delivered → completed; notifications fire; idempotency works; re-price guard works ✅ (backend + notifications complete)
 
 ---
 
@@ -293,19 +296,19 @@
   - [x] `GET /v1/conversations/{id}/messages` endpoint
   - [x] `POST /v1/conversations/{id}/messages` endpoint
   - [x] `PATCH /v1/conversations/{id}/read` endpoint
-- [ ] **Admin console**
-  - [ ] `GET /v1/admin/orders` endpoint
-  - [ ] `GET /v1/admin/merchants` endpoint
-  - [ ] `GET /v1/admin/kpis` endpoint
-  - [ ] `GET /v1/admin/audit-logs` endpoint
+- [x] **Admin console**
+  - [x] `GET /v1/admin/orders` endpoint
+  - [x] `GET /v1/admin/merchants` endpoint
+  - [x] `GET /v1/admin/kpis` endpoint
+  - [x] `GET /v1/admin/audit-logs` endpoint
   - [ ] Admin order monitor (web)
   - [ ] Admin KPI dashboard (web) — activation funnels, first-order conversion, repeat-order rate
-- [ ] **Analytics** (migration `0010_platform`)
-  - [ ] `analytics_events` table (monthly RANGE partitions; pg_partman)
-  - [ ] Client SDK `track()` → `analytics_events`
-  - [ ] Server domain events → `analytics_events`
-  - [ ] Event taxonomy (search_performed, product_viewed, cart_item_added, checkout_started, order_submitted, etc.)
-  - [ ] Activation funnels (wholesaler: registered → verified → catalog ≥ 20 → first order → repeat ×3)
+- [x] **Analytics** (migration `0013_analytics`)
+  - [x] `analytics_events` table (monthly RANGE partitions; pg_partman)
+  - [x] Client SDK `track()` → `analytics_events`
+  - [x] Server domain events → `analytics_events`
+  - [x] Event taxonomy (search_performed, product_viewed, cart_item_added, checkout_started, order_submitted, etc.)
+  - [x] Activation funnels (wholesaler: registered → verified → catalog ≥ 20 → first order → repeat ×3)
   - [ ] Admin analytics dashboards (web)
 - [ ] **Frontend / mobile**
   - [ ] Ratings UI (web/mobile)
@@ -313,7 +316,7 @@
   - [ ] Admin order monitor (web)
   - [ ] Admin KPI dashboard (web)
 
-**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend complete; admin UI pending)
+**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend + admin API + analytics complete)
 
 ---
 
@@ -363,12 +366,13 @@
 | **Catalog & Products** | 1 | 🟢 Completed | Migration `0004_catalog`; products, variants, media, categories, brands, import jobs |
 | **Inventory & Stock** | 1 | 🟢 Completed | Migration `0005_inventory`; stock tracking, reservations, movements ledger |
 | **Pricing & Tiers** | 1 | 🟢 Completed | Migration `0006_pricing`; price lists, quantity tiers, price resolution |
-| **Orders & FSM** | 1 | 🟢 Completed | Migration `0010_orders`; master + sub-orders; 12-status FSM; checkout; financial breakdown; status history |
+| **Orders & FSM** | 1 | 🟢 Completed | Migration `0010_orders`; master + sub-orders; 12-status FSM; checkout; financial breakdown; re-price guard; MOQ validation; stock reservation |
 | **Promotions** | 1 | 🟢 Completed | Migration `0008_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED; redemption tracking |
 | **Reviews & Trust** | 1 | 🟢 Completed | Migration `0011_trust`; order-gated reviews; trust snapshots with badges |
-| **Notifications & Comms** | 1 | ⚪ Not Started | Migration `0009_comms`; outbox-driven; SMS/PUSH/IN_APP |
-| **Platform (Audit, Outbox, Analytics, Flags)** | 1 | 🟡 In Progress | Migration `0002_platform` created; outbox dispatcher running; audit schema + Drizzle models |
+| **Notifications & Comms** | 1 | 🟢 Completed | Migration `0012_comms`; template registry; SMS failover; FCM push; quiet hours; 8 endpoints |
+| **Platform (Audit, Outbox, Analytics, Flags)** | 1 | 🟢 Completed | Migration `0002_platform` + `0013_analytics`; outbox dispatcher; audit; pg_partman partitioning; analytics track() SDK |
 | **Search (FTS)** | 1 | 🟢 Completed | Migration `0007_search`; Arabic normalization; trigram + FTS indexes; search history |
+| **Admin Console API** | 1 | 🟢 Completed | Orders/merchants/KPIs/audit-logs; activation funnels; permission-guarded |
 | **Delivery & Tracking** | 2 | ⚪ Not Started | Migrations `0013`–`0016`; driver onboarding; zones; POD; live tracking |
 | **Payments & Ledger** | 3 | ⚪ Not Started | Migrations `0017`–`0020`; provider adapters; double-entry ledger; settlements |
 | **B2C Marketplace** | 4 | ⚪ Not Started | Migrations `0021`–`0022`; consumer identity; service areas; Smart Reorder v1 |
@@ -384,21 +388,21 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 | # | Decision | Where Enforced | Cost of Getting It Wrong | Status |
 |---|---|---|---|---|
-| 1 | **User/Org/Role/Permission separation** | §2.1, migration `0001_identity` | Identity re-design breaks every table and token | ⚪ Not Started |
-| 2 | **Master order + sub-orders per supplier** | §3.6, migration `0006_orders` | Settlement, returns, ratings corrupted at multi-supplier scale | ⚪ Not Started |
-| 3 | **Price/promotion snapshots + financial breakdown** | §3.5–3.6 (`unit_price_minor`, `order_financial_breakdown`) | Audit and P3 ledger lose historical truth | ⚪ Not Started |
-| 4 | **`price_lists.channel` + `audience`** | §3.5 DDL (present from day one) | P4 requires a pricing migration under live traffic | ⚪ Not Started |
-| 5 | **Event taxonomy + transactional outbox** | §2.6, Appendix A, `outbox_events` | Analytics/notifications/search silently diverge | ⚪ Not Started |
-| 6 | **UUIDv7 + `organization_id` scoping** | §2.2, §2.9 | Multi-tenancy retrofit = highest-severity security class | ⚪ Not Started |
+| 1 | **User/Org/Role/Permission separation** | §2.1, migration `0001_identity` | Identity re-design breaks every table and token | ✅ Implemented |
+| 2 | **Master order + sub-orders per supplier** | §3.6, migration `0010_orders` | Settlement, returns, ratings corrupted at multi-supplier scale | ✅ Implemented |
+| 3 | **Price/promotion snapshots + financial breakdown** | §3.5–3.6 (`unit_price_minor`, `order_financial_breakdown`) | Audit and P3 ledger lose historical truth | ✅ Implemented |
+| 4 | **`price_lists.channel` + `audience`** | §3.5 DDL (present from day one) | P4 requires a pricing migration under live traffic | ✅ Implemented |
+| 5 | **Event taxonomy + transactional outbox** | §2.6, Appendix A, `outbox_events` | Analytics/notifications/search silently diverge | ✅ Implemented |
+| 6 | **UUIDv7 + `organization_id` scoping** | §2.2, §2.9 | Multi-tenancy retrofit = highest-severity security class | 🟡 UUIDs via crypto.randomUUID(); org_id scoping present |
 
 **Verification checklist:**
-- [ ] `users`, `organizations`, `organization_members`, `roles`, `permissions` are separate tables (not denormalized)
-- [ ] `master_orders` and `orders` are separate; `orders.master_order_id` FK present
-- [ ] `order_items.unit_price_minor` is a SNAPSHOT (not a FK to price_tiers); `order_items.promo_snapshot` JSONB present
-- [ ] `order_financial_breakdown` populated at checkout (not retrofitted in P3)
-- [ ] `price_lists.channel` and `price_lists.audience` columns present from migration `0005_pricing`
-- [ ] All domain events flow through `outbox_events` (no fire-and-forget side effects)
-- [ ] All tables have `id uuid primary key` (UUIDv7 generated in app layer)
+- [x] `users`, `organizations`, `organization_members`, `roles`, `permissions` are separate tables (not denormalized)
+- [x] `master_orders` and `orders` are separate; `orders.master_order_id` FK present
+- [x] `order_items.unit_price_minor` is a SNAPSHOT (not a FK to price_tiers); `order_items.promo_snapshot` JSONB present
+- [x] `order_financial_breakdown` populated at checkout (not retrofitted in P3)
+- [x] `price_lists.channel` and `price_lists.audience` columns present from migration `0006_pricing`
+- [x] All domain events flow through `outbox_events` (no fire-and-forget side effects)
+- [x] All tables have `id uuid primary key` (UUID generated in app layer via crypto.randomUUID())
 - [ ] All tenant-scoped tables have `org_id` or equivalent; OrgScopeGuard enforces access
 
 ---
@@ -483,7 +487,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
   - [x] `packages/event-types/` — Domain + analytics event schemas (versioned)
 - [x] **Audit + outbox**
   - [x] Audit log middleware (writes `audit_logs` for: verification decisions, refunds, price overrides, admin impersonation, flag changes)
-  - [ ] Outbox dispatcher skeleton (polls `outbox_events`; publishes to event bus)
+  - [x] Outbox dispatcher skeleton (polls `outbox_events`; publishes to event bus)
 - [x] **CI skeleton**
   - [x] PR pipeline: lint → typecheck → boundary-lint → unit → integration → contract → build → preview deploy → smoke
   - [x] Main pipeline: all of PR + E2E + k6 smoke + Lighthouse + axe → staging deploy
