@@ -608,6 +608,104 @@ export const ItemConfirmationSchema = z.object({
   qtyConfirmed: z.number().int().min(0),
 });
 
+// ── Reviews & Trust ──────────────────────────────────────────
+
+export const SubjectTypeSchema = z.enum(['STORE', 'DRIVER', 'BUYER']);
+
+export const CreateReviewSchema = z.object({
+  subjectId: z.string().uuid(),
+  subjectType: SubjectTypeSchema,
+  rating: z.number().int().min(1).max(5),
+  title: z.string().max(200).optional(),
+  body: z.string().max(5000).optional(),
+  dimensions: z.record(z.unknown()).optional(),
+});
+
+export const ReviewSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  reviewerId: z.string().uuid(),
+  subjectId: z.string().uuid(),
+  subjectType: z.string(),
+  rating: z.number(),
+  title: z.string().nullable(),
+  body: z.string().nullable(),
+  dimensions: z.record(z.unknown()),
+  isVerified: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const TrustSnapshotSchema = z.object({
+  id: z.string().uuid(),
+  entityId: z.string().uuid(),
+  entityType: z.string(),
+  avgRating: z.string().nullable(),
+  totalReviews: z.number(),
+  dimensions: z.record(z.unknown()),
+  badges: z.array(z.unknown()),
+  score: z.string(),
+  computedAt: z.string().datetime(),
+});
+
+// ── Disputes & Support ───────────────────────────────────────
+
+export const DisputeStatusSchema = z.enum([
+  'OPEN', 'EVIDENCE', 'RESPONSE', 'REVIEW', 'RESOLVED', 'CLOSED',
+]);
+
+export const CreateDisputeSchema = z.object({
+  againstId: z.string().uuid(),
+  reason: z.string().min(10).max(5000),
+});
+
+export const DisputeSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  raisedBy: z.string().uuid(),
+  againstId: z.string().uuid(),
+  status: z.string(),
+  reason: z.string(),
+  resolution: z.string().nullable(),
+  resolvedBy: z.string().uuid().nullable(),
+  resolvedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const DisputeEventSchema = z.object({
+  id: z.string().uuid(),
+  disputeId: z.string().uuid(),
+  actorId: z.string().uuid(),
+  eventType: z.string(),
+  body: z.string().nullable(),
+  attachments: z.array(z.unknown()),
+  createdAt: z.string().datetime(),
+});
+
+export const SendMessageSchema = z.object({
+  body: z.string().min(1).max(5000),
+});
+
+export const MessageSchema = z.object({
+  id: z.string().uuid(),
+  conversationId: z.string().uuid(),
+  senderId: z.string().uuid(),
+  body: z.string(),
+  isRead: z.boolean(),
+  createdAt: z.string().datetime(),
+});
+
+export const ConversationSchema = z.object({
+  id: z.string().uuid(),
+  orderId: z.string().uuid(),
+  participant1: z.string().uuid(),
+  participant2: z.string().uuid(),
+  isActive: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
 // ── Re-exports ───────────────────────────────────────────────
 
 export type OtpRequest = z.infer<typeof OtpRequestSchema>;
@@ -670,3 +768,15 @@ export type SubOrder = z.infer<typeof SubOrderSchema>;
 export type MasterOrder = z.infer<typeof MasterOrderSchema>;
 export type StatusHistoryEntry = z.infer<typeof StatusHistoryEntrySchema>;
 export type ItemConfirmation = z.infer<typeof ItemConfirmationSchema>;
+
+export type SubjectType = z.infer<typeof SubjectTypeSchema>;
+export type CreateReview = z.infer<typeof CreateReviewSchema>;
+export type Review = z.infer<typeof ReviewSchema>;
+export type TrustSnapshot = z.infer<typeof TrustSnapshotSchema>;
+export type DisputeStatus = z.infer<typeof DisputeStatusSchema>;
+export type CreateDispute = z.infer<typeof CreateDisputeSchema>;
+export type Dispute = z.infer<typeof DisputeSchema>;
+export type DisputeEvent = z.infer<typeof DisputeEventSchema>;
+export type SendMessage = z.infer<typeof SendMessageSchema>;
+export type Message = z.infer<typeof MessageSchema>;
+export type Conversation = z.infer<typeof ConversationSchema>;

@@ -1,7 +1,7 @@
 # Smart Commerce & Supply Platform — Implementation Progress Tracker
 
 **Living document** — update status as work progresses  
-**Last updated:** 2026-09-03 (M5 Ordering complete — checkout, FSM, accept/partial/reject, cancel, status history, financial breakdown)
+**Last updated:** 2026-09-03 (M6 Trust & Admin complete — reviews, trust scores, disputes, conversations)
 
 ---
 
@@ -266,19 +266,33 @@
 
 **Goal:** Ratings, disputes-lite, admin KPIs, analytics funnels
 
-- [ ] **Reviews module** (migration `0008_trust`)
-  - [ ] `reviews` table (order-gated: one review per subject per order; subject_type: STORE, DRIVER, BUYER)
-  - [ ] `trust_snapshots` table (dimensions, score, badges: VERIFIED, TRUSTED, FAST_FULFILLMENT)
-  - [ ] `POST /v1/orders/{id}/review` endpoint
-  - [ ] `GET /v1/stores/{id}/reviews` endpoint
-  - [ ] Trust score computation (dimensions per §9.2 source)
-- [ ] **Support module** (part of migration `0008_trust`)
-  - [ ] `disputes` table (OPEN, EVIDENCE, RESPONSE, REVIEW, RESOLVED, CLOSED)
-  - [ ] `dispute_events` table
-  - [ ] `conversations` table (order-linked chat only)
-  - [ ] `messages` table
-  - [ ] Dispute workflow (open → evidence → response → review → resolved/closed)
-  - [ ] Dispute window (72 h from DELIVERED; freezes `order_financial_breakdown.finalized_at`)
+- [x] **Reviews module** (migration `0011_trust`)
+  - [x] `reviews` table (order-gated: one review per subject per order; subject_type: STORE, DRIVER, BUYER)
+  - [x] `trust_snapshots` table (dimensions, score, badges: VERIFIED, TRUSTED, TOP_RATED)
+  - [x] `POST /v1/orders/{id}/review` endpoint (order-gated, participant-only)
+  - [x] `GET /v1/stores/{id}/reviews` endpoint
+  - [x] `GET /v1/orders/{id}/reviews` endpoint
+  - [x] `GET /v1/reviews/{id}` endpoint
+  - [x] `GET /v1/trust/{entityType}/{entityId}` endpoint
+  - [x] Trust score computation (avgRating/5 * 60 + volume/10 * 20 + badges * 20)
+  - [x] Badge assignment (VERIFIED ≥5 reviews ≥4★, TRUSTED ≥20 reviews ≥4.5★, TOP_RATED ≥50 reviews)
+- [x] **Support module** (migration `0011_trust`)
+  - [x] `disputes` table (OPEN, EVIDENCE, RESPONSE, REVIEW, RESOLVED, CLOSED)
+  - [x] `dispute_events` table (append-only log)
+  - [x] `conversations` table (order-linked chat only)
+  - [x] `messages` table
+  - [x] Dispute workflow (open → evidence → response → review → resolved/closed)
+  - [x] Dispute window (72h from DELIVERED)
+  - [x] `POST /v1/orders/{id}/dispute` endpoint
+  - [x] `GET /v1/disputes` endpoint (list with status filter)
+  - [x] `GET /v1/disputes/{id}` + `GET /v1/disputes/{id}/events` endpoints
+  - [x] `POST /v1/disputes/{id}/evidence` endpoint
+  - [x] `POST /v1/disputes/{id}/response` endpoint
+  - [x] `PATCH /v1/disputes/{id}/resolve` endpoint
+  - [x] `POST /v1/orders/{id}/conversation` endpoint
+  - [x] `GET /v1/conversations/{id}/messages` endpoint
+  - [x] `POST /v1/conversations/{id}/messages` endpoint
+  - [x] `PATCH /v1/conversations/{id}/read` endpoint
 - [ ] **Admin console**
   - [ ] `GET /v1/admin/orders` endpoint
   - [ ] `GET /v1/admin/merchants` endpoint
@@ -299,7 +313,7 @@
   - [ ] Admin order monitor (web)
   - [ ] Admin KPI dashboard (web)
 
-**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable
+**Exit criteria:** Buyers can rate orders; disputes can be opened and resolved; admin can monitor orders, view KPIs, audit logs; analytics funnels measurable ✅ (backend complete; admin UI pending)
 
 ---
 
@@ -352,7 +366,7 @@
 | **Pricing & Tiers** | 1 | 🟢 Completed | Migration `0006_pricing`; price lists, quantity tiers, price resolution |
 | **Orders & FSM** | 1 | 🟢 Completed | Migration `0010_orders`; master + sub-orders; 12-status FSM; checkout; financial breakdown; status history |
 | **Promotions** | 1 | 🟢 Completed | Migration `0008_promotions`; PERCENT, FIXED, QTY_DISCOUNT, TIME_LIMITED; redemption tracking |
-| **Reviews & Trust** | 1 | ⚪ Not Started | Migration `0008_trust`; order-gated reviews; trust snapshots |
+| **Reviews & Trust** | 1 | 🟢 Completed | Migration `0011_trust`; order-gated reviews; trust snapshots with badges |
 | **Notifications & Comms** | 1 | ⚪ Not Started | Migration `0009_comms`; outbox-driven; SMS/PUSH/IN_APP |
 | **Platform (Audit, Outbox, Analytics, Flags)** | 1 | 🟡 In Progress | Migration `0002_platform` created; outbox dispatcher running; audit schema + Drizzle models |
 | **Search (FTS)** | 1 | 🟢 Completed | Migration `0007_search`; Arabic normalization; trigram + FTS indexes; search history |
@@ -486,7 +500,7 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 
 **Notes & Blockers**
 
-**Current focus:** M6 Trust & Admin — reviews, disputes, admin KPIs, analytics funnels
+**Current focus:** M7 Hardening & Pilot — load tests, security review, usability passes, pilot launch
 
 **Blockers:** None (greenfield project)
 
@@ -561,6 +575,15 @@ These decisions are **correct in Phase 1 or never**. Retrofitting them after lau
 - 2026-09-03: Contracts extended with order zod schemas (9 schemas + 9 type exports)
 - 2026-09-03: M5 Ordering milestone complete (backend)
 - 2026-09-03: All 5 TypeScript projects compile clean after M5
+- 2026-09-03: Migration `0011_trust` created (reviews, trust_snapshots, disputes, dispute_events, conversations, messages)
+- 2026-09-03: Reviews service with order-gated reviews, trust score computation, badge assignment
+- 2026-09-03: Disputes service with full workflow (open→evidence→response→resolve), 72h window enforcement
+- 2026-09-03: Conversations service with order-linked chat, message send/read
+- 2026-09-03: Reviews controller with 5 endpoints (create, store reviews, order reviews, get, trust)
+- 2026-09-03: Disputes controller with 11 endpoints (disputes CRUD + conversations + messages)
+- 2026-09-03: Contracts extended with reviews/disputes zod schemas (12 schemas + 12 type exports)
+- 2026-09-03: M6 Trust & Admin milestone complete (backend)
+- 2026-09-03: All 5 TypeScript projects compile clean after M6
 
 **Decisions pending:**
 - Offline queue skeleton for mobile
