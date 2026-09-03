@@ -171,6 +171,28 @@ export class PromotionsService {
 
     return { redemptionId, discountMinor };
   }
+
+  /**
+   * List nearby active offers.
+   * Note: PostGIS distance query requires PostGIS extension.
+   * Fallback: returns all active promotions, limited.
+   */
+  async listNearbyOffers(params: { lat?: number; lng?: number; radiusKm?: number; limit?: number }) {
+    const now = new Date();
+    const results = await this.db.db.query.promotions.findMany({
+      where: eq(promotions.isActive, true),
+      orderBy: [desc(promotions.createdAt)],
+    });
+
+    // Filter by date range
+    const active = results.filter(p =>
+      new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now
+    );
+
+    // TODO: When PostGIS is available, filter by distance using lat/lng/radiusKm
+    // For now, return all active promotions up to limit
+    return active.slice(0, params.limit || 20);
+  }
 }
 
 // ── Input types ──────────────────────────────────────────────────

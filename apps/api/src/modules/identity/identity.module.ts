@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { ProfileController } from './profile.controller';
 import { OrganizationsController } from './organizations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { CatalogModule } from '../catalog/catalog.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       signOptions: { expiresIn: '15m' },
     }),
     NotificationsModule,
+    CatalogModule,
   ],
   controllers: [AuthController, ProfileController, OrganizationsController],
   providers: [IdentityService],

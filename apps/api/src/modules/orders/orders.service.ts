@@ -13,9 +13,10 @@ import crypto from 'node:crypto';
 /**
  * Orders service — checkout, FSM, accept/reject/confirm/cancel.
  *
- * Order FSM (16 statuses):
- *   DRAFT → SUBMITTED → ACCEPTED | PARTIALLY_ACCEPTED | REJECTED (merchant)
- *   ACCEPTED → CONFIRMED → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED
+ * Order FSM (16 statuses — canonical per Implementation Plan §5):
+ *   DRAFT → SUBMITTED → PENDING_CONFIRMATION → ACCEPTED | PARTIALLY_ACCEPTED | REJECTED | CANCELLED
+ *   ACCEPTED/PARTIAL → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED
+ *   Future: PAYMENT_PENDING (P3), ASSIGNED/PICKED_UP (P2), DISPUTED (P1 lite)
  *   Any pre-DELIVERED → CANCELLED
  *
  * Key invariants:
@@ -94,6 +95,7 @@ export class OrdersService {
 
     // Create sub-orders per supplier
     const subOrderIds: string[] = [];
+    const subOrderData: { id: string; storeId: string }[] = [];
     for (const [storeId, storeItems] of grouped) {
       const subOrderId = crypto.randomUUID();
 
@@ -163,6 +165,7 @@ export class OrdersService {
       await this.recordStatusChange(subOrderId, null, 'SUBMITTED', input.buyerId, 'BUYER', 'Checkout');
 
       subOrderIds.push(subOrderId);
+      subOrderData.push({ id: subOrderId, storeId });
     }
 
     // Mark cart as CONVERTED
@@ -179,14 +182,46 @@ export class OrdersService {
       totalMinor: items.reduce((sum, i) => sum + i['lineTotalMinor'], 0),
     });
 
+    // Auto-advance all sub-orders: SUBMITTED → PENDING_CONFIRMATION
+    for (const sub of subOrderData) {
+      await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
+    }
+
     return this.getMasterOrder(masterId);
+  }
+
+  /**
+   * Auto-advance order from SUBMITTED to PENDING_CONFIRMATION.
+   * Notifies the merchant and starts the SLA timer for response.
+   */
+  private async autoAdvanceToPendingConfirmation(orderId: string, buyerId: string, storeId: string) {
+    await this.db.db
+      .update(orders)
+      .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    await this.recordStatusChange(orderId, 'SUBMITTED', 'PENDING_CONFIRMATION', buyerId, 'SYSTEM', 'Auto-advance: merchant notified, SLA timer started');
+
+    // Publish outbox event — merchant notification + SLA timer
+    await this.outbox.publish('order.pending_confirmation', orderId, {
+      orderId,
+      storeId,
+      buyerId,
+      slaDeadlineMinutes: 15, // 15-min SLA for merchant to respond
+    });
   }
 
   // ── Merchant Actions ─────────────────────────────────────────
 
   async acceptOrder(orderId: string, merchantUserId: string) {
     const order = await this.getOrder(orderId);
-    this.assertTransition(order['status'], 'ACCEPTED');
+    // Accept from PENDING_CONFIRMATION (or SUBMITTED for backward compat — auto-advance first)
+    let currentStatus = order['status'];
+    if (currentStatus === 'SUBMITTED') {
+      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+      currentStatus = 'PENDING_CONFIRMATION';
+    }
+    this.assertTransition(currentStatus, 'ACCEPTED');
 
     // ── Re-Price Guard ──────────────────────────────────────────
     // Compare current price_tiers against order_items.unit_price_minor snapshot.
@@ -212,7 +247,7 @@ export class OrdersService {
       .set({ status: 'ACCEPTED', slaConfirmedAt: new Date(), updatedAt: new Date() })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, 'SUBMITTED', 'ACCEPTED', merchantUserId, 'MERCHANT');
+    await this.recordStatusChange(orderId, currentStatus, 'ACCEPTED', merchantUserId, 'MERCHANT');
     await this.outbox.publish('order.accepted', orderId, { orderId, storeId: order['storeId'] });
 
     return this.getOrder(orderId);
@@ -220,7 +255,12 @@ export class OrdersService {
 
   async partiallyAcceptOrder(orderId: string, merchantUserId: string, confirmations: ItemConfirmation[]) {
     const order = await this.getOrder(orderId);
-    this.assertTransition(order['status'], 'PARTIALLY_ACCEPTED');
+    let currentStatus = order['status'];
+    if (currentStatus === 'SUBMITTED') {
+      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+      currentStatus = 'PENDING_CONFIRMATION';
+    }
+    this.assertTransition(currentStatus, 'PARTIALLY_ACCEPTED');
 
     // Update qty_confirmed for each item
     for (const conf of confirmations) {
@@ -251,7 +291,7 @@ export class OrdersService {
       })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, 'SUBMITTED', 'PARTIALLY_ACCEPTED', merchantUserId, 'MERCHANT');
+    await this.recordStatusChange(orderId, currentStatus, 'PARTIALLY_ACCEPTED', merchantUserId, 'MERCHANT');
     await this.outbox.publish('order.partially_accepted', orderId, { orderId, confirmations });
 
     return this.getOrder(orderId);
@@ -259,14 +299,19 @@ export class OrdersService {
 
   async rejectOrder(orderId: string, merchantUserId: string, reason: string) {
     const order = await this.getOrder(orderId);
-    this.assertTransition(order['status'], 'REJECTED');
+    let currentStatus = order['status'];
+    if (currentStatus === 'SUBMITTED') {
+      await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
+      currentStatus = 'PENDING_CONFIRMATION';
+    }
+    this.assertTransition(currentStatus, 'REJECTED');
 
     await this.db.db
       .update(orders)
       .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, 'SUBMITTED', 'REJECTED', merchantUserId, 'MERCHANT', reason);
+    await this.recordStatusChange(orderId, currentStatus, 'REJECTED', merchantUserId, 'MERCHANT', reason);
     await this.outbox.publish('order.rejected', orderId, { orderId, storeId: order['storeId'], reason });
 
     return this.getOrder(orderId);
@@ -301,13 +346,19 @@ export class OrdersService {
 
     // Emit events based on status
     const eventMap: Record<string, string> = {
-      'CONFIRMED': 'order.confirmed',
+      'PENDING_CONFIRMATION': 'order.pending_confirmation',
+      'ACCEPTED': 'order.accepted',
+      'PARTIALLY_ACCEPTED': 'order.partially_accepted',
+      'REJECTED': 'order.rejected',
       'PREPARING': 'order.preparing',
       'READY': 'order.ready',
+      'ASSIGNED': 'order.assigned',
+      'PICKED_UP': 'order.picked_up',
       'OUT_FOR_DELIVERY': 'order.out_for_delivery',
       'DELIVERED': 'order.delivered',
       'COMPLETED': 'order.completed',
       'CANCELLED': 'order.cancelled',
+      'DISPUTED': 'order.disputed',
     };
 
     if (eventMap[newStatus]) {
@@ -326,7 +377,7 @@ export class OrdersService {
     const order = await this.getOrder(orderId);
 
     // Can only cancel pre-DELIVERED
-    const cancellable = ['SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY'];
+    const cancellable = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'];
     if (!cancellable.includes(order['status'])) {
       throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
     }
@@ -540,21 +591,30 @@ export class OrdersService {
     });
   }
 
-  // FSM transition matrix
+  // FSM transition matrix — canonical 16 statuses per Implementation Plan §5
   private static readonly TRANSITIONS: Record<string, string[]> = {
     'DRAFT': ['SUBMITTED'],
-    'SUBMITTED': ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'],
-    'ACCEPTED': ['CONFIRMED', 'CANCELLED'],
-    'PARTIALLY_ACCEPTED': ['CONFIRMED', 'CANCELLED'],
-    'CONFIRMED': ['PREPARING', 'CANCELLED'],
+    'SUBMITTED': ['PENDING_CONFIRMATION'],                         // auto-advance
+    'PENDING_CONFIRMATION': ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'], // merchant
+    'ACCEPTED': ['PREPARING', 'CANCELLED'],
+    'PARTIALLY_ACCEPTED': ['PREPARING', 'CANCELLED'],
     'PREPARING': ['READY', 'CANCELLED'],
-    'READY': ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
+    'READY': ['OUT_FOR_DELIVERY', 'ASSIGNED', 'DELIVERED', 'CANCELLED'], // ASSIGNED for P2
+    'ASSIGNED': ['PICKED_UP'],                                     // P2 driver
+    'PICKED_UP': ['OUT_FOR_DELIVERY'],                             // P2 driver
     'OUT_FOR_DELIVERY': ['DELIVERED'],
-    'DELIVERED': ['COMPLETED'],
-    'COMPLETED': [],
+    'DELIVERED': ['COMPLETED', 'DISPUTED'],                        // disputes ≤72h
+    'COMPLETED': ['DISPUTED'],                                     // disputes ≤72h
+    'PAYMENT_PENDING': ['PREPARING', 'CANCELLED'],                 // P3 prepay
     'CANCELLED': [],
     'REJECTED': [],
+    'DISPUTED': [],
   };
+
+  // Backward-compatible alias: CONFIRMED → PENDING_CONFIRMATION
+  static resolveStatusAlias(status: string): string {
+    return status === 'CONFIRMED' ? 'PENDING_CONFIRMATION' : status;
+  }
 
   private assertTransition(currentStatus: string, newStatus: string) {
     const allowed = OrdersService.TRANSITIONS[currentStatus] || [];

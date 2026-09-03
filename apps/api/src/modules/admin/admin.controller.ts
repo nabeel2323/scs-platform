@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -14,6 +14,9 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
  * - GET /v1/admin/merchants    — list all merchants/stores
  * - GET /v1/admin/kpis         — platform KPIs + activation funnel
  * - GET /v1/admin/audit-logs   — audit trail
+ * - GET /v1/admin/verifications — alias for verification queue (plan compliance)
+ * - GET /v1/admin/products      — product moderation queue
+ * - PATCH /v1/admin/products/:id/moderate — approve/reject/archive
  */
 @Controller('admin')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -90,5 +93,48 @@ export class AdminController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  // ── Verification queue alias (plan §13.4 compliance) ───────
+
+  @Get('verifications')
+  @RequirePermission('admin:merchants:read')
+  async listVerifications(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.adminService.listVerifications({
+      status,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  // ── Product moderation (plan §13.4) ────────────────────────
+
+  @Get('products')
+  @RequirePermission('admin:merchants:read')
+  async listProductsModeration(
+    @Query('status') status?: string,
+    @Query('storeId') storeId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.adminService.listProductsModeration({
+      status,
+      storeId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Patch('products/:id/moderate')
+  @RequirePermission('admin:merchants:read')
+  async moderateProduct(
+    @Param('id') id: string,
+    @Body() body: { decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED'; reason?: string },
+  ) {
+    return this.adminService.moderateProduct(id, body.decision, body.reason);
   }
 }

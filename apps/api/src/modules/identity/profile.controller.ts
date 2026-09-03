@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CatalogService } from '../catalog/catalog.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
 
@@ -17,6 +18,7 @@ export class ProfileController {
   constructor(
     private readonly identityService: IdentityService,
     private readonly notificationsService: NotificationsService,
+    private readonly catalogService: CatalogService,
   ) {}
 
   @Get()
@@ -51,5 +53,28 @@ export class ProfileController {
     @Param('token') token: string,
   ) {
     return this.notificationsService.unregisterDeviceToken(user.sub, token);
+  }
+
+  // ── Favorites / Wishlist ───────────────────────────────────
+
+  @Get('favorites')
+  async getFavorites(@CurrentUser() user: JwtPayload) {
+    return this.catalogService.listFavorites(user.sub);
+  }
+
+  @Post('favorites')
+  async addFavorite(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { productId: string },
+  ) {
+    return this.catalogService.addFavorite(user.sub, body.productId);
+  }
+
+  @Delete('favorites/:productId')
+  async removeFavorite(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+  ) {
+    return this.catalogService.removeFavorite(user.sub, productId);
   }
 }

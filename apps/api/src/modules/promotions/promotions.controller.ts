@@ -53,4 +53,24 @@ export class PromotionsController {
       maxDiscountMinor: promo['maxDiscountMinor'],
     };
   }
+
+  /**
+   * GET /v1/offers/nearby — active promotions within radius.
+   * Note: PostGIS distance query requires PostGIS extension.
+   * Fallback: returns all active promotions across stores.
+   */
+  @Get('offers/nearby')
+  async getNearbyOffers(
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+    @Query('radiusKm') radiusKm?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.promotionsService.listNearbyOffers({
+      lat: lat ? parseFloat(lat) : undefined,
+      lng: lng ? parseFloat(lng) : undefined,
+      radiusKm: radiusKm ? parseFloat(radiusKm) : undefined,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
+  }
 }

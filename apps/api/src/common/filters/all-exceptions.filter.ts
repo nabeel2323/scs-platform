@@ -10,14 +10,8 @@ import { Request, Response } from 'express';
 /**
  * Global exception filter — produces RFC 7807 `application/problem+json` responses.
  *
- * Shape:
- * {
- *   type: 'https://api.scsp.dev/errors/{family}/{code}',
- *   title: string,
- *   status: number,
- *   detail: string,
- *   instance: string
- * }
+ * Per RFC 7807 the Content-Type MUST be `application/problem+json`.
+ * Shape: { type, title, status, detail, instance, ...extensions }
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -29,7 +23,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let title = 'Internal server error';
     let detail = 'An unexpected error occurred';
-    let type = 'https://api.scsp.dev/errors/internal';
+    let type = 'https://api.scsp.dev/errors/server/internal';
+    let extensions: Record<string, unknown> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -37,24 +32,47 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
       if (typeof exResponse === 'object' && exResponse !== null) {
         const ex = exResponse as Record<string, unknown>;
-        title = (ex['message'] as string) || exception.message;
-        detail = (ex['error'] as string) || exception.message;
+
+        // class-validator returns message as string[]
+        const rawMessage = ex['message'];
+        if (Array.isArray(rawMessage)) {
+          title = 'Validation failed';
+          detail = rawMessage.join('; ');
+          extensions['errors'] = rawMessage;
+        } else {
+          title = (ex['title'] as string) || (ex['error'] as string) || exception.message;
+          detail = (ex['detail'] as string) || (ex['message'] as string) || exception.message;
+        }
+
+        // Preserve RFC 7807 extensions if already present
+        if (ex['type'] && typeof ex['type'] === 'string') type = ex['type'];
+        for (const key of ['deltas', 'field', 'code']) {
+          if (ex[key] !== undefined) extensions[key] = ex[key];
+        }
+      } else if (typeof exResponse === 'string') {
+        title = exception.message;
+        detail = exResponse;
       } else {
         title = exception.message;
         detail = exception.message;
       }
 
-      // Map status to error family
+      // Map status to error family URI
       const family = this.getFamily(status);
-      type = `https://api.scsp.dev/errors/${family}/${status}`;
+      if (!extensions['type']) {
+        type = `https://api.scsp.dev/errors/${family}/${status}`;
+      }
     }
 
+    // RFC 7807: Content-Type MUST be application/problem+json
+    response.setHeader('Content-Type', 'application/problem+json');
     response.status(status).json({
       type,
       title,
       status,
       detail,
       instance: request.url,
+      ...extensions,
     });
   }
 

@@ -99,6 +99,13 @@ export const productMedia = pgTable('product_media', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const favorites = pgTable('favorites', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const importJobs = pgTable('import_jobs', {
   id: uuid('id').primaryKey(),
   storeId: uuid('store_id').notNull().references(() => stores.id, { onDelete: 'cascade' }),

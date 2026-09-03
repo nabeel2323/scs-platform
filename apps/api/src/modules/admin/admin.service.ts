@@ -3,8 +3,9 @@ import { DatabaseService } from '../../common/database/database.service';
 import { orders, masterOrders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers } from '../identity/identity.schema';
+import { products } from '../catalog/catalog.schema';
 import { auditLogs, analyticsEvents } from '../audit/audit.schema';
-import { eq, and, desc, sql, count, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql, count, gte, lte, inArray } from 'drizzle-orm';
 
 /**
  * Admin service — platform-wide operations for admin users.
@@ -309,5 +310,93 @@ export class AdminService {
       limit: filters.limit || 50,
       offset: filters.offset || 0,
     };
+  }
+
+  // ── Verifications (alias for verification queue) ───────────
+
+  async listVerifications(filters: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const conditions = [];
+    if (filters.status) conditions.push(eq(verificationRequests.status, filters.status));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [rows, totalResult] = await Promise.all([
+      this.db.db.select().from(verificationRequests)
+        .where(where)
+        .orderBy(desc(verificationRequests.createdAt))
+        .limit(filters.limit || 50)
+        .offset(filters.offset || 0),
+      this.db.db.select({ count: sql<number>`count(*)` }).from(verificationRequests).where(where),
+    ]);
+
+    return {
+      data: rows,
+      total: totalResult[0]?.count || 0,
+      limit: filters.limit || 50,
+      offset: filters.offset || 0,
+    };
+  }
+
+  // ── Product Moderation ─────────────────────────────────────
+
+  async listProductsModeration(filters: {
+    status?: string;
+    storeId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const conditions = [isNull(products.deletedAt)];
+    if (filters.status) conditions.push(eq(products.status, filters.status));
+    if (filters.storeId) conditions.push(eq(products.storeId, filters.storeId));
+
+    const where = and(...conditions);
+
+    const [rows, totalResult] = await Promise.all([
+      this.db.db.select().from(products)
+        .where(where)
+        .orderBy(desc(products.createdAt))
+        .limit(filters.limit || 50)
+        .offset(filters.offset || 0),
+      this.db.db.select({ count: sql<number>`count(*)` }).from(products).where(where),
+    ]);
+
+    return {
+      data: rows,
+      total: totalResult[0]?.count || 0,
+      limit: filters.limit || 50,
+      offset: filters.offset || 0,
+    };
+  }
+
+  async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string) {
+    const product = await this.db.db.query.products.findFirst({
+      where: eq(products.id, id),
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    switch (decision) {
+      case 'APPROVED':
+        updates['status'] = 'ACTIVE';
+        updates['isAvailable'] = true;
+        updates['publishedAt'] = new Date();
+        break;
+      case 'REJECTED':
+        updates['status'] = 'REJECTED';
+        updates['isAvailable'] = false;
+        break;
+      case 'ARCHIVED':
+        updates['deletedAt'] = new Date();
+        updates['isAvailable'] = false;
+        break;
+    }
+
+    await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    return { id, decision, reason, moderatedAt: new Date() };
   }
 }

@@ -452,3 +452,68 @@ export async function transitionOrderStatus(orderId: string, status: string, rea
   if (!res.ok) throw new Error(`Status transition failed: ${res.status}`);
   return res.json();
 }
+
+// ── Favorites / Wishlist ─────────────────────────────────────
+
+export interface Favorite {
+  id: string;
+  userId: string;
+  productId: string;
+  createdAt: string;
+  product?: Product;
+}
+
+export async function fetchFavorites(): Promise<Favorite[]> {
+  const res = await authFetch(`${API_URL}/v1/me/favorites`);
+  if (!res.ok) throw new Error(`Favorites failed: ${res.status}`);
+  return res.json();
+}
+
+export async function addFavorite(productId: string): Promise<Favorite> {
+  const res = await authFetch(`${API_URL}/v1/me/favorites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) throw new Error(`Add favorite failed: ${res.status}`);
+  return res.json();
+}
+
+export async function removeFavorite(productId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/me/favorites/${productId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Remove favorite failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Profile ─────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: string;
+  phone: string;
+  email: string | null;
+  fullName: string;
+  locale: string;
+  status: string;
+}
+
+export async function fetchProfile(): Promise<UserProfile> {
+  const res = await authFetch(`${API_URL}/v1/me`);
+  if (!res.ok) throw new Error(`Profile failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateProfile(body: { fullName?: string; email?: string; locale?: string }): Promise<UserProfile> {
+  const res = await authFetch(`${API_URL}/v1/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Update profile failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMyOrganizations(): Promise<unknown[]> {
+  const res = await authFetch(`${API_URL}/v1/me/organizations`);
+  if (!res.ok) throw new Error(`Organizations failed: ${res.status}`);
+  return res.json();
+}

@@ -14,6 +14,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { OutboxModule } from './common/outbox/outbox.module';
@@ -32,6 +33,7 @@ import { OutboxModule } from './common/outbox/outbox.module';
     DatabaseModule,
     RedisModule,
     OutboxModule,
+    RealtimeModule,
 
     // ── Domain modules (Phase 1) ─────────────────────────────
     IdentityModule,

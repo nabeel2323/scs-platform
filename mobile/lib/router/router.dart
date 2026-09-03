@@ -18,6 +18,7 @@ import '../screens/reviews/reviews_disputes_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/organizations/organizations_screen.dart';
 import '../screens/organizations/org_detail_screen.dart';
+import '../screens/driver/driver_dashboard_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final isLoggedIn = ref.watch(isAuthenticatedProvider);
@@ -70,6 +71,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/organizations/:id',
           builder: (_, state) =>
               OrgDetailScreen(orgId: state.pathParameters['id']!)),
+      GoRoute(
+          path: '/driver', builder: (_, __) => const DriverDashboardScreen()),
     ],
   );
 });

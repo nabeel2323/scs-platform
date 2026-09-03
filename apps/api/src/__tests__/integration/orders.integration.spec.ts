@@ -133,13 +133,12 @@ describe('Order Lifecycle Integration', () => {
   });
 
   describe('full lifecycle flow', () => {
-    it('should support SUBMITTED → ACCEPTED → CONFIRMED → PREPARING → READY → DELIVERED → COMPLETED', async () => {
-      const mocks = createStatefulMocks('SUBMITTED');
+    it('should support PENDING_CONFIRMATION → ACCEPTED → PREPARING → READY → DELIVERED → COMPLETED', async () => {
+      const mocks = createStatefulMocks('PENDING_CONFIRMATION');
       const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
 
       const transitions = [
         { to: 'ACCEPTED', actor: MERCHANT_ID, role: 'MERCHANT' },
-        { to: 'CONFIRMED', actor: MERCHANT_ID, role: 'MERCHANT' },
         { to: 'PREPARING', actor: MERCHANT_ID, role: 'MERCHANT' },
         { to: 'READY', actor: MERCHANT_ID, role: 'MERCHANT' },
         { to: 'OUT_FOR_DELIVERY', actor: MERCHANT_ID, role: 'MERCHANT' },
@@ -155,9 +154,8 @@ describe('Order Lifecycle Integration', () => {
 
     it('should publish correct events for each transition', async () => {
       const eventMap: Record<string, [string, string]> = {
-        'ACCEPTED': ['SUBMITTED', 'order.accepted'], // acceptOrder uses different path
-        'CONFIRMED': ['ACCEPTED', 'order.confirmed'],
-        'PREPARING': ['CONFIRMED', 'order.preparing'],
+        'ACCEPTED': ['PENDING_CONFIRMATION', 'order.accepted'],
+        'PREPARING': ['ACCEPTED', 'order.preparing'],
         'READY': ['PREPARING', 'order.ready'],
         'OUT_FOR_DELIVERY': ['READY', 'order.out_for_delivery'],
         'DELIVERED': ['OUT_FOR_DELIVERY', 'order.delivered'],
@@ -179,7 +177,7 @@ describe('Order Lifecycle Integration', () => {
     });
 
     it('should record status history on each transition', async () => {
-      const mocks = createStatefulMocks('SUBMITTED');
+      const mocks = createStatefulMocks('PENDING_CONFIRMATION');
       const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
 
       await service.transitionStatus(ORDER_ID, 'ACCEPTED', MERCHANT_ID, 'MERCHANT');
@@ -190,7 +188,7 @@ describe('Order Lifecycle Integration', () => {
   });
 
   describe('cancel order', () => {
-    const cancellableStatuses = ['SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY'] as const;
+    const cancellableStatuses = ['PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'] as const;
 
     it.each(cancellableStatuses)('should allow cancel from %s', async (status) => {
       const mocks = createStatefulMocks(status);
@@ -200,7 +198,7 @@ describe('Order Lifecycle Integration', () => {
       expect(result.status).toBe('CANCELLED');
     });
 
-    it.each(['DELIVERED', 'COMPLETED', 'OUT_FOR_DELIVERY'])(
+    it.each(['SUBMITTED', 'DELIVERED', 'COMPLETED', 'OUT_FOR_DELIVERY'])(
       'should reject cancel from %s',
       async (status) => {
         const mocks = createStatefulMocks(status);
@@ -213,7 +211,7 @@ describe('Order Lifecycle Integration', () => {
     );
 
     it('should publish order.cancelled event', async () => {
-      const mocks = createStatefulMocks('SUBMITTED');
+      const mocks = createStatefulMocks('PENDING_CONFIRMATION');
       const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
 
       await service.cancelOrder(ORDER_ID, BUYER_ID, 'No longer needed');

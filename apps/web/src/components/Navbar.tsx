@@ -34,6 +34,7 @@ export function Navbar() {
         <div style={navLinks}>
           <Link href="/search" style={linkStyle}>Search</Link>
           <Link href="/stores" style={linkStyle}>Stores</Link>
+          <Link href="/favorites" style={linkStyle}>♡ Favorites</Link>
           <Link href="/cart" style={linkStyle}>Cart</Link>
           <Link href="/orders" style={linkStyle}>Orders</Link>
           <Link href="/merchant/orders" style={linkStyle}>Merchant</Link>
@@ -46,6 +47,7 @@ export function Navbar() {
         <div style={navRight}>
           {user ? (
             <>
+              <Link href="/account" style={linkStyle}>Account</Link>
               <span style={userStyle}>{user.fullName || user.phone}</span>
               <button onClick={handleLogout} style={logoutBtn}>Sign Out</button>
             </>

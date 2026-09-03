@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { fetchAdminOrders, fetchAdminOrderDetail, AdminOrder, AdminOrderDetail } from '../../lib/api';
 
-const STATUSES = ['', 'SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
+const STATUSES = ['', 'SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DISPUTED'];
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
@@ -45,10 +45,10 @@ export default function AdminOrdersPage() {
 
   const statusColor = (s: string): string => {
     const map: Record<string, string> = {
-      SUBMITTED: '#92400e', ACCEPTED: '#065f46', PARTIALLY_ACCEPTED: '#92400e',
-      CONFIRMED: '#1e40af', PREPARING: '#7c3aed', READY: '#047857',
+      SUBMITTED: '#92400e', PENDING_CONFIRMATION: '#1e40af', ACCEPTED: '#065f46', PARTIALLY_ACCEPTED: '#92400e',
+      PREPARING: '#7c3aed', READY: '#047857', ASSIGNED: '#1e40af', PICKED_UP: '#7c3aed',
       OUT_FOR_DELIVERY: '#1e40af', DELIVERED: '#065f46', COMPLETED: '#065f46',
-      CANCELLED: '#991b1b', REJECTED: '#991b1b',
+      CANCELLED: '#991b1b', REJECTED: '#991b1b', DISPUTED: '#991b1b',
     };
     return map[s] || '#5b6b74';
   };

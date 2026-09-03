@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
-import { categories, brands, products, productVariants, productMedia, importJobs } from './catalog.schema';
+import { categories, brands, products, productVariants, productMedia, importJobs, favorites } from './catalog.schema';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -291,6 +291,44 @@ export class CatalogService {
       where: eq(importJobs.storeId, storeId),
       orderBy: [desc(importJobs.createdAt)],
     });
+  }
+
+  // ── Favorites / Wishlist ───────────────────────────────────
+
+  async listFavorites(userId: string) {
+    const favs = await this.db.db.query.favorites.findMany({
+      where: eq(favorites.userId, userId),
+      orderBy: [desc(favorites.createdAt)],
+    });
+    // Enrich with product data
+    const result = [];
+    for (const fav of favs) {
+      const product = await this.db.db.query.products.findFirst({
+        where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
+      });
+      if (product) result.push({ ...fav, product });
+    }
+    return result;
+  }
+
+  async addFavorite(userId: string, productId: string) {
+    await this.getProduct(productId); // ensure product exists
+    // Check for duplicate
+    const existing = await this.db.db.query.favorites.findFirst({
+      where: and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
+    });
+    if (existing) return existing;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(favorites).values({ id, userId, productId });
+    return { id, userId, productId, createdAt: new Date() };
+  }
+
+  async removeFavorite(userId: string, productId: string) {
+    await this.db.db.delete(favorites).where(
+      and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
+    );
+    return { success: true };
   }
 }
 

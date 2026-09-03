@@ -8,6 +8,8 @@ const navItems = [
   { href: '/orders', label: 'Orders', icon: '📦' },
   { href: '/merchants', label: 'Merchants', icon: '🏪' },
   { href: '/verification', label: 'Verification', icon: '✓' },
+  { href: '/disputes', label: 'Disputes', icon: '⚖' },
+  { href: '/products', label: 'Products', icon: '📋' },
   { href: '/kpis', label: 'KPIs', icon: '📊' },
   { href: '/audit', label: 'Audit Log', icon: '📋' },
 ];

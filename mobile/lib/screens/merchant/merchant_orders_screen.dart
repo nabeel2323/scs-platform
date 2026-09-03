@@ -18,10 +18,15 @@ class MerchantOrdersScreen extends ConsumerWidget {
         ]),
         body: orders.when(
           data: (list) {
-            final pending = list.where((o) => o.status == 'SUBMITTED').toList();
+            final pending = list
+                .where((o) =>
+                    o.status == 'SUBMITTED' ||
+                    o.status == 'PENDING_CONFIRMATION')
+                .toList();
             final active = list
                 .where((o) => ![
                       'SUBMITTED',
+                      'PENDING_CONFIRMATION',
                       'COMPLETED',
                       'CANCELLED',
                       'REJECTED'
@@ -124,12 +129,13 @@ class MerchantOrdersScreen extends ConsumerWidget {
               style: const TextStyle(color: TaifTokens.muted)),
           trailing: StatusBadge(o.status)));
   List<String> _nextStatuses(String s) => switch (s) {
-        'ACCEPTED' || 'PARTIALLY_ACCEPTED' => ['CONFIRMED'],
-        'CONFIRMED' => ['PREPARING'],
+        'ACCEPTED' || 'PARTIALLY_ACCEPTED' => ['PREPARING'],
         'PREPARING' => ['READY'],
-        'READY' => ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
+        'READY' => ['OUT_FOR_DELIVERY', 'ASSIGNED', 'DELIVERED', 'CANCELLED'],
+        'ASSIGNED' => ['PICKED_UP'],
+        'PICKED_UP' => ['OUT_FOR_DELIVERY'],
         'OUT_FOR_DELIVERY' => ['DELIVERED'],
-        'DELIVERED' => ['COMPLETED'],
+        'DELIVERED' => ['COMPLETED', 'DISPUTED'],
         _ => []
       };
 }
