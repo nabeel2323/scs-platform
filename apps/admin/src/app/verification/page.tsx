@@ -90,7 +90,8 @@ export default function VerificationQueuePage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #e0e7eb', textAlign: 'left' }}>
-              <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Store</th>
+              <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Business</th>
+              <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Organization</th>
               <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Status</th>
               <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Submitted</th>
               <th style={{ padding: '10px 12px', color: '#5b6b74', fontWeight: 600 }}>Auto</th>
@@ -103,8 +104,20 @@ export default function VerificationQueuePage() {
               return (
                 <tr key={req.id} style={{ borderBottom: '1px solid #eef2f4' }}>
                   <td style={{ padding: '12px' }}>
-                    <div style={{ fontWeight: 500, color: '#0f3340' }}>{req.storeId.substring(0, 8)}...</div>
-                    <div style={{ fontSize: 12, color: '#8a9ba5' }}>Org: {req.orgId.substring(0, 8)}...</div>
+                    <div style={{ fontWeight: 500, color: '#0f3340' }}>
+                      {req.storeName || req.storeId.substring(0, 8) + '...'}
+                    </div>
+                    {req.storeSlug && (
+                      <div style={{ fontSize: 12, color: '#8a9ba5' }}>/{req.storeSlug}</div>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px' }}>
+                    <div style={{ fontWeight: 500, color: '#0f3340' }}>
+                      {req.orgName || req.orgId.substring(0, 8) + '...'}
+                    </div>
+                    {req.orgType && (
+                      <div style={{ fontSize: 12, color: '#8a9ba5' }}>{req.orgType}</div>
+                    )}
                   </td>
                   <td style={{ padding: '12px' }}>
                     <span style={{

@@ -22,6 +22,51 @@ export class SearchService {
   constructor(private readonly db: DatabaseService) {}
 
   async search(query: string, options?: SearchOptions) {
+    // Handle missing or empty query — return paginated active products
+    if (!query || !query.trim()) {
+      const limit = options?.limit || 20;
+      const offset = options?.offset || 0;
+      const conditions = [
+        isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
+      ];
+      if (options?.storeId) conditions.push(eq(products.storeId, options.storeId));
+      if (options?.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
+      if (options?.brandId) conditions.push(eq(products.brandId, options.brandId));
+
+      const rows = await this.db.db.query.products.findMany({
+        where: and(...conditions),
+        orderBy: [desc(products.createdAt)],
+        limit,
+        offset,
+      });
+
+      return {
+        items: rows.map(row => ({
+          id: row.id,
+          storeId: row.storeId,
+          categoryId: row.categoryId,
+          brandId: row.brandId,
+          slug: row.slug,
+          title: row.title,
+          titleAr: row.titleAr,
+          description: row.description,
+          status: row.status,
+          condition: row.condition,
+          isAvailable: row.isAvailable,
+          moq: row.moq,
+          images: row.images,
+          attributes: row.attributes,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          score: null,
+        })),
+        total: rows.length,
+        matchType: 'all',
+        query: '',
+      };
+    }
+
     const normalized = this.normalizeQuery(query);
     const limit = options?.limit || 20;
     const offset = options?.offset || 0;
@@ -90,7 +135,8 @@ export class SearchService {
       OFFSET ${offset}
     `);
 
-    const items = (results as any[]).map(row => ({
+    const rows = (results as any).rows ?? results;
+    const items = (rows as any[]).map(row => ({
       id: row.id,
       storeId: row.store_id,
       categoryId: row.category_id,

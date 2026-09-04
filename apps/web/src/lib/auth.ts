@@ -1,12 +1,17 @@
 /**
  * Auth session handling — JWT pair with refresh rotation.
  *
- * Used by both web and admin apps to manage authentication state.
- * Tokens stored in memory (not localStorage) for security;
- * refresh token rotation handled transparently.
+ * Used by the web app to manage authentication state.
+ * Session is persisted to localStorage so it survives page refreshes.
+ * Refresh token rotation handled transparently.
+ *
+ * Includes a lightweight event emitter so React components
+ * (via AuthProvider / useAuth) can subscribe to auth changes.
  */
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+const SESSION_KEY = 'scs_web_session';
+const USER_KEY = 'scs_web_user';
 
 export interface AuthSession {
   accessToken: string;
@@ -26,6 +31,69 @@ export interface AuthUser {
 let currentSession: AuthSession | null = null;
 let currentUser: AuthUser | null = null;
 
+// ── localStorage persistence (SSR-safe) ─────────────────────
+
+function restoreSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as AuthSession;
+      if (parsed.expiresAt > Date.now()) {
+        currentSession = parsed;
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    const userRaw = localStorage.getItem(USER_KEY);
+    if (userRaw) {
+      currentUser = JSON.parse(userRaw) as AuthUser;
+    }
+    // Notify listeners if we restored a session
+    if (currentSession && currentUser) {
+      notifyAuthChange();
+    }
+  } catch {
+    // Corrupted data — clear it
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+function persistSession(session: AuthSession | null): void {
+  if (typeof window === 'undefined') return;
+  if (session) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+function persistUser(user: AuthUser | null): void {
+  if (typeof window === 'undefined') return;
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+// Restore on first import
+restoreSession();
+
+// ── Auth state change listeners (used by AuthProvider) ──────
+type AuthListener = (user: AuthUser | null) => void;
+const listeners = new Set<AuthListener>();
+
+export function onAuthChange(listener: AuthListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifyAuthChange() {
+  for (const fn of listeners) fn(currentUser);
+}
+
 export function getSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
   return currentSession;
@@ -38,6 +106,13 @@ export function getUser(): AuthUser | null {
 export function isAuthenticated(): boolean {
   const session = getSession();
   return session !== null && session.expiresAt > Date.now();
+}
+
+/** Set the current user (called after profile fetch). */
+export function setCurrentUser(user: AuthUser | null) {
+  currentUser = user;
+  persistUser(user);
+  notifyAuthChange();
 }
 
 // ── Auth flows ───────────────────────────────────────────────
@@ -67,6 +142,29 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
     expiresAt: Date.now() + 15 * 60 * 1000, // 15 min
   };
   currentSession = session;
+  persistSession(session);
+
+  // Fetch user profile using the new access token
+  try {
+    const profileRes = await fetch(`${API_URL}/v1/me`, {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (profileRes.ok) {
+      const profile = await profileRes.json();
+      currentUser = {
+        id: profile.id,
+        phone: profile.phone,
+        fullName: profile.fullName,
+        activeOrgId: profile.activeOrgId ?? undefined,
+        role: profile.role,
+      };
+      persistUser(currentUser);
+      notifyAuthChange();
+    }
+  } catch {
+    // Profile fetch is best-effort; session is still valid
+  }
+
   return session;
 }
 
@@ -90,10 +188,11 @@ export async function refreshSession(): Promise<AuthSession> {
 
   const session: AuthSession = {
     accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
+    refreshToken: data.newRefreshToken ?? data.refreshToken,
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
   currentSession = session;
+  persistSession(session);
   return session;
 }
 
@@ -114,6 +213,9 @@ export async function logout(): Promise<void> {
   }
   currentSession = null;
   currentUser = null;
+  persistSession(null);
+  persistUser(null);
+  notifyAuthChange();
 }
 
 export async function switchOrg(orgId: string): Promise<AuthSession> {
@@ -136,17 +238,31 @@ export async function switchOrg(orgId: string): Promise<AuthSession> {
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
   currentSession = session;
+  persistSession(session);
   return session;
 }
 
 // ── Authenticated fetch helper ───────────────────────────────
 
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
-  if (!currentSession) throw new Error('Not authenticated');
+  if (!currentSession) {
+    // Return a synthetic 401 so callers handle it via res.ok instead of try/catch
+    return new Response(JSON.stringify({ detail: 'Not authenticated' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/problem+json' },
+    });
+  }
 
   // Auto-refresh if token expires within 60s
   if (currentSession.expiresAt - Date.now() < 60_000) {
-    await refreshSession();
+    try {
+      await refreshSession();
+    } catch {
+      return new Response(JSON.stringify({ detail: 'Session expired' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/problem+json' },
+      });
+    }
   }
 
   const res = await fetch(url, {
@@ -159,7 +275,11 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
 
   // Handle 401 — attempt one refresh then retry
   if (res.status === 401) {
-    await refreshSession();
+    try {
+      await refreshSession();
+    } catch {
+      return res;
+    }
     return fetch(url, {
       ...init,
       headers: {

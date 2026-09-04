@@ -134,6 +134,36 @@ class ApiService {
         .toList();
   }
 
+  Future<Store> createStore({
+    required String orgId,
+    required String displayName,
+    String? description,
+    String? currency,
+    String? locale,
+    Map<String, dynamic>? address,
+  }) async {
+    final d = <String, dynamic>{'orgId': orgId, 'displayName': displayName};
+    if (description != null) d['description'] = description;
+    if (currency != null) d['currency'] = currency;
+    if (locale != null) d['locale'] = locale;
+    if (address != null) d['address'] = address;
+    return Store.fromJson((await _dio.post('/v1/stores', data: d)).data);
+  }
+
+  Future<Map<String, dynamic>> createWarehouse(
+    String storeId, {
+    required String name,
+    Map<String, dynamic>? address,
+    String? managerName,
+    String? managerPhone,
+  }) async {
+    final d = <String, dynamic>{'name': name};
+    if (address != null) d['address'] = address;
+    if (managerName != null) d['managerName'] = managerName;
+    if (managerPhone != null) d['managerPhone'] = managerPhone;
+    return (await _dio.post('/v1/stores/$storeId/warehouses', data: d)).data;
+  }
+
   Future<Store> fetchStore(String slugOrId) async =>
       Store.fromJson((await _dio.get('/v1/stores/$slugOrId')).data);
   Future<List<Product>> fetchStoreProducts(String storeId,
@@ -294,4 +324,28 @@ class ApiService {
       (await _dio.get('/v1/imports/$id')).data;
   Future<void> processImportJob(String id) async =>
       _dio.post('/v1/imports/$id/process');
+
+  // ── Documents ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> registerDocument({
+    required String orgId,
+    String? storeId,
+    required String docType,
+    required String fileName,
+    String? mimeType,
+    int? fileSize,
+  }) async {
+    final d = <String, dynamic>{
+      'orgId': orgId,
+      'docType': docType,
+      'fileName': fileName,
+    };
+    if (storeId != null) d['storeId'] = storeId;
+    if (mimeType != null) d['mimeType'] = mimeType;
+    if (fileSize != null) d['fileSize'] = fileSize;
+    return (await _dio.post('/v1/documents', data: d)).data;
+  }
+
+  // ── Verification ───────────────────────────────────────────
+  Future<void> submitVerification(String storeId) async =>
+      _dio.post('/v1/stores/$storeId/verify');
 }

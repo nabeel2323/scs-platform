@@ -4,23 +4,56 @@
     "jsx": "preserve",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "allowJs": true,
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@/*": ["./src/*"],
-      "@scs/ui-kit": ["../../packages/ui-kit/src"],
-      "@scs/ui-kit/*": ["../../packages/ui-kit/src/*"],
-      "@scs/contracts": ["../../packages/contracts/src"],
-      "@scs/contracts/*": ["../../packages/contracts/src/*"],
-      "@scs/env": ["../../packages/env/src"],
-      "@scs/env/*": ["../../packages/env/src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@scs/ui-kit": [
+        "../../packages/ui-kit/src"
+      ],
+      "@scs/ui-kit/*": [
+        "../../packages/ui-kit/src/*"
+      ],
+      "@scs/contracts": [
+        "../../packages/contracts/src"
+      ],
+      "@scs/contracts/*": [
+        "../../packages/contracts/src/*"
+      ],
+      "@scs/env": [
+        "../../packages/env/src"
+      ],
+      "@scs/env/*": [
+        "../../packages/env/src/*"
+      ]
     },
-    "plugins": [{ "name": "next" }],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "incremental": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "next-env.d.ts", "*.ts", "*.tsx"],
-  "exclude": ["node_modules", ".next", "out", "dist"]
+  "include": [
+    "src/**/*",
+    "next-env.d.ts",
+    "*.ts",
+    "*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "out",
+    "dist"
+  ]
 }

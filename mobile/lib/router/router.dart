@@ -14,6 +14,7 @@ import '../screens/orders/orders_list_screen.dart';
 import '../screens/orders/order_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/merchant/merchant_orders_screen.dart';
+import '../screens/merchant/merchant_registration_screen.dart';
 import '../screens/reviews/reviews_disputes_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/organizations/organizations_screen.dart';
@@ -61,6 +62,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/merchant/orders',
           builder: (_, __) => const MerchantOrdersScreen()),
+      GoRoute(
+          path: '/merchant/register',
+          builder: (_, __) => const MerchantRegistrationScreen()),
       GoRoute(
           path: '/reviews', builder: (_, __) => const ReviewsDisputesScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

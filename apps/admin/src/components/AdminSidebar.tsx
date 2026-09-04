@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { isAuthenticated, getUser, logout } from '../lib/auth';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: '⌂' },
+  { href: '/users', label: 'Users', icon: '👥' },
   { href: '/orders', label: 'Orders', icon: '📦' },
   { href: '/merchants', label: 'Merchants', icon: '🏪' },
   { href: '/verification', label: 'Verification', icon: '✓' },
@@ -16,6 +18,13 @@ const navItems = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const user = getUser();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/auth/login');
+  };
 
   return (
     <aside style={{
@@ -64,8 +73,22 @@ export function AdminSidebar() {
         })}
       </nav>
 
-      <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
-        v1.0.0 — Phase 1
+      <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        {user && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>{user.fullName}</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{user.role}</div>
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>v1.0.0 — Phase 1</span>
+          {isAuthenticated() && (
+            <button onClick={handleLogout}
+              style={{ padding: '3px 8px', fontSize: 10, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer' }}>
+              Logout
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   );

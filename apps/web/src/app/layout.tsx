@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Navbar } from '../components/Navbar';
+import { AuthProvider } from '../components/AuthProvider';
 
 export const metadata: Metadata = {
   title: 'Smart Commerce Platform',
@@ -10,8 +11,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" dir="ltr">
       <body style={{ margin: 0, fontFamily: 'Inter, system-ui, sans-serif', background: '#f7f9fa' }}>
-        <Navbar />
-        {children}
+        <AuthProvider>
+          <Navbar />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

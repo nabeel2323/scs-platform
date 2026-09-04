@@ -3,7 +3,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
 import { organizations } from '../identity/identity.schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -284,12 +284,37 @@ export class MerchantService {
     const limit = filters?.limit || 20;
     const offset = filters?.offset || 0;
 
-    return this.db.db.query.verificationRequests.findMany({
-      where,
-      orderBy: [desc(verificationRequests.submittedAt)],
-      limit,
-      offset,
-    });
+    // Join with stores and organizations to include business details
+    const rows = await this.db.db
+      .select({
+        id: verificationRequests.id,
+        storeId: verificationRequests.storeId,
+        orgId: verificationRequests.orgId,
+        status: verificationRequests.status,
+        submittedBy: verificationRequests.submittedBy,
+        reviewedBy: verificationRequests.reviewedBy,
+        reviewedAt: verificationRequests.reviewedAt,
+        decisionNotes: verificationRequests.decisionNotes,
+        rejectionReasons: verificationRequests.rejectionReasons,
+        autoVerified: verificationRequests.autoVerified,
+        submittedAt: verificationRequests.submittedAt,
+        resolvedAt: verificationRequests.resolvedAt,
+        createdAt: verificationRequests.createdAt,
+        updatedAt: verificationRequests.updatedAt,
+        storeName: stores.displayName,
+        storeSlug: stores.slug,
+        orgName: organizations.name,
+        orgType: organizations.type,
+      })
+      .from(verificationRequests)
+      .leftJoin(stores, eq(verificationRequests.storeId, stores.id))
+      .leftJoin(organizations, eq(verificationRequests.orgId, organizations.id))
+      .where(where)
+      .orderBy(desc(verificationRequests.submittedAt))
+      .limit(limit)
+      .offset(offset);
+
+    return rows;
   }
 
   async getVerificationRequest(requestId: string) {

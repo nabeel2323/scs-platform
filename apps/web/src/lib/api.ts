@@ -7,6 +7,30 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
 // ── Types ────────────────────────────────────────────────────
 
+export interface Organization {
+  id: string;
+  type: string;
+  name: string;
+  legalName: string | null;
+  taxId: string | null;
+  country: string;
+  verificationStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserProfile {
+  id: string;
+  phone: string;
+  email: string | null;
+  fullName: string;
+  locale: string;
+  status: string;
+  activeOrgId: string | null;
+  organizations: (Organization & { membershipStatus: string })[];
+  createdAt: string;
+}
+
 export interface Store {
   id: string;
   orgId: string;
@@ -49,6 +73,50 @@ export interface BusinessDocument {
   storageKey: string;
   verificationStatus: string;
   createdAt: string;
+}
+
+// ── Profile & Organizations ──────────────────────────────────
+
+export async function fetchProfile(): Promise<UserProfile> {
+  const res = await authFetch(`${API_URL}/v1/me`);
+  if (!res.ok) throw new Error(`Failed to fetch profile: ${res.status}`);
+  return res.json();
+}
+
+export async function updateProfile(data: {
+  fullName?: string;
+  email?: string;
+  locale?: string;
+}): Promise<UserProfile> {
+  const res = await authFetch(`${API_URL}/v1/me`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update profile: ${res.status}`);
+  return res.json();
+}
+
+export async function createOrganization(data: {
+  name: string;
+  type: string;
+  country: string;
+  legalName?: string;
+  taxId?: string;
+}): Promise<Organization> {
+  const res = await authFetch(`${API_URL}/v1/organizations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create organization: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMyOrganizations(): Promise<(Organization & { membershipStatus: string })[]> {
+  const res = await authFetch(`${API_URL}/v1/me/organizations`);
+  if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.status}`);
+  return res.json();
 }
 
 // ── Stores ───────────────────────────────────────────────────

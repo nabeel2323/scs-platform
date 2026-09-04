@@ -3,9 +3,13 @@
  *
  * Mirrors the web auth module but targets the admin app's session context.
  * Admin users authenticate via the same OTP flow but with SUPER_ADMIN / ADMIN roles.
+ *
+ * Session is persisted to localStorage so it survives page refreshes.
  */
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+const SESSION_KEY = 'scs_admin_session';
+const USER_KEY = 'scs_admin_user';
 
 export interface AuthSession {
   accessToken: string;
@@ -20,8 +24,54 @@ export interface AdminUser {
   role: string; // SUPER_ADMIN | ADMIN | MODERATOR
 }
 
+// ── Restore persisted session on module load ─────────────────
+
 let currentSession: AuthSession | null = null;
 let currentUser: AdminUser | null = null;
+
+function restoreSession(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as AuthSession;
+      if (parsed.expiresAt > Date.now()) {
+        currentSession = parsed;
+      } else {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    const userRaw = localStorage.getItem(USER_KEY);
+    if (userRaw) {
+      currentUser = JSON.parse(userRaw) as AdminUser;
+    }
+  } catch {
+    // Corrupted data — clear it
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+function persistSession(session: AuthSession | null): void {
+  if (typeof window === 'undefined') return;
+  if (session) {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } else {
+    localStorage.removeItem(SESSION_KEY);
+  }
+}
+
+function persistUser(user: AdminUser | null): void {
+  if (typeof window === 'undefined') return;
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+// Restore on first import
+restoreSession();
 
 export function getSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
@@ -61,6 +111,20 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
     refreshToken: data.refreshToken,
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
+  persistSession(currentSession);
+
+  // Decode JWT to populate user info (sub, role claims)
+  try {
+    const payload = JSON.parse(atob(data.accessToken.split('.')[1]!));
+    currentUser = {
+      id: payload.sub,
+      phone,
+      fullName: payload.fullName || 'Admin',
+      role: payload.role || 'ADMIN',
+    };
+    persistUser(currentUser);
+  } catch { /* JWT decode failed — user will be populated on next profile fetch */ }
+
   return currentSession;
 }
 
@@ -84,9 +148,10 @@ export async function refreshSession(): Promise<AuthSession> {
 
   currentSession = {
     accessToken: data.accessToken,
-    refreshToken: data.refreshToken,
+    refreshToken: data.newRefreshToken ?? data.refreshToken,
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
+  persistSession(currentSession);
   return currentSession;
 }
 
@@ -104,13 +169,27 @@ export async function logout(): Promise<void> {
   } catch { /* ignore */ }
   currentSession = null;
   currentUser = null;
+  persistSession(null);
+  persistUser(null);
 }
 
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
-  if (!currentSession) throw new Error('Not authenticated');
+  if (!currentSession) {
+    return new Response(JSON.stringify({ detail: 'Not authenticated' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/problem+json' },
+    });
+  }
 
   if (currentSession.expiresAt - Date.now() < 60_000) {
-    await refreshSession();
+    try {
+      await refreshSession();
+    } catch {
+      return new Response(JSON.stringify({ detail: 'Session expired' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/problem+json' },
+      });
+    }
   }
 
   const res = await fetch(url, {
@@ -122,7 +201,11 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
   });
 
   if (res.status === 401) {
-    await refreshSession();
+    try {
+      await refreshSession();
+    } catch {
+      return res;
+    }
     return fetch(url, {
       ...init,
       headers: {

@@ -2,10 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { orders, masterOrders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, verificationRequests } from '../merchant/merchant.schema';
-import { users, organizations, organizationMembers } from '../identity/identity.schema';
+import { users, organizations, organizationMembers, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products } from '../catalog/catalog.schema';
 import { auditLogs, analyticsEvents } from '../audit/audit.schema';
-import { eq, and, desc, isNull, sql, count, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql, count, gte, lte, inArray, like, or } from 'drizzle-orm';
 
 /**
  * Admin service — platform-wide operations for admin users.
@@ -370,6 +370,162 @@ export class AdminService {
       limit: filters.limit || 50,
       offset: filters.offset || 0,
     };
+  }
+
+  // ── User Management ──────────────────────────────────────────
+
+  async listUsers(filters: {
+    status?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const conditions = [];
+
+    if (filters.status) {
+      conditions.push(eq(users.status, filters.status));
+    }
+    if (filters.search) {
+      const term = `%${filters.search}%`;
+      conditions.push(or(
+        like(users.fullName, term),
+        like(users.phone, term),
+        like(users.email, term),
+      ));
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [rows, totalResult] = await Promise.all([
+      this.db.db.select().from(users)
+        .where(where)
+        .orderBy(desc(users.createdAt))
+        .limit(filters.limit || 50)
+        .offset(filters.offset || 0),
+      this.db.db.select({ count: sql<number>`count(*)` }).from(users).where(where),
+    ]);
+
+    return {
+      data: rows,
+      total: totalResult[0]?.count || 0,
+      limit: filters.limit || 50,
+      offset: filters.offset || 0,
+    };
+  }
+
+  async getUserDetail(userId: string) {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Get org memberships with role and org details
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: eq(organizationMembers.userId, userId),
+    });
+
+    const orgDetails = [];
+    for (const m of memberships) {
+      const org = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, m.orgId),
+      });
+      const role = await this.db.db.query.roles.findFirst({
+        where: eq(roles.id, m.roleId),
+      });
+      orgDetails.push({
+        orgId: m.orgId,
+        orgName: org?.name ?? 'Unknown',
+        orgType: org?.type ?? 'UNKNOWN',
+        roleId: m.roleId,
+        roleKey: role?.key ?? 'UNKNOWN',
+        roleName: role?.name ?? 'Unknown',
+        membershipStatus: m.status,
+        joinedAt: m.createdAt,
+      });
+    }
+
+    return { ...user, organizations: orgDetails };
+  }
+
+  async updateUserStatus(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE') {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    await this.db.db.update(users)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    return { id: userId, status, updatedAt: new Date() };
+  }
+
+  async assignRole(orgId: string, userId: string, roleId: string) {
+    // Verify user exists
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Verify org exists
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, orgId),
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    // Verify role exists
+    const role = await this.db.db.query.roles.findFirst({
+      where: eq(roles.id, roleId),
+    });
+    if (!role) throw new NotFoundException('Role not found');
+
+    // Check if membership exists
+    const existing = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+
+    if (existing) {
+      // Update existing membership role
+      await this.db.db.update(organizationMembers)
+        .set({ roleId })
+        .where(eq(organizationMembers.id, existing.id));
+      return { orgId, userId, roleId, action: 'updated' };
+    }
+
+    // Create new membership
+    await this.db.db.insert(organizationMembers).values({
+      id: crypto.randomUUID(),
+      orgId,
+      userId,
+      roleId,
+      status: 'ACTIVE',
+    });
+
+    return { orgId, userId, roleId, action: 'created' };
+  }
+
+  async listRoles() {
+    const allRoles = await this.db.db.select().from(roles).orderBy(roles.key);
+
+    const result = [];
+    for (const r of allRoles) {
+      const perms = await this.db.db.query.rolePermissions.findMany({
+        where: eq(rolePermissions.roleId, r.id),
+      });
+      const permKeys: string[] = [];
+      for (const rp of perms) {
+        const perm = await this.db.db.query.permissions.findFirst({
+          where: eq(permissions.id, rp.permissionId),
+        });
+        if (perm) permKeys.push(perm.key);
+      }
+      result.push({ id: r.id, key: r.key, name: r.name, permissions: permKeys });
+    }
+
+    return result;
   }
 
   async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string) {

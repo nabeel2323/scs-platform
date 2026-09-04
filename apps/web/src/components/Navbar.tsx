@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getUser, logout } from '../lib/auth';
+import { logout } from '../lib/auth';
+import { useAuth } from './AuthProvider';
 import { useEffect, useState } from 'react';
 import { fetchUnreadCount } from '../lib/buyer-api';
 
 export function Navbar() {
-  const user = getUser();
+  const { user } = useAuth();
   const router = useRouter();
   const [unread, setUnread] = useState(0);
 

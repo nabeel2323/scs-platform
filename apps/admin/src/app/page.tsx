@@ -32,6 +32,10 @@ export default function AdminHomePage() {
       {/* Quick Links */}
       <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Quick Access</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        <Link href="/users" style={cardStyle}>
+          <b>User Management</b>
+          <span>Manage users, roles &amp; permissions</span>
+        </Link>
         <Link href="/orders" style={cardStyle}>
           <b>Order Monitor</b>
           <span>Track all platform orders, filter by status</span>

@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { requestOtp, verifyOtp } from '@/lib/auth';
+import { requestOtp, verifyOtp, getUser } from '@/lib/auth';
+import { fetchProfile } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -32,10 +34,20 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await verifyOtp(phone, otp);
-      router.push('/');
+      setVerified(true);
+      // Check if user has any org memberships — new users should register
+      let redirectUrl = '/';
+      try {
+        const profile = await fetchProfile();
+        if (!profile.organizations || profile.organizations.length === 0) {
+          redirectUrl = '/merchant/register';
+        }
+      } catch {
+        // Best-effort; default redirect to home
+      }
+      setTimeout(() => router.push(redirectUrl), 400);
     } catch (err: any) {
       setError(err.message || 'Invalid OTP');
-    } finally {
       setLoading(false);
     }
   }
@@ -43,7 +55,7 @@ export default function LoginPage() {
   return (
     <main style={{ maxWidth: 400, margin: '80px auto', padding: '32px 24px' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>
-        {step === 'phone' ? 'Sign In' : 'Enter OTP'}
+        {verified ? 'Welcome!' : step === 'phone' ? 'Sign In' : 'Enter OTP'}
       </h1>
 
       {error && (
@@ -52,7 +64,12 @@ export default function LoginPage() {
         </div>
       )}
 
-      {step === 'phone' ? (
+      {verified ? (
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>&#10003;</div>
+          <p style={{ color: '#174a5b', fontSize: 16, fontWeight: 500 }}>Signed in successfully. Redirecting…</p>
+        </div>
+      ) : step === 'phone' ? (
         <form onSubmit={handleRequestOtp}>
           <label style={labelStyle}>Phone number</label>
           <input

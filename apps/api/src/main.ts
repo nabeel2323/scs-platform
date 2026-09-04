@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
-import pino from 'pino-http';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -24,8 +24,10 @@ async function bootstrap() {
   });
 
   // ── Logging (pino with requestId correlation) ──────────────
+  // pino-http is used as Express middleware (not a DI provider)
+  const pinoMiddleware = (await import('pino-http')).default;
   app.use(
-    pino({
+    pinoMiddleware({
       level: process.env['LOG_LEVEL'] || 'info',
       transport:
         process.env['NODE_ENV'] === 'development'
@@ -70,14 +72,17 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
+  // ── WebSocket adapter ──────────────────────────────────────
+  app.useWebSocketAdapter(new IoAdapter(app));
+
   // ── Start ──────────────────────────────────────────────────
   const port = process.env['API_PORT'] || 3000;
   const host = process.env['API_HOST'] || '0.0.0.0';
   await app.listen(port, host);
 
-  const logger = app.get(pino);
-  logger?.logger?.info(`🚀 API running on http://${host}:${port}`);
-  logger?.logger?.info(`📖 OpenAPI docs at http://${host}:${port}/docs`);
+  const logger = new Logger('Bootstrap');
+  logger.log(`🚀 API running on http://${host}:${port}`);
+  logger.log(`📖 OpenAPI docs at http://${host}:${port}/docs`);
 }
 
 bootstrap();

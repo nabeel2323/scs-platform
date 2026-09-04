@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_core/mobile_core.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../models/models.dart';
 
 // ── Core Providers ──────────────────────────────────────────
@@ -13,6 +14,9 @@ final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(
     ));
 final apiServiceProvider =
     Provider<ApiService>((ref) => ApiService(ref.watch(apiClientProvider).dio));
+
+final pushNotificationServiceProvider = Provider<PushNotificationService>(
+    (ref) => PushNotificationService(ref.watch(apiServiceProvider)));
 
 // ── Auth ────────────────────────────────────────────────────
 

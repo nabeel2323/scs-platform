@@ -242,13 +242,13 @@ export class IdentityService {
    * Update user profile fields.
    */
   async updateProfile(userId: string, data: { fullName?: string; email?: string; locale?: string }) {
-    const updates: Record<string, string> = {};
+    const updates: Record<string, any> = {};
     if (data['fullName']) updates['fullName'] = data['fullName'];
-    if (data['email']) updates['email'] = data['email'];
+    if (data['email']) updates['email'] = data['email'] || null;
     if (data['locale']) updates['locale'] = data['locale'];
-    updates['updatedAt'] = new Date().toISOString();
+    updates['updatedAt'] = new Date();
 
-    if (Object.keys(updates).length > 0) {
+    if (Object.keys(updates).length > 1) {
       await this.db.db.update(users).set(updates).where(eq(users.id, userId));
     }
 

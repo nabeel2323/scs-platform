@@ -16,6 +16,6 @@
     "target": "ES2022",
     "types": ["node"]
   },
-  "include": ["src/**/*", "drizzle.config.ts"],
+  "include": ["src/**/*", "drizzle.config.ts", "infra/**/*"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

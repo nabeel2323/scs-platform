@@ -1,17 +1,24 @@
 /**
  * Seed script — creates default roles, permissions, and a SUPER_ADMIN user.
  *
- * Usage: pnpm --filter @scs/api seed
- * Requires: DATABASE_URL set in environment.
+ * Uses `docker exec psql` to avoid Docker Desktop Windows networking issues.
+ *
+ * Usage: pnpm --filter @scs/api db:seed
+ * Requires: docker compose -f infra/docker-compose.dev.yml up -d && pnpm db:migrate
  */
 
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import * as schema from '../modules/identity/identity.schema';
-import { eq } from 'drizzle-orm';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
-const DATABASE_URL = process.env['DATABASE_URL'] || 'postgresql://scs:scs_dev@localhost:5432/scs_dev';
+const CONTAINER = 'scs-postgres';
+const DB_USER = 'scs';
+const DB_NAME = 'scs_platform';
+
+function psql(query: string): string {
+  return execFileSync('docker', [
+    'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME, '-t', '-A', '-c', query,
+  ], { encoding: 'utf-8' }).trim();
+}
 
 const PERMISSIONS = [
   // Identity
@@ -37,7 +44,7 @@ const PERMISSIONS = [
   'ads:campaigns:read', 'ads:campaigns:write', 'ads:campaigns:approve',
 ];
 
-const ROLES = [
+const ROLES: { key: string; name: string; permissions: string[] }[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
@@ -95,54 +102,49 @@ const ROLES = [
   },
 ];
 
+function sqlValue(s: string): string {
+  return `'${s.replace(/'/g, "''")}'`;
+}
+
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding database...\n');
 
-  const client = postgres(DATABASE_URL);
-  const db = drizzle(client, { schema });
-
-  // 1. Create permissions
+  // 1. Create permissions (idempotent via ON CONFLICT DO NOTHING)
   console.log(`  Creating ${PERMISSIONS.length} permissions...`);
-  for (const permKey of PERMISSIONS) {
-    await db
-      .insert(schema.permissions)
-      .values({ id: crypto.randomUUID(), key: permKey })
-      .onConflictDoNothing();
-  }
+  const permValues = PERMISSIONS
+    .map((p) => `(${sqlValue(crypto.randomUUID())}, ${sqlValue(p)})`)
+    .join(',\n    ');
+  psql(`INSERT INTO permissions (id, key) VALUES ${permValues} ON CONFLICT (key) DO NOTHING;`);
 
   // 2. Create roles and assign permissions
   for (const role of ROLES) {
     console.log(`  Creating role: ${role.key}`);
     const roleId = crypto.randomUUID();
 
-    await db
-      .insert(schema.roles)
-      .values({ id: roleId, key: role.key, name: role.name })
-      .onConflictDoNothing();
+    // Insert role (idempotent)
+    psql(
+      `INSERT INTO roles (id, key, name) VALUES (${sqlValue(roleId)}, ${sqlValue(role.key)}, ${sqlValue(role.name)}) ON CONFLICT (key) DO NOTHING;`,
+    );
 
-    // Fetch role to get actual ID (in case it already existed)
-    const existingRole = await db.query.roles.findFirst({
-      where: eq(schema.roles.key, role.key),
-    });
-    const actualRoleId = existingRole?.id || roleId;
+    // Get the actual role ID (might have existed already)
+    const actualRoleId = psql(`SELECT id FROM roles WHERE key = ${sqlValue(role.key)};`);
 
-    // Fetch permission IDs
-    const permRecords = await db.query.permissions.findMany({
-      where: (perms, { inArray }) => inArray(perms.key, role.permissions),
-    });
+    // Get permission IDs for this role's permissions
+    const permKeys = role.permissions.map((p) => sqlValue(p)).join(', ');
+    const permIdsRaw = psql(`SELECT id FROM permissions WHERE key IN (${permKeys});`);
+    const permIds = permIdsRaw.split('\n').filter(Boolean);
 
-    for (const perm of permRecords) {
-      await db
-        .insert(schema.rolePermissions)
-        .values({ roleId: actualRoleId, permissionId: perm.id })
-        .onConflictDoNothing();
+    // Insert role-permission mappings
+    if (permIds.length > 0) {
+      const rpValues = permIds
+        .map((pid) => `(${sqlValue(actualRoleId)}, ${sqlValue(pid)})`)
+        .join(',\n      ');
+      psql(`INSERT INTO role_permissions (role_id, permission_id) VALUES ${rpValues} ON CONFLICT DO NOTHING;`);
     }
   }
 
-  console.log('✅ Seed complete!');
-  console.log(`   ${PERMISSIONS.length} permissions, ${ROLES.length} roles created`);
-
-  await client.end();
+  console.log('\n✅ Seed complete!');
+  console.log(`   ${PERMISSIONS.length} permissions, ${ROLES.length} roles created\n`);
 }
 
 main().catch((err) => {

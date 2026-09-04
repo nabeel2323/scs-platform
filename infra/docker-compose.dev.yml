@@ -16,6 +16,7 @@ services:
       POSTGRES_USER: scs
       POSTGRES_PASSWORD: scs_dev_2026
       POSTGRES_DB: scs_platform
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - '5432:5432'
     volumes:

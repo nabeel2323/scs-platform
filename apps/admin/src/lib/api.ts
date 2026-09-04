@@ -22,6 +22,11 @@ export interface VerificationRequest {
   resolvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // Enriched fields from join with stores/organizations
+  storeName?: string | null;
+  storeSlug?: string | null;
+  orgName?: string | null;
+  orgType?: string | null;
 }
 
 export interface Store {
@@ -295,6 +300,97 @@ export async function fetchKpis(from?: string, to?: string): Promise<KpiResponse
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/admin/kpis${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Failed to fetch KPIs: ${res.status}`);
+  return res.json();
+}
+
+// ── User Management ───────────────────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  phone: string;
+  email: string | null;
+  fullName: string;
+  locale: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserOrgMembership {
+  orgId: string;
+  orgName: string;
+  orgType: string;
+  roleId: string;
+  roleKey: string;
+  roleName: string;
+  membershipStatus: string;
+  joinedAt: string;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  organizations: UserOrgMembership[];
+}
+
+export interface RoleInfo {
+  id: string;
+  key: string;
+  name: string;
+  permissions: string[];
+}
+
+export async function fetchAdminUsers(params?: {
+  status?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AdminUser>> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.search) sp.set('search', params.search);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/users${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminUserDetail(id: string): Promise<AdminUserDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch user detail: ${res.status}`);
+  return res.json();
+}
+
+export async function updateUserStatus(
+  id: string,
+  status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE',
+): Promise<{ id: string; status: string }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(`Failed to update user: ${res.status}`);
+  return res.json();
+}
+
+export async function assignUserRole(
+  userId: string,
+  orgId: string,
+  roleId: string,
+): Promise<{ orgId: string; userId: string; roleId: string; action: string }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${userId}/assign-role`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, roleId }),
+  });
+  if (!res.ok) throw new Error(`Failed to assign role: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchRoles(): Promise<RoleInfo[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/roles`);
+  if (!res.ok) throw new Error(`Failed to fetch roles: ${res.status}`);
   return res.json();
 }
 

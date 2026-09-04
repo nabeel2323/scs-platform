@@ -31,6 +31,8 @@ class HomeScreen extends ConsumerWidget {
         IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              // Shutdown push notifications before clearing tokens
+              ref.read(pushNotificationServiceProvider).shutdown();
               await ref.read(authStorageProvider).clearTokens();
               ref.read(apiClientProvider).clearAccessToken();
               ref.read(isAuthenticatedProvider.notifier).state = false;
@@ -90,6 +92,43 @@ class HomeScreen extends ConsumerWidget {
                     label: Text('Active', style: TextStyle(fontSize: 10)),
                     backgroundColor: Color(0xFFDCFCE7),
                     visualDensity: VisualDensity.compact),
+              ]),
+            ),
+          ),
+        ],
+        if (activeOrg == null && (profile?.organizations.isEmpty ?? true)) ...[
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => context.push('/merchant/register'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: TaifTokens.brandAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: TaifTokens.brandAccent.withValues(alpha: 0.4)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.store,
+                    size: 24, color: TaifTokens.brandAccent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Register Your Store',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: TaifTokens.ink)),
+                      Text('Set up your business on the platform',
+                          style:
+                              TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios,
+                    size: 14, color: TaifTokens.muted),
               ]),
             ),
           ),

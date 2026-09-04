@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
 import { HealthController } from './health.controller';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
@@ -30,6 +31,7 @@ import { OutboxModule } from './common/outbox/outbox.module';
     ]),
 
     // ── Infrastructure ───────────────────────────────────────
+    TerminusModule,
     DatabaseModule,
     RedisModule,
     OutboxModule,

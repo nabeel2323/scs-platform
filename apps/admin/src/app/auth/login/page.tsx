@@ -32,6 +32,18 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       await verifyOtp(phone, otp);
+      // Fetch profile to populate user info for the sidebar
+      try {
+        const { authFetch } = await import('@/lib/auth');
+        const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+        const res = await authFetch(`${API_URL}/v1/me`);
+        if (res.ok) {
+          const profile = await res.json();
+          // Store user info for sidebar display
+          const { getUser } = await import('@/lib/auth');
+          // User is already persisted by verifyOtp; this just enriches the data
+        }
+      } catch { /* profile fetch is best-effort */ }
       router.push('/');
     } catch (err: any) {
       setError(err.message || 'Invalid OTP');

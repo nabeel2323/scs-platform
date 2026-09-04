@@ -111,6 +111,54 @@ export class AdminController {
     });
   }
 
+  // ── User Management (plan §21.4, §5.1) ────────────────────
+
+  @Get('users')
+  @RequirePermission('admin:users:read')
+  async listUsers(
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.adminService.listUsers({
+      status,
+      search,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get('users/:id')
+  @RequirePermission('admin:users:read')
+  async getUserDetail(@Param('id') id: string) {
+    return this.adminService.getUserDetail(id);
+  }
+
+  @Patch('users/:id')
+  @RequirePermission('admin:users:write')
+  async updateUser(
+    @Param('id') id: string,
+    @Body() body: { status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE' },
+  ) {
+    return this.adminService.updateUserStatus(id, body.status);
+  }
+
+  @Post('users/:id/assign-role')
+  @RequirePermission('admin:users:write')
+  async assignRole(
+    @Param('id') id: string,
+    @Body() body: { orgId: string; roleId: string },
+  ) {
+    return this.adminService.assignRole(body.orgId, id, body.roleId);
+  }
+
+  @Get('roles')
+  @RequirePermission('admin:users:read')
+  async listRoles() {
+    return this.adminService.listRoles();
+  }
+
   // ── Product moderation (plan §13.4) ────────────────────────
 
   @Get('products')

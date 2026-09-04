@@ -3,11 +3,35 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createStore, createWarehouse, registerDocument, submitVerification, fetchProfile } from '../../../lib/api';
-import { getSession } from '../../../lib/auth';
+import {
+  fetchProfile,
+  updateProfile,
+  createOrganization,
+  createStore,
+  createWarehouse,
+  registerDocument,
+  submitVerification,
+  type UserProfile,
+} from '../../../lib/api';
+import { getUser } from '../../../lib/auth';
 
-const STEPS = ['Store Info', 'Warehouse', 'Documents', 'Review & Submit'] as const;
+const STEPS = ['Your Profile', 'Business Details', 'Store Info', 'Documents', 'Review & Submit'] as const;
 type Step = (typeof STEPS)[number];
+
+const ORG_TYPES = [
+  { value: 'WHOLESALER', label: 'Wholesaler' },
+  { value: 'RETAILER', label: 'Retailer' },
+  { value: 'LOGISTICS', label: 'Logistics Provider' },
+] as const;
+
+const COUNTRIES = [
+  { value: 'SA', label: 'Saudi Arabia' },
+  { value: 'AE', label: 'United Arab Emirates' },
+  { value: 'KW', label: 'Kuwait' },
+  { value: 'BH', label: 'Bahrain' },
+  { value: 'OM', label: 'Oman' },
+  { value: 'QA', label: 'Qatar' },
+] as const;
 
 const DOC_TYPES = [
   { value: 'COMMERCIAL_REG', label: 'Commercial Registration' },
@@ -16,56 +40,66 @@ const DOC_TYPES = [
   { value: 'NATIONAL_ID', label: 'National ID' },
 ] as const;
 
-export default function MerchantOnboardingPage() {
+export default function MerchantRegistrationPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
-  const [loadingOrg, setLoadingOrg] = useState(true);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // Load user's active org on mount
-  useEffect(() => {
-    async function loadOrg() {
-      try {
-        const profile = await fetchProfile();
-        if (profile.activeOrgId) {
-          setActiveOrgId(profile.activeOrgId);
-        } else if (!profile.organizations || profile.organizations.length === 0) {
-          // No org at all — redirect to registration
-          router.push('/merchant/register');
-          return;
-        }
-      } catch {
-        setError('Failed to load organization. Please login again.');
-      } finally {
-        setLoadingOrg(false);
-      }
-    }
-    loadOrg();
-  }, [router]);
+  // Step 1: Profile
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
 
-  // Step 1: Store
+  // Step 2: Business
+  const [orgName, setOrgName] = useState('');
+  const [legalName, setLegalName] = useState('');
+  const [orgType, setOrgType] = useState('WHOLESALER');
+  const [country, setCountry] = useState('SA');
+  const [taxId, setTaxId] = useState('');
+
+  // Step 3: Store
   const [displayName, setDisplayName] = useState('');
   const [description, setDescription] = useState('');
   const [currency, setCurrency] = useState('SAR');
   const [locale, setLocale] = useState('ar');
   const [city, setCity] = useState('');
 
-  // Step 2: Warehouse
+  // Step 3b: Warehouse (optional)
   const [warehouseName, setWarehouseName] = useState('');
   const [warehouseCity, setWarehouseCity] = useState('');
   const [managerName, setManagerName] = useState('');
-  const [managerPhone, setManagerPhone] = useState('');
 
-  // Step 3: Documents
+  // Step 4: Documents
   const [documents, setDocuments] = useState<{ docType: string; fileName: string }[]>([]);
   const [newDocType, setNewDocType] = useState('COMMERCIAL_REG');
   const [newDocName, setNewDocName] = useState('');
 
-  // Created store ID (set after step 1)
-  const [createdStoreId, setCreatedStoreId] = useState<string | null>(null);
+  // Created IDs (set during submission flow)
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
+  const [createdStoreId, setCreatedStoreId] = useState<string | null>(null);
+
+  // Load profile on mount
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const p = await fetchProfile();
+        setProfile(p);
+        // Pre-fill name from auth user if available
+        const authUser = getUser();
+        const authName = authUser?.fullName;
+        setFullName(p.fullName !== 'New User' ? p.fullName : (authName && authName !== 'New User' ? authName : ''));
+        setEmail(p.email || '');
+      } catch {
+        // If profile fetch fails, user might not be logged in
+        router.push('/auth/login');
+      } finally {
+        setLoadingProfile(false);
+      }
+    }
+    loadProfile();
+  }, [router]);
 
   function addDocument() {
     if (!newDocName.trim()) return;
@@ -81,13 +115,47 @@ export default function MerchantOnboardingPage() {
     setError(null);
 
     if (currentStep === 0) {
-      // Create store
+      // Update profile
+      if (!fullName.trim()) { setError('Full name is required'); return; }
+      setSubmitting(true);
+      try {
+        await updateProfile({
+          fullName: fullName.trim(),
+          email: email.trim() || undefined,
+        });
+        setCurrentStep(1);
+      } catch (err: any) {
+        setError(err.message || 'Failed to update profile');
+      } finally {
+        setSubmitting(false);
+      }
+    } else if (currentStep === 1) {
+      // Create organization
+      if (!orgName.trim()) { setError('Business name is required'); return; }
+      setSubmitting(true);
+      try {
+        const org = await createOrganization({
+          name: orgName.trim(),
+          type: orgType,
+          country,
+          legalName: legalName.trim() || undefined,
+          taxId: taxId.trim() || undefined,
+        });
+        setCreatedOrgId(org.id);
+        setCurrentStep(2);
+      } catch (err: any) {
+        setError(err.message || 'Failed to create organization');
+      } finally {
+        setSubmitting(false);
+      }
+    } else if (currentStep === 2) {
+      // Create store + optional warehouse
       if (!displayName.trim()) { setError('Store name is required'); return; }
-      if (!activeOrgId) { setError('No active organization. Please complete registration first.'); return; }
+      if (!createdOrgId) { setError('Organization not created. Go back.'); return; }
       setSubmitting(true);
       try {
         const store = await createStore({
-          orgId: activeOrgId,
+          orgId: createdOrgId,
           displayName: displayName.trim(),
           description: description.trim() || undefined,
           currency,
@@ -95,35 +163,22 @@ export default function MerchantOnboardingPage() {
           address: city ? { city } : undefined,
         });
         setCreatedStoreId(store.id);
-        setCreatedOrgId(activeOrgId);
-        setCurrentStep(1);
+
+        // Create warehouse if provided
+        if (warehouseName.trim()) {
+          await createWarehouse(store.id, {
+            name: warehouseName.trim(),
+            address: warehouseCity ? { city: warehouseCity } : undefined,
+            managerName: managerName.trim() || undefined,
+          });
+        }
+        setCurrentStep(3);
       } catch (err: any) {
         setError(err.message || 'Failed to create store');
       } finally {
         setSubmitting(false);
       }
-    } else if (currentStep === 1) {
-      // Create warehouse (optional)
-      if (warehouseName.trim() && createdStoreId) {
-        setSubmitting(true);
-        try {
-          await createWarehouse(createdStoreId, {
-            name: warehouseName.trim(),
-            address: warehouseCity ? { city: warehouseCity } : undefined,
-            managerName: managerName.trim() || undefined,
-            managerPhone: managerPhone.trim() || undefined,
-          });
-          setCurrentStep(2);
-        } catch (err: any) {
-          setError(err.message || 'Failed to create warehouse');
-          return;
-        } finally {
-          setSubmitting(false);
-        }
-      } else {
-        setCurrentStep(2);
-      }
-    } else if (currentStep === 2) {
+    } else if (currentStep === 3) {
       // Register documents
       if (documents.length > 0 && createdStoreId && createdOrgId) {
         setSubmitting(true);
@@ -137,16 +192,14 @@ export default function MerchantOnboardingPage() {
               fileSize: 0,
             });
           }
-          setCurrentStep(3);
         } catch (err: any) {
           setError(err.message || 'Failed to register documents');
           return;
         } finally {
           setSubmitting(false);
         }
-      } else {
-        setCurrentStep(3);
       }
+      setCurrentStep(4);
     }
   }
 
@@ -164,27 +217,26 @@ export default function MerchantOnboardingPage() {
     }
   }
 
+  if (loadingProfile) {
+    return (
+      <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px', textAlign: 'center', color: '#5b6b74' }}>
+        Loading your profile...
+      </main>
+    );
+  }
+
   return (
-    <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
+    <main style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }}>
       <Link href="/" style={{ color: '#174a5b', textDecoration: 'none', fontSize: 14, display: 'block', marginBottom: 20 }}>
         &larr; Back to Home
       </Link>
 
-      {loadingOrg ? (
-        <p style={{ color: '#5b6b74' }}>Loading your organization...</p>
-      ) : !activeOrgId ? (
-        <div>
-          <p style={{ color: '#c62828', marginBottom: 12 }}>No active organization found.</p>
-          <Link href="/merchant/register" style={{ color: '#174a5b', fontWeight: 600 }}>
-            Complete merchant registration &rarr;
-          </Link>
-        </div>
-      ) : (
-      <>
       <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>
-        Merchant Onboarding
+        Merchant Registration
       </h1>
-      <p style={{ color: '#5b6b74', marginBottom: 24 }}>Set up your store on the platform</p>
+      <p style={{ color: '#5b6b74', marginBottom: 24 }}>
+        Register your business on the platform — create an organization, set up your store, and submit for verification.
+      </p>
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
@@ -193,9 +245,9 @@ export default function MerchantOnboardingPage() {
             key={step}
             style={{
               flex: 1,
-              padding: '8px 0',
+              padding: '8px 4px',
               textAlign: 'center',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: idx === currentStep ? 600 : 400,
               color: idx <= currentStep ? '#174a5b' : '#8a9ba5',
               borderBottom: `3px solid ${idx <= currentStep ? '#174a5b' : '#e0e7eb'}`,
@@ -212,9 +264,96 @@ export default function MerchantOnboardingPage() {
         </div>
       )}
 
-      {/* Step 1: Store Info */}
+      {/* Step 1: Profile */}
       {currentStep === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
+            Tell us about yourself. This information will be visible to platform admins.
+          </p>
+          <Field label="Full Name *">
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              style={inputStyle}
+              placeholder="e.g. Ahmed Al-Rashid"
+            />
+          </Field>
+          <Field label="Email Address">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={inputStyle}
+              placeholder="e.g. ahmed@company.com"
+            />
+          </Field>
+          {profile?.phone && (
+            <div style={{ padding: '8px 12px', background: '#f0f7f4', borderRadius: 6, fontSize: 13, color: '#2e7d32' }}>
+              Phone: <b>{profile.phone}</b> (verified via OTP)
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Step 2: Business Details */}
+      {currentStep === 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
+            Enter your business information. This will be used for verification and legal compliance.
+          </p>
+          <Field label="Business Name *">
+            <input
+              type="text"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              style={inputStyle}
+              placeholder="e.g. Al-Baraka Trading Co."
+            />
+          </Field>
+          <Field label="Legal Name">
+            <input
+              type="text"
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+              style={inputStyle}
+              placeholder="Official registered name (if different)"
+            />
+          </Field>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <Field label="Business Type *">
+              <select value={orgType} onChange={(e) => setOrgType(e.target.value)} style={inputStyle}>
+                {ORG_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Country *">
+              <select value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle}>
+                {COUNTRIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Tax ID / VAT">
+              <input
+                type="text"
+                value={taxId}
+                onChange={(e) => setTaxId(e.target.value)}
+                style={inputStyle}
+                placeholder="Optional"
+              />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Store Info */}
+      {currentStep === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
+            Set up your storefront on the platform.
+          </p>
           <Field label="Store Name *">
             <input
               type="text"
@@ -260,34 +399,32 @@ export default function MerchantOnboardingPage() {
               />
             </Field>
           </div>
-        </div>
-      )}
 
-      {/* Step 2: Warehouse (optional) */}
-      {currentStep === 1 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
-            Optional — you can add warehouses later.
-          </p>
-          <Field label="Warehouse Name">
-            <input
-              type="text"
-              value={warehouseName}
-              onChange={(e) => setWarehouseName(e.target.value)}
-              style={inputStyle}
-              placeholder="e.g. Main Warehouse"
-            />
-          </Field>
-          <Field label="City">
-            <input
-              type="text"
-              value={warehouseCity}
-              onChange={(e) => setWarehouseCity(e.target.value)}
-              style={inputStyle}
-              placeholder="e.g. Jeddah"
-            />
-          </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Warehouse (optional) */}
+          <div style={{ borderTop: '1px solid #e0e7eb', paddingTop: 14, marginTop: 4 }}>
+            <p style={{ color: '#8a9ba5', fontSize: 13, margin: '0 0 10px' }}>
+              Optional: Add a warehouse now (you can add more later).
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <Field label="Warehouse Name">
+                <input
+                  type="text"
+                  value={warehouseName}
+                  onChange={(e) => setWarehouseName(e.target.value)}
+                  style={inputStyle}
+                  placeholder="e.g. Main Warehouse"
+                />
+              </Field>
+              <Field label="City">
+                <input
+                  type="text"
+                  value={warehouseCity}
+                  onChange={(e) => setWarehouseCity(e.target.value)}
+                  style={inputStyle}
+                  placeholder="e.g. Jeddah"
+                />
+              </Field>
+            </div>
             <Field label="Manager Name">
               <input
                 type="text"
@@ -297,24 +434,15 @@ export default function MerchantOnboardingPage() {
                 placeholder="Optional"
               />
             </Field>
-            <Field label="Manager Phone">
-              <input
-                type="text"
-                value={managerPhone}
-                onChange={(e) => setManagerPhone(e.target.value)}
-                style={inputStyle}
-                placeholder="+966..."
-              />
-            </Field>
           </div>
         </div>
       )}
 
-      {/* Step 3: Documents */}
-      {currentStep === 2 && (
+      {/* Step 4: Documents */}
+      {currentStep === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
-            Upload verification documents. You can skip and add later.
+            Upload verification documents to speed up the approval process. You can skip and add later.
           </p>
 
           {documents.length > 0 && (
@@ -366,11 +494,20 @@ export default function MerchantOnboardingPage() {
         </div>
       )}
 
-      {/* Step 4: Review & Submit */}
-      {currentStep === 3 && (
+      {/* Step 5: Review & Submit */}
+      {currentStep === 4 && (
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Summary</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Registration Summary</h3>
           <div style={{ background: '#f8fafb', borderRadius: 8, padding: 20, border: '1px solid #e0e7eb', marginBottom: 16 }}>
+            <SummaryRow label="Your Name" value={fullName} />
+            {email && <SummaryRow label="Email" value={email} />}
+            <div style={{ height: 8 }} />
+            <SummaryRow label="Business" value={orgName} />
+            {legalName && <SummaryRow label="Legal Name" value={legalName} />}
+            <SummaryRow label="Type" value={ORG_TYPES.find(t => t.value === orgType)?.label || orgType} />
+            <SummaryRow label="Country" value={COUNTRIES.find(c => c.value === country)?.label || country} />
+            {taxId && <SummaryRow label="Tax ID" value={taxId} />}
+            <div style={{ height: 8 }} />
             <SummaryRow label="Store" value={displayName} />
             <SummaryRow label="Currency" value={currency} />
             <SummaryRow label="Locale" value={locale} />
@@ -378,10 +515,10 @@ export default function MerchantOnboardingPage() {
             {warehouseName && <SummaryRow label="Warehouse" value={warehouseName} />}
             <SummaryRow label="Documents" value={`${documents.length} file(s)`} />
           </div>
-          <p style={{ color: '#5b6b74', fontSize: 14 }}>
+          <div style={{ padding: '12px 16px', background: '#e3f2fd', borderRadius: 6, color: '#1565c0', fontSize: 14, marginBottom: 8 }}>
             By submitting, your store will be queued for platform verification.
-            An admin will review your documents and approve or request changes.
-          </p>
+            An admin will review your application and approve or request changes.
+          </div>
         </div>
       )}
 
@@ -393,7 +530,7 @@ export default function MerchantOnboardingPage() {
           </button>
         ) : <div />}
 
-        {currentStep < 3 ? (
+        {currentStep < 4 ? (
           <button onClick={handleNext} disabled={submitting} style={primaryBtnStyle}>
             {submitting ? 'Processing...' : 'Next →'}
           </button>
@@ -406,8 +543,6 @@ export default function MerchantOnboardingPage() {
           </button>
         )}
       </div>
-      </>
-      )}
     </main>
   );
 }

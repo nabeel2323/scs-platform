@@ -1,9 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchProfile, updateProfile, fetchMyOrganizations, UserProfile } from '../../lib/buyer-api';
+import { isAuthenticated } from '../../lib/auth';
 
 export default function AccountPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orgs, setOrgs] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,11 +15,15 @@ export default function AccountPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/auth/login');
+      return;
+    }
     Promise.all([
-      fetchProfile().then(setProfile),
+      fetchProfile().then(setProfile).catch(() => {}),
       fetchMyOrganizations().then(setOrgs).catch(() => {}),
     ]).finally(() => setLoading(false));
-  }, []);
+  }, [router]);
 
   const handleSave = async () => {
     setSaving(true);
