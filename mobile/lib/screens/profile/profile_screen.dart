@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
@@ -122,6 +123,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               )),
         ],
+        const SizedBox(height: 24),
+        const Text('Security',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.security, color: TaifTokens.brandPrimary),
+            title: const Text('Login Credentials'),
+            subtitle: Text(p.email != null
+                ? 'Email/Password enabled'
+                : 'Set up email/password'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/profile/credentials'),
+          ),
+        ),
+        if (p.email != null)
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.lock, color: TaifTokens.brandPrimary),
+              title: const Text('Change Password'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/profile/change-password'),
+            ),
+          ),
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.devices, color: TaifTokens.brandPrimary),
+            title: const Text('Active Sessions'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/profile/sessions'),
+          ),
+        ),
       ]);
 
   Widget _editForm(UserProfile p) =>
@@ -140,7 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          value: _locale,
+          initialValue: _locale,
           decoration: const InputDecoration(
               labelText: 'Language', border: OutlineInputBorder()),
           items: const [

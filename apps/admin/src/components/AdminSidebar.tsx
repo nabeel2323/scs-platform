@@ -10,6 +10,7 @@ const navItems = [
   { href: '/orders', label: 'Orders', icon: '📦' },
   { href: '/merchants', label: 'Merchants', icon: '🏪' },
   { href: '/verification', label: 'Verification', icon: '✓' },
+  { href: '/categories', label: 'Categories', icon: '📁' },
   { href: '/disputes', label: 'Disputes', icon: '⚖' },
   { href: '/products', label: 'Products', icon: '📋' },
   { href: '/kpis', label: 'KPIs', icon: '📊' },

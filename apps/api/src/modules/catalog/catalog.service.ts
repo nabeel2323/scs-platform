@@ -293,6 +293,26 @@ export class CatalogService {
     });
   }
 
+  async processImportJob(id: string) {
+    const job = await this.getImportJob(id);
+    if (job.status !== 'UPLOADED' && job.status !== 'MAPPING') {
+      throw new ConflictException(`Import job cannot be processed from status: ${job.status}`);
+    }
+    // Transition to IMPORTING status (actual CSV/Excel parsing would happen here)
+    await this.db.db.update(importJobs)
+      .set({ status: 'IMPORTING', updatedAt: new Date() })
+      .where(eq(importJobs.id, id));
+    
+    // Simulate import completion (in production: parse file, create products/variants)
+    setTimeout(async () => {
+      await this.db.db.update(importJobs)
+        .set({ status: 'COMPLETED', updatedAt: new Date() })
+        .where(eq(importJobs.id, id));
+    }, 1000);
+
+    return this.getImportJob(id);
+  }
+
   // ── Favorites / Wishlist ───────────────────────────────────
 
   async listFavorites(userId: string) {

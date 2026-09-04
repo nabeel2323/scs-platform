@@ -92,6 +92,35 @@ export class MerchantService {
     });
   }
 
+  async getCustomersByOrg(orgId: string) {
+    // Get all stores for this org
+    const orgStores = await this.listStoresByOrg(orgId);
+    if (orgStores.length === 0) return [];
+
+    const storeIds = orgStores.map((s) => s.id);
+
+    // Query orders to find unique buyers with aggregated stats
+    // This is a simplified version - in production you'd use a proper SQL query with joins
+    const orders = await this.db.db.execute(sql`
+      SELECT 
+        o.buyer_id,
+        u.full_name as buyer_name,
+        u.phone as buyer_phone,
+        u.email as buyer_email,
+        COUNT(*) as order_count,
+        SUM(o.total_minor) as total_spent_minor,
+        MAX(o.created_at) as last_order_at
+      FROM orders o
+      JOIN users u ON u.id = o.buyer_id
+      WHERE o.store_id = ANY(${storeIds})
+        AND o.status NOT IN ('CANCELLED', 'REJECTED')
+      GROUP BY o.buyer_id, u.full_name, u.phone, u.email
+      ORDER BY last_order_at DESC
+    `);
+
+    return orders;
+  }
+
   async listStores(filters?: { status?: string; verificationStatus?: string; limit?: number; offset?: number }) {
     const conditions = [];
     if (filters?.status) conditions.push(eq(stores.status, filters.status));

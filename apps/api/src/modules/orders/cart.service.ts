@@ -137,11 +137,11 @@ export class CartService {
     return { success: true };
   }
 
-  async applyPromoCode(userId: string, promoCode: string, promotionId: string) {
+  async applyPromoCode(userId: string, promoCode: string, promotionId?: string) {
     const cart = await this.getOrCreateCart(userId);
     await this.db.db
       .update(carts)
-      .set({ promoCode, promotionId, updatedAt: new Date() })
+      .set({ promoCode, promotionId: promotionId || null, updatedAt: new Date() })
       .where(eq(carts.id, cart['id']));
     return this.getActiveCartWithItems(userId);
   }

@@ -1,10 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
-import { users, organizations, organizationMembers, sessions, roles, rolePermissions, permissions } from './identity.schema';
-import { eq, and } from 'drizzle-orm';
+import { users, organizations, organizationMembers, sessions, roles, rolePermissions, permissions, credentialAuditLog } from './identity.schema';
+import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import * as bcrypt from 'bcrypt';
+import { validatePasswordStrength } from '../../common/utils/password-validation';
+import { RateLimitService } from '../../common/services/rate-limit.service';
 
 /**
  * Identity service — phone-first identity with multi-org support.
@@ -22,6 +25,7 @@ export class IdentityService {
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
     private readonly jwt: JwtService,
+    private readonly rateLimitService: RateLimitService,
   ) {}
 
   /**
@@ -411,6 +415,321 @@ export class IdentityService {
       );
 
     return { success: true };
+  }
+
+  // ── Dual Authentication (Password Login) ──────────────────
+
+  /**
+   * Login with email and password.
+   * Checks device trust and requires OTP if device changed.
+   */
+  async loginWithPassword(
+    email: string,
+    password: string,
+    deviceId: string,
+    deviceInfo?: { platform: string; userAgent: string },
+  ): Promise<{ accessToken: string; refreshToken: string; requiresOtp?: boolean; otpPhone?: string }> {
+    // Rate limit check
+    const rateCheck = await this.rateLimitService.checkAndIncrement('password_login', email, 5, 900);
+    if (!rateCheck.allowed) {
+      throw new Error('Too many login attempts. Please try again later.');
+    }
+
+    // Find user by email
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Check if password is set
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Password not set. Please use OTP login or set up credentials.');
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    // Check device trust
+    const isTrustedDevice = await this.checkDeviceTrust(user.id, deviceId);
+
+    if (!isTrustedDevice) {
+      // Device not trusted - require OTP verification
+      // Send OTP to user's phone
+      await this.requestOtp(user.phone);
+      
+      return {
+        accessToken: '',
+        refreshToken: '',
+        requiresOtp: true,
+        otpPhone: user.phone,
+      };
+    }
+
+    // Device trusted - issue JWT pair
+    const claims = await this.buildClaims(user.id);
+
+    const accessToken = this.jwt.sign({
+      sub: user.id,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
+    });
+
+    const refreshToken = crypto.randomUUID();
+    const tokenHash = this.hashToken(refreshToken);
+
+    const sessionId = crypto.randomUUID();
+    await this.db.db.insert(sessions).values({
+      id: sessionId,
+      userId: user.id,
+      tokenHash,
+      device: deviceInfo?.userAgent || 'unknown',
+      deviceId,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    // Reset rate limit on successful login
+    await this.rateLimitService.resetAttempts('password_login', email);
+
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Check if device is trusted for a user.
+   * Trusted if device_id matches last session and last login within 30 days.
+   */
+  async checkDeviceTrust(userId: string, deviceId: string): Promise<boolean> {
+    const lastSession = await this.db.db.query.sessions.findFirst({
+      where: and(
+        eq(sessions.userId, userId),
+        eq(sessions.deviceId, deviceId),
+      ),
+      orderBy: [desc(sessions.createdAt)],
+    });
+
+    if (!lastSession) {
+      return false;
+    }
+
+    // Check if last login within 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return lastSession.createdAt > thirtyDaysAgo && !lastSession.revokedAt;
+  }
+
+  /**
+   * Set up email and password credentials for a user.
+   * User must be authenticated via OTP first.
+   */
+  async setupCredentials(
+    userId: string,
+    email: string,
+    password: string,
+    deviceId?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    // Get user to check current state
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Check if email already exists (and belongs to different user)
+    const existingEmail = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (existingEmail && existingEmail.id !== userId) {
+      throw new ConflictException('Email already in use');
+    }
+
+    // Validate password strength
+    const passwordCheck = validatePasswordStrength(password, email, user.phone);
+    if (!passwordCheck.valid) {
+      throw new Error(passwordCheck.errors.join('; '));
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // Update user
+    await this.db.db
+      .update(users)
+      .set({
+        email,
+        passwordHash,
+        passwordSetAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    // Log audit entry
+    await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
+
+    // Invalidate all other sessions
+    await this.db.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(and(
+        eq(sessions.userId, userId),
+        deviceId ? eq(sessions.deviceId, deviceId) : eq(sessions.userId, userId),
+      ));
+
+    return { success: true, message: 'Credentials set up successfully' };
+  }
+
+  /**
+   * Change password for an authenticated user.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    deviceId?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    // Get user
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.passwordHash) {
+      throw new Error('No password set. Please set up credentials first.');
+    }
+
+    // Verify current password
+    const currentValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!currentValid) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    // Get user email for password validation
+    const userEmail = user.email || undefined;
+
+    // Validate new password strength
+    const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone);
+    if (!passwordCheck.valid) {
+      throw new Error(passwordCheck.errors.join('; '));
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+
+    // Update user
+    await this.db.db
+      .update(users)
+      .set({
+        passwordHash: newPasswordHash,
+        passwordSetAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    // Log audit entry
+    await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
+
+    // Invalidate all other sessions (keep current device if specified)
+    if (deviceId) {
+      await this.db.db
+        .update(sessions)
+        .set({ revokedAt: new Date() })
+        .where(and(
+          eq(sessions.userId, userId),
+          eq(sessions.deviceId, deviceId),
+        ));
+    } else {
+      await this.revokeChain(userId);
+    }
+
+    return { success: true, message: 'Password changed successfully' };
+  }
+
+  /**
+   * Log credential change to audit table.
+   */
+  private async logCredentialAudit(
+    userId: string,
+    action: string,
+    deviceId?: string,
+  ): Promise<void> {
+    await this.db.db.insert(credentialAuditLog).values({
+      userId,
+      action,
+      deviceId: deviceId || null,
+    });
+  }
+
+  /**
+   * Check if device can auto-login for a given email.
+   * Pre-flight check before showing login form.
+   */
+  async checkDeviceLogin(email: string, deviceId: string): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) {
+      return { canAutoLogin: false, requiresOtp: true, hasPassword: false };
+    }
+
+    const hasPassword = !!user.passwordHash;
+    if (!hasPassword) {
+      return { canAutoLogin: false, requiresOtp: true, hasPassword: false };
+    }
+
+    const isTrustedDevice = await this.checkDeviceTrust(user.id, deviceId);
+
+    return {
+      canAutoLogin: isTrustedDevice,
+      requiresOtp: !isTrustedDevice,
+      hasPassword: true,
+    };
+  }
+
+  /**
+   * Get user sessions with device info.
+   */
+  async getUserSessions(userId: string, currentSessionId?: string) {
+    const userSessions = await this.db.db.query.sessions.findMany({
+      where: eq(sessions.userId, userId),
+      orderBy: [desc(sessions.createdAt)],
+    });
+
+    return userSessions.map((s) => ({
+      id: s.id,
+      device: s.device,
+      deviceId: s.deviceId,
+      ip: s.ip,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      isCurrent: s.id === currentSessionId,
+      isRevoked: !!s.revokedAt,
+    }));
+  }
+
+  /**
+   * Revoke sessions by device ID.
+   */
+  async revokeSessionsByDevice(userId: string, deviceId: string): Promise<{ success: boolean; revokedCount: number }> {
+    const result = await this.db.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(and(
+        eq(sessions.userId, userId),
+        eq(sessions.deviceId, deviceId),
+      ));
+
+    return { success: true, revokedCount: result['rowCount'] || 0 };
   }
 
   // ── Helpers ────────────────────────────────────────────────

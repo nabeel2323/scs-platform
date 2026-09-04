@@ -6,6 +6,7 @@ import { ProfileController } from './profile.controller';
 import { OrganizationsController } from './organizations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CatalogModule } from '../catalog/catalog.module';
+import { RateLimitService } from '../../common/services/rate-limit.service';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { CatalogModule } from '../catalog/catalog.module';
     CatalogModule,
   ],
   controllers: [AuthController, ProfileController, OrganizationsController],
-  providers: [IdentityService],
+  providers: [IdentityService, RateLimitService],
   exports: [IdentityService],
 })
 export class IdentityModule {}

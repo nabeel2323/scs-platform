@@ -14,6 +14,72 @@ class ApiService {
               .post('/v1/auth/otp/verify', data: {'phone': phone, 'otp': otp}))
           .data;
 
+  // ── Dual Authentication (Password Login) ──────────────────
+  /// Login with email and password.
+  /// Returns session if device is trusted, or requires OTP if device changed.
+  Future<Map<String, dynamic>> loginPassword(
+    String email,
+    String password,
+    String deviceId,
+    Map<String, String> deviceInfo,
+  ) async {
+    final response = await _dio.post(
+      '/v1/auth/login/password',
+      data: {
+        'email': email,
+        'password': password,
+        'deviceId': deviceId,
+        'deviceInfo': deviceInfo,
+      },
+      options: Options(headers: {'X-Device-Id': deviceId}),
+    );
+    return response.data;
+  }
+
+  /// Pre-flight check for device-based login.
+  Future<Map<String, dynamic>> checkDeviceLogin(
+          String email, String deviceId) async =>
+      (await _dio.post('/v1/auth/login/device-check',
+              data: {'email': email, 'deviceId': deviceId}))
+          .data;
+
+  /// Set up email and password credentials.
+  Future<void> setupCredentials(
+    String email,
+    String password,
+    String deviceId,
+  ) async {
+    await _dio.post(
+      '/v1/me/credentials/setup',
+      data: {'email': email, 'password': password},
+      options: Options(headers: {'X-Device-Id': deviceId}),
+    );
+  }
+
+  /// Change password for authenticated user.
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+    String deviceId,
+  ) async {
+    await _dio.post(
+      '/v1/me/credentials/change-password',
+      data: {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      },
+      options: Options(headers: {'X-Device-Id': deviceId}),
+    );
+  }
+
+  /// Get user's active sessions.
+  Future<List<Map<String, dynamic>>> fetchSessions() async =>
+      (await _dio.get('/v1/me/sessions')).data.cast<Map<String, dynamic>>();
+
+  /// Revoke sessions by device ID.
+  Future<void> revokeSessionsByDevice(String deviceId) async =>
+      _dio.delete('/v1/me/sessions/revoke-by-device/$deviceId');
+
   // ── Profile ───────────────────────────────────────────────
   Future<UserProfile> fetchProfile() async =>
       UserProfile.fromJson((await _dio.get('/v1/me')).data);

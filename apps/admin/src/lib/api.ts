@@ -429,3 +429,62 @@ export async function fetchAuditLogs(params?: {
   if (!res.ok) throw new Error(`Failed to fetch audit logs: ${res.status}`);
   return res.json();
 }
+
+// ── Category Management ──────────────────────────────────────
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  slug: string;
+  path: string;
+  parentId: string | null;
+  isActive: boolean;
+  productCount?: number;
+  createdAt: string;
+}
+
+export async function fetchAdminCategories(): Promise<AdminCategory[]> {
+  const res = await authFetch(`${API_URL}/v1/categories`);
+  if (!res.ok) throw new Error(`Failed to fetch categories: ${res.status}`);
+  return res.json();
+}
+
+export async function createAdminCategory(data: {
+  name: string;
+  nameAr?: string;
+  parentId?: string;
+}): Promise<AdminCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create category: ${res.status}`);
+  return res.json();
+}
+
+export async function updateAdminCategory(
+  id: string,
+  data: {
+    name?: string;
+    nameAr?: string;
+    parentId?: string;
+    isActive?: boolean;
+  },
+): Promise<AdminCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update category: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAdminCategory(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete category: ${res.status}`);
+}

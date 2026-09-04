@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Req, Headers } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CatalogService } from '../catalog/catalog.service';
@@ -76,5 +76,63 @@ export class ProfileController {
     @Param('productId') productId: string,
   ) {
     return this.catalogService.removeFavorite(user.sub, productId);
+  }
+
+  // ── Credential Management ──────────────────────────────────
+
+  /**
+   * Set up email and password credentials.
+   * User must be authenticated via OTP first.
+   */
+  @Post('credentials/setup')
+  async setupCredentials(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { email: string; password: string },
+    @Headers('x-device-id') deviceId?: string,
+  ) {
+    return this.identityService.setupCredentials(
+      user.sub,
+      body.email,
+      body.password,
+      deviceId,
+    );
+  }
+
+  /**
+   * Change password for authenticated user.
+   */
+  @Post('credentials/change-password')
+  async changePassword(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { currentPassword: string; newPassword: string },
+    @Headers('x-device-id') deviceId?: string,
+  ) {
+    return this.identityService.changePassword(
+      user.sub,
+      body.currentPassword,
+      body.newPassword,
+      deviceId,
+    );
+  }
+
+  /**
+   * Get user's active sessions with device info.
+   */
+  @Get('sessions')
+  async getSessions(
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.identityService.getUserSessions(user.sub);
+  }
+
+  /**
+   * Revoke all sessions for a specific device.
+   */
+  @Delete('sessions/revoke-by-device/:deviceId')
+  async revokeSessionsByDevice(
+    @CurrentUser() user: JwtPayload,
+    @Param('deviceId') deviceId: string,
+  ) {
+    return this.identityService.revokeSessionsByDevice(user.sub, deviceId);
   }
 }

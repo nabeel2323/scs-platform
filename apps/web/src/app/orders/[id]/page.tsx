@@ -44,10 +44,20 @@ export default function OrderDetailPage() {
     setShowCancel(false);
   };
 
+  const handleReorder = async () => {
+    try {
+      await reorder(orderId);
+      window.location.href = '/cart';
+    } catch (err: any) {
+      alert(err.message || 'Failed to reorder');
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
   if (!order) return <EmptyState title="Order not found" />;
 
   const canCancel = ['SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY'].includes(order.status);
+  const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
@@ -98,12 +108,19 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Cancel */}
-          {canCancel && !showCancel && (
-            <button onClick={() => setShowCancel(true)} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>
-              Cancel Order
-            </button>
-          )}
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {canCancel && !showCancel && (
+              <button onClick={() => setShowCancel(true)} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>
+                Cancel Order
+              </button>
+            )}
+            {canReorder && (
+              <button onClick={handleReorder} style={{ padding: '8px 16px', fontSize: 13, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+                Reorder
+              </button>
+            )}
+          </div>
           {showCancel && (
             <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 8, padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 8 }}>Reason for cancellation</div>

@@ -160,6 +160,11 @@ export class CatalogController {
     return this.catalogService.getImportJob(id);
   }
 
+  @Post('imports/:id/process')
+  async processImportJob(@Param('id') id: string) {
+    return this.catalogService.processImportJob(id);
+  }
+
   // ── Search ───────────────────────────────────────────────────
 
   @Get('search')

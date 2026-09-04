@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
@@ -81,6 +82,38 @@ class OrderDetailScreen extends ConsumerWidget {
                       const Divider(),
                       _row('Total', formatMinor(o.totalMinor), bold: true),
                       const SizedBox(height: 16),
+                      // Reorder button for completed/delivered orders
+                      if (['DELIVERED', 'COMPLETED'].contains(o.status))
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                await ref
+                                    .read(apiServiceProvider)
+                                    .reorder(o.id);
+                                if (context.mounted) {
+                                  context.go('/cart');
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text('Reorder failed: $e')));
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Reorder'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: TaifTokens.brandPrimary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      if (['DELIVERED', 'COMPLETED'].contains(o.status))
+                        const SizedBox(height: 16),
                       FutureBuilder<List<StatusHistoryEntry>>(
                         future: ref
                             .read(apiServiceProvider)

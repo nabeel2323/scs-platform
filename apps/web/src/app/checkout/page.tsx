@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { checkout } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner } from '../../components/Shared';
-import crypto from 'node:crypto';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -20,7 +19,9 @@ export default function CheckoutPage() {
     setSubmitting(true);
     setError('');
     try {
-      const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+      const idempotencyKey = typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID 
+        ? globalThis.crypto.randomUUID() 
+        : Date.now().toString(36) + Math.random().toString(36).slice(2);
       const result = await checkout({
         deliveryAddress: { street: address, city },
         notes: notes || undefined,

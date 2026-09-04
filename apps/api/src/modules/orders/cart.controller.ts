@@ -49,8 +49,12 @@ export class CartController {
   @Post('promo')
   async applyPromo(
     @CurrentUser() user: JwtPayload,
-    @Body() body: { promoCode: string; promotionId: string },
+    @Body() body: { promoCode?: string; code?: string; promotionId?: string },
   ) {
-    return this.cartService.applyPromoCode(user.sub, body.promoCode, body.promotionId);
+    const promoCode = body.promoCode || body.code;
+    if (!promoCode) {
+      throw new Error('Promo code is required');
+    }
+    return this.cartService.applyPromoCode(user.sub, promoCode, body.promotionId);
   }
 }

@@ -76,6 +76,14 @@ export class MerchantController {
     });
   }
 
+  @Get('merchant/customers')
+  async getMerchantCustomers(@CurrentUser() user: JwtPayload) {
+    if (!user.activeOrg) {
+      return [];
+    }
+    return this.merchantService.getCustomersByOrg(user.activeOrg);
+  }
+
   @Get('stores/:id')
   async getStore(@Param('id') id: string) {
     return this.merchantService.getStore(id);

@@ -17,6 +17,10 @@ export const users = pgTable('users', {
   fullName: varchar('full_name', { length: 160 }).notNull(),
   locale: varchar('locale', { length: 10 }).notNull().default('en'),
   status: varchar('status', { length: 12 }).notNull().default('ACTIVE'),
+  // Dual authentication fields (migration 0010)
+  passwordHash: varchar('password_hash', { length: 255 }),
+  passwordSetAt: timestamp('password_set_at', { withTimezone: true }),
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -75,9 +79,26 @@ export const sessions = pgTable('sessions', {
     .references(() => users.id, { onDelete: 'cascade' }),
   tokenHash: char('token_hash', { length: 64 }).notNull().unique(), // sha-256 of refresh token
   device: varchar('device', { length: 160 }),
+  deviceId: varchar('device_id', { length: 128 }), // Device identifier for trust logic (migration 0010)
   ip: inet('ip'),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   replacedBy: uuid('replaced_by').references((): any => sessions.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Credential audit log — tracks password/email changes for security auditing
+ * Added in migration 0010_dual_auth
+ */
+export const credentialAuditLog = pgTable('credential_audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 32 }).notNull(), // PASSWORD_SET, PASSWORD_CHANGE, EMAIL_CHANGE, CREDENTIAL_SETUP
+  deviceId: varchar('device_id', { length: 128 }),
+  ipAddress: inet('ip_address'),
+  userAgent: varchar('user_agent', { length: 256 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

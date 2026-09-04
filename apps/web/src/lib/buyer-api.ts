@@ -517,3 +517,21 @@ export async function fetchMyOrganizations(): Promise<unknown[]> {
   if (!res.ok) throw new Error(`Organizations failed: ${res.status}`);
   return res.json();
 }
+
+// ── Merchant Customers ───────────────────────────────────────
+
+export interface CustomerSummary {
+  buyerId: string;
+  buyerName: string | null;
+  buyerPhone: string | null;
+  buyerEmail: string | null;
+  orderCount: number;
+  totalSpentMinor: number;
+  lastOrderAt: string;
+}
+
+export async function fetchMerchantCustomers(): Promise<CustomerSummary[]> {
+  const res = await authFetch(`${API_URL}/v1/merchant/customers`);
+  if (!res.ok) throw new Error(`Fetch customers failed: ${res.status}`);
+  return res.json();
+}
