@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../core/theme.dart';
 import '../../providers/providers.dart';
 
@@ -30,12 +31,26 @@ class _MerchantRegistrationScreenState
   ];
 
   static const _countries = [
+    // GCC
     ('SA', 'Saudi Arabia'),
     ('AE', 'United Arab Emirates'),
     ('KW', 'Kuwait'),
     ('BH', 'Bahrain'),
     ('OM', 'Oman'),
     ('QA', 'Qatar'),
+    // Middle East
+    ('JO', 'Jordan'),
+    ('LB', 'Lebanon'),
+    ('IQ', 'Iraq'),
+    ('EG', 'Egypt'),
+    // International
+    ('US', 'United States'),
+    ('GB', 'United Kingdom'),
+    ('DE', 'Germany'),
+    ('FR', 'France'),
+    ('IN', 'India'),
+    ('PK', 'Pakistan'),
+    ('CN', 'China'),
   ];
 
   static const _docTypes = [
@@ -45,7 +60,21 @@ class _MerchantRegistrationScreenState
     ('NATIONAL_ID', 'National ID'),
   ];
 
-  static const _currencies = ['SAR', 'AED', 'KWD', 'BHD', 'OMR', 'QAR'];
+  static const _currencies = [
+    'SAR',
+    'AED',
+    'KWD',
+    'BHD',
+    'OMR',
+    'QAR',
+    'JOD',
+    'EGP',
+    'USD',
+    'EUR',
+    'GBP',
+    'PKR',
+    'INR',
+  ];
 
   final _pageCtrl = PageController();
   int _currentStep = 0;
@@ -76,9 +105,9 @@ class _MerchantRegistrationScreenState
   final _managerNameCtrl = TextEditingController();
 
   // Step 4: Documents
-  final List<({String docType, String fileName})> _documents = [];
+  final List<({String docType, String fileName, int fileSize, String mimeType})>
+      _documents = [];
   String _newDocType = 'COMMERCIAL_REG';
-  final _newDocNameCtrl = TextEditingController();
 
   // Created IDs
   String? _createdOrgId;
@@ -98,7 +127,6 @@ class _MerchantRegistrationScreenState
     _warehouseNameCtrl.dispose();
     _warehouseCityCtrl.dispose();
     _managerNameCtrl.dispose();
-    _newDocNameCtrl.dispose();
     super.dispose();
   }
 
@@ -108,13 +136,40 @@ class _MerchantRegistrationScreenState
     setState(() => _currentStep = step);
   }
 
-  void _addDocument() {
-    final name = _newDocNameCtrl.text.trim();
-    if (name.isEmpty) return;
+  Future<void> _pickAndAddDocument() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
     setState(() {
-      _documents.add((docType: _newDocType, fileName: name));
-      _newDocNameCtrl.clear();
+      _documents.add((
+        docType: _newDocType,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: _mimeTypeForExtension(file.extension ?? ''),
+      ));
     });
+  }
+
+  String _mimeTypeForExtension(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   void _removeDocument(int idx) {
@@ -226,7 +281,8 @@ class _MerchantRegistrationScreenState
               storeId: _createdStoreId,
               docType: doc.docType,
               fileName: doc.fileName,
-              fileSize: 0,
+              mimeType: doc.mimeType,
+              fileSize: doc.fileSize,
             );
           }
         } catch (e) {
@@ -576,7 +632,8 @@ class _MerchantRegistrationScreenState
                           .$2,
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    subtitle: Text(entry.value.fileName),
+                    subtitle: Text(
+                        '${entry.value.fileName} (${(entry.value.fileSize / 1024).toStringAsFixed(1)} KB)'),
                     trailing: IconButton(
                       icon: const Icon(Icons.close, color: TaifTokens.err),
                       onPressed: () => _removeDocument(entry.key),
@@ -599,25 +656,16 @@ class _MerchantRegistrationScreenState
             },
           ),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _newDocNameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'File Name',
-                  hintText: 'e.g. cr_certificate.pdf',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+          OutlinedButton.icon(
+            onPressed: _pickAndAddDocument,
+            icon: const Icon(Icons.attach_file),
+            label: const Text('Choose File'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: TaifTokens.brandPrimary,
+              side: BorderSide(color: TaifTokens.brandPrimary),
+              padding: const EdgeInsets.symmetric(vertical: 14),
             ),
-            const SizedBox(width: 12),
-            ElevatedButton(
-              onPressed: _addDocument,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: TaifTokens.brandPrimary),
-              child: const Text('Add'),
-            ),
-          ]),
+          ),
         ],
       );
 
@@ -654,7 +702,11 @@ class _MerchantRegistrationScreenState
                 _summaryRow('City', _cityCtrl.text.trim()),
               if (_warehouseNameCtrl.text.trim().isNotEmpty)
                 _summaryRow('Warehouse', _warehouseNameCtrl.text.trim()),
-              _summaryRow('Documents', '${_documents.length} file(s)'),
+              _summaryRow(
+                  'Documents',
+                  _documents.isNotEmpty
+                      ? '${_documents.length} file(s), ${(_documents.fold<int>(0, (s, d) => s + d.fileSize) / 1024).toStringAsFixed(1)} KB total'
+                      : 'None'),
             ]),
           ),
         ),

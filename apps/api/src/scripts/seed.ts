@@ -26,10 +26,10 @@ const PERMISSIONS = [
   'identity:roles:read', 'identity:roles:write',
   // Merchant
   'merchant:stores:read', 'merchant:stores:write', 'merchant:stores:verify',
-  'merchant:stores:reject',
+  'merchant:stores:reject', 'merchant:verification:review',
   // Catalog
   'catalog:products:read', 'catalog:products:write', 'catalog:products:delete',
-  'catalog:categories:read', 'catalog:categories:write',
+  'catalog:categories:read', 'catalog:categories:write', 'catalog:brands:manage',
   // Orders
   'orders:read', 'orders:write', 'orders:cancel', 'orders:refund',
   // Payments
@@ -42,13 +42,16 @@ const PERMISSIONS = [
   'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
   // Ads
   'ads:campaigns:read', 'ads:campaigns:write', 'ads:campaigns:approve',
+  // Admin (platform operations)
+  'admin:orders:read', 'admin:merchants:read', 'admin:kpis:read',
+  'admin:audit:read', 'admin:users:read', 'admin:users:write',
 ];
 
 const ROLES: { key: string; name: string; permissions: string[] }[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS,
+    permissions: PERMISSIONS, // all permissions
   },
   {
     key: 'ADMIN',
@@ -56,11 +59,15 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
     permissions: [
       'identity:users:read', 'identity:roles:read',
       'merchant:stores:read', 'merchant:stores:write', 'merchant:stores:verify', 'merchant:stores:reject',
+      'merchant:verification:review',
       'catalog:products:read',
       'orders:read', 'orders:cancel', 'orders:refund',
       'payments:read', 'payments:refund',
       'analytics:read', 'audit:read',
       'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
+      // Admin platform operations
+      'admin:orders:read', 'admin:merchants:read', 'admin:kpis:read',
+      'admin:audit:read', 'admin:users:read', 'admin:users:write',
     ],
   },
   {
@@ -71,6 +78,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'catalog:categories:read', 'catalog:categories:write',
       'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
       'orders:read',
+      'merchant:verification:review',
     ],
   },
   {

@@ -25,10 +25,24 @@ export default function StoreDetailPage() {
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    Promise.all([
-      fetchPublicStore(slugOrId).then(setStore as any),
-      fetchStoreProducts(slugOrId, { limit: 50 }).then(d => setProducts(d as Product[])),
-    ]).catch(() => {}).finally(() => setLoading(false));
+    async function loadData() {
+      try {
+        // First fetch the store to get its ID
+        const storeData = await fetchPublicStore(slugOrId) as StoreDetail;
+        setStore(storeData);
+        
+        // Then fetch products using the store ID
+        if (storeData?.id) {
+          const productsData = await fetchStoreProducts(storeData.id, { limit: 50 });
+          setProducts(productsData as Product[]);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
   }, [slugOrId]);
 
   const handleAddToCart = async (product: Product) => {

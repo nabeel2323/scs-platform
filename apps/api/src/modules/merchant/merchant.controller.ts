@@ -68,7 +68,12 @@ export class MerchantController {
       return this.merchantService.listStoresByOrg(user.activeOrg);
     }
 
-    return [];
+    // Buyers/public: show verified stores only
+    return this.merchantService.listStores({
+      verificationStatus: 'VERIFIED',
+      limit: limit ? parseInt(limit, 10) : 50,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
   }
 
   @Get('stores/:id')

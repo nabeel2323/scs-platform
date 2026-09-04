@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { AuthCard } from '../components/AuthCard';
+import { MerchantRegistrationCard } from '../components/MerchantRegistrationCard';
 
 export default function HomePage() {
   return (
@@ -42,10 +43,7 @@ export default function HomePage() {
           <b>Merchant Orders</b>
           <span>Manage incoming orders</span>
         </Link>
-        <Link href="/merchant/register" style={cardStyle}>
-          <b>Register as Merchant</b>
-          <span>Onboard your business</span>
-        </Link>
+        <MerchantRegistrationCard />
         <Link href="/reviews" style={cardStyle}>
           <b>Reviews &amp; Disputes</b>
           <span>Rate stores or open disputes</span>

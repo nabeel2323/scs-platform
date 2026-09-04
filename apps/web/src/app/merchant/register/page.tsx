@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -25,12 +25,45 @@ const ORG_TYPES = [
 ] as const;
 
 const COUNTRIES = [
+  // GCC
   { value: 'SA', label: 'Saudi Arabia' },
   { value: 'AE', label: 'United Arab Emirates' },
   { value: 'KW', label: 'Kuwait' },
   { value: 'BH', label: 'Bahrain' },
   { value: 'OM', label: 'Oman' },
   { value: 'QA', label: 'Qatar' },
+  // Middle East
+  { value: 'JO', label: 'Jordan' },
+  { value: 'LB', label: 'Lebanon' },
+  { value: 'IQ', label: 'Iraq' },
+  { value: 'EG', label: 'Egypt' },
+  // International
+  { value: 'US', label: 'United States' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'DE', label: 'Germany' },
+  { value: 'FR', label: 'France' },
+  { value: 'IN', label: 'India' },
+  { value: 'PK', label: 'Pakistan' },
+  { value: 'CN', label: 'China' },
+] as const;
+
+const CURRENCIES = [
+  // GCC
+  { value: 'SAR', label: 'Saudi Riyal (SAR)' },
+  { value: 'AED', label: 'UAE Dirham (AED)' },
+  { value: 'KWD', label: 'Kuwaiti Dinar (KWD)' },
+  { value: 'BHD', label: 'Bahraini Dinar (BHD)' },
+  { value: 'OMR', label: 'Omani Rial (OMR)' },
+  { value: 'QAR', label: 'Qatari Riyal (QAR)' },
+  // Middle East
+  { value: 'JOD', label: 'Jordanian Dinar (JOD)' },
+  { value: 'EGP', label: 'Egyptian Pound (EGP)' },
+  // International
+  { value: 'USD', label: 'US Dollar (USD)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'GBP', label: 'British Pound (GBP)' },
+  { value: 'PKR', label: 'Pakistani Rupee (PKR)' },
+  { value: 'INR', label: 'Indian Rupee (INR)' },
 ] as const;
 
 const DOC_TYPES = [
@@ -72,9 +105,10 @@ export default function MerchantRegistrationPage() {
   const [managerName, setManagerName] = useState('');
 
   // Step 4: Documents
-  const [documents, setDocuments] = useState<{ docType: string; fileName: string }[]>([]);
+  const [documents, setDocuments] = useState<{ docType: string; fileName: string; fileSize: number; mimeType: string }[]>([]);
   const [newDocType, setNewDocType] = useState('COMMERCIAL_REG');
-  const [newDocName, setNewDocName] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Created IDs (set during submission flow)
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
@@ -102,9 +136,15 @@ export default function MerchantRegistrationPage() {
   }, [router]);
 
   function addDocument() {
-    if (!newDocName.trim()) return;
-    setDocuments([...documents, { docType: newDocType, fileName: newDocName.trim() }]);
-    setNewDocName('');
+    if (!selectedFile) return;
+    setDocuments([...documents, {
+      docType: newDocType,
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      mimeType: selectedFile.type || 'application/pdf',
+    }]);
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function removeDocument(idx: number) {
@@ -189,7 +229,8 @@ export default function MerchantRegistrationPage() {
               storeId: createdStoreId,
               docType: doc.docType,
               fileName: doc.fileName,
-              fileSize: 0,
+              mimeType: doc.mimeType,
+              fileSize: doc.fileSize,
             });
           }
         } catch (err: any) {
@@ -375,12 +416,7 @@ export default function MerchantRegistrationPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Field label="Currency">
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle}>
-                <option value="SAR">SAR</option>
-                <option value="AED">AED</option>
-                <option value="KWD">KWD</option>
-                <option value="BHD">BHD</option>
-                <option value="OMR">OMR</option>
-                <option value="QAR">QAR</option>
+                {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </Field>
             <Field label="Locale">
@@ -463,6 +499,9 @@ export default function MerchantRegistrationPage() {
                   <span style={{ fontSize: 14, color: '#0f3340' }}>
                     <b>{DOC_TYPES.find(d => d.value === doc.docType)?.label || doc.docType}</b>
                     {' — '}{doc.fileName}
+                    <span style={{ color: '#8a9ba5', marginLeft: 8, fontSize: 12 }}>
+                      ({(doc.fileSize / 1024).toFixed(1)} KB)
+                    </span>
                   </span>
                   <button onClick={() => removeDocument(idx)} style={linkBtnStyle}>Remove</button>
                 </div>
@@ -478,16 +517,16 @@ export default function MerchantRegistrationPage() {
                 ))}
               </select>
             </Field>
-            <Field label="File Name">
+            <Field label="Choose File">
               <input
-                type="text"
-                value={newDocName}
-                onChange={(e) => setNewDocName(e.target.value)}
-                style={inputStyle}
-                placeholder="e.g. cr_certificate.pdf"
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+                style={{ ...inputStyle, padding: '6px 8px' }}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               />
             </Field>
-            <button onClick={addDocument} style={{ ...primaryBtnStyle, marginBottom: 0, whiteSpace: 'nowrap' }}>
+            <button onClick={addDocument} disabled={!selectedFile} style={{ ...primaryBtnStyle, marginBottom: 0, whiteSpace: 'nowrap', opacity: selectedFile ? 1 : 0.5 }}>
               Add
             </button>
           </div>
@@ -513,7 +552,7 @@ export default function MerchantRegistrationPage() {
             <SummaryRow label="Locale" value={locale} />
             {city && <SummaryRow label="City" value={city} />}
             {warehouseName && <SummaryRow label="Warehouse" value={warehouseName} />}
-            <SummaryRow label="Documents" value={`${documents.length} file(s)`} />
+            <SummaryRow label="Documents" value={documents.length > 0 ? `${documents.length} file(s), ${(documents.reduce((s, d) => s + d.fileSize, 0) / 1024).toFixed(1)} KB total` : 'None'} />
           </div>
           <div style={{ padding: '12px 16px', background: '#e3f2fd', borderRadius: 6, color: '#1565c0', fontSize: 14, marginBottom: 8 }}>
             By submitting, your store will be queued for platform verification.

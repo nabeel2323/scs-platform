@@ -185,7 +185,7 @@ export class AdminService {
       }).from(orders)
         .where(eq(orders.status, 'COMPLETED'))
         .groupBy(orders.buyerId)
-        .having(({ count }: any) => sql`${count} > 1`),
+        .having(({ orderCount }: any) => sql`${orderCount} > 1`),
 
       // Activation funnel
       this.computeActivationFunnel(),
@@ -252,7 +252,7 @@ export class AdminService {
       }).from(orders)
         .where(eq(orders.status, 'COMPLETED'))
         .groupBy(orders.buyerId)
-        .having(({ count }: any) => sql`${count} >= 3`),
+        .having(({ orderCount }: any) => sql`${orderCount} >= 3`),
     ]);
 
     return {

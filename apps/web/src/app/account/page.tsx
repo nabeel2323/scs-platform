@@ -86,9 +86,17 @@ export default function AccountPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
             <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Full Name</span><br />{profile.fullName}</div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Phone</span><br />{profile.phone}</div>
+            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Phone</span><br /><code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone}</code></div>
             <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Email</span><br />{profile.email || '—'}</div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Locale</span><br />{profile.locale}</div>
+            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Locale</span><br />{profile.locale === 'ar' ? 'العربية' : 'English'}</div>
+            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Status</span><br />
+              <span style={{
+                fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                background: profile.status === 'ACTIVE' ? '#d1fae5' : '#fef3c7',
+                color: profile.status === 'ACTIVE' ? '#065f46' : '#92400e',
+              }}>{profile.status}</span>
+            </div>
+            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>User ID</span><br /><code style={{ fontSize: 11, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.id.slice(0, 8)}...</code></div>
           </div>
         )}
       </div>

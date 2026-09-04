@@ -16,7 +16,11 @@ async function bootstrap() {
   // ── Security ───────────────────────────────────────────────
   app.use(helmet());
   app.enableCors({
-    origin: process.env['API_CORS_ORIGINS']?.split(',') || ['http://localhost:3100'],
+    origin: process.env['API_CORS_ORIGINS']?.split(',') || [
+      'http://localhost:3100',  // web
+      'http://localhost:3200',  // admin
+      'http://localhost:3300',  // mobile (if applicable)
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'If-Match'],
