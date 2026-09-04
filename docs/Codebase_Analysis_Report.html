@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Commerce &amp; Supply Platform — Codebase Analysis Report</title>
+<style>
+  :root {
+    --brand: #174A5B; --brand-dark: #0F3340; --accent: #C98A2D;
+    --ok: #1B7A4B; --warn: #B45309; --err: #B3372F; --info: #1D5FA8;
+    --ink: #16232B; --muted: #5B6B74; --bg: #F2F5F6; --line: #D9E2E6;
+    --card: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.6; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 24px; }
+  header.report-header {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+    color: #fff; border-radius: 12px; padding: 40px 36px; margin-bottom: 28px;
+    box-shadow: 0 4px 24px rgba(22,35,43,.15);
+  }
+  header.report-header h1 { font-size: 1.9rem; margin-bottom: 6px; }
+  header.report-header .subtitle { opacity: .85; font-size: .95rem; }
+  header.report-header .meta { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 18px; font-size: .82rem; opacity: .8; }
+  .score-band { display: flex; align-items: center; gap: 24px; margin-top: 22px; flex-wrap: wrap; }
+  .score-circle {
+    width: 108px; height: 108px; border-radius: 50%;
+    background: conic-gradient(var(--accent) 0% 82%, rgba(255,255,255,.15) 82% 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 4px solid rgba(255,255,255,.25);
+  }
+  .score-circle .num { font-size: 1.9rem; font-weight: 700; }
+  .score-circle .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; opacity: .85; }
+  .score-bars { flex: 1; min-width: 260px; }
+  .score-bar { margin-bottom: 10px; }
+  .score-bar .row { display: flex; justify-content: space-between; font-size: .8rem; margin-bottom: 3px; }
+  .score-bar .track { height: 8px; background: rgba(255,255,255,.18); border-radius: 4px; overflow: hidden; }
+  .score-bar .fill { height: 100%; border-radius: 4px; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; margin-bottom: 28px; font-size: .88rem; }
+  nav.toc strong { display: block; margin-bottom: 8px; color: var(--brand); }
+  nav.toc a { color: var(--info); text-decoration: none; margin-right: 14px; }
+  nav.toc a:hover { text-decoration: underline; }
+  details.section {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    margin-bottom: 18px; overflow: hidden;
+  }
+  details.section > summary {
+    cursor: pointer; padding: 16px 22px; font-weight: 600; font-size: 1.05rem;
+    background: #FAFCFD; border-bottom: 1px solid var(--line);
+    list-style: none; display: flex; align-items: center; gap: 10px;
+  }
+  details.section > summary::before { content: '▸'; color: var(--accent); transition: transform .15s; }
+  details.section[open] > summary::before { transform: rotate(90deg); }
+  details.section .body { padding: 20px 22px; }
+  details.section > summary:hover { background: #F4F8FA; }
+  h2 { font-size: 1.35rem; color: var(--brand-dark); margin-bottom: 14px; }
+  h3 { font-size: 1.08rem; color: var(--brand); margin: 22px 0 10px; }
+  h4 { font-size: .95rem; color: var(--ink); margin: 16px 0 8px; }
+  p { margin-bottom: 10px; font-size: .92rem; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: .85rem; }
+  th { background: var(--brand); color: #fff; text-align: left; padding: 9px 12px; font-weight: 600; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: #F8FAFB; }
+  code, .code { font-family: 'Cascadia Code', Consolas, monospace; background: #EEF3F5; padding: 1px 6px; border-radius: 4px; font-size: .8rem; color: var(--brand-dark); }
+  pre { background: #16232B; color: #E4ECEF; padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: .8rem; margin: 10px 0 16px; }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  .sev { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+  .sev-critical { background: #FDE8E6; color: var(--err); border: 1px solid #F3C1BC; }
+  .sev-high { background: #FDF1E3; color: var(--warn); border: 1px solid #EFD4AE; }
+  .sev-medium { background: #FEF9E0; color: #92710A; border: 1px solid #ECE0A6; }
+  .sev-low { background: #E9F3FC; color: var(--info); border: 1px solid #C3DDF3; }
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: .75rem; font-weight: 600; }
+  .chip-ok { background: #E3F4EB; color: var(--ok); }
+  .chip-warn { background: #FDF1E3; color: var(--warn); }
+  .chip-err { background: #FDE8E6; color: var(--err); }
+  .chip-info { background: #E9F3FC; color: var(--info); }
+  .callout { border-left: 4px solid var(--accent); background: #FDF8EF; padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 14px 0; font-size: .9rem; }
+  .callout.err { border-color: var(--err); background: #FDF1F0; }
+  .callout.ok { border-color: var(--ok); background: #F0F9F4; }
+  .callout.info { border-color: var(--info); background: #EFF6FC; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .stat-card { background: #FAFCFD; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .stat-card .v { font-size: 1.5rem; font-weight: 700; color: var(--brand); }
+  .stat-card .k { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  ul.checklist { list-style: none; padding-left: 4px; }
+  ul.checklist li { padding: 4px 0 4px 26px; position: relative; font-size: .9rem; }
+  ul.checklist li::before { content: '☐'; position: absolute; left: 0; color: var(--muted); font-size: 1.05rem; }
+  .path { font-family: Consolas, monospace; font-size: .78rem; color: var(--muted); word-break: break-all; }
+  .progress-note { font-size: .8rem; color: var(--muted); font-style: italic; }
+  footer { text-align: center; padding: 24px; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); margin-top: 30px; }
+  @media print { details.section { page-break-inside: avoid; } details.section:not([open]) .body { display: block; } details.section > summary::before { content: ''; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="report-header">
+  <h1>Smart Commerce &amp; Supply Platform</h1>
+  <div class="subtitle">Comprehensive Codebase Analysis &amp; Phase 1 Readiness Assessment</div>
+  <div class="meta">
+    <span>📅 2026-09-04</span>
+    <span>🧩 4 Applications Analyzed</span>
+    <span>📄 Authority: Smart_Commerce_Supply_Platform_Final_Plan.html (§21)</span>
+  </div>
+  <div class="score-band">
+    <div class="score-circle">
+      <div class="num">82</div>
+      <div class="lbl">Maturity</div>
+    </div>
+    <div class="score-bars">
+      <div class="score-bar"><div class="row"><span>Phase 1 Feature Coverage</span><span>88%</span></div><div class="track"><div class="fill" style="width:88%;background:#7BC98A"></div></div></div>
+      <div class="score-bar"><div class="row"><span>Security Posture</span><span>75%</span></div><div class="track"><div class="fill" style="width:75%;background:#E8B45A"></div></div></div>
+      <div class="score-bar"><div class="row"><span>Code Quality</span><span>85%</span></div><div class="track"><div class="fill" style="width:85%;background:#7BC98A"></div></div></div>
+      <div class="score-bar"><div class="row"><span>Cross-Platform Consistency</span><span>80%</span></div><div class="track"><div class="fill" style="width:80%;background:#E8B45A"></div></div></div>
+      <div class="score-bar"><div class="row"><span>Launch Readiness (§21.6)</span><span>83%</span></div><div class="track"><div class="fill" style="width:83%;background:#7BC98A"></div></div></div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <a href="#exec">1. Executive Summary</a>
+  <a href="#api">2.1 Backend API</a>
+  <a href="#admin">2.2 Admin Console</a>
+  <a href="#web">2.3 Web App</a>
+  <a href="#mobile">2.4 Mobile App</a>
+  <a href="#xplat">3. Cross-Platform</a>
+  <a href="#gaps">4. Gap Analysis</a>
+  <a href="#improve">5. Improvements</a>
+  <a href="#actions">6. Action Items</a>
+</nav>
+
+<!-- ═══════════════ 1. EXECUTIVE SUMMARY ═══════════════ -->
+<details class="section" open id="exec">
+<summary>1 · Executive Summary</summary>
+<div class="body">
+
+<div class="grid2">
+  <div class="stat-card"><div class="v">84 / 39 / 17 / 34</div><div class="k">Source files — API / Web / Admin / Mobile</div></div>
+  <div class="stat-card"><div class="v">✅ 4 / 4</div><div class="k">Apps passing type-check &amp; static analysis</div></div>
+  <div class="stat-card"><div class="v">3 🔴</div><div class="k">Critical blockers to pilot launch</div></div>
+  <div class="stat-card"><div class="v">5 🟠</div><div class="k">High-severity issues</div></div>
+  <div class="stat-card"><div class="v">8</div><div class="k">Test files across all apps (thin)</div></div>
+  <div class="stat-card"><div class="v">28 / 35</div><div class="k">Phase 1 capabilities implemented</div></div>
+</div>
+
+<h3>Critical Blockers Preventing Pilot Launch</h3>
+<table>
+  <tr><th>#</th><th>Blocker</th><th>Location</th><th>Severity</th></tr>
+  <tr><td>1</td><td><strong>Device-trust bootstrap broken</strong> — <code>verifyOtp()</code> never stores <code>deviceId</code>, so password login on a new device requires OTP <em>forever</em></td><td class="path">apps/api/src/modules/identity/identity.service.ts:100-110</td><td><span class="sev sev-critical">Critical</span></td></tr>
+  <tr><td>2</td><td><strong>CORS rejects X-Device-Id header</strong> — web credential setup/change-password calls fail preflight</td><td class="path">apps/api/src/main.ts:26</td><td><span class="sev sev-critical">Critical</span></td></tr>
+  <tr><td>3</td><td><strong>CSV/Excel import is a stub</strong> — <code>setTimeout(1000)</code> marks job COMPLETED without parsing a single row</td><td class="path">apps/api/src/modules/catalog/catalog.service.ts:296-314</td><td><span class="sev sev-critical">Critical</span></td></tr>
+  <tr><td>4</td><td><strong>Promotions never applied at checkout</strong> — discount / deliveryFee / tax hardcoded to 0</td><td class="path">apps/api/src/modules/orders/orders.service.ts:104-106</td><td><span class="sev sev-high">High</span></td></tr>
+  <tr><td>5</td><td><strong>Admin console lacks dual-auth</strong> — diverges from shipped web/mobile capability</td><td class="path">apps/admin/src/lib/auth.ts (absent)</td><td><span class="sev sev-high">High</span></td></tr>
+</table>
+
+<h3>Quick Wins (&lt; 4 hours each)</h3>
+<ul class="checklist">
+  <li>Add <code>X-Device-Id</code> to CORS <code>allowedHeaders</code> (1 line in main.ts)</li>
+  <li>Accept <code>deviceId</code> in <code>POST /auth/otp/verify</code> and persist it on the session</li>
+  <li>Fix deprecated <code>DropdownButtonFormField value</code> → <code>initialValue</code> (mobile organizations screen)</li>
+  <li>Replace generic <code>throw new Error()</code> with typed 401/429 exceptions in auth paths</li>
+  <li>Surface <code>429</code> rate-limit state in web/admin login UIs</li>
+</ul>
+
+<h3>Strategic Roadmap Alignment</h3>
+<table>
+  <tr><th>Phase</th><th>Status</th><th>Alignment</th></tr>
+  <tr><td>Phase 1 — B2B MVP</td><td><span class="chip chip-warn">88% complete</span></td><td>Fix 3 blockers → pilot-ready</td></tr>
+  <tr><td>Phase 2 — Delivery &amp; Tracking</td><td><span class="chip chip-err">Not started</span></td><td><code>delivery/</code> module empty; driver dashboard UI scaffolded in mobile</td></tr>
+  <tr><td>Phase 3 — Payments &amp; Settlement</td><td><span class="chip chip-err">Not started</span></td><td><code>payments/</code> module empty; idempotency keys already collected at checkout</td></tr>
+  <tr><td>Phases 4–7 — B2C / Ads / AI / Infra</td><td><span class="chip chip-err">Not started</span></td><td><code>ads/</code>, <code>ai/</code> empty; analytics event tracking exists</td></tr>
+</table>
+
+</div>
+</details>
+
+<!-- ═══════════════ 2.1 API ═══════════════ -->
+<details class="section" open id="api">
+<summary>2.1 · Backend API — NestJS Modular Monolith <span class="chip chip-ok">tsc clean</span></summary>
+<div class="body">
+
+<p><strong>Scale:</strong> 84 TypeScript files · 18 domain modules · <span class="chip chip-ok">tsc --noEmit: 0 errors</span></p>
+
+<h3>Architecture Strengths</h3>
+<ul class="checklist">
+  <li>Clean module boundaries: identity, catalog, orders, merchant, pricing, promotions, inventory, reviews, notifications, analytics, admin, realtime, audit</li>
+  <li>Transactional outbox (<code>OutboxDispatcher</code>, 1s poll) for reliable domain events</li>
+  <li>RFC 7807 error envelope, request-ID correlation, pino logging, helmet, URI versioning</li>
+  <li>JWT rotation + refresh-reuse detection (chain revocation)</li>
+  <li>Dual-auth: bcrypt(12), NIST password policy, Redis rate limiting (5/15min), <code>credential_audit_log</code></li>
+</ul>
+
+<h3>Findings</h3>
+<table>
+  <tr><th>ID</th><th>Severity</th><th>Location</th><th>Issue</th></tr>
+  <tr><td>API-B1</td><td><span class="sev sev-critical">Critical</span></td><td class="path">identity/identity.service.ts:100-110</td><td><code>verifyOtp()</code> hardcodes <code>device: 'web'</code>, omits <code>deviceId</code> → device trust never bootstraps; password logins always demand OTP</td></tr>
+  <tr><td>API-B2</td><td><span class="sev sev-critical">Critical</span></td><td class="path">main.ts:26</td><td>CORS <code>allowedHeaders</code> missing <code>X-Device-Id</code></td></tr>
+  <tr><td>API-B3</td><td><span class="sev sev-critical">Critical</span></td><td class="path">catalog/catalog.service.ts:296-314</td><td>Import job faked via <code>setTimeout</code>; no CSV/Excel parsing, not restart-safe</td></tr>
+  <tr><td>API-B4</td><td><span class="sev sev-high">High</span></td><td class="path">orders/orders.service.ts:104-106</td><td><code>discount=0; deliveryFee=0; tax=0</code> — promos stored but never priced; VAT unapplied</td></tr>
+  <tr><td>API-B5</td><td><span class="sev sev-high">High</span></td><td class="path">identity.service.ts:38,42,63</td><td>Generic <code>Error</code> → HTTP 500 for auth failures (should be 401/429)</td></tr>
+  <tr><td>API-B6</td><td><span class="sev sev-high">High</span></td><td class="path">merchant/catalog controllers</td><td>RBAC gaps: 19 <code>@RequirePermission</code> usages, nearly all admin-only; merchant writes rely on JWT guard alone</td></tr>
+  <tr><td>API-B7</td><td><span class="sev sev-medium">Medium</span></td><td class="path">identity.module.ts:14</td><td>JWT secret dev fallback; no production env gate</td></tr>
+  <tr><td>API-B8</td><td><span class="sev sev-medium">Medium</span></td><td class="path">identity.service.ts:429-463</td><td>N+1 in <code>buildClaims</code> / member listing loops — one query per role-permission</td></tr>
+  <tr><td>API-B9</td><td><span class="sev sev-medium">Medium</span></td><td class="path">identity.service.ts:181-203</td><td><code>switchOrg</code> re-signs JWT without revoking old token → 15-min stale-permission window</td></tr>
+  <tr><td>API-B10</td><td><span class="sev sev-medium">Medium</span></td><td class="path">auth.controller.ts:10-18</td><td>Untyped <code>@Body()</code> — <code>forbidNonWhitelisted</code> pipe ineffective without DTOs</td></tr>
+  <tr><td>API-B11</td><td><span class="sev sev-low">Low</span></td><td class="path">catalog.service.ts:307</td><td>In-process timer lost on crash → job stuck in IMPORTING</td></tr>
+</table>
+
+<div class="callout err"><strong>Blocking chain:</strong> API-B1 + API-B2 together make the shipped dual-auth feature unusable end-to-end for the exact scenario it was designed for (returning user, new device). Both are &lt;1-day fixes.</div>
+
+<h3>Test Coverage</h3>
+<p>5 spec files across the API. Identity and order-pricing paths — the highest-risk logic — are untested.</p>
+
+</div>
+</details>
+
+<!-- ═══════════════ 2.2 ADMIN ═══════════════ -->
+<details class="section" id="admin">
+<summary>2.2 · Admin Console — Next.js :3200 <span class="chip chip-ok">tsc clean</span></summary>
+<div class="body">
+
+<p><strong>Scale:</strong> 17 TS/TSX files · <span class="chip chip-ok">tsc --noEmit: 0 errors</span></p>
+
+<h3>Phase 1 §21.4 Capability Coverage — 9/9 ✅</h3>
+<table>
+  <tr><th>Capability</th><th>Status</th><th>Evidence</th></tr>
+  <tr><td>User management</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/users/</td></tr>
+  <tr><td>Merchant management</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/merchants/</td></tr>
+  <tr><td>Verification review</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/verification/</td></tr>
+  <tr><td>Category management</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/categories/page.tsx</td></tr>
+  <tr><td>Product moderation</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/products/</td></tr>
+  <tr><td>Order monitoring</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/orders/</td></tr>
+  <tr><td>Support &amp; disputes</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/disputes/</td></tr>
+  <tr><td>KPI reports</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/kpis/</td></tr>
+  <tr><td>Audit logs</td><td><span class="chip chip-ok">✅</span></td><td class="path">app/audit/</td></tr>
+</table>
+
+<h3>Findings</h3>
+<table>
+  <tr><th>ID</th><th>Severity</th><th>Location</th><th>Issue</th></tr>
+  <tr><td>ADM-B1</td><td><span class="sev sev-high">High</span></td><td class="path">src/lib/auth.ts</td><td>No dual-auth functions — admin is OTP-only while web/mobile shipped password login</td></tr>
+  <tr><td>ADM-B2</td><td><span class="sev sev-medium">Medium</span></td><td class="path">src/lib/auth.ts:117-126</td><td>User identity derived by client-side <code>atob()</code> JWT decode; can drift from server truth</td></tr>
+  <tr><td>ADM-B3</td><td><span class="sev sev-medium">Medium</span></td><td class="path">src/lib/api.ts</td><td>Hand-rolled endpoint clients; no shared types → drift risk vs API</td></tr>
+  <tr><td>ADM-B4</td><td><span class="sev sev-low">Low</span></td><td>—</td><td>No tests, no loading-skeleton conventions</td></tr>
+</table>
+
+</div>
+</details>
+
+<!-- ═══════════════ 2.3 WEB ═══════════════ -->
+<details class="section" id="web">
+<summary>2.3 · Web App — Next.js :3100 <span class="chip chip-ok">tsc clean</span></summary>
+<div class="body">
+
+<p><strong>Scale:</strong> 39 TS/TSX files · 13 route groups · <span class="chip chip-ok">tsc --noEmit: 0 errors</span></p>
+
+<h3>Phase 1 Coverage</h3>
+<p>Retailer: search/filters, merchant/product pages, cart, checkout (idempotency via <code>globalThis.crypto.randomUUID()</code>), order history, reorder, favorites, ratings — all present. Merchant: catalog, promotions, imports UI (stub backend), customers, verification wizard — all present.</p>
+
+<h3>Findings</h3>
+<table>
+  <tr><th>ID</th><th>Severity</th><th>Location</th><th>Issue</th></tr>
+  <tr><td>WEB-B1</td><td><span class="sev sev-critical">Critical</span></td><td class="path">src/lib/auth.ts:340-390</td><td><code>X-Device-Id</code> header blocked by API CORS (API-B2)</td></tr>
+  <tr><td>WEB-B2</td><td><span class="sev sev-medium">Medium</span></td><td class="path">src/lib/auth.ts</td><td><code>AuthUser</code> lacks <code>email</code>/<code>hasPassword</code> — credential state needs extra fetch</td></tr>
+  <tr><td>WEB-B3</td><td><span class="sev sev-medium">Medium</span></td><td class="path">app/profile/sessions/page.tsx</td><td>Relies on <code>x-session-id</code> header the API no longer reads → <code>isCurrent</code> always false</td></tr>
+  <tr><td>WEB-B4</td><td><span class="sev sev-medium">Medium</span></td><td class="path">src/lib/auth.ts:247-293</td><td>No single-flight refresh guard → parallel 401s can trigger reuse-detection chain revocation</td></tr>
+  <tr><td>WEB-B5</td><td><span class="sev sev-low">Low</span></td><td class="path">app/login/page.tsx</td><td>Auto-login prefill silently swallows errors; no "Forgot password" path</td></tr>
+  <tr><td>WEB-B6</td><td><span class="sev sev-low">Low</span></td><td>—</td><td>No tests; no WebSocket usage despite live API gateway</td></tr>
+</table>
+
+</div>
+</details>
+
+<!-- ═══════════════ 2.4 MOBILE ═══════════════ -->
+<details class="section" id="mobile">
+<summary>2.4 · Mobile App — Flutter <span class="chip chip-warn">1 info diagnostic</span></summary>
+<div class="body">
+
+<p><strong>Scale:</strong> 34 Dart files · 13 screen groups · <span class="chip chip-warn">dart analyze: 1 info (deprecated member)</span></p>
+
+<h3>Dual-Auth Implementation (new)</h3>
+<ul class="checklist">
+  <li>Dual-mode login screen (email/password + OTP tabs, auto-login check)</li>
+  <li>Credential setup, change password, session management screens</li>
+  <li><code>DeviceIdService</code> — UUID persisted in SharedPreferences, platform-prefixed</li>
+  <li>API service: <code>loginPassword</code>, <code>checkDeviceLogin</code>, <code>setupCredentials</code>, <code>changePassword</code>, <code>fetchSessions</code>, <code>revokeSessionsByDevice</code></li>
+  <li>Router integration + profile Security section navigation</li>
+</ul>
+
+<h3>Findings</h3>
+<table>
+  <tr><th>ID</th><th>Severity</th><th>Location</th><th>Issue</th></tr>
+  <tr><td>MOB-B1</td><td><span class="sev sev-critical">Critical</span></td><td class="path">(API root cause)</td><td>Device-trust bootstrap broken server-side → infinite OTP loop on new devices</td></tr>
+  <tr><td>MOB-B2</td><td><span class="sev sev-medium">Medium</span></td><td class="path">screens/organizations/organizations_screen.dart:112</td><td>Deprecated <code>DropdownButtonFormField.value</code> → use <code>initialValue</code></td></tr>
+  <tr><td>MOB-B3</td><td><span class="sev sev-medium">Medium</span></td><td class="path">services/api_service.dart</td><td>Auth/session endpoints return raw <code>Map&lt;String,dynamic&gt;</code>; no typed models</td></tr>
+  <tr><td>MOB-B4</td><td><span class="sev sev-medium">Medium</span></td><td class="path">router/router.dart</td><td>Legacy <code>/verify/:phone</code> route retained while LoginScreen handles OTP inline — dead-route risk</td></tr>
+  <tr><td>MOB-B5</td><td><span class="sev sev-low">Low</span></td><td>—</td><td>3 test files; no widget tests for auth screens</td></tr>
+  <tr><td>MOB-B6</td><td><span class="sev sev-low">Low</span></td><td>—</td><td><code>drift</code> dependency present but no offline cart queue</td></tr>
+</table>
+
+</div>
+</details>
+
+<!-- ═══════════════ 3. CROSS-PLATFORM ═══════════════ -->
+<details class="section" id="xplat">
+<summary>3 · Cross-Platform Integration Analysis</summary>
+<div class="body">
+
+<h3>3.1 JWT Flow Consistency</h3>
+<table>
+  <tr><th>Aspect</th><th>API</th><th>Web</th><th>Admin</th><th>Mobile</th><th>Verdict</th></tr>
+  <tr><td>Access TTL</td><td>15 min</td><td>15 min</td><td>15 min</td><td>interceptor</td><td><span class="chip chip-ok">Aligned</span></td></tr>
+  <tr><td>Refresh rotation + reuse detection</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td><span class="chip chip-ok">Aligned</span></td></tr>
+  <tr><td>Session persistence</td><td>sessions table</td><td>localStorage</td><td>localStorage</td><td>secure storage</td><td><span class="chip chip-ok">Aligned</span></td></tr>
+  <tr><td>Device trust</td><td>deviceId on session</td><td>UUID (localStorage)</td><td>❌ absent</td><td>UUID (prefs)</td><td><span class="chip chip-warn">Admin diverges</span></td></tr>
+  <tr><td>Profile hydration</td><td>/v1/me</td><td>fetch after verify</td><td>client JWT decode</td><td>profileProvider</td><td><span class="chip chip-warn">Admin diverges</span></td></tr>
+</table>
+
+<h3>3.2 Communication Consistency</h3>
+<table>
+  <tr><th>Channel</th><th>Status</th><th>Notes</th></tr>
+  <tr><td>API ↔ Admin</td><td><span class="chip chip-ok">Consistent</span></td><td>Strongest RBAC boundary (<code>admin:*</code> perms); auth lib lags dual-auth</td></tr>
+  <tr><td>API ↔ Web</td><td><span class="chip chip-err">Breaking</span></td><td>CORS <code>X-Device-Id</code> (API-B2); <code>isCurrent</code> header mismatch (WEB-B3)</td></tr>
+  <tr><td>API ↔ Mobile</td><td><span class="chip chip-warn">Partial</span></td><td>Headers plumbed; blocked by API-B1 root cause; promo body mismatch previously fixed</td></tr>
+  <tr><td>Realtime (Socket.IO)</td><td><span class="chip chip-err">Unused</span></td><td>Gateway live at <code>/realtime</code> (<code>join</code>/<code>leave</code>); zero clients connect</td></tr>
+</table>
+
+<h3>3.3 Shared Utilities &amp; Type Safety</h3>
+<div class="callout">Password-validation logic is duplicated (API <code>common/utils/password-validation.ts</code> ↔ web <code>lib/utils/password-validation.ts</code>). No shared contracts package exists across the four surfaces — drift is already visible in the admin app. Recommended: <code>@scs/contracts</code> generated from OpenAPI.</div>
+
+</div>
+</details>
+
+<!-- ═══════════════ 4. GAPS ═══════════════ -->
+<details class="section" id="gaps">
+<summary>4 · Gap Identification vs Phase 1 Plan (§21)</summary>
+<div class="body">
+
+<h3>4.1 Wholesaler Capabilities (§21.2)</h3>
+<table>
+  <tr><th>Requirement</th><th>Status</th><th>Gap</th></tr>
+  <tr><td>Store &amp; business profile</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Basic verification</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Category / product / media</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Excel/CSV import</td><td><span class="chip chip-err">❌ Stubbed</span></td><td><code>processImportJob</code> never parses files</td></tr>
+  <tr><td>Manual stock management</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Quantity pricing</td><td><span class="chip chip-ok">✅</span></td><td>Price lists + tiers</td></tr>
+  <tr><td>Basic promotions</td><td><span class="chip chip-warn">⚠️</span></td><td>CRUD exists; discount never applied to orders</td></tr>
+  <tr><td>Order management</td><td><span class="chip chip-ok">✅</span></td><td>FSM w/ 16 statuses</td></tr>
+  <tr><td>Customer list</td><td><span class="chip chip-ok">✅</span></td><td><code>GET /v1/merchant/customers</code> + web page</td></tr>
+  <tr><td>Order notifications</td><td><span class="chip chip-ok">✅</span></td><td>FCM + in-app</td></tr>
+</table>
+
+<h3>4.2 Retailer Capabilities (§21.3)</h3>
+<table>
+  <tr><th>Requirement</th><th>Status</th><th>Gap</th></tr>
+  <tr><td>Account &amp; store profile</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Location/area setting</td><td><span class="chip chip-warn">⚠️</span></td><td>Deferred (Low)</td></tr>
+  <tr><td>Search &amp; filters · Merchant/product pages · Cart · PO · History · Reorder · Ratings</td><td><span class="chip chip-ok">✅</span></td><td>—</td></tr>
+  <tr><td>Favorites / saved suppliers</td><td><span class="chip chip-warn">⚠️</span></td><td>Product favorites ✅; store-level saved suppliers missing</td></tr>
+</table>
+
+<h3>4.3 Admin Capabilities (§21.4)</h3>
+<p><span class="chip chip-ok">9/9 complete</span> — all present after remediation.</p>
+
+<h3>4.4 Launch Readiness Standard (§21.6)</h3>
+<table>
+  <tr><th>Area</th><th>Met?</th><th>Evidence / Gap</th></tr>
+  <tr><td>Product: publish without support</td><td><span class="chip chip-warn">⚠️</span></td><td>Import stub undermines bulk onboarding</td></tr>
+  <tr><td>Transaction: end-to-end B2B order</td><td><span class="chip chip-warn">⚠️</span></td><td>Completes, but discount/tax/fee = 0</td></tr>
+  <tr><td>Support: dispute path</td><td><span class="chip chip-ok">✅</span></td><td>Disputes + conversations</td></tr>
+  <tr><td>Performance</td><td><span class="chip chip-warn">⚠️</span></td><td>No load-test evidence; N+1 patterns</td></tr>
+  <tr><td>Security (RBAC, protection, logs, backups)</td><td><span class="chip chip-warn">⚠️</span></td><td>RBAC+logs ✅; <strong>backups missing</strong>; CORS bug</td></tr>
+  <tr><td>Analytics funnel</td><td><span class="chip chip-ok">✅</span></td><td><code>/v1/analytics/track</code> + batch</td></tr>
+  <tr><td>Operations ownership</td><td><span class="chip chip-warn">⚠️</span></td><td>Process, not code</td></tr>
+</table>
+
+<h3>4.5 Deferred-Phase Pull-Forward Candidates</h3>
+<ul class="checklist">
+  <li><strong>Phase 2:</strong> driver dashboard scaffold exists in mobile; delivery module shell empty</li>
+  <li><strong>Phase 3:</strong> checkout already collects idempotency keys → payment-intent seam is natural</li>
+  <li><strong>Phase 6:</strong> analytics events already collected → heuristics possible before full ML</li>
+</ul>
+
+<h3>4.6 Architecture Decisions Limiting Future Scalability</h3>
+<ul class="checklist">
+  <li>N+1 claim building on every token refresh — hotspot under mobile refresh storms</li>
+  <li>In-process fake import pipeline — must move to a queue before volume</li>
+  <li>Client-local session-expiry math duplicates JWT <code>exp</code> — parse the token instead</li>
+  <li>No shared contracts package — four hand-maintained surfaces already drifting</li>
+</ul>
+
+</div>
+</details>
+
+<!-- ═══════════════ 5. IMPROVEMENTS ═══════════════ -->
+<details class="section" id="improve">
+<summary>5 · Advanced Improvements Beyond MVP</summary>
+<div class="body">
+
+<h3>5.1 Performance</h3>
+<ul class="checklist">
+  <li>Eliminate N+1 in <code>buildClaims</code> via a single roles⋈permissions join; target &lt;5 queries per refresh</li>
+  <li>Redis-cache categories/brands (60s TTL) — they front every search page</li>
+  <li>Single-flight refresh promise on web/admin clients</li>
+  <li>Adopt the live Socket.IO gateway for order-status push; retire polling</li>
+  <li>Enforce server-side pagination defaults (limit ≤ 50) on all list endpoints</li>
+</ul>
+
+<h3>5.2 Security</h3>
+<ul class="checklist">
+  <li>[P0] CORS: allow <code>X-Device-Id</code></li>
+  <li>[P0] OTP verify: accept + persist <code>deviceId</code>; typed 401/429 exceptions</li>
+  <li>Extend <code>@RequirePermission</code> to merchant/catalog writes; seed <code>merchant:*</code> keys</li>
+  <li>Fail fast when <code>JWT_ACCESS_SECRET</code> unset outside development</li>
+  <li>Daily encrypted Postgres backup + restore drill (single P1 ops gap)</li>
+  <li>FCM notification on account lockout events</li>
+  <li>DTOs on all auth bodies so <code>forbidNonWhitelisted</code> actually filters</li>
+</ul>
+
+<h3>5.3 Developer Experience</h3>
+<ul class="checklist">
+  <li>CI: typecheck + lint + <code>dart analyze</code> + migration dry-run per PR</li>
+  <li><code>@scs/contracts</code>: OpenAPI → TS + Dart codegen for all four clients</li>
+  <li>Coverage targets: 40% on identity/orders; widget tests for 4 auth screens; Playwright smoke for login/checkout</li>
+  <li>Seed: <code>admin:*</code> permission keys + demo password-credential user</li>
+</ul>
+
+<h3>5.4 User Experience</h3>
+<ul class="checklist">
+  <li>RFC 7807-aware localized error surfaces on all clients</li>
+  <li>"Forgot password" → OTP-reset flow (OTP remains authoritative)</li>
+  <li>Remaining-attempts UX on lockout (read <code>X-RateLimit-Remaining</code>)</li>
+  <li>Mobile offline cart queue via the existing <code>drift</code> dependency</li>
+  <li>Skeleton loaders on web (mobile already has <code>shimmer</code>)</li>
+</ul>
+
+<h3>5.5 Scalability</h3>
+<ul class="checklist">
+  <li>Stay modular monolith through pilot; first extraction candidate: <strong>notifications</strong> (already isolated)</li>
+  <li>BullMQ import worker on existing Redis — unlocks real CSV parsing</li>
+  <li>Read replicas only after Phase 3 volume; measure <code>buildClaims</code> first</li>
+  <li>Enforce documented module-boundary lint rules</li>
+</ul>
+
+</div>
+</details>
+
+<!-- ═══════════════ 6. ACTIONS ═══════════════ -->
+<details class="section" open id="actions">
+<summary>6 · Action Items Checklist</summary>
+<div class="body">
+
+<h3>🔴 P0 — Blockers (this week)</h3>
+<ul class="checklist">
+  <li><strong>API-B2</strong>: Add <code>X-Device-Id</code> to CORS <code>allowedHeaders</code> — <span class="path">apps/api/src/main.ts:26</span></li>
+  <li><strong>API-B1</strong>: <code>POST /auth/otp/verify</code> accepts <code>deviceId</code>; persist on session — <span class="path">identity.service.ts:verifyOtp</span></li>
+  <li><strong>API-B5</strong>: Typed 401/429 exceptions in OTP + password paths</li>
+  <li><strong>API-B3</strong>: Real CSV/Excel parsing in <code>processImportJob</code> (or scope import out of pilot)</li>
+  <li><strong>OPS</strong>: Daily backup script + restore drill</li>
+</ul>
+
+<h3>🟠 P1 — High (next sprint)</h3>
+<ul class="checklist">
+  <li><strong>API-B4</strong>: Apply promo discount + VAT (15%) + delivery fee at checkout — <span class="path">orders.service.ts:104-106</span></li>
+  <li><strong>ADM-B1</strong>: Port dual-auth to admin (or document OTP-only)</li>
+  <li><strong>WEB-B4</strong>: Single-flight refresh guard — <span class="path">apps/web/src/lib/auth.ts</span></li>
+  <li><strong>WEB-B3</strong>: Fix <code>isCurrent</code> session contract</li>
+  <li><strong>API-B6</strong>: Merchant write-endpoint permissions + seed</li>
+  <li>Store-level saved suppliers (§21.3)</li>
+  <li><strong>MOB-B2</strong>: <code>initialValue</code> in organizations_screen.dart:112</li>
+</ul>
+
+<h3>🟡 P2 — Medium (month)</h3>
+<ul class="checklist">
+  <li>DTO validation for auth endpoints</li>
+  <li>N+1 elimination in identity service</li>
+  <li>CI pipeline + coverage gates</li>
+  <li><code>@scs/contracts</code> shared types</li>
+  <li>Realtime notification wiring (web + mobile)</li>
+  <li>Admin profile hydration via <code>/v1/me</code> (drop client JWT decode)</li>
+</ul>
+
+<h3>🔵 P3 — Strategic</h3>
+<ul class="checklist">
+  <li>BullMQ import worker</li>
+  <li>Offline cart queue (mobile)</li>
+  <li>Payment-intent seam (Phase 3)</li>
+  <li>Recommendation heuristics on analytics events (Phase 6 pull-forward)</li>
+</ul>
+
+</div>
+</details>
+
+<footer>
+  Generated from live codebase analysis — 2026-09-04 · 84 API · 39 Web · 17 Admin · 34 Mobile files · all type-checked / analyzed<br>
+  Authority: Smart_Commerce_Supply_Platform_Final_Plan.html (§21 Phase 1 — Launchable B2B MVP)
+</footer>
+
+</div>
+</body>
+</html>

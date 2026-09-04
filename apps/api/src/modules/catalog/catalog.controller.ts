@@ -160,7 +160,15 @@ export class CatalogController {
     return this.catalogService.getImportJob(id);
   }
 
-  @Post('imports/:id/process')
+  @Post('imports/:id/rows')
+  async stageImportRows(
+    @Param('id') id: string,
+    @Body() body: { rows: Record<string, string>[]; append?: boolean },
+  ) {
+    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
+  }
+
+@Post('imports/:id/process')
   async processImportJob(@Param('id') id: string) {
     return this.catalogService.processImportJob(id);
   }

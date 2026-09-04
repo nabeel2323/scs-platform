@@ -109,7 +109,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                       labelText: 'Country', border: OutlineInputBorder())),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: _type,
+                initialValue: _type,
                 decoration: const InputDecoration(
                     labelText: 'Type', border: OutlineInputBorder()),
                 items: const [

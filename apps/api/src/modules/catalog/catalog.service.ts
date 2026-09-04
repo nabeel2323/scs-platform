@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { categories, brands, products, productVariants, productMedia, importJobs, favorites } from './catalog.schema';
+import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -12,6 +14,7 @@ import crypto from 'node:crypto';
 export class CatalogService {
   constructor(
     private readonly db: DatabaseService,
+    private readonly redis: RedisService,
     private readonly outbox: OutboxDispatcher,
   ) {}
 
@@ -272,6 +275,7 @@ export class CatalogService {
       fileSize: input.fileSize || 0,
       storageKey,
       status: 'UPLOADED',
+      columnMapping: input.columnMapping || {},
       createdBy: userId,
     });
 
@@ -293,24 +297,340 @@ export class CatalogService {
     });
   }
 
-  async processImportJob(id: string) {
+  /**
+   * Stage parsed CSV rows for an import job.
+   * Clients parse the file locally and upload rows in batches
+   * (keeps request bodies under the JSON parser limit).
+   * Batches accumulate in Redis with a 1h TTL.
+   */
+  async stageImportRows(id: string, rows: Record<string, string>[], append: boolean) {
     const job = await this.getImportJob(id);
     if (job.status !== 'UPLOADED' && job.status !== 'MAPPING') {
+      throw new ConflictException(`Cannot stage rows for job in status: ${job.status}`);
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('rows must be a non-empty array');
+    }
+    if (rows.length > 500) {
+      throw new BadRequestException('Batch too large: max 500 rows per request');
+    }
+
+    const key = this.stagedRowsKey(id);
+    if (!append) await this.redis.client.del(key);
+    await this.redis.client.rpush(key, JSON.stringify(rows));
+    await this.redis.client.expire(key, 3600);
+
+    return { staged: rows.length, batches: await this.redis.client.llen(key) };
+  }
+
+  private stagedRowsKey(id: string) {
+    return `import:rows:${id}`;
+  }
+
+  /**
+   * Process an import job: reads staged CSV rows from Redis, validates
+   * each row against the stored column mapping, and creates/updates
+   * products, variants and base price tiers. Per-row failures are
+   * collected in errorLog; the job completes with real stats.
+   */
+  async processImportJob(id: string) {
+    const job = await this.getImportJob(id);
+    const reprocessable = ['UPLOADED', 'MAPPING', 'IMPORTING', 'FAILED'];
+    if (!reprocessable.includes(job.status)) {
       throw new ConflictException(`Import job cannot be processed from status: ${job.status}`);
     }
-    // Transition to IMPORTING status (actual CSV/Excel parsing would happen here)
+
+    // Pull staged rows
+    const key = this.stagedRowsKey(id);
+    const batches = await this.redis.client.lrange(key, 0, -1);
+    const rows: Record<string, string>[] = batches.flatMap(
+      (b) => JSON.parse(b) as Record<string, string>[],
+    );
+
+    if (rows.length === 0) {
+      if (job.fileType === 'XLSX') {
+        throw new BadRequestException(
+          'XLSX parsing is deferred for the pilot. Convert the file to CSV and stage rows via POST /v1/imports/:id/rows.',
+        );
+      }
+      throw new BadRequestException(
+        'No staged rows found. Upload parsed CSV rows via POST /v1/imports/:id/rows before processing.',
+      );
+    }
+
+    const mapping = (job.columnMapping || {}) as Record<string, string>;
+    if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
+      throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor');
+    }
+
     await this.db.db.update(importJobs)
-      .set({ status: 'IMPORTING', updatedAt: new Date() })
+      .set({
+        status: 'IMPORTING',
+        startedAt: new Date(),
+        totalRows: rows.length,
+        processedRows: 0,
+        errorRows: 0,
+        errorLog: [],
+        stats: { total: rows.length, processed: 0, created: 0, updated: 0, skipped: 0, errors: 0 },
+        updatedAt: new Date(),
+      })
       .where(eq(importJobs.id, id));
-    
-    // Simulate import completion (in production: parse file, create products/variants)
-    setTimeout(async () => {
+
+    const priceListId = await this.getOrCreateDefaultPriceList(job.storeId);
+
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errorLog: Array<{ row: number; field: string; message: string }> = [];
+
+    try {
+      for (let i = 0; i < rows.length; i++) {
+        const rowNum = i + 2; // header is row 1 in the source file
+        try {
+          const outcome = await this.importRow(job.storeId, priceListId, mapping, rows[i]!, rowNum);
+          if (outcome === 'created') created++;
+          else if (outcome === 'updated') updated++;
+          else skipped++;
+        } catch (e) {
+          if (errorLog.length < 100) {
+            errorLog.push({
+              row: rowNum,
+              field: (e as ImportRowError).field || 'row',
+              message: (e as Error).message,
+            });
+          }
+        }
+
+        // Progress checkpoint every 25 rows so polling clients see movement
+        if ((i + 1) % 25 === 0 || i + 1 === rows.length) {
+          await this.db.db.update(importJobs)
+            .set({
+              processedRows: i + 1,
+              errorRows: errorLog.length,
+              stats: { total: rows.length, processed: i + 1, created, updated, skipped, errors: errorLog.length },
+              updatedAt: new Date(),
+            })
+            .where(eq(importJobs.id, id));
+        }
+      }
+    } catch (e) {
+      // Catastrophic failure (e.g. DB connection lost) — mark FAILED, keep staged rows for retry
       await this.db.db.update(importJobs)
-        .set({ status: 'COMPLETED', updatedAt: new Date() })
+        .set({
+          status: 'FAILED',
+          errorLog: [{ row: 0, field: 'job', message: (e as Error).message }],
+          updatedAt: new Date(),
+        })
         .where(eq(importJobs.id, id));
-    }, 1000);
+      throw e;
+    }
+
+    await this.db.db.update(importJobs)
+    .set({
+        status: 'COMPLETED',
+        processedRows: rows.length,
+        errorRows: errorLog.length,
+        errorLog,
+        stats: { total: rows.length, processed: rows.length, created, updated, skipped, errors: errorLog.length },
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(importJobs.id, id));
+
+    // Clean up staged rows
+    await this.redis.client.del(key);
 
     return this.getImportJob(id);
+  }
+
+  /**
+   * Import a single row: find-or-create category/brand, then either
+   * update the existing variant (matched by SKU within the store) or
+   * create product + variant + base price tier.
+   */
+  private async importRow(
+    storeId: string,
+    priceListId: string,
+    mapping: Record<string, string>,
+    row: Record<string, string>,
+    rowNum: number,
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const get = (key: string): string => {
+      const header = mapping[key];
+      return header ? (row[header] ?? '').trim() : '';
+    };
+
+    const name = get('name');
+    if (!name) throw new ImportRowError('name', `Row ${rowNum}: missing product name`);
+
+    const sku = get('sku');
+    if (!sku) throw new ImportRowError('sku', `Row ${rowNum}: missing SKU`);
+
+    const unit = get('unit') || 'PCS';
+
+    const priceRaw = get('priceMinor');
+    const priceMinor = parseInt(priceRaw, 10);
+    if (!priceRaw || isNaN(priceMinor) || priceMinor < 0) {
+      throw new ImportRowError('priceMinor', `Row ${rowNum}: invalid price "${priceRaw}" (expected minor units, e.g. 1050)`);
+    }
+
+    const moqRaw = get('moq');
+    const moq = moqRaw ? parseInt(moqRaw, 10) : 1;
+    if (isNaN(moq) || moq < 1) {
+      throw new ImportRowError('moq', `Row ${rowNum}: invalid MOQ "${moqRaw}"`);
+    }
+
+    const barcode = get('barcode') || null;
+    const description = get('description') || null;
+    const nameAr = get('nameAr') || null;
+
+    // Resolve category / brand (find-or-create by name)
+    const categoryName = get('category');
+    const categoryId = categoryName ? await this.findOrCreateCategory(storeId, categoryName) : null;
+    const brandName = get('brand');
+    const brandId = brandName ? await this.findOrCreateBrand(brandName) : null;
+
+    // Match existing variant by SKU within this store
+    const existing = await this.db.db
+      .select({ variantId: productVariants.id, productId: products.id })
+      .from(productVariants)
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .where(and(
+        eq(productVariants.sku, sku),
+        eq(products.storeId, storeId),
+        isNull(products.deletedAt),
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const match = existing[0]!;
+      await this.upsertBasePrice(priceListId, match.variantId, priceMinor);
+      await this.db.db.update(products)
+        .set({
+          moq,
+          ...(description ? { description } : {}),
+          ...(categoryId ? { categoryId } : {}),
+          ...(brandId ? { brandId } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(products.id, match.productId));
+      return 'updated';
+    }
+
+    // Create product (DRAFT) + default variant + base price
+    const productId = crypto.randomUUID();
+    const slugBase = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'product';
+    const slug = `${slugBase}-${crypto.randomUUID().substring(0, 8)}`;
+
+    await this.db.db.insert(products).values({
+      id: productId,
+      storeId,
+      categoryId,
+      brandId,
+      slug,
+      title: name,
+      titleAr: nameAr,
+      description,
+      status: 'DRAFT',
+      moq,
+    });
+
+    const variantId = crypto.randomUUID();
+    await this.db.db.insert(productVariants).values({
+      id: variantId,
+      productId,
+      sku,
+      barcode,
+      title: name,
+      titleAr: nameAr,
+      unit,
+    });
+
+    await this.upsertBasePrice(priceListId, variantId, priceMinor);
+    return 'created';
+  }
+
+  /** Get or create the store's default public B2B price list. */
+  private async getOrCreateDefaultPriceList(storeId: string): Promise<string> {
+    const existing = await this.db.db.query.priceLists.findFirst({
+      where: and(
+        eq(priceLists.storeId, storeId),
+        eq(priceLists.channel, 'B2B'),
+        eq(priceLists.audience, 'PUBLIC'),
+        eq(priceLists.isActive, true),
+      ),
+      orderBy: [priceLists.priority],
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(priceLists).values({
+      id,
+      storeId,
+      name: 'Default B2B Price List',
+      currency: 'SAR',
+      channel: 'B2B',
+      audience: 'PUBLIC',
+      priority: 0,
+    });
+    return id;
+  }
+
+  /** Find a store category by name, or create it at root level. */
+  private async findOrCreateCategory(storeId: string, name: string): Promise<string> {
+    const existing = await this.db.db.query.categories.findFirst({
+      where: and(eq(categories.storeId, storeId), eq(categories.name, name)),
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    const slug = `${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'category'}-${crypto.randomUUID().substring(0, 8)}`;
+    await this.db.db.insert(categories).values({
+      id,
+      storeId,
+      slug,
+      name,
+      path: `/${slug}`,
+      sortOrder: 0,
+    });
+    return id;
+  }
+
+  /** Find a global brand by name, or create it. */
+  private async findOrCreateBrand(name: string): Promise<string> {
+    const existing = await this.db.db.query.brands.findFirst({
+      where: eq(brands.name, name),
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    const slug = `${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'brand'}-${crypto.randomUUID().substring(0, 8)}`;
+    await this.db.db.insert(brands).values({ id, name, slug });
+    return id;
+  }
+
+  /** Upsert the min-qty-1 price tier for a variant in a price list. */
+  private async upsertBasePrice(priceListId: string, variantId: string, priceMinor: number) {
+    const existing = await this.db.db.query.priceTiers.findFirst({
+      where: and(
+        eq(priceTiers.priceListId, priceListId),
+        eq(priceTiers.variantId, variantId),
+        eq(priceTiers.minQty, 1),
+      ),
+    });
+    if (existing) {
+      await this.db.db.update(priceTiers)
+        .set({ unitPriceMinor: priceMinor, updatedAt: new Date() })
+        .where(eq(priceTiers.id, existing.id));
+    } else {
+      await this.db.db.insert(priceTiers).values({
+        id: crypto.randomUUID(),
+        priceListId,
+        variantId,
+        minQty: 1,
+        unitPriceMinor: priceMinor,
+      });
+    }
   }
 
   // ── Favorites / Wishlist ───────────────────────────────────
@@ -432,4 +752,16 @@ export interface CreateImportJobInput {
   fileName: string;
   fileType?: string;
   fileSize?: number;
+  columnMapping?: Record<string, string>;
+}
+
+/** Row-level validation error carrying the offending field name. */
+class ImportRowError extends Error {
+  constructor(
+    public readonly field: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ImportRowError';
+  }
 }

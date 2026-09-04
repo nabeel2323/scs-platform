@@ -13,8 +13,15 @@ export class AuthController {
   }
 
   @Post('otp/verify')
-  async verifyOtp(@Body() body: { phone: string; otp: string }) {
-    return this.identityService.verifyOtp(body.phone, body.otp);
+  async verifyOtp(
+    @Body() body: {
+      phone: string;
+      otp: string;
+      deviceId?: string;
+      deviceInfo?: { platform: string; userAgent: string };
+    },
+  ) {
+    return this.identityService.verifyOtp(body.phone, body.otp, body.deviceId, body.deviceInfo);
   }
 
   @Post('refresh')

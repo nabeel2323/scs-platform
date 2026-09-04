@@ -119,6 +119,7 @@ export const importJobs = pgTable('import_jobs', {
   errorRows: integer('error_rows').notNull().default(0),
   columnMapping: jsonb('column_mapping').default({}),
   errorLog: jsonb('error_log').default([]),
+  stats: jsonb('stats').notNull().default({}),
   createdBy: uuid('created_by').notNull().references(() => users.id),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),

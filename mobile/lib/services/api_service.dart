@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../models/models.dart';
+import 'device_id_service.dart';
 
 /// Complete API service matching the web buyer-api.ts endpoints.
 class ApiService {
@@ -9,10 +10,20 @@ class ApiService {
   // ── Auth ──────────────────────────────────────────────────
   Future<void> requestOtp(String phone) async =>
       _dio.post('/v1/auth/otp/request', data: {'phone': phone});
-  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async =>
-      (await _dio
-              .post('/v1/auth/otp/verify', data: {'phone': phone, 'otp': otp}))
-          .data;
+
+  /// Verify OTP. Attaches deviceId + deviceInfo so the session is
+  /// registered as a trusted device for future password logins.
+  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
+    final deviceId = await DeviceIdService.instance.getDeviceId();
+    final deviceInfo = await DeviceIdService.instance.getDeviceInfo();
+    return (await _dio.post('/v1/auth/otp/verify', data: {
+      'phone': phone,
+      'otp': otp,
+      'deviceId': deviceId,
+      'deviceInfo': deviceInfo,
+    }))
+        .data;
+  }
 
   // ── Dual Authentication (Password Login) ──────────────────
   /// Login with email and password.

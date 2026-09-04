@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
@@ -39,7 +39,7 @@ export class IdentityService {
     const attempts = await this.redis.client.get(attemptsKey);
 
     if (attempts && parseInt(attempts, 10) >= 5) {
-      throw new Error('Too many OTP attempts. Please try again later.');
+      throw new HttpException('Too many OTP attempts. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -53,14 +53,21 @@ export class IdentityService {
 
   /**
    * Verify OTP and issue JWT pair.
+   * Persists deviceId on the session so the device becomes trusted
+   * for future email/password logins.
    */
-  async verifyOtp(phone: string, otp: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async verifyOtp(
+    phone: string,
+    otp: string,
+    deviceId?: string,
+    deviceInfo?: { platform: string; userAgent: string },
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const storedOtp = await this.redis.client.get(`otp:${phone}`);
 
     if (!storedOtp || storedOtp !== otp) {
       await this.redis.client.incr(`otp:att:${phone}`);
       await this.redis.client.expire(`otp:att:${phone}`, 900);
-      throw new Error('Invalid OTP');
+      throw new UnauthorizedException('Invalid OTP');
     }
 
     await this.redis.client.del(`otp:${phone}`);
@@ -99,13 +106,14 @@ export class IdentityService {
     const refreshToken = crypto.randomUUID();
     const tokenHash = this.hashToken(refreshToken);
 
-    // Store session
+    // Store session (deviceId establishes device trust for password login)
     const sessionId = crypto.randomUUID();
     await this.db.db.insert(sessions).values({
       id: sessionId,
       userId,
       tokenHash,
-      device: 'web',
+      device: deviceInfo?.platform || 'web',
+      deviceId: deviceId || null,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
@@ -129,11 +137,11 @@ export class IdentityService {
       if (session?.revokedAt) {
         await this.revokeChain(session.userId);
       }
-      throw new Error('Invalid or expired refresh token');
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     if (new Date() > session.expiresAt) {
-      throw new Error('Refresh token expired');
+      throw new UnauthorizedException('Refresh token expired');
     }
 
     // Rotate: revoke old, create new
@@ -191,7 +199,7 @@ export class IdentityService {
     });
 
     if (!membership) {
-      throw new Error('Not a member of this organization');
+      throw new ForbiddenException('Not a member of this organization');
     }
 
     const claims = await this.buildClaims(userId, orgId);
@@ -215,7 +223,7 @@ export class IdentityService {
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
     });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new NotFoundException('User not found');
 
     const memberships = await this.db.db.query.organizationMembers.findMany({
       where: eq(organizationMembers.userId, userId),
@@ -301,7 +309,7 @@ export class IdentityService {
     const org = await this.db.db.query.organizations.findFirst({
       where: eq(organizations.id, orgId),
     });
-    if (!org) throw new Error('Organization not found');
+    if (!org) throw new NotFoundException('Organization not found');
     return org;
   }
 
@@ -359,7 +367,7 @@ export class IdentityService {
     });
 
     if (existing) {
-      throw new Error('User is already a member of this organization');
+      throw new ConflictException('User is already a member of this organization');
     }
 
     await this.db.db.insert(organizationMembers).values({
@@ -432,7 +440,7 @@ export class IdentityService {
     // Rate limit check
     const rateCheck = await this.rateLimitService.checkAndIncrement('password_login', email, 5, 900);
     if (!rateCheck.allowed) {
-      throw new Error('Too many login attempts. Please try again later.');
+      throw new HttpException('Too many login attempts. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // Find user by email
@@ -538,7 +546,7 @@ export class IdentityService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundException('User not found');
     }
 
     // Check if email already exists (and belongs to different user)
@@ -553,7 +561,7 @@ export class IdentityService {
     // Validate password strength
     const passwordCheck = validatePasswordStrength(password, email, user.phone);
     if (!passwordCheck.valid) {
-      throw new Error(passwordCheck.errors.join('; '));
+      throw new BadRequestException(passwordCheck.errors.join('; '));
     }
 
     // Hash password
@@ -600,11 +608,11 @@ export class IdentityService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new NotFoundException('User not found');
     }
 
     if (!user.passwordHash) {
-      throw new Error('No password set. Please set up credentials first.');
+      throw new ConflictException('No password set. Please set up credentials first.');
     }
 
     // Verify current password
@@ -619,7 +627,7 @@ export class IdentityService {
     // Validate new password strength
     const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone);
     if (!passwordCheck.valid) {
-      throw new Error(passwordCheck.errors.join('; '));
+      throw new BadRequestException(passwordCheck.errors.join('; '));
     }
 
     // Hash new password

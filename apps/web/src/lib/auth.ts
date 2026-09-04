@@ -9,6 +9,8 @@
  * (via AuthProvider / useAuth) can subscribe to auth changes.
  */
 
+import { getDeviceId } from './device-id';
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_web_session';
 const USER_KEY = 'scs_web_user';
@@ -131,7 +133,15 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   const res = await fetch(`${API_URL}/v1/auth/otp/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, otp }),
+    body: JSON.stringify({
+      phone,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
   });
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
   const data = await res.json();

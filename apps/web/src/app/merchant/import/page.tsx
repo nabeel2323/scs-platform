@@ -32,6 +32,60 @@ interface ImportJob {
   stats: Record<string, number> | null;
 }
 
+/** Parse a single CSV line, handling quoted fields and escaped quotes. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+        else inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+/** Parse full CSV text into records, tolerating quoted newlines. */
+function parseCsvRecords(text: string): string[][] {
+  // Split on newlines that are NOT inside quoted fields
+  const records: string[][] = [];
+  let buffer = '';
+  let inQuotes = false;
+  const flush = () => {
+    if (buffer.trim()) records.push(parseCsvLine(buffer));
+    buffer = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') { buffer += '""'; i++; continue; }
+      inQuotes = !inQuotes;
+      buffer += ch;
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && text[i + 1] === '\n') i++; // CRLF
+      flush();
+    } else {
+      buffer += ch;
+    }
+  }
+  flush();
+  return records;
+}
+
 interface ValidationError {
   row: number;
   field: string;
@@ -71,7 +125,7 @@ export default function ImportWizardPage() {
       setError('File must have at least a header row and one data row.');
       return;
     }
-    const headers = lines[0]!.split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const headers = parseCsvLine(lines[0]!);
     setDetectedHeaders(headers);
 
     // Auto-map columns by name similarity
@@ -85,6 +139,19 @@ export default function ImportWizardPage() {
       if (match) mapping[target.key] = match;
     }
     setColumnMapping(mapping);
+  };
+
+  /** Read the full file and parse all data rows keyed by header. */
+  const parseAllRows = async (csvFile: File): Promise<Record<string, string>[]> => {
+    const text = await csvFile.text();
+    const records = parseCsvRecords(text);
+    if (records.length < 2) return [];
+    const headers = records[0]!;
+    return records.slice(1).map(cols => {
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+      return row;
+    });
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,45 +220,72 @@ export default function ImportWizardPage() {
     setLoading(true);
     setError(null);
 
-    try {
-      // Poll import job status
-      const pollInterval = setInterval(async () => {
-        try {
-          const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}`);
-          if (res.ok) {
-            const job = await res.json();
-            setImportJob(job);
+    // Poll import job status
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}`);
+        if (res.ok) {
+          const job = await res.json();
+          setImportJob(job);
 
-            if (job.status === 'IMPORTING') {
-              setProgress(job.stats?.processed ? Math.round((job.stats.processed / (job.stats.total || 1)) * 100) : 50);
-            } else if (job.status === 'COMPLETED') {
-              clearInterval(pollInterval);
-              setProgress(100);
-              setImportStats({
-                created: job.stats?.created ?? 0,
-                updated: job.stats?.updated ?? 0,
-                skipped: job.stats?.skipped ?? 0,
-                errors: job.stats?.errors ?? 0,
-              });
-              setStep(4);
-            } else if (job.status === 'FAILED') {
-              clearInterval(pollInterval);
-              setError('Import failed. Please check your file and try again.');
-              setStep(4);
-            }
+          if (job.status === 'IMPORTING') {
+            setProgress(job.stats?.processed ? Math.round((job.stats.processed / (job.stats.total || 1)) * 100) : 50);
+          } else if (job.status === 'COMPLETED') {
+            clearInterval(pollInterval);
+            setProgress(100);
+            setImportStats({
+              created: job.stats?.created ?? 0,
+              updated: job.stats?.updated ?? 0,
+              skipped: job.stats?.skipped ?? 0,
+              errors: job.stats?.errors ?? 0,
+            });
+            setStep(4);
+          } else if (job.status === 'FAILED') {
+            clearInterval(pollInterval);
+            setError('Import failed. Please check your file and try again.');
+            setStep(4);
           }
-        } catch {
-          // Polling error — ignore and retry
         }
-      }, 2000);
+      } catch {
+        // Polling error — ignore and retry
+      }
+    }, 2000);
 
-      // Trigger import processing
-      await authFetch(`${API_URL}/v1/imports/${importJob.id}/process`, {
+    try {
+      // Parse the full CSV client-side and stage rows on the server
+      if (!file || !file.name.toLowerCase().endsWith('.csv')) {
+        throw new Error('Only CSV files are supported in the pilot. Convert XLSX to CSV and try again.');
+      }
+      const rows = await parseAllRows(file);
+      if (rows.length === 0) {
+        throw new Error('No data rows found in the file.');
+      }
+
+      // Stage rows in batches to stay under request size limits
+      const BATCH = 400;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const batch = rows.slice(i, i + BATCH);
+        const stageRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/rows`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: batch, append: i > 0 }),
+        });
+        if (!stageRes.ok) throw new Error(`Failed to stage rows: ${stageRes.status}`);
+      }
+
+      // Trigger server-side processing
+      const processRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/process`, {
         method: 'POST',
       });
+      if (!processRes.ok) {
+        clearInterval(pollInterval);
+        const body = await processRes.json().catch(() => null);
+        throw new Error(body?.message || `Import processing failed: ${processRes.status}`);
+      }
 
       setStep(3);
     } catch (e) {
+      clearInterval(pollInterval);
       setError(`${e}`);
     } finally {
       setLoading(false);
