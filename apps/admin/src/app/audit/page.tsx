@@ -70,7 +70,7 @@ export default function AuditLogPage() {
         </div>
         <div>
           <label style={{ fontSize: 11, color: '#5b6b74', display: 'block', marginBottom: 3 }}>Actor ID</label>
-          <input type="text" placeholder="UUID..." value={actorFilter} onChange={e => setActorFilter(e.target.value)} style={{ ...filterStyle, width: 160 }} />
+          <input type="text" placeholder="UUID or 8-char prefix..." value={actorFilter} onChange={e => setActorFilter(e.target.value)} style={{ ...filterStyle, width: 190 }} />
         </div>
         <div>
           <label style={{ fontSize: 11, color: '#5b6b74', display: 'block', marginBottom: 3 }}>From</label>
@@ -113,7 +113,7 @@ export default function AuditLogPage() {
                   <td style={tdStyle}><span style={{ fontSize: 12, fontWeight: 500 }}>{log.resource}</span></td>
                   <td style={tdStyle}><span style={{ fontFamily: 'monospace', fontSize: 11 }}>{log.resourceId ? log.resourceId.slice(0, 8) : '—'}</span></td>
                   <td style={tdStyle}>
-                    <div style={{ fontSize: 11, fontFamily: 'monospace' }}>{log.actorId.slice(0, 8)}</div>
+                    <div style={{ fontSize: 11, fontFamily: 'monospace' }}>{log.actorId ? log.actorId.slice(0, 8) : '—'}</div>
                     <div style={{ fontSize: 10, color: '#a0aec0' }}>{log.actorType}</div>
                   </td>
                   <td style={tdStyle}>

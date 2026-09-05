@@ -13,6 +13,31 @@ import { Request, Response } from 'express';
  * Per RFC 7807 the Content-Type MUST be `application/problem+json`.
  * Shape: { type, title, status, detail, instance, ...extensions }
  */
+
+/**
+ * Postgres SQLSTATE → client-error mapping.
+ *
+ * Without this, a malformed path or query param compared against a `uuid`
+ * column (e.g. `GET /v1/stores/gulf-tech`) reaches the driver, raises 22P02,
+ * and surfaces as an opaque 500 — indistinguishable from a real server fault
+ * and wrong for the client, which sent bad input.
+ */
+const PG_CLIENT_ERRORS: Record<string, { status: HttpStatus; title: string }> = {
+  '22P02': { status: HttpStatus.BAD_REQUEST, title: 'Malformed identifier' },
+  '22007': { status: HttpStatus.BAD_REQUEST, title: 'Malformed date' },
+  '22001': { status: HttpStatus.BAD_REQUEST, title: 'Value too long' },
+  '23514': { status: HttpStatus.BAD_REQUEST, title: 'Value violates constraint' },
+  '23505': { status: HttpStatus.CONFLICT, title: 'Already exists' },
+  '23503': { status: HttpStatus.CONFLICT, title: 'Referenced record missing' },
+};
+
+/** Duck-typed driver error; avoids coupling this filter to the `pg` package. */
+function sqlStateOf(exception: unknown): string | undefined {
+  if (typeof exception !== 'object' || exception === null) return undefined;
+  const code = (exception as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
@@ -61,6 +86,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const family = this.getFamily(status);
       if (!extensions['type']) {
         type = `https://api.scsp.dev/errors/${family}/${status}`;
+      }
+    } else {
+      // Not an HttpException: check whether the driver reported a client fault.
+      const sqlState = sqlStateOf(exception);
+      const mapped = sqlState ? PG_CLIENT_ERRORS[sqlState] : undefined;
+      if (mapped) {
+        status = mapped.status;
+        title = mapped.title;
+        detail = exception instanceof Error ? exception.message : 'Invalid request';
+        type = `https://api.scsp.dev/errors/client/${mapped.status}`;
+        extensions['code'] = sqlState;
       }
     }
 

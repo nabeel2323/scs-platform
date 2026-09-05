@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { fetchPublicStore, fetchStoreProducts, addToCart, Product } from '../../../lib/buyer-api';
+import { fetchPublicStore, fetchStoreProducts, fetchProductVariants, addToCart, Product } from '../../../lib/buyer-api';
 import { formatMinor, LoadingSpinner, EmptyState } from '../../../components/Shared';
 
 interface StoreDetail {
@@ -47,7 +47,12 @@ export default function StoreDetailPage() {
 
   const handleAddToCart = async (product: Product) => {
     try {
-      await addToCart({ variantId: product.id, storeId: product.storeId, quantity: 1 });
+      // The listing shows products, but the cart references a variant — resolve
+      // the product's default (first active) variant before adding.
+      const variants = await fetchProductVariants(product.id);
+      const variant = variants.find(v => v.isActive) ?? variants[0];
+      if (!variant) return;
+      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: 1 });
       setAddedItems(prev => new Set(prev).add(product.id));
       setTimeout(() => setAddedItems(prev => { const n = new Set(prev); n.delete(product.id); return n; }), 2000);
     } catch { /* ignore */ }

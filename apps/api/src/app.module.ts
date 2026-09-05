@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
 import { HealthController } from './health.controller';
@@ -14,6 +14,7 @@ import { SupportModule } from './modules/support/support.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AuditLogMiddleware } from './modules/audit/audit-log.middleware';
 import { AdminModule } from './modules/admin/admin.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { DatabaseModule } from './common/database/database.module';
@@ -54,4 +55,13 @@ import { OutboxModule } from './common/outbox/outbox.module';
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  /**
+   * Audit trail is registered as Nest middleware (not `app.use`) so it can
+   * inject AuditService. It defers its write to the response `finish` event,
+   * which is when the JWT guard has populated `req.user`.
+   */
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuditLogMiddleware).forRoutes('*');
+  }
+}

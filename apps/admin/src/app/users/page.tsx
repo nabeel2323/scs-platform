@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   fetchAdminUsers, fetchAdminUserDetail, updateUserStatus, assignUserRole, fetchRoles,
-  AdminUser, AdminUserDetail, RoleInfo,
+  fetchAdminOrganizations, removeUserRole,
+  AdminUser, AdminUserDetail, RoleInfo, AdminOrg,
 } from '../../lib/api';
 
 const STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
@@ -18,6 +19,7 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [roles, setRoles] = useState<RoleInfo[]>([]);
+  const [orgs, setOrgs] = useState<AdminOrg[]>([]);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [roleForm, setRoleForm] = useState({ orgId: '', roleId: '' });
   const [roleSaving, setRoleSaving] = useState(false);
@@ -44,6 +46,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchRoles().then(setRoles).catch(() => {});
+    fetchAdminOrganizations().then(setOrgs).catch(() => {});
   }, []);
 
   const handleViewDetail = async (id: string) => {
@@ -80,6 +83,18 @@ export default function UsersPage() {
       handleViewDetail(selectedUser.id);
     } catch { /* ignore */ }
     finally { setRoleSaving(false); }
+  };
+
+  const handleRemoveRole = async (orgId: string) => {
+    if (!selectedUser) return;
+    if (!confirm('Remove this role/membership? This cannot be undone.')) return;
+    try {
+      await removeUserRole(selectedUser.id, orgId);
+      setActionMsg('Role removed successfully');
+      setTimeout(() => setActionMsg(''), 3000);
+      handleViewDetail(selectedUser.id);
+      load();
+    } catch { /* ignore */ }
   };
 
   const statusColor = (s: string): string => {
@@ -261,12 +276,18 @@ export default function UsersPage() {
                       <div key={i} style={{ padding: '8px 0', borderBottom: i < selectedUser.organizations.length - 1 ? '1px solid #f0f4f6' : 'none' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>{org.orgName}</div>
                         <div style={{ fontSize: 11, color: '#a0aec0' }}>{org.orgType} · Joined {new Date(org.joinedAt).toLocaleDateString()}</div>
-                        <div style={{ marginTop: 4 }}>
-                          <span style={{
-                            fontSize: 10, padding: '2px 6px', borderRadius: 8,
-                            background: `${roleBadgeColor(org.roleKey)}18`, color: roleBadgeColor(org.roleKey), fontWeight: 600,
-                          }}>{org.roleKey}</span>
-                          <span style={{ fontSize: 10, color: '#a0aec0', marginLeft: 4 }}>{org.roleName}</span>
+                        <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                          <div>
+                            <span style={{
+                              fontSize: 10, padding: '2px 6px', borderRadius: 8,
+                              background: `${roleBadgeColor(org.roleKey)}18`, color: roleBadgeColor(org.roleKey), fontWeight: 600,
+                            }}>{org.roleKey}</span>
+                            <span style={{ fontSize: 10, color: '#a0aec0', marginLeft: 4 }}>{org.roleName}</span>
+                          </div>
+                          <button onClick={() => handleRemoveRole(org.orgId)}
+                            style={{ padding: '2px 8px', fontSize: 10, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                            Remove
+                          </button>
                         </div>
                       </div>
                     ))
@@ -279,9 +300,12 @@ export default function UsersPage() {
             {showRoleModal && (
               <div style={{ marginTop: 16, padding: 16, background: '#f7f9fa', borderRadius: 8, border: '1px solid #d9e2e6' }}>
                 <h4 style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', margin: '0 0 12px' }}>Assign Role</h4>
-                <label style={{ fontSize: 11, color: '#5b6b74', display: 'block', marginBottom: 3 }}>Organization ID</label>
-                <input type="text" value={roleForm.orgId} onChange={e => setRoleForm(f => ({ ...f, orgId: e.target.value }))}
-                  placeholder="UUID of organization" style={{ width: '100%', padding: '6px 8px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 12, marginBottom: 8, boxSizing: 'border-box' }} />
+                <label style={{ fontSize: 11, color: '#5b6b74', display: 'block', marginBottom: 3 }}>Organization</label>
+                <select value={roleForm.orgId} onChange={e => setRoleForm(f => ({ ...f, orgId: e.target.value }))}
+                  style={{ width: '100%', padding: '6px 8px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 12, marginBottom: 8, background: '#fff', boxSizing: 'border-box' }}>
+                  <option value="">Select organization...</option>
+                  {orgs.map(o => <option key={o.id} value={o.id}>{o.name} ({o.type})</option>)}
+                </select>
                 <label style={{ fontSize: 11, color: '#5b6b74', display: 'block', marginBottom: 3 }}>Role</label>
                 <select value={roleForm.roleId} onChange={e => setRoleForm(f => ({ ...f, roleId: e.target.value }))}
                   style={{ width: '100%', padding: '6px 8px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 12, marginBottom: 12, background: '#fff', boxSizing: 'border-box' }}>

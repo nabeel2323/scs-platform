@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { searchProducts, fetchCategories, fetchBrands, addToCart, Product, Category } from '../../lib/buyer-api';
+import { searchProducts, fetchCategories, fetchBrands, fetchProductVariants, addToCart, Product, Category } from '../../lib/buyer-api';
 import { formatMinor, EmptyState, LoadingSpinner, ErrorBanner } from '../../components/Shared';
 
 export default function SearchPage() {
@@ -32,7 +32,7 @@ export default function SearchPage() {
         brandId: selectedBrand || undefined,
         limit: 40,
       });
-      setResults(res.products || []);
+      setResults(res.items || []);
       setTotal(res.total || 0);
     } catch (err: any) {
       setError(err.message || 'Search failed');
@@ -48,7 +48,12 @@ export default function SearchPage() {
 
   const handleAddToCart = async (product: Product) => {
     try {
-      await addToCart({ variantId: product.id, storeId: product.storeId, quantity: 1 });
+      // The listing shows products, but the cart references a variant — resolve
+      // the product's default (first active) variant before adding.
+      const variants = await fetchProductVariants(product.id);
+      const variant = variants.find(v => v.isActive) ?? variants[0];
+      if (!variant) return;
+      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: 1 });
       setAddedItems(prev => new Set(prev).add(product.id));
       setTimeout(() => setAddedItems(prev => { const n = new Set(prev); n.delete(product.id); return n; }), 2000);
     } catch {

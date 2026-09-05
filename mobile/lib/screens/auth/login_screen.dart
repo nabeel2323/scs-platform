@@ -64,6 +64,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
+  /// Persist tokens + auth state after a successful login, then enter the app.
+  /// Mirrors OtpVerifyScreen so both auth methods behave identically; without
+  /// this the router redirect bounces straight back to /login.
+  Future<void> _completeLogin(Map<String, dynamic> data, String phone) async {
+    final accessToken = data['accessToken'] as String;
+    final refreshToken = data['refreshToken'] as String;
+    await ref
+        .read(authStorageProvider)
+        .saveTokens(accessToken: accessToken, refreshToken: refreshToken);
+    ref.read(apiClientProvider).setAccessToken(accessToken);
+    ref.read(isAuthenticatedProvider.notifier).state = true;
+    ref.read(currentUserPhoneProvider.notifier).state = phone;
+    ref.read(pushNotificationServiceProvider).initialize();
+    if (mounted) context.go('/home');
+  }
+
   Future<void> _handlePasswordLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       setState(() => _error = 'Please enter email and password');
@@ -88,9 +104,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       );
 
       if (result['requiresOtp'] == true) {
-        // Device not trusted - require OTP
+        // Device not trusted — the backend already sent an OTP to the
+        // account's phone. Prefill it so the verify step targets the right
+        // number, then switch to the OTP tab.
+        final otpPhone = result['otpPhone'] as String? ?? '';
         setState(() {
-          _otpPhone = result['otpPhone'];
+          _otpPhone = otpPhone;
+          _phoneController.text = otpPhone;
           _otpSent = true;
           _tabController.index = 1; // Switch to OTP tab
           _error = 'New device detected. Please verify with OTP.';
@@ -99,13 +119,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         return;
       }
 
-      // Login successful
+      // Login successful — persist the session and enter the app.
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('scs_last_email', _emailController.text);
-
-      if (mounted) {
-        context.go('/dashboard');
-      }
+      await _completeLogin(result, '');
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');
@@ -153,14 +170,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.verifyOtp(_phoneController.text, _otpController.text);
+      final data =
+          await api.verifyOtp(_phoneController.text, _otpController.text);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('scs_last_email', _emailController.text);
-
-      if (mounted) {
-        context.go('/dashboard');
+      if (_emailController.text.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('scs_last_email', _emailController.text);
       }
+
+      await _completeLogin(data, _phoneController.text);
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');

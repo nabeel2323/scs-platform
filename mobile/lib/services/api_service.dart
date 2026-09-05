@@ -135,6 +135,12 @@ class ApiService {
         (await _dio.post('/v1/organizations', data: d)).data);
   }
 
+  /// Join an existing organization via its shareable invite code.
+  Future<Organization> joinOrganization(String code) async =>
+      Organization.fromJson(
+          (await _dio.post('/v1/organizations/join', data: {'code': code}))
+              .data);
+
   Future<Organization> fetchOrganization(String id) async =>
       Organization.fromJson((await _dio.get('/v1/organizations/$id')).data);
   Future<Organization> updateOrganization(String id,

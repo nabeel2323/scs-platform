@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { carts, cartItems } from './cart.schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { products, productVariants } from '../catalog/catalog.schema';
+import { priceLists, priceTiers } from '../pricing/pricing.schema';
+import { eq, and, desc, lte } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -50,40 +52,83 @@ export class CartService {
   // ── Cart Items ───────────────────────────────────────────────
 
   async addItem(userId: string, input: AddCartItemInput) {
-    const cart = await this.getOrCreateCart(userId);
+    if (!Number.isInteger(input.quantity) || input.quantity < 1) {
+      throw new BadRequestException('Quantity must be a positive integer');
+    }
 
-    // Check if item already exists in cart (upsert)
+    // The client must send a variant id — cart_items.variant_id is a FK to
+    // product_variants, so a product id (or any non-variant) is rejected here
+    // rather than failing deep in the insert.
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, input.variantId),
+    });
+    if (!variant) throw new NotFoundException('Product variant not found');
+    if (!variant['isActive']) throw new BadRequestException('This item is no longer available');
+
+    // Derive the authoritative store from the variant's product. The client's
+    // storeId is never trusted, so a buyer cannot pair a variant with an
+    // unrelated store's price list.
+    const product = await this.db.db.query.products.findFirst({
+      where: eq(products.id, variant['productId']),
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    const storeId = product['storeId'];
+
+    const cart = await this.getOrCreateCart(userId);
     const existing = await this.db.db.query.cartItems.findFirst({
       where: and(
         eq(cartItems.cartId, cart['id']),
-        eq(cartItems.variantId, input.variantId),
+        eq(cartItems.variantId, variant['id']),
       ),
     });
+    const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
+
+    // Resolve the unit price server-side from the store's active price lists
+    // (highest-priority list, best tier whose minQty <= finalQty). The price is
+    // SNAPSHOT here and is NEVER taken from the client — a client-supplied
+    // price would be a tampering vector.
+    const tierRows = await this.db.db
+      .select({ unitPriceMinor: priceTiers.unitPriceMinor, minQty: priceTiers.minQty })
+      .from(priceTiers)
+      .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
+      .where(and(
+        eq(priceLists.storeId, storeId),
+        eq(priceLists.isActive, true),
+        eq(priceTiers.variantId, variant['id']),
+        lte(priceTiers.minQty, finalQty),
+      ))
+      .orderBy(desc(priceLists.priority), desc(priceTiers.minQty))
+      .limit(1);
+
+    const tier = tierRows[0];
+    if (!tier) {
+      throw new BadRequestException('No price is available for this item at the requested quantity');
+    }
+    const priceMinor = tier.unitPriceMinor;
+    const lineTotalMinor = finalQty * priceMinor;
 
     if (existing) {
-      // Update quantity and recalculate
-      const newQty = existing['quantity'] + input.quantity;
-      const newLineTotal = newQty * existing['priceMinor'];
-
+      // Re-snapshot the price: the applicable tier can change with quantity.
       await this.db.db
         .update(cartItems)
         .set({
-          quantity: newQty,
-          lineTotalMinor: newLineTotal,
+          quantity: finalQty,
+          priceMinor,
+          tierMinQty: tier.minQty,
+          lineTotalMinor,
           updatedAt: new Date(),
         })
         .where(eq(cartItems.id, existing['id']));
     } else {
-      const itemId = crypto.randomUUID();
       await this.db.db.insert(cartItems).values({
-        id: itemId,
+        id: crypto.randomUUID(),
         cartId: cart['id'],
-        storeId: input.storeId,
-        variantId: input.variantId,
-        quantity: input.quantity,
-        priceMinor: input.priceMinor,
-        tierMinQty: input.tierMinQty || 1,
-        lineTotalMinor: input.quantity * input.priceMinor,
+        storeId,
+        variantId: variant['id'],
+        quantity: finalQty,
+        priceMinor,
+        tierMinQty: tier.minQty,
+        lineTotalMinor,
       });
     }
 
@@ -176,9 +221,11 @@ export class CartService {
 // ── Input types ──────────────────────────────────────────────────
 
 export interface AddCartItemInput {
-  storeId: string;
   variantId: string;
   quantity: number;
-  priceMinor: number;
-  tierMinQty?: number;
+  /**
+   * Optional and never trusted for pricing — the authoritative store is
+   * derived from the variant's product. Accepted for backward compatibility.
+   */
+  storeId?: string;
 }

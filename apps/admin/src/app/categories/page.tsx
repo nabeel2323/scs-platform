@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { fetchAdminCategories, createAdminCategory, updateAdminCategory, deleteAdminCategory } from '../../lib/api';
 
 interface Category {
@@ -51,7 +51,7 @@ export default function AdminCategoriesPage() {
         await updateAdminCategory(editingId, {
           name: formData.name,
           nameAr: formData.nameAr || undefined,
-          parentId: formData.parentId || undefined,
+          parentId: formData.parentId || null,
           isActive: formData.isActive,
         });
       } else {
@@ -223,8 +223,8 @@ export default function AdminCategoriesPage() {
             </thead>
             <tbody>
               {topLevelCategories.map((cat) => (
-                <>
-                  <tr key={cat.id} style={{ borderBottom: '1px solid #eef2f5' }}>
+                <Fragment key={cat.id}>
+                  <tr style={{ borderBottom: '1px solid #eef2f5' }}>
                     <td style={tdStyle}>
                       <b>{cat.name}</b>
                     </td>
@@ -290,7 +290,7 @@ export default function AdminCategoriesPage() {
                       </td>
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
               {topLevelCategories.length === 0 && (
                 <tr>

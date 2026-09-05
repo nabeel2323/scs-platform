@@ -8,6 +8,7 @@ import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decora
  *
  * Endpoints:
  *   POST   /v1/organizations              — create org
+ *   POST   /v1/organizations/join         — join an existing org by invite code
  *   GET    /v1/organizations/:id          — get org details
  *   PATCH  /v1/organizations/:id          — update org
  *   POST   /v1/organizations/:id/members  — add member
@@ -25,6 +26,14 @@ export class OrganizationsController {
     @Body() body: { name: string; type: string; country: string; legalName?: string; taxId?: string },
   ) {
     return this.identityService.createOrg(body, user.sub);
+  }
+
+  @Post('join')
+  async joinOrg(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { code: string },
+  ) {
+    return this.identityService.joinOrgByInvite(user.sub, body.code);
   }
 
   @Get(':id')

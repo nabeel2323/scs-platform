@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -153,10 +153,25 @@ export class AdminController {
     return this.adminService.assignRole(body.orgId, id, body.roleId);
   }
 
+  @Delete('users/:id/roles/:orgId')
+  @RequirePermission('admin:users:write')
+  async removeRole(
+    @Param('id') id: string,
+    @Param('orgId') orgId: string,
+  ) {
+    return this.adminService.removeRole(orgId, id);
+  }
+
   @Get('roles')
   @RequirePermission('admin:users:read')
   async listRoles() {
     return this.adminService.listRoles();
+  }
+
+  @Get('organizations')
+  @RequirePermission('admin:users:read')
+  async listOrganizations() {
+    return this.adminService.listOrganizations();
   }
 
   // ── Product moderation (plan §13.4) ────────────────────────

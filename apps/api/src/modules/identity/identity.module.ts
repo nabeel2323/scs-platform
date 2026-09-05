@@ -6,6 +6,7 @@ import { ProfileController } from './profile.controller';
 import { OrganizationsController } from './organizations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CatalogModule } from '../catalog/catalog.module';
+import { AuditModule } from '../audit/index';
 import { RateLimitService } from '../../common/services/rate-limit.service';
 
 @Module({
@@ -17,6 +18,7 @@ import { RateLimitService } from '../../common/services/rate-limit.service';
     }),
     NotificationsModule,
     CatalogModule,
+    AuditModule,
   ],
   controllers: [AuthController, ProfileController, OrganizationsController],
   providers: [IdentityService, RateLimitService],

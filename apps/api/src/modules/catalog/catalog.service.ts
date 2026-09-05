@@ -71,6 +71,52 @@ export class CatalogService {
     });
   }
 
+  async updateCategory(id: string, input: UpdateCategoryInput) {
+    const existing = await this.getCategory(id);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (input.name !== undefined) updates['name'] = input.name;
+    if (input.nameAr !== undefined) updates['nameAr'] = input.nameAr;
+    if (input.description !== undefined) updates['description'] = input.description;
+    if (input.imageUrl !== undefined) updates['imageUrl'] = input.imageUrl;
+    if (input.sortOrder !== undefined) updates['sortOrder'] = input.sortOrder;
+    if (input.isActive !== undefined) updates['isActive'] = input.isActive;
+
+    // Reparenting recomputes the materialized path; null clears the parent.
+    // Note: descendants keep their stored paths (admin taxonomy is 2 levels).
+    if (input.parentId !== undefined && input.parentId !== existing['parentId']) {
+      if (input.parentId === id) {
+        throw new BadRequestException('A category cannot be its own parent');
+      }
+      if (input.parentId === null) {
+        updates['parentId'] = null;
+        updates['path'] = `/${existing['slug']}`;
+      } else {
+        const parent = await this.db.db.query.categories.findFirst({
+          where: eq(categories.id, input.parentId),
+        });
+        if (!parent) throw new NotFoundException('Parent category not found');
+        const subtreeRoot = `${existing['path']}/`.replace(/\/+/g, '/');
+        const parentPath = `${parent['path']}/`.replace(/\/+/g, '/');
+        if (parentPath.startsWith(subtreeRoot)) {
+          throw new BadRequestException('Cannot move a category under its own descendant');
+        }
+        updates['parentId'] = input.parentId;
+        updates['path'] = `${parent['path']}${existing['slug']}/`;
+      }
+    }
+
+    await this.db.db.update(categories).set(updates).where(eq(categories.id, id));
+    return this.getCategory(id);
+  }
+
+  async deleteCategory(id: string) {
+    await this.getCategory(id);
+    // FK set-null: children become top-level, products lose their category
+    await this.db.db.delete(categories).where(eq(categories.id, id));
+    return { success: true };
+  }
+
   // ── Brands ───────────────────────────────────────────────────
 
   async createBrand(input: CreateBrandInput) {
@@ -683,6 +729,16 @@ export interface CreateCategoryInput {
   storeId?: string;
   parentId?: string;
   sortOrder?: number;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  nameAr?: string;
+  description?: string;
+  imageUrl?: string;
+  parentId?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
 }
 
 export interface CreateBrandInput {

@@ -109,10 +109,36 @@ export default function AccountPage() {
         ) : (
           orgs.map((org: any, i: number) => (
             <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #edf2f7', fontSize: 13 }}>
-              <strong>{org.name || org.orgId}</strong> — {org.role || 'Member'} ({org.status || 'ACTIVE'})
+              <div>
+                <strong>{org.name || org.orgId}</strong> — {org.role || 'Member'} ({org.status || 'ACTIVE'})
+              </div>
+              {org.inviteCode && (
+                <div style={{ marginTop: 4 }}>
+                  <span style={{ fontSize: 11, color: '#5b6b74' }}>Invite code: </span>
+                  <code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.5px' }}>{org.inviteCode}</code>
+                </div>
+              )}
             </div>
           ))
         )}
+      </div>
+
+      {/* Security */}
+      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>Security</h2>
+        <p style={{ color: '#5b6b74', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+          Set up email/password login and review your active sessions.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button onClick={() => router.push('/profile/credentials')}
+            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+            Email &amp; Password
+          </button>
+          <button onClick={() => router.push('/profile/sessions')}
+            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}>
+            Active Sessions
+          </button>
+        </div>
       </div>
 
       {/* Devices */}

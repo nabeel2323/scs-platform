@@ -299,8 +299,8 @@ export async function loginPassword(
   });
 
   if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.message || 'Login failed');
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || error.message || 'Login failed');
   }
 
   const data = await res.json();

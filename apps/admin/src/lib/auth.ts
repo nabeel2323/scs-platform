@@ -7,6 +7,8 @@
  * Session is persisted to localStorage so it survives page refreshes.
  */
 
+import { getDeviceId } from './device-id';
+
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_admin_session';
 const USER_KEY = 'scs_admin_user';
@@ -101,7 +103,15 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   const res = await fetch(`${API_URL}/v1/auth/otp/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, otp }),
+    body: JSON.stringify({
+      phone,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'admin-web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
   });
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
   const data = await res.json();
@@ -171,6 +181,79 @@ export async function logout(): Promise<void> {
   currentUser = null;
   persistSession(null);
   persistUser(null);
+}
+
+// ── Dual Authentication (Password Login) ────────────────────
+
+/**
+ * Pre-flight device-trust check for a given email.
+ */
+export async function checkDeviceLogin(
+  email: string,
+  deviceId: string,
+): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
+  const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, deviceId }),
+  });
+  if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Login with email and password. Returns a session when the device is trusted,
+ * or { requiresOtp, otpPhone } when the device is new and OTP is required.
+ */
+export async function loginPassword(
+  email: string,
+  password: string,
+  deviceId: string,
+): Promise<AuthSession | { requiresOtp: true; otpPhone: string }> {
+  const res = await fetch(`${API_URL}/v1/auth/login/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
+    body: JSON.stringify({
+      email,
+      password,
+      deviceId,
+      deviceInfo: {
+        platform: 'admin-web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || error.message || `Login failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (data.requiresOtp) {
+    return { requiresOtp: true, otpPhone: data.otpPhone };
+  }
+
+  currentSession = {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+  persistSession(currentSession);
+
+  // Decode JWT to populate user info (sub, role claims) — mirrors verifyOtp.
+  try {
+    const payload = JSON.parse(atob(data.accessToken.split('.')[1]!));
+    currentUser = {
+      id: payload.sub,
+      phone: payload.phone || email,
+      fullName: payload.fullName || 'Admin',
+      role: payload.role || 'ADMIN',
+    };
+    persistUser(currentUser);
+  } catch { /* JWT decode failed — populated on next profile fetch */ }
+
+  return currentSession;
 }
 
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {

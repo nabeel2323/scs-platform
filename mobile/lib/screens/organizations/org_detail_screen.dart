@@ -38,6 +38,8 @@ class OrgDetailScreen extends ConsumerWidget {
           _field('Country', o.country),
           _field('Legal Name', o.legalName ?? '—'),
           _field('Tax ID', o.taxId ?? '—'),
+          if (o.inviteCode != null && o.inviteCode!.isNotEmpty)
+            _field('Invite Code', o.inviteCode!),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,

@@ -33,6 +33,7 @@ export const organizations = pgTable('organizations', {
   taxId: varchar('tax_id', { length: 64 }),
   country: char('country', { length: 2 }).notNull(), // ISO 3166-1 alpha-2
   verificationStatus: varchar('verification_status', { length: 12 }).notNull().default('PENDING'),
+  inviteCode: varchar('invite_code', { length: 12 }).unique(), // shareable code to join this org (migration 0016)
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

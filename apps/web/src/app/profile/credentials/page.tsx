@@ -47,7 +47,7 @@ export default function CredentialsPage() {
     try {
       await setupCredentials(setupEmail, setupPassword);
       setSuccess('Credentials set up successfully! You can now login with email and password.');
-      setTimeout(() => router.push('/profile'), 2000);
+      setTimeout(() => router.push('/account'), 2000);
     } catch (err: any) {
       setError(err.message || 'Credential setup failed');
     } finally {

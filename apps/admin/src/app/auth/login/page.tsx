@@ -1,16 +1,61 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { requestOtp, verifyOtp } from '@/lib/auth';
+import { useState, useEffect } from 'react';
+import { requestOtp, verifyOtp, loginPassword, checkDeviceLogin } from '@/lib/auth';
+import { getDeviceId } from '@/lib/device-id';
+
+type LoginMode = 'password' | 'otp';
+type OtpStage = 'request' | 'verify';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [mode, setMode] = useState<LoginMode>('password');
+  const [otpStage, setOtpStage] = useState<OtpStage>('request');
+
+  // Email/password state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  // OTP state
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill the last admin email and probe device trust for auto-login.
+  useEffect(() => {
+    const storedEmail =
+      typeof window !== 'undefined' ? localStorage.getItem('scs_last_email') : null;
+    if (!storedEmail) return;
+    setEmail(storedEmail);
+    checkDeviceLogin(storedEmail, getDeviceId()).catch(() => {});
+  }, []);
+
+  async function handlePasswordLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginPassword(email, password, getDeviceId());
+      if ('requiresOtp' in result) {
+        // Correct password but untrusted device — the backend already sent an
+        // OTP to the account's phone, so jump straight to the verify stage.
+        setPhone(result.otpPhone);
+        setMode('otp');
+        setOtpStage('verify');
+        setError('New device detected. Enter the OTP sent to your phone to continue.');
+        setLoading(false);
+        return;
+      }
+      localStorage.setItem('scs_last_email', email);
+      router.push('/');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+      setLoading(false);
+    }
+  }
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
@@ -18,7 +63,7 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       await requestOtp(phone);
-      setStep('otp');
+      setOtpStage('verify');
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP');
     } finally {
@@ -32,36 +77,41 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       await verifyOtp(phone, otp);
-      // Fetch profile to populate user info for the sidebar
-      try {
-        const { authFetch } = await import('@/lib/auth');
-        const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
-        const res = await authFetch(`${API_URL}/v1/me`);
-        if (res.ok) {
-          const profile = await res.json();
-          // Store user info for sidebar display
-          const { getUser } = await import('@/lib/auth');
-          // User is already persisted by verifyOtp; this just enriches the data
-        }
-      } catch { /* profile fetch is best-effort */ }
+      if (email) localStorage.setItem('scs_last_email', email);
       router.push('/');
     } catch (err: any) {
       setError(err.message || 'Invalid OTP');
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main style={{ maxWidth: 400, margin: '80px auto', padding: '32px 24px' }}>
+    <main style={{ maxWidth: 420, margin: '80px auto', padding: '32px 24px' }}>
       <div style={{ marginBottom: 24 }}>
         <span style={{ display: 'inline-block', padding: '4px 10px', background: '#0f3340', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
           ADMIN
         </span>
       </div>
       <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>
-        {step === 'phone' ? 'Admin Sign In' : 'Enter OTP'}
+        Admin Sign In
       </h1>
+
+      <div style={{ display: 'flex', borderBottom: '1px solid #d9e2e6', marginBottom: 24 }}>
+        <button
+          type="button"
+          onClick={() => { setMode('password'); setError(''); }}
+          style={tabStyle(mode === 'password')}
+        >
+          Email/Password
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode('otp'); setError(''); }}
+          style={tabStyle(mode === 'otp')}
+        >
+          Phone OTP
+        </button>
+      </div>
 
       {error && (
         <div style={{ background: '#fbeeec', color: '#b3372f', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
@@ -69,7 +119,37 @@ export default function AdminLoginPage() {
         </div>
       )}
 
-      {step === 'phone' ? (
+      {mode === 'password' ? (
+        <form onSubmit={handlePasswordLogin}>
+          <label style={labelStyle}>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@example.com"
+            required
+            style={inputStyle}
+          />
+          <label style={labelStyle}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
+            required
+            style={inputStyle}
+          />
+          <button type="submit" disabled={loading} style={buttonStyle}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+          <p style={hintStyle}>
+            Don&apos;t have a password yet?{' '}
+            <button type="button" onClick={() => { setMode('otp'); setError(''); }} style={linkBtnStyle}>
+              Sign in with OTP
+            </button>
+          </p>
+        </form>
+      ) : otpStage === 'request' ? (
         <form onSubmit={handleRequestOtp}>
           <label style={labelStyle}>Admin phone number</label>
           <input
@@ -104,16 +184,38 @@ export default function AdminLoginPage() {
           </button>
           <button
             type="button"
-            onClick={() => setStep('phone')}
+            onClick={() => setOtpStage('request')}
             style={{ ...buttonStyle, background: 'transparent', color: '#1e6178', border: '1px solid #d9e2e6' }}
           >
             Change number
           </button>
         </form>
       )}
+
+      {mode === 'otp' && (
+        <p style={hintStyle}>
+          Have a password?{' '}
+          <button type="button" onClick={() => { setMode('password'); setError(''); }} style={linkBtnStyle}>
+            Sign in with Email/Password
+          </button>
+        </p>
+      )}
     </main>
   );
 }
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  flex: 1,
+  padding: '10px 0',
+  fontSize: 14,
+  fontWeight: 600,
+  background: 'transparent',
+  border: 'none',
+  borderBottom: active ? '2px solid #0f3340' : '2px solid transparent',
+  color: active ? '#0f3340' : '#5b6b74',
+  cursor: 'pointer',
+  marginBottom: -1,
+});
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 6,
@@ -125,4 +227,11 @@ const inputStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600, color: '#fff',
   background: '#0f3340', border: 'none', borderRadius: 8, cursor: 'pointer', marginBottom: 8,
+};
+const hintStyle: React.CSSProperties = {
+  fontSize: 13, color: '#5b6b74', textAlign: 'center', marginTop: 12,
+};
+const linkBtnStyle: React.CSSProperties = {
+  background: 'transparent', border: 'none', color: '#1e6178', fontWeight: 600,
+  cursor: 'pointer', fontSize: 13, padding: 0,
 };

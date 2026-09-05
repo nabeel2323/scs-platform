@@ -181,8 +181,9 @@ export interface AdminOrderItem {
 export interface OrderStatusEntry {
   id: string;
   orderId: string;
-  status: string;
-  actorId: string;
+  fromStatus: string | null;
+  toStatus: string;
+  changedBy: string | null;
   actorType: string;
   reason: string | null;
   metadata: Record<string, unknown>;
@@ -338,6 +339,13 @@ export interface RoleInfo {
   permissions: string[];
 }
 
+export interface AdminOrg {
+  id: string;
+  name: string;
+  type: string;
+  verificationStatus: string;
+}
+
 export async function fetchAdminUsers(params?: {
   status?: string;
   search?: string;
@@ -394,6 +402,23 @@ export async function fetchRoles(): Promise<RoleInfo[]> {
   return res.json();
 }
 
+export async function fetchAdminOrganizations(): Promise<AdminOrg[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations`);
+  if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.status}`);
+  return res.json();
+}
+
+export async function removeUserRole(
+  userId: string,
+  orgId: string,
+): Promise<{ orgId: string; userId: string; removed: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${userId}/roles/${orgId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to remove role: ${res.status}`);
+  return res.json();
+}
+
 // ── Audit Logs ───────────────────────────────────────────────
 
 export interface AuditLog {
@@ -401,7 +426,7 @@ export interface AuditLog {
   action: string;
   resource: string;
   resourceId: string | null;
-  actorId: string;
+  actorId: string | null;
   actorType: string;
   metadata: Record<string, unknown>;
   createdAt: string;
@@ -469,7 +494,7 @@ export async function updateAdminCategory(
   data: {
     name?: string;
     nameAr?: string;
-    parentId?: string;
+    parentId?: string | null;
     isActive?: boolean;
   },
 ): Promise<AdminCategory> {

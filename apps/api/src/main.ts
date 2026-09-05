@@ -6,7 +6,6 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { AuditLogMiddleware } from './common/middleware/audit-log.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -43,8 +42,8 @@ async function bootstrap() {
   // ── Request ID correlation ─────────────────────────────────
   app.use(RequestIdMiddleware);
 
-  // ── Audit log middleware ────────────────────────────────────
-  app.use(AuditLogMiddleware);
+  // Audit trail middleware is registered in AppModule.configure() so it can
+  // inject AuditService (see modules/audit/audit-log.middleware.ts).
 
   // ── Global validation pipe ─────────────────────────────────
   app.useGlobalPipes(

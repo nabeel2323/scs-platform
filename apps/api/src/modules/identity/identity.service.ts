@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
 import { RateLimitService } from '../../common/services/rate-limit.service';
+import { AuditService, AuditRequestContext } from '../audit/index';
 
 /**
  * Identity service — phone-first identity with multi-org support.
@@ -26,6 +27,7 @@ export class IdentityService {
     private readonly redis: RedisService,
     private readonly jwt: JwtService,
     private readonly rateLimitService: RateLimitService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -61,6 +63,7 @@ export class IdentityService {
     otp: string,
     deviceId?: string,
     deviceInfo?: { platform: string; userAgent: string },
+    context?: AuditRequestContext,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     const storedOtp = await this.redis.client.get(`otp:${phone}`);
 
@@ -115,6 +118,18 @@ export class IdentityService {
       device: deviceInfo?.platform || 'web',
       deviceId: deviceId || null,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    // A login carries no JWT yet, so the HTTP middleware cannot attribute it.
+    await this.audit.record({
+      actorType: AuditService.actorTypeForRole(claims.roleKey),
+      actorId: userId,
+      orgId: claims.activeOrgId,
+      action: 'auth.login',
+      resource: 'auth',
+      metadata: { method: 'otp', phone, deviceId: deviceId ?? null, sessionId },
+      ip: context?.ip,
+      userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
 
     return { accessToken, refreshToken };
@@ -271,9 +286,11 @@ export class IdentityService {
 
   /**
    * Create a new organization and add the creator as owner.
+   * Generates a shareable invite code so others can join via joinOrgByInvite().
    */
   async createOrg(data: { name: string; type: string; country: string; legalName?: string; taxId?: string }, creatorId: string) {
     const orgId = crypto.randomUUID();
+    const inviteCode = await this.generateInviteCode();
     await this.db.db.insert(organizations).values({
       id: orgId,
       type: data.type,
@@ -282,11 +299,12 @@ export class IdentityService {
       taxId: data.taxId ?? null,
       country: data.country,
       verificationStatus: 'PENDING',
+      inviteCode,
     });
 
-    // Find or use a default OWNER role for the creator
+    // Add the creator as the organization owner (MERCHANT_OWNER role).
     const ownerRole = await this.db.db.query.roles.findFirst({
-      where: eq(roles.key, 'OWNER'),
+      where: eq(roles.key, 'MERCHANT_OWNER'),
     });
 
     if (ownerRole) {
@@ -300,6 +318,61 @@ export class IdentityService {
     }
 
     return this.getOrg(orgId);
+  }
+
+  /**
+   * Generate a unique, shareable invite code (10 uppercase hex chars).
+   * Retries on the (rare) unique-collision.
+   */
+  private async generateInviteCode(): Promise<string> {
+    for (let i = 0; i < 5; i++) {
+      const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+      const existing = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.inviteCode, code),
+        columns: { id: true },
+      });
+      if (!existing) return code;
+    }
+    // Extremely unlikely fallback
+    return crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 12);
+  }
+
+  /**
+   * Join an existing organization via its invite code.
+   * Assigns the MERCHANT_STAFF role by default.
+   */
+  async joinOrgByInvite(userId: string, code: string) {
+    const normalized = (code ?? '').trim().toUpperCase();
+    if (!normalized) throw new BadRequestException('Invite code is required');
+
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.inviteCode, normalized),
+    });
+    if (!org) throw new BadRequestException('Invalid or expired invite code');
+
+    // Prevent duplicate membership
+    const existing = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, org.id),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (existing) throw new ConflictException('You are already a member of this organization');
+
+    const memberRole = await this.db.db.query.roles.findFirst({
+      where: eq(roles.key, 'MERCHANT_STAFF'),
+    });
+    if (!memberRole) throw new NotFoundException('Default member role not found');
+
+    await this.db.db.insert(organizationMembers).values({
+      id: crypto.randomUUID(),
+      orgId: org.id,
+      userId,
+      roleId: memberRole.id,
+      status: 'ACTIVE',
+    });
+
+    return this.getOrg(org.id);
   }
 
   /**
@@ -436,6 +509,7 @@ export class IdentityService {
     password: string,
     deviceId: string,
     deviceInfo?: { platform: string; userAgent: string },
+    context?: AuditRequestContext,
   ): Promise<{ accessToken: string; refreshToken: string; requiresOtp?: boolean; otpPhone?: string }> {
     // Rate limit check
     const rateCheck = await this.rateLimitService.checkAndIncrement('password_login', email, 5, 900);
@@ -471,6 +545,17 @@ export class IdentityService {
       // Send OTP to user's phone
       await this.requestOtp(user.phone);
       
+      // Password was correct but the device is unknown — record the challenge.
+      await this.audit.record({
+        actorType: 'SYSTEM',
+        actorId: user.id,
+        action: 'auth.otp_challenge',
+        resource: 'auth',
+        metadata: { method: 'password', email, deviceId, reason: 'untrusted_device' },
+        ip: context?.ip,
+        userAgent: context?.userAgent ?? deviceInfo?.userAgent,
+      });
+
       return {
         accessToken: '',
         refreshToken: '',
@@ -504,6 +589,17 @@ export class IdentityService {
 
     // Reset rate limit on successful login
     await this.rateLimitService.resetAttempts('password_login', email);
+
+    await this.audit.record({
+      actorType: AuditService.actorTypeForRole(claims.roleKey),
+      actorId: user.id,
+      orgId: claims.activeOrgId,
+      action: 'auth.login',
+      resource: 'auth',
+      metadata: { method: 'password', email, deviceId, sessionId, trustedDevice: true },
+      ip: context?.ip,
+      userAgent: context?.userAgent ?? deviceInfo?.userAgent,
+    });
 
     return { accessToken, refreshToken };
   }

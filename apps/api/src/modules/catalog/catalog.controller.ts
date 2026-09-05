@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import {
   CatalogService,
-  CreateCategoryInput, CreateBrandInput,
+  CreateCategoryInput, UpdateCategoryInput, CreateBrandInput,
   CreateProductInput, UpdateProductInput,
   CreateVariantInput, AddMediaInput, CreateImportJobInput,
 } from './catalog.service';
@@ -46,6 +46,16 @@ export class CatalogController {
   @Get('categories/:id')
   async getCategory(@Param('id') id: string) {
     return this.catalogService.getCategory(id);
+  }
+
+  @Patch('categories/:id')
+  async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
+    return this.catalogService.updateCategory(id, input);
+  }
+
+  @Delete('categories/:id')
+  async deleteCategory(@Param('id') id: string) {
+    return this.catalogService.deleteCategory(id);
   }
 
   // ── Brands ───────────────────────────────────────────────────

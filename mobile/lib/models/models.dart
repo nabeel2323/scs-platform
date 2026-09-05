@@ -458,7 +458,7 @@ class OrgMembership {
 /// Organization returned by organization endpoints.
 class Organization {
   final String id, name, type, country, createdAt;
-  final String? legalName, taxId;
+  final String? legalName, taxId, inviteCode;
   Organization({
     required this.id,
     required this.name,
@@ -467,6 +467,7 @@ class Organization {
     required this.createdAt,
     this.legalName,
     this.taxId,
+    this.inviteCode,
   });
   factory Organization.fromJson(Map<String, dynamic> j) => Organization(
         id: j['id'] ?? '',
@@ -476,6 +477,7 @@ class Organization {
         createdAt: j['createdAt'] ?? '',
         legalName: j['legalName'],
         taxId: j['taxId'],
+        inviteCode: j['inviteCode'],
       );
 }
 

@@ -15,6 +15,7 @@ export interface Organization {
   taxId: string | null;
   country: string;
   verificationStatus: string;
+  inviteCode: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -110,6 +111,19 @@ export async function createOrganization(data: {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to create organization: ${res.status}`);
+  return res.json();
+}
+
+export async function joinOrganization(code: string): Promise<Organization> {
+  const res = await authFetch(`${API_URL}/v1/organizations/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.message || `Failed to join organization: ${res.status}`);
+  }
   return res.json();
 }
 

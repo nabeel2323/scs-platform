@@ -20,8 +20,15 @@ export class AuthController {
       deviceId?: string;
       deviceInfo?: { platform: string; userAgent: string };
     },
+    // Inline structural type, not express's Request: with
+    // emitDecoratorMetadata a decorated param type is emitted as a runtime
+    // value, and `express` is not a direct dependency of this package.
+    @Req() req: { ip?: string; get(name: string): string | undefined },
   ) {
-    return this.identityService.verifyOtp(body.phone, body.otp, body.deviceId, body.deviceInfo);
+    return this.identityService.verifyOtp(body.phone, body.otp, body.deviceId, body.deviceInfo, {
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
   }
 
   @Post('refresh')
@@ -52,12 +59,14 @@ export class AuthController {
   @Post('login/password')
   async loginPassword(
     @Body() body: { email: string; password: string; deviceId: string; deviceInfo?: { platform: string; userAgent: string } },
+    @Req() req: { ip?: string; get(name: string): string | undefined },
   ) {
     return this.identityService.loginWithPassword(
       body.email,
       body.password,
       body.deviceId,
       body.deviceInfo,
+      { ip: req.ip, userAgent: req.get('user-agent') },
     );
   }
 

@@ -401,23 +401,32 @@ async function main() {
 
   // ── 13. AUDIT LOGS ────────────────────────────────────────
   console.log('  Creating audit logs...');
-  const auditEntries = [
-    { actor: 'SYSTEM', action: 'user.created', resource: 'users', resourceId: IDs.buyer1, meta: '{"phone":"+966500000100"}' },
-    { actor: 'SYSTEM', action: 'user.created', resource: 'users', resourceId: IDs.buyer2, meta: '{"phone":"+966500000101"}' },
-    { actor: 'SYSTEM', action: 'store.verified', resource: 'stores', resourceId: IDs.storeElectronics, meta: '{"verifiedBy":"admin"}' },
-    { actor: 'SYSTEM', action: 'store.verified', resource: 'stores', resourceId: IDs.storeGroceries, meta: '{"verifiedBy":"admin"}' },
-    { actor: 'MERCHANT', action: 'product.created', resource: 'products', resourceId: IDs.products[0], org: IDs.orgWholesale, meta: '{"title":"Samsung Galaxy S24 Ultra"}' },
-    { actor: 'MERCHANT', action: 'product.created', resource: 'products', resourceId: IDs.products[5], org: IDs.orgRetail, meta: '{"title":"Almarai Fresh Milk 1L"}' },
-    { actor: 'MERCHANT', action: 'price_list.updated', resource: 'price_lists', resourceId: IDs.priceListElectronics, org: IDs.orgWholesale, meta: '{"tiers_added":15}' },
-    { actor: 'BUYER', action: 'order.created', resource: 'orders', resourceId: IDs.order1, meta: '{"total_minor":1054800}' },
-    { actor: 'MERCHANT', action: 'order.confirmed', resource: 'orders', resourceId: IDs.order1, org: IDs.orgWholesale, meta: '{"sla_hours":48}' },
-    { actor: 'MERCHANT', action: 'order.completed', resource: 'orders', resourceId: IDs.order1, org: IDs.orgWholesale, meta: '{"final_amount_minor":1054800}' },
-    { actor: 'BUYER', action: 'order.created', resource: 'orders', resourceId: IDs.order2, meta: '{"total_minor":557400}' },
-    { actor: 'ADMIN', action: 'promotion.created', resource: 'promotions', resourceId: IDs.promoSummer, org: IDs.orgPlatform, meta: '{"code":"SUMMER25"}' },
+  const auditEntries: {
+    actor: string;
+    actorId: string | null;
+    action: string;
+    resource: string;
+    resourceId?: string;
+    org?: string;
+    meta: string;
+  }[] = [
+    // System-initiated rows legitimately have no actor.
+    { actor: 'SYSTEM', actorId: null, action: 'user.created', resource: 'users', resourceId: IDs.buyer1, meta: '{"phone":"+966500000100"}' },
+    { actor: 'SYSTEM', actorId: null, action: 'user.created', resource: 'users', resourceId: IDs.buyer2, meta: '{"phone":"+966500000101"}' },
+    { actor: 'ADMIN', actorId: IDs.adminUser, action: 'store.verified', resource: 'stores', resourceId: IDs.storeElectronics, meta: '{"decision":"approved"}' },
+    { actor: 'ADMIN', actorId: IDs.adminUser, action: 'store.verified', resource: 'stores', resourceId: IDs.storeGroceries, meta: '{"decision":"approved"}' },
+    { actor: 'MERCHANT', actorId: IDs.merchantOwner1, action: 'product.created', resource: 'products', resourceId: IDs.products[0], org: IDs.orgWholesale, meta: '{"title":"Samsung Galaxy S24 Ultra"}' },
+    { actor: 'MERCHANT', actorId: IDs.merchantOwner2, action: 'product.created', resource: 'products', resourceId: IDs.products[5], org: IDs.orgRetail, meta: '{"title":"Almarai Fresh Milk 1L"}' },
+    { actor: 'MERCHANT', actorId: IDs.merchantOwner1, action: 'price_list.updated', resource: 'price_lists', resourceId: IDs.priceListElectronics, org: IDs.orgWholesale, meta: '{"tiers_added":15}' },
+    { actor: 'BUYER', actorId: IDs.buyer1, action: 'order.created', resource: 'orders', resourceId: IDs.order1, meta: '{"total_minor":1054800}' },
+    { actor: 'MERCHANT', actorId: IDs.merchantStaff1, action: 'order.confirmed', resource: 'orders', resourceId: IDs.order1, org: IDs.orgWholesale, meta: '{"sla_hours":48}' },
+    { actor: 'MERCHANT', actorId: IDs.merchantStaff1, action: 'order.completed', resource: 'orders', resourceId: IDs.order1, org: IDs.orgWholesale, meta: '{"final_amount_minor":1054800}' },
+    { actor: 'BUYER', actorId: IDs.buyer2, action: 'order.created', resource: 'orders', resourceId: IDs.order2, meta: '{"total_minor":557400}' },
+    { actor: 'ADMIN', actorId: IDs.adminUser, action: 'promotion.created', resource: 'promotions', resourceId: IDs.promoSummer, org: IDs.orgPlatform, meta: '{"code":"SUMMER25"}' },
   ];
   for (const a of auditEntries) {
     psql(`INSERT INTO audit_logs (id, actor_type, actor_id, action, resource, resource_id, org_id, metadata, ip)
-      VALUES (${sqlValue(uuid())}, ${sqlValue(a.actor)}, NULL, ${sqlValue(a.action)}, ${sqlValue(a.resource)},
+      VALUES (${sqlValue(uuid())}, ${sqlValue(a.actor)}, ${a.actorId ? sqlValue(a.actorId) : 'NULL'}, ${sqlValue(a.action)}, ${sqlValue(a.resource)},
         ${a.resourceId != null ? sqlValue(a.resourceId) : 'NULL'}, ${a.org ? sqlValue(a.org) : 'NULL'}, '${a.meta}'::jsonb, '127.0.0.1')
       ON CONFLICT DO NOTHING;`);
   }

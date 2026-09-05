@@ -91,6 +91,8 @@ class _MerchantRegistrationScreenState
   String _orgType = 'WHOLESALER';
   String _country = 'SA';
   final _taxIdCtrl = TextEditingController();
+  String _orgMode = 'create'; // 'create' a new org or 'join' via invite code
+  final _inviteCodeCtrl = TextEditingController();
 
   // Step 3: Store
   final _displayNameCtrl = TextEditingController();
@@ -121,6 +123,7 @@ class _MerchantRegistrationScreenState
     _orgNameCtrl.dispose();
     _legalNameCtrl.dispose();
     _taxIdCtrl.dispose();
+    _inviteCodeCtrl.dispose();
     _displayNameCtrl.dispose();
     _descriptionCtrl.dispose();
     _cityCtrl.dispose();
@@ -200,6 +203,32 @@ class _MerchantRegistrationScreenState
         if (mounted) setState(() => _submitting = false);
       }
     } else if (_currentStep == 1) {
+      // Join an existing organization via invite code (short-circuits wizard)
+      if (_orgMode == 'join') {
+        if (_inviteCodeCtrl.text.trim().isEmpty) {
+          setState(() => _error = 'Invite code is required');
+          return;
+        }
+        setState(() => _submitting = true);
+        try {
+          final org = await api.joinOrganization(_inviteCodeCtrl.text.trim());
+          ref.invalidate(profileProvider);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Joined ${org.name}!'),
+                backgroundColor: TaifTokens.ok,
+              ),
+            );
+            context.go('/home');
+          }
+        } catch (e) {
+          setState(() => _error = 'Failed to join organization: $e');
+        } finally {
+          if (mounted) setState(() => _submitting = false);
+        }
+        return;
+      }
       // Validate & create organization
       if (_orgNameCtrl.text.trim().isEmpty) {
         setState(() => _error = 'Business name is required');
@@ -441,65 +470,99 @@ class _MerchantRegistrationScreenState
   Widget _businessStep() => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            'Enter your business information for verification.',
-            style: TextStyle(color: TaifTokens.muted, fontSize: 13),
+          // Create a new organization or join an existing one via invite code
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                  value: 'create',
+                  label: Text('Create New'),
+                  icon: Icon(Icons.add_business)),
+              ButtonSegment(
+                  value: 'join',
+                  label: Text('Join with Code'),
+                  icon: Icon(Icons.login)),
+            ],
+            selected: {_orgMode},
+            onSelectionChanged: (s) => setState(() => _orgMode = s.first),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _orgNameCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Business Name *',
-              hintText: 'e.g. Al-Baraka Trading Co.',
-              border: OutlineInputBorder(),
+          if (_orgMode == 'join') ...[
+            Text(
+              'Enter the invite code shared by an organization owner to join as a member.',
+              style: TextStyle(color: TaifTokens.muted, fontSize: 13),
             ),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _legalNameCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Legal Name',
-              hintText: 'Official registered name (if different)',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _inviteCodeCtrl,
+              textCapitalization: TextCapitalization.characters,
+              maxLength: 12,
+              decoration: const InputDecoration(
+                labelText: 'Invite Code *',
+                hintText: 'e.g. A1B2C3D4E5',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _orgType,
-            decoration: const InputDecoration(
-              labelText: 'Business Type *',
-              border: OutlineInputBorder(),
+          ] else ...[
+            Text(
+              'Enter your business information for verification.',
+              style: TextStyle(color: TaifTokens.muted, fontSize: 13),
             ),
-            items: _orgTypes
-                .map((t) => DropdownMenuItem(value: t.$1, child: Text(t.$2)))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => _orgType = v);
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _country,
-            decoration: const InputDecoration(
-              labelText: 'Country *',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _orgNameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Business Name *',
+                hintText: 'e.g. Al-Baraka Trading Co.',
+                border: OutlineInputBorder(),
+              ),
             ),
-            items: _countries
-                .map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2)))
-                .toList(),
-            onChanged: (v) {
-              if (v != null) setState(() => _country = v);
-            },
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _taxIdCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Tax ID / VAT',
-              hintText: 'Optional',
-              border: OutlineInputBorder(),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _legalNameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Legal Name',
+                hintText: 'Official registered name (if different)',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _orgType,
+              decoration: const InputDecoration(
+                labelText: 'Business Type *',
+                border: OutlineInputBorder(),
+              ),
+              items: _orgTypes
+                  .map((t) => DropdownMenuItem(value: t.$1, child: Text(t.$2)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _orgType = v);
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              initialValue: _country,
+              decoration: const InputDecoration(
+                labelText: 'Country *',
+                border: OutlineInputBorder(),
+              ),
+              items: _countries
+                  .map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2)))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) setState(() => _country = v);
+              },
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _taxIdCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Tax ID / VAT',
+                hintText: 'Optional',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ],
       );
 
@@ -779,7 +842,11 @@ class _MerchantRegistrationScreenState
                 onPressed: _submitting ? null : _handleNext,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: TaifTokens.brandPrimary),
-                child: Text(_submitting ? 'Processing...' : 'Next →'),
+                child: Text(_submitting
+                    ? 'Processing...'
+                    : (_currentStep == 1 && _orgMode == 'join'
+                        ? 'Join →'
+                        : 'Next →')),
               )
             else
               ElevatedButton(

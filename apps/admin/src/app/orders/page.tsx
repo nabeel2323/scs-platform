@@ -66,7 +66,7 @@ export default function AdminOrdersPage() {
           <option value="">All Statuses</option>
           {STATUSES.filter(Boolean).map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </select>
-        <input type="text" placeholder="Filter by Store ID..." value={storeIdFilter} onChange={e => setStoreIdFilter(e.target.value)} style={{ ...filterStyle, flex: 1, minWidth: 200 }} />
+        <input type="text" placeholder="Filter by Store ID (UUID or prefix)..." value={storeIdFilter} onChange={e => setStoreIdFilter(e.target.value)} style={{ ...filterStyle, flex: 1, minWidth: 200 }} />
         <button onClick={() => { setPage(0); load(); }} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Apply</button>
       </div>
 
@@ -150,7 +150,9 @@ export default function AdminOrdersPage() {
             <h3 style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 8 }}>Status History</h3>
             {selectedOrder.history.map(h => (
               <div key={h.id} style={{ display: 'flex', gap: 10, padding: '6px 0', borderBottom: '1px solid #edf2f7', fontSize: 12 }}>
-                <span style={{ fontWeight: 600, color: statusColor(h.status), minWidth: 130 }}>{h.status.replace(/_/g, ' ')}</span>
+                <span style={{ fontWeight: 600, color: statusColor(h.toStatus), minWidth: 230 }}>
+                  {h.fromStatus ? `${h.fromStatus.replace(/_/g, ' ')} → ` : ''}{h.toStatus.replace(/_/g, ' ')}
+                </span>
                 <span style={{ color: '#5b6b74' }}>{h.actorType}</span>
                 <span style={{ color: '#a0aec0', marginLeft: 'auto' }}>{new Date(h.createdAt).toLocaleString()}</span>
               </div>

@@ -1,11 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { orders, masterOrders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products } from '../catalog/catalog.schema';
 import { auditLogs, analyticsEvents } from '../audit/audit.schema';
-import { eq, and, desc, isNull, sql, count, gte, lte, inArray, like, or } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql, count, gte, lte, inArray, like, ilike, or } from 'drizzle-orm';
+import { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { isUuid, isUuidPrefix } from '../../common/utils/uuid';
 
 /**
  * Admin service — platform-wide operations for admin users.
@@ -19,6 +21,27 @@ import { eq, and, desc, isNull, sql, count, gte, lte, inArray, like, or } from '
 @Injectable()
 export class AdminService {
   constructor(private readonly db: DatabaseService) {}
+
+  /**
+   * UUID filter helper — the admin UIs list truncated IDs (first 8 chars),
+   * so accept either a full UUID (exact match) or a hex prefix (ILIKE match).
+   * Anything else is a typed 400 rather than an unhandled Postgres cast error.
+   */
+  private uuidFilter(column: AnyPgColumn, value: string) {
+    if (isUuid(value)) return eq(column, value);
+    if (isUuidPrefix(value)) return sql`${column}::text ILIKE ${value + '%'}`;
+
+    throw new BadRequestException('ID filter must be a full UUID or a hex prefix');
+  }
+
+  /** Date filter helper — rejects unparseable input with a typed 400. */
+  private dateFilter(column: AnyPgColumn, value: string, op: 'gte' | 'lte') {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new BadRequestException(`Invalid date filter: ${value}`);
+    }
+    return op === 'gte' ? gte(column, date) : lte(column, date);
+  }
 
   // ── Orders ───────────────────────────────────────────────────
 
@@ -37,16 +60,16 @@ export class AdminService {
       conditions.push(eq(orders.status, filters.status));
     }
     if (filters.storeId) {
-      conditions.push(eq(orders.storeId, filters.storeId));
+      conditions.push(this.uuidFilter(orders.storeId, filters.storeId));
     }
     if (filters.buyerId) {
-      conditions.push(eq(orders.buyerId, filters.buyerId));
+      conditions.push(this.uuidFilter(orders.buyerId, filters.buyerId));
     }
     if (filters.from) {
-      conditions.push(gte(orders.createdAt, new Date(filters.from)));
+      conditions.push(this.dateFilter(orders.createdAt, filters.from, 'gte'));
     }
     if (filters.to) {
-      conditions.push(lte(orders.createdAt, new Date(filters.to)));
+      conditions.push(this.dateFilter(orders.createdAt, filters.to, 'lte'));
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -277,20 +300,23 @@ export class AdminService {
   }) {
     const conditions = [];
 
+    // Substring match: the console offers verb/noun fragments ('create',
+    // 'order') while rows store dotted actions and plural resources
+    // ('order.created', 'orders'), so exact equality never matched.
     if (filters.action) {
-      conditions.push(eq(auditLogs.action, filters.action));
+      conditions.push(ilike(auditLogs.action, `%${filters.action}%`));
     }
     if (filters.resource) {
-      conditions.push(eq(auditLogs.resource, filters.resource));
+      conditions.push(ilike(auditLogs.resource, `%${filters.resource}%`));
     }
     if (filters.actorId) {
-      conditions.push(eq(auditLogs.actorId, filters.actorId));
+      conditions.push(this.uuidFilter(auditLogs.actorId, filters.actorId));
     }
     if (filters.from) {
-      conditions.push(gte(auditLogs.createdAt, new Date(filters.from)));
+      conditions.push(this.dateFilter(auditLogs.createdAt, filters.from, 'gte'));
     }
     if (filters.to) {
-      conditions.push(lte(auditLogs.createdAt, new Date(filters.to)));
+      conditions.push(this.dateFilter(auditLogs.createdAt, filters.to, 'lte'));
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -505,6 +531,37 @@ export class AdminService {
     });
 
     return { orgId, userId, roleId, action: 'created' };
+  }
+
+  /**
+   * List all organizations (id, name, type, verification status) for the
+   * admin role-assignment picker.
+   */
+  async listOrganizations() {
+    return this.db.db.select({
+      id: organizations.id,
+      name: organizations.name,
+      type: organizations.type,
+      verificationStatus: organizations.verificationStatus,
+    }).from(organizations).orderBy(organizations.name);
+  }
+
+  /**
+   * Remove a user's membership (role) in a specific organization.
+   */
+  async removeRole(orgId: string, userId: string) {
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (!membership) throw new NotFoundException('Membership not found');
+
+    await this.db.db.delete(organizationMembers)
+      .where(eq(organizationMembers.id, membership.id));
+
+    return { orgId, userId, removed: true };
   }
 
   async listRoles() {

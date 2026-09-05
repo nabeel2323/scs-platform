@@ -4,6 +4,7 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
 import { organizations } from '../identity/identity.schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
+import { isUuid } from '../../common/utils/uuid';
 import crypto from 'node:crypto';
 
 /**
@@ -69,9 +70,16 @@ export class MerchantService {
     return this.getStore(storeId);
   }
 
+  /**
+   * Resolves a store by id or by slug.
+   *
+   * Public routes address stores by slug (`/v1/stores/gulf-tech`) while
+   * internal callers pass the id. A slug reaching `eq(stores.id, …)` makes
+   * Postgres reject the literal and surface as an unhandled 500.
+   */
   async getStore(storeId: string) {
     const store = await this.db.db.query.stores.findFirst({
-      where: eq(stores.id, storeId),
+      where: isUuid(storeId) ? eq(stores.id, storeId) : eq(stores.slug, storeId),
     });
     if (!store) throw new NotFoundException('Store not found');
     return store;

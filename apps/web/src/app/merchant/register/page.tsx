@@ -7,6 +7,7 @@ import {
   fetchProfile,
   updateProfile,
   createOrganization,
+  joinOrganization,
   createStore,
   createWarehouse,
   registerDocument,
@@ -114,6 +115,11 @@ export default function MerchantRegistrationPage() {
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
   const [createdStoreId, setCreatedStoreId] = useState<string | null>(null);
 
+  // Org step: create a new org or join an existing one via invite code
+  const [orgMode, setOrgMode] = useState<'create' | 'join'>('create');
+  const [inviteCode, setInviteCode] = useState('');
+  const [success, setSuccess] = useState<string | null>(null);
+
   // Load profile on mount
   useEffect(() => {
     async function loadProfile() {
@@ -170,6 +176,22 @@ export default function MerchantRegistrationPage() {
         setSubmitting(false);
       }
     } else if (currentStep === 1) {
+      // Join an existing organization via invite code (short-circuits the wizard)
+      if (orgMode === 'join') {
+        if (!inviteCode.trim()) { setError('Invite code is required'); return; }
+        setSubmitting(true);
+        setError(null);
+        try {
+          const org = await joinOrganization(inviteCode.trim());
+          setSuccess(`You joined ${org.name}! Redirecting to your account...`);
+          setTimeout(() => router.push('/account'), 1500);
+        } catch (err: any) {
+          setError(err.message || 'Failed to join organization');
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
       // Create organization
       if (!orgName.trim()) { setError('Business name is required'); return; }
       setSubmitting(true);
@@ -305,6 +327,12 @@ export default function MerchantRegistrationPage() {
         </div>
       )}
 
+      {success && (
+        <div style={{ padding: '10px 16px', background: '#e8f5e9', color: '#2e7d32', borderRadius: 6, marginBottom: 16 }}>
+          {success}
+        </div>
+      )}
+
       {/* Step 1: Profile */}
       {currentStep === 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -340,52 +368,84 @@ export default function MerchantRegistrationPage() {
       {/* Step 2: Business Details */}
       {currentStep === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
-            Enter your business information. This will be used for verification and legal compliance.
-          </p>
-          <Field label="Business Name *">
-            <input
-              type="text"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              style={inputStyle}
-              placeholder="e.g. Al-Baraka Trading Co."
-            />
-          </Field>
-          <Field label="Legal Name">
-            <input
-              type="text"
-              value={legalName}
-              onChange={(e) => setLegalName(e.target.value)}
-              style={inputStyle}
-              placeholder="Official registered name (if different)"
-            />
-          </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-            <Field label="Business Type *">
-              <select value={orgType} onChange={(e) => setOrgType(e.target.value)} style={inputStyle}>
-                {ORG_TYPES.map(t => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Country *">
-              <select value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle}>
-                {COUNTRIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Tax ID / VAT">
-              <input
-                type="text"
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value)}
-                style={inputStyle}
-                placeholder="Optional"
-              />
-            </Field>
+          {/* Create a new organization or join an existing one */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={() => setOrgMode('create')}
+              style={{ ...toggleBtnStyle, ...(orgMode === 'create' ? toggleBtnActive : {}) }}>
+              Create New Organization
+            </button>
+            <button type="button" onClick={() => setOrgMode('join')}
+              style={{ ...toggleBtnStyle, ...(orgMode === 'join' ? toggleBtnActive : {}) }}>
+              Join with Invite Code
+            </button>
           </div>
+
+          {orgMode === 'join' ? (
+            <>
+              <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
+                Enter the invite code shared by an organization owner to join as a member.
+              </p>
+              <Field label="Invite Code *">
+                <input
+                  type="text"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  style={{ ...inputStyle, letterSpacing: '2px', fontFamily: 'monospace' }}
+                  placeholder="e.g. A1B2C3D4E5"
+                  maxLength={12}
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
+                Enter your business information. This will be used for verification and legal compliance.
+              </p>
+              <Field label="Business Name *">
+                <input
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  style={inputStyle}
+                  placeholder="e.g. Al-Baraka Trading Co."
+                />
+              </Field>
+              <Field label="Legal Name">
+                <input
+                  type="text"
+                  value={legalName}
+                  onChange={(e) => setLegalName(e.target.value)}
+                  style={inputStyle}
+                  placeholder="Official registered name (if different)"
+                />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <Field label="Business Type *">
+                  <select value={orgType} onChange={(e) => setOrgType(e.target.value)} style={inputStyle}>
+                    {ORG_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Country *">
+                  <select value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle}>
+                    {COUNTRIES.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Tax ID / VAT">
+                  <input
+                    type="text"
+                    value={taxId}
+                    onChange={(e) => setTaxId(e.target.value)}
+                    style={inputStyle}
+                    placeholder="Optional"
+                  />
+                </Field>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -571,7 +631,7 @@ export default function MerchantRegistrationPage() {
 
         {currentStep < 4 ? (
           <button onClick={handleNext} disabled={submitting} style={primaryBtnStyle}>
-            {submitting ? 'Processing...' : 'Next →'}
+            {submitting ? 'Processing...' : (currentStep === 1 && orgMode === 'join' ? 'Join Organization' : 'Next →')}
           </button>
         ) : (
           <button onClick={handleSubmit} disabled={submitting} style={{
@@ -618,6 +678,24 @@ const secondaryBtnStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 500,
   cursor: 'pointer',
+};
+
+const toggleBtnStyle: React.CSSProperties = {
+  flex: 1,
+  padding: '10px 12px',
+  borderRadius: 6,
+  border: '1px solid #d9e2e6',
+  background: '#fff',
+  color: '#5b6b74',
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const toggleBtnActive: React.CSSProperties = {
+  border: '1px solid #174a5b',
+  background: '#eef4f6',
+  color: '#174a5b',
 };
 
 const linkBtnStyle: React.CSSProperties = {
