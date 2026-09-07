@@ -206,6 +206,129 @@ class ApiService {
           .map<ProductVariant>((e) => ProductVariant.fromJson(e))
           .toList();
 
+  Future<Product> createProduct({
+    required String storeId,
+    required String title,
+    String? titleAr,
+    String? slug,
+    String? description,
+    String? descriptionAr,
+    String? categoryId,
+    String? brandId,
+    String? condition,
+    int? moq,
+    List<String>? images,
+    Map<String, dynamic>? attributes,
+  }) async {
+    final d = <String, dynamic>{'storeId': storeId, 'title': title};
+    if (titleAr != null) d['titleAr'] = titleAr;
+    if (slug != null) d['slug'] = slug;
+    if (description != null) d['description'] = description;
+    if (descriptionAr != null) d['descriptionAr'] = descriptionAr;
+    if (categoryId != null) d['categoryId'] = categoryId;
+    if (brandId != null) d['brandId'] = brandId;
+    if (condition != null) d['condition'] = condition;
+    if (moq != null) d['moq'] = moq;
+    if (images != null) d['images'] = images;
+    if (attributes != null) d['attributes'] = attributes;
+    return Product.fromJson((await _dio.post('/v1/products', data: d)).data);
+  }
+
+  Future<Product> updateProduct(
+    String id, {
+    String? title,
+    String? titleAr,
+    String? description,
+    String? descriptionAr,
+    String? status,
+    String? condition,
+    bool? isAvailable,
+    int? moq,
+    List<String>? images,
+    Map<String, dynamic>? attributes,
+    String? categoryId,
+    String? brandId,
+  }) async {
+    final d = <String, dynamic>{};
+    if (title != null) d['title'] = title;
+    if (titleAr != null) d['titleAr'] = titleAr;
+    if (description != null) d['description'] = description;
+    if (descriptionAr != null) d['descriptionAr'] = descriptionAr;
+    if (status != null) d['status'] = status;
+    if (condition != null) d['condition'] = condition;
+    if (isAvailable != null) d['isAvailable'] = isAvailable;
+    if (moq != null) d['moq'] = moq;
+    if (images != null) d['images'] = images;
+    if (attributes != null) d['attributes'] = attributes;
+    if (categoryId != null) d['categoryId'] = categoryId;
+    if (brandId != null) d['brandId'] = brandId;
+    return Product.fromJson(
+        (await _dio.patch('/v1/products/$id', data: d)).data);
+  }
+
+  Future<void> deleteProduct(String id) async =>
+      _dio.delete('/v1/products/$id');
+
+  Future<ProductVariant> createVariant(
+    String productId, {
+    required String sku,
+    String? barcode,
+    String? title,
+    String? titleAr,
+    String? unit,
+    int? weightGrams,
+    Map<String, dynamic>? dimensionsMm,
+    Map<String, dynamic>? attributes,
+    List<String>? images,
+  }) async {
+    final d = <String, dynamic>{'sku': sku};
+    if (barcode != null) d['barcode'] = barcode;
+    if (title != null) d['title'] = title;
+    if (titleAr != null) d['titleAr'] = titleAr;
+    if (unit != null) d['unit'] = unit;
+    if (weightGrams != null) d['weightGrams'] = weightGrams;
+    if (dimensionsMm != null) d['dimensionsMm'] = dimensionsMm;
+    if (attributes != null) d['attributes'] = attributes;
+    if (images != null) d['images'] = images;
+    return ProductVariant.fromJson(
+        (await _dio.post('/v1/products/$productId/variants', data: d)).data);
+  }
+
+  Future<List<MediaItem>> listMedia(String productId) async =>
+      (await _dio.get('/v1/products/$productId/media'))
+          .data
+          .map<MediaItem>((e) => MediaItem.fromJson(e))
+          .toList();
+
+  Future<MediaItem> addMedia(
+    String productId, {
+    required String url,
+    String? variantId,
+    String? mediaType,
+    String? thumbUrl,
+    String? altText,
+    int? sortOrder,
+    int? fileSize,
+    String? mimeType,
+  }) async {
+    final d = <String, dynamic>{'url': url};
+    if (variantId != null) d['variantId'] = variantId;
+    if (mediaType != null) d['mediaType'] = mediaType;
+    if (thumbUrl != null) d['thumbUrl'] = thumbUrl;
+    if (altText != null) d['altText'] = altText;
+    if (sortOrder != null) d['sortOrder'] = sortOrder;
+    if (fileSize != null) d['fileSize'] = fileSize;
+    if (mimeType != null) d['mimeType'] = mimeType;
+    return MediaItem.fromJson(
+        (await _dio.post('/v1/products/$productId/media', data: d)).data);
+  }
+
+  Future<Map<String, dynamic>> presignMedia(
+          {required String fileName, required String mimeType}) async =>
+      (await _dio.post('/v1/media/presign',
+              data: {'fileName': fileName, 'mimeType': mimeType}))
+          .data;
+
   // ── Stores ────────────────────────────────────────────────
   Future<List<Store>> fetchStores({int? limit, int? offset}) async {
     final p = <String, dynamic>{};
@@ -249,6 +372,39 @@ class ApiService {
 
   Future<Store> fetchStore(String slugOrId) async =>
       Store.fromJson((await _dio.get('/v1/stores/$slugOrId')).data);
+
+  Future<Store> updateStore(
+    String id, {
+    String? displayName,
+    String? description,
+    String? logoUrl,
+    String? coverUrl,
+    String? currency,
+    String? timezone,
+    String? locale,
+    String? status,
+    Map<String, dynamic>? address,
+    Map<String, dynamic>? metadata,
+  }) async {
+    final d = <String, dynamic>{};
+    if (displayName != null) d['displayName'] = displayName;
+    if (description != null) d['description'] = description;
+    if (logoUrl != null) d['logoUrl'] = logoUrl;
+    if (coverUrl != null) d['coverUrl'] = coverUrl;
+    if (currency != null) d['currency'] = currency;
+    if (timezone != null) d['timezone'] = timezone;
+    if (locale != null) d['locale'] = locale;
+    if (status != null) d['status'] = status;
+    if (address != null) d['address'] = address;
+    if (metadata != null) d['metadata'] = metadata;
+    return Store.fromJson((await _dio.patch('/v1/stores/$id', data: d)).data);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchStoreWarehouses(
+          String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/warehouses'))
+          .data
+          .cast<Map<String, dynamic>>();
   Future<List<Product>> fetchStoreProducts(String storeId,
       {String? categoryId, int? limit, int? offset}) async {
     final p = <String, dynamic>{};
@@ -301,9 +457,10 @@ class ApiService {
   }
 
   // ── Orders ────────────────────────────────────────────────
-  Future<List<SubOrder>> fetchOrders({String? status}) async {
+  Future<List<SubOrder>> fetchOrders({String? status, String? storeId}) async {
     final p = <String, dynamic>{};
     if (status != null) p['status'] = status;
+    if (storeId != null) p['storeId'] = storeId;
     return (await _dio.get('/v1/orders', queryParameters: p))
         .data
         .map<SubOrder>((e) => SubOrder.fromJson(e))
@@ -431,4 +588,93 @@ class ApiService {
   // ── Verification ───────────────────────────────────────────
   Future<void> submitVerification(String storeId) async =>
       _dio.post('/v1/stores/$storeId/verify');
+
+  // ── Merchant Categories ────────────────────────────────────
+  Future<List<Category>> fetchStoreCategories(String storeId) async =>
+      (await _dio.get('/v1/categories', queryParameters: {'storeId': storeId}))
+          .data
+          .map<Category>((e) => Category.fromJson(e))
+          .toList();
+
+  Future<Category> createCategory({
+    required String name,
+    String? nameAr,
+    String? slug,
+    String? description,
+    String? imageUrl,
+    String? storeId,
+    String? parentId,
+    int? sortOrder,
+  }) async {
+    final d = <String, dynamic>{'name': name};
+    if (nameAr != null) d['nameAr'] = nameAr;
+    if (slug != null) d['slug'] = slug;
+    if (description != null) d['description'] = description;
+    if (imageUrl != null) d['imageUrl'] = imageUrl;
+    if (storeId != null) d['storeId'] = storeId;
+    if (parentId != null) d['parentId'] = parentId;
+    if (sortOrder != null) d['sortOrder'] = sortOrder;
+    return Category.fromJson((await _dio.post('/v1/categories', data: d)).data);
+  }
+
+  Future<Category> updateCategory(
+    String id, {
+    String? name,
+    String? nameAr,
+    String? description,
+    String? imageUrl,
+    int? sortOrder,
+    bool? isActive,
+  }) async {
+    final d = <String, dynamic>{};
+    if (name != null) d['name'] = name;
+    if (nameAr != null) d['nameAr'] = nameAr;
+    if (description != null) d['description'] = description;
+    if (imageUrl != null) d['imageUrl'] = imageUrl;
+    if (sortOrder != null) d['sortOrder'] = sortOrder;
+    if (isActive != null) d['isActive'] = isActive;
+    return Category.fromJson(
+        (await _dio.patch('/v1/categories/$id', data: d)).data);
+  }
+
+  Future<void> deleteCategory(String id) async =>
+      _dio.delete('/v1/categories/$id');
+
+  // ── Merchant Customers ─────────────────────────────────────
+  Future<List<CustomerSummary>> fetchMerchantCustomers() async =>
+      (await _dio.get('/v1/merchant/customers'))
+          .data
+          .map<CustomerSummary>((e) => CustomerSummary.fromJson(e))
+          .toList();
+
+  // ── Merchant Inventory ─────────────────────────────────────
+  Future<List<InventoryItem>> fetchWarehouseInventory(
+          String warehouseId) async =>
+      (await _dio.get('/v1/inventory/warehouse/$warehouseId'))
+          .data
+          .map<InventoryItem>((e) => InventoryItem.fromJson(e))
+          .toList();
+
+  Future<void> adjustStock(
+          {required String inventoryItemId,
+          required int quantity,
+          String? reason}) async =>
+      _dio.post('/v1/inventory/adjust', data: {
+        'inventoryItemId': inventoryItemId,
+        'quantity': quantity,
+        if (reason != null) 'reason': reason,
+      });
+
+  // ── Merchant Pricing ───────────────────────────────────────
+  Future<List<PriceList>> fetchStorePriceLists(String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/price-lists'))
+          .data
+          .map<PriceList>((e) => PriceList.fromJson(e))
+          .toList();
+
+  Future<List<PriceTier>> fetchPriceListTiers(String listId) async =>
+      (await _dio.get('/v1/price-lists/$listId/tiers'))
+          .data
+          .map<PriceTier>((e) => PriceTier.fromJson(e))
+          .toList();
 }

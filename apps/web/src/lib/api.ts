@@ -133,6 +133,58 @@ export async function fetchMyOrganizations(): Promise<(Organization & { membersh
   return res.json();
 }
 
+export interface OrgMember {
+  userId: string;
+  fullName: string;
+  phone: string;
+  roleKey: string;
+  status: string;
+  joinedAt: string;
+}
+
+export async function fetchOrganization(id: string): Promise<Organization> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch organization: ${res.status}`);
+  return res.json();
+}
+
+export async function updateOrganization(
+  id: string,
+  data: { name?: string; legalName?: string; taxId?: string },
+): Promise<Organization> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update organization: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchOrgMembers(orgId: string): Promise<OrgMember[]> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/members`);
+  if (!res.ok) throw new Error(`Failed to fetch members: ${res.status}`);
+  return res.json();
+}
+
+export async function addOrgMember(orgId: string, userId: string, roleId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, roleId }),
+  });
+  if (!res.ok) throw new Error(`Failed to add member: ${res.status}`);
+  return res.json();
+}
+
+export async function removeOrgMember(orgId: string, userId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/members/${userId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to remove member: ${res.status}`);
+  return res.json();
+}
+
 // ── Stores ───────────────────────────────────────────────────
 
 export async function createStore(input: {

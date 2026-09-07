@@ -38,7 +38,7 @@ export function Navbar() {
           <Link href="/favorites" style={linkStyle}>♡ Favorites</Link>
           <Link href="/cart" style={linkStyle}>Cart</Link>
           <Link href="/orders" style={linkStyle}>Orders</Link>
-          <Link href="/merchant/orders" style={linkStyle}>Merchant</Link>
+          <Link href="/merchant" style={linkStyle}>Merchant</Link>
           <Link href="/notifications" style={{ ...linkStyle, position: 'relative' }}>
             Notifications
             {unread > 0 && <span style={badgeStyle}>{unread > 99 ? '99+' : unread}</span>}

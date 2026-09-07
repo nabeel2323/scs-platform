@@ -18,6 +18,12 @@ import '../screens/orders/order_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/merchant/merchant_orders_screen.dart';
 import '../screens/merchant/merchant_registration_screen.dart';
+import '../screens/merchant/merchant_dashboard_screen.dart';
+import '../screens/merchant/store_profile_screen.dart';
+import '../screens/merchant/merchant_catalog_screen.dart';
+import '../screens/merchant/product_edit_screen.dart';
+import '../screens/merchant/category_manage_screen.dart';
+import '../screens/merchant/merchant_customers_screen.dart';
 import '../screens/reviews/reviews_disputes_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/organizations/organizations_screen.dart';
@@ -68,6 +74,28 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/merchant/register',
           builder: (_, __) => const MerchantRegistrationScreen()),
+      GoRoute(
+          path: '/merchant',
+          builder: (_, __) => const MerchantDashboardScreen()),
+      GoRoute(
+          path: '/merchant/store',
+          builder: (_, __) => const StoreProfileScreen()),
+      GoRoute(
+          path: '/merchant/catalog',
+          builder: (_, __) => const MerchantCatalogScreen()),
+      GoRoute(
+          path: '/merchant/catalog/new',
+          builder: (_, __) => const ProductEditScreen()),
+      GoRoute(
+          path: '/merchant/catalog/product/:id',
+          builder: (_, state) =>
+              ProductEditScreen(productId: state.pathParameters['id']!)),
+      GoRoute(
+          path: '/merchant/categories',
+          builder: (_, __) => const CategoryManageScreen()),
+      GoRoute(
+          path: '/merchant/customers',
+          builder: (_, __) => const MerchantCustomersScreen()),
       GoRoute(
           path: '/reviews', builder: (_, __) => const ReviewsDisputesScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

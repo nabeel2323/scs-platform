@@ -9,12 +9,12 @@ class MerchantOrdersScreen extends ConsumerWidget {
   const MerchantOrdersScreen({super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orders = ref.watch(ordersProvider);
+    final orders = ref.watch(merchantOrdersProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Merchant Orders'), actions: [
           IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: () => ref.invalidate(ordersProvider)),
+              onPressed: () => ref.invalidate(merchantOrdersProvider)),
         ]),
         body: orders.when(
           data: (list) {
@@ -59,7 +59,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
           error: (e, _) => EmptyState(
               title: 'Error',
               description: '$e',
-              onAction: () => ref.invalidate(ordersProvider)),
+              onAction: () => ref.invalidate(merchantOrdersProvider)),
         ));
   }
 
@@ -79,7 +79,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
             ElevatedButton(
                 onPressed: () async {
                   await ref.read(apiServiceProvider).acceptOrder(o.id);
-                  ref.invalidate(ordersProvider);
+                  ref.invalidate(merchantOrdersProvider);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),
                 child: const Text('Accept', style: TextStyle(fontSize: 12))),
@@ -89,7 +89,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
                   await ref
                       .read(apiServiceProvider)
                       .rejectOrder(o.id, 'Rejected by merchant');
-                  ref.invalidate(ordersProvider);
+                  ref.invalidate(merchantOrdersProvider);
                 },
                 style:
                     OutlinedButton.styleFrom(foregroundColor: TaifTokens.err),
@@ -111,7 +111,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
                         await ref
                             .read(apiServiceProvider)
                             .transitionStatus(o.id, ns);
-                        ref.invalidate(ordersProvider);
+                        ref.invalidate(merchantOrdersProvider);
                       },
                       style: ElevatedButton.styleFrom(
                           minimumSize: Size.zero,

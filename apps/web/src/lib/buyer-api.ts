@@ -22,7 +22,9 @@ export interface Product {
   title: string;
   titleAr: string | null;
   description: string | null;
+  descriptionAr?: string | null;
   status: string;
+  condition?: string;
   isAvailable: boolean;
   moq: number;
   images: unknown[];
@@ -299,9 +301,10 @@ export async function checkout(input: {
 
 // ── Orders ───────────────────────────────────────────────────
 
-export async function fetchOrders(params?: { status?: string }): Promise<unknown[]> {
+export async function fetchOrders(params?: { status?: string; storeId?: string }): Promise<unknown[]> {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
+  if (params?.storeId) qs.set('storeId', params.storeId);
   const res = await authFetch(`${API_URL}/v1/orders?${qs}`);
   if (!res.ok) throw new Error(`Orders failed: ${res.status}`);
   return res.json();
@@ -533,5 +536,296 @@ export interface CustomerSummary {
 export async function fetchMerchantCustomers(): Promise<CustomerSummary[]> {
   const res = await authFetch(`${API_URL}/v1/merchant/customers`);
   if (!res.ok) throw new Error(`Fetch customers failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Merchant Catalog Management ──────────────────────────────
+
+export interface MediaItem {
+  id: string;
+  productId: string;
+  variantId: string | null;
+  mediaType: string;
+  url: string;
+  thumbUrl: string | null;
+  blurhash: string | null;
+  altText: string | null;
+  altTextAr: string | null;
+  sortOrder: number;
+  fileSize: number;
+  mimeType: string | null;
+  createdAt: string;
+}
+
+export interface CreateProductInput {
+  storeId: string;
+  title: string;
+  titleAr?: string;
+  slug?: string;
+  description?: string;
+  descriptionAr?: string;
+  categoryId?: string;
+  brandId?: string;
+  condition?: string;
+  moq?: number;
+  images?: string[];
+  attributes?: Record<string, unknown>;
+}
+
+export interface UpdateProductInput {
+  title?: string;
+  titleAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  status?: string;
+  condition?: string;
+  isAvailable?: boolean;
+  moq?: number;
+  images?: string[];
+  attributes?: Record<string, unknown>;
+  categoryId?: string;
+  brandId?: string;
+}
+
+export interface CreateVariantInput {
+  sku: string;
+  barcode?: string;
+  title?: string;
+  titleAr?: string;
+  unit?: string;
+  weightGrams?: number;
+  dimensionsMm?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
+  images?: string[];
+}
+
+export interface AddMediaInput {
+  url: string;
+  variantId?: string;
+  mediaType?: string;
+  thumbUrl?: string;
+  blurhash?: string;
+  altText?: string;
+  altTextAr?: string;
+  sortOrder?: number;
+  fileSize?: number;
+  mimeType?: string;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  nameAr?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string;
+  storeId?: string;
+  parentId?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  nameAr?: string;
+  description?: string;
+  imageUrl?: string;
+  parentId?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export async function createProduct(input: CreateProductInput): Promise<Product> {
+  const res = await authFetch(`${API_URL}/v1/products`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create product failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateProduct(id: string, input: UpdateProductInput): Promise<Product> {
+  const res = await authFetch(`${API_URL}/v1/products/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update product failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteProduct(id: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/products/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Delete product failed: ${res.status}`);
+  return res.json();
+}
+
+export async function listVariants(productId: string): Promise<ProductVariant[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants`);
+  if (!res.ok) throw new Error(`Variants failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createVariant(productId: string, input: CreateVariantInput): Promise<ProductVariant> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create variant failed: ${res.status}`);
+  return res.json();
+}
+
+export async function listMedia(productId: string): Promise<MediaItem[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/media`);
+  if (!res.ok) throw new Error(`Media failed: ${res.status}`);
+  return res.json();
+}
+
+export async function addMedia(productId: string, input: AddMediaInput): Promise<MediaItem> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Add media failed: ${res.status}`);
+  return res.json();
+}
+
+export async function presignMedia(input: { fileName: string; mimeType: string }): Promise<{ uploadUrl: string; storageKey: string }> {
+  const res = await authFetch(`${API_URL}/v1/media/presign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Presign failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchStoreCategories(storeId: string): Promise<Category[]> {
+  const res = await authFetch(`${API_URL}/v1/categories?storeId=${encodeURIComponent(storeId)}`);
+  if (!res.ok) throw new Error(`Categories failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createCategory(input: CreateCategoryInput): Promise<Category> {
+  const res = await authFetch(`${API_URL}/v1/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create category failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateCategory(id: string, input: UpdateCategoryInput): Promise<Category> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update category failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteCategory(id: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Delete category failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Merchant Warehouses / Inventory ──────────────────────────
+
+export interface WarehouseSummary {
+  id: string;
+  storeId: string;
+  name: string;
+  address: Record<string, unknown>;
+  managerName: string | null;
+  managerPhone: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  variantId: string;
+  warehouseId: string;
+  qtyOnHand: number;
+  qtyReserved: number;
+  reorderPoint: number;
+  maxStock: number | null;
+  lowStockAlert: boolean;
+  lastCountedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchStoreWarehouses(storeId: string): Promise<WarehouseSummary[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/warehouses`);
+  if (!res.ok) throw new Error(`Warehouses failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchWarehouseInventory(warehouseId: string): Promise<InventoryItem[]> {
+  const res = await authFetch(`${API_URL}/v1/inventory/warehouse/${warehouseId}`);
+  if (!res.ok) throw new Error(`Inventory failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchLowStock(warehouseId?: string): Promise<InventoryItem[]> {
+  const qs = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : '';
+  const res = await authFetch(`${API_URL}/v1/inventory/low-stock${qs}`);
+  if (!res.ok) throw new Error(`Low stock failed: ${res.status}`);
+  return res.json();
+}
+
+export async function adjustStock(input: { inventoryItemId: string; quantity: number; reason?: string }): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/inventory/adjust`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Adjust stock failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Merchant Pricing ─────────────────────────────────────────
+
+export interface PriceList {
+  id: string;
+  storeId: string;
+  name: string;
+  currency: string;
+  channel: string;
+  audience: string;
+  isActive: boolean;
+  priority: number;
+  validFrom: string | null;
+  validUntil: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PriceTier {
+  id: string;
+  priceListId: string;
+  variantId: string;
+  minQty: number;
+  maxQty: number | null;
+  unitPriceMinor: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchStorePriceLists(storeId: string): Promise<PriceList[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/price-lists`);
+  if (!res.ok) throw new Error(`Price lists failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchPriceListTiers(listId: string): Promise<PriceTier[]> {
+  const res = await authFetch(`${API_URL}/v1/price-lists/${listId}/tiers`);
+  if (!res.ok) throw new Error(`Price tiers failed: ${res.status}`);
   return res.json();
 }

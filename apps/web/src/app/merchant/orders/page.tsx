@@ -1,33 +1,49 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { fetchOrders, acceptMerchantOrder, rejectMerchantOrder, transitionOrderStatus, SubOrder, OrderItem } from '../../../lib/buyer-api';
+import { fetchMyStores } from '../../../lib/api';
 import { StatusBadge, formatMinor, formatDate, EmptyState, LoadingSpinner, ErrorBanner } from '../../../components/Shared';
 
 export default function MerchantOrdersPage() {
   const [orders, setOrders] = useState<SubOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [storeId, setStoreId] = useState('');
+  const [storeName, setStoreName] = useState('');
+  const [noStore, setNoStore] = useState(false);
   const [rejectId, setRejectId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [transitionId, setTransitionId] = useState('');
   const [nextStatus, setNextStatus] = useState('');
 
-  const load = async () => {
+  const load = async (sid: string) => {
     try {
-      const data = await fetchOrders();
+      const data = await fetchOrders({ storeId: sid });
       setOrders(data as SubOrder[]);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const stores = await fetchMyStores();
+        const s = stores[0];
+        if (!s) { setNoStore(true); setLoading(false); return; }
+        setStoreId(s.id);
+        setStoreName(s.displayName);
+        await load(s.id);
+      } catch { setLoading(false); }
+    })();
+  }, []);
 
   const handleAccept = async (orderId: string) => {
     setError('');
     try {
       await acceptMerchantOrder(orderId);
-      await load();
+      await load(storeId);
     } catch (err: any) { setError(err.message || 'Accept failed'); }
   };
 
@@ -38,7 +54,7 @@ export default function MerchantOrdersPage() {
       await rejectMerchantOrder(rejectId, rejectReason);
       setRejectId('');
       setRejectReason('');
-      await load();
+      await load(storeId);
     } catch (err: any) { setError(err.message || 'Reject failed'); }
   };
 
@@ -49,7 +65,7 @@ export default function MerchantOrdersPage() {
       await transitionOrderStatus(transitionId, nextStatus);
       setTransitionId('');
       setNextStatus('');
-      await load();
+      await load(storeId);
     } catch (err: any) { setError(err.message || 'Transition failed'); }
   };
 
@@ -74,9 +90,18 @@ export default function MerchantOrdersPage() {
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>Merchant Orders</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>Merchant Orders</h1>
+      {storeName && <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 24 }}>Incoming orders for {storeName}</p>}
 
       {error && <ErrorBanner message={error} />}
+
+      {noStore && (
+        <EmptyState
+          title="No store yet"
+          description="Complete onboarding to create your store and start receiving orders."
+          action={<Link href="/merchant/onboard" style={{ display: 'inline-block', padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Onboard a Store</Link>}
+        />
+      )}
 
       {/* Pending orders */}
       {pendingOrders.length > 0 && (
@@ -154,7 +179,7 @@ export default function MerchantOrdersPage() {
         </div>
       )}
 
-      {orders.length === 0 && <EmptyState title="No orders yet" description="Orders from buyers will appear here." />}
+      {!noStore && orders.length === 0 && <EmptyState title="No orders yet" description="Orders from buyers will appear here." />}
     </div>
   );
 }

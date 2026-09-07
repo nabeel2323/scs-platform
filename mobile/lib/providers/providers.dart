@@ -71,3 +71,66 @@ final orgDetailProvider = FutureProvider.family<Organization, String>(
     (ref, orgId) => ref.watch(apiServiceProvider).fetchOrganization(orgId));
 final orgMembersProvider = FutureProvider.family<List<OrgMember>, String>(
     (ref, orgId) => ref.watch(apiServiceProvider).fetchOrgMembers(orgId));
+
+// ── Merchant Stores ─────────────────────────────────────────
+
+/// For a merchant JWT (with activeOrg), GET /v1/stores returns their own
+/// org's stores. Used as the root of all merchant store-scoped data.
+final myStoresProvider = FutureProvider<List<Store>>(
+    (ref) => ref.watch(apiServiceProvider).fetchStores());
+
+/// The merchant's primary store (first of their org's stores), or null.
+final activeStoreProvider = FutureProvider<Store?>((ref) async {
+  final stores = await ref.watch(myStoresProvider.future);
+  return stores.isNotEmpty ? stores.first : null;
+});
+
+// ── Merchant Orders (store-scoped) ──────────────────────────
+
+final merchantOrdersProvider = FutureProvider<List<SubOrder>>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <SubOrder>[];
+  return ref.watch(apiServiceProvider).fetchOrders(storeId: store.id);
+});
+
+// ── Merchant Catalog ────────────────────────────────────────
+
+final storeProductsProvider =
+    FutureProvider.family<List<Product>, String>((ref, storeId) async {
+  if (storeId.isEmpty) return <Product>[];
+  return ref.watch(apiServiceProvider).fetchStoreProducts(storeId, limit: 200);
+});
+
+final storeCategoriesProvider =
+    FutureProvider.family<List<Category>, String>((ref, storeId) async {
+  if (storeId.isEmpty) return <Category>[];
+  return ref.watch(apiServiceProvider).fetchStoreCategories(storeId);
+});
+
+final productVariantsProvider =
+    FutureProvider.family<List<ProductVariant>, String>((ref, productId) =>
+        ref.watch(apiServiceProvider).fetchVariants(productId));
+
+final productMediaProvider = FutureProvider.family<List<MediaItem>, String>(
+    (ref, productId) => ref.watch(apiServiceProvider).listMedia(productId));
+
+// ── Merchant Customers ──────────────────────────────────────
+
+final merchantCustomersProvider = FutureProvider<List<CustomerSummary>>(
+    (ref) => ref.watch(apiServiceProvider).fetchMerchantCustomers());
+
+// ── Merchant Warehouses & Inventory ─────────────────────────
+
+final storeWarehousesProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>(
+        (ref, storeId) async {
+  if (storeId.isEmpty) return <Map<String, dynamic>>[];
+  return ref.watch(apiServiceProvider).fetchStoreWarehouses(storeId);
+});
+
+final warehouseInventoryProvider =
+    FutureProvider.family<List<InventoryItem>, String>(
+        (ref, warehouseId) async {
+  if (warehouseId.isEmpty) return <InventoryItem>[];
+  return ref.watch(apiServiceProvider).fetchWarehouseInventory(warehouseId);
+});

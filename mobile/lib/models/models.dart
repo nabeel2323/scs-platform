@@ -129,7 +129,8 @@ class Store {
       status,
       verificationStatus,
       createdAt;
-  final String? description, logoUrl, coverUrl;
+  final String? description, logoUrl, coverUrl, locale, timezone, updatedAt;
+  final Map<String, dynamic> address, metadata;
   Store(
       {required this.id,
       required this.orgId,
@@ -141,7 +142,12 @@ class Store {
       required this.currency,
       required this.status,
       required this.verificationStatus,
-      required this.createdAt});
+      required this.createdAt,
+      this.locale,
+      this.timezone,
+      this.updatedAt,
+      this.address = const {},
+      this.metadata = const {}});
   factory Store.fromJson(Map<String, dynamic> j) => Store(
       id: j['id'],
       orgId: j['orgId'] ?? '',
@@ -153,7 +159,12 @@ class Store {
       currency: j['currency'] ?? 'SAR',
       status: j['status'] ?? 'ACTIVE',
       verificationStatus: j['verificationStatus'] ?? 'PENDING',
-      createdAt: j['createdAt'] ?? '');
+      createdAt: j['createdAt'] ?? '',
+      locale: j['locale'],
+      timezone: j['timezone'],
+      updatedAt: j['updatedAt'],
+      address: Map<String, dynamic>.from(j['address'] as Map? ?? {}),
+      metadata: Map<String, dynamic>.from(j['metadata'] as Map? ?? {}));
 }
 
 class Cart {
@@ -495,11 +506,141 @@ class OrgMember {
   factory OrgMember.fromJson(Map<String, dynamic> j) => OrgMember(
         userId: j['userId'] ?? '',
         orgId: j['orgId'] ?? '',
-        roleId: j['roleId'] ?? '',
-        userName: j['userName'] ?? '',
-        userEmail: j['userEmail'],
+        // API returns `roleKey`; legacy `roleId` key kept for compatibility.
+        roleId: (j['roleKey'] ?? j['roleId'] ?? '').toString(),
+        // API returns `fullName`; legacy `userName` key kept for compatibility.
+        userName: (j['fullName'] ?? j['userName'] ?? '').toString(),
+        // API returns `phone`; legacy `userEmail`/`email` keys kept as fallback.
+        userEmail: (j['userEmail'] ?? j['email'] ?? j['phone'])?.toString(),
       );
 }
 
 String formatMinor(int minor, [String currency = 'SAR']) =>
     '${(minor / 100).toStringAsFixed(2)} $currency';
+
+/// Product media row returned by GET /v1/products/:id/media.
+class MediaItem {
+  final String id, productId, mediaType, url, createdAt;
+  final String? variantId, thumbUrl, altText;
+  final int sortOrder;
+  MediaItem({
+    required this.id,
+    required this.productId,
+    required this.mediaType,
+    required this.url,
+    this.variantId,
+    this.thumbUrl,
+    this.altText,
+    this.sortOrder = 0,
+    required this.createdAt,
+  });
+  factory MediaItem.fromJson(Map<String, dynamic> j) => MediaItem(
+        id: j['id'] ?? '',
+        productId: j['productId'] ?? '',
+        mediaType: j['mediaType'] ?? 'IMAGE',
+        url: j['url'] ?? '',
+        variantId: j['variantId'],
+        thumbUrl: j['thumbUrl'],
+        altText: j['altText'],
+        sortOrder: j['sortOrder'] as int? ?? 0,
+        createdAt: j['createdAt'] ?? '',
+      );
+}
+
+/// Customer aggregate returned by GET /v1/merchant/customers.
+class CustomerSummary {
+  final String buyerId;
+  final String? buyerName, buyerPhone, buyerEmail, lastOrderAt;
+  final int orderCount, totalSpentMinor;
+  CustomerSummary({
+    required this.buyerId,
+    this.buyerName,
+    this.buyerPhone,
+    this.buyerEmail,
+    this.orderCount = 0,
+    this.totalSpentMinor = 0,
+    this.lastOrderAt,
+  });
+  factory CustomerSummary.fromJson(Map<String, dynamic> j) => CustomerSummary(
+        buyerId: j['buyerId'] ?? '',
+        buyerName: j['buyerName'],
+        buyerPhone: j['buyerPhone'],
+        buyerEmail: j['buyerEmail'],
+        orderCount: j['orderCount'] as int? ?? 0,
+        totalSpentMinor: j['totalSpentMinor'] as int? ?? 0,
+        lastOrderAt: j['lastOrderAt'],
+      );
+}
+
+/// Inventory row returned by GET /v1/inventory/warehouse/:id.
+class InventoryItem {
+  final String id, variantId, warehouseId;
+  final int qtyOnHand, qtyReserved, reorderPoint;
+  final int? maxStock;
+  final bool lowStockAlert;
+  InventoryItem({
+    required this.id,
+    required this.variantId,
+    required this.warehouseId,
+    this.qtyOnHand = 0,
+    this.qtyReserved = 0,
+    this.reorderPoint = 0,
+    this.maxStock,
+    this.lowStockAlert = true,
+  });
+  factory InventoryItem.fromJson(Map<String, dynamic> j) => InventoryItem(
+        id: j['id'] ?? '',
+        variantId: j['variantId'] ?? '',
+        warehouseId: j['warehouseId'] ?? '',
+        qtyOnHand: j['qtyOnHand'] as int? ?? 0,
+        qtyReserved: j['qtyReserved'] as int? ?? 0,
+        reorderPoint: j['reorderPoint'] as int? ?? 0,
+        maxStock: j['maxStock'] as int?,
+        lowStockAlert: j['lowStockAlert'] ?? true,
+      );
+  int get available => qtyOnHand - qtyReserved;
+  bool get isLow => qtyOnHand <= reorderPoint;
+}
+
+/// Price list row returned by GET /v1/stores/:id/price-lists.
+class PriceList {
+  final String id, storeId, name, currency;
+  final bool isActive;
+  PriceList({
+    required this.id,
+    required this.storeId,
+    required this.name,
+    this.currency = 'SAR',
+    this.isActive = true,
+  });
+  factory PriceList.fromJson(Map<String, dynamic> j) => PriceList(
+        id: j['id'] ?? '',
+        storeId: j['storeId'] ?? '',
+        name: j['name'] ?? '',
+        currency: j['currency'] ?? 'SAR',
+        isActive: j['isActive'] ?? true,
+      );
+}
+
+/// Price tier row returned by GET /v1/price-lists/:id/tiers.
+class PriceTier {
+  final String id, priceListId, variantId;
+  final int minQty, unitPriceMinor;
+  final int? maxQty;
+  PriceTier({
+    required this.id,
+    required this.priceListId,
+    required this.variantId,
+    this.minQty = 1,
+    this.maxQty,
+    required this.unitPriceMinor,
+  });
+  factory PriceTier.fromJson(Map<String, dynamic> j) => PriceTier(
+        id: j['id'] ?? '',
+        priceListId: j['priceListId'] ?? '',
+        variantId: j['variantId'] ?? '',
+        minQty: j['minQty'] as int? ?? 1,
+        maxQty: j['maxQty'] as int?,
+        unitPriceMinor: j['unitPriceMinor'] as int? ?? 0,
+      );
+}
