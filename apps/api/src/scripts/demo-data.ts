@@ -76,20 +76,31 @@ async function main() {
 
   // ── 1. USERS ───────────────────────────────────────────────
   console.log('  Creating 8 demo users...');
-  const usersData = [
-    { id: IDs.superAdmin, phone: '+966500000001', name: 'Fahad Al-Rashid', locale: 'ar' },
-    { id: IDs.adminUser, phone: '+966500000002', name: 'Noura Al-Saud', locale: 'ar' },
-    { id: IDs.moderator, phone: '+966500000003', name: 'Khalid Hassan', locale: 'ar' },
-    { id: IDs.merchantOwner1, phone: '+966500000010', name: 'Abdullah Al-Zahrani', locale: 'ar' },
-    { id: IDs.merchantStaff1, phone: '+966500000011', name: 'Mohammed Al-Ghamdi', locale: 'ar' },
-    { id: IDs.merchantOwner2, phone: '+966500000020', name: 'Sara Al-Otaibi', locale: 'ar' },
-    { id: IDs.buyer1, phone: '+966500000100', name: 'Youssef Ibrahim', locale: 'ar' },
-    { id: IDs.buyer2, phone: '+966500000101', name: 'Layla Mahmoud', locale: 'ar' },
+  type UserSlot =
+    | 'superAdmin' | 'adminUser' | 'moderator'
+    | 'merchantOwner1' | 'merchantStaff1' | 'merchantOwner2'
+    | 'buyer1' | 'buyer2';
+  const usersData: { slot: UserSlot; phone: string; name: string; locale: string }[] = [
+    { slot: 'superAdmin', phone: '+966500000001', name: 'Fahad Al-Rashid', locale: 'ar' },
+    { slot: 'adminUser', phone: '+966500000002', name: 'Noura Al-Saud', locale: 'ar' },
+    { slot: 'moderator', phone: '+966500000003', name: 'Khalid Hassan', locale: 'ar' },
+    { slot: 'merchantOwner1', phone: '+966500000010', name: 'Abdullah Al-Zahrani', locale: 'ar' },
+    { slot: 'merchantStaff1', phone: '+966500000011', name: 'Mohammed Al-Ghamdi', locale: 'ar' },
+    { slot: 'merchantOwner2', phone: '+966500000020', name: 'Sara Al-Otaibi', locale: 'ar' },
+    { slot: 'buyer1', phone: '+966500000100', name: 'Youssef Ibrahim', locale: 'ar' },
+    { slot: 'buyer2', phone: '+966500000101', name: 'Layla Mahmoud', locale: 'ar' },
   ];
   for (const u of usersData) {
     psql(`INSERT INTO users (id, phone, full_name, locale, status)
-      VALUES (${sqlValue(u.id)}, ${sqlValue(u.phone)}, ${sqlValue(u.name)}, ${sqlValue(u.locale)}, 'ACTIVE')
+      VALUES (${sqlValue(IDs[u.slot])}, ${sqlValue(u.phone)}, ${sqlValue(u.name)}, ${sqlValue(u.locale)}, 'ACTIVE')
       ON CONFLICT (phone) DO NOTHING;`);
+    // Re-resolve the persisted id. On a re-run the phone already exists (from a
+    // previous run), so the INSERT above is skipped and the freshly generated id
+    // held in `IDs` was never written. Reading the real id back keeps every
+    // downstream FK reference (organization_members, orders, stock_movements,
+    // notifications, audit_logs, ...) pointing at a users row that exists.
+    const persistedId = psql(`SELECT id FROM users WHERE phone = ${sqlValue(u.phone)};`);
+    if (persistedId) IDs[u.slot] = persistedId;
   }
 
   // ── 2. ORGANIZATIONS ──────────────────────────────────────
@@ -129,13 +140,16 @@ async function main() {
       'Gulf Tech Electronics', 'Wholesale electronics — phones, laptops, accessories',
       'SAR', 'ACTIVE', 'VERIFIED',
       '{"city":"Riyadh","district":"Al Olaya","street":"King Fahd Road"}'::jsonb)
-    ON CONFLICT (id) DO NOTHING;`);
+    ON CONFLICT (slug) DO NOTHING;`);
   psql(`INSERT INTO stores (id, org_id, slug, display_name, description, currency, status, verification_status, address)
     VALUES (${sqlValue(IDs.storeGroceries)}, ${sqlValue(IDs.orgRetail)}, 'al-baraka',
       'Al-Baraka Groceries', 'Fresh groceries — dairy, produce, beverages',
       'SAR', 'ACTIVE', 'VERIFIED',
       '{"city":"Jeddah","district":"Al Rawdah","street":"Tahlia Street"}'::jsonb)
-    ON CONFLICT (id) DO NOTHING;`);
+    ON CONFLICT (slug) DO NOTHING;`);
+  // Re-resolve store ids by slug so downstream FKs survive a re-run (see USERS).
+  IDs.storeElectronics = psql(`SELECT id FROM stores WHERE slug = 'gulf-tech';`) || IDs.storeElectronics;
+  IDs.storeGroceries = psql(`SELECT id FROM stores WHERE slug = 'al-baraka';`) || IDs.storeGroceries;
 
   // ── 4. WAREHOUSES ─────────────────────────────────────────
   console.log('  Creating 3 warehouses...');
@@ -170,16 +184,20 @@ async function main() {
 
   // ── 6. BRANDS ─────────────────────────────────────────────
   console.log('  Creating 4 brands...');
-  const brands = [
-    { id: IDs.brandSamsung, name: 'Samsung', nameAr: 'سامسونج', slug: 'samsung' },
-    { id: IDs.brandApple, name: 'Apple', nameAr: 'آبل', slug: 'apple' },
-    { id: IDs.brandAlmarai, name: 'Almarai', nameAr: 'المراعي', slug: 'almarai' },
-    { id: IDs.brandNestle, name: 'Nestlé', nameAr: 'نسليه', slug: 'nestle' },
+  type BrandSlot = 'brandSamsung' | 'brandApple' | 'brandAlmarai' | 'brandNestle';
+  const brands: { slot: BrandSlot; name: string; nameAr: string; slug: string }[] = [
+    { slot: 'brandSamsung', name: 'Samsung', nameAr: 'سامسونج', slug: 'samsung' },
+    { slot: 'brandApple', name: 'Apple', nameAr: 'آبل', slug: 'apple' },
+    { slot: 'brandAlmarai', name: 'Almarai', nameAr: 'المراعي', slug: 'almarai' },
+    { slot: 'brandNestle', name: 'Nestlé', nameAr: 'نسليه', slug: 'nestle' },
   ];
   for (const b of brands) {
     psql(`INSERT INTO brands (id, name, name_ar, slug, is_active)
-      VALUES (${sqlValue(b.id)}, ${sqlValue(b.name)}, ${sqlValue(b.nameAr)}, ${sqlValue(b.slug)}, TRUE)
-      ON CONFLICT (id) DO NOTHING;`);
+      VALUES (${sqlValue(IDs[b.slot])}, ${sqlValue(b.name)}, ${sqlValue(b.nameAr)}, ${sqlValue(b.slug)}, TRUE)
+      ON CONFLICT (slug) DO NOTHING;`);
+    // Re-resolve by slug so product brand_id FKs survive a re-run (see USERS).
+    const persistedId = psql(`SELECT id FROM brands WHERE slug = ${sqlValue(b.slug)};`);
+    if (persistedId) IDs[b.slot] = persistedId;
   }
 
   // ── 7. PRODUCTS & VARIANTS ────────────────────────────────
@@ -200,20 +218,24 @@ async function main() {
   ];
 
   for (const p of productsDef) {
-    const pid = uuid();
-    const vid = uuid();
-    IDs.products.push(pid);
-    IDs.variants.push(vid);
+    const newPid = uuid();
     psql(`INSERT INTO products (id, store_id, category_id, brand_id, slug, title, title_ar, description, status, condition, is_available, moq, published_at)
-      VALUES (${sqlValue(pid)}, ${sqlValue(p.store)}, ${sqlValue(p.cat)}, ${p.brand ? sqlValue(p.brand) : 'NULL'},
+      VALUES (${sqlValue(newPid)}, ${sqlValue(p.store)}, ${sqlValue(p.cat)}, ${p.brand ? sqlValue(p.brand) : 'NULL'},
         ${sqlValue(p.slug)}, ${sqlValue(p.title)}, ${sqlValue(p.titleAr)}, ${sqlValue(p.desc)},
         'ACTIVE', 'NEW', TRUE, 1, ${sqlValue(now(-5))})
-      ON CONFLICT (id) DO NOTHING;`);
+      ON CONFLICT (store_id, slug) DO NOTHING;`);
+    // Re-resolve by natural key so variant/price/inventory/order FKs survive a re-run.
+    const pid = psql(`SELECT id FROM products WHERE store_id = ${sqlValue(p.store)} AND slug = ${sqlValue(p.slug)};`) || newPid;
+    IDs.products.push(pid);
+
     // Variant = default SKU
     const sku = p.slug.toUpperCase().replace(/-/g, '_') + '_001';
+    const newVid = uuid();
     psql(`INSERT INTO product_variants (id, product_id, sku, title, title_ar, unit, is_active)
-      VALUES (${sqlValue(vid)}, ${sqlValue(pid)}, ${sqlValue(sku)}, ${sqlValue(p.title)}, ${sqlValue(p.titleAr)}, 'PCS', TRUE)
-      ON CONFLICT (id) DO NOTHING;`);
+      VALUES (${sqlValue(newVid)}, ${sqlValue(pid)}, ${sqlValue(sku)}, ${sqlValue(p.title)}, ${sqlValue(p.titleAr)}, 'PCS', TRUE)
+      ON CONFLICT (product_id, sku) DO NOTHING;`);
+    const vid = psql(`SELECT id FROM product_variants WHERE product_id = ${sqlValue(pid)} AND sku = ${sqlValue(sku)};`) || newVid;
+    IDs.variants.push(vid);
   }
   console.log(`  ✓ ${IDs.products.length} products, ${IDs.variants.length} variants created`);
 
