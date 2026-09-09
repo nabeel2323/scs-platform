@@ -1,5 +1,6 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { notifications, notificationPreferences, deviceTokens } from './notifications.schema';
 import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -16,7 +17,12 @@ import crypto from 'node:crypto';
  */
 @Injectable()
 export class NotificationsService implements OnModuleInit {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    // Optional so isolated unit tests can build the service with just the DB;
+    // supplied by the @Global RealtimeModule at runtime.
+    @Optional() private readonly realtime?: RealtimeGateway,
+  ) {}
 
   onModuleInit() {
     // In production, this would start polling for PENDING notifications
@@ -164,7 +170,7 @@ export class NotificationsService implements OnModuleInit {
 
       // Dispatch based on channel
       try {
-        await this.dispatch(id, channel, userId, rendered);
+        await this.dispatch(id, channel, userId, rendered, template.type);
       } catch (err: any) {
         await this.db.db
           .update(notifications)
@@ -180,7 +186,7 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Channel Dispatchers ──────────────────────────────────────
 
-  private async dispatch(id: string, channel: string, userId: string, rendered: { title?: string; body: string }) {
+  private async dispatch(id: string, channel: string, userId: string, rendered: { title?: string; body: string }, type: string) {
     switch (channel) {
       case 'SMS':
         await this.sendSms(id, userId, rendered.body);
@@ -189,11 +195,19 @@ export class NotificationsService implements OnModuleInit {
         await this.sendPush(id, userId, rendered.title || '', rendered.body);
         break;
       case 'IN_APP':
-        // In-app notifications are just stored — client polls or uses WebSocket
+        // In-app notifications are stored, then pushed live over the realtime
+        // gateway so connected clients update without polling (WEB-B6). Clients
+        // still fall back to REST /v1/notifications on (re)connect.
         await this.db.db
           .update(notifications)
           .set({ status: 'SENT', sentAt: new Date() })
           .where(eq(notifications.id, id));
+        this.realtime?.emitNotification(userId, {
+          id,
+          type,
+          title: rendered.title || '',
+          body: rendered.body,
+        });
         break;
       case 'WHATSAPP':
         await this.sendWhatsApp(id, userId, rendered.body);

@@ -102,7 +102,9 @@ CREATE TABLE conversations (
 );
 
 CREATE INDEX idx_conversations_order ON conversations(order_id);
-CREATE INDEX idx_conversations_participants ON conversations(participant_1), conversations(participant_2);
+-- Composite index over both participant columns (a single CREATE INDEX targets
+-- one table; the previous two-table form was invalid SQL and failed on a fresh DB).
+CREATE INDEX idx_conversations_participants ON conversations(participant_1, participant_2);
 
 -- ── Messages ──────────────────────────────────────────────────────────────────
 -- Individual messages within a conversation.

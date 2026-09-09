@@ -425,7 +425,7 @@ class _MerchantRegistrationScreenState
   Widget _profileStep() => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
+          const Text(
             'Tell us about yourself.',
             style: TextStyle(color: TaifTokens.muted, fontSize: 13),
           ),
@@ -487,7 +487,7 @@ class _MerchantRegistrationScreenState
           ),
           const SizedBox(height: 16),
           if (_orgMode == 'join') ...[
-            Text(
+            const Text(
               'Enter the invite code shared by an organization owner to join as a member.',
               style: TextStyle(color: TaifTokens.muted, fontSize: 13),
             ),
@@ -503,7 +503,7 @@ class _MerchantRegistrationScreenState
               ),
             ),
           ] else ...[
-            Text(
+            const Text(
               'Enter your business information for verification.',
               style: TextStyle(color: TaifTokens.muted, fontSize: 13),
             ),
@@ -569,7 +569,7 @@ class _MerchantRegistrationScreenState
   Widget _storeStep() => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
+          const Text(
             'Set up your storefront on the platform.',
             style: TextStyle(color: TaifTokens.muted, fontSize: 13),
           ),
@@ -641,7 +641,7 @@ class _MerchantRegistrationScreenState
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Optional: Add a warehouse now.',
             style: TextStyle(color: TaifTokens.muted, fontSize: 13),
           ),
@@ -678,7 +678,7 @@ class _MerchantRegistrationScreenState
   Widget _documentsStep() => ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
+          const Text(
             'Upload verification documents. You can skip and add later.',
             style: TextStyle(color: TaifTokens.muted, fontSize: 13),
           ),
@@ -725,7 +725,7 @@ class _MerchantRegistrationScreenState
             label: const Text('Choose File'),
             style: OutlinedButton.styleFrom(
               foregroundColor: TaifTokens.brandPrimary,
-              side: BorderSide(color: TaifTokens.brandPrimary),
+              side: const BorderSide(color: TaifTokens.brandPrimary),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
@@ -796,7 +796,7 @@ class _MerchantRegistrationScreenState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
-                style: TextStyle(color: TaifTokens.muted, fontSize: 14)),
+                style: const TextStyle(color: TaifTokens.muted, fontSize: 14)),
             Text(value,
                 style:
                     const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -807,7 +807,7 @@ class _MerchantRegistrationScreenState
   Widget _navBar() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: TaifTokens.surface,
         border: Border(top: BorderSide(color: TaifTokens.line)),
       ),

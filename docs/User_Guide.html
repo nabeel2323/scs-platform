@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Functional user guide for the Smart Commerce & Supply Platform (TAIF) — how Merchants, Buyers, Drivers and Admins perform key tasks.">
+<title>User Guide — Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:72ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  pre{background:#0f2530;color:#e6eef2;border-radius:8px;padding:1rem 1.1rem;overflow:auto;font-family:var(--mono);font-size:.84rem}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .surf{display:inline-block;padding:.1rem .5rem;border-radius:6px;font-size:.72rem;font-weight:700;margin-right:.25rem}
+  .s-web{background:#e2edf9;color:var(--info)} .s-mob{background:#e4f3ea;color:var(--ok)} .s-adm{background:#f0e6f5;color:#6b3fa0}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .mermaid{background:#fbfcfd;border:1px dashed var(--line);border-radius:8px;padding:1rem;margin:1rem 0;text-align:center}
+  .muted{color:var(--muted)} .small{font-size:.85rem}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.25rem 0}
+  .steps{counter-reset:st;list-style:none;padding-left:0}
+  .steps li{counter-increment:st;position:relative;padding:.35rem 0 .35rem 2.2rem}
+  .steps li::before{content:counter(st);position:absolute;left:0;top:.3rem;width:1.6rem;height:1.6rem;background:var(--brand);color:#fff;border-radius:50%;text-align:center;line-height:1.6rem;font-weight:700;font-size:.85rem}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){.layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none} .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>User Guide</h1>
+    <p class="sub">How each role works in the Smart Commerce &amp; Supply Platform (TAIF): Merchants (wholesalers), Buyers (retailers), Drivers and Platform Admins. Task-oriented, with the surface (Web / Mobile / Admin) marked for every action.</p>
+    <div class="meta">
+      <span>Phase 1 — B2B MVP</span><span>Web :3100</span><span>Admin :3200</span><span>Mobile (Flutter)</span>
+      <span>English / Arabic (RTL-ready)</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#access">1. Access &amp; Signing In</a></li>
+      <li><a href="#merchant">2. Merchant / Wholesaler</a></li>
+      <li><a href="#buyer">3. Buyer / Retailer</a></li>
+      <li><a href="#driver">4. Driver (Phase 2)</a></li>
+      <li><a href="#admin">5. Platform Admin</a></li>
+      <li><a href="#orders">6. Order Statuses &amp; Notifications</a></li>
+      <li><a href="#faq">7. FAQ &amp; Troubleshooting</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="access">
+      <h2>1. Access &amp; Signing In</h2>
+      <p>The platform has three surfaces. Which one you use depends on your role:</p>
+      <table>
+        <thead><tr><th>Surface</th><th>Who it's for</th><th>How to open it</th></tr></thead>
+        <tbody>
+          <tr><td><span class="surf s-web">Web</span></td><td>Buyers (retailers) and Merchants (wholesalers)</td><td>Browser at the web app URL (dev <code>http://localhost:3100</code>)</td></tr>
+          <tr><td><span class="surf s-mob">Mobile</span></td><td>Buyers and Merchants on the go; Drivers (Phase 2)</td><td>Flutter app (retail / wholesale flavor)</td></tr>
+          <tr><td><span class="surf s-adm">Admin</span></td><td>Platform operations staff</td><td>Browser at the admin console (dev <code>http://localhost:3200</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>1.1 Two ways to sign in</h3>
+      <p>Everyone signs in with a <strong>phone number</strong>. You can use a one-time passcode (OTP), or set a password for faster sign-in on devices you trust.</p>
+      <div class="grid c2">
+        <div class="card"><h4>OTP sign-in</h4><ol class="steps small">
+          <li>Enter your phone number and request a code.</li>
+          <li>Enter the 6-digit code (in dev the code is delivered to the console/Redis, not SMS).</li>
+          <li>You're signed in; this device becomes <em>trusted</em>.</li>
+        </ol></div>
+        <div class="card"><h4>Password sign-in</h4><ol class="steps small">
+          <li>After your first OTP sign-in, open <strong>Profile &rarr; Credentials</strong> and set a password.</li>
+          <li>Next time, sign in with phone + password on a trusted device — no OTP needed.</li>
+          <li>On a <em>new</em> device you'll be asked for one OTP step-up, then it's trusted too.</li>
+        </ol></div>
+      </div>
+      <div class="callout ok"><strong class="label">Device trust</strong><p>Your sessions are listed under <strong>Profile &rarr; Sessions</strong>, where you can review active devices and sign out remotely. Access tokens refresh automatically in the background.</p></div>
+      <h3>1.2 Choosing your role</h3>
+      <p>On first registration you pick a track: <strong>"Sell wholesale"</strong> (Merchant) or <strong>"Buy for my store"</strong> (Buyer). This sets your onboarding flow and home experience. You belong to an <em>organization</em>; merchants can invite staff with a join code.</p>
+    </section>
+
+    <section id="merchant">
+      <h2>2. Merchant / Wholesaler</h2>
+      <p><strong>Mental model:</strong> a command centre of queues and SLAs. Web carries the bulk work (catalogue, pricing, imports); mobile carries alerts, quick order acceptance and scanning. Your hero action is <em>accepting an order in three taps</em> from a push notification.</p>
+      <p class="small"><strong>Top navigation:</strong> Today · Orders · Catalogue · Inventory · Pricing · Promotions · Customers · Analytics</p>
+
+      <h3>2.1 Onboarding &amp; verification (activation)</h3>
+      <div class="mermaid">
+flowchart LR
+  A["Role select"] --> B["Phone + OTP"] --> C["Organization<br/>(name/type)"] --> D["Store wizard<br/>1 Business · 2 Location · 3 Categories"]
+  D --> E["Document upload (KYC)"] --> F["Verification review<br/>(status + ETA)"] --> G["Activation home<br/>checklist"]
+      </div>
+      <ol class="steps">
+        <li><strong>Create your organization</strong> — name, type, optional tax ID (you can add it later). <span class="surf s-web">Web</span><span class="surf s-mob">Mobile</span></li>
+        <li><strong>Run the store wizard</strong> — business info, location pin + service radius, categories &amp; brands. Steps autosave; exit and resume anytime.</li>
+        <li><strong>Upload KYC documents</strong> — the required document set is configured per market; each upload shows progress and can be retried.</li>
+        <li><strong>Submit for verification</strong> — you'll see a status timeline (Submitted &rarr; In review &rarr; Decision) with an ETA (review SLA is 48h).</li>
+        <li><strong>Reach activation</strong> — the checklist tracks <em>Verified &rarr; Products (target &ge;20 SKUs) &rarr; First order</em>. The primary call-to-action offers three ways to add products: manual, Excel/CSV import, or concierge (ops imports for you).</li>
+      </ol>
+      <div class="callout"><strong class="label">Where</strong><p>Web: <code>/merchant/register</code>, <code>/merchant/onboard</code>, <code>/merchant/success</code>. Mobile: the merchant registration screen and the <strong>Merchant Dashboard</strong> hub (<code>/merchant</code>).</p></div>
+
+      <h3>2.2 Catalogue management</h3>
+      <p><span class="surf s-web">Web</span> <code>/merchant/catalog</code> · <span class="surf s-mob">Mobile</span> Merchant Dashboard &rarr; Catalogue</p>
+      <ul class="tight">
+        <li><strong>Catalogue grid</strong> — filter by Draft / Active / Low stock / Rejected; inline stock edit; bulk activate, archive, duplicate.</li>
+        <li><strong>Product editor</strong> — three tabs: <em>Basics</em>, <em>Packaging &amp; Pricing</em>, <em>Media</em>. Drafts autosave. Barcode scan prefills name/brand. "Duplicate product" and "copy pricing from…" accelerate entry.</li>
+        <li><strong>Variants</strong> — add SKUs per product (size/unit/barcode/weight).</li>
+        <li><strong>Media</strong> — upload images (presigned upload) or attach by URL.</li>
+        <li><strong>Categories</strong> — create/edit name, Arabic name and description; delete when unused.</li>
+      </ul>
+      <h4>Bulk import (Excel/CSV)</h4>
+      <div class="mermaid">
+flowchart LR
+  U["Upload file"] --> M["Column mapping<br/>(auto + override)"] --> V["Validation report<br/>(row-level errors)"] --> P["Import progress"] --> R["Publish review"]
+      </div>
+      <p class="small">The importer auto-maps columns, lists row-level errors (missing price, bad category, duplicate SKU) with a downloadable corrected template, and runs asynchronously. Re-importing the same SKU updates the existing product (idempotent by SKU). Nothing goes live unreviewed. <span class="surf s-web">Web</span> <code>/merchant/import</code>.</p>
+
+      <h3>2.3 Pricing &amp; quantity tiers</h3>
+      <p><span class="surf s-web">Web</span> <code>/merchant/pricing</code></p>
+      <ul class="tight">
+        <li>Create <strong>price lists</strong> and add <strong>quantity tiers</strong> as rows (min qty &rarr; unit price). A live preview shows the buyer-facing ladder.</li>
+        <li>Set the <strong>MOQ</strong> (minimum order quantity) per product/variant with validation.</li>
+        <li>Phase 1 supports PERCENT, FIXED, QTY_DISCOUNT and TIME_LIMITED discount types.</li>
+      </ul>
+
+      <h3>2.4 Inventory / stock</h3>
+      <p><span class="surf s-web">Web</span> <code>/merchant/inventory</code></p>
+      <ul class="tight">
+        <li>View stock per warehouse; adjust quantities with a reason (recorded as a stock movement).</li>
+        <li>Low-stock alerts derive from each item's reorder point and appear on your <strong>Today</strong> home.</li>
+        <li>Stock is <em>reserved</em> automatically when you accept an order and <em>released</em> on cancellation or partial acceptance.</li>
+      </ul>
+
+      <h3>2.5 Order acceptance (hero flow)</h3>
+      <div class="mermaid">
+flowchart LR
+  N["Push: New order<br/>14 items · 2,340.00"] --> D["Order detail<br/>stock + price-delta guard"]
+  D --> AA["Accept all"] & AP["Accept partial"] & RJ["Reject (reason)"]
+  AA --> PR["PREPARING"] --> RD["READY"]
+      </div>
+      <ol class="steps">
+        <li>Open the order from the notification or <strong>Orders</strong> queue. Each line shows qty, snapshot price and current stock.</li>
+        <li>If your price list changed since checkout, a <strong>price-delta guard</strong> flags the lines — confirm each changed line explicitly (protects your margin).</li>
+        <li>Choose <strong>Accept all</strong>, <strong>Accept partial</strong> (item-level toggles + editable confirmed quantities; the rest releases automatically), or <strong>Reject</strong> (reason mandatory).</li>
+        <li>The buyer is notified automatically. Move the order to <strong>Ready</strong> when packed; for pickup, a handover code is generated.</li>
+      </ol>
+      <p class="small"><span class="surf s-web">Web</span> <code>/merchant/orders</code> · <span class="surf s-mob">Mobile</span> Merchant Dashboard &rarr; Orders. An SLA countdown (amber &rarr; red) shows time left to respond; the default confirmation SLA is 12 hours.</p>
+
+      <h3>2.6 Customers, store profile &amp; organization</h3>
+      <div class="grid c3">
+        <div class="card"><h4>Customers</h4><p class="small"><span class="surf s-web">Web</span> <code>/merchant/customers</code> · <span class="surf s-mob">Mobile</span><br>Your buyer list with revenue, order count, last order and average order value; search and sort.</p></div>
+        <div class="card"><h4>Store profile</h4><p class="small"><span class="surf s-web">Web</span> <code>/merchant/store</code> · <span class="surf s-mob">Mobile</span><br>Edit display name, description, currency, locale, timezone, city and warehouses. Slug and verification status are read-only.</p></div>
+        <div class="card"><h4>Organization</h4><p class="small"><span class="surf s-web">Web</span> <code>/merchant/organization</code> · <span class="surf s-mob">Mobile</span><br>Edit org details, view members, add/remove staff, and switch active organization if you belong to several.</p></div>
+      </div>
+      <div class="callout warn"><strong class="label">Coming later</strong><p>Promotions exist in the backend and buyers can enter a <strong>promo code</strong> in the cart, but there is <strong>no merchant-facing promotions screen yet</strong>, and the discount is <strong>not applied to order totals</strong> at checkout (a known Phase&nbsp;1 gap, tracked as <code>API-B4</code>). Merchant analytics dashboards arrive in Phase&nbsp;5.</p></div>
+    </section>
+
+    <section id="buyer">
+      <h2>3. Buyer / Retailer</h2>
+      <p><strong>Mental model:</strong> a procurement companion &mdash; a shopping list that fills itself. You browse wholesalers, build a multi-supplier cart, and place orders on account. The hero action is <em>reorder in three taps</em>.</p>
+      <p class="small"><strong>Top navigation:</strong> Home &middot; Search &middot; Cart &middot; Orders &middot; Account &nbsp;|&nbsp; Surfaces: <span class="surf s-web">Web</span> primary, <span class="surf s-mob">Mobile</span> companion.</p>
+
+      <div class="mermaid">
+flowchart LR
+  H["Home / Search"] --> P["Product page<br/>variants + MOQ"] --> C["Cart<br/>grouped by supplier"]
+  C --> CO["Checkout<br/>address + fulfillment"] --> O["Order placed<br/>(on account)"] --> T["Track &amp; timeline"] --> R["Rate / Reorder"]
+      </div>
+
+      <h3>3.1 Home &amp; discovery</h3>
+      <p><span class="surf s-web">Web</span> <code>/</code></p>
+      <p>The home screen is a launcher with primary actions &mdash; <strong>Search Products</strong>, <strong>Browse Stores</strong>, <strong>Cart</strong> and <strong>My Orders</strong> &mdash; plus quick links to Notifications, Reviews &amp; Disputes, merchant registration and sign-in.</p>
+      <div class="callout"><strong class="label">Planned</strong><p>The richer &ldquo;Restock Suggestions&rdquo; / Smart Reorder home (saved suppliers, offers nearby, predicted replenishment) is a Phase&nbsp;4&ndash;5 feature and is not yet live.</p></div>
+
+      <h3>3.2 Search &amp; browse</h3>
+      <p><span class="surf s-web">Web</span> <code>/search</code> &middot; <code>/stores</code></p>
+      <ul class="tight">
+        <li>Search by <strong>name, SKU or barcode</strong>; results update as you type (debounced).</li>
+        <li>Filter by <strong>Category</strong> (with product counts) and <strong>Brand</strong>, or tap a category chip. A live result count is shown.</li>
+        <li>Each product card shows the image, title and MOQ, with a <strong>+ Cart</strong> quick-add that picks the product's default variant.</li>
+        <li><strong>Browse Stores</strong> lists wholesalers; open a store to see its verification badge and product grid.</li>
+      </ul>
+      <p class="small muted">On web, filters are currently category + brand. Price/MOQ/distance/rating filters, sponsored slots, compare-across-suppliers and barcode scanning are mobile / later-phase items.</p>
+
+      <h3>3.3 Store &amp; product pages</h3>
+      <div class="grid c2">
+        <div class="card"><h4>Store page</h4><p class="small"><span class="surf s-web">Web</span> <code>/stores/[slug]</code><br>Store header (logo, name, description, <strong>verification status</strong> badge) and its product grid with add-to-cart.</p></div>
+        <div class="card"><h4>Product page</h4><p class="small"><span class="surf s-web">Web</span> <code>/products/[id]</code><br>Image, English + Arabic title, availability and <strong>MOQ</strong> badges, description, and a variant list. Set a quantity (minimum = MOQ) and <strong>Add to Cart</strong> per variant.</p></div>
+      </div>
+
+      <h3>3.4 Cart</h3>
+      <p><span class="surf s-web">Web</span> <code>/cart</code></p>
+      <ul class="tight">
+        <li>Items are <strong>grouped by supplier</strong>, each group with its own header; adjust quantities with the &minus;/+ steppers, remove a line, or clear the cart.</li>
+        <li>Enter a <strong>promo code</strong> and press Apply &mdash; the code is stored on the cart.</li>
+        <li>A single <strong>Total</strong> is shown; proceed to checkout when ready.</li>
+      </ul>
+      <div class="callout warn"><strong class="label">Known gap</strong><p>An applied promo code is recorded, but the resulting <strong>discount, delivery fee and VAT are not yet added into the order total</strong> at checkout (<code>API-B4</code>). The total you see is the sum of line subtotals.</p></div>
+
+      <h3>3.5 Checkout &amp; payment</h3>
+      <p><span class="surf s-web">Web</span> <code>/checkout</code></p>
+      <ol class="steps">
+        <li>Enter the <strong>delivery address</strong> (required) and city.</li>
+        <li>Choose a <strong>fulfillment method</strong>: Platform Delivery, Merchant Delivery, or Pickup.</li>
+        <li>Add optional <strong>notes</strong> / special instructions.</li>
+        <li>Press <strong>Place Order</strong>. The request is protected by an idempotency key, so a double-tap won't duplicate the order. You're taken to <strong>My Orders</strong>.</li>
+      </ol>
+      <div class="callout"><strong class="label">No payment gateway yet</strong><p>Phase&nbsp;1 orders are placed <strong>on account</strong> &mdash; there is no card/wallet step. Online payments and cash-on-delivery settlement arrive in <strong>Phase&nbsp;3</strong>.</p></div>
+
+      <h3>3.6 Orders, tracking, cancel &amp; reorder</h3>
+      <p><span class="surf s-web">Web</span> <code>/orders</code> &middot; <code>/orders/[id]</code></p>
+      <ul class="tight">
+        <li>The order list shows every order with its status; open one for the detail view.</li>
+        <li>Order detail lists items (with any <em>confirmed</em> quantity if the merchant partially accepted), a financial breakdown, and an <strong>Order Timeline</strong> of status history.</li>
+        <li><strong>Cancel</strong> is available while an order is early (Submitted, Accepted, Partially Accepted, Preparing, Ready) and requires a reason.</li>
+        <li><strong>Reorder</strong> appears once an order is Delivered or Completed &mdash; one tap refills your cart.</li>
+      </ul>
+
+      <h3>3.7 Favorites, reviews &amp; disputes</h3>
+      <div class="grid c3">
+        <div class="card"><h4>Favorites</h4><p class="small"><span class="surf s-web">Web</span> <code>/favorites</code><br>Your saved products; open or remove each. (Saving is driven from the mobile app / API in Phase&nbsp;1.)</p></div>
+        <div class="card"><h4>Reviews</h4><p class="small"><span class="surf s-web">Web</span> <code>/reviews</code> &rarr; <em>Write a Review</em><br>Provide the Order ID, subject (Store/Driver/Buyer) ID, a 1&ndash;5 star rating and a comment.</p></div>
+        <div class="card"><h4>Disputes</h4><p class="small"><span class="surf s-web">Web</span> <code>/reviews</code> &rarr; <em>Open a Dispute</em><br>Provide the Order ID, a reason and a description; ops triages it in the admin console.</p></div>
+      </div>
+      <p class="small muted">Reviews and disputes currently ask you to paste the Order/Subject IDs. Order-gated pickers (rate straight from a delivered order) are a planned refinement.</p>
+
+      <h3>3.8 Notifications</h3>
+      <p><span class="surf s-web">Web</span> <code>/notifications</code> &middot; <span class="surf s-mob">Mobile</span> push</p>
+      <p>A chronological list with unread highlighting, channel and type badges. Tap to mark as read, or use <strong>Mark All Read</strong>. Transactional updates (order placed, accepted, out for delivery, delivered) also arrive as mobile push where a device is registered.</p>
+
+      <h3>3.9 Account &amp; security</h3>
+      <p><span class="surf s-web">Web</span> <code>/account</code> &middot; <code>/profile/credentials</code> &middot; <code>/profile/sessions</code></p>
+      <ul class="tight">
+        <li><strong>Profile</strong> &mdash; edit full name, email and locale (English / العربية); phone, status and user ID are read-only.</li>
+        <li><strong>Organizations</strong> &mdash; see the organizations you belong to, your role, and any invite code to share with staff.</li>
+        <li><strong>Security</strong> &mdash; set an email/password (<code>/profile/credentials</code>) and review or revoke active sessions (<code>/profile/sessions</code>).</li>
+        <li><strong>Devices</strong> &mdash; push-notification devices are registered from the mobile app.</li>
+      </ul>
+    </section>
+
+    <section id="driver">
+      <h2>4. Driver (Phase&nbsp;2 &mdash; planned)</h2>
+      <div class="callout crit"><strong class="label">Not available in Phase&nbsp;1</strong><p>Last-mile delivery is a <strong>Phase&nbsp;2</strong> capability. The mobile app declares a <em>driver</em> flavor and the order FSM already reserves delivery states (<code>ASSIGNED</code>, <code>PICKED_UP</code>, <code>OUT_FOR_DELIVERY</code>), but the delivery module (jobs, dispatch, POD, earnings) is <strong>not implemented yet</strong>. The flow below is the intended design, shown for orientation.</p></div>
+      <p><strong>Mental model:</strong> focus mode &mdash; one job at a time, large tap targets, high-contrast day/night themes, and offline-capable status changes that replay when connectivity returns.</p>
+      <div class="mermaid">
+flowchart LR
+  D1["Duty On (zone)"] --> D2["Job offer<br/>accept / decline"] --> D3["Pickup verify<br/>code / QR"] --> D4["Navigate"]
+  D4 --> D5["Arrive (geofence)"] --> D6["POD capture<br/>OTP / photo / signature"] --> D7["Summary + earnings"]
+      </div>
+      <table>
+        <thead><tr><th>Intended screen</th><th>Purpose</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Duty</td><td>Go on/off duty in a zone; view duty hours</td><td><span class="pill p-muted">Phase 2</span></td></tr>
+          <tr><td>Job offer</td><td>Accept/decline an offered delivery within a countdown</td><td><span class="pill p-muted">Phase 2</span></td></tr>
+          <tr><td>Pickup verify</td><td>Confirm the pickup with an order code / QR</td><td><span class="pill p-muted">Phase 2</span></td></tr>
+          <tr><td>POD capture</td><td>Proof of delivery: OTP keypad, photo or signature + auto geo-tag</td><td><span class="pill p-muted">Phase 2</span></td></tr>
+          <tr><td>Earnings</td><td>Today/week totals and job list with POD receipts</td><td><span class="pill p-muted">Phase 2</span></td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">Until Phase&nbsp;2 ships, orders are fulfilled by <strong>merchant delivery</strong> or <strong>pickup</strong> (handover code) chosen at checkout.</p>
+    </section>
+
+    <section id="admin">
+      <h2>5. Platform Admin</h2>
+      <p><strong>Mental model:</strong> an operations console &mdash; queue-centric, evidence-rich, and audit-logged. Every governance action (verify a merchant, moderate a product, resolve a dispute) writes to the audit trail.</p>
+      <p class="small"><span class="surf s-adm">Admin</span> dev <code>http://localhost:3200</code> &middot; Top navigation: Overview &middot; Verifications &middot; Merchants &middot; Users &middot; Products &middot; Categories &middot; Orders &middot; Disputes &middot; KPIs &middot; Audit</p>
+
+      <h3>5.1 Sign-in &amp; permissions</h3>
+      <p><span class="surf s-adm">Admin</span> <code>/auth/login</code></p>
+      <p>Staff sign in with <strong>email/phone + password</strong>; a device-trust check applies on new devices. Access is <strong>role-based</strong> &mdash; <code>SUPER_ADMIN</code>, <code>ADMIN</code> and <code>MODERATOR</code> roles gate which screens and actions you can use. If an action returns <em>403 Forbidden</em>, your role lacks the required permission (see FAQ).</p>
+
+      <h3>5.2 Overview dashboard</h3>
+      <p><span class="surf s-adm">Admin</span> <code>/</code></p>
+      <p>A KPI strip &mdash; <strong>Total Users, Verified Merchants, Pending Merchants, Total Orders, Revenue (SAR), Completion Rate</strong> &mdash; above quick-access cards to User Management, Order Monitor, Merchant Directory, Verification Queue, KPI Dashboard and Audit Log.</p>
+
+      <h3>5.3 KPI dashboard</h3>
+      <p><span class="surf s-adm">Admin</span> <code>/kpis</code></p>
+      <ul class="tight">
+        <li>Pick a <strong>date range</strong> and Apply.</li>
+        <li><strong>Revenue &amp; orders:</strong> total revenue, orders, completed, cancelled/rejected, completion &amp; cancellation rates.</li>
+        <li><strong>Conversion:</strong> users, verified/pending merchants, first-order rate, repeat-order rate.</li>
+        <li><strong>Activation funnel:</strong> Registered &rarr; Verified &rarr; Catalog&nbsp;&ge;&nbsp;20 &rarr; First Order &rarr; Repeat&nbsp;&times;3, with step-to-step conversion and an overall activation rate.</li>
+      </ul>
+
+      <h3>5.4 Merchant verification (the core queue)</h3>
+      <p><span class="surf s-adm">Admin</span> <code>/verification</code> &middot; <code>/verification/[id]</code></p>
+      <div class="mermaid">
+flowchart LR
+  Q["Verification queue<br/>filter by status"] --> RV["Review detail<br/>documents + org + store"] --> DEC{"Decision"}
+  DEC -->|Approve| AV["Store VERIFIED<br/>merchant notified"]
+  DEC -->|Reject / Revision| RJ["Reason captured<br/>(audit-logged)"]
+      </div>
+      <ol class="steps">
+        <li>Open the <strong>Verification Queue</strong> and filter by status (Submitted, Under review, Approved, Rejected, Revision). The <em>Auto</em> column flags auto-verified applications.</li>
+        <li>Press <strong>Review</strong> on a pending item to open its detail: submitted KYC documents, organization and store information.</li>
+        <li><strong>Approve</strong> to mark the store verified, or <strong>Reject / request Revision</strong> with a mandatory reason. The decision is audit-logged and the merchant is notified.</li>
+      </ol>
+
+      <h3>5.5 Other console screens</h3>
+      <table>
+        <thead><tr><th>Screen</th><th>Route</th><th>What you do</th></tr></thead>
+        <tbody>
+          <tr><td>Merchant Directory</td><td><code>/merchants</code></td><td>Browse all stores and their verification status.</td></tr>
+          <tr><td>User Management</td><td><code>/users</code></td><td>Search users, view details, and manage roles &amp; permissions.</td></tr>
+          <tr><td>Products</td><td><code>/products</code></td><td>Moderate the catalogue; inspect or action flagged products.</td></tr>
+          <tr><td>Categories</td><td><code>/categories</code></td><td>Create/edit the category taxonomy (name, Arabic name, description).</td></tr>
+          <tr><td>Order Monitor</td><td><code>/orders</code></td><td>Track all platform orders and filter by status.</td></tr>
+          <tr><td>Disputes</td><td><code>/disputes</code></td><td>Triage and resolve buyer/merchant disputes with evidence.</td></tr>
+          <tr><td>Audit Log</td><td><code>/audit</code></td><td>System-wide activity trail for governance and forensics.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout ok"><strong class="label">Everything is auditable</strong><p>Approvals, rejections, status changes and role edits are written to <code>audit_logs</code> with actor, timestamp and reason, and are reviewable in the Audit Log.</p></div>
+    </section>
+
+    <section id="orders">
+      <h2>6. Order Statuses &amp; Notifications</h2>
+      <p>Every order moves through a single state machine shared by all surfaces. The table groups the 16 statuses by stage.</p>
+      <table>
+        <thead><tr><th>Stage</th><th>Status</th><th>What it means</th></tr></thead>
+        <tbody>
+          <tr><td rowspan="3">Placement</td><td><span class="pill p-muted">DRAFT</span></td><td>Cart being prepared (not yet submitted).</td></tr>
+          <tr><td><span class="pill p-info">SUBMITTED</span></td><td>Order placed by the buyer; awaiting merchant response.</td></tr>
+          <tr><td><span class="pill p-info">PENDING_CONFIRMATION</span></td><td>Held for confirmation (e.g. stock/price check).</td></tr>
+          <tr><td rowspan="4">Confirmation</td><td><span class="pill p-ok">ACCEPTED</span></td><td>Merchant accepted all lines; stock reserved.</td></tr>
+          <tr><td><span class="pill p-warn">PARTIALLY_ACCEPTED</span></td><td>Some lines accepted with confirmed quantities; the rest released.</td></tr>
+          <tr><td><span class="pill p-err">REJECTED</span></td><td>Merchant declined the order (reason recorded).</td></tr>
+          <tr><td><span class="pill p-warn">PAYMENT_PENDING</span></td><td>Awaiting payment (used once Phase&nbsp;3 payments are live).</td></tr>
+          <tr><td rowspan="2">Fulfilment</td><td><span class="pill p-brand">PREPARING</span></td><td>Merchant is picking/packing.</td></tr>
+          <tr><td><span class="pill p-brand">READY</span></td><td>Packed and ready for pickup or handover to delivery.</td></tr>
+          <tr><td rowspan="4">Delivery <span class="pill p-muted">P2</span></td><td><span class="pill p-muted">ASSIGNED</span></td><td>A driver/job has been assigned.</td></tr>
+          <tr><td><span class="pill p-muted">PICKED_UP</span></td><td>Driver collected the order.</td></tr>
+          <tr><td><span class="pill p-muted">OUT_FOR_DELIVERY</span></td><td>En route to the buyer.</td></tr>
+          <tr><td><span class="pill p-ok">DELIVERED</span></td><td>Handed over; proof of delivery captured.</td></tr>
+          <tr><td rowspan="3">Terminal</td><td><span class="pill p-ok">COMPLETED</span></td><td>Order finalised (post-delivery/pickup).</td></tr>
+          <tr><td><span class="pill p-err">CANCELLED</span></td><td>Cancelled by buyer or merchant (reason recorded); stock released.</td></tr>
+          <tr><td><span class="pill p-err">DISPUTED</span></td><td>Under dispute resolution by ops.</td></tr>
+        </tbody>
+      </table>
+      <h3>6.1 Notification model</h3>
+      <table>
+        <thead><tr><th>Category</th><th>Examples</th><th>Channel</th><th>Timing</th></tr></thead>
+        <tbody>
+          <tr><td>Transactional</td><td>Order placed / accepted / out for delivery / delivered; verification decision</td><td>Push + in-app</td><td>Immediate, as events occur</td></tr>
+          <tr><td>Behavioral <span class="pill p-muted">later</span></td><td>Restock suggestion, price drop on a favorite</td><td>Push digest / in-app</td><td>Throttled, quiet hours</td></tr>
+          <tr><td>Promotional <span class="pill p-muted">later</span></td><td>Offers, campaigns</td><td>Push (consent-gated)</td><td>Frequency-capped</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">In-app notifications are delivered reliably through the transactional outbox. Live real-time (Socket.IO) order-board updates are wired but not yet surfaced in the Phase&nbsp;1 UIs.</p>
+    </section>
+
+    <section id="faq">
+      <h2>7. FAQ &amp; Troubleshooting</h2>
+      <div class="grid c2">
+        <div class="card"><h4>Where's my OTP code in development?</h4><p class="small">In dev, one-time codes are written to the API console / Redis (key <code>otp:&lt;phone&gt;</code>), not sent by SMS. In production they go via SMS/WhatsApp.</p></div>
+        <div class="card"><h4>Why doesn't my total include discount, VAT or delivery?</h4><p class="small">Checkout currently sums line subtotals only &mdash; promotions, 15% VAT and delivery fees are a known Phase&nbsp;1 gap (<code>API-B4</code>) and are not yet applied to totals.</p></div>
+        <div class="card"><h4>I get <em>403 Forbidden</em> in the admin console.</h4><p class="small">Your role lacks the required permission key. After any permission/seed change, <strong>sign out and back in</strong> so your token carries the updated claims; otherwise ask a <code>SUPER_ADMIN</code> to grant the permission.</p></div>
+        <div class="card"><h4>The mobile app can't reach the API.</h4><p class="small">On a physical device, point <code>API_URL</code> at your PC's LAN IP (not <code>10.0.2.2</code>, which is emulator-only), ensure the API firewall rule allows inbound on the network profile, or use <code>adb reverse tcp:3000 tcp:3000</code>.</p></div>
+        <div class="card"><h4>When can I cancel or reorder?</h4><p class="small">Cancel is offered while an order is early (Submitted &rarr; Ready) and needs a reason. Reorder appears once an order is Delivered or Completed.</p></div>
+        <div class="card"><h4>My session keeps expiring.</h4><p class="small">Access tokens are short-lived (15 min) and refresh automatically. On a new device you'll do a one-time OTP step-up before it becomes trusted; review devices under <strong>Profile &rarr; Sessions</strong>.</p></div>
+        <div class="card"><h4>Where are payments and the driver app?</h4><p class="small">Payments are Phase&nbsp;3; last-mile delivery/driver is Phase&nbsp;2. Phase&nbsp;1 orders are on account and fulfilled by merchant delivery or pickup.</p></div>
+        <div class="card"><h4>Can I switch between Arabic and English?</h4><p class="small">Yes &mdash; set your <strong>locale</strong> under <code>/account</code>. Product Arabic titles render right-to-left where provided.</p></div>
+      </div>
+      <div class="callout"><strong class="label">Need help?</strong><p>Use <strong>Reviews &amp; Disputes</strong> (<code>/reviews</code>) to raise an order issue, or contact platform support through the admin operations team. Include the Order ID for fastest resolution.</p></div>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; User Guide. Describes Phase&nbsp;1 (B2B MVP) behaviour as implemented, with forward-declared Phase&nbsp;2&ndash;5 capabilities clearly marked. Companion documents: <em>Developer Guide</em> and <em>Gap &amp; Roadmap Report</em>.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose',
+      themeVariables: { primaryColor:'#e2ebef', primaryBorderColor:'#174A5B', primaryTextColor:'#16232B',
+        lineColor:'#5B6B74', fontSize:'14px' } });
+  }
+</script>
+</body>
+</html>

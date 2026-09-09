@@ -1,10 +1,4 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Request, Response } from 'express';
 
 /**
@@ -49,7 +43,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let title = 'Internal server error';
     let detail = 'An unexpected error occurred';
     let type = 'https://api.scsp.dev/errors/server/internal';
-    let extensions: Record<string, unknown> = {};
+    const extensions: Record<string, unknown> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -71,7 +65,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
         // Preserve RFC 7807 extensions if already present
         if (ex['type'] && typeof ex['type'] === 'string') type = ex['type'];
-        for (const key of ['deltas', 'field', 'code']) {
+        for (const key of [
+          'deltas',
+          'field',
+          'code',
+          'remainingAttempts',
+          'retryAfterSeconds',
+          'limit',
+        ]) {
           if (ex[key] !== undefined) extensions[key] = ex[key];
         }
       } else if (typeof exResponse === 'string') {
@@ -102,6 +103,24 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     // RFC 7807: Content-Type MUST be application/problem+json
     response.setHeader('Content-Type', 'application/problem+json');
+
+    // Rate-limit (429) responses advertise the window state via standard headers
+    // so browser clients can render a remaining-attempts / retry-after UX. These
+    // header names are whitelisted in the CORS `exposedHeaders` (see main.ts).
+    if (status === HttpStatus.TOO_MANY_REQUESTS) {
+      if (extensions['limit'] !== undefined) {
+        response.setHeader('X-RateLimit-Limit', String(extensions['limit']));
+      }
+      if (extensions['remainingAttempts'] !== undefined) {
+        response.setHeader('X-RateLimit-Remaining', String(extensions['remainingAttempts']));
+      }
+      if (extensions['retryAfterSeconds'] !== undefined) {
+        const retryAfter = Number(extensions['retryAfterSeconds']);
+        response.setHeader('Retry-After', String(retryAfter));
+        response.setHeader('X-RateLimit-Reset', String(Math.ceil(Date.now() / 1000) + retryAfter));
+      }
+    }
+
     response.status(status).json({
       type,
       title,

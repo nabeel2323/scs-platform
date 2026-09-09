@@ -289,8 +289,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
             child: LoadingSpinner()),
         error: (e, _) => ErrorBanner(message: '$e'),
         data: (list) => list.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text('No variants yet.',
                     style: TextStyle(color: TaifTokens.muted, fontSize: 13)))
             : Column(
@@ -414,8 +414,8 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
             child: LoadingSpinner()),
         error: (e, _) => ErrorBanner(message: '$e'),
         data: (list) => list.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text('No media yet.',
                     style: TextStyle(color: TaifTokens.muted, fontSize: 13)))
             : Column(

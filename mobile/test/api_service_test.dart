@@ -129,16 +129,19 @@ void main() {
       expect(org.name, 'New Org');
     });
 
-    test('switchOrg calls POST /v1/me/switch-org', () async {
-      when(() => dio.post('/v1/me/switch-org', data: any(named: 'data')))
+    test('switchOrg calls POST /v1/auth/switch-org', () async {
+      when(() => dio.post('/v1/auth/switch-org', data: any(named: 'data')))
           .thenAnswer((_) async => Response(
-                data: {},
-                requestOptions: RequestOptions(path: '/v1/me/switch-org'),
+                data: {'accessToken': 'new-access-token'},
+                requestOptions: RequestOptions(path: '/v1/auth/switch-org'),
                 statusCode: 200,
               ));
 
-      await api.switchOrg('org-1');
-      verify(() => dio.post('/v1/me/switch-org', data: {'orgId': 'org-1'}))
+      final res = await api.switchOrg('org-1');
+      // The re-minted access token must be surfaced so callers can persist it
+      // (the prior token is denylisted server-side per API-B9).
+      expect(res.accessToken, 'new-access-token');
+      verify(() => dio.post('/v1/auth/switch-org', data: {'orgId': 'org-1'}))
           .called(1);
     });
 

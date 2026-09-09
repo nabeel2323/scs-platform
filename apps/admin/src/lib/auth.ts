@@ -8,16 +8,24 @@
  */
 
 import { getDeviceId } from './device-id';
+import type {
+  AuthSession,
+  AuthTokens,
+  RefreshResponse,
+  DeviceCheckResponse,
+  LoginPasswordResponse,
+  SessionInfo,
+  UserProfile,
+} from '@scs/contracts';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_admin_session';
 const USER_KEY = 'scs_admin_user';
 
-export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-}
+// Session envelope + auth wire types are shared from @scs/contracts (ADM-B3) so
+// web, admin and mobile stop redefining them. Re-exported to keep this module's
+// public surface stable for existing importers of `AuthSession`.
+export type { AuthSession };
 
 export interface AdminUser {
   id: string;
@@ -26,10 +34,49 @@ export interface AdminUser {
   role: string; // SUPER_ADMIN | ADMIN | MODERATOR
 }
 
+// ── Rate-limit (429) error ───────────────────────────────────
+
+/**
+ * Error carrying rate-limit context from a 429 so the admin login UI can show
+ * remaining attempts and the lockout countdown (Quick win 5). Reads the standard
+ * `X-RateLimit-Remaining` / `Retry-After` headers, falling back to the RFC 7807
+ * body extensions (`remainingAttempts` / `retryAfterSeconds`).
+ */
+export class LoginRateLimitError extends Error {
+  readonly remainingAttempts: number;
+  readonly retryAfterSeconds: number;
+  constructor(message: string, remainingAttempts: number, retryAfterSeconds: number) {
+    super(message);
+    this.name = 'LoginRateLimitError';
+    this.remainingAttempts = remainingAttempts;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** Build a LoginRateLimitError from a 429 response (headers first, body fallback). */
+async function toRateLimitError(res: Response, fallback: string): Promise<LoginRateLimitError> {
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const headerRemaining = res.headers.get('X-RateLimit-Remaining');
+  const headerRetry = res.headers.get('Retry-After');
+  const remaining = Number(headerRemaining ?? body['remainingAttempts'] ?? 0);
+  const retryAfter = Number(headerRetry ?? body['retryAfterSeconds'] ?? 0);
+  const message = String(body['detail'] || body['message'] || fallback);
+  return new LoginRateLimitError(
+    message,
+    Number.isFinite(remaining) ? remaining : 0,
+    Number.isFinite(retryAfter) ? retryAfter : 0,
+  );
+}
+
 // ── Restore persisted session on module load ─────────────────
 
 let currentSession: AuthSession | null = null;
 let currentUser: AdminUser | null = null;
+
+// Single-flight guard for token refresh (mirrors web WEB-B4). Concurrent 401s
+// must share ONE rotation; parallel rotations trip the server's refresh-reuse
+// detection and revoke the entire session chain.
+let refreshPromise: Promise<AuthSession> | null = null;
 
 function restoreSession(): void {
   if (typeof window === 'undefined') return;
@@ -75,6 +122,33 @@ function persistUser(user: AdminUser | null): void {
 // Restore on first import
 restoreSession();
 
+/**
+ * Hydrate the persisted AdminUser from GET /v1/me using a freshly issued access
+ * token. The server resolves the authoritative `role` for the caller's active
+ * org (UserProfile contract), so the admin no longer decodes the access-token
+ * JWT client-side — that was fragile (relied on token internals) and duplicated
+ * claim logic the server already owns. Best-effort: a failed fetch simply leaves
+ * the user to be populated on the next authenticated profile read.
+ */
+async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<void> {
+  try {
+    const res = await fetch(`${API_URL}/v1/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const profile = (await res.json()) as UserProfile;
+    currentUser = {
+      id: profile.id,
+      phone: profile.phone || fallbackPhone,
+      fullName: profile.fullName || 'Admin',
+      role: profile.role || 'ADMIN',
+    };
+    persistUser(currentUser);
+  } catch {
+    /* best-effort — populated on next profile fetch */
+  }
+}
+
 export function getSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
   return currentSession;
@@ -95,7 +169,10 @@ export async function requestOtp(phone: string): Promise<{ success: boolean }> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone }),
   });
-  if (!res.ok) throw new Error(`OTP request failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    throw new Error(`OTP request failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -114,7 +191,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
     }),
   });
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
-  const data = await res.json();
+  const data = (await res.json()) as AuthTokens;
 
   currentSession = {
     accessToken: data.accessToken,
@@ -123,42 +200,52 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   };
   persistSession(currentSession);
 
-  // Decode JWT to populate user info (sub, role claims)
-  try {
-    const payload = JSON.parse(atob(data.accessToken.split('.')[1]!));
-    currentUser = {
-      id: payload.sub,
-      phone,
-      fullName: payload.fullName || 'Admin',
-      role: payload.role || 'ADMIN',
-    };
-    persistUser(currentUser);
-  } catch { /* JWT decode failed — user will be populated on next profile fetch */ }
+  // Hydrate the admin user from GET /v1/me (server-resolved role) instead of
+  // decoding the access-token JWT client-side.
+  await hydrateUser(data.accessToken, phone);
 
   return currentSession;
 }
 
-export async function refreshSession(): Promise<AuthSession> {
+export function refreshSession(): Promise<AuthSession> {
+  // Coalesce concurrent refreshes into a single in-flight rotation.
+  if (!refreshPromise) {
+    refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function performRefresh(): Promise<AuthSession> {
   if (!currentSession) throw new Error('No session to refresh');
 
+  const refreshTokenUsed = currentSession.refreshToken;
   const res = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${currentSession.accessToken}`,
     },
-    body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
+    body: JSON.stringify({ refreshToken: refreshTokenUsed }),
   });
   if (!res.ok) {
     currentSession = null;
     currentUser = null;
     throw new Error(`Refresh failed: ${res.status}`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as RefreshResponse;
+
+  // Drop the result if a logout/newer refresh superseded this call mid-flight.
+  if (!currentSession || currentSession.refreshToken !== refreshTokenUsed) {
+    throw new Error('Refresh superseded');
+  }
 
   currentSession = {
     accessToken: data.accessToken,
-    refreshToken: data.newRefreshToken ?? data.refreshToken,
+    // Rotation returns the next refresh token as `newRefreshToken` (the old
+    // `?? data.refreshToken` fallback read a field the API never returns).
+    refreshToken: data.newRefreshToken,
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
   persistSession(currentSession);
@@ -176,9 +263,12 @@ export async function logout(): Promise<void> {
       },
       body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
     });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   currentSession = null;
   currentUser = null;
+  refreshPromise = null;
   persistSession(null);
   persistUser(null);
 }
@@ -191,14 +281,14 @@ export async function logout(): Promise<void> {
 export async function checkDeviceLogin(
   email: string,
   deviceId: string,
-): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
+): Promise<DeviceCheckResponse> {
   const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, deviceId }),
   });
   if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
-  return res.json();
+  return (await res.json()) as DeviceCheckResponse;
 }
 
 /**
@@ -225,13 +315,14 @@ export async function loginPassword(
   });
 
   if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many login attempts.');
     const error = await res.json().catch(() => ({}));
     throw new Error(error.detail || error.message || `Login failed: ${res.status}`);
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as LoginPasswordResponse;
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone };
+    return { requiresOtp: true, otpPhone: data.otpPhone ?? '' };
   }
 
   currentSession = {
@@ -241,17 +332,9 @@ export async function loginPassword(
   };
   persistSession(currentSession);
 
-  // Decode JWT to populate user info (sub, role claims) — mirrors verifyOtp.
-  try {
-    const payload = JSON.parse(atob(data.accessToken.split('.')[1]!));
-    currentUser = {
-      id: payload.sub,
-      phone: payload.phone || email,
-      fullName: payload.fullName || 'Admin',
-      role: payload.role || 'ADMIN',
-    };
-    persistUser(currentUser);
-  } catch { /* JWT decode failed — populated on next profile fetch */ }
+  // Hydrate the admin user from GET /v1/me (server-resolved role) — mirrors
+  // verifyOtp; no client-side JWT decoding.
+  await hydrateUser(data.accessToken, email);
 
   return currentSession;
 }
@@ -299,4 +382,78 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
   }
 
   return res;
+}
+
+// ── Credential Self-Service (ADM-B1) ──────────────────────────
+// Ported from the web app so platform staff can manage their own password and
+// review/revoke active sessions without leaving the admin console.
+
+/**
+ * Set up email + password credentials for an admin who authenticated via OTP
+ * and does not yet have a password. Fails if a password is already set.
+ */
+export async function setupCredentials(email: string, password: string): Promise<void> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/me/credentials/setup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+      'X-Device-Id': getDeviceId(),
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || error.message || 'Credential setup failed');
+  }
+}
+
+/**
+ * Change the password for the authenticated admin.
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/me/credentials/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+      'X-Device-Id': getDeviceId(),
+    },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.detail || error.message || 'Password change failed');
+  }
+}
+
+// Shared session shape from @scs/contracts (ADM-B3); the `AdminSessionInfo`
+// alias is kept so existing admin importers are unaffected.
+export type AdminSessionInfo = SessionInfo;
+
+/**
+ * List the authenticated admin's active sessions. The server marks `isCurrent`
+ * from the caller's `sid` JWT claim (WEB-B3).
+ */
+export async function getSessions(): Promise<AdminSessionInfo[]> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/me/sessions`, {
+    headers: { Authorization: `Bearer ${currentSession.accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`);
+  return (await res.json()) as AdminSessionInfo[];
+}
+
+/**
+ * Revoke all sessions for a specific device.
+ */
+export async function revokeSessionsByDevice(deviceId: string): Promise<void> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/me/sessions/revoke-by-device/${deviceId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${currentSession.accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Failed to revoke sessions: ${res.status}`);
 }

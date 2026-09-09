@@ -1,49 +1,106 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/realtime_service.dart';
 import '../../widgets/common_widgets.dart';
 
-class OrderDetailScreen extends ConsumerWidget {
+class OrderDetailScreen extends ConsumerStatefulWidget {
   final String orderId;
   const OrderDetailScreen({super.key, required this.orderId});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderDetailScreen> createState() => _OrderDetailScreenState();
+}
+
+class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
+  late final RealtimeService _realtime;
+  late Future<SubOrder> _orderFuture;
+  late Future<List<StatusHistoryEntry>> _historyFuture;
+  StreamSubscription<OrderStatusEvent>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+
+    // Live order-status push (WEB-B6): join this order's room and refresh the
+    // status + history in place, replacing manual pull-to-refresh / polling.
+    _realtime = ref.read(realtimeServiceProvider);
+    _realtime.connect();
+    _realtime.watchOrder(widget.orderId);
+    _sub = _realtime.orderStatus.listen((evt) {
+      if (!mounted || evt.orderId != widget.orderId) return;
+      _load();
+    });
+  }
+
+  void _load() {
+    final api = ref.read(apiServiceProvider);
+    final order = api.fetchOrder(widget.orderId);
+    final history = api.fetchOrderHistory(widget.orderId);
+    if (mounted) {
+      setState(() {
+        _orderFuture = order;
+        _historyFuture = history;
+      });
+    } else {
+      _orderFuture = order;
+      _historyFuture = history;
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _realtime.unwatchOrder(widget.orderId);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-        appBar:
-            AppBar(title: Text('Order #${orderId.substring(0, 8)}'), actions: [
-          PopupMenuButton<String>(
-              onSelected: (reason) async {
-                try {
-                  await ref
-                      .read(apiServiceProvider)
-                      .cancelOrder(orderId, reason);
-                  ref.invalidate(ordersProvider);
-                  if (context.mounted) Navigator.of(context).pop();
-                } catch (e) {
-                  if (context.mounted)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Cancel failed: $e')));
-                }
-              },
-              itemBuilder: (_) => [
-                    const PopupMenuItem(
-                        value: 'Changed mind', child: Text('Changed mind')),
-                    const PopupMenuItem(
-                        value: 'Found better price',
-                        child: Text('Found better price')),
-                    const PopupMenuItem(value: 'Other', child: Text('Other'))
-                  ]),
-        ]),
+        appBar: AppBar(
+            title: Text('Order #${widget.orderId.substring(0, 8)}'),
+            actions: [
+              PopupMenuButton<String>(
+                  onSelected: (reason) async {
+                    try {
+                      await ref
+                          .read(apiServiceProvider)
+                          .cancelOrder(widget.orderId, reason);
+                      ref.invalidate(ordersProvider);
+                      if (context.mounted) Navigator.of(context).pop();
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Cancel failed: $e')));
+                      }
+                    }
+                  },
+                  itemBuilder: (_) => [
+                        const PopupMenuItem(
+                            value: 'Changed mind', child: Text('Changed mind')),
+                        const PopupMenuItem(
+                            value: 'Found better price',
+                            child: Text('Found better price')),
+                        const PopupMenuItem(
+                            value: 'Other', child: Text('Other'))
+                      ]),
+            ]),
         body: FutureBuilder<SubOrder>(
-          future: ref.read(apiServiceProvider).fetchOrder(orderId),
+          future: _orderFuture,
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done)
+            if (snap.connectionState != ConnectionState.done) {
               return const LoadingSpinner();
-            if (snap.hasError)
+            }
+            if (snap.hasError) {
               return EmptyState(title: 'Error', description: '${snap.error}');
+            }
             final o = snap.data!;
             return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -115,12 +172,11 @@ class OrderDetailScreen extends ConsumerWidget {
                       if (['DELIVERED', 'COMPLETED'].contains(o.status))
                         const SizedBox(height: 16),
                       FutureBuilder<List<StatusHistoryEntry>>(
-                        future: ref
-                            .read(apiServiceProvider)
-                            .fetchOrderHistory(orderId),
+                        future: _historyFuture,
                         builder: (context, hSnap) {
-                          if (hSnap.connectionState != ConnectionState.done)
+                          if (hSnap.connectionState != ConnectionState.done) {
                             return const SizedBox.shrink();
+                          }
                           final history = hSnap.data ?? [];
                           if (history.isEmpty) return const SizedBox.shrink();
                           return Column(

@@ -8,12 +8,19 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/index';
 import { RateLimitService } from '../../common/services/rate-limit.service';
+import { resolveJwtAccessSecret } from '../../config/env-gate';
 
 @Module({
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env['JWT_ACCESS_SECRET'] || 'dev-secret-change-me-min-16-chars!!',
+      // Resolved through the production config gate (API-B7): falls back to the
+      // dev default only in development/test, and throws outside dev when
+      // JWT_ACCESS_SECRET is missing, weak, or still the well-known default.
+      secret: resolveJwtAccessSecret({
+        nodeEnv: process.env['NODE_ENV'],
+        accessSecret: process.env['JWT_ACCESS_SECRET'],
+      }),
       signOptions: { expiresIn: '15m' },
     }),
     NotificationsModule,

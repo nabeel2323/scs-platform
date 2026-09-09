@@ -19,11 +19,11 @@ export class RateLimitService {
   async checkLimit(action: string, identifier: string, maxAttempts: number): Promise<boolean> {
     const key = `rate_limit:${action}:${identifier}`;
     const attempts = await this.redis.client.get(key);
-    
+
     if (!attempts) {
       return true;
     }
-    
+
     return parseInt(attempts, 10) < maxAttempts;
   }
 
@@ -33,10 +33,14 @@ export class RateLimitService {
    * @param identifier - Unique identifier
    * @param ttlSeconds - Time to live in seconds (default: 900 = 15 minutes)
    */
-  async incrementAttempts(action: string, identifier: string, ttlSeconds: number = 900): Promise<void> {
+  async incrementAttempts(
+    action: string,
+    identifier: string,
+    ttlSeconds: number = 900,
+  ): Promise<void> {
     const key = `rate_limit:${action}:${identifier}`;
     const attempts = await this.redis.client.get(key);
-    
+
     if (!attempts) {
       await this.redis.client.set(key, '1', 'EX', ttlSeconds);
     } else {
@@ -61,15 +65,31 @@ export class RateLimitService {
    * @param maxAttempts - Maximum allowed attempts
    * @returns Number of remaining attempts
    */
-  async getRemainingAttempts(action: string, identifier: string, maxAttempts: number): Promise<number> {
+  async getRemainingAttempts(
+    action: string,
+    identifier: string,
+    maxAttempts: number,
+  ): Promise<number> {
     const key = `rate_limit:${action}:${identifier}`;
     const attempts = await this.redis.client.get(key);
-    
+
     if (!attempts) {
       return maxAttempts;
     }
-    
+
     return Math.max(0, maxAttempts - parseInt(attempts, 10));
+  }
+
+  /**
+   * Seconds until the attempt counter for an action expires (window reset).
+   * Used to populate the `Retry-After` / `X-RateLimit-Reset` headers on a 429.
+   * @returns remaining TTL in seconds, or 0 when no window is active.
+   */
+  async getResetSeconds(action: string, identifier: string): Promise<number> {
+    const key = `rate_limit:${action}:${identifier}`;
+    const ttl = await this.redis.client.ttl(key);
+    // ioredis returns -2 when the key is missing and -1 when it has no TTL.
+    return ttl > 0 ? ttl : 0;
   }
 
   /**
@@ -83,15 +103,15 @@ export class RateLimitService {
     ttlSeconds: number = 900,
   ): Promise<{ allowed: boolean; remaining: number }> {
     const allowed = await this.checkLimit(action, identifier, maxAttempts);
-    
+
     if (!allowed) {
       const remaining = await this.getRemainingAttempts(action, identifier, maxAttempts);
       return { allowed: false, remaining };
     }
-    
+
     await this.incrementAttempts(action, identifier, ttlSeconds);
     const remaining = await this.getRemainingAttempts(action, identifier, maxAttempts);
-    
+
     return { allowed: true, remaining };
   }
 }

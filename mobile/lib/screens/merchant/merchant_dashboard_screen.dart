@@ -89,7 +89,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
             ]),
             const SizedBox(height: 4),
             Text('/${store.slug} · ${store.currency}',
-                style: TextStyle(fontSize: 13, color: TaifTokens.muted)),
+                style: const TextStyle(fontSize: 13, color: TaifTokens.muted)),
           ]),
         ),
         const SizedBox(height: 20),

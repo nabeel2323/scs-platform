@@ -11,14 +11,16 @@ class StoreDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-        appBar: AppBar(title: Text('Store')),
+        appBar: AppBar(title: const Text('Store')),
         body: FutureBuilder<List<Product>>(
           future: ref.read(apiServiceProvider).fetchStoreProducts(storeId),
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done)
+            if (snap.connectionState != ConnectionState.done) {
               return const LoadingSpinner();
-            if (snap.hasError)
+            }
+            if (snap.hasError) {
               return EmptyState(title: 'Error', description: '${snap.error}');
+            }
             final items = snap.data ?? [];
             return items.isEmpty
                 ? const EmptyState(
@@ -44,11 +46,12 @@ class StoreDetailScreen extends ConsumerWidget {
                                   storeId: p.storeId,
                                   quantity: p.moq);
                               ref.invalidate(cartProvider);
-                              if (context.mounted)
+                              if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                         content: Text('Added to cart'),
                                         duration: Duration(seconds: 1)));
+                              }
                             } catch (_) {}
                           });
                     });

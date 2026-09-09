@@ -28,7 +28,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       await ref.read(apiServiceProvider).checkout(
         deliveryAddress: {'street': _addressCtrl.text, 'city': _cityCtrl.text},
         notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
-        idempotencyKey: Uuid().v4(),
+        idempotencyKey: const Uuid().v4(),
         fulfillmentMethod: _fulfillment,
       );
       ref.invalidate(cartProvider);
@@ -89,8 +89,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               RadioGroup<String>(
                 groupValue: _fulfillment,
                 onChanged: (v) {
-                  if (!_submitting && v != null)
+                  if (!_submitting && v != null) {
                     setState(() => _fulfillment = v);
+                  }
                 },
                 child: Column(children: [
                   ...['PLATFORM_DELIVERY', 'MERCHANT_DELIVERY', 'PICKUP'].map(

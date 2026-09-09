@@ -3,14 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "description": "Smart Commerce — Shared API contracts (zod schemas → OpenAPI 3.1 → generated clients)",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "generate": "tsx scripts/generate-openapi.ts",
     "generate:ts": "tsx scripts/generate-ts-client.ts",
     "generate:dart": "tsx scripts/generate-dart-client.ts",
-    "lint": "eslint src/ --ext .ts",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist"
   },

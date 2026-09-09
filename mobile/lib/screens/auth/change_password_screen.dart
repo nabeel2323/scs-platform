@@ -297,7 +297,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_circle, size: 16, color: TaifTokens.ok),
+          const Icon(Icons.check_circle, size: 16, color: TaifTokens.ok),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

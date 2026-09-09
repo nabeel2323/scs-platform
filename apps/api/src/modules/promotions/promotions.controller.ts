@@ -1,10 +1,16 @@
+import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
 import {
-  Controller, Get, Post, Patch,
-  Param, Body, Query, UseGuards,
-} from '@nestjs/common';
-import { PromotionsService, CreatePromotionInput, UpdatePromotionInput } from './promotions.service';
+  PromotionsService,
+  CreatePromotionInput,
+  UpdatePromotionInput,
+} from './promotions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -12,6 +18,8 @@ export class PromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}
 
   @Post('promotions')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:promotions:write')
   async createPromotion(@Body() input: CreatePromotionInput) {
     return this.promotionsService.createPromotion(input);
   }
@@ -32,18 +40,14 @@ export class PromotionsController {
   }
 
   @Patch('promotions/:id')
-  async updatePromotion(
-    @Param('id') id: string,
-    @Body() input: UpdatePromotionInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:promotions:write')
+  async updatePromotion(@Param('id') id: string, @Body() input: UpdatePromotionInput) {
     return this.promotionsService.updatePromotion(id, input);
   }
 
   @Get('stores/:storeId/promotions/validate')
-  async validateCode(
-    @Param('storeId') storeId: string,
-    @Query('code') code: string,
-  ) {
+  async validateCode(@Param('storeId') storeId: string, @Query('code') code: string) {
     const promo = await this.promotionsService.findByCode(storeId, code);
     return {
       valid: true,

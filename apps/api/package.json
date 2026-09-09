@@ -13,9 +13,11 @@
     "test": "vitest run",
     "test:unit": "vitest run --dir src/__tests__/unit",
     "test:integration": "vitest run --dir src/__tests__/integration",
-    "lint": "eslint src/ --ext .ts",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
+    "test:coverage": "vitest run --coverage",
     "db:migrate": "tsx infra/drizzle/migrate.ts",
+    "db:migrate:ci": "tsx infra/drizzle/migrate-pg.ts",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:demo": "tsx src/scripts/demo-data.ts",
     "db:reset": "tsx infra/drizzle/reset.ts",
@@ -68,11 +70,13 @@
     "@types/node": "^20.16.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^2.0.5",
     "drizzle-kit": "^0.24.0",
     "eslint": "^9.9.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
+    "typescript-eslint": "^8.0.0",
     "vitest": "^2.0.5"
   }
 }

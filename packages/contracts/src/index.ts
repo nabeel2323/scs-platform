@@ -9,6 +9,18 @@
 import { z } from 'zod';
 
 // ── Auth ─────────────────────────────────────────────────────
+//
+// Single source of truth for the auth/session wire contract (ADM-B3). These
+// schemas mirror the API's `class-validator` DTOs (apps/api .../dto/auth.dto.ts)
+// and the IdentityService return shapes, and generate the OpenAPI spec consumed
+// by the TS + Dart clients. Modeling request AND response shapes here is what
+// stops the four client surfaces (web, admin, mobile, api) from drifting.
+
+/** Platform / user-agent metadata captured at login for device trust + audit. */
+export const DeviceInfoSchema = z.object({
+  platform: z.string().min(1).max(32),
+  userAgent: z.string().max(1024),
+});
 
 export const OtpRequestSchema = z.object({
   phone: z.string().min(8).max(20),
@@ -17,8 +29,11 @@ export const OtpRequestSchema = z.object({
 export const OtpVerifySchema = z.object({
   phone: z.string().min(8).max(20),
   otp: z.string().length(6),
+  deviceId: z.string().max(128).optional(),
+  deviceInfo: DeviceInfoSchema.optional(),
 });
 
+/** Response of OTP verify: a fresh JWT pair. */
 export const AuthTokensSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
@@ -28,8 +43,85 @@ export const RefreshTokenSchema = z.object({
   refreshToken: z.string(),
 });
 
+/**
+ * Response of POST /v1/auth/refresh. Rotation returns the NEW refresh token as
+ * `newRefreshToken` (distinct from AuthTokens); clients read this field, so it
+ * is part of the contract rather than an implementation detail.
+ */
+export const RefreshResponseSchema = z.object({
+  accessToken: z.string(),
+  newRefreshToken: z.string(),
+});
+
 export const SwitchOrgSchema = z.object({
   orgId: z.string().uuid(),
+});
+
+/** Response of POST /v1/auth/switch-org: a re-minted access token only. */
+export const SwitchOrgResponseSchema = z.object({
+  accessToken: z.string(),
+});
+
+/** POST /v1/auth/login/password request. */
+export const LoginPasswordSchema = z.object({
+  email: z.string().email().max(254),
+  password: z.string().min(1).max(128),
+  deviceId: z.string().min(1).max(128),
+  deviceInfo: DeviceInfoSchema.optional(),
+});
+
+/**
+ * POST /v1/auth/login/password response. When the device is untrusted the API
+ * challenges with OTP instead of issuing tokens (empty token strings plus
+ * `requiresOtp`), so both branches are modeled in a single schema.
+ */
+export const LoginPasswordResponseSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  requiresOtp: z.boolean().optional(),
+  otpPhone: z.string().optional(),
+});
+
+/** POST /v1/auth/login/device-check request. */
+export const DeviceCheckSchema = z.object({
+  email: z.string().email().max(254),
+  deviceId: z.string().min(1).max(128),
+});
+
+/** POST /v1/auth/login/device-check response. */
+export const DeviceCheckResponseSchema = z.object({
+  canAutoLogin: z.boolean(),
+  requiresOtp: z.boolean(),
+  hasPassword: z.boolean(),
+});
+
+/**
+ * A single active session as returned by GET /v1/me/sessions. `isCurrent` is
+ * set server-side from the caller's `sid` claim (WEB-B3); clients must not
+ * compute it themselves. Timestamps are ISO-8601 strings over the wire (JSON has
+ * no Date type) and clients render them directly.
+ */
+export const SessionInfoSchema = z.object({
+  id: z.string().uuid(),
+  device: z.string(),
+  deviceId: z.string().nullable(),
+  ip: z.string().nullable(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  isCurrent: z.boolean(),
+  isRevoked: z.boolean(),
+});
+
+/**
+ * Shared client-side session envelope (persisted to localStorage on web/admin,
+ * secure storage on mobile). Not an API response — it wraps the JWT pair with a
+ * client-computed `expiresAt` (epoch ms). Centralized here so every client
+ * agrees on the shape instead of redefining it.
+ */
+export const AuthSessionSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresAt: z.number(),
 });
 
 // ── Common ───────────────────────────────────────────────────
@@ -714,6 +806,15 @@ export type AuthTokens = z.infer<typeof AuthTokensSchema>;
 export type RefreshToken = z.infer<typeof RefreshTokenSchema>;
 export type SwitchOrg = z.infer<typeof SwitchOrgSchema>;
 export type ProblemDetail = z.infer<typeof ProblemDetailSchema>;
+export type DeviceInfo = z.infer<typeof DeviceInfoSchema>;
+export type RefreshResponse = z.infer<typeof RefreshResponseSchema>;
+export type SwitchOrgResponse = z.infer<typeof SwitchOrgResponseSchema>;
+export type LoginPassword = z.infer<typeof LoginPasswordSchema>;
+export type LoginPasswordResponse = z.infer<typeof LoginPasswordResponseSchema>;
+export type DeviceCheck = z.infer<typeof DeviceCheckSchema>;
+export type DeviceCheckResponse = z.infer<typeof DeviceCheckResponseSchema>;
+export type SessionInfo = z.infer<typeof SessionInfoSchema>;
+export type AuthSession = z.infer<typeof AuthSessionSchema>;
 
 export type Address = z.infer<typeof AddressSchema>;
 export type CreateStore = z.infer<typeof CreateStoreSchema>;
@@ -986,6 +1087,10 @@ export const UserProfileSchema = z.object({
   fullName: z.string(),
   locale: z.string(),
   status: z.string(),
+  // The caller's current role in their active organization (e.g. SUPER_ADMIN,
+  // ADMIN, MERCHANT_OWNER, BUYER). Server-resolved so web/admin hydrate role
+  // from GET /v1/me instead of decoding the access-token JWT client-side.
+  role: z.string(),
   activeOrgId: z.string().uuid().nullable(),
   organizations: z.array(z.object({
     id: z.string().uuid(),

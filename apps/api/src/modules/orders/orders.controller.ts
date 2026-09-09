@@ -1,9 +1,12 @@
-import {
-  Controller, Get, Post, Body, Param, Query, UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { OrdersService, CheckoutInput, ItemConfirmation } from './orders.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -13,10 +16,7 @@ export class OrdersController {
   // ── Checkout ─────────────────────────────────────────────────
 
   @Post('checkout')
-  async checkout(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: CheckoutInput,
-  ) {
+  async checkout(@CurrentUser() user: JwtPayload, @Body() input: CheckoutInput) {
     return this.ordersService.checkout({
       ...input,
       buyerId: user.sub,
@@ -31,10 +31,7 @@ export class OrdersController {
   }
 
   @Post('orders/master/:id/reorder')
-  async reorder(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async reorder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.reorder(id, user.sub);
   }
 
@@ -64,14 +61,15 @@ export class OrdersController {
   // ── Merchant Actions ─────────────────────────────────────────
 
   @Post('orders/:id/accept')
-  async acceptOrder(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
+  async acceptOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.acceptOrder(id, user.sub);
   }
 
   @Post('orders/:id/partial-accept')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
   async partiallyAcceptOrder(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -81,6 +79,8 @@ export class OrdersController {
   }
 
   @Post('orders/:id/reject')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
   async rejectOrder(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -90,6 +90,8 @@ export class OrdersController {
   }
 
   @Post('orders/:id/items/:itemId/confirm')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
   async confirmItem(
     @CurrentUser() user: JwtPayload,
     @Param('id') orderId: string,
@@ -102,6 +104,8 @@ export class OrdersController {
   // ── Status Transitions ───────────────────────────────────────
 
   @Post('orders/:id/status')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
   async transitionStatus(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

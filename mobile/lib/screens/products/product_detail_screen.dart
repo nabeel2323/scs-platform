@@ -15,10 +15,12 @@ class ProductDetailScreen extends ConsumerWidget {
         body: FutureBuilder<Product>(
           future: ref.read(apiServiceProvider).fetchProduct(productId),
           builder: (context, snap) {
-            if (snap.connectionState != ConnectionState.done)
+            if (snap.connectionState != ConnectionState.done) {
               return const LoadingSpinner();
-            if (snap.hasError)
+            }
+            if (snap.hasError) {
               return EmptyState(title: 'Error', description: '${snap.error}');
+            }
             final p = snap.data!;
             return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -45,7 +47,7 @@ class ProductDetailScreen extends ConsumerWidget {
                         StatusBadge(p.status),
                         const SizedBox(width: 8),
                         Text('MOQ: ${p.moq}',
-                            style: TextStyle(color: TaifTokens.muted))
+                            style: const TextStyle(color: TaifTokens.muted))
                       ]),
                       if (p.description != null) ...[
                         const SizedBox(height: 16),
@@ -58,8 +60,9 @@ class ProductDetailScreen extends ConsumerWidget {
                             .read(apiServiceProvider)
                             .fetchVariants(productId),
                         builder: (context, vSnap) {
-                          if (vSnap.connectionState != ConnectionState.done)
+                          if (vSnap.connectionState != ConnectionState.done) {
                             return const CircularProgressIndicator();
+                          }
                           final variants = vSnap.data ?? [];
                           if (variants.isEmpty) return const SizedBox.shrink();
                           return Column(
@@ -100,14 +103,16 @@ class ProductDetailScreen extends ConsumerWidget {
                                       storeId: p.storeId,
                                       quantity: p.moq);
                                   ref.invalidate(cartProvider);
-                                  if (context.mounted)
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
                                             content: Text('Added to cart')));
+                                  }
                                 } catch (e) {
-                                  if (context.mounted)
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                         SnackBar(content: Text('Failed: $e')));
+                                  }
                                 }
                               },
                               label: const Text('Add to Cart'))),

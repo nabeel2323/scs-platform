@@ -146,7 +146,7 @@ class _MerchantCustomersScreenState
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(label.toUpperCase(),
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: TaifTokens.muted,
@@ -171,7 +171,7 @@ class _MerchantCustomersScreenState
                 (c.buyerName?.isNotEmpty ?? false)
                     ? c.buyerName!.substring(0, 1).toUpperCase()
                     : '?',
-                style: TextStyle(color: TaifTokens.brandPrimary))),
+                style: const TextStyle(color: TaifTokens.brandPrimary))),
         title: Text(c.buyerName ?? 'Unknown',
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
@@ -184,7 +184,8 @@ class _MerchantCustomersScreenState
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, color: TaifTokens.ok)),
               Text('avg ${formatMinor(avg)}',
-                  style: TextStyle(fontSize: 11, color: TaifTokens.muted)),
+                  style:
+                      const TextStyle(fontSize: 11, color: TaifTokens.muted)),
             ]),
       ),
     );

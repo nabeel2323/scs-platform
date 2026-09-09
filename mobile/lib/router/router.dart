@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../screens/auth/login_screen.dart';
-import '../screens/auth/otp_verify_screen.dart';
 import '../screens/auth/credential_setup_screen.dart';
 import '../screens/auth/change_password_screen.dart';
 import '../screens/auth/sessions_screen.dart';
@@ -43,10 +42,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(
-          path: '/verify/:phone',
-          builder: (_, state) =>
-              OtpVerifyScreen(phone: state.pathParameters['phone']!)),
       GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
       GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
       GoRoute(path: '/stores', builder: (_, __) => const StoresListScreen()),

@@ -42,13 +42,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           .read(apiServiceProvider)
           .addToCart(variantId: p.id, storeId: p.storeId, quantity: p.moq);
       ref.invalidate(cartProvider);
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Added to cart'), duration: Duration(seconds: 1)));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
     }
   }
 

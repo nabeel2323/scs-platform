@@ -33,16 +33,37 @@ const mockCart = {
 
 const mockCartItems = [
   {
-    id: 'ci-001', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_1,
-    quantity: 10, priceMinor: 200, tierMinQty: 1, promoSnapshot: {}, lineTotalMinor: 2000,
+    id: 'ci-001',
+    cartId: CART_ID,
+    storeId: STORE_1,
+    variantId: VARIANT_1,
+    quantity: 10,
+    priceMinor: 200,
+    tierMinQty: 1,
+    promoSnapshot: {},
+    lineTotalMinor: 2000,
   },
   {
-    id: 'ci-002', cartId: CART_ID, storeId: STORE_1, variantId: VARIANT_2,
-    quantity: 5, priceMinor: 300, tierMinQty: 1, promoSnapshot: {}, lineTotalMinor: 1500,
+    id: 'ci-002',
+    cartId: CART_ID,
+    storeId: STORE_1,
+    variantId: VARIANT_2,
+    quantity: 5,
+    priceMinor: 300,
+    tierMinQty: 1,
+    promoSnapshot: {},
+    lineTotalMinor: 1500,
   },
   {
-    id: 'ci-003', cartId: CART_ID, storeId: STORE_2, variantId: VARIANT_1,
-    quantity: 3, priceMinor: 200, tierMinQty: 1, promoSnapshot: {}, lineTotalMinor: 600,
+    id: 'ci-003',
+    cartId: CART_ID,
+    storeId: STORE_2,
+    variantId: VARIANT_1,
+    quantity: 3,
+    priceMinor: 200,
+    tierMinQty: 1,
+    promoSnapshot: {},
+    lineTotalMinor: 600,
   },
 ];
 
@@ -81,12 +102,19 @@ function createMocks() {
 
   const mockDbService = { db } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
+  const mockPromotions = {
+    resolveApplicable: vi.fn().mockResolvedValue(null),
+    calculateDiscount: vi.fn().mockReturnValue(0),
+    redeemPromotion: vi
+      .fn()
+      .mockResolvedValue({ redemptionId: 'redemption-001', discountMinor: 0 }),
+  } as any;
 
-  return { db, mockDbService, mockOutbox, insertValues, updateSet, updateWhere };
+  return { db, mockDbService, mockOutbox, mockPromotions, insertValues, updateSet, updateWhere };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
-  return new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+  return new OrdersService(mocks.mockDbService, mocks.mockOutbox, mocks.mockPromotions);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -139,10 +167,17 @@ describe('Checkout Integration', () => {
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 5 });
       // No idempotency key → getMasterOrder is the only findFirst call
-      mocks.db.query.masterOrders.findFirst.mockResolvedValue({ id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED' });
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      const result = await service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+      });
       expect(result).toBeDefined();
     });
   });
@@ -187,7 +222,11 @@ describe('Checkout Integration', () => {
 
   describe('multi-store grouping', () => {
     it('should create separate sub-orders per store', async () => {
-      mocks.db.query.masterOrders.findFirst.mockResolvedValue({ id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED' });
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
       mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
       mocks.db.query.cartItems.findMany.mockResolvedValue(mockCartItems);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
@@ -203,7 +242,11 @@ describe('Checkout Integration', () => {
 
   describe('cart conversion', () => {
     it('should mark cart as CONVERTED after checkout', async () => {
-      mocks.db.query.masterOrders.findFirst.mockResolvedValue({ id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED' });
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
       mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
@@ -219,7 +262,11 @@ describe('Checkout Integration', () => {
 
   describe('event publishing', () => {
     it('should publish order.submitted event', async () => {
-      mocks.db.query.masterOrders.findFirst.mockResolvedValue({ id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED' });
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
       mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
@@ -233,6 +280,96 @@ describe('Checkout Integration', () => {
         expect.any(String),
         expect.objectContaining({ buyerId: BUYER_ID }),
       );
+    });
+  });
+
+  describe('checkout pricing (API-B4)', () => {
+    // Find the first .values(...) argument that owns a given column.
+    function findInsert(mockCalls: any[], key: string) {
+      return mockCalls.map((c) => c[0]).find((v) => v && key in v);
+    }
+
+    it('applies promo discount + 15% VAT and populates the financial breakdown', async () => {
+      const cartWithPromo = { ...mockCart, promoCode: 'SAVE500', promotionId: 'promo-001' };
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
+      mocks.db.query.carts.findFirst.mockResolvedValue(cartWithPromo);
+      mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]); // STORE_1, lineTotal 2000
+      mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
+      mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.orders.findMany.mockResolvedValue([]);
+
+      // STORE_1 subtotal = 2000; promo yields a flat 500 discount.
+      mocks.mockPromotions.resolveApplicable.mockResolvedValue({
+        id: 'promo-001',
+        storeId: STORE_1,
+        code: 'SAVE500',
+      });
+      mocks.mockPromotions.calculateDiscount.mockReturnValue(500);
+
+      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+
+      // netGoods = 1500; VAT = round(1500 * 0.15) = 225; total = 1725.
+      const orderRow = findInsert(mocks.insertValues.mock.calls, 'totalMinor');
+      expect(orderRow).toMatchObject({
+        storeId: STORE_1,
+        subtotalMinor: 2000,
+        discountMinor: 500,
+        taxMinor: 225,
+        totalMinor: 1725,
+        promotionId: 'promo-001',
+        promoCode: 'SAVE500',
+      });
+
+      // commission = round(1500 * 0.05) = 75; merchantNet = 1425.
+      const breakdownRow = findInsert(mocks.insertValues.mock.calls, 'merchantNetMinor');
+      expect(breakdownRow).toMatchObject({
+        productsMinor: 2000,
+        discountMinor: 500,
+        taxMinor: 225,
+        commissionMinor: 75,
+        merchantNetMinor: 1425,
+      });
+
+      // The promo was redeemed against the sub-order.
+      expect(mocks.mockPromotions.redeemPromotion).toHaveBeenCalledWith(
+        'promo-001',
+        BUYER_ID,
+        expect.any(String),
+        500,
+      );
+    });
+
+    it('charges 15% VAT with no discount and no delivery fee on PICKUP', async () => {
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
+      mocks.db.query.carts.findFirst.mockResolvedValue(mockCart); // no promo
+      mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]); // subtotal 2000
+      mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
+      mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.orders.findMany.mockResolvedValue([]);
+
+      await service.checkout({
+        buyerId: BUYER_ID,
+        deliveryAddress: { city: 'Riyadh' },
+        fulfillmentMethod: 'PICKUP',
+      });
+
+      // No promo -> discount 0; PICKUP -> delivery 0; VAT = round(2000 * 0.15) = 300; total = 2300.
+      const orderRow = findInsert(mocks.insertValues.mock.calls, 'totalMinor');
+      expect(orderRow).toMatchObject({
+        discountMinor: 0,
+        deliveryFeeMinor: 0,
+        taxMinor: 300,
+        totalMinor: 2300,
+      });
+      expect(mocks.mockPromotions.redeemPromotion).not.toHaveBeenCalled();
     });
   });
 });

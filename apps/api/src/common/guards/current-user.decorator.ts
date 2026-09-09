@@ -31,10 +31,24 @@ export const CurrentUser = createParamDecorator(
  * JWT payload shape attached by JwtAuthGuard.
  */
 export interface JwtPayload {
-  sub: string;       // user ID
+  sub: string; // user ID
   activeOrg: string | null;
   role: string;
   perms: string[];
+  /**
+   * Session ID this access token was minted for (WEB-B3). Lets the server
+   * identify the caller's *current* session (e.g. to flag `isCurrent` in
+   * GET /v1/me/sessions) without trusting a client-supplied header.
+   * Optional: tokens issued before this claim existed simply omit it.
+   */
+  sid?: string;
+  /**
+   * Unique token ID (API-B9). Each access token carries a `jti` so one specific
+   * token can be revoked (denylisted in Redis) before its natural expiry — e.g.
+   * the prior token when the caller switches organizations. Optional: tokens
+   * issued before this claim existed simply omit it and are never denylisted.
+   */
+  jti?: string;
   iat: number;
   exp: number;
 }

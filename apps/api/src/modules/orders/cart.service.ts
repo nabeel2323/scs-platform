@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { PromotionsService } from '../promotions/promotions.service';
 import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -14,7 +15,10 @@ import crypto from 'node:crypto';
  */
 @Injectable()
 export class CartService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly promotions: PromotionsService,
+  ) {}
 
   // ── Cart ─────────────────────────────────────────────────────
 
@@ -76,10 +80,7 @@ export class CartService {
 
     const cart = await this.getOrCreateCart(userId);
     const existing = await this.db.db.query.cartItems.findFirst({
-      where: and(
-        eq(cartItems.cartId, cart['id']),
-        eq(cartItems.variantId, variant['id']),
-      ),
+      where: and(eq(cartItems.cartId, cart['id']), eq(cartItems.variantId, variant['id'])),
     });
     const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
 
@@ -91,18 +92,22 @@ export class CartService {
       .select({ unitPriceMinor: priceTiers.unitPriceMinor, minQty: priceTiers.minQty })
       .from(priceTiers)
       .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
-      .where(and(
-        eq(priceLists.storeId, storeId),
-        eq(priceLists.isActive, true),
-        eq(priceTiers.variantId, variant['id']),
-        lte(priceTiers.minQty, finalQty),
-      ))
+      .where(
+        and(
+          eq(priceLists.storeId, storeId),
+          eq(priceLists.isActive, true),
+          eq(priceTiers.variantId, variant['id']),
+          lte(priceTiers.minQty, finalQty),
+        ),
+      )
       .orderBy(desc(priceLists.priority), desc(priceTiers.minQty))
       .limit(1);
 
     const tier = tierRows[0];
     if (!tier) {
-      throw new BadRequestException('No price is available for this item at the requested quantity');
+      throw new BadRequestException(
+        'No price is available for this item at the requested quantity',
+      );
     }
     const priceMinor = tier.unitPriceMinor;
     const lineTotalMinor = finalQty * priceMinor;
@@ -184,9 +189,37 @@ export class CartService {
 
   async applyPromoCode(userId: string, promoCode: string, promotionId?: string) {
     const cart = await this.getOrCreateCart(userId);
+    const items = await this.listCartItems(cart['id']);
+
+    // Validate the code against the stores currently in the cart. A promotion is
+    // store-scoped, so it is only valid if it matches an active promotion for one
+    // of the suppliers the buyer actually has items from. Resolving here also
+    // captures the concrete promotionId, so checkout applies a stable reference
+    // rather than re-deriving it from the raw code. An empty cart cannot be
+    // validated yet, so the code is stored optimistically.
+    let resolvedId: string | null = promotionId || null;
+    if (items.length > 0) {
+      const storeIds = Array.from(new Set(items.map((i) => i['storeId'] as string)));
+      let matched: any = null;
+      for (const storeId of storeIds) {
+        matched = await this.promotions.resolveApplicable(storeId, {
+          promotionId: resolvedId,
+          code: promoCode,
+          userId,
+        });
+        if (matched) {
+          resolvedId = matched['id'];
+          break;
+        }
+      }
+      if (!matched) {
+        throw new BadRequestException('Invalid or expired promo code for the items in your cart');
+      }
+    }
+
     await this.db.db
       .update(carts)
-      .set({ promoCode, promotionId: promotionId || null, updatedAt: new Date() })
+      .set({ promoCode, promotionId: resolvedId, updatedAt: new Date() })
       .where(eq(carts.id, cart['id']));
     return this.getActiveCartWithItems(userId);
   }

@@ -53,7 +53,7 @@ class HomeScreen extends ConsumerWidget {
                         ?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text(ref.watch(currentUserPhoneProvider),
-                    style: TextStyle(color: TaifTokens.muted)),
+                    style: const TextStyle(color: TaifTokens.muted)),
               ])),
           GestureDetector(
             onTap: () => context.push('/profile'),
@@ -108,10 +108,9 @@ class HomeScreen extends ConsumerWidget {
                 border: Border.all(
                     color: TaifTokens.brandAccent.withValues(alpha: 0.4)),
               ),
-              child: Row(children: [
-                const Icon(Icons.store,
-                    size: 24, color: TaifTokens.brandAccent),
-                const SizedBox(width: 12),
+              child: const Row(children: [
+                Icon(Icons.store, size: 24, color: TaifTokens.brandAccent),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,11 +1,29 @@
 import {
-  Controller, Get, Post, Patch,
-  Param, Body, Query, HttpCode, HttpStatus, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
-import { MerchantService, CreateStoreInput, UpdateStoreInput, CreateWarehouseInput, UploadDocumentInput } from './merchant.service';
+import {
+  MerchantService,
+  CreateStoreInput,
+  UpdateStoreInput,
+  CreateWarehouseInput,
+  UploadDocumentInput,
+} from './merchant.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 /**
  * Merchant API — store lifecycle, warehouses, documents, verification.
@@ -36,10 +54,9 @@ export class MerchantController {
   // ── Stores ─────────────────────────────────────────────────────
 
   @Post('stores')
-  async createStore(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: CreateStoreInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async createStore(@CurrentUser() user: JwtPayload, @Body() input: CreateStoreInput) {
     return this.merchantService.createStore(input, user.sub);
   }
 
@@ -52,7 +69,8 @@ export class MerchantController {
     @Query('offset') offset?: string,
   ) {
     // Admin/moderator can list all; merchants see their org's stores
-    const isAdmin = user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.role === 'MODERATOR';
+    const isAdmin =
+      user.role === 'SUPER_ADMIN' || user.role === 'ADMIN' || user.role === 'MODERATOR';
 
     if (isAdmin) {
       return this.merchantService.listStores({
@@ -95,20 +113,18 @@ export class MerchantController {
   }
 
   @Patch('stores/:id')
-  async updateStore(
-    @Param('id') id: string,
-    @Body() input: UpdateStoreInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async updateStore(@Param('id') id: string, @Body() input: UpdateStoreInput) {
     return this.merchantService.updateStore(id, input);
   }
 
   // ── Warehouses ─────────────────────────────────────────────────
 
   @Post('stores/:storeId/warehouses')
-  async createWarehouse(
-    @Param('storeId') storeId: string,
-    @Body() input: CreateWarehouseInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async createWarehouse(@Param('storeId') storeId: string, @Body() input: CreateWarehouseInput) {
     return this.merchantService.createWarehouse(storeId, input);
   }
 
@@ -118,20 +134,18 @@ export class MerchantController {
   }
 
   @Patch('warehouses/:id')
-  async updateWarehouse(
-    @Param('id') id: string,
-    @Body() input: CreateWarehouseInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async updateWarehouse(@Param('id') id: string, @Body() input: CreateWarehouseInput) {
     return this.merchantService.updateWarehouse(id, input);
   }
 
   // ── Documents ──────────────────────────────────────────────────
 
   @Post('documents')
-  async uploadDocument(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: UploadDocumentInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async uploadDocument(@CurrentUser() user: JwtPayload, @Body() input: UploadDocumentInput) {
     return this.merchantService.uploadDocument({
       ...input,
       uploadedBy: user.sub,
@@ -156,10 +170,9 @@ export class MerchantController {
   // ── Verification ───────────────────────────────────────────────
 
   @Post('stores/:storeId/verify')
-  async submitVerification(
-    @Param('storeId') storeId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async submitVerification(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.submitVerification(storeId, user.sub);
   }
 
@@ -192,7 +205,12 @@ export class MerchantController {
   async reviewVerification(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
-    @Body() body: { decision: 'APPROVED' | 'REJECTED' | 'REVISION'; notes?: string; rejectionReasons?: string[] },
+    @Body()
+    body: {
+      decision: 'APPROVED' | 'REJECTED' | 'REVISION';
+      notes?: string;
+      rejectionReasons?: string[];
+    },
   ) {
     return this.merchantService.reviewVerification(
       id,

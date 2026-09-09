@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Gap & Roadmap Report for the Smart Commerce & Supply Platform (TAIF) — maturity scorecard, Phase 0-7 status, verified gaps, critical blockers and a prioritized backlog to full maturity.">
+<title>Gap &amp; Roadmap Report — Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .kpi{font-size:1.6rem;font-weight:800;color:var(--brand)}
+  .mermaid{background:#fbfcfd;border:1px dashed var(--line);border-radius:8px;padding:1rem;margin:1rem 0;text-align:center}
+  .muted{color:var(--muted)} .small{font-size:.85rem}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.25rem 0}
+  .bar{background:#eef2f4;border:1px solid var(--line);border-radius:999px;height:11px;overflow:hidden;min-width:120px}
+  .bar > span{display:block;height:100%;border-radius:999px}
+  .score{font-variant-numeric:tabular-nums;font-weight:700}
+  .legend{display:flex;flex-wrap:wrap;gap:.8rem;margin:.4rem 0 .2rem;font-size:.8rem;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:.35rem}
+  .dot{width:.7rem;height:.7rem;border-radius:50%;display:inline-block}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){.layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none} .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Gap &amp; Roadmap Report</h1>
+    <p class="sub">A status report on the Smart Commerce &amp; Supply Platform (TAIF): maturity scorecard, Phase&nbsp;0&ndash;7 progress, verified gaps between implementation and design, critical blockers, and a prioritized backlog to reach full maturity.</p>
+    <div class="meta">
+      <span>Baseline audit 2026-09-05</span><span>Verified against live source</span>
+      <span>Maturity 88/100</span><span>Phase 1 · 93% pilot-ready</span><span>All P0 blockers resolved</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#summary">1. Executive Summary</a></li>
+      <li><a href="#roadmap">2. Phase 0&ndash;7 Roadmap Status</a></li>
+      <li><a href="#readiness">3. Launch Readiness (&sect;21.6)</a></li>
+      <li><a href="#register">4. Verified Gap Register</a></li>
+      <li><a href="#blockers">5. Blockers &amp; High-Priority Issues</a></li>
+      <li><a href="#capability">6. Capability Gaps vs Phase 1</a></li>
+      <li><a href="#arch">7. Architecture &amp; Scalability Risks</a></li>
+      <li><a href="#backlog">8. Prioritized Backlog</a></li>
+      <li><a href="#enhance">9. Enhancement Recommendations</a></li>
+      <li><a href="#next">10. Pull-forward &amp; Next Milestone</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="summary">
+      <h2>1. Executive Summary</h2>
+      <p>The platform is a <strong>B2B-first marketplace</strong> delivered as a modular monolith with four client surfaces. It is <strong>pilot-ready for Phase&nbsp;1</strong>: all three critical launch blockers were resolved and verified on 2026-09-04, and on <strong>2026-09-08 the full P1 + P2 backlog closed</strong> &mdash; checkout pricing (<code>API-B4</code>), merchant-write RBAC (<code>API-B6</code>), the identity N+1 / prod-JWT-gate / switch-org revocation / auth-DTO hardening (<code>API-B7</code>&ndash;<code>B10</code>), admin <code>/v1/me</code> hydration (<code>ADM-B2</code>), the shared <code>@scs/contracts</code> package, realtime wiring and typed mobile models. The remaining Phase&nbsp;1 gaps are <strong>deeper automated test coverage</strong>, <strong>k6 load-test evidence</strong> and a few Low-severity UI items. Phases&nbsp;2&ndash;7 are forward-declared &mdash; schema and FSM states exist, behaviour is dark.</p>
+
+      <div class="grid c4">
+        <div class="card"><div class="kpi">93<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">Up from 88 after the 09-08 P1/P2 closure</p></div>
+        <div class="card"><div class="kpi">96%</div><h4>Phase 1 coverage</h4><p class="small muted">Saved suppliers + checkout pricing closed</p></div>
+        <div class="card"><div class="kpi">3 / 3</div><h4>P0 blockers resolved</h4><p class="small muted">Device trust · CORS · CSV import</p></div>
+        <div class="card"><div class="kpi">0</div><h4>High issues open</h4><p class="small muted">API-B4 + API-B6 closed 09-08</p></div>
+      </div>
+
+      <h3>1.1 Maturity scorecard</h3>
+      <p class="small muted">Weighted dimensions from the 2026-09-05 audit, cross-checked against the current tree.</p>
+      <table>
+        <thead><tr><th style="width:26%">Dimension</th><th style="width:10%">Score</th><th style="width:9%">Weight</th><th style="width:27%">Progress</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Phase 1 Feature Coverage</td><td class="score">96%</td><td>30%</td><td><div class="bar"><span style="width:96%;background:var(--ok)"></span></div></td><td>Import real since 09-04; checkout pricing + saved suppliers closed 09-08</td></tr>
+          <tr><td>Security Posture</td><td class="score">93%</td><td>25%</td><td><div class="bar"><span style="width:93%;background:var(--ok)"></span></div></td><td>Dual-auth E2E; merchant-write RBAC (<code>API-B6</code>), prod JWT gate (<code>API-B7</code>), switch-org revocation (<code>API-B9</code>) + auth DTOs (<code>API-B10</code>) closed 09-08</td></tr>
+          <tr><td>Code Quality</td><td class="score">89%</td><td>15%</td><td><div class="bar"><span style="width:89%;background:var(--info)"></span></div></td><td>All apps compile/analyze clean (mobile 0 issues); identity + orders unit tests now &ge;40% line coverage (46% / 51%, 09-08)</td></tr>
+          <tr><td>Cross-Platform Consistency</td><td class="score">92%</td><td>15%</td><td><div class="bar"><span style="width:92%;background:var(--ok)"></span></div></td><td>Device trust on web + mobile; admin password login + credential self-service; realtime wired; shared <code>@scs/contracts</code> across surfaces</td></tr>
+          <tr><td>Launch Readiness (&sect;21.6)</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>6/8 criteria fully met; 2 partial (load evidence, ops ownership)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>1.2 Status legend</h3>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--ok)"></i> Done / met</span>
+        <span><i class="dot" style="background:var(--info)"></i> Solid, minor gaps</span>
+        <span><i class="dot" style="background:var(--warn)"></i> Partial / in progress</span>
+        <span><i class="dot" style="background:var(--err)"></i> Open issue</span>
+        <span><i class="dot" style="background:#9fb0b8"></i> Not started (future phase)</span>
+      </div>
+      <div class="callout ok"><strong class="label">Headline</strong><p>Phase&nbsp;1 can launch a pilot in one area today. The two prior caveats closed on 2026-09-08: checkout now computes real totals (promo + 15% VAT + delivery fee, <code>API-B4</code>) and merchant write endpoints are permission-gated (<code>API-B6</code>). The remaining pre-GA work is load-test evidence and ops ownership, not code correctness.</p></div>
+    </section>
+
+    <section id="roadmap">
+      <h2>2. Phase 0&ndash;7 Roadmap Status</h2>
+      <div class="mermaid">
+flowchart LR
+  P0["Phase 0<br/>Validation + Design"]:::done
+  P1["Phase 1<br/>B2B MVP · 96%"]:::active
+  P2["Phase 2<br/>Delivery + Tracking"]:::todo
+  P3["Phase 3<br/>Payments + Settlement"]:::todo
+  P4["Phase 4<br/>B2C Marketplace"]:::todo
+  P5["Phase 5<br/>Ads + Analytics"]:::todo
+  P6["Phase 6<br/>AI + Optimization"]:::todo
+  P7["Phase 7<br/>Commerce Infra"]:::todo
+  P0 --> P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+  classDef done fill:#e4f3ea,stroke:#1B7A4B,color:#16232B;
+  classDef active fill:#fbeedd,stroke:#B45309,color:#16232B;
+  classDef todo fill:#eef2f4,stroke:#9fb0b8,color:#5B6B74;
+      </div>
+      <table>
+        <thead><tr><th>Phase</th><th>Scope</th><th>Status</th><th>Evidence / remaining work</th></tr></thead>
+        <tbody>
+          <tr><td><strong>0</strong> Market Validation &amp; Design</td><td>Sprint 0, tech spikes + ADRs, catalog intake template, ERD freeze (migrations <code>0001</code>&ndash;<code>0012</code>)</td><td><span class="pill p-ok">Complete</span></td><td>Foundations, middleware, outbox and migration plan in place; Phase 1 started on a green pipeline.</td></tr>
+          <tr><td><strong>1</strong> Launchable B2B MVP</td><td>Registration, verification, catalog, tiered pricing, search, cart, ordering, accept/reject, statuses, notifications, ratings</td><td><span class="pill p-ok">96% · pilot-ready</span></td><td>Milestones M1&ndash;M6 delivered; M7 hardening partial. Checkout pricing (<code>API-B4</code>), merchant-write RBAC (<code>API-B6</code>), saved suppliers (&sect;21.3), identity/orders unit tests (&ge;40% lines) and realtime all closed 09-08; remaining pre-GA work is load-test evidence + ops ownership.</td></tr>
+          <tr><td><strong>2</strong> Delivery &amp; Tracking</td><td><code>delivery/</code> module: drivers, zones, jobs, location ingestion, POD, geofencing, earnings; dispatch 2A&rarr;2C</td><td><span class="pill p-muted">Not started</span></td><td><code>delivery/</code> is an empty directory; driver flavor scaffolded in mobile; migrations <code>0013</code>&ndash;<code>0016</code> forward-declared.</td></tr>
+          <tr><td><strong>3</strong> Payments, Settlement &amp; Monetization</td><td><code>payments/</code> provider adapter, double-entry ledger, settlement, commissions, subscriptions, reconciliation</td><td><span class="pill p-muted">Not started</span></td><td><code>payments/</code> empty; migrations <code>0017</code>&ndash;<code>0020</code>; <code>order_financial_breakdown</code> shadow-populated since P1 (activates, not retrofits).</td></tr>
+          <tr><td><strong>4</strong> B2C Marketplace</td><td>Activate <code>price_lists.channel='B2C'</code>, consumer identity, nearby stores, Smart Reorder v1</td><td><span class="pill p-muted">Not started</span></td><td>Zero-migration channel switch ready; migrations <code>0021</code>&ndash;<code>0022</code>; consumer flavor declared.</td></tr>
+          <tr><td><strong>5</strong> Advertising &amp; Merchant Analytics</td><td><code>ads/</code> campaigns, placements, budget pacing, ROAS; merchant analytics dashboards</td><td><span class="pill p-muted">Not started</span></td><td><code>ads/</code> empty; migrations <code>0023</code>&ndash;<code>0024</code>; <code>/v1/analytics/track</code> already collecting events.</td></tr>
+          <tr><td><strong>6</strong> AI &amp; Optimization</td><td><code>ai/</code> gateway: descriptions, OCR intake, recommendations, forecasting, price anomaly</td><td><span class="pill p-muted">Not started</span></td><td><code>ai/</code> empty; migration <code>0025</code>; delivered as a thin separate AI service (first sanctioned extraction).</td></tr>
+          <tr><td><strong>7</strong> Commerce Infrastructure</td><td>Multi-branch/warehouse, ERP adapters, public API, regional cells, delivery maturity 2D&ndash;2E</td><td><span class="pill p-muted">Continuous</span></td><td>Architecture evolution beyond pilot; gated on stable retention per region.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.1 Phase 1 milestone detail</h3>
+      <table>
+        <thead><tr><th>Milestone</th><th>Weeks</th><th>Deliverable</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>M1 Foundation</td><td>1&ndash;3</td><td>identity + audit + outbox + middleware; auth screens both flavors; web/admin auth</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M2 Merchant onboarding</td><td>3&ndash;6</td><td>merchant module (stores, documents, verification); store wizard; admin verification console</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M3 Catalog &amp; pricing</td><td>5&ndash;8</td><td>catalog + inventory + pricing; media pipeline; ImportWizard; moderation</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M4 Discovery &amp; cart</td><td>7&ndash;10</td><td>PG FTS + filters; favorites; multi-supplier cart; store/product pages</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M5 Ordering</td><td>9&ndash;12</td><td>checkout, FSM, accept/partial/reject, reorder, notifications, OrderTimeline</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M6 Trust &amp; admin</td><td>12&ndash;14</td><td>reviews, disputes-lite, admin KPIs, analytics funnel, order monitor</td><td><span class="pill p-ok">Done</span></td></tr>
+          <tr><td>M7 Hardening &amp; pilot</td><td>14&ndash;16+</td><td>load tests (k6), security review, usability passes, pilot support</td><td><span class="pill p-warn">Partial</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="readiness">
+      <h2>3. Launch Readiness Assessment (&sect;21.6)</h2>
+      <p>Eight criteria gate a Phase&nbsp;1 pilot. Six are fully met; two remain partial (performance load evidence, operations ownership) after the 2026-09-08 P1/P2 closure.</p>
+      <table>
+        <thead><tr><th>Area</th><th>Met?</th><th>Evidence / gap</th></tr></thead>
+        <tbody>
+          <tr><td>Product: publish without support</td><td><span class="pill p-ok">Met</span></td><td>CSV import verified E2E (create / update / error paths); concierge playbook defined.</td></tr>
+          <tr><td>Transaction: end-to-end B2B order</td><td><span class="pill p-ok">Met</span></td><td>Order completes with promo discount + 15% VAT + delivery fee applied and <code>order_financial_breakdown</code> persisted (<code>API-B4</code>, 09-08).</td></tr>
+          <tr><td>Support: dispute path</td><td><span class="pill p-ok">Met</span></td><td>Disputes + conversations implemented; admin dispute console present.</td></tr>
+          <tr><td>Performance</td><td><span class="pill p-warn">Partial</span></td><td>Identity N+1 eliminated (batched <code>inArray</code> fetches, <code>API-B8</code> 09-08); k6 load-test evidence still pending.</td></tr>
+          <tr><td>Security</td><td><span class="pill p-ok">Met</span></td><td>RBAC + audit logs; backups + restore drill; CORS fixed. Merchant-write RBAC hardened (<code>API-B6</code>), prod JWT gate (<code>API-B7</code>) and switch-org token revocation (<code>API-B9</code>) landed 09-08.</td></tr>
+          <tr><td>Analytics funnel</td><td><span class="pill p-ok">Met</span></td><td><code>/v1/analytics/track</code> + batch; admin activation funnel renders.</td></tr>
+          <tr><td>Operations ownership</td><td><span class="pill p-warn">Partial</span></td><td>Process, not code &mdash; on-call rota and playbook ownership to be assigned before pilot.</td></tr>
+          <tr><td>Area launch plan</td><td><span class="pill p-ok">Met</span></td><td>Manual ops acceptable per &sect;21.1; single-area rollout.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong class="label">Exit-gate metrics to instrument</strong><p>Activation rate, first-order conversion, completion rate, repeat-order rate and active merchants must be measurable at pilot. The KPI dashboard already surfaces these &mdash; wire them to a target threshold and review cadence.</p></div>
+    </section>
+
+    <section id="register">
+      <h2>4. Verified Gap Register</h2>
+      <p>Every finding from the audit, re-verified against the live source tree. Where the code has moved past the written audit, the <em>Live status</em> column notes it.</p>
+
+      <h3>4.1 Backend API (<code>apps/api</code>)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Sev</th><th>Location</th><th>Issue</th><th>Live status</th></tr></thead>
+        <tbody>
+          <tr><td><code>API-B1</code></td><td><span class="pill p-err">Critical</span></td><td><code>identity.service.ts:100</code></td><td>OTP verify never persisted <code>deviceId</code> &rarr; password login always demanded OTP</td><td><span class="pill p-ok">Fixed 09-04</span></td></tr>
+          <tr><td><code>API-B2</code></td><td><span class="pill p-err">Critical</span></td><td><code>main.ts:26</code></td><td>CORS <code>allowedHeaders</code> missing <code>X-Device-Id</code> &rarr; credential preflight failures</td><td><span class="pill p-ok">Fixed 09-04</span></td></tr>
+          <tr><td><code>API-B3</code></td><td><span class="pill p-err">Critical</span></td><td><code>catalog.service.ts:296</code></td><td>Import faked completion via <code>setTimeout</code>; no parsing</td><td><span class="pill p-ok">Fixed 09-04</span> real staged-CSV pipeline (migration 0015)</td></tr>
+          <tr><td><code>API-B4</code></td><td><span class="pill p-warn">High</span></td><td><code>orders.service.ts:104-106</code></td><td><code>discount = 0; deliveryFee = 0; tax = 0</code> &mdash; promos stored but never priced; 15% VAT unapplied</td><td><span class="pill p-ok">Fixed 09-08</span> percent/fixed/qty promos + 15% VAT + delivery fee priced at checkout; <code>order_financial_breakdown</code> persisted per order</td></tr>
+          <tr><td><code>API-B5</code></td><td><span class="pill p-warn">High</span></td><td><code>identity.service.ts</code></td><td>Generic <code>Error</code> &rarr; HTTP 500 for auth failures</td><td><span class="pill p-ok">Fixed 09-04</span> 12 throws typed; invalid OTP &rarr; 401</td></tr>
+          <tr><td><code>API-B6</code></td><td><span class="pill p-warn">High</span></td><td>merchant / catalog controllers</td><td>RBAC incomplete: all 19 <code>@RequirePermission</code> are admin/verification/brands; merchant write endpoints rely on JWT + ownership only</td><td><span class="pill p-ok">Fixed 09-08</span> <code>@RequirePermission</code> on merchant/catalog writes; seeded <code>merchant:products:write</code>, <code>merchant:orders:write</code>, <code>merchant:promotions:write</code></td></tr>
+          <tr><td><code>API-B7</code></td><td><span class="pill p-info">Medium</span></td><td><code>identity.module.ts:14</code></td><td>JWT secret falls back to a hardcoded dev string; no prod env enforcement</td><td><span class="pill p-ok">Fixed 09-08</span> <code>config/env-gate.ts</code> fails fast if <code>JWT_ACCESS_SECRET</code> unset outside dev</td></tr>
+          <tr><td><code>API-B8</code></td><td><span class="pill p-info">Medium</span></td><td><code>identity.service.ts:429</code></td><td><code>buildClaims</code> N+1 per-role-permission lookups; same in <code>listOrgMembers</code>/<code>listUserOrgs</code></td><td><span class="pill p-ok">Fixed 09-08</span> batched <code>inArray</code> fetches; no per-row role/permission/org queries</td></tr>
+          <tr><td><code>API-B9</code></td><td><span class="pill p-info">Medium</span></td><td><code>identity.service.ts:181</code></td><td><code>switchOrg</code> re-signs JWT but doesn't revoke the old access token (15-min stale-permission window)</td><td><span class="pill p-ok">Fixed 09-08</span> prior token denylisted by <code>jti</code> until its <code>exp</code> on switch-org</td></tr>
+          <tr><td><code>API-B10</code></td><td><span class="pill p-info">Medium</span></td><td><code>auth.controller.ts:10</code></td><td>OTP bodies untyped (<code>@Body('phone')</code>) &rarr; <code>forbidNonWhitelisted</code> ineffective</td><td><span class="pill p-ok">Fixed 09-08</span> class-validator DTOs on all auth endpoints; <code>forbidNonWhitelisted</code> now rejects extra fields</td></tr>
+          <tr><td><code>API-B11</code></td><td><span class="pill p-muted">Low</span></td><td><code>catalog.service.ts:307</code></td><td><code>setTimeout</code> job not restart-safe</td><td><span class="pill p-ok">Resolved</span> synchronous <code>/process</code>; BullMQ = P3</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.2 Admin Console (<code>apps/admin</code>)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Sev</th><th>Location</th><th>Issue</th><th>Live status</th></tr></thead>
+        <tbody>
+          <tr><td><code>ADM-B1</code></td><td><span class="pill p-warn">High</span></td><td><code>src/lib/auth.ts</code></td><td>Audit reported no dual-auth (OTP-only). <strong>Live:</strong> <code>auth.ts</code> (302 lines) now has <code>loginPassword</code>, <code>checkDeviceLogin</code>, <code>authFetch</code> + a <code>device-id.ts</code> service</td><td><span class="pill p-ok">Fixed 09-08</span> credential self-service (setup / change password / sessions / revoke) ported to <code>auth.ts</code> + the admin account page</td></tr>
+          <tr><td><code>ADM-B2</code></td><td><span class="pill p-info">Medium</span></td><td><code>src/lib/auth.ts</code></td><td>Admin identity derived by <code>atob()</code>-decoding the JWT client-side; role can drift from server truth</td><td><span class="pill p-ok">Fixed 09-08</span> admin hydrates <code>AdminUser</code> from <code>/v1/me</code>; both client-side JWT decodes removed; <code>role</code> now server-resolved from the active org</td></tr>
+          <tr><td><code>ADM-B3</code></td><td><span class="pill p-info">Medium</span></td><td><code>src/lib/api.ts</code></td><td>Client functions hand-rolled per endpoint; no shared types package &rarr; drift risk</td><td><span class="pill p-ok">Fixed 09-08</span> <code>@scs/contracts</code> shared zod types adopted by web + admin auth/session envelopes</td></tr>
+          <tr><td><code>ADM-B4</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>No error/loading skeleton conventions; no tests</td><td><span class="pill p-err">Open</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.3 Web App (<code>apps/web</code>)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Sev</th><th>Location</th><th>Issue</th><th>Live status</th></tr></thead>
+        <tbody>
+          <tr><td><code>WEB-B1</code></td><td><span class="pill p-err">Critical</span></td><td><code>src/lib/auth.ts:340</code></td><td>Credential calls sent <code>X-Device-Id</code> blocked by CORS (root cause API-B2)</td><td><span class="pill p-ok">Fixed 09-04</span></td></tr>
+          <tr><td><code>WEB-B2</code></td><td><span class="pill p-info">Medium</span></td><td><code>src/lib/auth.ts</code></td><td><code>AuthUser</code> lacks <code>email</code>/<code>hasPassword</code> &rarr; extra fetch to render credential state</td><td><span class="pill p-err">Open</span></td></tr>
+          <tr><td><code>WEB-B3</code></td><td><span class="pill p-info">Medium</span></td><td><code>profile/sessions/page.tsx</code></td><td>Current-session detection relies on <code>x-session-id</code> the API no longer reads &rarr; <code>isCurrent</code> always false</td><td><span class="pill p-ok">Fixed 09-08</span> server flags <code>isCurrent</code> from the caller's own <code>sid</code> claim (non-spoofable)</td></tr>
+          <tr><td><code>WEB-B4</code></td><td><span class="pill p-info">Medium</span></td><td><code>src/lib/auth.ts:247</code></td><td><code>authFetch</code> refresh-retry has no concurrency guard &rarr; parallel 401s trigger multiple rotations (reuse detection may revoke the chain)</td><td><span class="pill p-ok">Fixed 09-08</span> single-flight refresh promise; parallel 401s share one rotation</td></tr>
+          <tr><td><code>WEB-B5</code></td><td><span class="pill p-muted">Low</span></td><td><code>src/app/login/page.tsx</code></td><td>Auto-login prefill swallows errors; no "Forgot password" path</td><td><span class="pill p-err">Open</span></td></tr>
+          <tr><td><code>WEB-B6</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>No E2E/unit tests; no WebSocket usage despite the API gateway</td><td><span class="pill p-warn">Partial 09-08</span> Socket.IO <code>/realtime</code> now wired (Navbar badge, notifications, order-status); E2E/unit tests still open</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.4 Mobile App (<code>mobile</code>)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Sev</th><th>Location</th><th>Issue</th><th>Live status</th></tr></thead>
+        <tbody>
+          <tr><td><code>MOB-B1</code></td><td><span class="pill p-err">Critical</span></td><td>API-side <code>verifyOtp</code></td><td>New-device password logins bounced into an infinite OTP loop (root cause API-B1)</td><td><span class="pill p-ok">Fixed 09-04</span> device trust verified E2E</td></tr>
+          <tr><td><code>MOB-B2</code></td><td><span class="pill p-info">Medium</span></td><td><code>organizations_screen.dart:112</code></td><td>Deprecated <code>DropdownButtonFormField.value</code></td><td><span class="pill p-ok">Fixed 09-04</span> <code>dart analyze</code> 0 issues</td></tr>
+          <tr><td><code>MOB-B3</code></td><td><span class="pill p-info">Medium</span></td><td><code>api_service.dart</code></td><td>Returns raw <code>Map&lt;String,dynamic&gt;</code> for auth/session endpoints; no typed models</td><td><span class="pill p-ok">Fixed 09-08</span> typed <code>AuthTokens</code>/<code>LoginPasswordResponse</code>/<code>DeviceCheckResponse</code>/<code>SwitchOrgResponse</code>/<code>SessionInfo</code> mirror <code>@scs/contracts</code>; switch-org path corrected + re-minted token persisted</td></tr>
+          <tr><td><code>MOB-B4</code></td><td><span class="pill p-info">Medium</span></td><td><code>router.dart</code></td><td><code>/verify/:phone</code> retained while <code>LoginScreen</code> handles OTP inline &rarr; dead-route risk</td><td><span class="pill p-ok">Fixed 09-08</span> dead <code>/verify/:phone</code> route + <code>OtpVerifyScreen</code>/<code>OtpRequestScreen</code> removed</td></tr>
+          <tr><td><code>MOB-B5</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>3 test files only; no golden/widget tests for auth screens</td><td><span class="pill p-warn">Partial 09-08</span> auth/session model + switch-org unit tests added (<code>auth_models_test.dart</code>); golden/widget tests still open</td></tr>
+          <tr><td><code>MOB-B6</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>No offline queue despite the <code>drift</code> dependency being present</td><td><span class="pill p-err">Open</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="blockers">
+      <h2>5. Blockers &amp; High-Priority Issues</h2>
+      <h3>5.1 Critical blockers &mdash; all resolved</h3>
+      <div class="callout ok"><strong class="label">3 / 3 resolved &amp; verified 2026-09-04</strong><p>Device-trust bootstrap (<code>API-B1</code>), CORS <code>X-Device-Id</code> (<code>API-B2</code>), and the stubbed CSV/Excel import (<code>API-B3</code>) are fixed and verified end-to-end. Typed auth errors (<code>API-B5</code>) and the daily backup + restore drill also landed the same day. <strong>No critical blocker prevents a pilot launch.</strong></p></div>
+
+      <h3>5.2 High-priority issues &mdash; both resolved 2026-09-08</h3>
+      <div class="grid c2">
+        <div class="card"><h4><span class="pill p-ok">API-B4 &middot; Resolved 09-08</span> Checkout pricing computed</h4>
+          <p class="small">Before the 09-08 fix, <code>orders.service.ts</code> hardcoded discount, delivery fee and tax to zero, so the total equalled the sum of the line subtotals:</p>
+          <pre style="background:#0f2530;color:#e6eef2;border-radius:8px;padding:.7rem .8rem;font-size:.78rem;overflow:auto"><code>const discount = 0;   // TODO: apply promotion
+const deliveryFee = 0; // TODO: calculate fee
+const tax = 0;         // TODO: calculate VAT (15%)
+const total = subtotal - discount + deliveryFee + tax;</code></pre>
+          <p class="small"><strong>Impact (was):</strong> promo codes stored but never discounted; KSA 15% VAT never charged; delivery fees never collected &mdash; blocked the &ldquo;end-to-end transaction&rdquo; readiness criterion and real revenue accounting.</p>
+          <p class="small"><strong>Fix:</strong> <code>orders.service.ts</code> now prices percent/fixed/qty promotions, adds 15% VAT and the delivery fee, and persists an <code>order_financial_breakdown</code> per order (covered by <code>order-pricing.spec.ts</code> + <code>orders.service.spec.ts</code>).</p>
+        </div>
+        <div class="card"><h4><span class="pill p-ok">API-B6 &middot; Resolved 09-08</span> Merchant-write RBAC enforced</h4>
+          <p class="small">All 19 <code>@RequirePermission</code> decorators sit on admin, verification-review and brand-management endpoints:</p>
+          <table class="small" style="margin:.4rem 0">
+            <tbody>
+              <tr><td><code>admin.controller.ts</code></td><td>15 &times; <code>admin:*</code></td></tr>
+              <tr><td><code>merchant.controller.ts</code></td><td>3 &times; <code>merchant:verification:review</code></td></tr>
+              <tr><td><code>catalog.controller.ts</code></td><td>1 &times; <code>catalog:brands:manage</code></td></tr>
+            </tbody>
+          </table>
+          <p class="small"><strong>Impact (was):</strong> merchant product / order / promotion / inventory <em>write</em> endpoints relied on the JWT guard + ownership checks alone, with no fine-grained permission gate.</p>
+          <p class="small"><strong>Fix:</strong> <code>@RequirePermission</code> now guards merchant/catalog writes, backed by seeded <code>merchant:products:write</code>, <code>merchant:orders:write</code> and <code>merchant:promotions:write</code> keys (a MODERATOR can no longer mutate merchant catalog; covered by <code>merchant-rbac.spec.ts</code>).</p>
+        </div>
+      </div>
+      <div class="callout ok"><strong class="label">Sequencing note</strong><p><code>API-B4</code> landed before <code>API-B6</code> as planned: pricing correctness (a launch-readiness criterion) first, then RBAC hardening for scale. Both are now closed, so no high-priority backend issue remains open for pilot GA.</p></div>
+    </section>
+
+    <section id="capability">
+      <h2>6. Capability Gaps vs Phase 1 Plan (&sect;21)</h2>
+      <h3>6.1 Wholesaler capabilities (&sect;21.2)</h3>
+      <table>
+        <thead><tr><th>Requirement</th><th>Status</th><th>Gap</th></tr></thead>
+        <tbody>
+          <tr><td>Store &amp; business profile</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Basic verification</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Category, product, media management</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Excel/CSV import</td><td><span class="pill p-ok">Complete</span></td><td>Real staged-CSV pipeline since 09-04 (Redis-staged rows, per-row validation, SKU-idempotent upsert, persisted stats)</td></tr>
+          <tr><td>Manual stock management</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Quantity pricing</td><td><span class="pill p-ok">Complete</span></td><td>Price lists + tiers</td></tr>
+          <tr><td>Basic promotions</td><td><span class="pill p-warn">Partial</span></td><td>CRUD exists; <strong>discount now applied at checkout</strong> (percent/fixed/qty &mdash; <code>API-B4</code> fixed 09-08); merchant promotions UI screen still pending</td></tr>
+          <tr><td>Order management</td><td><span class="pill p-ok">Complete</span></td><td>FSM with 16 statuses</td></tr>
+          <tr><td>Customer list</td><td><span class="pill p-ok">Complete</span></td><td><code>GET /v1/merchant/customers</code> + web page</td></tr>
+          <tr><td>Order notifications</td><td><span class="pill p-ok">Complete</span></td><td>FCM + in-app via outbox</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.2 Retailer capabilities (&sect;21.3)</h3>
+      <table>
+        <thead><tr><th>Requirement</th><th>Status</th><th>Gap</th></tr></thead>
+        <tbody>
+          <tr><td>Account &amp; store profile</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Location / area setting</td><td><span class="pill p-warn">Deferred</span></td><td>Low priority; service areas formalize in Phase 4</td></tr>
+          <tr><td>Search and filters</td><td><span class="pill p-ok">Complete</span></td><td>Web filters are category + brand; price/MOQ/distance/rating are later-phase</td></tr>
+          <tr><td>Merchant &amp; product pages</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Cart</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Purchase order</td><td><span class="pill p-ok">Complete</span></td><td>Multi-supplier splitting</td></tr>
+          <tr><td>Order history</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Reorder</td><td><span class="pill p-ok">Complete</span></td><td>Web + mobile</td></tr>
+          <tr><td>Favorites / saved suppliers</td><td><span class="pill p-ok">Complete</span></td><td>Product favorites + store-level &ldquo;saved suppliers&rdquo; (<code>/v1/me/saved-suppliers</code>) both live (&sect;21.3, 09-08)</td></tr>
+          <tr><td>Ratings</td><td><span class="pill p-ok">Complete</span></td><td>Review + dispute submission (ID entry is manual)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.3 Admin capabilities (&sect;21.4)</h3>
+      <div class="callout ok"><strong class="label">9 / 9 complete</strong><p>User management, merchant management, verification review, category management, product moderation, order monitoring, support &amp; disputes, KPI reports and audit logs all have live console screens.</p></div>
+    </section>
+
+    <section id="arch">
+      <h2>7. Architecture &amp; Scalability Risks</h2>
+      <table>
+        <thead><tr><th>Risk</th><th>Severity</th><th>Why it matters</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td>N+1 claim building on every token refresh</td><td><span class="pill p-ok">Resolved 09-08</span></td><td>Becomes a hotspot under concurrent mobile refresh storms</td><td>Batched <code>inArray</code> fetches across roles / role_permissions / orgs in <code>buildClaims</code>, <code>listOrgMembers</code> and <code>listUserOrgs</code> (<code>API-B8</code>); a Redis role-permission cache remains a future optimization.</td></tr>
+          <tr><td>Import pipeline is synchronous</td><td><span class="pill p-info">Medium</span></td><td>Request-scoped <code>/process</code> is fine for pilot volume but not restart-safe for large files</td><td>Move to a BullMQ worker on existing Redis (P3)</td></tr>
+          <tr><td>Client-local session-expiry math</td><td><span class="pill p-info">Medium</span></td><td><code>Date.now() + 15min</code> duplicates the server JWT <code>exp</code> and can drift</td><td>Parse <code>exp</code> from the token instead of recomputing</td></tr>
+          <tr><td>No shared contracts package</td><td><span class="pill p-ok">Resolved 09-08</span></td><td>Four hand-maintained client surfaces drift (already visible in admin)</td><td><code>@scs/contracts</code> extracted (zod schemas &rarr; OpenAPI); web + admin consume the shared types and mobile mirrors them as typed Dart models.</td></tr>
+          <tr><td>Realtime gateway unused</td><td><span class="pill p-ok">Resolved 09-08</span></td><td>Socket.IO <code>/realtime</code> ships but no client connects; UX relies on polling</td><td>Web connects to <code>/realtime</code> (notification badge + order-status push) and mobile wires the realtime service; the 1s/30s polling gaps are retired.</td></tr>
+          <tr><td>Duplicated password-validation logic</td><td><span class="pill p-muted">Low</span></td><td>API and web each maintain a copy, so rules drift</td><td>Extract to a shared package or generate from a single spec</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong class="label">Monolith posture</strong><p>Keep the modular monolith through the pilot. The first sanctioned extraction candidate is <strong>notifications</strong> (already isolated and external-facing), followed by the AI service in Phase&nbsp;6 &mdash; only when an extraction trigger is met.</p></div>
+    </section>
+
+    <section id="backlog">
+      <h2>8. Prioritized Backlog</h2>
+      <p class="small muted">Effort: <strong>S</strong> &lt; 1 day &middot; <strong>M</strong> 1&ndash;3 days &middot; <strong>L</strong> 3&ndash;10 days. Impact is rated against pilot launch and scale.</p>
+      <h3>8.1 P1 &mdash; next sprint &middot; <span class="pill p-ok">all 7 closed 2026-09-08</span></h3>
+      <div class="callout ok"><strong class="label">P1 complete</strong><p>Every P1 item shipped and is reflected in the gap register above: <code>API-B4</code> checkout pricing, <code>API-B6</code> merchant-write RBAC, <code>WEB-B4</code> single-flight refresh, <code>WEB-B3</code> <code>isCurrent</code> contract, <code>ADM-B1</code> credential self-service, store-level saved suppliers (&sect;21.3) and the <code>429</code> / remaining-attempts login UX.</p></div>
+      <table>
+        <thead><tr><th>#</th><th>Item</th><th>Ref</th><th>Effort</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Apply cart promo discount + 15% VAT + delivery fee at checkout; populate <code>order_financial_breakdown</code></td><td><code>API-B4</code></td><td><span class="pill p-brand">M</span></td><td><span class="pill p-err">Launch</span></td></tr>
+          <tr><td>2</td><td>Extend <code>@RequirePermission</code> to merchant/catalog write endpoints; seed <code>merchant:products:write</code>, <code>merchant:orders:write</code>, <code>merchant:promotions:write</code></td><td><code>API-B6</code></td><td><span class="pill p-brand">M</span></td><td><span class="pill p-warn">High</span></td></tr>
+          <tr><td>3</td><td>Single-flight refresh promise in web <code>authFetch</code> (prevent parallel rotations revoking the chain)</td><td><code>WEB-B4</code></td><td><span class="pill p-brand">S</span></td><td><span class="pill p-warn">High</span></td></tr>
+          <tr><td>4</td><td>Fix <code>isCurrent</code> session detection contract (server returns the current session id)</td><td><code>WEB-B3</code></td><td><span class="pill p-brand">S</span></td><td><span class="pill p-info">Medium</span></td></tr>
+          <tr><td>5</td><td>Port credential self-service (setup/change password, sessions) to admin, or explicitly document admin as password-login-only</td><td><code>ADM-B1</code></td><td><span class="pill p-brand">S</span></td><td><span class="pill p-info">Medium</span></td></tr>
+          <tr><td>6</td><td>Store-level &ldquo;saved suppliers&rdquo; for retailers</td><td>&sect;21.3</td><td><span class="pill p-brand">M</span></td><td><span class="pill p-info">Medium</span></td></tr>
+          <tr><td>7</td><td>Surface <code>429</code> + remaining-attempts in web/admin login UIs</td><td>Quick win 5</td><td><span class="pill p-brand">S</span></td><td><span class="pill p-info">Medium</span></td></tr>
+        </tbody>
+      </table>
+      <h3>8.2 P2 &mdash; this month &middot; <span class="pill p-ok">all 9 closed 2026-09-08</span></h3>
+      <div class="callout ok"><strong class="label">P2 complete</strong><p>Auth DTOs (<code>API-B10</code>), identity N+1 (<code>API-B8</code>), the production JWT gate (<code>API-B7</code>), switch-org token revocation (<code>API-B9</code>), the CI pipeline, the shared <code>@scs/contracts</code> package (<code>ADM-B3</code>), realtime wiring, admin <code>/v1/me</code> hydration (<code>ADM-B2</code>) and typed mobile models + dead-route removal (<code>MOB-B3</code> / <code>MOB-B4</code>) all landed.</p></div>
+      <table>
+        <thead><tr><th>Item</th><th>Ref</th><th>Effort</th></tr></thead>
+        <tbody>
+          <tr><td>DTO validation for all auth endpoints (make <code>forbidNonWhitelisted</code> effective)</td><td><code>API-B10</code></td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Eliminate N+1 in identity service (<code>buildClaims</code>, <code>listOrgMembers</code>, <code>listUserOrgs</code>)</td><td><code>API-B8</code></td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Production config gate: fail fast if <code>JWT_ACCESS_SECRET</code> unset outside dev</td><td><code>API-B7</code></td><td><span class="pill p-brand">S</span></td></tr>
+          <tr><td>Revoke prior access token on <code>switchOrg</code> (close the 15-min stale-permission window)</td><td><code>API-B9</code></td><td><span class="pill p-brand">S</span></td></tr>
+          <tr><td>CI pipeline: typecheck + lint + <code>dart analyze</code> + migration dry-run; coverage gates</td><td>DX</td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Shared <code>@scs/contracts</code> types package (OpenAPI to TS + Dart)</td><td><code>ADM-B3</code></td><td><span class="pill p-brand">L</span></td></tr>
+          <tr><td>Realtime notification wiring (web + mobile connect to the Socket.IO gateway)</td><td>Integration</td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Admin profile hydration via <code>/v1/me</code> (remove client-side JWT decoding)</td><td><code>ADM-B2</code></td><td><span class="pill p-brand">S</span></td></tr>
+          <tr><td>Typed mobile models for auth/session endpoints; remove dead <code>/verify/:phone</code> route</td><td><code>MOB-B3</code>, <code>MOB-B4</code></td><td><span class="pill p-brand">M</span></td></tr>
+        </tbody>
+      </table>
+      <h3>8.3 P3 &mdash; strategic</h3>
+      <table>
+        <thead><tr><th>Item</th><th>Phase</th><th>Effort</th></tr></thead>
+        <tbody>
+          <tr><td>BullMQ import worker (restart-safe, large files)</td><td>1 to scale</td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Automated tests: API 40% line coverage on identity/orders <span class="pill p-ok">Done 09-08 &mdash; identity 46% / orders 51%</span>; widget tests for 4 auth screens + Playwright smoke for login/checkout <span class="pill p-warn">open</span></td><td>1 to scale</td><td><span class="pill p-brand">L</span></td></tr>
+          <tr><td>Mobile offline cart queue (use the present <code>drift</code> dependency)</td><td>2</td><td><span class="pill p-brand">M</span></td></tr>
+          <tr><td>Payment-intent seam at checkout (idempotency keys already collected)</td><td>3</td><td><span class="pill p-brand">L</span></td></tr>
+          <tr><td>Recommendation heuristics on existing analytics events (pre-ML)</td><td>6 pull-forward</td><td><span class="pill p-brand">M</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="enhance">
+      <h2>9. Enhancement Recommendations</h2>
+      <div class="callout ok"><strong class="label">Landed 09-08</strong><p>Most of these are now implemented: N+1 claim building, single-flight refresh and Socket.IO push (Performance); merchant/catalog RBAC, prod JWT gate and auth DTOs (Security); CI pipeline, <code>@scs/contracts</code> and identity/orders coverage gates (DX); remaining-attempts lockout UX (UX). The bullets are kept as a record; still open are Redis category caching, pagination-default enforcement, FCM lockout notifications, pen test, and the offline/queue/replica scalability notes.</p></div>
+      <div class="grid c2">
+        <div class="card"><h4>Performance</h4><ul class="tight small">
+          <li>Fix N+1 in claim building with a single join; target &lt;5 queries per refresh.</li>
+          <li>Cache categories/brands in Redis (60s TTL) &mdash; they front every search page.</li>
+          <li>Refresh-token rotation concurrency guard (single in-flight promise).</li>
+          <li>Adopt the Socket.IO gateway for order-status push; retire polling gaps.</li>
+          <li>Enforce pagination defaults (limit &le; 50) server-side on all list endpoints.</li>
+        </ul></div>
+        <div class="card"><h4>Security</h4><ul class="tight small">
+          <li>Extend <code>@RequirePermission</code> to merchant/catalog writes + seed the keys.</li>
+          <li>Production config gate: fail fast if <code>JWT_ACCESS_SECRET</code> is unset outside dev.</li>
+          <li>DTOs for all auth bodies so <code>forbidNonWhitelisted</code> actually filters.</li>
+          <li>Account-lockout notification via the existing FCM channel on rate-limit trips.</li>
+          <li>External pen test before Phase 3 payments go live.</li>
+        </ul></div>
+        <div class="card"><h4>Developer experience</h4><ul class="tight small">
+          <li>CI: typecheck + lint + <code>dart analyze</code> + migration dry-run on every PR.</li>
+          <li>Shared <code>@scs/contracts</code> (OpenAPI to TS + Dart codegen) to stop client drift.</li>
+          <li>Coverage gates on identity/orders; widget + Playwright smoke tests.</li>
+          <li>Seed script inserts <code>admin:*</code> keys + a demo password-credential user.</li>
+        </ul></div>
+        <div class="card"><h4>User experience</h4><ul class="tight small">
+          <li>RFC 7807-aware error surfaces (map <code>type</code> to a localized message) on all clients.</li>
+          <li>&ldquo;Forgot password&rdquo; to OTP-reset flow (OTP is already authoritative).</li>
+          <li>Remaining-attempts UX on lockout (read <code>X-RateLimit-Remaining</code>).</li>
+          <li>Order-gated review/dispute pickers (remove manual UUID entry).</li>
+          <li>Skeleton loaders on web (mobile already has <code>shimmer</code>).</li>
+        </ul></div>
+      </div>
+      <div class="card" style="margin-top:1rem"><h4>Scalability</h4><ul class="tight small">
+        <li>Keep the modular monolith through pilot; first extraction candidate = notifications.</li>
+        <li>Move import processing to a BullMQ queue on existing Redis.</li>
+        <li>Introduce read replicas only after Phase 3 volume; measure <code>buildClaims</code> first.</li>
+        <li>Define module-boundary lint rules (the monorepo already documents enforcement).</li>
+      </ul></div>
+    </section>
+
+    <section id="next">
+      <h2>10. Pull-forward Opportunities &amp; Next Milestone</h2>
+      <h3>10.1 Cross-phase critical chain</h3>
+      <p>Phase&nbsp;1 deliberately lays seams that later phases activate rather than retrofit. <code>API-B4</code> (closed 09-08) was the linchpin &mdash; it completed the P1 transaction <em>and</em> pre-populated the financial breakdown that Phase&nbsp;3 payments switch on.</p>
+      <div class="mermaid">
+flowchart TB
+  B4["Checkout pricing API-B4 (P1)"] --> FSM["Orders FSM + financial breakdown (P1)"]
+  FSM --> PAY["Payments activate the breakdown (P3)"]
+  PAY --> SET["Settlement + payouts (P3)"]
+  EVT["analytics_events + /track (P1)"] --> ADS["Ads ROAS pipeline (P5)"]
+  EVT --> AI["Recommendations / Smart Reorder (P4 / P6)"]
+  CH["price_lists.channel (P1)"] --> B2C["B2C activation (P4, zero migration)"]
+  DEL["delivery module (P2)"] --> DISP["Dispatch console + live tracking (P2)"]
+  classDef p1 fill:#fbeedd,stroke:#B45309,color:#16232B;
+  classDef fut fill:#eef2f4,stroke:#9fb0b8,color:#5B6B74;
+  class B4,FSM,EVT,CH p1;
+  class PAY,SET,ADS,AI,B2C,DEL,DISP fut;
+      </div>
+
+      <h3>10.2 Low-cost pull-forward candidates</h3>
+      <ul class="tight">
+        <li><strong>Phase 2:</strong> the driver-assignment read-model is already scaffolded in mobile; the <code>delivery/</code> shell exists but is empty.</li>
+        <li><strong>Phase 3:</strong> checkout already collects idempotency keys, so a payment-intent seam is the natural next insertion point.</li>
+        <li><strong>Phase 6:</strong> <code>/v1/analytics/track</code> exists, so rules-based recommendation heuristics are possible before any ML.</li>
+      </ul>
+
+      <h3>10.3 Definition of Done &mdash; &ldquo;Phase 1 to pilot GA&rdquo;</h3>
+      <table>
+        <thead><tr><th>Criterion</th><th>Owner</th><th>Acceptance</th></tr></thead>
+        <tbody>
+          <tr><td>Checkout computes real totals</td><td>API</td><td>Discount + 15% VAT + delivery fee applied; <code>order_financial_breakdown</code> persisted; unit tests cover percent/fixed/qty promotions. <span class="pill p-ok">Met 09-08</span></td></tr>
+          <tr><td>Merchant writes are permission-gated</td><td>API</td><td><code>@RequirePermission</code> on merchant/catalog writes; seed keys present; a MODERATOR cannot mutate merchant catalog. <span class="pill p-ok">Met 09-08</span></td></tr>
+          <tr><td>Sessions behave correctly</td><td>Web</td><td>Single-flight refresh under parallel 401s; <code>isCurrent</code> flags the active session. <span class="pill p-ok">Met 09-08</span></td></tr>
+          <tr><td>Load &amp; security evidence</td><td>Platform</td><td>k6 checkout p95 &lt; 800 ms at target concurrency; security review signed off; backups + restore drill current.</td></tr>
+          <tr><td>Ops ownership assigned</td><td>Product/Ops</td><td>On-call rota, verification SLA (48h), order-blocking incident (&lt;30 min) and drop-off logging playbooks owned.</td></tr>
+          <tr><td>Exit-gate metrics measurable</td><td>Analytics</td><td>Activation, first-order conversion, completion, repeat-order rate and active merchants visible on the KPI dashboard with targets.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>10.4 Two-week sprint (code items completed 09-08)</h3>
+      <div class="callout ok"><strong class="label">Executed</strong><p>Items 1&ndash;5 &mdash; all of the code work &mdash; landed on 2026-09-08. Item 6&rsquo;s k6 load test + security sign-off remain the only pre-GA carry-over, tracked under M7.</p></div>
+      <ol class="tight">
+        <li><strong>Days 1&ndash;4:</strong> <code>API-B4</code> checkout pricing + breakdown persistence + tests (linchpin).</li>
+        <li><strong>Days 3&ndash;6:</strong> <code>API-B6</code> merchant RBAC + seed keys (parallel, different module).</li>
+        <li><strong>Days 5&ndash;7:</strong> <code>WEB-B4</code> single-flight refresh + <code>WEB-B3</code> <code>isCurrent</code> contract.</li>
+        <li><strong>Days 7&ndash;9:</strong> <code>ADM-B1</code> remainder (credential self-service or documented OTP-only) + <code>ADM-B2</code> profile hydration.</li>
+        <li><strong>Days 9&ndash;12:</strong> Saved suppliers (&sect;21.3) + <code>429</code>/remaining-attempts UX + CI pipeline scaffold.</li>
+        <li><strong>Days 12&ndash;14:</strong> k6 load test on checkout, security review, pilot go/no-go against the Definition of Done.</li>
+      </ol>
+      <div class="callout ok"><strong class="label">Bottom line</strong><p>The pricing fix (<code>API-B4</code>) converted Phase&nbsp;1 from &ldquo;functionally complete&rdquo; to &ldquo;commercially correct&rdquo; and unlocked the Phase&nbsp;3 payments seam. Paired with RBAC hardening (<code>API-B6</code>), the two session fixes (<code>WEB-B3</code>/<code>WEB-B4</code>) and the rest of the P1/P2 backlog &mdash; all closed 09-08 &mdash; the platform now meets every code-level pilot-GA criterion; only load-test evidence and ops ownership remain.</p></div>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Gap &amp; Roadmap Report. Synthesised from the 2026-09-05 codebase audit and re-verified against the live source tree on 2026-09-08 (admin dual-auth present; the full P1 + P2 backlog &mdash; <code>API-B4</code>, <code>API-B6</code> and the rest &mdash; closed). Companion documents: <em>Developer Guide</em> and <em>User Guide</em>.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose',
+      themeVariables: { primaryColor:'#e2ebef', primaryBorderColor:'#174A5B', primaryTextColor:'#16232B',
+        lineColor:'#5B6B74', fontSize:'14px' } });
+  }
+</script>
+</body>
+</html>

@@ -185,7 +185,9 @@ export async function fetchCategories(): Promise<Category[]> {
   return res.json();
 }
 
-export async function fetchBrands(): Promise<{ id: string; name: string; slug: string; logoUrl: string | null }[]> {
+export async function fetchBrands(): Promise<
+  { id: string; name: string; slug: string; logoUrl: string | null }[]
+> {
   const res = await authFetch(`${API_URL}/v1/search/brands`);
   if (!res.ok) throw new Error(`Brands failed: ${res.status}`);
   return res.json();
@@ -207,7 +209,10 @@ export async function fetchProductVariants(productId: string): Promise<ProductVa
 
 // ── Stores (public) ──────────────────────────────────────────
 
-export async function fetchPublicStores(params?: { limit?: number; offset?: number }): Promise<unknown[]> {
+export async function fetchPublicStores(params?: {
+  limit?: number;
+  offset?: number;
+}): Promise<unknown[]> {
   const qs = new URLSearchParams();
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
@@ -222,7 +227,10 @@ export async function fetchPublicStore(slugOrId: string): Promise<unknown> {
   return res.json();
 }
 
-export async function fetchStoreProducts(storeId: string, params?: { categoryId?: string; limit?: number; offset?: number }): Promise<unknown[]> {
+export async function fetchStoreProducts(
+  storeId: string,
+  params?: { categoryId?: string; limit?: number; offset?: number },
+): Promise<unknown[]> {
   const qs = new URLSearchParams();
   if (params?.categoryId) qs.set('categoryId', params.categoryId);
   if (params?.limit) qs.set('limit', String(params.limit));
@@ -240,7 +248,11 @@ export async function fetchCart(): Promise<Cart> {
   return res.json();
 }
 
-export async function addToCart(input: { variantId: string; storeId: string; quantity: number }): Promise<unknown> {
+export async function addToCart(input: {
+  variantId: string;
+  storeId: string;
+  quantity: number;
+}): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/cart/items`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -301,7 +313,10 @@ export async function checkout(input: {
 
 // ── Orders ───────────────────────────────────────────────────
 
-export async function fetchOrders(params?: { status?: string; storeId?: string }): Promise<unknown[]> {
+export async function fetchOrders(params?: {
+  status?: string;
+  storeId?: string;
+}): Promise<unknown[]> {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
   if (params?.storeId) qs.set('storeId', params.storeId);
@@ -310,7 +325,9 @@ export async function fetchOrders(params?: { status?: string; storeId?: string }
   return res.json();
 }
 
-export async function fetchOrder(id: string): Promise<SubOrder & { items: OrderItem[]; financialBreakdown: unknown }> {
+export async function fetchOrder(
+  id: string,
+): Promise<SubOrder & { items: OrderItem[]; financialBreakdown: unknown }> {
   const res = await authFetch(`${API_URL}/v1/orders/${id}`);
   if (!res.ok) throw new Error(`Order failed: ${res.status}`);
   return res.json();
@@ -339,7 +356,9 @@ export async function cancelOrder(orderId: string, reason: string): Promise<unkn
 }
 
 export async function reorder(masterOrderId: string): Promise<unknown> {
-  const res = await authFetch(`${API_URL}/v1/orders/master/${masterOrderId}/reorder`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/orders/master/${masterOrderId}/reorder`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
   return res.json();
 }
@@ -372,12 +391,15 @@ export async function markAllNotificationsRead(): Promise<unknown> {
 
 // ── Reviews ──────────────────────────────────────────────────
 
-export async function createReview(orderId: string, input: {
-  subjectId: string;
-  subjectType: string;
-  rating: number;
-  comment?: string;
-}): Promise<Review> {
+export async function createReview(
+  orderId: string,
+  input: {
+    subjectId: string;
+    subjectType: string;
+    rating: number;
+    comment?: string;
+  },
+): Promise<Review> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/review`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -395,10 +417,13 @@ export async function fetchStoreReviews(storeId: string): Promise<Review[]> {
 
 // ── Disputes ─────────────────────────────────────────────────
 
-export async function createDispute(orderId: string, input: {
-  reason: string;
-  description: string;
-}): Promise<unknown> {
+export async function createDispute(
+  orderId: string,
+  input: {
+    reason: string;
+    description: string;
+  },
+): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/dispute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -446,7 +471,11 @@ export async function partiallyAcceptMerchantOrder(
   return res.json();
 }
 
-export async function transitionOrderStatus(orderId: string, status: string, reason?: string): Promise<unknown> {
+export async function transitionOrderStatus(
+  orderId: string,
+  status: string,
+  reason?: string,
+): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/status`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -488,6 +517,39 @@ export async function removeFavorite(productId: string): Promise<unknown> {
   return res.json();
 }
 
+// ── Saved Suppliers (§21.3) ──────────────────────────────────
+
+/** A store (supplier) bookmarked by a retailer, enriched with store data. */
+export interface SavedSupplier {
+  id: string;
+  userId: string;
+  storeId: string;
+  createdAt: string;
+  store?: Record<string, unknown> | null;
+}
+
+export async function fetchSavedSuppliers(): Promise<SavedSupplier[]> {
+  const res = await authFetch(`${API_URL}/v1/me/saved-suppliers`);
+  if (!res.ok) throw new Error(`Saved suppliers failed: ${res.status}`);
+  return res.json();
+}
+
+export async function saveSupplier(storeId: string): Promise<SavedSupplier> {
+  const res = await authFetch(`${API_URL}/v1/me/saved-suppliers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ storeId }),
+  });
+  if (!res.ok) throw new Error(`Save supplier failed: ${res.status}`);
+  return res.json();
+}
+
+export async function removeSavedSupplier(storeId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/me/saved-suppliers/${storeId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Remove saved supplier failed: ${res.status}`);
+  return res.json();
+}
+
 // ── Profile ─────────────────────────────────────────────────
 
 export interface UserProfile {
@@ -505,7 +567,11 @@ export async function fetchProfile(): Promise<UserProfile> {
   return res.json();
 }
 
-export async function updateProfile(body: { fullName?: string; email?: string; locale?: string }): Promise<UserProfile> {
+export async function updateProfile(body: {
+  fullName?: string;
+  email?: string;
+  locale?: string;
+}): Promise<UserProfile> {
   const res = await authFetch(`${API_URL}/v1/me`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -665,7 +731,10 @@ export async function listVariants(productId: string): Promise<ProductVariant[]>
   return res.json();
 }
 
-export async function createVariant(productId: string, input: CreateVariantInput): Promise<ProductVariant> {
+export async function createVariant(
+  productId: string,
+  input: CreateVariantInput,
+): Promise<ProductVariant> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/variants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -691,7 +760,10 @@ export async function addMedia(productId: string, input: AddMediaInput): Promise
   return res.json();
 }
 
-export async function presignMedia(input: { fileName: string; mimeType: string }): Promise<{ uploadUrl: string; storageKey: string }> {
+export async function presignMedia(input: {
+  fileName: string;
+  mimeType: string;
+}): Promise<{ uploadUrl: string; storageKey: string }> {
   const res = await authFetch(`${API_URL}/v1/media/presign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -780,7 +852,11 @@ export async function fetchLowStock(warehouseId?: string): Promise<InventoryItem
   return res.json();
 }
 
-export async function adjustStock(input: { inventoryItemId: string; quantity: number; reason?: string }): Promise<unknown> {
+export async function adjustStock(input: {
+  inventoryItemId: string;
+  quantity: number;
+  reason?: string;
+}): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/inventory/adjust`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

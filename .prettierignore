@@ -1,0 +1,28 @@
+# ── Dependencies & build output ────────────────────────────
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+
+# ── Lockfiles (managed by pnpm; not hand-formatted) ────────
+pnpm-lock.yaml
+
+# ── Generated framework files ──────────────────────────────
+**/next-env.d.ts
+
+# ── Generated Dart (build_runner / freezed / json_serializable) ──
+**/*.g.dart
+**/*.freezed.dart
+**/.dart_tool/
+mobile/**/.dart_tool/
+
+# ── Generated contract artifacts (OpenAPI spec + clients) ──
+packages/contracts/openapi/
+packages/contracts/generated/
+packages/clients/
+
+# ── Logs & misc ────────────────────────────────────────────
+*.log

@@ -1,12 +1,33 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Optional,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from './orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from './orders.schema';
 import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { priceTiers, priceLists } from '../pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { warehouses } from '../merchant/merchant.schema';
+import { PromotionsService } from '../promotions/promotions.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import {
+  computeOrderFinancials,
+  resolveDeliveryFeeMinor,
+  DEFAULT_VAT_RATE,
+  DEFAULT_COMMISSION_RATE,
+  DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
+} from './order-pricing';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -30,6 +51,10 @@ export class OrdersService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly promotions: PromotionsService,
+    // Optional so existing unit tests that build the service with the three core
+    // deps keep compiling; supplied by the @Global RealtimeModule at runtime.
+    @Optional() private readonly realtime?: RealtimeGateway,
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
@@ -69,7 +94,7 @@ export class OrdersService {
       });
       if (product && product['moq'] > item['quantity']) {
         throw new BadRequestException(
-          `Minimum order quantity for ${product['title']} is ${product['moq']}, but only ${item['quantity']} in cart`
+          `Minimum order quantity for ${product['title']} is ${product['moq']}, but only ${item['quantity']} in cart`,
         );
       }
     }
@@ -93,18 +118,49 @@ export class OrdersService {
       idempotencyKey: input.idempotencyKey || null,
     });
 
+    // Pricing policy (env-overridable; see order-pricing.ts for Phase 1 defaults).
+    // Read at call time so tests can override via process.env.
+    const vatRate = Number(process.env['VAT_RATE'] ?? DEFAULT_VAT_RATE);
+    const commissionRate = Number(process.env['COMMISSION_RATE'] ?? DEFAULT_COMMISSION_RATE);
+    const platformDeliveryFee = Number(
+      process.env['PLATFORM_DELIVERY_FEE_MINOR'] ?? DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
+    );
+    const fulfillmentMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
+    const deliveryFee = resolveDeliveryFeeMinor(fulfillmentMethod, platformDeliveryFee);
+
     // Create sub-orders per supplier
     const subOrderIds: string[] = [];
     const subOrderData: { id: string; storeId: string }[] = [];
+    let grandTotalMinor = 0;
     for (const [storeId, storeItems] of grouped) {
       const subOrderId = crypto.randomUUID();
 
       // Calculate totals
       const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
-      const discount = 0; // TODO: apply promotion from cart
-      const deliveryFee = 0; // TODO: calculate delivery fee
-      const tax = 0; // TODO: calculate VAT (15% in KSA)
-      const total = subtotal - discount + deliveryFee + tax;
+
+      // Resolve the promotion applicable to THIS store. A cart holds a single
+      // promo code, but promotions are store-scoped and checkout splits the cart
+      // into per-store sub-orders, so the discount is applied only to the
+      // matching supplier's sub-order (never across unrelated stores).
+      const hasPromo = Boolean(cart['promotionId'] || cart['promoCode']);
+      const promo = hasPromo
+        ? await this.promotions.resolveApplicable(storeId, {
+            promotionId: cart['promotionId'],
+            code: cart['promoCode'],
+            userId: input.buyerId,
+          })
+        : null;
+      const discount = promo ? this.promotions.calculateDiscount(promo, subtotal) : 0;
+
+      // Compute discount + 15% VAT + delivery fee + commission in one pure step.
+      const fin = computeOrderFinancials({
+        subtotalMinor: subtotal,
+        discountMinor: discount,
+        deliveryFeeMinor: deliveryFee,
+        vatRate,
+        commissionRate,
+      });
+      grandTotalMinor += fin.totalMinor;
 
       await this.db.db.insert(orders).values({
         id: subOrderId,
@@ -112,14 +168,14 @@ export class OrdersService {
         storeId,
         buyerId: input.buyerId,
         status: 'SUBMITTED',
-        fulfillmentMethod: input.fulfillmentMethod || 'PLATFORM_DELIVERY',
-        promoCode: cart['promoCode'],
-        promotionId: cart['promotionId'],
-        subtotalMinor: subtotal,
-        discountMinor: discount,
-        deliveryFeeMinor: deliveryFee,
-        taxMinor: tax,
-        totalMinor: total,
+        fulfillmentMethod,
+        promoCode: promo ? cart['promoCode'] || promo['code'] : null,
+        promotionId: promo ? promo['id'] : null,
+        subtotalMinor: fin.productsMinor,
+        discountMinor: fin.discountMinor,
+        deliveryFeeMinor: fin.deliveryFeeMinor,
+        taxMinor: fin.taxMinor,
+        totalMinor: fin.totalMinor,
         slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12h SLA
       });
 
@@ -146,23 +202,40 @@ export class OrdersService {
         });
       }
 
-      // Write financial breakdown
-      const commission = Math.round(total * 0.05); // 5% commission (placeholder)
-      const merchantNet = total - commission;
-
+      // Write financial breakdown — now populated with real discount/VAT/fee
+      // (previously all-zero). commission/merchantNet use the net-goods basis.
       await this.db.db.insert(orderFinancialBreakdown).values({
         id: crypto.randomUUID(),
         orderId: subOrderId,
-        productsMinor: subtotal,
-        discountMinor: discount,
-        deliveryFeeMinor: deliveryFee,
-        taxMinor: tax,
-        commissionMinor: commission,
-        merchantNetMinor: merchantNet,
+        productsMinor: fin.productsMinor,
+        discountMinor: fin.discountMinor,
+        deliveryFeeMinor: fin.deliveryFeeMinor,
+        taxMinor: fin.taxMinor,
+        commissionMinor: fin.commissionMinor,
+        merchantNetMinor: fin.merchantNetMinor,
       });
 
+      // Record the redemption against this sub-order (only when a discount was
+      // actually applied). Eligibility was pre-checked in resolveApplicable, so
+      // this should not reject under normal flow.
+      if (promo && fin.discountMinor > 0) {
+        await this.promotions.redeemPromotion(
+          promo['id'],
+          input.buyerId,
+          subOrderId,
+          fin.discountMinor,
+        );
+      }
+
       // Record status history
-      await this.recordStatusChange(subOrderId, null, 'SUBMITTED', input.buyerId, 'BUYER', 'Checkout');
+      await this.recordStatusChange(
+        subOrderId,
+        null,
+        'SUBMITTED',
+        input.buyerId,
+        'BUYER',
+        'Checkout',
+      );
 
       subOrderIds.push(subOrderId);
       subOrderData.push({ id: subOrderId, storeId });
@@ -179,7 +252,7 @@ export class OrdersService {
       masterOrderId: masterId,
       buyerId: input.buyerId,
       subOrderIds,
-      totalMinor: items.reduce((sum, i) => sum + i['lineTotalMinor'], 0),
+      totalMinor: grandTotalMinor,
     });
 
     // Auto-advance all sub-orders: SUBMITTED → PENDING_CONFIRMATION
@@ -194,13 +267,24 @@ export class OrdersService {
    * Auto-advance order from SUBMITTED to PENDING_CONFIRMATION.
    * Notifies the merchant and starts the SLA timer for response.
    */
-  private async autoAdvanceToPendingConfirmation(orderId: string, buyerId: string, storeId: string) {
+  private async autoAdvanceToPendingConfirmation(
+    orderId: string,
+    buyerId: string,
+    storeId: string,
+  ) {
     await this.db.db
       .update(orders)
       .set({ status: 'PENDING_CONFIRMATION', updatedAt: new Date() })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, 'SUBMITTED', 'PENDING_CONFIRMATION', buyerId, 'SYSTEM', 'Auto-advance: merchant notified, SLA timer started');
+    await this.recordStatusChange(
+      orderId,
+      'SUBMITTED',
+      'PENDING_CONFIRMATION',
+      buyerId,
+      'SYSTEM',
+      'Auto-advance: merchant notified, SLA timer started',
+    );
 
     // Publish outbox event — merchant notification + SLA timer
     await this.outbox.publish('order.pending_confirmation', orderId, {
@@ -227,7 +311,7 @@ export class OrdersService {
     // Compare current price_tiers against order_items.unit_price_minor snapshot.
     // If price changed >5%, return 409 with per-line deltas.
     const priceDeltas = await this.checkPriceDeltas(orderId, order['storeId']);
-    const significantDeltas = priceDeltas.filter(d => Math.abs(d.deltaPercent) > 5);
+    const significantDeltas = priceDeltas.filter((d) => Math.abs(d.deltaPercent) > 5);
     if (significantDeltas.length > 0) {
       throw new ConflictException({
         type: 'https://errors.scs.local/price-changed',
@@ -253,7 +337,11 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async partiallyAcceptOrder(orderId: string, merchantUserId: string, confirmations: ItemConfirmation[]) {
+  async partiallyAcceptOrder(
+    orderId: string,
+    merchantUserId: string,
+    confirmations: ItemConfirmation[],
+  ) {
     const order = await this.getOrder(orderId);
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
@@ -291,7 +379,13 @@ export class OrdersService {
       })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, currentStatus, 'PARTIALLY_ACCEPTED', merchantUserId, 'MERCHANT');
+    await this.recordStatusChange(
+      orderId,
+      currentStatus,
+      'PARTIALLY_ACCEPTED',
+      merchantUserId,
+      'MERCHANT',
+    );
     await this.outbox.publish('order.partially_accepted', orderId, { orderId, confirmations });
 
     return this.getOrder(orderId);
@@ -311,8 +405,19 @@ export class OrdersService {
       .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
       .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, currentStatus, 'REJECTED', merchantUserId, 'MERCHANT', reason);
-    await this.outbox.publish('order.rejected', orderId, { orderId, storeId: order['storeId'], reason });
+    await this.recordStatusChange(
+      orderId,
+      currentStatus,
+      'REJECTED',
+      merchantUserId,
+      'MERCHANT',
+      reason,
+    );
+    await this.outbox.publish('order.rejected', orderId, {
+      orderId,
+      storeId: order['storeId'],
+      reason,
+    });
 
     return this.getOrder(orderId);
   }
@@ -333,7 +438,13 @@ export class OrdersService {
 
   // ── Status Transitions ───────────────────────────────────────
 
-  async transitionStatus(orderId: string, newStatus: string, userId: string, actorType: string, reason?: string) {
+  async transitionStatus(
+    orderId: string,
+    newStatus: string,
+    userId: string,
+    actorType: string,
+    reason?: string,
+  ) {
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], newStatus);
 
@@ -346,19 +457,19 @@ export class OrdersService {
 
     // Emit events based on status
     const eventMap: Record<string, string> = {
-      'PENDING_CONFIRMATION': 'order.pending_confirmation',
-      'ACCEPTED': 'order.accepted',
-      'PARTIALLY_ACCEPTED': 'order.partially_accepted',
-      'REJECTED': 'order.rejected',
-      'PREPARING': 'order.preparing',
-      'READY': 'order.ready',
-      'ASSIGNED': 'order.assigned',
-      'PICKED_UP': 'order.picked_up',
-      'OUT_FOR_DELIVERY': 'order.out_for_delivery',
-      'DELIVERED': 'order.delivered',
-      'COMPLETED': 'order.completed',
-      'CANCELLED': 'order.cancelled',
-      'DISPUTED': 'order.disputed',
+      PENDING_CONFIRMATION: 'order.pending_confirmation',
+      ACCEPTED: 'order.accepted',
+      PARTIALLY_ACCEPTED: 'order.partially_accepted',
+      REJECTED: 'order.rejected',
+      PREPARING: 'order.preparing',
+      READY: 'order.ready',
+      ASSIGNED: 'order.assigned',
+      PICKED_UP: 'order.picked_up',
+      OUT_FOR_DELIVERY: 'order.out_for_delivery',
+      DELIVERED: 'order.delivered',
+      COMPLETED: 'order.completed',
+      CANCELLED: 'order.cancelled',
+      DISPUTED: 'order.disputed',
     };
 
     if (eventMap[newStatus]) {
@@ -370,6 +481,17 @@ export class OrdersService {
       });
     }
 
+    // Push the transition to connected sockets (WEB-B6 / realtime gap): the
+    // buyer's personal room, the merchant's store room, and anyone tracking this
+    // order. Fire-and-forget — realtime delivery must never fail the
+    // authoritative DB transition + outbox publish above.
+    this.realtime?.emitOrderStatusChanged(
+      orderId,
+      newStatus,
+      order['buyerId'] as string | undefined,
+      order['storeId'] as string | undefined,
+    );
+
     return this.getOrder(orderId);
   }
 
@@ -377,7 +499,15 @@ export class OrdersService {
     const order = await this.getOrder(orderId);
 
     // Can only cancel pre-DELIVERED
-    const cancellable = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'];
+    const cancellable = [
+      'SUBMITTED',
+      'PENDING_CONFIRMATION',
+      'ACCEPTED',
+      'PARTIALLY_ACCEPTED',
+      'PREPARING',
+      'READY',
+      'PAYMENT_PENDING',
+    ];
     if (!cancellable.includes(order['status'])) {
       throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
     }
@@ -404,7 +534,10 @@ export class OrdersService {
       });
     }
 
-    return { ...master, subOrders: subOrders.map(so => ({ ...so, items: itemsByOrder[so['id']] || [] })) };
+    return {
+      ...master,
+      subOrders: subOrders.map((so) => ({ ...so, items: itemsByOrder[so['id']] || [] })),
+    };
   }
 
   async getOrder(id: string) {
@@ -485,14 +618,18 @@ export class OrdersService {
 
     for (const item of items) {
       // Find the current price tier for this variant at the ordered quantity
-      const currentTier = await this.db.db.select().from(priceTiers)
+      const currentTier = await this.db.db
+        .select()
+        .from(priceTiers)
         .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
-        .where(and(
-          eq(priceLists.storeId, storeId),
-          eq(priceLists.isActive, true),
-          eq(priceTiers.variantId, item['variantId']),
-          sql`${priceTiers.minQty} <= ${item['quantity']}`,
-        ))
+        .where(
+          and(
+            eq(priceLists.storeId, storeId),
+            eq(priceLists.isActive, true),
+            eq(priceTiers.variantId, item['variantId']),
+            sql`${priceTiers.minQty} <= ${item['quantity']}`,
+          ),
+        )
         .orderBy(priceTiers.minQty)
         .limit(1);
 
@@ -526,7 +663,9 @@ export class OrdersService {
     });
 
     // Find the store's warehouse(s)
-    const storeWarehouses = await this.db.db.select().from(warehouses)
+    const storeWarehouses = await this.db.db
+      .select()
+      .from(warehouses)
       .where(eq(warehouses.storeId, storeId));
 
     if (storeWarehouses.length === 0) return; // No warehouse configured
@@ -534,11 +673,15 @@ export class OrdersService {
     for (const item of items) {
       // Find inventory item in any of the store's warehouses
       for (const wh of storeWarehouses) {
-        const invItem = await this.db.db.select().from(inventoryItems)
-          .where(and(
-            eq(inventoryItems.variantId, item['variantId']),
-            eq(inventoryItems.warehouseId, wh['id']),
-          ))
+        const invItem = await this.db.db
+          .select()
+          .from(inventoryItems)
+          .where(
+            and(
+              eq(inventoryItems.variantId, item['variantId']),
+              eq(inventoryItems.warehouseId, wh['id']),
+            ),
+          )
           .limit(1);
 
         if (invItem.length > 0) {
@@ -550,7 +693,10 @@ export class OrdersService {
             // Increment reserved quantity
             await this.db.db
               .update(inventoryItems)
-              .set({ qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`, updatedAt: new Date() })
+              .set({
+                qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`,
+                updatedAt: new Date(),
+              })
               .where(eq(inventoryItems.id, inv['id']));
 
             // Record stock movement
@@ -593,22 +739,22 @@ export class OrdersService {
 
   // FSM transition matrix — canonical 16 statuses per Implementation Plan §5
   private static readonly TRANSITIONS: Record<string, string[]> = {
-    'DRAFT': ['SUBMITTED'],
-    'SUBMITTED': ['PENDING_CONFIRMATION'],                         // auto-advance
-    'PENDING_CONFIRMATION': ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'], // merchant
-    'ACCEPTED': ['PREPARING', 'CANCELLED'],
-    'PARTIALLY_ACCEPTED': ['PREPARING', 'CANCELLED'],
-    'PREPARING': ['READY', 'CANCELLED'],
-    'READY': ['OUT_FOR_DELIVERY', 'ASSIGNED', 'DELIVERED', 'CANCELLED'], // ASSIGNED for P2
-    'ASSIGNED': ['PICKED_UP'],                                     // P2 driver
-    'PICKED_UP': ['OUT_FOR_DELIVERY'],                             // P2 driver
-    'OUT_FOR_DELIVERY': ['DELIVERED'],
-    'DELIVERED': ['COMPLETED', 'DISPUTED'],                        // disputes ≤72h
-    'COMPLETED': ['DISPUTED'],                                     // disputes ≤72h
-    'PAYMENT_PENDING': ['PREPARING', 'CANCELLED'],                 // P3 prepay
-    'CANCELLED': [],
-    'REJECTED': [],
-    'DISPUTED': [],
+    DRAFT: ['SUBMITTED'],
+    SUBMITTED: ['PENDING_CONFIRMATION'], // auto-advance
+    PENDING_CONFIRMATION: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'], // merchant
+    ACCEPTED: ['PREPARING', 'CANCELLED'],
+    PARTIALLY_ACCEPTED: ['PREPARING', 'CANCELLED'],
+    PREPARING: ['READY', 'CANCELLED'],
+    READY: ['OUT_FOR_DELIVERY', 'ASSIGNED', 'DELIVERED', 'CANCELLED'], // ASSIGNED for P2
+    ASSIGNED: ['PICKED_UP'], // P2 driver
+    PICKED_UP: ['OUT_FOR_DELIVERY'], // P2 driver
+    OUT_FOR_DELIVERY: ['DELIVERED'],
+    DELIVERED: ['COMPLETED', 'DISPUTED'], // disputes ≤72h
+    COMPLETED: ['DISPUTED'], // disputes ≤72h
+    PAYMENT_PENDING: ['PREPARING', 'CANCELLED'], // P3 prepay
+    CANCELLED: [],
+    REJECTED: [],
+    DISPUTED: [],
   };
 
   // Backward-compatible alias: CONFIRMED → PENDING_CONFIRMATION
@@ -620,7 +766,7 @@ export class OrdersService {
     const allowed = OrdersService.TRANSITIONS[currentStatus] || [];
     if (!allowed.includes(newStatus)) {
       throw new ConflictException(
-        `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(', ') || 'none'}`
+        `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(', ') || 'none'}`,
       );
     }
   }

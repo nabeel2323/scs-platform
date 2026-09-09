@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/device_id_service.dart';
 import '../../core/theme.dart';
+import '../../models/models.dart';
 import '../../providers/providers.dart';
 
 /// Login screen with dual authentication (Email/Password + Phone OTP)
@@ -55,7 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final api = ref.read(apiServiceProvider);
       final result = await api.checkDeviceLogin(lastEmail, deviceId);
 
-      if (result['canAutoLogin'] == true) {
+      if (result.canAutoLogin) {
         _emailController.text = lastEmail;
         // User will need to enter password
       }
@@ -65,15 +66,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   /// Persist tokens + auth state after a successful login, then enter the app.
-  /// Mirrors OtpVerifyScreen so both auth methods behave identically; without
-  /// this the router redirect bounces straight back to /login.
-  Future<void> _completeLogin(Map<String, dynamic> data, String phone) async {
-    final accessToken = data['accessToken'] as String;
-    final refreshToken = data['refreshToken'] as String;
-    await ref
-        .read(authStorageProvider)
-        .saveTokens(accessToken: accessToken, refreshToken: refreshToken);
-    ref.read(apiClientProvider).setAccessToken(accessToken);
+  /// Shared by both auth methods so they behave identically; without this the
+  /// router redirect bounces straight back to /login.
+  Future<void> _completeLogin(AuthTokens tokens, String phone) async {
+    await ref.read(authStorageProvider).saveTokens(
+        accessToken: tokens.accessToken, refreshToken: tokens.refreshToken);
+    ref.read(apiClientProvider).setAccessToken(tokens.accessToken);
     ref.read(isAuthenticatedProvider.notifier).state = true;
     ref.read(currentUserPhoneProvider.notifier).state = phone;
     ref.read(pushNotificationServiceProvider).initialize();
@@ -103,11 +101,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         deviceInfo,
       );
 
-      if (result['requiresOtp'] == true) {
+      if (result.requiresOtp) {
         // Device not trusted — the backend already sent an OTP to the
         // account's phone. Prefill it so the verify step targets the right
         // number, then switch to the OTP tab.
-        final otpPhone = result['otpPhone'] as String? ?? '';
+        final otpPhone = result.otpPhone ?? '';
         setState(() {
           _otpPhone = otpPhone;
           _phoneController.text = otpPhone;
@@ -120,9 +118,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       }
 
       // Login successful — persist the session and enter the app.
+      final tokens = result.toAuthTokens();
+      if (tokens == null) {
+        setState(() {
+          _error = 'Login failed: no session was returned.';
+          _isLoading = false;
+        });
+        return;
+      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('scs_last_email', _emailController.text);
-      await _completeLogin(result, '');
+      await _completeLogin(tokens, '');
     } catch (e) {
       setState(() {
         _error = e.toString().replaceAll('Exception: ', '');

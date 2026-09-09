@@ -90,7 +90,8 @@ class OrgDetailScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
             child: Row(children: [
               Text('${list.length} member${list.length == 1 ? '' : 's'}',
-                  style: TextStyle(color: TaifTokens.muted, fontSize: 13)),
+                  style:
+                      const TextStyle(color: TaifTokens.muted, fontSize: 13)),
               const Spacer(),
               TextButton.icon(
                   onPressed: () => _showAddMemberDialog(context, ref),
@@ -120,8 +121,8 @@ class OrgDetailScreen extends ConsumerWidget {
                             backgroundColor:
                                 TaifTokens.brandPrimary.withValues(alpha: 0.15),
                             child: Text(letter,
-                                style:
-                                    TextStyle(color: TaifTokens.brandPrimary)),
+                                style: const TextStyle(
+                                    color: TaifTokens.brandPrimary)),
                           ),
                           title:
                               Text(m.userName.isEmpty ? 'Unknown' : m.userName),
@@ -158,7 +159,8 @@ class OrgDetailScreen extends ConsumerWidget {
           SizedBox(
               width: 100,
               child: Text(label,
-                  style: TextStyle(color: TaifTokens.muted, fontSize: 13))),
+                  style:
+                      const TextStyle(color: TaifTokens.muted, fontSize: 13))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 15))),
         ]),
       );
@@ -238,7 +240,8 @@ class OrgDetailScreen extends ConsumerWidget {
         title: const Text('Add Member'),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('Enter the user ID and role ID (UUIDs) of the member to add.',
+            const Text(
+                'Enter the user ID and role ID (UUIDs) of the member to add.',
                 style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
             const SizedBox(height: 12),
             TextField(
@@ -340,9 +343,17 @@ class OrgDetailScreen extends ConsumerWidget {
     );
     if (confirmed == true) {
       try {
-        await ref.read(apiServiceProvider).switchOrg(targetOrgId);
+        final auth = ref.read(authStorageProvider);
+        final res = await ref.read(apiServiceProvider).switchOrg(targetOrgId);
+        // switch-org re-mints the access token and denylists the prior one
+        // (API-B9), so persist the replacement immediately or the next call 401s.
+        await auth.saveTokens(
+          accessToken: res.accessToken,
+          refreshToken: await auth.getRefreshToken() ?? '',
+          activeOrgId: targetOrgId,
+        );
+        ref.read(apiClientProvider).setAccessToken(res.accessToken);
         ref.read(activeOrgIdProvider.notifier).state = targetOrgId;
-        ref.read(authStorageProvider).setActiveOrgId(targetOrgId);
         ref.invalidate(profileProvider);
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

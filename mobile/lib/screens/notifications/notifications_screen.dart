@@ -1,13 +1,45 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../providers/providers.dart';
+import '../../services/realtime_service.dart';
 import '../../widgets/common_widgets.dart';
 
-class NotificationsScreen extends ConsumerWidget {
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  StreamSubscription<NotificationEvent>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    // Live in-app notifications over the realtime gateway (WEB-B6) — new items
+    // appear without a manual refresh or poll.
+    final realtime = ref.read(realtimeServiceProvider);
+    realtime.connect();
+    _sub = realtime.notifications.listen((_) {
+      if (!mounted) return;
+      ref.invalidate(notificationsProvider);
+      ref.invalidate(unreadCountProvider);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notifs = ref.watch(notificationsProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Notifications'), actions: [

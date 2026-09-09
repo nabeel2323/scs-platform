@@ -1,4 +1,5 @@
 /// Data models for the Smart Commerce Platform.
+library;
 
 class SearchResult {
   final List<Product> products;
@@ -421,7 +422,7 @@ class Dispute {
 /// User profile returned by GET /v1/me.
 class UserProfile {
   final String id, phone, status, createdAt;
-  final String? email, fullName, locale, activeOrgId;
+  final String? email, fullName, locale, activeOrgId, role;
   final List<OrgMembership> organizations;
   UserProfile({
     required this.id,
@@ -432,6 +433,7 @@ class UserProfile {
     this.fullName,
     this.locale,
     this.activeOrgId,
+    this.role,
     this.organizations = const [],
   });
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
@@ -443,6 +445,7 @@ class UserProfile {
         fullName: j['fullName'],
         locale: j['locale'],
         activeOrgId: j['activeOrgId'],
+        role: j['role'] as String?,
         organizations: (j['organizations'] as List? ?? [])
             .map((e) => OrgMembership.fromJson(e))
             .toList(),
@@ -642,5 +645,103 @@ class PriceTier {
         minQty: j['minQty'] as int? ?? 1,
         maxQty: j['maxQty'] as int?,
         unitPriceMinor: j['unitPriceMinor'] as int? ?? 0,
+      );
+}
+
+// ── Auth & Session ───────────────────────────────────────────
+// Typed mirrors of the @scs/contracts auth/session schemas so the auth endpoints
+// stop leaking raw `Map<String, dynamic>` into the UI. Field names + nullability
+// match the wire contract; `fromJson` is defensive (missing keys never throw).
+
+/// Response of POST /v1/auth/otp/verify — a fresh access/refresh token pair.
+class AuthTokens {
+  final String accessToken, refreshToken;
+  AuthTokens({required this.accessToken, required this.refreshToken});
+  factory AuthTokens.fromJson(Map<String, dynamic> j) => AuthTokens(
+        accessToken: j['accessToken'] ?? '',
+        refreshToken: j['refreshToken'] ?? '',
+      );
+}
+
+/// Response of POST /v1/auth/login/password. A trusted device yields a token
+/// pair; a new device instead returns `requiresOtp` with the `otpPhone` the code
+/// was sent to (tokens absent in that branch — hence nullable).
+class LoginPasswordResponse {
+  final String? accessToken, refreshToken, otpPhone;
+  final bool requiresOtp;
+  LoginPasswordResponse({
+    this.accessToken,
+    this.refreshToken,
+    this.otpPhone,
+    this.requiresOtp = false,
+  });
+  factory LoginPasswordResponse.fromJson(Map<String, dynamic> j) =>
+      LoginPasswordResponse(
+        accessToken: j['accessToken'] as String?,
+        refreshToken: j['refreshToken'] as String?,
+        otpPhone: j['otpPhone'] as String?,
+        requiresOtp: j['requiresOtp'] as bool? ?? false,
+      );
+
+  /// True when the response carried a usable token pair (device was trusted).
+  bool get hasSession => accessToken != null && refreshToken != null;
+
+  /// Project the token pair for session persistence; null when OTP is required.
+  AuthTokens? toAuthTokens() => hasSession
+      ? AuthTokens(accessToken: accessToken!, refreshToken: refreshToken!)
+      : null;
+}
+
+/// Response of POST /v1/auth/login/device-check (pre-flight for password login).
+class DeviceCheckResponse {
+  final bool canAutoLogin, requiresOtp, hasPassword;
+  DeviceCheckResponse({
+    this.canAutoLogin = false,
+    this.requiresOtp = false,
+    this.hasPassword = false,
+  });
+  factory DeviceCheckResponse.fromJson(Map<String, dynamic> j) =>
+      DeviceCheckResponse(
+        canAutoLogin: j['canAutoLogin'] as bool? ?? false,
+        requiresOtp: j['requiresOtp'] as bool? ?? false,
+        hasPassword: j['hasPassword'] as bool? ?? false,
+      );
+}
+
+/// Response of POST /v1/auth/switch-org — a re-minted access token scoped to the
+/// new active org. The prior access token is denylisted server-side (API-B9), so
+/// callers MUST persist this replacement immediately or subsequent calls 401.
+class SwitchOrgResponse {
+  final String accessToken;
+  SwitchOrgResponse({required this.accessToken});
+  factory SwitchOrgResponse.fromJson(Map<String, dynamic> j) =>
+      SwitchOrgResponse(accessToken: j['accessToken'] ?? '');
+}
+
+/// A single active session from GET /v1/me/sessions. `isCurrent` is set
+/// server-side from the caller's `sid` claim (WEB-B3); clients must not compute it.
+class SessionInfo {
+  final String id, device, createdAt, expiresAt;
+  final String? deviceId, ip;
+  final bool isCurrent, isRevoked;
+  SessionInfo({
+    required this.id,
+    required this.device,
+    required this.createdAt,
+    required this.expiresAt,
+    this.deviceId,
+    this.ip,
+    this.isCurrent = false,
+    this.isRevoked = false,
+  });
+  factory SessionInfo.fromJson(Map<String, dynamic> j) => SessionInfo(
+        id: j['id'] ?? '',
+        device: j['device'] ?? '',
+        createdAt: j['createdAt'] ?? '',
+        expiresAt: j['expiresAt'] ?? '',
+        deviceId: j['deviceId'] as String?,
+        ip: j['ip'] as String?,
+        isCurrent: j['isCurrent'] as bool? ?? false,
+        isRevoked: j['isRevoked'] as bool? ?? false,
       );
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchOrder, fetchOrderHistory, cancelOrder, reorder, StatusHistoryEntry, OrderItem } from '../../../lib/buyer-api';
+import { onOrderStatus, watchOrder } from '../../../lib/realtime';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
 import { OrderTimeline } from '../../../components/OrderTimeline';
 
@@ -34,6 +35,21 @@ export default function OrderDetailPage() {
       fetchOrder(orderId).then(setOrder as any),
       fetchOrderHistory(orderId).then(setHistory),
     ]).catch(() => {}).finally(() => setLoading(false));
+  }, [orderId]);
+
+  // Live order-status push (WEB-B6): join this order's room and update the badge
+  // + timeline in place, replacing manual refresh / polling.
+  useEffect(() => {
+    if (!orderId) return;
+    const unwatch = watchOrder(orderId);
+    const off = onOrderStatus((evt) => {
+      setOrder((prev) => (prev ? ({ ...prev, status: evt.status } as OrderDetail) : prev));
+      fetchOrderHistory(orderId).then(setHistory).catch(() => {});
+    }, orderId);
+    return () => {
+      off();
+      unwatch();
+    };
   }, [orderId]);
 
   const handleCancel = async () => {

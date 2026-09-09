@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_core/mobile_core.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/realtime_service.dart';
 import '../models/models.dart';
 
 // ── Core Providers ──────────────────────────────────────────
@@ -17,6 +18,19 @@ final apiServiceProvider =
 
 final pushNotificationServiceProvider = Provider<PushNotificationService>(
     (ref) => PushNotificationService(ref.watch(apiServiceProvider)));
+
+/// Shared Socket.IO connection to the API `/realtime` gateway (WEB-B6). Screens
+/// listen to its broadcast streams for live notification / order-status push
+/// instead of polling. Uses the same API origin as [apiClientProvider].
+final realtimeServiceProvider = Provider<RealtimeService>((ref) {
+  final service = RealtimeService(
+    baseUrl: const String.fromEnvironment('API_URL',
+        defaultValue: 'http://10.0.2.2:3000'),
+    authStorage: ref.watch(authStorageProvider),
+  );
+  ref.onDispose(service.dispose);
+  return service;
+});
 
 // ── Auth ────────────────────────────────────────────────────
 

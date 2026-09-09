@@ -15,6 +15,7 @@ const navItems = [
   { href: '/products', label: 'Products', icon: '📋' },
   { href: '/kpis', label: 'KPIs', icon: '📊' },
   { href: '/audit', label: 'Audit Log', icon: '📋' },
+  { href: '/account', label: 'Account Security', icon: '🔐' },
 ];
 
 export function AdminSidebar() {
@@ -28,27 +29,32 @@ export function AdminSidebar() {
   };
 
   return (
-    <aside style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      bottom: 0,
-      width: 220,
-      background: '#0f3340',
-      color: '#fff',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '24px 0',
-      zIndex: 100,
-    }}>
+    <aside
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 220,
+        background: '#0f3340',
+        color: '#fff',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '24px 0',
+        zIndex: 100,
+      }}
+    >
       <div style={{ padding: '0 20px 24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px' }}>SCS Admin</div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>Platform Operations</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+          Platform Operations
+        </div>
       </div>
 
       <nav style={{ flex: 1, padding: '16px 0' }}>
-        {navItems.map(item => {
-          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        {navItems.map((item) => {
+          const isActive =
+            pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}
@@ -77,15 +83,27 @@ export function AdminSidebar() {
       <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         {user && (
           <div style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>{user.fullName}</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>
+              {user.fullName}
+            </div>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{user.role}</div>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>v1.0.0 — Phase 1</span>
           {isAuthenticated() && (
-            <button onClick={handleLogout}
-              style={{ padding: '3px 8px', fontSize: 10, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, cursor: 'pointer' }}>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '3px 8px',
+                fontSize: 10,
+                color: 'rgba(255,255,255,0.5)',
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
               Logout
             </button>
           )}

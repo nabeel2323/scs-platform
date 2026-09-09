@@ -54,9 +54,17 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
 
   Future<void> _switchOrg(String orgId) async {
     try {
-      await ref.read(apiServiceProvider).switchOrg(orgId);
+      final auth = ref.read(authStorageProvider);
+      final res = await ref.read(apiServiceProvider).switchOrg(orgId);
+      // switch-org re-mints the access token and denylists the prior one
+      // (API-B9), so persist the replacement immediately or the next call 401s.
+      await auth.saveTokens(
+        accessToken: res.accessToken,
+        refreshToken: await auth.getRefreshToken() ?? '',
+        activeOrgId: orgId,
+      );
+      ref.read(apiClientProvider).setAccessToken(res.accessToken);
       ref.read(activeOrgIdProvider.notifier).state = orgId;
-      ref.read(authStorageProvider).setActiveOrgId(orgId);
       ref.invalidate(profileProvider);
       ref.invalidate(myOrganizationsProvider);
       if (mounted) {

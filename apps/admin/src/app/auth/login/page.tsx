@@ -2,11 +2,24 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { requestOtp, verifyOtp, loginPassword, checkDeviceLogin } from '@/lib/auth';
+import {
+  requestOtp,
+  verifyOtp,
+  loginPassword,
+  checkDeviceLogin,
+  LoginRateLimitError,
+} from '@/lib/auth';
 import { getDeviceId } from '@/lib/device-id';
 
 type LoginMode = 'password' | 'otp';
 type OtpStage = 'request' | 'verify';
+
+/** Human-friendly wait time for the lockout countdown. */
+function formatWait(seconds: number): string {
+  if (!seconds || seconds <= 0) return 'a moment';
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.ceil(seconds / 60)} min`;
+}
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -23,6 +36,11 @@ export default function AdminLoginPage() {
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rateLimit, setRateLimit] = useState<{
+    message: string;
+    remaining: number;
+    retryAfter: number;
+  } | null>(null);
 
   // Pre-fill the last admin email and probe device trust for auto-login.
   useEffect(() => {
@@ -36,6 +54,7 @@ export default function AdminLoginPage() {
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setRateLimit(null);
     setLoading(true);
     try {
       const result = await loginPassword(email, password, getDeviceId());
@@ -52,7 +71,15 @@ export default function AdminLoginPage() {
       localStorage.setItem('scs_last_email', email);
       router.push('/');
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      if (err instanceof LoginRateLimitError) {
+        setRateLimit({
+          message: err.message,
+          remaining: err.remainingAttempts,
+          retryAfter: err.retryAfterSeconds,
+        });
+      } else {
+        setError(err.message || 'Login failed');
+      }
       setLoading(false);
     }
   }
@@ -60,12 +87,21 @@ export default function AdminLoginPage() {
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setRateLimit(null);
     setLoading(true);
     try {
       await requestOtp(phone);
       setOtpStage('verify');
     } catch (err: any) {
-      setError(err.message || 'Failed to send OTP');
+      if (err instanceof LoginRateLimitError) {
+        setRateLimit({
+          message: err.message,
+          remaining: err.remainingAttempts,
+          retryAfter: err.retryAfterSeconds,
+        });
+      } else {
+        setError(err.message || 'Failed to send OTP');
+      }
     } finally {
       setLoading(false);
     }
@@ -88,7 +124,17 @@ export default function AdminLoginPage() {
   return (
     <main style={{ maxWidth: 420, margin: '80px auto', padding: '32px 24px' }}>
       <div style={{ marginBottom: 24 }}>
-        <span style={{ display: 'inline-block', padding: '4px 10px', background: '#0f3340', color: '#fff', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+        <span
+          style={{
+            display: 'inline-block',
+            padding: '4px 10px',
+            background: '#0f3340',
+            color: '#fff',
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
           ADMIN
         </span>
       </div>
@@ -99,14 +145,20 @@ export default function AdminLoginPage() {
       <div style={{ display: 'flex', borderBottom: '1px solid #d9e2e6', marginBottom: 24 }}>
         <button
           type="button"
-          onClick={() => { setMode('password'); setError(''); }}
+          onClick={() => {
+            setMode('password');
+            setError('');
+          }}
           style={tabStyle(mode === 'password')}
         >
           Email/Password
         </button>
         <button
           type="button"
-          onClick={() => { setMode('otp'); setError(''); }}
+          onClick={() => {
+            setMode('otp');
+            setError('');
+          }}
           style={tabStyle(mode === 'otp')}
         >
           Phone OTP
@@ -114,8 +166,38 @@ export default function AdminLoginPage() {
       </div>
 
       {error && (
-        <div style={{ background: '#fbeeec', color: '#b3372f', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+        <div
+          style={{
+            background: '#fbeeec',
+            color: '#b3372f',
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 14,
+          }}
+        >
           {error}
+        </div>
+      )}
+
+      {rateLimit && (
+        <div
+          style={{
+            background: '#fffbeb',
+            color: '#92400e',
+            border: '1px solid #fcd34d',
+            padding: '10px 14px',
+            borderRadius: 8,
+            marginBottom: 16,
+            fontSize: 14,
+          }}
+        >
+          <strong>{rateLimit.message}</strong>
+          <div style={{ marginTop: 4, fontSize: 13 }}>
+            {rateLimit.remaining > 0
+              ? `${rateLimit.remaining} attempt${rateLimit.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
+              : `Locked temporarily. Try again in ${formatWait(rateLimit.retryAfter)}.`}
+          </div>
         </div>
       )}
 
@@ -144,7 +226,14 @@ export default function AdminLoginPage() {
           </button>
           <p style={hintStyle}>
             Don&apos;t have a password yet?{' '}
-            <button type="button" onClick={() => { setMode('otp'); setError(''); }} style={linkBtnStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('otp');
+                setError('');
+              }}
+              style={linkBtnStyle}
+            >
               Sign in with OTP
             </button>
           </p>
@@ -166,9 +255,7 @@ export default function AdminLoginPage() {
         </form>
       ) : (
         <form onSubmit={handleVerifyOtp}>
-          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>
-            Code sent to {phone}
-          </p>
+          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>Code sent to {phone}</p>
           <label style={labelStyle}>OTP code</label>
           <input
             type="text"
@@ -185,7 +272,12 @@ export default function AdminLoginPage() {
           <button
             type="button"
             onClick={() => setOtpStage('request')}
-            style={{ ...buttonStyle, background: 'transparent', color: '#1e6178', border: '1px solid #d9e2e6' }}
+            style={{
+              ...buttonStyle,
+              background: 'transparent',
+              color: '#1e6178',
+              border: '1px solid #d9e2e6',
+            }}
           >
             Change number
           </button>
@@ -195,7 +287,14 @@ export default function AdminLoginPage() {
       {mode === 'otp' && (
         <p style={hintStyle}>
           Have a password?{' '}
-          <button type="button" onClick={() => { setMode('password'); setError(''); }} style={linkBtnStyle}>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('password');
+              setError('');
+            }}
+            style={linkBtnStyle}
+          >
             Sign in with Email/Password
           </button>
         </p>
@@ -218,20 +317,46 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
 });
 
 const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 6,
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#0f3340',
+  marginBottom: 6,
 };
 const inputStyle: React.CSSProperties = {
-  width: '100%', padding: '10px 14px', fontSize: 15, border: '1px solid #d9e2e6',
-  borderRadius: 8, marginBottom: 16, outline: 'none', boxSizing: 'border-box',
+  width: '100%',
+  padding: '10px 14px',
+  fontSize: 15,
+  border: '1px solid #d9e2e6',
+  borderRadius: 8,
+  marginBottom: 16,
+  outline: 'none',
+  boxSizing: 'border-box',
 };
 const buttonStyle: React.CSSProperties = {
-  width: '100%', padding: '12px 0', fontSize: 15, fontWeight: 600, color: '#fff',
-  background: '#0f3340', border: 'none', borderRadius: 8, cursor: 'pointer', marginBottom: 8,
+  width: '100%',
+  padding: '12px 0',
+  fontSize: 15,
+  fontWeight: 600,
+  color: '#fff',
+  background: '#0f3340',
+  border: 'none',
+  borderRadius: 8,
+  cursor: 'pointer',
+  marginBottom: 8,
 };
 const hintStyle: React.CSSProperties = {
-  fontSize: 13, color: '#5b6b74', textAlign: 'center', marginTop: 12,
+  fontSize: 13,
+  color: '#5b6b74',
+  textAlign: 'center',
+  marginTop: 12,
 };
 const linkBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#1e6178', fontWeight: 600,
-  cursor: 'pointer', fontSize: 13, padding: 0,
+  background: 'transparent',
+  border: 'none',
+  color: '#1e6178',
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontSize: 13,
+  padding: 0,
 };

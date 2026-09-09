@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
+import '../../models/models.dart';
 import '../../providers/providers.dart';
 
 /// Screen for viewing and managing active sessions
@@ -12,7 +13,7 @@ class SessionsScreen extends ConsumerStatefulWidget {
 }
 
 class _SessionsScreenState extends ConsumerState<SessionsScreen> {
-  List<Map<String, dynamic>> _sessions = [];
+  List<SessionInfo> _sessions = [];
   bool _isLoading = true;
   String? _error;
   String? _success;
@@ -89,9 +90,9 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     }
   }
 
-  String _getDeviceName(Map<String, dynamic> session) {
-    final device = session['device'] as String?;
-    if (device == null) return 'Unknown Device';
+  String _getDeviceName(SessionInfo session) {
+    final device = session.device;
+    if (device.isEmpty) return 'Unknown Device';
 
     if (device.contains('Chrome')) return 'Chrome Browser';
     if (device.contains('Firefox')) return 'Firefox Browser';
@@ -152,7 +153,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: TaifTokens.err),
+            const Icon(Icons.error_outline, size: 64, color: TaifTokens.err),
             const SizedBox(height: 16),
             Text(
               'Error loading sessions',
@@ -164,7 +165,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
               child: Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: TaifTokens.muted),
+                style: const TextStyle(color: TaifTokens.muted),
               ),
             ),
             const SizedBox(height: 24),
@@ -182,7 +183,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.devices, size: 64, color: TaifTokens.muted),
+            const Icon(Icons.devices, size: 64, color: TaifTokens.muted),
             const SizedBox(height: 16),
             Text(
               'No active sessions',
@@ -267,13 +268,13 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
     );
   }
 
-  Widget _buildSessionCard(Map<String, dynamic> session) {
-    final isCurrent = session['isCurrent'] as bool? ?? false;
-    final isRevoked = session['isRevoked'] as bool? ?? false;
-    final deviceId = session['deviceId'] as String?;
+  Widget _buildSessionCard(SessionInfo session) {
+    final isCurrent = session.isCurrent;
+    final isRevoked = session.isRevoked;
+    final deviceId = session.deviceId;
     final deviceName = _getDeviceName(session);
-    final createdAt = session['createdAt'] as String;
-    final ip = session['ip'] as String?;
+    final createdAt = session.createdAt;
+    final ip = session.ip;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -319,7 +320,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                 color: TaifTokens.ok.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'Current',
                                 style: TextStyle(
                                   color: TaifTokens.ok,
@@ -336,7 +337,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                                 color: TaifTokens.err.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Text(
+                              child: const Text(
                                 'Revoked',
                                 style: TextStyle(
                                   color: TaifTokens.err,
@@ -363,7 +364,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.access_time, size: 16, color: TaifTokens.muted),
+                const Icon(Icons.access_time,
+                    size: 16, color: TaifTokens.muted),
                 const SizedBox(width: 4),
                 Text(
                   _formatDate(createdAt),
@@ -373,7 +375,8 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
                 ),
                 if (ip != null) ...[
                   const SizedBox(width: 16),
-                  Icon(Icons.location_on, size: 16, color: TaifTokens.muted),
+                  const Icon(Icons.location_on,
+                      size: 16, color: TaifTokens.muted),
                   const SizedBox(width: 4),
                   Text(
                     ip,
@@ -409,7 +412,7 @@ class _SessionsScreenState extends ConsumerState<SessionsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 16, color: TaifTokens.info),
+          const Icon(Icons.info_outline, size: 16, color: TaifTokens.info),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

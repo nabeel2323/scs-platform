@@ -99,7 +99,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Text(p.fullName ?? 'No name set',
                 style: const TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w700))),
-        Center(child: Text(p.phone, style: TextStyle(color: TaifTokens.muted))),
+        Center(
+            child:
+                Text(p.phone, style: const TextStyle(color: TaifTokens.muted))),
         const SizedBox(height: 24),
         _infoTile('Email', p.email ?? 'Not set', Icons.email),
         _infoTile(
@@ -129,7 +131,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const SizedBox(height: 8),
         Card(
           child: ListTile(
-            leading: Icon(Icons.security, color: TaifTokens.brandPrimary),
+            leading: const Icon(Icons.security, color: TaifTokens.brandPrimary),
             title: const Text('Login Credentials'),
             subtitle: Text(p.email != null
                 ? 'Email/Password enabled'
@@ -141,7 +143,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (p.email != null)
           Card(
             child: ListTile(
-              leading: Icon(Icons.lock, color: TaifTokens.brandPrimary),
+              leading: const Icon(Icons.lock, color: TaifTokens.brandPrimary),
               title: const Text('Change Password'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push('/profile/change-password'),
@@ -149,7 +151,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         Card(
           child: ListTile(
-            leading: Icon(Icons.devices, color: TaifTokens.brandPrimary),
+            leading: const Icon(Icons.devices, color: TaifTokens.brandPrimary),
             title: const Text('Active Sessions'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/profile/sessions'),

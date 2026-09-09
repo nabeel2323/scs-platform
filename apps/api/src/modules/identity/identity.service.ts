@@ -1,13 +1,31 @@
-import { Injectable, ConflictException, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
-import { users, organizations, organizationMembers, sessions, roles, rolePermissions, permissions, credentialAuditLog } from './identity.schema';
-import { eq, and, desc } from 'drizzle-orm';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  sessions,
+  roles,
+  rolePermissions,
+  permissions,
+  credentialAuditLog,
+} from './identity.schema';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
 import { RateLimitService } from '../../common/services/rate-limit.service';
+import { RateLimitException } from '../../common/exceptions/rate-limit.exception';
+import { denylistKey, secondsUntilExp } from '../../common/auth/token-denylist';
 import { AuditService, AuditRequestContext } from '../audit/index';
 
 /**
@@ -39,9 +57,15 @@ export class IdentityService {
   async requestOtp(phone: string): Promise<{ success: boolean }> {
     const attemptsKey = `otp:att:${phone}`;
     const attempts = await this.redis.client.get(attemptsKey);
+    const attemptCount = attempts ? parseInt(attempts, 10) : 0;
 
-    if (attempts && parseInt(attempts, 10) >= 5) {
-      throw new HttpException('Too many OTP attempts. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
+    if (attemptCount >= 5) {
+      const ttl = await this.redis.client.ttl(attemptsKey);
+      throw new RateLimitException('Too many OTP attempts. Please try again later.', {
+        limit: 5,
+        remaining: 0,
+        retryAfterSeconds: ttl > 0 ? ttl : 900,
+      });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -97,20 +121,25 @@ export class IdentityService {
     // Resolve user's org membership and permissions for JWT claims
     const claims = await this.buildClaims(userId);
 
+    // Generate opaque refresh token
+    const refreshToken = crypto.randomUUID();
+    const tokenHash = this.hashToken(refreshToken);
+
+    // Mint the session id first so the access token can carry it as the `sid`
+    // claim (WEB-B3): the server can then tell which session a token belongs to.
+    const sessionId = crypto.randomUUID();
+
     // Sign JWT access token
     const accessToken = this.jwt.sign({
       sub: userId,
       activeOrg: claims.activeOrgId,
       role: claims.roleKey,
       perms: claims.permissions,
+      sid: sessionId,
+      jti: crypto.randomUUID(),
     });
 
-    // Generate opaque refresh token
-    const refreshToken = crypto.randomUUID();
-    const tokenHash = this.hashToken(refreshToken);
-
     // Store session (deviceId establishes device trust for password login)
-    const sessionId = crypto.randomUUID();
     await this.db.db.insert(sessions).values({
       id: sessionId,
       userId,
@@ -140,7 +169,9 @@ export class IdentityService {
    * Rotation: issues new refresh token, revokes old one.
    * Reuse detection: if old token already revoked, revoke entire chain.
    */
-  async refreshToken(refreshToken: string): Promise<{ accessToken: string; newRefreshToken: string }> {
+  async refreshToken(
+    refreshToken: string,
+  ): Promise<{ accessToken: string; newRefreshToken: string }> {
     const tokenHash = this.hashToken(refreshToken);
 
     const session = await this.db.db.query.sessions.findFirst({
@@ -170,8 +201,9 @@ export class IdentityService {
     const newRefreshToken = crypto.randomUUID();
     const newTokenHash = this.hashToken(newRefreshToken);
 
+    const newSessionId = crypto.randomUUID();
     await this.db.db.insert(sessions).values({
-      id: crypto.randomUUID(),
+      id: newSessionId,
       userId: session.userId,
       tokenHash: newTokenHash,
       device: session.device,
@@ -183,6 +215,8 @@ export class IdentityService {
       activeOrg: claims.activeOrgId,
       role: claims.roleKey,
       perms: claims.permissions,
+      sid: newSessionId,
+      jti: crypto.randomUUID(),
     });
 
     return { accessToken, newRefreshToken };
@@ -205,12 +239,14 @@ export class IdentityService {
   /**
    * Switch active organization.
    */
-  async switchOrg(userId: string, orgId: string): Promise<{ accessToken: string }> {
+  async switchOrg(
+    userId: string,
+    orgId: string,
+    currentSessionId?: string,
+    priorToken?: { jti?: string; exp?: number },
+  ): Promise<{ accessToken: string }> {
     const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.userId, userId),
-        eq(organizationMembers.orgId, orgId),
-      ),
+      where: and(eq(organizationMembers.userId, userId), eq(organizationMembers.orgId, orgId)),
     });
 
     if (!membership) {
@@ -219,11 +255,26 @@ export class IdentityService {
 
     const claims = await this.buildClaims(userId, orgId);
 
+    // API-B9: revoke the access token used to make this switch so its stale
+    // org/permission claims can't be replayed for the remainder of its 15-min
+    // life. Denylist its jti for exactly the token's remaining lifetime.
+    if (priorToken?.jti) {
+      const ttl = secondsUntilExp(priorToken.exp);
+      if (ttl > 0) {
+        await this.redis.client.set(denylistKey(priorToken.jti), '1', 'EX', ttl);
+      }
+    }
+
+    // switchOrg re-mints an access token for the SAME session, so carry the
+    // existing `sid` claim forward (WEB-B3) to keep isCurrent detection stable.
+    // A fresh `jti` (API-B9) makes the new token independently revocable.
     const accessToken = this.jwt.sign({
       sub: userId,
       activeOrg: orgId,
       role: claims.roleKey,
       perms: claims.permissions,
+      sid: currentSessionId,
+      jti: crypto.randomUUID(),
     });
 
     return { accessToken };
@@ -232,9 +283,15 @@ export class IdentityService {
   // ── Profile ────────────────────────────────────────────────
 
   /**
-   * Get user profile with active org and memberships.
+   * Get user profile with active org, memberships, and the caller's current role.
+   *
+   * `activeOrgId` is the caller's verified `activeOrg` claim. It selects which
+   * membership's role is projected so GET /v1/me is the server-side source of
+   * truth for role — clients hydrate from it instead of decoding the access
+   * token JWT. Falls back to the first membership when omitted (e.g. internal
+   * callers like updateProfile that have no request context).
    */
-  async getProfile(userId: string) {
+  async getProfile(userId: string, activeOrgId?: string | null) {
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
     });
@@ -244,12 +301,33 @@ export class IdentityService {
       where: eq(organizationMembers.userId, userId),
     });
 
+    // Batch-fetch orgs in one query (avoids N+1: was 1 query per membership).
     const orgList = [];
-    for (const m of memberships) {
-      const org = await this.db.db.query.organizations.findFirst({
-        where: eq(organizations.id, m.orgId),
+    if (memberships.length > 0) {
+      const orgs = await this.db.db.query.organizations.findMany({
+        where: inArray(
+          organizations.id,
+          memberships.map((m) => m.orgId),
+        ),
       });
-      if (org) orgList.push({ ...org, membershipStatus: m.status });
+      const orgById = new Map(orgs.map((o) => [o.id, o]));
+      for (const m of memberships) {
+        const org = orgById.get(m.orgId);
+        if (org) orgList.push({ ...org, membershipStatus: m.status });
+      }
+    }
+
+    // Resolve the current role from the active org (single lookup by the active
+    // membership's roleId, mirroring buildClaims) so it matches the role the
+    // PermissionsGuard enforces for this token, including after switchOrg.
+    const resolvedActiveOrgId = activeOrgId ?? memberships[0]?.orgId ?? null;
+    const activeMembership = memberships.find((m) => m.orgId === resolvedActiveOrgId);
+    let role = 'BUYER';
+    if (activeMembership?.roleId) {
+      const activeRole = await this.db.db.query.roles.findFirst({
+        where: eq(roles.id, activeMembership.roleId),
+      });
+      if (activeRole) role = activeRole.key;
     }
 
     return {
@@ -259,7 +337,8 @@ export class IdentityService {
       fullName: user.fullName,
       locale: user.locale,
       status: user.status,
-      activeOrgId: memberships[0]?.orgId ?? null,
+      role,
+      activeOrgId: resolvedActiveOrgId,
       organizations: orgList,
       createdAt: user.createdAt,
     };
@@ -268,7 +347,10 @@ export class IdentityService {
   /**
    * Update user profile fields.
    */
-  async updateProfile(userId: string, data: { fullName?: string; email?: string; locale?: string }) {
+  async updateProfile(
+    userId: string,
+    data: { fullName?: string; email?: string; locale?: string },
+  ) {
     const updates: Record<string, any> = {};
     if (data['fullName']) updates['fullName'] = data['fullName'];
     if (data['email']) updates['email'] = data['email'] || null;
@@ -288,7 +370,10 @@ export class IdentityService {
    * Create a new organization and add the creator as owner.
    * Generates a shareable invite code so others can join via joinOrgByInvite().
    */
-  async createOrg(data: { name: string; type: string; country: string; legalName?: string; taxId?: string }, creatorId: string) {
+  async createOrg(
+    data: { name: string; type: string; country: string; legalName?: string; taxId?: string },
+    creatorId: string,
+  ) {
     const orgId = crypto.randomUUID();
     const inviteCode = await this.generateInviteCode();
     await this.db.db.insert(organizations).values({
@@ -352,10 +437,7 @@ export class IdentityService {
 
     // Prevent duplicate membership
     const existing = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, org.id),
-        eq(organizationMembers.userId, userId),
-      ),
+      where: and(eq(organizationMembers.orgId, org.id), eq(organizationMembers.userId, userId)),
     });
     if (existing) throw new ConflictException('You are already a member of this organization');
 
@@ -410,12 +492,20 @@ export class IdentityService {
     const memberships = await this.db.db.query.organizationMembers.findMany({
       where: eq(organizationMembers.userId, userId),
     });
+    if (memberships.length === 0) return [];
+
+    // Batch-fetch all orgs in one query (avoids N+1: was 1 query per membership).
+    const orgs = await this.db.db.query.organizations.findMany({
+      where: inArray(
+        organizations.id,
+        memberships.map((m) => m.orgId),
+      ),
+    });
+    const orgById = new Map(orgs.map((o) => [o.id, o]));
 
     const result = [];
     for (const m of memberships) {
-      const org = await this.db.db.query.organizations.findFirst({
-        where: eq(organizations.id, m.orgId),
-      });
+      const org = orgById.get(m.orgId);
       if (org) {
         result.push({
           ...org,
@@ -433,10 +523,7 @@ export class IdentityService {
    */
   async addOrgMember(orgId: string, userId: string, roleId: string) {
     const existing = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, userId),
-      ),
+      where: and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)),
     });
 
     if (existing) {
@@ -461,15 +548,30 @@ export class IdentityService {
     const memberships = await this.db.db.query.organizationMembers.findMany({
       where: eq(organizationMembers.orgId, orgId),
     });
+    if (memberships.length === 0) return [];
+
+    // Batch-fetch users and roles in parallel (avoids 2N queries → 2 queries).
+    const [userRows, roleRows] = await Promise.all([
+      this.db.db.query.users.findMany({
+        where: inArray(
+          users.id,
+          memberships.map((m) => m.userId),
+        ),
+      }),
+      this.db.db.query.roles.findMany({
+        where: inArray(
+          roles.id,
+          memberships.map((m) => m.roleId),
+        ),
+      }),
+    ]);
+    const userById = new Map(userRows.map((u) => [u.id, u]));
+    const roleById = new Map(roleRows.map((r) => [r.id, r]));
 
     const result = [];
     for (const m of memberships) {
-      const user = await this.db.db.query.users.findFirst({
-        where: eq(users.id, m.userId),
-      });
-      const role = await this.db.db.query.roles.findFirst({
-        where: eq(roles.id, m.roleId),
-      });
+      const user = userById.get(m.userId);
+      const role = roleById.get(m.roleId);
       result.push({
         userId: m.userId,
         fullName: user?.fullName ?? 'Unknown',
@@ -488,12 +590,7 @@ export class IdentityService {
   async removeOrgMember(orgId: string, userId: string) {
     await this.db.db
       .delete(organizationMembers)
-      .where(
-        and(
-          eq(organizationMembers.orgId, orgId),
-          eq(organizationMembers.userId, userId),
-        ),
-      );
+      .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)));
 
     return { success: true };
   }
@@ -510,11 +607,26 @@ export class IdentityService {
     deviceId: string,
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
-  ): Promise<{ accessToken: string; refreshToken: string; requiresOtp?: boolean; otpPhone?: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    requiresOtp?: boolean;
+    otpPhone?: string;
+  }> {
     // Rate limit check
-    const rateCheck = await this.rateLimitService.checkAndIncrement('password_login', email, 5, 900);
+    const rateCheck = await this.rateLimitService.checkAndIncrement(
+      'password_login',
+      email,
+      5,
+      900,
+    );
     if (!rateCheck.allowed) {
-      throw new HttpException('Too many login attempts. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
+      const retryAfter = await this.rateLimitService.getResetSeconds('password_login', email);
+      throw new RateLimitException('Too many login attempts. Please try again later.', {
+        limit: 5,
+        remaining: rateCheck.remaining,
+        retryAfterSeconds: retryAfter || 900,
+      });
     }
 
     // Find user by email
@@ -528,7 +640,9 @@ export class IdentityService {
 
     // Check if password is set
     if (!user.passwordHash) {
-      throw new UnauthorizedException('Password not set. Please use OTP login or set up credentials.');
+      throw new UnauthorizedException(
+        'Password not set. Please use OTP login or set up credentials.',
+      );
     }
 
     // Verify password
@@ -544,7 +658,7 @@ export class IdentityService {
       // Device not trusted - require OTP verification
       // Send OTP to user's phone
       await this.requestOtp(user.phone);
-      
+
       // Password was correct but the device is unknown — record the challenge.
       await this.audit.record({
         actorType: 'SYSTEM',
@@ -567,17 +681,21 @@ export class IdentityService {
     // Device trusted - issue JWT pair
     const claims = await this.buildClaims(user.id);
 
+    const refreshToken = crypto.randomUUID();
+    const tokenHash = this.hashToken(refreshToken);
+
+    // Mint the session id before signing so the access token carries `sid` (WEB-B3).
+    const sessionId = crypto.randomUUID();
+
     const accessToken = this.jwt.sign({
       sub: user.id,
       activeOrg: claims.activeOrgId,
       role: claims.roleKey,
       perms: claims.permissions,
+      sid: sessionId,
+      jti: crypto.randomUUID(),
     });
 
-    const refreshToken = crypto.randomUUID();
-    const tokenHash = this.hashToken(refreshToken);
-
-    const sessionId = crypto.randomUUID();
     await this.db.db.insert(sessions).values({
       id: sessionId,
       userId: user.id,
@@ -610,10 +728,7 @@ export class IdentityService {
    */
   async checkDeviceTrust(userId: string, deviceId: string): Promise<boolean> {
     const lastSession = await this.db.db.query.sessions.findFirst({
-      where: and(
-        eq(sessions.userId, userId),
-        eq(sessions.deviceId, deviceId),
-      ),
+      where: and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)),
       orderBy: [desc(sessions.createdAt)],
     });
 
@@ -681,10 +796,12 @@ export class IdentityService {
     await this.db.db
       .update(sessions)
       .set({ revokedAt: new Date() })
-      .where(and(
-        eq(sessions.userId, userId),
-        deviceId ? eq(sessions.deviceId, deviceId) : eq(sessions.userId, userId),
-      ));
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          deviceId ? eq(sessions.deviceId, deviceId) : eq(sessions.userId, userId),
+        ),
+      );
 
     return { success: true, message: 'Credentials set up successfully' };
   }
@@ -747,10 +864,7 @@ export class IdentityService {
       await this.db.db
         .update(sessions)
         .set({ revokedAt: new Date() })
-        .where(and(
-          eq(sessions.userId, userId),
-          eq(sessions.deviceId, deviceId),
-        ));
+        .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
     } else {
       await this.revokeChain(userId);
     }
@@ -777,7 +891,10 @@ export class IdentityService {
    * Check if device can auto-login for a given email.
    * Pre-flight check before showing login form.
    */
-  async checkDeviceLogin(email: string, deviceId: string): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
+  async checkDeviceLogin(
+    email: string,
+    deviceId: string,
+  ): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.email, email),
     });
@@ -824,14 +941,14 @@ export class IdentityService {
   /**
    * Revoke sessions by device ID.
    */
-  async revokeSessionsByDevice(userId: string, deviceId: string): Promise<{ success: boolean; revokedCount: number }> {
+  async revokeSessionsByDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<{ success: boolean; revokedCount: number }> {
     const result = await this.db.db
       .update(sessions)
       .set({ revokedAt: new Date() })
-      .where(and(
-        eq(sessions.userId, userId),
-        eq(sessions.deviceId, deviceId),
-      ));
+      .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
 
     return { success: true, revokedCount: result['rowCount'] || 0 };
   }
@@ -867,18 +984,19 @@ export class IdentityService {
       if (role) roleKey = role.key;
     }
 
-    // Resolve permissions for the role
+    // Resolve permissions in a single batched query (avoids N+1: was 1 query per role_permission).
     const permissionList: string[] = [];
     if (activeMembership?.roleId) {
       const rolePerms = await this.db.db.query.rolePermissions.findMany({
         where: eq(rolePermissions.roleId, activeMembership.roleId),
       });
 
-      for (const rp of rolePerms) {
-        const perm = await this.db.db.query.permissions.findFirst({
-          where: eq(permissions.id, rp.permissionId),
+      const permIds = rolePerms.map((rp) => rp.permissionId);
+      if (permIds.length > 0) {
+        const perms = await this.db.db.query.permissions.findMany({
+          where: inArray(permissions.id, permIds),
         });
-        if (perm) permissionList.push(perm.key);
+        for (const perm of perms) permissionList.push(perm.key);
       }
     }
 

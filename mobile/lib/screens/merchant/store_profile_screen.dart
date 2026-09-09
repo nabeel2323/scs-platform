@@ -189,7 +189,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
         ]),
         const SizedBox(height: 4),
         Text('Slug: /${store.slug} (read-only)',
-            style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+            style: const TextStyle(fontSize: 12, color: TaifTokens.muted)),
         const SizedBox(height: 20),
         TextField(
             controller: _displayNameCtrl,
@@ -287,8 +287,8 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
             child: LoadingSpinner()),
         error: (e, _) => ErrorBanner(message: '$e'),
         data: (list) => list.isEmpty
-            ? Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
                 child: Text('No warehouses yet.',
                     style: TextStyle(color: TaifTokens.muted, fontSize: 13)))
             : Column(

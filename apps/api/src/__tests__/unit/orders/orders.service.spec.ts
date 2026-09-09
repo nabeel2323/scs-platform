@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
+import { computeOrderFinancials } from '../../../modules/orders/order-pricing';
 
 /**
  * Orders Service — Unit Tests
@@ -20,68 +21,39 @@ import { ConflictException } from '@nestjs/common';
  * Kept in sync with orders.service.ts TRANSITIONS static field.
  */
 const TRANSITIONS: Record<string, string[]> = {
-  'DRAFT': ['SUBMITTED'],
-  'SUBMITTED': ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'],
-  'ACCEPTED': ['CONFIRMED', 'CANCELLED'],
-  'PARTIALLY_ACCEPTED': ['CONFIRMED', 'CANCELLED'],
-  'CONFIRMED': ['PREPARING', 'CANCELLED'],
-  'PREPARING': ['READY', 'CANCELLED'],
-  'READY': ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
-  'OUT_FOR_DELIVERY': ['DELIVERED'],
-  'DELIVERED': ['COMPLETED'],
-  'COMPLETED': [],
-  'CANCELLED': [],
-  'REJECTED': [],
+  DRAFT: ['SUBMITTED'],
+  SUBMITTED: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'],
+  ACCEPTED: ['CONFIRMED', 'CANCELLED'],
+  PARTIALLY_ACCEPTED: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['READY', 'CANCELLED'],
+  READY: ['OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'],
+  OUT_FOR_DELIVERY: ['DELIVERED'],
+  DELIVERED: ['COMPLETED'],
+  COMPLETED: [],
+  CANCELLED: [],
+  REJECTED: [],
 };
 
 function assertTransition(currentStatus: string, newStatus: string) {
   const allowed = TRANSITIONS[currentStatus] || [];
   if (!allowed.includes(newStatus)) {
     throw new ConflictException(
-      `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(', ') || 'none'}`
+      `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(', ') || 'none'}`,
     );
   }
 }
 
-// ── Financial Breakdown Calculation ───────────────────────────────
-
-interface FinancialBreakdown {
-  productsMinor: number;
-  discountMinor: number;
-  deliveryFeeMinor: number;
-  taxMinor: number;
-  commissionMinor: number;
-  merchantNetMinor: number;
-}
-
-/**
- * Calculate financial breakdown matching the orders.service.ts checkout logic.
- * Commission rate: 5% (placeholder from service).
- */
-function calculateFinancialBreakdown(
-  subtotalMinor: number,
-  discountMinor: number,
-  deliveryFeeMinor: number,
-  taxMinor: number,
-  commissionRate: number = 0.05,
-): FinancialBreakdown {
-  const total = subtotalMinor - discountMinor + deliveryFeeMinor + taxMinor;
-  const commissionMinor = Math.round(total * commissionRate);
-  const merchantNetMinor = total - commissionMinor;
-
-  return {
-    productsMinor: subtotalMinor,
-    discountMinor,
-    deliveryFeeMinor,
-    taxMinor,
-    commissionMinor,
-    merchantNetMinor,
-  };
-}
-
 // ── Cancel Eligibility ────────────────────────────────────────────
 
-const CANCELLABLE_STATUSES = ['SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY'];
+const CANCELLABLE_STATUSES = [
+  'SUBMITTED',
+  'ACCEPTED',
+  'PARTIALLY_ACCEPTED',
+  'CONFIRMED',
+  'PREPARING',
+  'READY',
+];
 
 function isCancellable(status: string): boolean {
   return CANCELLABLE_STATUSES.includes(status);
@@ -108,7 +80,7 @@ function calculatePriceDelta(snapshotPrice: number, currentPrice: number): Price
 }
 
 function hasSignificantPriceChange(deltas: PriceDelta[], threshold: number = 5): PriceDelta[] {
-  return deltas.filter(d => Math.abs(d.deltaPercent) > threshold);
+  return deltas.filter((d) => Math.abs(d.deltaPercent) > threshold);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -260,63 +232,69 @@ describe('Orders Service — FSM Transitions', () => {
   });
 });
 
-describe('Orders Service — Financial Breakdown', () => {
-  it('should calculate 5% commission on total', () => {
-    const breakdown = calculateFinancialBreakdown(10000, 0, 0, 0);
-    expect(breakdown.commissionMinor).toBe(500);
-    expect(breakdown.merchantNetMinor).toBe(9500);
+describe('Orders Service — Financial Breakdown (real computeOrderFinancials)', () => {
+  const price = (subtotalMinor: number, discountMinor: number, deliveryFeeMinor: number) =>
+    computeOrderFinancials({
+      subtotalMinor,
+      discountMinor,
+      deliveryFeeMinor,
+      vatRate: 0.15,
+      commissionRate: 0.05,
+    });
+
+  it('calculates 5% commission on net goods and 15% VAT', () => {
+    const b = price(10000, 0, 0);
+    expect(b.commissionMinor).toBe(500);
+    expect(b.merchantNetMinor).toBe(9500);
+    expect(b.taxMinor).toBe(1500);
+    expect(b.totalMinor).toBe(11500);
   });
 
-  it('should apply discount before calculating total', () => {
-    const breakdown = calculateFinancialBreakdown(10000, 1000, 0, 0);
-    const total = 10000 - 1000; // 9000
-    expect(breakdown.commissionMinor).toBe(Math.round(9000 * 0.05)); // 450
-    expect(breakdown.merchantNetMinor).toBe(9000 - 450); // 8550
+  it('applies discount before VAT and commission', () => {
+    const b = price(10000, 1000, 0);
+    expect(b.discountMinor).toBe(1000);
+    expect(b.commissionMinor).toBe(450); // 5% of 9000
+    expect(b.merchantNetMinor).toBe(8550);
+    expect(b.taxMinor).toBe(1350); // 15% of 9000
+    expect(b.totalMinor).toBe(10350);
   });
 
-  it('should include delivery fee in total and commission', () => {
-    const breakdown = calculateFinancialBreakdown(10000, 0, 500, 0);
-    const total = 10000 + 500; // 10500
-    expect(breakdown.commissionMinor).toBe(Math.round(10500 * 0.05)); // 525
-    expect(breakdown.merchantNetMinor).toBe(10500 - 525); // 9975
+  it('includes delivery fee in the taxable base but not in commission', () => {
+    const b = price(10000, 0, 500);
+    expect(b.deliveryFeeMinor).toBe(500);
+    expect(b.taxMinor).toBe(1575); // 15% of 10500
+    expect(b.totalMinor).toBe(12075);
+    expect(b.commissionMinor).toBe(500); // 5% of goods only
+    expect(b.merchantNetMinor).toBe(9500);
   });
 
-  it('should include tax in total and commission', () => {
-    const breakdown = calculateFinancialBreakdown(10000, 0, 0, 1500);
-    const total = 10000 + 1500; // 11500
-    expect(breakdown.commissionMinor).toBe(Math.round(11500 * 0.05)); // 575
-    expect(breakdown.merchantNetMinor).toBe(11500 - 575); // 10925
+  it('handles a full breakdown: subtotal - discount + delivery + VAT', () => {
+    const b = price(50000, 5000, 1500);
+    expect(b.productsMinor).toBe(50000);
+    expect(b.discountMinor).toBe(5000);
+    expect(b.deliveryFeeMinor).toBe(1500);
+    expect(b.taxMinor).toBe(6975); // 15% of 46500
+    expect(b.totalMinor).toBe(53475);
+    expect(b.commissionMinor).toBe(2250); // 5% of 45000
+    expect(b.merchantNetMinor).toBe(42750);
   });
 
-  it('should handle full breakdown: subtotal - discount + delivery + tax', () => {
-    const breakdown = calculateFinancialBreakdown(50000, 5000, 1500, 7500);
-    const total = 50000 - 5000 + 1500 + 7500; // 54000
-    const commission = Math.round(54000 * 0.05); // 2700
-    expect(breakdown.productsMinor).toBe(50000);
-    expect(breakdown.discountMinor).toBe(5000);
-    expect(breakdown.deliveryFeeMinor).toBe(1500);
-    expect(breakdown.taxMinor).toBe(7500);
-    expect(breakdown.commissionMinor).toBe(commission);
-    expect(breakdown.merchantNetMinor).toBe(total - commission);
+  it('merchant net + commission = net goods (invariant)', () => {
+    const b = price(12345, 1234, 567);
+    expect(b.merchantNetMinor + b.commissionMinor).toBe(12345 - 1234);
   });
 
-  it('merchant net = total - commission (invariant)', () => {
-    const breakdown = calculateFinancialBreakdown(12345, 1234, 567, 890);
-    const total = 12345 - 1234 + 567 + 890;
-    expect(breakdown.merchantNetMinor + breakdown.commissionMinor).toBe(total);
+  it('handles a zero-value order', () => {
+    const b = price(0, 0, 0);
+    expect(b.commissionMinor).toBe(0);
+    expect(b.merchantNetMinor).toBe(0);
+    expect(b.totalMinor).toBe(0);
   });
 
-  it('should handle zero subtotal', () => {
-    const breakdown = calculateFinancialBreakdown(0, 0, 0, 0);
-    expect(breakdown.commissionMinor).toBe(0);
-    expect(breakdown.merchantNetMinor).toBe(0);
-  });
-
-  it('should round commission to nearest integer', () => {
-    // 3333 * 0.05 = 166.65 → rounds to 167
-    const breakdown = calculateFinancialBreakdown(3333, 0, 0, 0);
-    expect(breakdown.commissionMinor).toBe(167);
-    expect(Number.isInteger(breakdown.commissionMinor)).toBe(true);
+  it('rounds commission to the nearest integer', () => {
+    const b = price(3333, 0, 0);
+    expect(b.commissionMinor).toBe(167); // round(166.65)
+    expect(Number.isInteger(b.commissionMinor)).toBe(true);
   });
 });
 
@@ -329,7 +307,7 @@ describe('Orders Service — Cancel Eligibility', () => {
     '%s should NOT be cancellable',
     (status) => {
       expect(isCancellable(status)).toBe(false);
-    }
+    },
   );
 });
 
@@ -356,7 +334,7 @@ describe('Orders Service — Re-Price Guard', () => {
     const deltas = [
       calculatePriceDelta(1000, 1060), // 6% increase
       calculatePriceDelta(2000, 2050), // 2.5% increase (not significant)
-      calculatePriceDelta(500, 470),   // 6% decrease
+      calculatePriceDelta(500, 470), // 6% decrease
     ];
     const significant = hasSignificantPriceChange(deltas);
     expect(significant).toHaveLength(2);
@@ -379,7 +357,7 @@ describe('Orders Service — Re-Price Guard', () => {
   it('should handle small price changes below threshold', () => {
     const deltas = [
       calculatePriceDelta(10000, 10100), // 1%
-      calculatePriceDelta(5000, 4950),   // -1%
+      calculatePriceDelta(5000, 4950), // -1%
     ];
     const significant = hasSignificantPriceChange(deltas);
     expect(significant).toHaveLength(0);

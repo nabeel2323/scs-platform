@@ -10,16 +10,25 @@
  */
 
 import { getDeviceId } from './device-id';
+import type {
+  AuthSession,
+  AuthTokens,
+  RefreshResponse,
+  SwitchOrgResponse,
+  DeviceCheckResponse,
+  LoginPasswordResponse,
+  SessionInfo,
+  UserProfile,
+} from '@scs/contracts';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_web_session';
 const USER_KEY = 'scs_web_user';
 
-export interface AuthSession {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-}
+// Session envelope + auth wire types are shared from @scs/contracts (ADM-B3) so
+// web, admin and mobile stop redefining them. Re-exported to keep this module's
+// public surface stable for existing importers of `AuthSession`.
+export type { AuthSession };
 
 export interface AuthUser {
   id: string;
@@ -29,9 +38,48 @@ export interface AuthUser {
   role?: string;
 }
 
+// ── Rate-limit (429) error ───────────────────────────────────
+
+/**
+ * Error carrying rate-limit context from a 429 so login UIs can show remaining
+ * attempts and the lockout countdown (Quick win 5). Reads the standard
+ * `X-RateLimit-Remaining` / `Retry-After` headers, falling back to the RFC 7807
+ * body extensions (`remainingAttempts` / `retryAfterSeconds`).
+ */
+export class LoginRateLimitError extends Error {
+  readonly remainingAttempts: number;
+  readonly retryAfterSeconds: number;
+  constructor(message: string, remainingAttempts: number, retryAfterSeconds: number) {
+    super(message);
+    this.name = 'LoginRateLimitError';
+    this.remainingAttempts = remainingAttempts;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/** Build a LoginRateLimitError from a 429 response (headers first, body fallback). */
+async function toRateLimitError(res: Response, fallback: string): Promise<LoginRateLimitError> {
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const headerRemaining = res.headers.get('X-RateLimit-Remaining');
+  const headerRetry = res.headers.get('Retry-After');
+  const remaining = Number(headerRemaining ?? body['remainingAttempts'] ?? 0);
+  const retryAfter = Number(headerRetry ?? body['retryAfterSeconds'] ?? 0);
+  const message = String(body['detail'] || body['message'] || fallback);
+  return new LoginRateLimitError(
+    message,
+    Number.isFinite(remaining) ? remaining : 0,
+    Number.isFinite(retryAfter) ? retryAfter : 0,
+  );
+}
+
 // ── In-memory session store (SSR-safe) ───────────────────────
 let currentSession: AuthSession | null = null;
 let currentUser: AuthUser | null = null;
+
+// Single-flight guard for token refresh (WEB-B4). Concurrent 401s must share
+// ONE rotation; parallel rotations trip the server's refresh-reuse detection
+// and revoke the entire session chain, logging the user out.
+let refreshPromise: Promise<AuthSession> | null = null;
 
 // ── localStorage persistence (SSR-safe) ─────────────────────
 
@@ -125,7 +173,10 @@ export async function requestOtp(phone: string): Promise<{ success: boolean }> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone }),
   });
-  if (!res.ok) throw new Error(`OTP request failed: ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    throw new Error(`OTP request failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -144,7 +195,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
     }),
   });
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
-  const data = await res.json();
+  const data = (await res.json()) as AuthTokens;
 
   const session: AuthSession = {
     accessToken: data.accessToken,
@@ -160,13 +211,16 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
     if (profileRes.ok) {
-      const profile = await profileRes.json();
+      // /v1/me is the UserProfile contract; the server now resolves `role` for
+      // the caller's active org, so the web hydrates it directly from the
+      // profile (no client-side JWT decoding) — matching the admin projection.
+      const profile = (await profileRes.json()) as UserProfile;
       currentUser = {
         id: profile.id,
         phone: profile.phone,
         fullName: profile.fullName,
         activeOrgId: profile.activeOrgId ?? undefined,
-        role: profile.role,
+        role: profile.role ?? undefined,
       };
       persistUser(currentUser);
       notifyAuthChange();
@@ -178,27 +232,46 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   return session;
 }
 
-export async function refreshSession(): Promise<AuthSession> {
+export function refreshSession(): Promise<AuthSession> {
+  // Coalesce concurrent refreshes into a single in-flight rotation (WEB-B4).
+  if (!refreshPromise) {
+    refreshPromise = performRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function performRefresh(): Promise<AuthSession> {
   if (!currentSession) throw new Error('No session to refresh');
 
+  const refreshTokenUsed = currentSession.refreshToken;
   const res = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${currentSession.accessToken}`,
     },
-    body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
+    body: JSON.stringify({ refreshToken: refreshTokenUsed }),
   });
   if (!res.ok) {
     currentSession = null;
     currentUser = null;
     throw new Error(`Refresh failed: ${res.status}`);
   }
-  const data = await res.json();
+  const data = (await res.json()) as RefreshResponse;
+
+  // If a logout (or a newer refresh) superseded this call while it awaited the
+  // network, drop the result rather than resurrecting a cleared session.
+  if (!currentSession || currentSession.refreshToken !== refreshTokenUsed) {
+    throw new Error('Refresh superseded');
+  }
 
   const session: AuthSession = {
     accessToken: data.accessToken,
-    refreshToken: data.newRefreshToken ?? data.refreshToken,
+    // Rotation returns the next refresh token as `newRefreshToken` (the old
+    // `?? data.refreshToken` fallback read a field the API never returns).
+    refreshToken: data.newRefreshToken,
     expiresAt: Date.now() + 15 * 60 * 1000,
   };
   currentSession = session;
@@ -223,6 +296,7 @@ export async function logout(): Promise<void> {
   }
   currentSession = null;
   currentUser = null;
+  refreshPromise = null;
   persistSession(null);
   persistUser(null);
   notifyAuthChange();
@@ -240,7 +314,7 @@ export async function switchOrg(orgId: string): Promise<AuthSession> {
     body: JSON.stringify({ orgId }),
   });
   if (!res.ok) throw new Error(`Switch org failed: ${res.status}`);
-  const data = await res.json();
+  const data = (await res.json()) as SwitchOrgResponse;
 
   const session: AuthSession = {
     ...currentSession,
@@ -258,18 +332,17 @@ export async function switchOrg(orgId: string): Promise<AuthSession> {
  * Check if device can auto-login for a given email.
  * Pre-flight check before showing login form.
  */
-export async function checkDeviceLogin(email: string, deviceId: string): Promise<{
-  canAutoLogin: boolean;
-  requiresOtp: boolean;
-  hasPassword: boolean;
-}> {
+export async function checkDeviceLogin(
+  email: string,
+  deviceId: string,
+): Promise<DeviceCheckResponse> {
   const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, deviceId }),
   });
   if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
-  return res.json();
+  return (await res.json()) as DeviceCheckResponse;
 }
 
 /**
@@ -299,15 +372,16 @@ export async function loginPassword(
   });
 
   if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many login attempts.');
     const error = await res.json().catch(() => ({}));
     throw new Error(error.detail || error.message || 'Login failed');
   }
 
-  const data = await res.json();
+  const data = (await res.json()) as LoginPasswordResponse;
 
   // If OTP required, return that info
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone };
+    return { requiresOtp: true, otpPhone: data.otpPhone ?? '' };
   }
 
   // Otherwise, create session
@@ -325,13 +399,13 @@ export async function loginPassword(
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
     if (profileRes.ok) {
-      const profile = await profileRes.json();
+      const profile = (await profileRes.json()) as UserProfile;
       currentUser = {
         id: profile.id,
         phone: profile.phone,
         fullName: profile.fullName,
         activeOrgId: profile.activeOrgId ?? undefined,
-        role: profile.role,
+        role: profile.role ?? undefined,
       };
       persistUser(currentUser);
       notifyAuthChange();
@@ -395,16 +469,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 /**
  * Get user's active sessions.
  */
-export async function getSessions(): Promise<Array<{
-  id: string;
-  device: string;
-  deviceId: string | null;
-  ip: string | null;
-  createdAt: string;
-  expiresAt: string;
-  isCurrent: boolean;
-  isRevoked: boolean;
-}>> {
+export async function getSessions(): Promise<SessionInfo[]> {
   if (!currentSession) throw new Error('No active session');
 
   const res = await fetch(`${API_URL}/v1/me/sessions`, {
@@ -412,7 +477,7 @@ export async function getSessions(): Promise<Array<{
   });
 
   if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`);
-  return res.json();
+  return (await res.json()) as SessionInfo[];
 }
 
 /**

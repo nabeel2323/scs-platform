@@ -14,9 +14,15 @@ import {
   submitVerification,
   type UserProfile,
 } from '../../../lib/api';
-import { getUser } from '../../../lib/auth';
+import { getUser, switchOrg } from '../../../lib/auth';
 
-const STEPS = ['Your Profile', 'Business Details', 'Store Info', 'Documents', 'Review & Submit'] as const;
+const STEPS = [
+  'Your Profile',
+  'Business Details',
+  'Store Info',
+  'Documents',
+  'Review & Submit',
+] as const;
 type Step = (typeof STEPS)[number];
 
 const ORG_TYPES = [
@@ -106,7 +112,9 @@ export default function MerchantRegistrationPage() {
   const [managerName, setManagerName] = useState('');
 
   // Step 4: Documents
-  const [documents, setDocuments] = useState<{ docType: string; fileName: string; fileSize: number; mimeType: string }[]>([]);
+  const [documents, setDocuments] = useState<
+    { docType: string; fileName: string; fileSize: number; mimeType: string }[]
+  >([]);
   const [newDocType, setNewDocType] = useState('COMMERCIAL_REG');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,7 +137,13 @@ export default function MerchantRegistrationPage() {
         // Pre-fill name from auth user if available
         const authUser = getUser();
         const authName = authUser?.fullName;
-        setFullName(p.fullName !== 'New User' ? p.fullName : (authName && authName !== 'New User' ? authName : ''));
+        setFullName(
+          p.fullName !== 'New User'
+            ? p.fullName
+            : authName && authName !== 'New User'
+              ? authName
+              : '',
+        );
         setEmail(p.email || '');
       } catch {
         // If profile fetch fails, user might not be logged in
@@ -143,12 +157,15 @@ export default function MerchantRegistrationPage() {
 
   function addDocument() {
     if (!selectedFile) return;
-    setDocuments([...documents, {
-      docType: newDocType,
-      fileName: selectedFile.name,
-      fileSize: selectedFile.size,
-      mimeType: selectedFile.type || 'application/pdf',
-    }]);
+    setDocuments([
+      ...documents,
+      {
+        docType: newDocType,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        mimeType: selectedFile.type || 'application/pdf',
+      },
+    ]);
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
@@ -162,7 +179,10 @@ export default function MerchantRegistrationPage() {
 
     if (currentStep === 0) {
       // Update profile
-      if (!fullName.trim()) { setError('Full name is required'); return; }
+      if (!fullName.trim()) {
+        setError('Full name is required');
+        return;
+      }
       setSubmitting(true);
       try {
         await updateProfile({
@@ -178,7 +198,10 @@ export default function MerchantRegistrationPage() {
     } else if (currentStep === 1) {
       // Join an existing organization via invite code (short-circuits the wizard)
       if (orgMode === 'join') {
-        if (!inviteCode.trim()) { setError('Invite code is required'); return; }
+        if (!inviteCode.trim()) {
+          setError('Invite code is required');
+          return;
+        }
         setSubmitting(true);
         setError(null);
         try {
@@ -193,7 +216,10 @@ export default function MerchantRegistrationPage() {
         return;
       }
       // Create organization
-      if (!orgName.trim()) { setError('Business name is required'); return; }
+      if (!orgName.trim()) {
+        setError('Business name is required');
+        return;
+      }
       setSubmitting(true);
       try {
         const org = await createOrganization({
@@ -204,6 +230,10 @@ export default function MerchantRegistrationPage() {
           taxId: taxId.trim() || undefined,
         });
         setCreatedOrgId(org.id);
+        // The JWT issued at login predates this org, so it carries no merchant
+        // permissions. Re-issue it for the new org (MERCHANT_OWNER) so the gated
+        // store/warehouse/document/verification writes below are authorized (API-B6).
+        await switchOrg(org.id);
         setCurrentStep(2);
       } catch (err: any) {
         setError(err.message || 'Failed to create organization');
@@ -212,8 +242,14 @@ export default function MerchantRegistrationPage() {
       }
     } else if (currentStep === 2) {
       // Create store + optional warehouse
-      if (!displayName.trim()) { setError('Store name is required'); return; }
-      if (!createdOrgId) { setError('Organization not created. Go back.'); return; }
+      if (!displayName.trim()) {
+        setError('Store name is required');
+        return;
+      }
+      if (!createdOrgId) {
+        setError('Organization not created. Go back.');
+        return;
+      }
       setSubmitting(true);
       try {
         const store = await createStore({
@@ -282,7 +318,15 @@ export default function MerchantRegistrationPage() {
 
   if (loadingProfile) {
     return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 24px', textAlign: 'center', color: '#5b6b74' }}>
+      <main
+        style={{
+          maxWidth: 720,
+          margin: '0 auto',
+          padding: '48px 24px',
+          textAlign: 'center',
+          color: '#5b6b74',
+        }}
+      >
         Loading your profile...
       </main>
     );
@@ -290,7 +334,16 @@ export default function MerchantRegistrationPage() {
 
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '32px 24px' }}>
-      <Link href="/" style={{ color: '#174a5b', textDecoration: 'none', fontSize: 14, display: 'block', marginBottom: 20 }}>
+      <Link
+        href="/"
+        style={{
+          color: '#174a5b',
+          textDecoration: 'none',
+          fontSize: 14,
+          display: 'block',
+          marginBottom: 20,
+        }}
+      >
         &larr; Back to Home
       </Link>
 
@@ -298,7 +351,8 @@ export default function MerchantRegistrationPage() {
         Merchant Registration
       </h1>
       <p style={{ color: '#5b6b74', marginBottom: 24 }}>
-        Register your business on the platform — create an organization, set up your store, and submit for verification.
+        Register your business on the platform — create an organization, set up your store, and
+        submit for verification.
       </p>
 
       {/* Step indicator */}
@@ -322,13 +376,29 @@ export default function MerchantRegistrationPage() {
       </div>
 
       {error && (
-        <div style={{ padding: '10px 16px', background: '#ffebee', color: '#c62828', borderRadius: 6, marginBottom: 16 }}>
+        <div
+          style={{
+            padding: '10px 16px',
+            background: '#ffebee',
+            color: '#c62828',
+            borderRadius: 6,
+            marginBottom: 16,
+          }}
+        >
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ padding: '10px 16px', background: '#e8f5e9', color: '#2e7d32', borderRadius: 6, marginBottom: 16 }}>
+        <div
+          style={{
+            padding: '10px 16px',
+            background: '#e8f5e9',
+            color: '#2e7d32',
+            borderRadius: 6,
+            marginBottom: 16,
+          }}
+        >
           {success}
         </div>
       )}
@@ -358,7 +428,15 @@ export default function MerchantRegistrationPage() {
             />
           </Field>
           {profile?.phone && (
-            <div style={{ padding: '8px 12px', background: '#f0f7f4', borderRadius: 6, fontSize: 13, color: '#2e7d32' }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                background: '#f0f7f4',
+                borderRadius: 6,
+                fontSize: 13,
+                color: '#2e7d32',
+              }}
+            >
               Phone: <b>{profile.phone}</b> (verified via OTP)
             </div>
           )}
@@ -370,12 +448,18 @@ export default function MerchantRegistrationPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Create a new organization or join an existing one */}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={() => setOrgMode('create')}
-              style={{ ...toggleBtnStyle, ...(orgMode === 'create' ? toggleBtnActive : {}) }}>
+            <button
+              type="button"
+              onClick={() => setOrgMode('create')}
+              style={{ ...toggleBtnStyle, ...(orgMode === 'create' ? toggleBtnActive : {}) }}
+            >
               Create New Organization
             </button>
-            <button type="button" onClick={() => setOrgMode('join')}
-              style={{ ...toggleBtnStyle, ...(orgMode === 'join' ? toggleBtnActive : {}) }}>
+            <button
+              type="button"
+              onClick={() => setOrgMode('join')}
+              style={{ ...toggleBtnStyle, ...(orgMode === 'join' ? toggleBtnActive : {}) }}
+            >
               Join with Invite Code
             </button>
           </div>
@@ -399,7 +483,8 @@ export default function MerchantRegistrationPage() {
           ) : (
             <>
               <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
-                Enter your business information. This will be used for verification and legal compliance.
+                Enter your business information. This will be used for verification and legal
+                compliance.
               </p>
               <Field label="Business Name *">
                 <input
@@ -421,16 +506,28 @@ export default function MerchantRegistrationPage() {
               </Field>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Field label="Business Type *">
-                  <select value={orgType} onChange={(e) => setOrgType(e.target.value)} style={inputStyle}>
-                    {ORG_TYPES.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                  <select
+                    value={orgType}
+                    onChange={(e) => setOrgType(e.target.value)}
+                    style={inputStyle}
+                  >
+                    {ORG_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
                     ))}
                   </select>
                 </Field>
                 <Field label="Country *">
-                  <select value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle}>
-                    {COUNTRIES.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
+                  <select
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    style={inputStyle}
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
                     ))}
                   </select>
                 </Field>
@@ -475,8 +572,16 @@ export default function MerchantRegistrationPage() {
           </Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Field label="Currency">
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle}>
-                {CURRENCIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                style={inputStyle}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Locale">
@@ -538,7 +643,8 @@ export default function MerchantRegistrationPage() {
       {currentStep === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
-            Upload verification documents to speed up the approval process. You can skip and add later.
+            Upload verification documents to speed up the approval process. You can skip and add
+            later.
           </p>
 
           {documents.length > 0 && (
@@ -557,13 +663,16 @@ export default function MerchantRegistrationPage() {
                   }}
                 >
                   <span style={{ fontSize: 14, color: '#0f3340' }}>
-                    <b>{DOC_TYPES.find(d => d.value === doc.docType)?.label || doc.docType}</b>
-                    {' — '}{doc.fileName}
+                    <b>{DOC_TYPES.find((d) => d.value === doc.docType)?.label || doc.docType}</b>
+                    {' — '}
+                    {doc.fileName}
                     <span style={{ color: '#8a9ba5', marginLeft: 8, fontSize: 12 }}>
                       ({(doc.fileSize / 1024).toFixed(1)} KB)
                     </span>
                   </span>
-                  <button onClick={() => removeDocument(idx)} style={linkBtnStyle}>Remove</button>
+                  <button onClick={() => removeDocument(idx)} style={linkBtnStyle}>
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>
@@ -571,9 +680,15 @@ export default function MerchantRegistrationPage() {
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <Field label="Document Type">
-              <select value={newDocType} onChange={(e) => setNewDocType(e.target.value)} style={inputStyle}>
-                {DOC_TYPES.map(dt => (
-                  <option key={dt.value} value={dt.value}>{dt.label}</option>
+              <select
+                value={newDocType}
+                onChange={(e) => setNewDocType(e.target.value)}
+                style={inputStyle}
+              >
+                {DOC_TYPES.map((dt) => (
+                  <option key={dt.value} value={dt.value}>
+                    {dt.label}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -586,7 +701,16 @@ export default function MerchantRegistrationPage() {
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
               />
             </Field>
-            <button onClick={addDocument} disabled={!selectedFile} style={{ ...primaryBtnStyle, marginBottom: 0, whiteSpace: 'nowrap', opacity: selectedFile ? 1 : 0.5 }}>
+            <button
+              onClick={addDocument}
+              disabled={!selectedFile}
+              style={{
+                ...primaryBtnStyle,
+                marginBottom: 0,
+                whiteSpace: 'nowrap',
+                opacity: selectedFile ? 1 : 0.5,
+              }}
+            >
               Add
             </button>
           </div>
@@ -596,15 +720,31 @@ export default function MerchantRegistrationPage() {
       {/* Step 5: Review & Submit */}
       {currentStep === 4 && (
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Registration Summary</h3>
-          <div style={{ background: '#f8fafb', borderRadius: 8, padding: 20, border: '1px solid #e0e7eb', marginBottom: 16 }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
+            Registration Summary
+          </h3>
+          <div
+            style={{
+              background: '#f8fafb',
+              borderRadius: 8,
+              padding: 20,
+              border: '1px solid #e0e7eb',
+              marginBottom: 16,
+            }}
+          >
             <SummaryRow label="Your Name" value={fullName} />
             {email && <SummaryRow label="Email" value={email} />}
             <div style={{ height: 8 }} />
             <SummaryRow label="Business" value={orgName} />
             {legalName && <SummaryRow label="Legal Name" value={legalName} />}
-            <SummaryRow label="Type" value={ORG_TYPES.find(t => t.value === orgType)?.label || orgType} />
-            <SummaryRow label="Country" value={COUNTRIES.find(c => c.value === country)?.label || country} />
+            <SummaryRow
+              label="Type"
+              value={ORG_TYPES.find((t) => t.value === orgType)?.label || orgType}
+            />
+            <SummaryRow
+              label="Country"
+              value={COUNTRIES.find((c) => c.value === country)?.label || country}
+            />
             {taxId && <SummaryRow label="Tax ID" value={taxId} />}
             <div style={{ height: 8 }} />
             <SummaryRow label="Store" value={displayName} />
@@ -612,11 +752,27 @@ export default function MerchantRegistrationPage() {
             <SummaryRow label="Locale" value={locale} />
             {city && <SummaryRow label="City" value={city} />}
             {warehouseName && <SummaryRow label="Warehouse" value={warehouseName} />}
-            <SummaryRow label="Documents" value={documents.length > 0 ? `${documents.length} file(s), ${(documents.reduce((s, d) => s + d.fileSize, 0) / 1024).toFixed(1)} KB total` : 'None'} />
+            <SummaryRow
+              label="Documents"
+              value={
+                documents.length > 0
+                  ? `${documents.length} file(s), ${(documents.reduce((s, d) => s + d.fileSize, 0) / 1024).toFixed(1)} KB total`
+                  : 'None'
+              }
+            />
           </div>
-          <div style={{ padding: '12px 16px', background: '#e3f2fd', borderRadius: 6, color: '#1565c0', fontSize: 14, marginBottom: 8 }}>
-            By submitting, your store will be queued for platform verification.
-            An admin will review your application and approve or request changes.
+          <div
+            style={{
+              padding: '12px 16px',
+              background: '#e3f2fd',
+              borderRadius: 6,
+              color: '#1565c0',
+              fontSize: 14,
+              marginBottom: 8,
+            }}
+          >
+            By submitting, your store will be queued for platform verification. An admin will review
+            your application and approve or request changes.
           </div>
         </div>
       )}
@@ -627,17 +783,27 @@ export default function MerchantRegistrationPage() {
           <button onClick={() => setCurrentStep(currentStep - 1)} style={secondaryBtnStyle}>
             &larr; Previous
           </button>
-        ) : <div />}
+        ) : (
+          <div />
+        )}
 
         {currentStep < 4 ? (
           <button onClick={handleNext} disabled={submitting} style={primaryBtnStyle}>
-            {submitting ? 'Processing...' : (currentStep === 1 && orgMode === 'join' ? 'Join Organization' : 'Next →')}
+            {submitting
+              ? 'Processing...'
+              : currentStep === 1 && orgMode === 'join'
+                ? 'Join Organization'
+                : 'Next →'}
           </button>
         ) : (
-          <button onClick={handleSubmit} disabled={submitting} style={{
-            ...primaryBtnStyle,
-            background: submitting ? '#8a9ba5' : '#2e7d32',
-          }}>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              ...primaryBtnStyle,
+              background: submitting ? '#8a9ba5' : '#2e7d32',
+            }}
+          >
             {submitting ? 'Submitting...' : 'Submit for Verification'}
           </button>
         )}
@@ -710,7 +876,9 @@ const linkBtnStyle: React.CSSProperties = {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ flex: 1 }}>
-      <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
+        {label}
+      </label>
       {children}
     </div>
   );
@@ -718,7 +886,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eef2f4' }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '6px 0',
+        borderBottom: '1px solid #eef2f4',
+      }}
+    >
       <span style={{ color: '#8a9ba5', fontSize: 14 }}>{label}</span>
       <span style={{ color: '#0f3340', fontSize: 14, fontWeight: 500 }}>{value}</span>
     </div>

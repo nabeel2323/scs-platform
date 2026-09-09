@@ -27,6 +27,8 @@ export interface UserProfile {
   fullName: string;
   locale: string;
   status: string;
+  /** Current role in the active org, resolved server-side (mirrors @scs/contracts). */
+  role: string;
   activeOrgId: string | null;
   organizations: (Organization & { membershipStatus: string })[];
   createdAt: string;

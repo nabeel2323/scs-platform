@@ -6,8 +6,13 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { assertJwtConfig } from './config/env-gate';
 
 async function bootstrap() {
+  // Fail fast on insecure JWT configuration (API-B7) before creating the app,
+  // binding a port, or opening any DB/Redis connections.
+  assertJwtConfig();
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
@@ -16,9 +21,9 @@ async function bootstrap() {
   app.use(helmet());
   app.enableCors({
     origin: process.env['API_CORS_ORIGINS']?.split(',') || [
-      'http://localhost:3100',  // web
-      'http://localhost:3200',  // admin
-      'http://localhost:3300',  // mobile (if applicable)
+      'http://localhost:3100', // web
+      'http://localhost:3200', // admin
+      'http://localhost:3300', // mobile (if applicable)
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

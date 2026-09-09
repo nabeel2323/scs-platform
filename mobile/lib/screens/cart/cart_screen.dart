@@ -23,13 +23,14 @@ class CartScreen extends ConsumerWidget {
         ]),
         body: cart.when(
           data: (c) {
-            if (c.items.isEmpty)
+            if (c.items.isEmpty) {
               return EmptyState(
                   title: 'Cart is empty',
                   description: 'Browse products and add items to your cart',
                   icon: Icons.shopping_cart_outlined,
                   onAction: () => context.go('/search'),
                   actionLabel: 'Browse Products');
+            }
             final grouped = <String, List<CartItem>>{};
             for (final item in c.items) {
               (grouped[item.storeId] ??= []).add(item);
@@ -120,7 +121,7 @@ class CartScreen extends ConsumerWidget {
                           .toList())),
               Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                       color: Colors.white,
                       border: Border(top: BorderSide(color: TaifTokens.line))),
                   child: SafeArea(

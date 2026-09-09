@@ -254,7 +254,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
         Padding(
           padding: const EdgeInsets.only(top: 2),
           child: Text(widget.tierHint!,
-              style: TextStyle(
+              style: const TextStyle(
                   fontSize: 11,
                   color: TaifTokens.ok,
                   fontStyle: FontStyle.italic)),
@@ -287,8 +287,8 @@ class TierLadder extends StatelessWidget {
               color: TaifTokens.muted.withValues(alpha: 0.08),
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(7))),
-          child: Text('QUANTITY TIERS',
-              style: TextStyle(
+          child: const Text('QUANTITY TIERS',
+              style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: TaifTokens.muted,

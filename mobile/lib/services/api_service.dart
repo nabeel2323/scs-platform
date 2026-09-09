@@ -13,22 +13,22 @@ class ApiService {
 
   /// Verify OTP. Attaches deviceId + deviceInfo so the session is
   /// registered as a trusted device for future password logins.
-  Future<Map<String, dynamic>> verifyOtp(String phone, String otp) async {
+  Future<AuthTokens> verifyOtp(String phone, String otp) async {
     final deviceId = await DeviceIdService.instance.getDeviceId();
     final deviceInfo = await DeviceIdService.instance.getDeviceInfo();
-    return (await _dio.post('/v1/auth/otp/verify', data: {
+    return AuthTokens.fromJson((await _dio.post('/v1/auth/otp/verify', data: {
       'phone': phone,
       'otp': otp,
       'deviceId': deviceId,
       'deviceInfo': deviceInfo,
     }))
-        .data;
+        .data);
   }
 
   // ── Dual Authentication (Password Login) ──────────────────
   /// Login with email and password.
   /// Returns session if device is trusted, or requires OTP if device changed.
-  Future<Map<String, dynamic>> loginPassword(
+  Future<LoginPasswordResponse> loginPassword(
     String email,
     String password,
     String deviceId,
@@ -44,15 +44,16 @@ class ApiService {
       },
       options: Options(headers: {'X-Device-Id': deviceId}),
     );
-    return response.data;
+    return LoginPasswordResponse.fromJson(response.data);
   }
 
   /// Pre-flight check for device-based login.
-  Future<Map<String, dynamic>> checkDeviceLogin(
+  Future<DeviceCheckResponse> checkDeviceLogin(
           String email, String deviceId) async =>
-      (await _dio.post('/v1/auth/login/device-check',
+      DeviceCheckResponse.fromJson((await _dio.post(
+              '/v1/auth/login/device-check',
               data: {'email': email, 'deviceId': deviceId}))
-          .data;
+          .data);
 
   /// Set up email and password credentials.
   Future<void> setupCredentials(
@@ -84,8 +85,11 @@ class ApiService {
   }
 
   /// Get user's active sessions.
-  Future<List<Map<String, dynamic>>> fetchSessions() async =>
-      (await _dio.get('/v1/me/sessions')).data.cast<Map<String, dynamic>>();
+  Future<List<SessionInfo>> fetchSessions() async =>
+      (await _dio.get('/v1/me/sessions'))
+          .data
+          .map<SessionInfo>((e) => SessionInfo.fromJson(e))
+          .toList();
 
   /// Revoke sessions by device ID.
   Future<void> revokeSessionsByDevice(String deviceId) async =>
@@ -164,8 +168,14 @@ class ApiService {
           data: {'userId': userId, 'roleId': roleId});
   Future<void> removeOrgMember(String orgId, String userId) async =>
       _dio.delete('/v1/organizations/$orgId/members/$userId');
-  Future<void> switchOrg(String orgId) async =>
-      _dio.post('/v1/me/switch-org', data: {'orgId': orgId});
+
+  /// Switch the active organization. Returns the re-minted access token; the
+  /// caller MUST persist it because the prior token is denylisted server-side
+  /// (API-B9). Path corrected to /v1/auth/switch-org (was a dead /v1/me route).
+  Future<SwitchOrgResponse> switchOrg(String orgId) async =>
+      SwitchOrgResponse.fromJson(
+          (await _dio.post('/v1/auth/switch-org', data: {'orgId': orgId}))
+              .data);
 
   // ── Search ────────────────────────────────────────────────
   Future<SearchResult> search(

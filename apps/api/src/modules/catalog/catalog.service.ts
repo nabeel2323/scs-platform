@@ -1,10 +1,25 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
-import { categories, brands, products, productVariants, productMedia, importJobs, favorites } from './catalog.schema';
+import {
+  categories,
+  brands,
+  products,
+  productVariants,
+  productMedia,
+  importJobs,
+  favorites,
+  savedSuppliers,
+} from './catalog.schema';
+import { stores } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
-import { eq, and, isNull, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -22,7 +37,12 @@ export class CatalogService {
 
   async createCategory(input: CreateCategoryInput) {
     const id = crypto.randomUUID();
-    const slug = input.slug || input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const slug =
+      input.slug ||
+      input.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
 
     let path = `/${slug}`;
     if (input.parentId) {
@@ -121,7 +141,12 @@ export class CatalogService {
 
   async createBrand(input: CreateBrandInput) {
     const id = crypto.randomUUID();
-    const slug = input.slug || input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    const slug =
+      input.slug ||
+      input.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
 
     await this.db.db.insert(brands).values({
       id,
@@ -154,7 +179,12 @@ export class CatalogService {
 
   async createProduct(input: CreateProductInput, userId: string) {
     const id = crypto.randomUUID();
-    const slug = input.slug || `${input.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}-${crypto.randomUUID().substring(0, 8)}`;
+    const slug =
+      input.slug ||
+      `${input.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')}-${crypto.randomUUID().substring(0, 8)}`;
 
     await this.db.db.insert(products).values({
       id,
@@ -230,11 +260,14 @@ export class CatalogService {
 
   async deleteProduct(id: string) {
     await this.getProduct(id);
-    await this.db.db.update(products).set({
-      deletedAt: new Date(),
-      isAvailable: false,
-      updatedAt: new Date(),
-    }).where(eq(products.id, id));
+    await this.db.db
+      .update(products)
+      .set({
+        deletedAt: new Date(),
+        isAvailable: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id));
     return { success: true };
   }
 
@@ -409,7 +442,8 @@ export class CatalogService {
       throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor');
     }
 
-    await this.db.db.update(importJobs)
+    await this.db.db
+      .update(importJobs)
       .set({
         status: 'IMPORTING',
         startedAt: new Date(),
@@ -449,11 +483,19 @@ export class CatalogService {
 
         // Progress checkpoint every 25 rows so polling clients see movement
         if ((i + 1) % 25 === 0 || i + 1 === rows.length) {
-          await this.db.db.update(importJobs)
+          await this.db.db
+            .update(importJobs)
             .set({
               processedRows: i + 1,
               errorRows: errorLog.length,
-              stats: { total: rows.length, processed: i + 1, created, updated, skipped, errors: errorLog.length },
+              stats: {
+                total: rows.length,
+                processed: i + 1,
+                created,
+                updated,
+                skipped,
+                errors: errorLog.length,
+              },
               updatedAt: new Date(),
             })
             .where(eq(importJobs.id, id));
@@ -461,7 +503,8 @@ export class CatalogService {
       }
     } catch (e) {
       // Catastrophic failure (e.g. DB connection lost) — mark FAILED, keep staged rows for retry
-      await this.db.db.update(importJobs)
+      await this.db.db
+        .update(importJobs)
         .set({
           status: 'FAILED',
           errorLog: [{ row: 0, field: 'job', message: (e as Error).message }],
@@ -471,13 +514,21 @@ export class CatalogService {
       throw e;
     }
 
-    await this.db.db.update(importJobs)
-    .set({
+    await this.db.db
+      .update(importJobs)
+      .set({
         status: 'COMPLETED',
         processedRows: rows.length,
         errorRows: errorLog.length,
         errorLog,
-        stats: { total: rows.length, processed: rows.length, created, updated, skipped, errors: errorLog.length },
+        stats: {
+          total: rows.length,
+          processed: rows.length,
+          created,
+          updated,
+          skipped,
+          errors: errorLog.length,
+        },
         completedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -517,7 +568,10 @@ export class CatalogService {
     const priceRaw = get('priceMinor');
     const priceMinor = parseInt(priceRaw, 10);
     if (!priceRaw || isNaN(priceMinor) || priceMinor < 0) {
-      throw new ImportRowError('priceMinor', `Row ${rowNum}: invalid price "${priceRaw}" (expected minor units, e.g. 1050)`);
+      throw new ImportRowError(
+        'priceMinor',
+        `Row ${rowNum}: invalid price "${priceRaw}" (expected minor units, e.g. 1050)`,
+      );
     }
 
     const moqRaw = get('moq');
@@ -541,17 +595,20 @@ export class CatalogService {
       .select({ variantId: productVariants.id, productId: products.id })
       .from(productVariants)
       .innerJoin(products, eq(products.id, productVariants.productId))
-      .where(and(
-        eq(productVariants.sku, sku),
-        eq(products.storeId, storeId),
-        isNull(products.deletedAt),
-      ))
+      .where(
+        and(
+          eq(productVariants.sku, sku),
+          eq(products.storeId, storeId),
+          isNull(products.deletedAt),
+        ),
+      )
       .limit(1);
 
     if (existing.length > 0) {
       const match = existing[0]!;
       await this.upsertBasePrice(priceListId, match.variantId, priceMinor);
-      await this.db.db.update(products)
+      await this.db.db
+        .update(products)
         .set({
           moq,
           ...(description ? { description } : {}),
@@ -565,7 +622,11 @@ export class CatalogService {
 
     // Create product (DRAFT) + default variant + base price
     const productId = crypto.randomUUID();
-    const slugBase = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'product';
+    const slugBase =
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'product';
     const slug = `${slugBase}-${crypto.randomUUID().substring(0, 8)}`;
 
     await this.db.db.insert(products).values({
@@ -630,7 +691,12 @@ export class CatalogService {
     if (existing) return existing.id;
 
     const id = crypto.randomUUID();
-    const slug = `${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'category'}-${crypto.randomUUID().substring(0, 8)}`;
+    const slug = `${
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'category'
+    }-${crypto.randomUUID().substring(0, 8)}`;
     await this.db.db.insert(categories).values({
       id,
       storeId,
@@ -650,7 +716,12 @@ export class CatalogService {
     if (existing) return existing.id;
 
     const id = crypto.randomUUID();
-    const slug = `${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'brand'}-${crypto.randomUUID().substring(0, 8)}`;
+    const slug = `${
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'brand'
+    }-${crypto.randomUUID().substring(0, 8)}`;
     await this.db.db.insert(brands).values({ id, name, slug });
     return id;
   }
@@ -665,7 +736,8 @@ export class CatalogService {
       ),
     });
     if (existing) {
-      await this.db.db.update(priceTiers)
+      await this.db.db
+        .update(priceTiers)
         .set({ unitPriceMinor: priceMinor, updatedAt: new Date() })
         .where(eq(priceTiers.id, existing.id));
     } else {
@@ -711,9 +783,64 @@ export class CatalogService {
   }
 
   async removeFavorite(userId: string, productId: string) {
-    await this.db.db.delete(favorites).where(
-      and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
-    );
+    await this.db.db
+      .delete(favorites)
+      .where(and(eq(favorites.userId, userId), eq(favorites.productId, productId)));
+    return { success: true };
+  }
+
+  // ── Saved Suppliers (§21.3) ──────────────────────────────────
+
+  /**
+   * List the stores (suppliers) a retailer has saved, enriched with store data.
+   * Stores are fetched in ONE batched query (inArray) to avoid an N+1 per save.
+   */
+  async listSavedSuppliers(userId: string) {
+    const saved = await this.db.db.query.savedSuppliers.findMany({
+      where: eq(savedSuppliers.userId, userId),
+      orderBy: [desc(savedSuppliers.createdAt)],
+    });
+    if (saved.length === 0) return [];
+
+    const storeIds = saved.map((s) => s['storeId']);
+    const storeRows = await this.db.db.select().from(stores).where(inArray(stores.id, storeIds));
+
+    const storeById: Record<string, (typeof storeRows)[number]> = {};
+    for (const st of storeRows) storeById[st['id']] = st;
+
+    return saved
+      .map((s) => ({ ...s, store: storeById[s['storeId']] ?? null }))
+      .filter((entry) => entry.store !== null);
+  }
+
+  /**
+   * Save a store as a supplier for the user. Idempotent: re-saving returns the
+   * existing row. Throws NotFoundException if the store does not exist.
+   */
+  async saveSupplier(userId: string, storeId: string) {
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+    });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const existing = await this.db.db.query.savedSuppliers.findFirst({
+      where: and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)),
+    });
+    if (existing) return existing;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(savedSuppliers).values({ id, userId, storeId });
+    return { id, userId, storeId, createdAt: new Date() };
+  }
+
+  /**
+   * Remove a saved supplier. Idempotent: removing a store that was never saved
+   * is a no-op that still reports success.
+   */
+  async removeSavedSupplier(userId: string, storeId: string) {
+    await this.db.db
+      .delete(savedSuppliers)
+      .where(and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)));
     return { success: true };
   }
 }

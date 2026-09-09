@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, Notification } from '../../lib/buyer-api';
+import { onNotification } from '../../lib/realtime';
 import { formatDate, EmptyState, LoadingSpinner } from '../../components/Shared';
 
 export default function NotificationsPage() {
@@ -17,6 +18,11 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Live in-app notifications over the realtime gateway (WEB-B6) — new items
+  // appear without a manual refresh. The subscribe helper returns its own
+  // unsubscribe, which is exactly the effect cleanup.
+  useEffect(() => onNotification(() => { load(); }), []);
 
   const handleMarkRead = async (id: string) => {
     await markNotificationRead(id);

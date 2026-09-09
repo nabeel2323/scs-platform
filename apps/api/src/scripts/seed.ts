@@ -15,36 +15,63 @@ const DB_USER = 'scs';
 const DB_NAME = 'scs_platform';
 
 function psql(query: string): string {
-  return execFileSync('docker', [
-    'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME, '-t', '-A', '-c', query,
-  ], { encoding: 'utf-8' }).trim();
+  return execFileSync(
+    'docker',
+    ['exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME, '-t', '-A', '-c', query],
+    { encoding: 'utf-8' },
+  ).trim();
 }
 
 const PERMISSIONS = [
   // Identity
-  'identity:users:read', 'identity:users:write', 'identity:users:delete',
-  'identity:roles:read', 'identity:roles:write',
+  'identity:users:read',
+  'identity:users:write',
+  'identity:users:delete',
+  'identity:roles:read',
+  'identity:roles:write',
   // Merchant
-  'merchant:stores:read', 'merchant:stores:write', 'merchant:stores:verify',
-  'merchant:stores:reject', 'merchant:verification:review',
+  'merchant:stores:read',
+  'merchant:stores:write',
+  'merchant:stores:verify',
+  'merchant:stores:reject',
+  'merchant:verification:review',
+  'merchant:products:write',
+  'merchant:orders:write',
+  'merchant:promotions:write',
   // Catalog
-  'catalog:products:read', 'catalog:products:write', 'catalog:products:delete',
-  'catalog:categories:read', 'catalog:categories:write', 'catalog:brands:manage',
+  'catalog:products:read',
+  'catalog:products:write',
+  'catalog:products:delete',
+  'catalog:categories:read',
+  'catalog:categories:write',
+  'catalog:brands:manage',
   // Orders
-  'orders:read', 'orders:write', 'orders:cancel', 'orders:refund',
+  'orders:read',
+  'orders:write',
+  'orders:cancel',
+  'orders:refund',
   // Payments
-  'payments:read', 'payments:refund',
+  'payments:read',
+  'payments:refund',
   // Analytics
   'analytics:read',
   // Audit
   'audit:read',
   // Support
-  'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
+  'support:tickets:read',
+  'support:tickets:write',
+  'support:tickets:escalate',
   // Ads
-  'ads:campaigns:read', 'ads:campaigns:write', 'ads:campaigns:approve',
+  'ads:campaigns:read',
+  'ads:campaigns:write',
+  'ads:campaigns:approve',
   // Admin (platform operations)
-  'admin:orders:read', 'admin:merchants:read', 'admin:kpis:read',
-  'admin:audit:read', 'admin:users:read', 'admin:users:write',
+  'admin:orders:read',
+  'admin:merchants:read',
+  'admin:kpis:read',
+  'admin:audit:read',
+  'admin:users:read',
+  'admin:users:write',
 ];
 
 const ROLES: { key: string; name: string; permissions: string[] }[] = [
@@ -57,26 +84,48 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
     key: 'ADMIN',
     name: 'Platform Admin',
     permissions: [
-      'identity:users:read', 'identity:roles:read',
-      'merchant:stores:read', 'merchant:stores:write', 'merchant:stores:verify', 'merchant:stores:reject',
+      'identity:users:read',
+      'identity:roles:read',
+      'merchant:stores:read',
+      'merchant:stores:write',
+      'merchant:stores:verify',
+      'merchant:stores:reject',
       'merchant:verification:review',
       'catalog:products:read',
-      'orders:read', 'orders:cancel', 'orders:refund',
-      'payments:read', 'payments:refund',
-      'analytics:read', 'audit:read',
-      'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
+      'orders:read',
+      'orders:cancel',
+      'orders:refund',
+      'payments:read',
+      'payments:refund',
+      'analytics:read',
+      'audit:read',
+      'support:tickets:read',
+      'support:tickets:write',
+      'support:tickets:escalate',
       // Admin platform operations
-      'admin:orders:read', 'admin:merchants:read', 'admin:kpis:read',
-      'admin:audit:read', 'admin:users:read', 'admin:users:write',
+      'admin:orders:read',
+      'admin:merchants:read',
+      'admin:kpis:read',
+      'admin:audit:read',
+      'admin:users:read',
+      'admin:users:write',
     ],
   },
   {
     key: 'MODERATOR',
     name: 'Moderator',
     permissions: [
-      'catalog:products:read', 'catalog:products:write', 'catalog:products:delete',
-      'catalog:categories:read', 'catalog:categories:write',
-      'support:tickets:read', 'support:tickets:write', 'support:tickets:escalate',
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:products:delete',
+      'catalog:categories:read',
+      'catalog:categories:write',
+      // Moderators curate the platform catalog, so they retain product writes
+      // now that product endpoints require merchant:products:write (API-B6).
+      'merchant:products:write',
+      'support:tickets:read',
+      'support:tickets:write',
+      'support:tickets:escalate',
       'orders:read',
       'merchant:verification:review',
     ],
@@ -85,28 +134,43 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
     key: 'MERCHANT_OWNER',
     name: 'Merchant Owner',
     permissions: [
-      'catalog:products:read', 'catalog:products:write', 'catalog:products:delete',
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:products:delete',
       'catalog:categories:read',
-      'orders:read', 'orders:write',
+      'catalog:categories:write',
+      'orders:read',
+      'orders:write',
       'merchant:stores:read',
+      'merchant:stores:write',
+      // Merchant-scoped write permissions gating the merchant/catalog/order/
+      // promotion write endpoints (API-B6). Owners manage the whole store.
+      'merchant:products:write',
+      'merchant:orders:write',
+      'merchant:promotions:write',
     ],
   },
   {
     key: 'MERCHANT_STAFF',
     name: 'Merchant Staff',
     permissions: [
-      'catalog:products:read', 'catalog:products:write',
-      'orders:read', 'orders:write',
+      'catalog:products:read',
+      'catalog:products:write',
+      'catalog:categories:read',
+      'catalog:categories:write',
+      'orders:read',
+      'orders:write',
+      // Staff manage day-to-day catalog, orders and promotions, but not store
+      // settings/creation (merchant:stores:write is owner-only).
+      'merchant:products:write',
+      'merchant:orders:write',
+      'merchant:promotions:write',
     ],
   },
   {
     key: 'BUYER',
     name: 'Buyer',
-    permissions: [
-      'catalog:products:read',
-      'orders:read', 'orders:write',
-      'merchant:stores:read',
-    ],
+    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'merchant:stores:read'],
   },
 ];
 
@@ -119,9 +183,9 @@ async function main() {
 
   // 1. Create permissions (idempotent via ON CONFLICT DO NOTHING)
   console.log(`  Creating ${PERMISSIONS.length} permissions...`);
-  const permValues = PERMISSIONS
-    .map((p) => `(${sqlValue(crypto.randomUUID())}, ${sqlValue(p)})`)
-    .join(',\n    ');
+  const permValues = PERMISSIONS.map(
+    (p) => `(${sqlValue(crypto.randomUUID())}, ${sqlValue(p)})`,
+  ).join(',\n    ');
   psql(`INSERT INTO permissions (id, key) VALUES ${permValues} ON CONFLICT (key) DO NOTHING;`);
 
   // 2. Create roles and assign permissions
@@ -147,7 +211,9 @@ async function main() {
       const rpValues = permIds
         .map((pid) => `(${sqlValue(actualRoleId)}, ${sqlValue(pid)})`)
         .join(',\n      ');
-      psql(`INSERT INTO role_permissions (role_id, permission_id) VALUES ${rpValues} ON CONFLICT DO NOTHING;`);
+      psql(
+        `INSERT INTO role_permissions (role_id, permission_id) VALUES ${rpValues} ON CONFLICT DO NOTHING;`,
+      );
     }
   }
 

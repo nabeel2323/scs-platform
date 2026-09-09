@@ -1,17 +1,33 @@
 import {
-  Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   CatalogService,
-  CreateCategoryInput, UpdateCategoryInput, CreateBrandInput,
-  CreateProductInput, UpdateProductInput,
-  CreateVariantInput, AddMediaInput, CreateImportJobInput,
+  CreateCategoryInput,
+  UpdateCategoryInput,
+  CreateBrandInput,
+  CreateProductInput,
+  UpdateProductInput,
+  CreateVariantInput,
+  AddMediaInput,
+  CreateImportJobInput,
 } from './catalog.service';
 import { SearchService, SearchOptions } from './search.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
 
 /**
  * Catalog API — categories, brands, products, variants, media, imports.
@@ -27,15 +43,14 @@ export class CatalogController {
   // ── Categories ───────────────────────────────────────────────
 
   @Post('categories')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
   async createCategory(@Body() input: CreateCategoryInput) {
     return this.catalogService.createCategory(input);
   }
 
   @Get('categories')
-  async listCategories(
-    @Query('storeId') storeId?: string,
-    @Query('parentId') parentId?: string,
-  ) {
+  async listCategories(@Query('storeId') storeId?: string, @Query('parentId') parentId?: string) {
     return this.catalogService.listCategories({
       storeId,
       parentId,
@@ -49,11 +64,15 @@ export class CatalogController {
   }
 
   @Patch('categories/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
   async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
     return this.catalogService.updateCategory(id, input);
   }
 
   @Delete('categories/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
   async deleteCategory(@Param('id') id: string) {
     return this.catalogService.deleteCategory(id);
   }
@@ -75,10 +94,9 @@ export class CatalogController {
   // ── Products ─────────────────────────────────────────────────
 
   @Post('products')
-  async createProduct(
-    @CurrentUser() user: JwtPayload,
-    @Body() input: CreateProductInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async createProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
     return this.catalogService.createProduct(input, user.sub);
   }
 
@@ -97,14 +115,15 @@ export class CatalogController {
   }
 
   @Patch('products/:id')
-  async updateProduct(
-    @Param('id') id: string,
-    @Body() input: UpdateProductInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async updateProduct(@Param('id') id: string, @Body() input: UpdateProductInput) {
     return this.catalogService.updateProduct(id, input);
   }
 
   @Delete('products/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
   async deleteProduct(@Param('id') id: string) {
     return this.catalogService.deleteProduct(id);
   }
@@ -112,10 +131,9 @@ export class CatalogController {
   // ── Variants ─────────────────────────────────────────────────
 
   @Post('products/:productId/variants')
-  async createVariant(
-    @Param('productId') productId: string,
-    @Body() input: CreateVariantInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async createVariant(@Param('productId') productId: string, @Body() input: CreateVariantInput) {
     return this.catalogService.createVariant(productId, input);
   }
 
@@ -127,10 +145,9 @@ export class CatalogController {
   // ── Media ────────────────────────────────────────────────────
 
   @Post('products/:productId/media')
-  async addMedia(
-    @Param('productId') productId: string,
-    @Body() input: AddMediaInput,
-  ) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async addMedia(@Param('productId') productId: string, @Body() input: AddMediaInput) {
     return this.catalogService.addMedia(productId, input);
   }
 
@@ -140,6 +157,8 @@ export class CatalogController {
   }
 
   @Post('media/presign')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
   async presignMedia(@Body() body: { fileName: string; mimeType: string }) {
     // In production: generate S3/MinIO presigned upload URL
     const key = `products/${crypto.randomUUID()}/${body.fileName}`;
@@ -152,6 +171,8 @@ export class CatalogController {
   // ── Import Jobs ──────────────────────────────────────────────
 
   @Post('stores/:storeId/imports')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
   async createImportJob(
     @Param('storeId') storeId: string,
     @CurrentUser() user: JwtPayload,
@@ -171,6 +192,8 @@ export class CatalogController {
   }
 
   @Post('imports/:id/rows')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
   async stageImportRows(
     @Param('id') id: string,
     @Body() body: { rows: Record<string, string>[]; append?: boolean },
@@ -178,7 +201,9 @@ export class CatalogController {
     return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
   }
 
-@Post('imports/:id/process')
+  @Post('imports/:id/process')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
   async processImportJob(@Param('id') id: string) {
     return this.catalogService.processImportJob(id);
   }

@@ -55,16 +55,11 @@ export class PromotionsService {
   async listActive(storeId: string) {
     const now = new Date();
     const results = await this.db.db.query.promotions.findMany({
-      where: and(
-        eq(promotions.storeId, storeId),
-        eq(promotions.isActive, true),
-      ),
+      where: and(eq(promotions.storeId, storeId), eq(promotions.isActive, true)),
     });
 
     // Filter by date range in-memory (Drizzle doesn't support complex date comparisons easily)
-    return results.filter(p =>
-      new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now
-    );
+    return results.filter((p) => new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now);
   }
 
   async findByCode(storeId: string, code: string) {
@@ -80,6 +75,57 @@ export class PromotionsService {
     const now = new Date();
     if (new Date(promo['startsAt']) > now || new Date(promo['endsAt']) < now) {
       throw new BadRequestException('Promo code is not currently active');
+    }
+
+    return promo;
+  }
+
+  /**
+   * Resolve a promotion applicable to a specific store at checkout.
+   *
+   * Accepts either a promotion id (preferred) or a raw code, and returns the
+   * promotion ONLY if it is valid for `storeId`, currently active, inside its
+   * date window, and (when `userId` is supplied) still redeemable by that user.
+   * Returns null otherwise, so callers can fall back to no-discount pricing
+   * rather than failing checkout. Promotion rules are validated here (the
+   * promotions module owns them) instead of leaking into the orders module.
+   */
+  async resolveApplicable(
+    storeId: string,
+    opts: { promotionId?: string | null; code?: string | null; userId?: string | null },
+  ) {
+    let promo: any = null;
+
+    if (opts.promotionId) {
+      promo = await this.db.db.query.promotions.findFirst({
+        where: eq(promotions.id, opts.promotionId),
+      });
+    } else if (opts.code) {
+      promo = await this.db.db.query.promotions.findFirst({
+        where: and(eq(promotions.storeId, storeId), eq(promotions.code, opts.code.toUpperCase())),
+      });
+    }
+
+    if (!promo) return null;
+    // Must belong to this store, be active, and be within its date window.
+    if (promo['storeId'] !== storeId) return null;
+    if (!promo['isActive']) return null;
+    const now = new Date();
+    if (new Date(promo['startsAt']) > now || new Date(promo['endsAt']) < now) return null;
+
+    // Redemption eligibility (checked only when a user context is provided).
+    if (opts.userId) {
+      if (promo['maxRedemptions'] && promo['redemptionCount'] >= promo['maxRedemptions'])
+        return null;
+      if (promo['perUserLimit']) {
+        const userRedemptions = await this.db.db.query.promotionRedemptions.findMany({
+          where: and(
+            eq(promotionRedemptions.promotionId, promo['id']),
+            eq(promotionRedemptions.userId, opts.userId),
+          ),
+        });
+        if (userRedemptions.length >= promo['perUserLimit']) return null;
+      }
     }
 
     return promo;
@@ -109,7 +155,7 @@ export class PromotionsService {
     let discount = 0;
     switch (promo['promoType']) {
       case 'PERCENT':
-        discount = Math.round(cartTotalMinor * promo['discountValue'] / 100);
+        discount = Math.round((cartTotalMinor * promo['discountValue']) / 100);
         break;
       case 'FIXED':
         discount = promo['discountValue'];
@@ -118,7 +164,7 @@ export class PromotionsService {
         discount = promo['discountValue'];
         break;
       case 'TIME_LIMITED':
-        discount = Math.round(cartTotalMinor * promo['discountValue'] / 100);
+        discount = Math.round((cartTotalMinor * promo['discountValue']) / 100);
         break;
       default:
         discount = 0;
@@ -132,7 +178,12 @@ export class PromotionsService {
     return Math.min(discount, cartTotalMinor); // can't exceed cart total
   }
 
-  async redeemPromotion(promoId: string, userId: string, orderId: string | null, discountMinor: number) {
+  async redeemPromotion(
+    promoId: string,
+    userId: string,
+    orderId: string | null,
+    discountMinor: number,
+  ) {
     const promo = await this.getPromotion(promoId);
 
     // Check max redemptions
@@ -149,7 +200,9 @@ export class PromotionsService {
     });
 
     if (promo['perUserLimit'] && userRedemptions.length >= promo['perUserLimit']) {
-      throw new BadRequestException('You have already used this promotion the maximum number of times');
+      throw new BadRequestException(
+        'You have already used this promotion the maximum number of times',
+      );
     }
 
     // Record redemption
@@ -177,7 +230,12 @@ export class PromotionsService {
    * Note: PostGIS distance query requires PostGIS extension.
    * Fallback: returns all active promotions, limited.
    */
-  async listNearbyOffers(params: { lat?: number; lng?: number; radiusKm?: number; limit?: number }) {
+  async listNearbyOffers(params: {
+    lat?: number;
+    lng?: number;
+    radiusKm?: number;
+    limit?: number;
+  }) {
     const now = new Date();
     const results = await this.db.db.query.promotions.findMany({
       where: eq(promotions.isActive, true),
@@ -185,8 +243,8 @@ export class PromotionsService {
     });
 
     // Filter by date range
-    const active = results.filter(p =>
-      new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now
+    const active = results.filter(
+      (p) => new Date(p['startsAt']) <= now && new Date(p['endsAt']) >= now,
     );
 
     // TODO: When PostGIS is available, filter by distance using lat/lng/radiusKm

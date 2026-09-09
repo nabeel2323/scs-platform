@@ -39,8 +39,10 @@ function createStatefulMocks(initialStatus: string) {
   const updateSet = vi.fn().mockImplementation((values: Record<string, any>) => {
     // Track status changes in the mock order
     if (values['status']) currentOrder = { ...currentOrder, status: values['status'] };
-    if (values['subtotalMinor'] !== undefined) currentOrder = { ...currentOrder, subtotalMinor: values['subtotalMinor'] };
-    if (values['totalMinor'] !== undefined) currentOrder = { ...currentOrder, totalMinor: values['totalMinor'] };
+    if (values['subtotalMinor'] !== undefined)
+      currentOrder = { ...currentOrder, subtotalMinor: values['subtotalMinor'] };
+    if (values['totalMinor'] !== undefined)
+      currentOrder = { ...currentOrder, totalMinor: values['totalMinor'] };
     return { where: updateWhere };
   });
 
@@ -56,7 +58,11 @@ function createStatefulMocks(initialStatus: string) {
     }),
     query: {
       orders: {
-        findFirst: vi.fn().mockImplementation(() => Promise.resolve(currentOrder ? { ...currentOrder } : undefined)),
+        findFirst: vi
+          .fn()
+          .mockImplementation(() =>
+            Promise.resolve(currentOrder ? { ...currentOrder } : undefined),
+          ),
       },
       orderItems: { findMany: vi.fn().mockResolvedValue([]) },
       orderFinancialBreakdown: { findFirst: vi.fn() },
@@ -71,8 +77,24 @@ function createStatefulMocks(initialStatus: string) {
 
   const mockDbService = { db } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
+  const mockPromotions = {
+    resolveApplicable: vi.fn().mockResolvedValue(null),
+    calculateDiscount: vi.fn().mockReturnValue(0),
+    redeemPromotion: vi
+      .fn()
+      .mockResolvedValue({ redemptionId: 'redemption-001', discountMinor: 0 }),
+  } as any;
 
-  return { db, mockDbService, mockOutbox, insertValues, updateSet, updateWhere, getOrder: () => currentOrder };
+  return {
+    db,
+    mockDbService,
+    mockOutbox,
+    mockPromotions,
+    insertValues,
+    updateSet,
+    updateWhere,
+    getOrder: () => currentOrder,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -84,27 +106,40 @@ describe('Order Lifecycle Integration', () => {
     it('should transition SUBMITTED → ACCEPTED', async () => {
       const mocks = createStatefulMocks('SUBMITTED');
       mocks.db.query.orderItems.findMany.mockResolvedValue([]);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.acceptOrder(ORDER_ID, MERCHANT_ID);
 
       expect(result.status).toBe('ACCEPTED');
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
-        'order.accepted', ORDER_ID,
+        'order.accepted',
+        ORDER_ID,
         expect.objectContaining({ orderId: ORDER_ID }),
       );
     });
 
     it('should reject ACCEPTED → ACCEPTED (double accept)', async () => {
       const mocks = createStatefulMocks('ACCEPTED');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID)).rejects.toThrow(ConflictException);
     });
 
     it('should reject DELIVERED → ACCEPTED', async () => {
       const mocks = createStatefulMocks('DELIVERED');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID)).rejects.toThrow(ConflictException);
     });
@@ -113,29 +148,44 @@ describe('Order Lifecycle Integration', () => {
   describe('reject order', () => {
     it('should transition SUBMITTED → REJECTED', async () => {
       const mocks = createStatefulMocks('SUBMITTED');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Out of stock');
 
       expect(result.status).toBe('REJECTED');
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
-        'order.rejected', ORDER_ID,
+        'order.rejected',
+        ORDER_ID,
         expect.objectContaining({ reason: 'Out of stock' }),
       );
     });
 
     it('should reject ACCEPTED → REJECTED', async () => {
       const mocks = createStatefulMocks('ACCEPTED');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
-      await expect(service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Changed mind')).rejects.toThrow(ConflictException);
+      await expect(service.rejectOrder(ORDER_ID, MERCHANT_ID, 'Changed mind')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
   describe('full lifecycle flow', () => {
     it('should support PENDING_CONFIRMATION → ACCEPTED → PREPARING → READY → DELIVERED → COMPLETED', async () => {
       const mocks = createStatefulMocks('PENDING_CONFIRMATION');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const transitions = [
         { to: 'ACCEPTED', actor: MERCHANT_ID, role: 'MERCHANT' },
@@ -154,23 +204,28 @@ describe('Order Lifecycle Integration', () => {
 
     it('should publish correct events for each transition', async () => {
       const eventMap: Record<string, [string, string]> = {
-        'ACCEPTED': ['PENDING_CONFIRMATION', 'order.accepted'],
-        'PREPARING': ['ACCEPTED', 'order.preparing'],
-        'READY': ['PREPARING', 'order.ready'],
-        'OUT_FOR_DELIVERY': ['READY', 'order.out_for_delivery'],
-        'DELIVERED': ['OUT_FOR_DELIVERY', 'order.delivered'],
-        'COMPLETED': ['DELIVERED', 'order.completed'],
+        ACCEPTED: ['PENDING_CONFIRMATION', 'order.accepted'],
+        PREPARING: ['ACCEPTED', 'order.preparing'],
+        READY: ['PREPARING', 'order.ready'],
+        OUT_FOR_DELIVERY: ['READY', 'order.out_for_delivery'],
+        DELIVERED: ['OUT_FOR_DELIVERY', 'order.delivered'],
+        COMPLETED: ['DELIVERED', 'order.completed'],
       };
 
       for (const [toStatus, [fromStatus, expectedEvent]] of Object.entries(eventMap)) {
         if (toStatus === 'ACCEPTED') continue; // acceptOrder has different flow
         const mocks = createStatefulMocks(fromStatus);
-        const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+        const service = new OrdersService(
+          mocks.mockDbService,
+          mocks.mockOutbox,
+          mocks.mockPromotions,
+        );
 
         await service.transitionStatus(ORDER_ID, toStatus, MERCHANT_ID, 'MERCHANT');
 
         expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
-          expectedEvent, ORDER_ID,
+          expectedEvent,
+          ORDER_ID,
           expect.objectContaining({ status: toStatus }),
         );
       }
@@ -178,7 +233,11 @@ describe('Order Lifecycle Integration', () => {
 
     it('should record status history on each transition', async () => {
       const mocks = createStatefulMocks('PENDING_CONFIRMATION');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await service.transitionStatus(ORDER_ID, 'ACCEPTED', MERCHANT_ID, 'MERCHANT');
 
@@ -188,11 +247,22 @@ describe('Order Lifecycle Integration', () => {
   });
 
   describe('cancel order', () => {
-    const cancellableStatuses = ['PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'] as const;
+    const cancellableStatuses = [
+      'PENDING_CONFIRMATION',
+      'ACCEPTED',
+      'PARTIALLY_ACCEPTED',
+      'PREPARING',
+      'READY',
+      'PAYMENT_PENDING',
+    ] as const;
 
     it.each(cancellableStatuses)('should allow cancel from %s', async (status) => {
       const mocks = createStatefulMocks(status);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
       expect(result.status).toBe('CANCELLED');
@@ -202,22 +272,31 @@ describe('Order Lifecycle Integration', () => {
       'should reject cancel from %s',
       async (status) => {
         const mocks = createStatefulMocks(status);
-        const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+        const service = new OrdersService(
+          mocks.mockDbService,
+          mocks.mockOutbox,
+          mocks.mockPromotions,
+        );
 
-        await expect(
-          service.cancelOrder(ORDER_ID, BUYER_ID, 'Too late'),
-        ).rejects.toThrow(ConflictException);
+        await expect(service.cancelOrder(ORDER_ID, BUYER_ID, 'Too late')).rejects.toThrow(
+          ConflictException,
+        );
       },
     );
 
     it('should publish order.cancelled event', async () => {
       const mocks = createStatefulMocks('PENDING_CONFIRMATION');
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await service.cancelOrder(ORDER_ID, BUYER_ID, 'No longer needed');
 
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
-        'order.cancelled', ORDER_ID,
+        'order.cancelled',
+        ORDER_ID,
         expect.objectContaining({ status: 'CANCELLED' }),
       );
     });
@@ -227,7 +306,11 @@ describe('Order Lifecycle Integration', () => {
     it('should throw NotFoundException for non-existent order', async () => {
       const mocks = createStatefulMocks('SUBMITTED');
       mocks.db.query.orders.findFirst.mockResolvedValue(undefined);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await expect(service.getOrder('non-existent')).rejects.toThrow(NotFoundException);
     });
@@ -235,12 +318,28 @@ describe('Order Lifecycle Integration', () => {
     it('should return order with items and financial breakdown', async () => {
       const mocks = createStatefulMocks('ACCEPTED');
       mocks.db.query.orderItems.findMany.mockResolvedValue([
-        { id: 'item-1', orderId: ORDER_ID, variantId: 'v1', sku: 'SKU-1', title: 'Item 1', quantity: 5, unitPriceMinor: 200, lineTotalMinor: 1000 },
+        {
+          id: 'item-1',
+          orderId: ORDER_ID,
+          variantId: 'v1',
+          sku: 'SKU-1',
+          title: 'Item 1',
+          quantity: 5,
+          unitPriceMinor: 200,
+          lineTotalMinor: 1000,
+        },
       ]);
       mocks.db.query.orderFinancialBreakdown.findFirst.mockResolvedValue({
-        orderId: ORDER_ID, productsMinor: 5000, commissionMinor: 313, merchantNetMinor: 5937,
+        orderId: ORDER_ID,
+        productsMinor: 5000,
+        commissionMinor: 313,
+        merchantNetMinor: 5937,
       });
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.getOrderWithItems(ORDER_ID);
 
@@ -252,11 +351,27 @@ describe('Order Lifecycle Integration', () => {
     it('should return status history', async () => {
       const mocks = createStatefulMocks('ACCEPTED');
       const history = [
-        { id: 'h1', orderId: ORDER_ID, fromStatus: null, toStatus: 'SUBMITTED', createdAt: new Date('2024-01-01') },
-        { id: 'h2', orderId: ORDER_ID, fromStatus: 'SUBMITTED', toStatus: 'ACCEPTED', createdAt: new Date('2024-01-02') },
+        {
+          id: 'h1',
+          orderId: ORDER_ID,
+          fromStatus: null,
+          toStatus: 'SUBMITTED',
+          createdAt: new Date('2024-01-01'),
+        },
+        {
+          id: 'h2',
+          orderId: ORDER_ID,
+          fromStatus: 'SUBMITTED',
+          toStatus: 'ACCEPTED',
+          createdAt: new Date('2024-01-02'),
+        },
       ];
       mocks.db.query.orderStatusHistory.findMany.mockResolvedValue(history);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.getStatusHistory(ORDER_ID);
       expect(result).toHaveLength(2);
@@ -272,7 +387,11 @@ describe('Order Lifecycle Integration', () => {
         { id: 'item-1', orderId: ORDER_ID, quantity: 10, qtyConfirmed: null, unitPriceMinor: 200 },
         { id: 'item-2', orderId: ORDER_ID, quantity: 5, qtyConfirmed: null, unitPriceMinor: 300 },
       ]);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       const result = await service.partiallyAcceptOrder(ORDER_ID, MERCHANT_ID, [
         { itemId: 'item-1', qtyConfirmed: 8 },
@@ -287,7 +406,11 @@ describe('Order Lifecycle Integration', () => {
       mocks.db.query.orderItems.findMany.mockResolvedValue([
         { id: 'item-1', orderId: ORDER_ID, quantity: 10, qtyConfirmed: 5, unitPriceMinor: 200 },
       ]);
-      const service = new OrdersService(mocks.mockDbService, mocks.mockOutbox);
+      const service = new OrdersService(
+        mocks.mockDbService,
+        mocks.mockOutbox,
+        mocks.mockPromotions,
+      );
 
       await service.partiallyAcceptOrder(ORDER_ID, MERCHANT_ID, [
         { itemId: 'item-1', qtyConfirmed: 5 },

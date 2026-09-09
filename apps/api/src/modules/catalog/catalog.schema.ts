@@ -1,4 +1,14 @@
-import { pgTable, uuid, varchar, text, boolean, integer, bigint, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  boolean,
+  integer,
+  bigint,
+  jsonb,
+  timestamp,
+} from 'drizzle-orm/pg-core';
 import { stores } from '../merchant/merchant.schema';
 import { users } from '../identity/identity.schema';
 
@@ -45,7 +55,9 @@ export const brands = pgTable('brands', {
 
 export const products = pgTable('products', {
   id: uuid('id').primaryKey(),
-  storeId: uuid('store_id').notNull().references(() => stores.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
   brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'set null' }),
   slug: varchar('slug', { length: 200 }).notNull(),
@@ -68,7 +80,9 @@ export const products = pgTable('products', {
 
 export const productVariants = pgTable('product_variants', {
   id: uuid('id').primaryKey(),
-  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
   sku: varchar('sku', { length: 100 }).notNull(),
   barcode: varchar('barcode', { length: 60 }),
   title: varchar('title', { length: 300 }),
@@ -85,7 +99,9 @@ export const productVariants = pgTable('product_variants', {
 
 export const productMedia = pgTable('product_media', {
   id: uuid('id').primaryKey(),
-  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
   variantId: uuid('variant_id').references(() => productVariants.id, { onDelete: 'cascade' }),
   mediaType: varchar('media_type', { length: 16 }).notNull().default('IMAGE'),
   url: text('url').notNull(),
@@ -101,14 +117,36 @@ export const productMedia = pgTable('product_media', {
 
 export const favorites = pgTable('favorites', {
   id: uuid('id').primaryKey(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Saved suppliers (§21.3 retailer capability) — the store-level analog of
+ * product `favorites`. A retailer bookmarks stores (suppliers) they source from
+ * repeatedly. Unique per (user, store); enforced in migration 0017.
+ */
+export const savedSuppliers = pgTable('saved_suppliers', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const importJobs = pgTable('import_jobs', {
   id: uuid('id').primaryKey(),
-  storeId: uuid('store_id').notNull().references(() => stores.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
   fileName: varchar('file_name', { length: 260 }).notNull(),
   fileType: varchar('file_type', { length: 10 }).notNull().default('XLSX'),
   fileSize: bigint('file_size', { mode: 'number' }).notNull().default(0),
@@ -120,7 +158,9 @@ export const importJobs = pgTable('import_jobs', {
   columnMapping: jsonb('column_mapping').default({}),
   errorLog: jsonb('error_log').default([]),
   stats: jsonb('stats').notNull().default({}),
-  createdBy: uuid('created_by').notNull().references(() => users.id),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => users.id),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

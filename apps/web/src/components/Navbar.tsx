@@ -6,6 +6,7 @@ import { logout } from '../lib/auth';
 import { useAuth } from './AuthProvider';
 import { useEffect, useState } from 'react';
 import { fetchUnreadCount } from '../lib/buyer-api';
+import { connectRealtime, onNotification } from '../lib/realtime';
 
 export function Navbar() {
   const { user } = useAuth();
@@ -13,13 +14,21 @@ export function Navbar() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    if (user) {
-      fetchUnreadCount().then(r => setUnread(r.count)).catch(() => {});
-      const interval = setInterval(() => {
-        fetchUnreadCount().then(r => setUnread(r.count)).catch(() => {});
-      }, 30000);
-      return () => clearInterval(interval);
-    }
+    if (!user) return;
+    const refresh = () => fetchUnreadCount().then((r) => setUnread(r.count)).catch(() => {});
+    refresh();
+    // Live badge updates over the realtime gateway replace the previous 30s poll
+    // (WEB-B6). Each pushed notification refetches the authoritative count, and
+    // we also refetch on (re)connect so the badge self-heals after a dropped
+    // socket or a read that happened on another page.
+    const socket = connectRealtime();
+    const onReconnect = () => refresh();
+    socket?.on('connect', onReconnect);
+    const offNotification = onNotification(() => refresh());
+    return () => {
+      offNotification();
+      socket?.off('connect', onReconnect);
+    };
   }, [user]);
 
   const handleLogout = async () => {
@@ -30,15 +39,32 @@ export function Navbar() {
   return (
     <nav style={navStyle}>
       <div style={navInner}>
-        <Link href="/" style={logoStyle}>SCS Platform</Link>
+        <Link href="/" style={logoStyle}>
+          SCS Platform
+        </Link>
 
         <div style={navLinks}>
-          <Link href="/search" style={linkStyle}>Search</Link>
-          <Link href="/stores" style={linkStyle}>Stores</Link>
-          <Link href="/favorites" style={linkStyle}>♡ Favorites</Link>
-          <Link href="/cart" style={linkStyle}>Cart</Link>
-          <Link href="/orders" style={linkStyle}>Orders</Link>
-          <Link href="/merchant" style={linkStyle}>Merchant</Link>
+          <Link href="/search" style={linkStyle}>
+            Search
+          </Link>
+          <Link href="/stores" style={linkStyle}>
+            Stores
+          </Link>
+          <Link href="/favorites" style={linkStyle}>
+            ♡ Favorites
+          </Link>
+          <Link href="/saved-suppliers" style={linkStyle}>
+            ★ Suppliers
+          </Link>
+          <Link href="/cart" style={linkStyle}>
+            Cart
+          </Link>
+          <Link href="/orders" style={linkStyle}>
+            Orders
+          </Link>
+          <Link href="/merchant" style={linkStyle}>
+            Merchant
+          </Link>
           <Link href="/notifications" style={{ ...linkStyle, position: 'relative' }}>
             Notifications
             {unread > 0 && <span style={badgeStyle}>{unread > 99 ? '99+' : unread}</span>}
@@ -48,12 +74,18 @@ export function Navbar() {
         <div style={navRight}>
           {user ? (
             <>
-              <Link href="/account" style={linkStyle}>Account</Link>
+              <Link href="/account" style={linkStyle}>
+                Account
+              </Link>
               <span style={userStyle}>{user.fullName || user.phone}</span>
-              <button onClick={handleLogout} style={logoutBtn}>Sign Out</button>
+              <button onClick={handleLogout} style={logoutBtn}>
+                Sign Out
+              </button>
             </>
           ) : (
-            <Link href="/auth/login" style={loginBtn}>Sign In</Link>
+            <Link href="/auth/login" style={loginBtn}>
+              Sign In
+            </Link>
           )}
         </div>
       </div>

@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
-import { organizations } from '../identity/identity.schema';
+import { organizations, organizationMembers } from '../identity/identity.schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import { isUuid } from '../../common/utils/uuid';
 import crypto from 'node:crypto';
@@ -32,6 +38,20 @@ export class MerchantService {
       where: eq(organizations.id, input.orgId),
     });
     if (!org) throw new NotFoundException('Organization not found');
+
+    // Ownership guard: the permission check on the controller proves the caller
+    // holds merchant:stores:write for their *active* org, but the target orgId is
+    // supplied in the body. Verify an ACTIVE membership in that specific org so an
+    // owner of org A cannot create a store under org B (IDOR hardening, API-B6).
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, input.orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new ForbiddenException('You are not an active member of this organization');
+    }
 
     const slug = input.slug || this.generateSlug(input.displayName);
 
@@ -129,10 +149,16 @@ export class MerchantService {
     return orders;
   }
 
-  async listStores(filters?: { status?: string; verificationStatus?: string; limit?: number; offset?: number }) {
+  async listStores(filters?: {
+    status?: string;
+    verificationStatus?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const conditions = [];
     if (filters?.status) conditions.push(eq(stores.status, filters.status));
-    if (filters?.verificationStatus) conditions.push(eq(stores.verificationStatus, filters.verificationStatus));
+    if (filters?.verificationStatus)
+      conditions.push(eq(stores.verificationStatus, filters.verificationStatus));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const limit = filters?.limit || 20;
@@ -389,9 +415,8 @@ export class MerchantService {
       .where(eq(verificationRequests.id, requestId));
 
     // Update store verification status based on decision
-    const storeVerificationStatus = decision === 'APPROVED' ? 'VERIFIED'
-      : decision === 'REJECTED' ? 'REJECTED'
-      : 'REVIEW';
+    const storeVerificationStatus =
+      decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'REVIEW';
 
     await this.db.db
       .update(stores)

@@ -10,8 +10,8 @@ class DriverDashboardScreen extends StatefulWidget {
 
 class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   bool _onDuty = false;
-  int _completedToday = 0;
-  double _earningsToday = 0;
+  final int _completedToday = 0;
+  final double _earningsToday = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -66,15 +66,15 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           if (_onDuty) ...[
-            _JobTile(
+            const _JobTile(
                 orderId: 'abc12345',
                 address: '123 King Fahd Rd',
                 distance: '2.3 km'),
-            _JobTile(
+            const _JobTile(
                 orderId: 'def67890',
                 address: '456 Olaya St',
                 distance: '4.1 km'),
-            _JobTile(
+            const _JobTile(
                 orderId: 'ghi13579',
                 address: '789 Tahlia St',
                 distance: '1.8 km'),
@@ -137,8 +137,8 @@ class _JobTile extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(
             backgroundColor: TaifTokens.info.withValues(alpha: 0.1),
-            child:
-                Icon(Icons.local_shipping, color: TaifTokens.info, size: 20)),
+            child: const Icon(Icons.local_shipping,
+                color: TaifTokens.info, size: 20)),
         title: Text('Order #$orderId',
             style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         subtitle: Text('$address · $distance',

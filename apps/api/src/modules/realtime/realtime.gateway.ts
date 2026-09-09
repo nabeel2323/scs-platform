@@ -9,7 +9,10 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
+import { RedisService } from '../../common/redis/redis.service';
+import { denylistKey } from '../../common/auth/token-denylist';
 
 /**
  * Realtime WebSocket Gateway — `/realtime`
@@ -22,6 +25,12 @@ import { Server, Socket } from 'socket.io';
  * Events emitted:
  *   order.status.changed  — { orderId, status, timestamp }
  *   notification.new      — { notificationId, type, title, body }
+ *
+ * Authentication: every handshake must present a valid, non-revoked access
+ * token (see handleConnection). A socket is auto-bound to its own `user:{sub}`
+ * room and the `join` handler refuses to subscribe it to another user's
+ * personal room, so notifications (which carry order/verification/promo
+ * detail) can never be snooped by an unrelated client.
  */
 @WsGateway({
   namespace: '/realtime',
@@ -36,16 +45,88 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   private readonly logger = new Logger(RealtimeGateway.name);
 
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly redis: RedisService,
+  ) {}
+
   afterInit() {
     this.logger.log('WebSocket gateway initialized at /realtime');
   }
 
-  handleConnection(client: Socket) {
-    this.logger.debug(`Client connected: ${client.id}`);
+  /**
+   * Authenticate the handshake before any room traffic. The client presents its
+   * access token via `auth: { token }` (preferred), the `token` query param, or
+   * an `Authorization: Bearer` header. We verify signature/expiry and honour the
+   * same Redis denylist the HTTP guard uses (API-B9), so a token revoked on
+   * switchOrg cannot open a realtime session. On success the socket is bound to
+   * `user:{sub}` and its identity is stashed on `client.data` for join checks.
+   */
+  async handleConnection(client: Socket) {
+    const token = this.extractToken(client);
+    if (!token) {
+      this.reject(client, 'Missing access token');
+      return;
+    }
+
+    let payload: { sub?: string; activeOrg?: string; jti?: string };
+    try {
+      payload = this.jwt.verify(token);
+    } catch {
+      this.reject(client, 'Invalid or expired access token');
+      return;
+    }
+
+    // Reject tokens explicitly revoked before expiry (mirrors JwtAuthGuard).
+    if (payload.jti) {
+      const revoked = await this.redis.client.get(denylistKey(payload.jti));
+      if (revoked) {
+        this.reject(client, 'Access token has been revoked');
+        return;
+      }
+    }
+
+    if (!payload.sub) {
+      this.reject(client, 'Token missing subject');
+      return;
+    }
+
+    client.data['userId'] = payload.sub;
+    client.data['activeOrg'] = payload.activeOrg ?? null;
+
+    // Auto-join the caller's personal room so user-scoped events (their
+    // notifications and order updates) flow without an explicit join.
+    client.join(`user:${payload.sub}`);
+
+    this.logger.debug(`Client ${client.id} authenticated as user ${payload.sub}`);
+    client.emit('authenticated', { userId: payload.sub });
   }
 
   handleDisconnect(client: Socket) {
     this.logger.debug(`Client disconnected: ${client.id}`);
+  }
+
+  /** Pull the access token from handshake auth, query, or Authorization header. */
+  private extractToken(client: Socket): string | undefined {
+    const auth = client.handshake.auth as { token?: unknown } | undefined;
+    if (typeof auth?.token === 'string' && auth.token) return auth.token;
+
+    const query = client.handshake.query as { token?: unknown } | undefined;
+    if (typeof query?.token === 'string' && query.token) return query.token;
+
+    const header = client.handshake.headers?.['authorization'];
+    if (typeof header === 'string') {
+      const [type, token] = header.split(' ');
+      if (type === 'Bearer' && token) return token;
+    }
+    return undefined;
+  }
+
+  /** Emit an `unauthorized` event and drop the socket. */
+  private reject(client: Socket, message: string) {
+    this.logger.debug(`Rejecting socket ${client.id}: ${message}`);
+    client.emit('unauthorized', { message });
+    client.disconnect(true);
   }
 
   // ── Room management ──────────────────────────────────────────
@@ -56,14 +137,28 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { rooms: string[] },
   ) {
+    const userId = client.data['userId'] as string | undefined;
+    const joined: string[] = [];
     for (const room of data.rooms ?? []) {
       // Validate room format: user:{id}, org:{id}, order:{id}
-      if (/^(user|org|order):.+$/.test(room)) {
-        client.join(room);
-        this.logger.debug(`Client ${client.id} joined room ${room}`);
+      const match = /^(user|org|order):(.+)$/.exec(room);
+      if (!match) continue;
+      const [, scope, id] = match;
+      // A socket may only join its OWN personal room — that channel carries
+      // notifications (order/verification/promo detail). Org and order rooms
+      // only receive low-sensitivity order-status broadcasts, so any
+      // authenticated socket may subscribe (e.g. a merchant dashboard joining
+      // `org:{storeId}` for its stores, or a tracking page joining
+      // `order:{orderId}`).
+      if (scope === 'user' && id !== userId) {
+        this.logger.debug(`Client ${client.id} denied join to ${room}`);
+        continue;
       }
+      client.join(room);
+      joined.push(room);
+      this.logger.debug(`Client ${client.id} joined room ${room}`);
     }
-    return { event: 'joined', data: { rooms: data.rooms } };
+    return { event: 'joined', data: { rooms: joined } };
   }
 
   @SubscribeMessage('leave')

@@ -1,6 +1,12 @@
 -- 0004_catalog.sql — Product catalog: categories, brands, products, variants, media, imports
 -- Module boundary: modules/catalog/*
 
+-- pg_trgm provides the gin_trgm_ops operator class used by the trigram GIN index
+-- on categories.path below. It is also declared in 0007_search.sql; IF NOT EXISTS
+-- keeps this idempotent and guarantees a fresh database has the extension at the
+-- point of first use (0004 runs before 0007 in the ordered migration set).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 -- ── Categories ────────────────────────────────────────────────────────────────
 -- Materialized path for efficient hierarchy queries.
 -- Example: path = '/food/beverages/juice' → depth 3
