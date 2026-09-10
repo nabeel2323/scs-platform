@@ -140,10 +140,17 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: '80px auto', padding: '32px 24px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>
-        {verified ? 'Welcome!' : 'Sign In'}
-      </h1>
+    <main style={{ maxWidth: 420, margin: '80px auto 0' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff', borderRadius: '12px 12px 0 0' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>
+          {verified ? 'Welcome!' : 'Sign In'}
+        </h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+          {verified ? 'Your account is verified' : 'Access your Smart Commerce account'}
+        </p>
+      </div>
+      <div style={{ padding: '20px 24px 32px', background: '#fff', borderRadius: '0 0 12px 12px', border: '1px solid #e2e8f0', borderTop: 'none' }}>
 
       {!verified && (
         <div style={{ display: 'flex', borderBottom: '1px solid #d9e2e6', marginBottom: 24 }}>
@@ -311,6 +318,7 @@ export default function LoginPage() {
           </button>
         </p>
       )}
+      </div>
     </main>
   );
 }

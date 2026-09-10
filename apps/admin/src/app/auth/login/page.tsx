@@ -59,8 +59,6 @@ export default function AdminLoginPage() {
     try {
       const result = await loginPassword(email, password, getDeviceId());
       if ('requiresOtp' in result) {
-        // Correct password but untrusted device — the backend already sent an
-        // OTP to the account's phone, so jump straight to the verify stage.
         setPhone(result.otpPhone);
         setMode('otp');
         setOtpStage('verify');
@@ -122,183 +120,198 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 420, margin: '80px auto', padding: '32px 24px' }}>
-      <div style={{ marginBottom: 24 }}>
-        <span
-          style={{
-            display: 'inline-block',
-            padding: '4px 10px',
-            background: '#0f3340',
-            color: '#fff',
-            borderRadius: 6,
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          ADMIN
-        </span>
-      </div>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>
-        Admin Sign In
-      </h1>
-
-      <div style={{ display: 'flex', borderBottom: '1px solid #d9e2e6', marginBottom: 24 }}>
-        <button
-          type="button"
-          onClick={() => {
-            setMode('password');
-            setError('');
-          }}
-          style={tabStyle(mode === 'password')}
-        >
-          Email/Password
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setMode('otp');
-            setError('');
-          }}
-          style={tabStyle(mode === 'otp')}
-        >
-          Phone OTP
-        </button>
-      </div>
-
-      {error && (
-        <div
-          style={{
-            background: '#fbeeec',
-            color: '#b3372f',
-            padding: '10px 14px',
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 14,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {rateLimit && (
-        <div
-          style={{
-            background: '#fffbeb',
-            color: '#92400e',
-            border: '1px solid #fcd34d',
-            padding: '10px 14px',
-            borderRadius: 8,
-            marginBottom: 16,
-            fontSize: 14,
-          }}
-        >
-          <strong>{rateLimit.message}</strong>
-          <div style={{ marginTop: 4, fontSize: 13 }}>
-            {rateLimit.remaining > 0
-              ? `${rateLimit.remaining} attempt${rateLimit.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
-              : `Locked temporarily. Try again in ${formatWait(rateLimit.retryAfter)}.`}
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 50%, #0c2831 100%)' }}>
+      <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
+        {/* Logo / Brand */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 56, height: 56, borderRadius: 14,
+            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+            marginBottom: 16, backdropFilter: 'blur(8px)',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
           </div>
+          <div>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '4px 12px',
+                background: 'rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.8)',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+              }}
+            >
+              ADMIN CONSOLE
+            </span>
+          </div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#fff', margin: '16px 0 4px', letterSpacing: '-0.3px' }}>
+            Welcome back
+          </h1>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+            Sign in to your admin account
+          </p>
         </div>
-      )}
 
-      {mode === 'password' ? (
-        <form onSubmit={handlePasswordLogin}>
-          <label style={labelStyle}>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@example.com"
-            required
-            style={inputStyle}
-          />
-          <label style={labelStyle}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-            required
-            style={inputStyle}
-          />
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-          <p style={hintStyle}>
-            Don&apos;t have a password yet?{' '}
+        {/* Card */}
+        <div style={{
+          background: '#fff', borderRadius: 16, padding: '32px 28px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.1)',
+        }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', marginBottom: 24 }}>
             <button
               type="button"
-              onClick={() => {
-                setMode('otp');
-                setError('');
-              }}
-              style={linkBtnStyle}
+              onClick={() => { setMode('password'); setError(''); }}
+              style={tabStyle(mode === 'password')}
             >
-              Sign in with OTP
+              Email/Password
             </button>
-          </p>
-        </form>
-      ) : otpStage === 'request' ? (
-        <form onSubmit={handleRequestOtp}>
-          <label style={labelStyle}>Admin phone number</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+966 5XX XXX XXXX"
-            required
-            style={inputStyle}
-          />
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? 'Sending...' : 'Send OTP'}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp}>
-          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>Code sent to {phone}</p>
-          <label style={labelStyle}>OTP code</label>
-          <input
-            type="text"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            placeholder="123456"
-            maxLength={6}
-            required
-            style={inputStyle}
-          />
-          <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? 'Verifying...' : 'Verify'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setOtpStage('request')}
-            style={{
-              ...buttonStyle,
-              background: 'transparent',
-              color: '#1e6178',
-              border: '1px solid #d9e2e6',
-            }}
-          >
-            Change number
-          </button>
-        </form>
-      )}
+            <button
+              type="button"
+              onClick={() => { setMode('otp'); setError(''); }}
+              style={tabStyle(mode === 'otp')}
+            >
+              Phone OTP
+            </button>
+          </div>
 
-      {mode === 'otp' && (
-        <p style={hintStyle}>
-          Have a password?{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setMode('password');
-              setError('');
-            }}
-            style={linkBtnStyle}
-          >
-            Sign in with Email/Password
-          </button>
-        </p>
-      )}
+          {error && (
+            <div
+              style={{
+                background: '#fbeeec',
+                color: '#b3372f',
+                padding: '10px 14px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 14,
+                border: '1px solid #f5c6c0',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {rateLimit && (
+            <div
+              style={{
+                background: '#fffbeb',
+                color: '#92400e',
+                border: '1px solid #fcd34d',
+                padding: '10px 14px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 14,
+              }}
+            >
+              <strong>{rateLimit.message}</strong>
+              <div style={{ marginTop: 4, fontSize: 13 }}>
+                {rateLimit.remaining > 0
+                  ? `${rateLimit.remaining} attempt${rateLimit.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
+                  : `Locked temporarily. Try again in ${formatWait(rateLimit.retryAfter)}.`}
+              </div>
+            </div>
+          )}
+
+          {mode === 'password' ? (
+            <form onSubmit={handlePasswordLogin}>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@example.com"
+                required
+                style={inputStyle}
+              />
+              <label style={labelStyle}>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                required
+                style={inputStyle}
+              />
+              <button type="submit" disabled={loading} style={buttonStyle}>
+                {loading ? 'Logging in...' : 'Login'}
+              </button>
+              <p style={hintStyle}>
+                Don&apos;t have a password yet?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('otp'); setError(''); }}
+                  style={linkBtnStyle}
+                >
+                  Sign in with OTP
+                </button>
+              </p>
+            </form>
+          ) : otpStage === 'request' ? (
+            <form onSubmit={handleRequestOtp}>
+              <label style={labelStyle}>Admin phone number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+966 5XX XXX XXXX"
+                required
+                style={inputStyle}
+              />
+              <button type="submit" disabled={loading} style={buttonStyle}>
+                {loading ? 'Sending...' : 'Send OTP'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp}>
+              <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>Code sent to {phone}</p>
+              <label style={labelStyle}>OTP code</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+                required
+                style={inputStyle}
+              />
+              <button type="submit" disabled={loading} style={buttonStyle}>
+                {loading ? 'Verifying...' : 'Verify'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOtpStage('request')}
+                style={{
+                  ...buttonStyle,
+                  background: 'transparent',
+                  color: '#1e6178',
+                  border: '1px solid #d9e2e6',
+                }}
+              >
+                Change number
+              </button>
+            </form>
+          )}
+
+          {mode === 'otp' && (
+            <p style={hintStyle}>
+              Have a password?{' '}
+              <button
+                type="button"
+                onClick={() => { setMode('password'); setError(''); }}
+                style={linkBtnStyle}
+              >
+                Sign in with Email/Password
+              </button>
+            </p>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

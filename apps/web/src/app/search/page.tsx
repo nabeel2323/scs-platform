@@ -62,7 +62,13 @@ export default function SearchPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Search Products</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Browse the wholesale catalog</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
       {/* Search bar */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
         <input
@@ -171,6 +177,7 @@ export default function SearchPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

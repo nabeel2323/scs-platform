@@ -40,8 +40,13 @@ export default function ReviewDisputePage() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>Reviews & Disputes</h1>
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Reviews & Disputes</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Write reviews or open disputes</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
@@ -105,6 +110,7 @@ export default function ReviewDisputePage() {
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -108,7 +108,15 @@ export default function StoreDetailPage() {
   if (!store) return <EmptyState title="Store not found" />;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>{store.displayName}</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+          {store.verificationStatus}{store.description ? ` · ${store.description.slice(0, 80)}` : ''}
+        </p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
       {/* Store header */}
       <div
         style={{
@@ -271,6 +279,7 @@ export default function StoreDetailPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

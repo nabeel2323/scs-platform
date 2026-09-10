@@ -2,23 +2,20 @@ import Link from 'next/link';
 
 export default function OnboardingSuccessPage() {
   return (
-    <main style={{ maxWidth: 560, margin: '0 auto', padding: '64px 24px', textAlign: 'center' }}>
-      <div style={{
-        width: 64,
-        height: 64,
-        borderRadius: '50%',
-        background: '#e8f5e9',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        margin: '0 auto 20px',
-        fontSize: 28,
-      }}>
-        ✓
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '36px 24px 28px', color: '#fff', textAlign: 'center' }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.15)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', fontSize: 28, border: '2px solid rgba(255,255,255,0.3)',
+        }}>
+          ✓
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Store Submitted!</h1>
       </div>
-      <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f3340', marginBottom: 8 }}>
-        Store Submitted!
-      </h1>
+      <main style={{ padding: '24px 24px 48px', textAlign: 'center' }}>
       <p style={{ color: '#5b6b74', fontSize: 16, lineHeight: 1.6, marginBottom: 32 }}>
         Your store has been submitted for verification. Our team will review your
         documents and get back to you within 1–2 business days.
@@ -39,6 +36,7 @@ export default function OnboardingSuccessPage() {
           Go to Dashboard
         </Link>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }

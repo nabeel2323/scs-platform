@@ -37,13 +37,17 @@ export default function NotificationsPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div style={{ maxWidth: 700, margin: '0 auto', padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340' }}>Notifications</h1>
-        <button onClick={handleMarkAllRead} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-          Mark All Read
-        </button>
+    <div style={{ maxWidth: 700, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Notifications</h1>
+          <button onClick={handleMarkAllRead} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, cursor: 'pointer' }}>
+            Mark All Read
+          </button>
+        </div>
       </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {notifications.length === 0 ? (
         <EmptyState title="No notifications" description="You're all caught up!" />
@@ -74,6 +78,7 @@ export default function NotificationsPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

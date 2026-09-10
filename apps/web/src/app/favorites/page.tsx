@@ -27,9 +27,13 @@ export default function FavoritesPage() {
   const fmt = (n: number) => (n / 100).toFixed(2);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 32 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>Favorites</h1>
-      <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 24 }}>{favorites.length} items saved</p>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Favorites</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>{favorites.length} items saved</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 40, color: '#5b6b74' }}>Loading favorites...</div>
@@ -62,6 +66,7 @@ export default function FavoritesPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -165,10 +165,13 @@ export default function MerchantOnboardingPage() {
   }
 
   return (
-    <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
-      <Link href="/" style={{ color: '#174a5b', textDecoration: 'none', fontSize: 14, display: 'block', marginBottom: 20 }}>
-        &larr; Back to Home
-      </Link>
+    <main style={{ maxWidth: 680, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Store Onboarding</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Set up your store, warehouse &amp; documents</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {loadingOrg ? (
         <p style={{ color: '#5b6b74' }}>Loading your organization...</p>
@@ -408,6 +411,7 @@ export default function MerchantOnboardingPage() {
       </div>
       </>
       )}
+      </div>
     </main>
   );
 }

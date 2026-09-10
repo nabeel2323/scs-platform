@@ -80,233 +80,265 @@ export default function VerificationReviewPage() {
 
   if (loading) {
     return (
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
-        <p style={{ color: '#5b6b74' }}>Loading verification details...</p>
-      </main>
+      <>
+        {/* Header Banner */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
+          padding: '32px 40px 28px', color: '#fff',
+        }}>
+          <div style={{ maxWidth: 1320 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Loading...</p>
+          </div>
+        </div>
+        <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+          <p style={{ color: '#5b6b74' }}>Loading verification details...</p>
+        </div>
+      </>
     );
   }
 
   if (error && !request) {
     return (
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
-        <p style={{ color: '#c62828' }}>{error}</p>
-        <Link href="/verification" style={{ color: '#174a5b' }}>&larr; Back to Queue</Link>
-      </main>
+      <>
+        {/* Header Banner */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
+          padding: '32px 40px 28px', color: '#fff',
+        }}>
+          <div style={{ maxWidth: 1320 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Error</p>
+          </div>
+        </div>
+        <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+          <p style={{ color: '#c62828' }}>{error}</p>
+          <Link href="/verification" style={{ color: '#174a5b' }}>&larr; Back to Queue</Link>
+        </div>
+      </>
     );
   }
 
   const isReviewable = request && (request.status === 'SUBMITTED' || request.status === 'UNDER_REVIEW');
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '32px 24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f3340', margin: 0 }}>
-            Verification Review
-          </h1>
-          <p style={{ color: '#5b6b74', margin: '4px 0 0', fontSize: 14 }}>
-            Request {requestId.substring(0, 8)}...
-          </p>
+    <>
+      {/* Header Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
+        padding: '32px 40px 28px', color: '#fff',
+      }}>
+        <div style={{ maxWidth: 1320, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+              Request {requestId.substring(0, 8)}...
+            </p>
+          </div>
+          <Link href="/verification" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
+            &larr; Back to Queue
+          </Link>
         </div>
-        <Link href="/verification" style={{ color: '#174a5b', textDecoration: 'none', fontSize: 14 }}>
-          &larr; Back to Queue
-        </Link>
       </div>
 
-      {error && (
-        <div style={{ padding: '10px 16px', background: '#ffebee', color: '#c62828', borderRadius: 6, marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
-
-      {/* Store Info */}
-      {store && (
-        <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Store Details</h2>
-          <div style={{ background: '#f8fafb', borderRadius: 8, padding: 20, border: '1px solid #e0e7eb' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <InfoRow label="Display Name" value={store.displayName} />
-              <InfoRow label="Slug" value={store.slug} />
-              <InfoRow label="Status" value={store.status} />
-              <InfoRow label="Verification" value={store.verificationStatus} />
-              <InfoRow label="Currency" value={store.currency} />
-              <InfoRow label="Locale" value={store.locale} />
-              <InfoRow label="Timezone" value={store.timezone} />
-              <InfoRow label="Created" value={new Date(store.createdAt).toLocaleDateString()} />
-            </div>
-            {store.description && (
-              <div style={{ marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: '#8a9ba5', display: 'block', marginBottom: 4 }}>Description</span>
-                <p style={{ margin: 0, color: '#3a4a52', fontSize: 14 }}>{store.description}</p>
-              </div>
-            )}
-            {store.address && Object.keys(store.address).length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: '#8a9ba5', display: 'block', marginBottom: 4 }}>Address</span>
-                <p style={{ margin: 0, color: '#3a4a52', fontSize: 14 }}>
-                  {JSON.stringify(store.address, null, 2)}
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Documents */}
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
-          Documents ({documents.length})
-        </h2>
-        {documents.length === 0 ? (
-          <p style={{ color: '#8a9ba5', fontSize: 14 }}>No documents uploaded yet.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px 16px',
-                  background: '#fff',
-                  border: '1px solid #e0e7eb',
-                  borderRadius: 6,
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 500, color: '#0f3340', fontSize: 14 }}>
-                    {DOC_TYPE_LABELS[doc.docType] || doc.docType}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#8a9ba5' }}>
-                    {doc.fileName} &middot; {(doc.fileSize / 1024).toFixed(1)} KB
-                  </div>
-                </div>
-                <span style={{
-                  padding: '3px 10px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: doc.verificationStatus === 'VERIFIED' ? '#e8f5e9' : doc.verificationStatus === 'REJECTED' ? '#ffebee' : '#fff8e1',
-                  color: doc.verificationStatus === 'VERIFIED' ? '#2e7d32' : doc.verificationStatus === 'REJECTED' ? '#c62828' : '#8a6d00',
-                }}>
-                  {doc.verificationStatus}
-                </span>
-              </div>
-            ))}
+      {/* Content */}
+      <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+        {error && (
+          <div style={{ padding: '10px 16px', background: '#ffebee', color: '#c62828', borderRadius: 8, marginBottom: 16 }}>
+            {error}
           </div>
         )}
-      </section>
 
-      {/* Review Form */}
-      {isReviewable && (
+        {/* Store Info */}
+        {store && (
+          <section style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Store Details</h2>
+            <div style={{ background: '#f8fafb', borderRadius: 10, padding: 20, border: '1px solid #e0e7eb' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <InfoRow label="Display Name" value={store.displayName} />
+                <InfoRow label="Slug" value={store.slug} />
+                <InfoRow label="Status" value={store.status} />
+                <InfoRow label="Verification" value={store.verificationStatus} />
+                <InfoRow label="Currency" value={store.currency} />
+                <InfoRow label="Locale" value={store.locale} />
+                <InfoRow label="Timezone" value={store.timezone} />
+                <InfoRow label="Created" value={new Date(store.createdAt).toLocaleDateString()} />
+              </div>
+              {store.description && (
+                <div style={{ marginTop: 12 }}>
+                  <span style={{ fontSize: 12, color: '#8a9ba5', display: 'block', marginBottom: 4 }}>Description</span>
+                  <p style={{ margin: 0, color: '#3a4a52', fontSize: 14 }}>{store.description}</p>
+                </div>
+              )}
+              {store.address && Object.keys(store.address).length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <span style={{ fontSize: 12, color: '#8a9ba5', display: 'block', marginBottom: 4 }}>Address</span>
+                  <p style={{ margin: 0, color: '#3a4a52', fontSize: 14 }}>
+                    {JSON.stringify(store.address, null, 2)}
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Documents */}
         <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Decision</h2>
-          <div style={{ background: '#f8fafb', borderRadius: 8, padding: 20, border: '1px solid #e0e7eb' }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {(['APPROVED', 'REJECTED', 'REVISION'] as const).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDecision(d)}
+          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
+            Documents ({documents.length})
+          </h2>
+          {documents.length === 0 ? (
+            <p style={{ color: '#8a9ba5', fontSize: 14 }}>No documents uploaded yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
                   style={{
-                    padding: '8px 20px',
-                    borderRadius: 6,
-                    border: '1px solid',
-                    borderColor: decision === d
-                      ? (d === 'APPROVED' ? '#2e7d32' : d === 'REJECTED' ? '#c62828' : '#e65100')
-                      : '#d9e2e6',
-                    background: decision === d
-                      ? (d === 'APPROVED' ? '#2e7d32' : d === 'REJECTED' ? '#c62828' : '#e65100')
-                      : '#fff',
-                    color: decision === d ? '#fff' : '#5b6b74',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    fontWeight: 500,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: 8,
+                    boxShadow: '0 1px 2px rgba(22,35,43,.04)',
                   }}
                 >
-                  {d}
-                </button>
+                  <div>
+                    <div style={{ fontWeight: 500, color: '#0f3340', fontSize: 14 }}>
+                      {DOC_TYPE_LABELS[doc.docType] || doc.docType}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8a9ba5' }}>
+                      {doc.fileName} &middot; {(doc.fileSize / 1024).toFixed(1)} KB
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '3px 10px',
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: doc.verificationStatus === 'VERIFIED' ? '#e8f5e9' : doc.verificationStatus === 'REJECTED' ? '#ffebee' : '#fff8e1',
+                    color: doc.verificationStatus === 'VERIFIED' ? '#2e7d32' : doc.verificationStatus === 'REJECTED' ? '#c62828' : '#8a6d00',
+                  }}>
+                    {doc.verificationStatus}
+                  </span>
+                </div>
               ))}
             </div>
+          )}
+        </section>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
-                Reviewer Notes
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #d9e2e6',
-                  fontSize: 14,
-                  fontFamily: 'inherit',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                }}
-                placeholder="Optional notes about this decision..."
-              />
-            </div>
+        {/* Review Form */}
+        {isReviewable && (
+          <section style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Decision</h2>
+            <div style={{ background: '#f8fafb', borderRadius: 10, padding: 20, border: '1px solid #e0e7eb' }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {(['APPROVED', 'REJECTED', 'REVISION'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDecision(d)}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 6,
+                      border: '1px solid',
+                      borderColor: decision === d
+                        ? (d === 'APPROVED' ? '#2e7d32' : d === 'REJECTED' ? '#c62828' : '#e65100')
+                        : '#d9e2e6',
+                      background: decision === d
+                        ? (d === 'APPROVED' ? '#2e7d32' : d === 'REJECTED' ? '#c62828' : '#e65100')
+                        : '#fff',
+                      color: decision === d ? '#fff' : '#5b6b74',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
 
-            {decision === 'REJECTED' && (
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
-                  Rejection Reason (required)
+                  Reviewer Notes
                 </label>
-                <input
-                  type="text"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     borderRadius: 6,
                     border: '1px solid #d9e2e6',
                     fontSize: 14,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
                     boxSizing: 'border-box',
                   }}
-                  placeholder="e.g. Commercial registration document expired"
+                  placeholder="Optional notes about this decision..."
                 />
               </div>
-            )}
 
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || (decision === 'REJECTED' && !rejectionReason)}
-              style={{
-                padding: '10px 28px',
-                borderRadius: 6,
-                border: 'none',
-                background: submitting ? '#8a9ba5' : '#174a5b',
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: submitting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {submitting ? 'Submitting...' : 'Submit Decision'}
-            </button>
-          </div>
-        </section>
-      )}
+              {decision === 'REJECTED' && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
+                    Rejection Reason (required)
+                  </label>
+                  <input
+                    type="text"
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: 6,
+                      border: '1px solid #d9e2e6',
+                      fontSize: 14,
+                      boxSizing: 'border-box',
+                    }}
+                    placeholder="e.g. Commercial registration document expired"
+                  />
+                </div>
+              )}
 
-      {/* Already resolved */}
-      {!isReviewable && request && (
-        <section style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Resolution</h2>
-          <div style={{ background: '#f8fafb', borderRadius: 8, padding: 20, border: '1px solid #e0e7eb' }}>
-            <InfoRow label="Status" value={request.status} />
-            {request.decisionNotes && <InfoRow label="Notes" value={request.decisionNotes} />}
-            {request.resolvedAt && (
-              <InfoRow label="Resolved" value={new Date(request.resolvedAt).toLocaleString()} />
-            )}
-          </div>
-        </section>
-      )}
-    </main>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || (decision === 'REJECTED' && !rejectionReason)}
+                style={{
+                  padding: '10px 28px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: submitting ? '#8a9ba5' : '#0f3340',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {submitting ? 'Submitting...' : 'Submit Decision'}
+              </button>
+            </div>
+          </section>
+        )}
+
+        {/* Already resolved */}
+        {!isReviewable && request && (
+          <section style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Resolution</h2>
+            <div style={{ background: '#f8fafb', borderRadius: 10, padding: 20, border: '1px solid #e0e7eb' }}>
+              <InfoRow label="Status" value={request.status} />
+              {request.decisionNotes && <InfoRow label="Notes" value={request.decisionNotes} />}
+              {request.resolvedAt && (
+                <InfoRow label="Resolved" value={new Date(request.resolvedAt).toLocaleString()} />
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+    </>
   );
 }
 

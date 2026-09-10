@@ -4,13 +4,15 @@ import { MerchantRegistrationCard } from '../components/MerchantRegistrationCard
 
 export default function HomePage() {
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>
-      <h1 style={{ fontSize: 32, fontWeight: 700, color: '#0f3340', marginBottom: 8 }}>
-        Smart Commerce Platform
-      </h1>
-      <p style={{ color: '#5b6b74', fontSize: 18, marginBottom: 32 }}>
-        B2B-first marketplace — retailer &amp; merchant portal
-      </p>
+    <div style={{ maxWidth: 960, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '36px 24px 28px', color: '#fff' }}>
+        <h1 style={{ fontSize: 30, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Smart Commerce Platform</h1>
+        <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)', margin: '8px 0 0' }}>
+          B2B-first marketplace — retailer &amp; merchant portal
+        </p>
+      </div>
+      <div style={{ padding: '24px' }}>
 
       {/* Primary Actions */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16, marginBottom: 32 }}>
@@ -50,7 +52,8 @@ export default function HomePage() {
         </Link>
         <AuthCard />
       </div>
-    </main>
+      </div>
+    </div>
   );
 }
 

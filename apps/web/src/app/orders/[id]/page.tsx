@@ -76,14 +76,18 @@ export default function OrderDetailPage() {
   const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>Order #{order.id.slice(0, 8)}</h1>
-          <div style={{ fontSize: 13, color: '#5b6b74' }}>{formatDate(order.createdAt)} · {order.fulfillmentMethod}</div>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Order #{order.id.slice(0, 8)}</h1>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>{formatDate(order.createdAt)} · {order.fulfillmentMethod}</div>
+          </div>
+          <StatusBadge status={order.status} />
         </div>
-        <StatusBadge status={order.status} />
       </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
         {/* Left column */}
@@ -156,6 +160,7 @@ export default function OrderDetailPage() {
             <OrderTimeline history={history} />
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

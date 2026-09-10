@@ -34,7 +34,15 @@ export default function ProductDetailPage() {
   if (!product) return <EmptyState title="Product not found" />;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>{product.title}</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+          {product.isAvailable ? 'Available' : 'Unavailable'} · MOQ: {product.moq}
+        </p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
         {/* Image */}
         <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 12, height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -45,7 +53,6 @@ export default function ProductDetailPage() {
 
         {/* Details */}
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0f3340', marginBottom: 8 }}>{product.title}</h1>
           {product.titleAr && <div style={{ fontSize: 18, color: '#5b6b74', marginBottom: 8, direction: 'rtl' }}>{product.titleAr}</div>}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: product.isAvailable ? '#d1fae5' : '#fee2e2', color: product.isAvailable ? '#065f46' : '#991b1b' }}>
@@ -86,6 +93,7 @@ export default function ProductDetailPage() {
             </Link>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

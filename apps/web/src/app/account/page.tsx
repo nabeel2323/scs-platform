@@ -43,8 +43,13 @@ export default function AccountPage() {
   if (!profile) return <div style={{ padding: 32, color: '#991b1b' }}>Failed to load account.</div>;
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', padding: 32 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>My Account</h1>
+    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>My Account</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>{profile.fullName} · {profile.email || 'No email'}</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Profile section */}
       <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
@@ -145,6 +150,7 @@ export default function AccountPage() {
       <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Device Management</h2>
         <p style={{ color: '#5b6b74', fontSize: 13 }}>Manage your registered devices for push notifications. Use the mobile app to register/unregister devices.</p>
+      </div>
       </div>
     </div>
   );

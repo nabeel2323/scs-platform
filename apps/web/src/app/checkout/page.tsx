@@ -37,8 +37,13 @@ export default function CheckoutPage() {
   };
 
   return (
-    <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 24 }}>Checkout</h1>
+    <div style={{ maxWidth: 600, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Checkout</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Complete your order</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}
 
@@ -71,6 +76,7 @@ export default function CheckoutPage() {
         }}>
           {submitting ? 'Placing Order...' : 'Place Order'}
         </button>
+      </div>
       </div>
     </div>
   );

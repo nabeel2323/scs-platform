@@ -30,11 +30,13 @@ export default function StoresPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 8 }}>Stores</h1>
-      <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 24 }}>
-        Browse verified wholesalers and suppliers
-      </p>
+    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Stores</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Browse verified wholesalers and suppliers</p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {stores.length === 0 ? (
         <EmptyState title="No stores yet" description="Stores will appear here once merchants onboard." />
@@ -78,6 +80,7 @@ export default function StoresPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

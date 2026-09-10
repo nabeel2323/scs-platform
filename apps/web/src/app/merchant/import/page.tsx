@@ -297,11 +297,15 @@ export default function ImportWizardPage() {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Import Catalog</h1>
-      <p style={{ color: '#666', marginBottom: 24 }}>
-        Bulk import products from a CSV or Excel file. Products will be created as drafts for your review.
-      </p>
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Import Catalog</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+          Bulk import products from a CSV or Excel file
+        </p>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Step indicator */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
@@ -575,6 +579,7 @@ export default function ImportWizardPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

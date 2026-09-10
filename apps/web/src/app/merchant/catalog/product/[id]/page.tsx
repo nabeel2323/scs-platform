@@ -220,11 +220,14 @@ export default function ProductEditorPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
-      <Link href="/merchant/catalog" style={{ fontSize: 13, color: '#5b6b74', textDecoration: 'none' }}>← Back to Catalog</Link>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', margin: '8px 0 16px' }}>
-        {isNew ? 'New Product' : 'Edit Product'}
-      </h1>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>
+          {isNew ? 'New Product' : 'Edit Product'}
+        </h1>
+      </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}
       {savedMsg && <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>{savedMsg}</div>}
@@ -362,6 +365,7 @@ export default function ProductEditorPage() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
@@ -374,9 +378,9 @@ const input: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d9
 const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
 const ghostBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const ghostLink: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, textDecoration: 'none' };
-const tableWrap: React.CSSProperties = { border: '1px solid #d9e2e6', borderRadius: 8, overflow: 'hidden' };
+const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
 const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const theadRow: React.CSSProperties = { background: '#f0f4f7', borderBottom: '1px solid #d9e2e6' };
-const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #eef2f5' };
-const th: React.CSSProperties = { textAlign: 'left', padding: '8px 12px', fontWeight: 600, color: '#5b6b74', fontSize: 11, textTransform: 'uppercase' };
-const td: React.CSSProperties = { padding: '8px 12px', color: '#1f2937' };
+const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };
+const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
+const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
+const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };

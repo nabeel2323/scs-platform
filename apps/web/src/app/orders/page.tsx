@@ -20,21 +20,25 @@ export default function OrdersPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340' }}>My Orders</h1>
-        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, background: '#fff' }}>
-          <option value="">All Statuses</option>
-          <option value="SUBMITTED">Submitted</option>
-          <option value="ACCEPTED">Accepted</option>
-          <option value="CONFIRMED">Confirmed</option>
-          <option value="PREPARING">Preparing</option>
-          <option value="READY">Ready</option>
-          <option value="DELIVERED">Delivered</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>My Orders</h1>
+          <select value={filter} onChange={e => setFilter(e.target.value)} style={{ padding: '6px 12px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontSize: 13, background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
+            <option value="">All Statuses</option>
+            <option value="SUBMITTED">Submitted</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="CONFIRMED">Confirmed</option>
+            <option value="PREPARING">Preparing</option>
+            <option value="READY">Ready</option>
+            <option value="DELIVERED">Delivered</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        </div>
       </div>
+      <div style={{ padding: '20px 24px 48px' }}>
 
       {orders.length === 0 ? (
         <EmptyState title="No orders yet" description="Place your first order from a store." action={<Link href="/stores" style={{ display: 'inline-block', padding: '8px 20px', background: '#0f3340', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>Browse Stores</Link>} />
@@ -60,6 +64,7 @@ export default function OrdersPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

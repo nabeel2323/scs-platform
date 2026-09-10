@@ -19,11 +19,11 @@ export default function SessionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   useEffect(() => {
     loadSessions();
   }, []);
-  
+
   const loadSessions = async () => {
     try {
       const data = await getSessions();
@@ -34,13 +34,13 @@ export default function SessionsPage() {
       setLoading(false);
     }
   };
-  
+
   const handleRevokeDevice = async (deviceId: string) => {
     if (!confirm('Revoke all sessions for this device?')) return;
-    
+
     setError('');
     setSuccess('');
-    
+
     try {
       await revokeSessionsByDevice(deviceId);
       setSuccess('Sessions revoked successfully');
@@ -49,14 +49,13 @@ export default function SessionsPage() {
       setError(err.message || 'Failed to revoke sessions');
     }
   };
-  
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleString();
   };
-  
+
   const getDeviceName = (session: Session) => {
     if (session.device) {
-      // Try to extract browser/device name from user agent
       if (session.device.includes('Chrome')) return 'Chrome Browser';
       if (session.device.includes('Firefox')) return 'Firefox Browser';
       if (session.device.includes('Safari')) return 'Safari Browser';
@@ -65,92 +64,81 @@ export default function SessionsPage() {
     }
     return 'Unknown Device';
   };
-  
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="text-center">Loading sessions...</div>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: 48, textAlign: 'center', color: '#5b6b74' }}>
+        Loading sessions...
       </div>
     );
   }
-  
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Active Sessions</h1>
-      
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+    <>
+      <style>{`
+        .tbl-row { transition: background 0.15s ease; }
+        .tbl-row:hover { background: #e6f0f5 !important; }
+        .tbl-row:nth-child(even) { background: #f3f6f9; }
+        .tbl-row:nth-child(even):hover { background: #e6f0f5 !important; }
+      `}</style>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        {/* Header Banner */}
+        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Active Sessions</h1>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Manage your active sessions across devices</p>
         </div>
-      )}
-      
-      {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
-          {success}
-        </div>
-      )}
-      
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Device
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                IP Address
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Active
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
+        <div style={{ padding: '20px 24px 48px' }}>
+
+      {error && <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
+      {success && <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{success}</div>}
+
+      <div style={tableWrap}>
+        <table style={table}>
+          <thead>
+            <tr style={theadRow}>
+              <th style={th}>Device</th>
+              <th style={th}>IP Address</th>
+              <th style={th}>Last Active</th>
+              <th style={th}>Status</th>
+              <th style={th}>Actions</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {sessions.map((session) => (
-              <tr key={session.id} className={session.isRevoked ? 'bg-gray-50' : ''}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900">
+              <tr key={session.id} className="tbl-row" style={tbodyRow}>
+                <td style={td}>
+                  <div style={{ fontWeight: 600, color: '#0f3340' }}>
                     {getDeviceName(session)}
                     {session.isCurrent && (
-                      <span className="ml-2 px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">
+                      <span style={{ marginLeft: 8, padding: '1px 8px', fontSize: 10, fontWeight: 600, background: '#d1fae5', color: '#065f46', borderRadius: 8 }}>
                         Current
                       </span>
                     )}
                   </div>
                   {session.deviceId && (
-                    <div className="text-xs text-gray-500">
+                    <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 2 }}>
                       ID: {session.deviceId.substring(0, 8)}...
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {session.ip || 'Unknown'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(session.createdAt)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td style={td}>{session.ip || 'Unknown'}</td>
+                <td style={td}>{formatDate(session.createdAt)}</td>
+                <td style={td}>
                   {session.isRevoked ? (
-                    <span className="px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 rounded">
+                    <span style={{ padding: '2px 8px', fontSize: 11, fontWeight: 600, background: '#fef2f2', color: '#991b1b', borderRadius: 8 }}>
                       Revoked
                     </span>
                   ) : (
-                    <span className="px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded">
+                    <span style={{ padding: '2px 8px', fontSize: 11, fontWeight: 600, background: '#d1fae5', color: '#065f46', borderRadius: 8 }}>
                       Active
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td style={td}>
                   {!session.isCurrent && !session.isRevoked && session.deviceId && (
                     <button
                       onClick={() => handleRevokeDevice(session.deviceId!)}
-                      className="text-red-600 hover:text-red-900"
+                      style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' }}
                     >
                       Revoke
                     </button>
@@ -160,23 +148,32 @@ export default function SessionsPage() {
             ))}
           </tbody>
         </table>
-        
+
         {sessions.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
+          <div style={{ textAlign: 'center', padding: 32, color: '#5b6b74', fontSize: 13 }}>
             No active sessions found
           </div>
         )}
       </div>
-      
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-blue-900 mb-2">About Sessions</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Sessions track where you're logged in across devices</li>
-          <li>• Revoking a session will log you out on that device</li>
-          <li>• The "Current" session is the one you're using now</li>
-          <li>• Sessions automatically expire after 30 days of inactivity</li>
-        </ul>
+
+      <div style={{ marginTop: 20, background: '#f0f7ff', border: '1px solid #bfdbfe', borderRadius: 10, padding: 16 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>About Sessions</h3>
+        <div style={{ fontSize: 13, color: '#1e40af', lineHeight: 1.6 }}>
+          <div>• Sessions track where you're logged in across devices</div>
+          <div>• Revoking a session will log you out on that device</div>
+          <div>• The "Current" session is the one you're using now</div>
+          <div>• Sessions automatically expire after 30 days of inactivity</div>
+        </div>
       </div>
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
+
+const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
+const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
+const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };
+const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
+const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
+const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };

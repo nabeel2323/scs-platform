@@ -101,15 +101,26 @@ export default function MerchantInventoryPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
-      <Link href="/merchant" style={backLink}>← Merchant Dashboard</Link>
-      <h1 style={{ ...h1, marginTop: 8 }}>Inventory</h1>
-      <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 20 }}>
-        Stock levels{selectedWh ? ` — ${items.length} items` : ''}
-        {items.filter(isLowStock).length > 0 && (
-          <span style={{ color: '#991b1b', fontWeight: 600 }}> ({items.filter(isLowStock).length} low stock)</span>
-        )}
-      </p>
+    <>
+      <style>{`
+        .tbl-row { transition: background 0.15s ease; }
+        .tbl-row:hover { background: #e6f0f5 !important; }
+        .tbl-row:nth-child(even) { background: #f3f6f9; }
+        .tbl-row:nth-child(even):hover { background: #e6f0f5 !important; }
+      `}</style>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        {/* Header Banner */}
+        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
+          <Link href="/merchant" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>&larr; Back to Dashboard</Link>
+          <h1 style={{ fontSize: 26, fontWeight: 700, margin: '8px 0 0', letterSpacing: '-0.3px' }}>Inventory</h1>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
+            Stock levels{selectedWh ? ` — ${items.length} items` : ''}
+            {items.filter(isLowStock).length > 0 && (
+              <span style={{ color: '#fca5a5', fontWeight: 600 }}> ({items.filter(isLowStock).length} low stock)</span>
+            )}
+          </p>
+        </div>
+        <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}
 
@@ -149,7 +160,7 @@ export default function MerchantInventoryPage() {
                     const available = item.qtyOnHand - item.qtyReserved;
                     const low = isLowStock(item);
                     return (
-                      <tr key={item.id} style={{ ...tbodyRow, background: low ? '#fef2f2' : 'transparent' }}>
+                      <tr key={item.id} className="tbl-row" style={{ ...tbodyRow, background: low ? '#fef2f2' : undefined }}>
                         <td style={td}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{item.variantId.slice(0, 8)}</span></td>
                         <td style={td}>{item.qtyOnHand}</td>
                         <td style={td}>{item.qtyReserved}</td>
@@ -194,7 +205,9 @@ export default function MerchantInventoryPage() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -205,12 +218,12 @@ const select: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d
 const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
 const ghostBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const editBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#0f3340', border: 'none', borderRadius: 4, cursor: 'pointer' };
-const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, overflow: 'hidden' };
+const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
 const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
-const theadRow: React.CSSProperties = { background: '#f0f4f7', borderBottom: '1px solid #d9e2e6' };
-const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #eef2f5' };
-const th: React.CSSProperties = { textAlign: 'left', padding: '10px 14px', fontWeight: 600, color: '#5b6b74', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.3px' };
-const td: React.CSSProperties = { padding: '10px 14px', color: '#1f2937' };
+const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };
+const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
+const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
+const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };
 const pill: React.CSSProperties = { fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600 };
 const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 };
 const dialog: React.CSSProperties = { background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' };
