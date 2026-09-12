@@ -331,6 +331,22 @@ export class IdentityService {
       if (activeRole) role = activeRole.key;
     }
 
+    // Resolve the user's permission keys for the active role so clients can
+    // perform client-side gating without decoding the JWT (RBAC audit GAP-6).
+    const perms: string[] = [];
+    if (activeMembership?.roleId) {
+      const rolePerms = await this.db.db.query.rolePermissions.findMany({
+        where: eq(rolePermissions.roleId, activeMembership.roleId),
+      });
+      const permIds = rolePerms.map((rp) => rp.permissionId);
+      if (permIds.length > 0) {
+        const permRows = await this.db.db.query.permissions.findMany({
+          where: inArray(permissions.id, permIds),
+        });
+        for (const p of permRows) perms.push(p.key);
+      }
+    }
+
     return {
       id: user.id,
       phone: user.phone,
@@ -339,6 +355,7 @@ export class IdentityService {
       locale: user.locale,
       status: user.status,
       role,
+      perms,
       activeOrgId: resolvedActiveOrgId,
       organizations: orgList,
       createdAt: user.createdAt,

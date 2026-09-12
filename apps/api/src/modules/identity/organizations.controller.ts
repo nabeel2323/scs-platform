@@ -1,7 +1,8 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 
 /**
  * Organizations controller — CRUD for organizations and membership.
@@ -21,6 +22,8 @@ export class OrganizationsController {
   constructor(private readonly identityService: IdentityService) {}
 
   @Post()
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('identity:organizations:write')
   async createOrg(
     @CurrentUser() user: JwtPayload,
     @Body() body: { name: string; type: string; country: string; legalName?: string; taxId?: string },
@@ -42,6 +45,8 @@ export class OrganizationsController {
   }
 
   @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('identity:organizations:write')
   async updateOrg(
     @Param('id') id: string,
     @Body() body: { name?: string; legalName?: string; taxId?: string },
@@ -50,6 +55,8 @@ export class OrganizationsController {
   }
 
   @Post(':id/members')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('identity:organizations:write')
   async addMember(
     @Param('id') orgId: string,
     @Body() body: { userId: string; roleId: string },
@@ -63,6 +70,8 @@ export class OrganizationsController {
   }
 
   @Delete(':id/members/:userId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('identity:organizations:write')
   async removeMember(
     @Param('id') orgId: string,
     @Param('userId') userId: string,

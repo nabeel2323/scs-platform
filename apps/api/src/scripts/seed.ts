@@ -38,6 +38,11 @@ const PERMISSIONS = [
   'merchant:products:write',
   'merchant:orders:write',
   'merchant:promotions:write',
+  // Inventory & Pricing (RBAC audit GAP-1, GAP-2)
+  'merchant:inventory:read',
+  'merchant:inventory:write',
+  'merchant:pricing:read',
+  'merchant:pricing:write',
   // Catalog
   'catalog:products:read',
   'catalog:products:write',
@@ -61,6 +66,10 @@ const PERMISSIONS = [
   'support:tickets:read',
   'support:tickets:write',
   'support:tickets:escalate',
+  'support:disputes:resolve',
+  'support:disputes:write',
+  // Identity — org management (RBAC audit GAP-8)
+  'identity:organizations:write',
   // Ads
   'ads:campaigns:read',
   'ads:campaigns:write',
@@ -102,6 +111,14 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'support:tickets:read',
       'support:tickets:write',
       'support:tickets:escalate',
+      'support:disputes:resolve',
+      'support:disputes:write',
+      // RBAC audit: inventory + pricing oversight
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
+      'identity:organizations:write',
       // Admin platform operations
       'admin:orders:read',
       'admin:merchants:read',
@@ -128,6 +145,10 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'support:tickets:escalate',
       'orders:read',
       'merchant:verification:review',
+      // RBAC audit: moderator read-oversight for inventory/pricing + dispute responses
+      'merchant:inventory:read',
+      'merchant:pricing:read',
+      'support:disputes:write',
     ],
   },
   {
@@ -148,6 +169,12 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:products:write',
       'merchant:orders:write',
       'merchant:promotions:write',
+      // RBAC audit: inventory + pricing management
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
+      'identity:organizations:write',
     ],
   },
   {
@@ -165,12 +192,17 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:products:write',
       'merchant:orders:write',
       'merchant:promotions:write',
+      // RBAC audit: inventory + pricing management
+      'merchant:inventory:read',
+      'merchant:inventory:write',
+      'merchant:pricing:read',
+      'merchant:pricing:write',
     ],
   },
   {
     key: 'BUYER',
     name: 'Buyer',
-    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'merchant:stores:read'],
+    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'orders:cancel', 'merchant:stores:read'],
   },
 ];
 

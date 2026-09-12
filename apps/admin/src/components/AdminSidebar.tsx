@@ -4,18 +4,18 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { isAuthenticated, getUser, logout } from '../lib/auth';
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: '⌂' },
-  { href: '/users', label: 'Users', icon: '👥' },
-  { href: '/orders', label: 'Orders', icon: '📦' },
-  { href: '/merchants', label: 'Merchants', icon: '🏪' },
-  { href: '/verification', label: 'Verification', icon: '✓' },
-  { href: '/categories', label: 'Categories', icon: '📁' },
-  { href: '/disputes', label: 'Disputes', icon: '⚖' },
-  { href: '/products', label: 'Products', icon: '📋' },
-  { href: '/kpis', label: 'KPIs', icon: '📊' },
-  { href: '/audit', label: 'Audit Log', icon: '📋' },
-  { href: '/account', label: 'Account Security', icon: '🔐' },
+const navItems: { href: string; label: string; icon: string; perms: string[] }[] = [
+  { href: '/', label: 'Dashboard', icon: '⌂', perms: [] },
+  { href: '/users', label: 'Users', icon: '👥', perms: ['admin:users:read'] },
+  { href: '/orders', label: 'Orders', icon: '📦', perms: ['admin:orders:read'] },
+  { href: '/merchants', label: 'Merchants', icon: '🏪', perms: ['admin:merchants:read'] },
+  { href: '/verification', label: 'Verification', icon: '✓', perms: ['merchant:verification:review'] },
+  { href: '/categories', label: 'Categories', icon: '📁', perms: [] },
+  { href: '/disputes', label: 'Disputes', icon: '⚖', perms: [] },
+  { href: '/products', label: 'Products', icon: '📋', perms: [] },
+  { href: '/kpis', label: 'KPIs', icon: '📊', perms: ['admin:kpis:read'] },
+  { href: '/audit', label: 'Audit Log', icon: '📋', perms: ['admin:audit:read'] },
+  { href: '/account', label: 'Account Security', icon: '🔐', perms: [] },
 ];
 
 export function AdminSidebar() {
@@ -52,7 +52,14 @@ export function AdminSidebar() {
       </div>
 
       <nav style={{ flex: 1, padding: '16px 0' }}>
-        {navItems.map((item) => {
+        {navItems
+          .filter((item) => {
+            // Show item if no specific perms required, or user has ALL required perms
+            if (item.perms.length === 0) return true;
+            const userPerms = user?.perms ?? [];
+            return item.perms.every((p) => userPerms.includes(p));
+          })
+          .map((item) => {
           const isActive =
             pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (

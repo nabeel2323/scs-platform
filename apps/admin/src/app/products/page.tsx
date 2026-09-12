@@ -19,6 +19,8 @@ interface ModerationProduct {
 export default function ProductsModerationPage() {
   const [products, setProducts] = useState<ModerationProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [moderating, setModerating] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [search, setSearch] = useState('');
@@ -39,12 +41,16 @@ export default function ProductsModerationPage() {
       const sp = new URLSearchParams();
       if (statusFilter) sp.set('status', statusFilter);
       const res = await authFetch(`${API_URL}/v1/admin/products?${sp}`);
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data.data || data);
+      if (!res.ok) {
+        setError(`Failed to load moderation queue (HTTP ${res.status}). Check your session and retry.`);
+        return;
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+      setError(null);
+      const data = await res.json();
+      setProducts(data.data || data);
+    } catch (e) {
+      setError(`Failed to load moderation queue: ${e instanceof Error ? e.message : 'network error'}`);
+    } finally { setLoading(false); }
   }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -57,14 +63,33 @@ export default function ProductsModerationPage() {
   const paginatedData = filteredData.slice(page * limit, (page + 1) * limit);
 
   const handleModerate = async (id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED') => {
+    setError(null);
+    setModerating(m => new Set(m).add(id));
     try {
-      await authFetch(`${API_URL}/v1/admin/products/${id}/moderate`, {
+      const res = await authFetch(`${API_URL}/v1/admin/products/${id}/moderate`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision }),
       });
-      setProducts(p => p.filter(prod => prod.id !== id));
-    } catch { /* ignore */ }
+      if (!res.ok) {
+        // Do NOT touch the table on failure — the row must stay so the
+        // decision can be retried, and the error must be visible.
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          detail = body.detail || body.message || detail;
+        } catch { /* keep status code */ }
+        setError(`Failed to ${decision === 'APPROVED' ? 'approve' : decision === 'REJECTED' ? 'reject' : 'archive'} product: ${detail}`);
+        return;
+      }
+      // Re-sync from the server so the table reflects the persisted status
+      // (e.g. DRAFT → ACTIVE) instead of optimistically trusting the client.
+      await load();
+    } catch (e) {
+      setError(`Failed to submit moderation decision: ${e instanceof Error ? e.message : 'network error'}`);
+    } finally {
+      setModerating(m => { const next = new Set(m); next.delete(id); return next; });
+    }
   };
 
   // Keyboard shortcuts (P1-13)
@@ -93,7 +118,7 @@ export default function ProductsModerationPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [products, selectedIdx]);
+  }, [products, selectedIdx, handleModerate]);
 
   const statusColor = (s: string) => {
     const map: Record<string, string> = { DRAFT: '#92400e', ACTIVE: '#065f46', REJECTED: '#991b1b' };
@@ -118,7 +143,7 @@ export default function ProductsModerationPage() {
         <div style={{ maxWidth: 1320 }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Product Moderation</h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-            Review and moderate merchant products — {products.length} pending
+            Review and moderate merchant products — {products.filter(p => p.status === 'DRAFT').length} awaiting moderation
           </p>
         </div>
       </div>
@@ -128,6 +153,17 @@ export default function ProductsModerationPage() {
         <p style={{ color: '#a0aec0', fontSize: 11, marginBottom: 20 }}>
           Shortcuts: <kbd style={kbdStyle}>j</kbd>/<kbd style={kbdStyle}>k</kbd> navigate · <kbd style={kbdStyle}>A</kbd> approve · <kbd style={kbdStyle}>X</kbd> reject · <kbd style={kbdStyle}>/</kbd> search
         </p>
+
+        {error && (
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+            background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b',
+            padding: '10px 14px', borderRadius: 8, marginBottom: 20, fontSize: 13,
+          }}>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontSize: 16, lineHeight: 1 }} aria-label="Dismiss">×</button>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setSelectedIdx(0); }}
@@ -187,16 +223,16 @@ export default function ProductsModerationPage() {
                     <td style={tdStyle}>{new Date(p.createdAt).toLocaleDateString()}</td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => handleModerate(p.id, 'APPROVED')}
-                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#d1fae5', color: '#065f46', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-                          Approve
+                        <button onClick={() => handleModerate(p.id, 'APPROVED')} disabled={moderating.has(p.id)}
+                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#d1fae5', color: '#065f46', border: 'none', borderRadius: 4, cursor: moderating.has(p.id) ? 'wait' : 'pointer', opacity: moderating.has(p.id) ? 0.5 : 1 }}>
+                          {moderating.has(p.id) ? '…' : 'Approve'}
                         </button>
-                        <button onClick={() => handleModerate(p.id, 'REJECTED')}
-                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fef2f2', color: '#991b1b', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                        <button onClick={() => handleModerate(p.id, 'REJECTED')} disabled={moderating.has(p.id)}
+                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fef2f2', color: '#991b1b', border: 'none', borderRadius: 4, cursor: moderating.has(p.id) ? 'wait' : 'pointer', opacity: moderating.has(p.id) ? 0.5 : 1 }}>
                           Reject
                         </button>
-                        <button onClick={() => handleModerate(p.id, 'ARCHIVED')}
-                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#5b6b74', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                        <button onClick={() => handleModerate(p.id, 'ARCHIVED')} disabled={moderating.has(p.id)}
+                          style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#5b6b74', border: 'none', borderRadius: 4, cursor: moderating.has(p.id) ? 'wait' : 'pointer', opacity: moderating.has(p.id) ? 0.5 : 1 }}>
                           Archive
                         </button>
                       </div>

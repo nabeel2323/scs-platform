@@ -32,6 +32,7 @@ export interface AdminUser {
   phone: string;
   fullName: string;
   role: string; // SUPER_ADMIN | ADMIN | MODERATOR
+  perms?: string[];
 }
 
 // ── Rate-limit (429) error ───────────────────────────────────
@@ -142,6 +143,7 @@ async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<
       phone: profile.phone || fallbackPhone,
       fullName: profile.fullName || 'Admin',
       role: profile.role || 'ADMIN',
+      perms: profile.perms ?? undefined,
     };
     persistUser(currentUser);
   } catch {

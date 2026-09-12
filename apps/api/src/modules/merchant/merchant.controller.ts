@@ -163,6 +163,8 @@ export class MerchantController {
   }
 
   @Post('documents/:id/presign')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
   async presignDocument(@Param('id') id: string) {
     return this.merchantService.generatePresignedUrl(id);
   }

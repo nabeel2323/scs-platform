@@ -4,31 +4,36 @@ import {
 } from '@nestjs/common';
 import { PricingService, CreatePriceListInput, UpdatePriceListInput, CreateTierInput, UpdateTierInput } from './pricing.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 
 @Controller()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PricingController {
   constructor(private readonly pricingService: PricingService) {}
 
   // ── Price Lists ──────────────────────────────────────────────
 
   @Post('price-lists')
+  @RequirePermission('merchant:pricing:write')
   async createPriceList(@Body() input: CreatePriceListInput) {
     return this.pricingService.createPriceList(input);
   }
 
   @Get('stores/:storeId/price-lists')
+  @RequirePermission('merchant:pricing:read')
   async listPriceLists(@Param('storeId') storeId: string) {
     return this.pricingService.listPriceListsByStore(storeId);
   }
 
   @Get('price-lists/:id')
+  @RequirePermission('merchant:pricing:read')
   async getPriceList(@Param('id') id: string) {
     return this.pricingService.getPriceList(id);
   }
 
   @Patch('price-lists/:id')
+  @RequirePermission('merchant:pricing:write')
   async updatePriceList(
     @Param('id') id: string,
     @Body() input: UpdatePriceListInput,
@@ -39,6 +44,7 @@ export class PricingController {
   // ── Price Tiers ──────────────────────────────────────────────
 
   @Post('price-lists/:priceListId/tiers')
+  @RequirePermission('merchant:pricing:write')
   async addTier(
     @Param('priceListId') priceListId: string,
     @Body() input: CreateTierInput,
@@ -47,11 +53,13 @@ export class PricingController {
   }
 
   @Get('price-lists/:priceListId/tiers')
+  @RequirePermission('merchant:pricing:read')
   async listTiers(@Param('priceListId') priceListId: string) {
     return this.pricingService.listTiersByPriceList(priceListId);
   }
 
   @Get('variants/:variantId/pricing')
+  @RequirePermission('merchant:pricing:read')
   async getProductPricing(
     @Param('variantId') variantId: string,
     @Query('storeId') storeId?: string,
@@ -63,6 +71,7 @@ export class PricingController {
   }
 
   @Patch('tiers/:id')
+  @RequirePermission('merchant:pricing:write')
   async updateTier(
     @Param('id') id: string,
     @Body() input: UpdateTierInput,
@@ -71,6 +80,7 @@ export class PricingController {
   }
 
   @Delete('tiers/:id')
+  @RequirePermission('merchant:pricing:write')
   async removeTier(@Param('id') id: string) {
     return this.pricingService.removeTier(id);
   }
@@ -78,6 +88,7 @@ export class PricingController {
   // ── Price Resolution ─────────────────────────────────────────
 
   @Get('resolve-price')
+  @RequirePermission('merchant:pricing:read')
   async resolvePrice(
     @Query('variantId') variantId: string,
     @Query('priceListId') priceListId: string,

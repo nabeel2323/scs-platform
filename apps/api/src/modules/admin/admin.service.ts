@@ -607,9 +607,20 @@ export class AdminService {
         updates['deletedAt'] = new Date();
         updates['isAvailable'] = false;
         break;
+      default:
+        // Unreachable behind ModerateProductDto, but keeps the service safe if
+        // called from elsewhere — never return 200 without a status change.
+        throw new BadRequestException(`Unsupported moderation decision: ${decision}`);
     }
 
-    await this.db.db.update(products).set(updates).where(eq(products.id, id));
-    return { id, decision, reason, moderatedAt: new Date() };
+    // `.returning()` echoes the persisted row state so clients can confirm the
+    // transition actually landed (guards against silent no-op reports).
+    const [updated] = await this.db.db
+      .update(products)
+      .set(updates)
+      .where(eq(products.id, id))
+      .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
+    if (!updated) throw new NotFoundException('Product not found');
+    return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };
   }
 }

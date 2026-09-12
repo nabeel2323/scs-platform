@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { ModerateProductDto } from './dto/moderate-product.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermission } from '../../common/guards/current-user.decorator';
@@ -196,7 +197,7 @@ export class AdminController {
   @RequirePermission('admin:merchants:read')
   async moderateProduct(
     @Param('id') id: string,
-    @Body() body: { decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED'; reason?: string },
+    @Body() body: ModerateProductDto,
   ) {
     return this.adminService.moderateProduct(id, body.decision, body.reason);
   }

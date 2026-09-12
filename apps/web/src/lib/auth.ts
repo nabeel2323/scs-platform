@@ -36,6 +36,7 @@ export interface AuthUser {
   fullName: string;
   activeOrgId?: string;
   role?: string;
+  perms?: string[];
 }
 
 // ── Rate-limit (429) error ───────────────────────────────────
@@ -158,6 +159,18 @@ export function isAuthenticated(): boolean {
   return session !== null && session.expiresAt > Date.now();
 }
 
+/** Whether the current user has merchant-level access (owner or staff). */
+export function hasMerchantAccess(): boolean {
+  const user = getUser();
+  return user?.role === 'MERCHANT_OWNER' || user?.role === 'MERCHANT_STAFF';
+}
+
+/** Whether the current user has admin-level access. */
+export function hasAdminAccess(): boolean {
+  const user = getUser();
+  return user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
+}
+
 /** Set the current user (called after profile fetch). */
 export function setCurrentUser(user: AuthUser | null) {
   currentUser = user;
@@ -221,6 +234,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
         fullName: profile.fullName,
         activeOrgId: profile.activeOrgId ?? undefined,
         role: profile.role ?? undefined,
+        perms: profile.perms ?? undefined,
       };
       persistUser(currentUser);
       notifyAuthChange();
@@ -406,6 +420,7 @@ export async function loginPassword(
         fullName: profile.fullName,
         activeOrgId: profile.activeOrgId ?? undefined,
         role: profile.role ?? undefined,
+        perms: profile.perms ?? undefined,
       };
       persistUser(currentUser);
       notifyAuthChange();

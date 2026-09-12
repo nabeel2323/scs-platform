@@ -229,6 +229,16 @@ describe('IdentityService — N+1 elimination (P2)', () => {
         { id: 'org-1', name: 'Alpha' },
         { id: 'org-2', name: 'Beta' },
       ]);
+      // getProfile also resolves the active role's permission keys (RBAC GAP-6).
+      mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-1', key: 'MERCHANT_OWNER' });
+      mocks.db.query.rolePermissions.findMany.mockResolvedValue([
+        { roleId: 'role-1', permissionId: 'p1' },
+        { roleId: 'role-1', permissionId: 'p2' },
+      ]);
+      mocks.db.query.permissions.findMany.mockResolvedValue([
+        { id: 'p1', key: 'merchant:inventory:read' },
+        { id: 'p2', key: 'merchant:inventory:write' },
+      ]);
 
       const profile = await service.getProfile(USER_ID);
 
@@ -236,6 +246,7 @@ describe('IdentityService — N+1 elimination (P2)', () => {
       expect(mocks.db.query.organizations.findFirst).not.toHaveBeenCalled();
       expect(profile.organizations).toHaveLength(2);
       expect(profile.activeOrgId).toBe('org-1');
+      expect(profile.perms).toEqual(['merchant:inventory:read', 'merchant:inventory:write']);
     });
   });
 

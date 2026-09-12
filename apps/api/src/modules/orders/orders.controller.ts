@@ -16,6 +16,8 @@ export class OrdersController {
   // ── Checkout ─────────────────────────────────────────────────
 
   @Post('checkout')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('orders:write')
   async checkout(@CurrentUser() user: JwtPayload, @Body() input: CheckoutInput) {
     return this.ordersService.checkout({
       ...input,
@@ -31,6 +33,8 @@ export class OrdersController {
   }
 
   @Post('orders/master/:id/reorder')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('orders:write')
   async reorder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.reorder(id, user.sub);
   }
@@ -121,6 +125,8 @@ export class OrdersController {
   }
 
   @Post('orders/:id/cancel')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('orders:cancel')
   async cancelOrder(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

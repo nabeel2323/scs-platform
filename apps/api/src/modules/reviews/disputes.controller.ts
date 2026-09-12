@@ -3,7 +3,8 @@ import {
 } from '@nestjs/common';
 import { DisputesService, CreateDisputeInput } from './disputes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -54,6 +55,8 @@ export class DisputesController {
   }
 
   @Post('disputes/:id/response')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('support:disputes:write')
   async submitResponse(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
@@ -63,6 +66,8 @@ export class DisputesController {
   }
 
   @Patch('disputes/:id/resolve')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('support:disputes:resolve')
   async resolveDispute(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,

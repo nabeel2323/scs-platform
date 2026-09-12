@@ -1091,6 +1091,8 @@ export const UserProfileSchema = z.object({
   // ADMIN, MERCHANT_OWNER, BUYER). Server-resolved so web/admin hydrate role
   // from GET /v1/me instead of decoding the access-token JWT client-side.
   role: z.string(),
+  // Permission keys for the active role — enables client-side gating (RBAC audit GAP-6).
+  perms: z.array(z.string()).default([]),
   activeOrgId: z.string().uuid().nullable(),
   organizations: z.array(z.object({
     id: z.string().uuid(),

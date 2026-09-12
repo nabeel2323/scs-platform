@@ -1,7 +1,8 @@
 import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { AnalyticsService, TrackInput } from './analytics.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/guards/current-user.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { CurrentUser, RequirePermission } from '../../common/guards/current-user.decorator';
 
 /**
  * Analytics controller — 4 endpoints
@@ -48,6 +49,8 @@ export class AnalyticsController {
   }
 
   @Get('events')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('analytics:read')
   async eventCounts(
     @Query('from') from: string,
     @Query('to') to: string,
@@ -56,6 +59,8 @@ export class AnalyticsController {
   }
 
   @Get('activity')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('analytics:read')
   async userActivity(
     @CurrentUser() user: { sub: string },
     @Query('limit') limit?: string,
