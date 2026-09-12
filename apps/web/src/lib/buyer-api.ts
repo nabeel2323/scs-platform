@@ -905,3 +905,29 @@ export async function fetchPriceListTiers(listId: string): Promise<PriceTier[]> 
   if (!res.ok) throw new Error(`Price tiers failed: ${res.status}`);
   return res.json();
 }
+
+// ── Device Management ────────────────────────────────────────
+
+export interface DeviceToken {
+  id: string;
+  token: string;
+  platform: string;
+  appVersion: string | null;
+  isActive: boolean;
+  lastSeenAt: string;
+  createdAt: string;
+}
+
+export async function fetchDevices(): Promise<DeviceToken[]> {
+  const res = await authFetch(`${API_URL}/v1/me/devices`);
+  if (!res.ok) throw new Error(`Fetch devices failed: ${res.status}`);
+  return res.json();
+}
+
+export async function unregisterDevice(token: string): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/me/devices/${encodeURIComponent(token)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Unregister device failed: ${res.status}`);
+  return res.json();
+}

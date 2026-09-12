@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchProfile, updateProfile, fetchMyOrganizations, UserProfile } from '../../lib/buyer-api';
+import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
 import { isAuthenticated } from '../../lib/auth';
 
 export default function AccountPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orgs, setOrgs] = useState<unknown[]>([]);
+  const [devices, setDevices] = useState<DeviceToken[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ fullName: '', email: '', locale: 'en' });
   const [saving, setSaving] = useState(false);
+  const [deviceAction, setDeviceAction] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -22,6 +24,7 @@ export default function AccountPage() {
     Promise.all([
       fetchProfile().then(setProfile).catch(() => {}),
       fetchMyOrganizations().then(setOrgs).catch(() => {}),
+      fetchDevices().then(setDevices).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [router]);
 
@@ -37,6 +40,24 @@ export default function AccountPage() {
       setEditing(false);
     } catch { /* ignore */ }
     finally { setSaving(false); }
+  };
+
+  const handleUnregisterDevice = async (token: string) => {
+    if (!confirm('Unregister this device? You will no longer receive push notifications on it.')) return;
+    setDeviceAction(token);
+    try {
+      await unregisterDevice(token);
+      setDevices(prev => prev.filter(d => d.token !== token));
+    } catch { /* ignore */ }
+    finally { setDeviceAction(null); }
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    const p = platform.toLowerCase();
+    if (p.includes('android')) return '🤖';
+    if (p.includes('ios') || p.includes('apple')) return '🍎';
+    if (p.includes('web')) return '🌐';
+    return '📱';
   };
 
   if (loading) return <div style={{ padding: 32, color: '#5b6b74' }}>Loading account...</div>;
@@ -149,7 +170,64 @@ export default function AccountPage() {
       {/* Devices */}
       <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Device Management</h2>
-        <p style={{ color: '#5b6b74', fontSize: 13 }}>Manage your registered devices for push notifications. Use the mobile app to register/unregister devices.</p>
+        <p style={{ color: '#5b6b74', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+          Manage devices registered for push notifications. Unregister devices you no longer use.
+        </p>
+        {devices.length === 0 ? (
+          <div style={{ padding: '20px 0', textAlign: 'center', color: '#5b6b74', fontSize: 13 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📱</div>
+            <div>No devices registered for push notifications.</div>
+            <div style={{ fontSize: 12, marginTop: 4, color: '#8a9ba5' }}>Use the mobile app to register your device.</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {devices.map((device) => (
+              <div key={device.id} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 16px',
+                background: '#f8fafb',
+                border: '1px solid #e2e8f0',
+                borderRadius: 10,
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  background: '#fff',
+                  border: '1px solid #e2e8f0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20, flexShrink: 0,
+                }}>
+                  {getPlatformIcon(device.platform)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 2 }}>
+                    {device.platform.charAt(0).toUpperCase() + device.platform.slice(1)}
+                    {device.appVersion && <span style={{ fontWeight: 400, color: '#5b6b74', marginLeft: 6 }}>v{device.appVersion}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#5b6b74' }}>
+                    Last active: {new Date(device.lastSeenAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleUnregisterDevice(device.token)}
+                  disabled={deviceAction === device.token}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: '#fff',
+                    color: deviceAction === device.token ? '#8a9ba5' : '#991b1b',
+                    border: '1px solid #fca5a5',
+                    borderRadius: 6,
+                    cursor: deviceAction === device.token ? 'not-allowed' : 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  {deviceAction === device.token ? 'Removing...' : 'Unregister'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       </div>
     </div>

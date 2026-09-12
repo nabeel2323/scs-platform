@@ -207,6 +207,7 @@ export class IdentityService {
       userId: session.userId,
       tokenHash: newTokenHash,
       device: session.device,
+      deviceId: session.deviceId, // Carry forward device trust (migration 0010)
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
@@ -724,7 +725,10 @@ export class IdentityService {
 
   /**
    * Check if device is trusted for a user.
-   * Trusted if device_id matches last session and last login within 30 days.
+   * Trusted if device_id has authenticated this user within 30 days.
+   * NOTE: We check ALL sessions (including revoked) because logout revokes
+   * sessions but shouldn't break device trust. The trust is based on
+   * "has this device authenticated this user before", not "is there an active session".
    */
   async checkDeviceTrust(userId: string, deviceId: string): Promise<boolean> {
     const lastSession = await this.db.db.query.sessions.findFirst({
@@ -736,9 +740,9 @@ export class IdentityService {
       return false;
     }
 
-    // Check if last login within 30 days
+    // Check if device authenticated this user within 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    return lastSession.createdAt > thirtyDaysAgo && !lastSession.revokedAt;
+    return lastSession.createdAt > thirtyDaysAgo;
   }
 
   /**
@@ -792,16 +796,9 @@ export class IdentityService {
     // Log audit entry
     await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
 
-    // Invalidate all other sessions
-    await this.db.db
-      .update(sessions)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(sessions.userId, userId),
-          deviceId ? eq(sessions.deviceId, deviceId) : eq(sessions.userId, userId),
-        ),
-      );
+    // NOTE: Do NOT revoke existing sessions here. The OTP session that established
+    // device trust (with deviceId) must remain valid so password login works.
+    // Revoking it would break device trust and force OTP on every login.
 
     return { success: true, message: 'Credentials set up successfully' };
   }

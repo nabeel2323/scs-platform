@@ -65,6 +65,11 @@ export class ProfileController {
     );
   }
 
+  @Get('devices')
+  async listDevices(@CurrentUser() user: JwtPayload) {
+    return this.notificationsService.listDeviceTokens(user.sub);
+  }
+
   @Delete('devices/:token')
   async unregisterDevice(@CurrentUser() user: JwtPayload, @Param('token') token: string) {
     return this.notificationsService.unregisterDeviceToken(user.sub, token);

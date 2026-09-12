@@ -371,6 +371,12 @@ export class NotificationsService implements OnModuleInit {
     return { success: true };
   }
 
+  async listDeviceTokens(userId: string) {
+    return this.db.db.select().from(deviceTokens)
+      .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.isActive, true)))
+      .orderBy(desc(deviceTokens.lastSeenAt));
+  }
+
   // ── Queries ──────────────────────────────────────────────────
 
   async listNotifications(userId: string, limit = 50, offset = 0) {
