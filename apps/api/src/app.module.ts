@@ -20,6 +20,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { OutboxModule } from './common/outbox/outbox.module';
+import { StorageModule } from './common/storage/storage.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { OutboxModule } from './common/outbox/outbox.module';
     DatabaseModule,
     RedisModule,
     OutboxModule,
+    StorageModule,
     RealtimeModule,
 
     // ── Domain modules (Phase 1) ─────────────────────────────

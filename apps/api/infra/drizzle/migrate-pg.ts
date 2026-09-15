@@ -51,8 +51,18 @@ async function main() {
   console.log(`\n📦 Smart Commerce — CI Migration Runner${dryRun ? ' (dry-run)' : ''}`);
   console.log(`   Migrations dir: ${MIGRATIONS_DIR}`);
   console.log(`   Files found: ${files.length}\n`);
+  const sslCaFile = process.env['PGSSLROOTCERT'];
 
-  const pool = new Pool({ connectionString, connectionTimeoutMillis: 10_000 } as any);
+  const pool = new Pool({
+  connectionString,
+  connectionTimeoutMillis: 10_000,
+  ...(sslCaFile && {
+    ssl: {
+      ca: fs.readFileSync(sslCaFile, 'utf8'),
+      rejectUnauthorized: true,
+    },
+  }),
+});
   const client = await pool.connect();
 
   try {

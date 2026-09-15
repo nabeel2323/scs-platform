@@ -84,7 +84,7 @@ async function bootstrap() {
   app.useWebSocketAdapter(new IoAdapter(app));
 
   // ── Start ──────────────────────────────────────────────────
-  const port = process.env['API_PORT'] || 3000;
+  const port = Number(process.env['PORT'] || process.env['API_PORT'] || 3000);
   const host = process.env['API_HOST'] || '0.0.0.0';
   await app.listen(port, host);
 

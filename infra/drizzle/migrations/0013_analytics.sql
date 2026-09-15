@@ -2,7 +2,8 @@
 -- Module boundary: modules/analytics/*
 
 -- Install pg_partman extension for automated partition management
-CREATE EXTENSION IF NOT EXISTS pg_partman;
+CREATE SCHEMA IF NOT EXISTS partman;
+CREATE EXTENSION IF NOT EXISTS pg_partman WITH SCHEMA partman;
 
 -- The analytics_events table was created in migration 0002_platform.
 -- Now we convert it to a partitioned table.
@@ -28,12 +29,12 @@ CREATE TABLE analytics_events (
 ) PARTITION BY RANGE (created_at);
 
 -- Create default partition for any data outside defined ranges
-CREATE TABLE analytics_events_default PARTITION OF analytics_events DEFAULT;
-
+-- pg_partman will create/manage the default partition.
+-- Do not create analytics_events_default manually here.
 -- Step 2: Configure pg_partman for monthly partitioning
 -- This creates partitions automatically
 SELECT partman.create_parent(
-  p_parent_table   => 'analytics_events',
+  p_parent_table   => 'public.analytics_events',
   p_control        => 'created_at',
   p_type           => 'range',
   p_interval       => '1 month',
