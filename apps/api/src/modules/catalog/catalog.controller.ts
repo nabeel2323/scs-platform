@@ -28,7 +28,7 @@ import {
   JwtPayload,
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
-
+import { StorageService } from '../../common/storage/storage.service';
 /**
  * Catalog API — categories, brands, products, variants, media, imports.
  */
@@ -38,6 +38,7 @@ export class CatalogController {
   constructor(
     private readonly catalogService: CatalogService,
     private readonly searchService: SearchService,
+    private readonly storageService: StorageService,
   ) {}
 
   // ── Categories ───────────────────────────────────────────────
@@ -160,10 +161,17 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async presignMedia(@Body() body: { fileName: string; mimeType: string }) {
-    // In production: generate S3/MinIO presigned upload URL
     const key = `products/${crypto.randomUUID()}/${body.fileName}`;
+    const bucket = process.env['S3_MEDIA_BUCKET'] || 'scs-media';
+
+    const uploadUrl = await this.storageService.createPresignedPutUrl(
+      bucket,
+      key,
+      body.mimeType || 'application/octet-stream',
+    );
+
     return {
-      uploadUrl: `https://storage.local/${key}?expires=900`,
+      uploadUrl,
       storageKey: key,
     };
   }
