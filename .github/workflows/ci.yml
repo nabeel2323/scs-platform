@@ -21,7 +21,7 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '9'
+  PNPM_VERSION: '9.15.9'
 
 jobs:
   # ── Lint & Typecheck ─────────────────────────────────────
