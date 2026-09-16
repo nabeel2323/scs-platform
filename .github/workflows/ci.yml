@@ -1,10 +1,10 @@
 # ============================================================
-# Smart Commerce & Supply Platform — CI Pipeline
+# Smart Commerce & Supply Platform â€” CI Pipeline
 # ============================================================
-# PR: lint → typecheck → boundary-lint → unit(+coverage gates) → integration
-#     → migration dry-run → contract → build → mobile(analyze+test) → smoke
+# PR: lint â†’ typecheck â†’ boundary-lint â†’ unit(+coverage gates) â†’ integration
+#     â†’ migration dry-run â†’ contract â†’ build â†’ mobile(analyze+test) â†’ smoke
 # main: all of PR + E2E + k6 smoke + Lighthouse + axe
-#       → staging deploy
+#       â†’ staging deploy
 # ============================================================
 
 name: CI
@@ -24,7 +24,7 @@ env:
   PNPM_VERSION: '9.15.9'
 
 jobs:
-  # ── Lint & Typecheck ─────────────────────────────────────
+  # â”€â”€ Lint & Typecheck â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   lint:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
@@ -52,7 +52,7 @@ jobs:
       - run: pnpm format:check
         continue-on-error: true
 
-  # ── Boundary Lint (E6) ───────────────────────────────────
+  # â”€â”€ Boundary Lint (E6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   boundary-lint:
     name: Boundary Lint (E6)
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
       - run: pnpm --filter @scs/api lint
         continue-on-error: true
 
-  # ── Unit Tests + Coverage Gates ──────────────────────────
+  # â”€â”€ Unit Tests + Coverage Gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-unit:
     name: Unit Tests + Coverage Gates
     runs-on: ubuntu-latest
@@ -101,7 +101,7 @@ jobs:
           name: coverage-unit
           path: apps/api/coverage/
 
-  # ── Integration Tests ────────────────────────────────────
+  # â”€â”€ Integration Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -144,7 +144,7 @@ jobs:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
 
-  # ── Migration Dry-Run (apply ordered SQL to ephemeral DB) ─
+  # â”€â”€ Migration Dry-Run (apply ordered SQL to ephemeral DB) â”€
   migration-gate:
     name: Migration Dry-Run
     runs-on: ubuntu-latest
@@ -176,10 +176,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # 1) Enforcing gate: validate every migration file exists, is ordered and
-      #    non-empty, and that the DB is reachable — without writing.
+      #    non-empty, and that the DB is reachable â€” without writing.
       - name: Dry-run (validate)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
-      # 2) Best-effort full apply to a fresh DB. Migrations 0001–0012 apply
+      # 2) Best-effort full apply to a fresh DB. Migrations 0001â€“0012 apply
       #    cleanly (verified locally against postgis/postgis:16-3.4). 0013_
       #    analytics.sql requires the third-party pg_partman extension, which is
       #    not bundled in the postgis image and has no official combined image,
@@ -191,7 +191,7 @@ jobs:
         run: pnpm --filter @scs/api run db:migrate:ci
         continue-on-error: true
 
-  # ── Contract Tests ───────────────────────────────────────
+  # â”€â”€ Contract Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-contract:
     name: Contract Spec & Codegen
     runs-on: ubuntu-latest
@@ -247,7 +247,7 @@ jobs:
       # and is validated locally; it is wired into the mobile job once the app
       # consumes the generated client (see the P2 mobile typed-models work).
 
-  # ── Build ────────────────────────────────────────────────
+  # â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -264,7 +264,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-  # ── k6 Smoke Test (main only) ────────────────────────────
+  # â”€â”€ k6 Smoke Test (main only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   k6-smoke:
     name: k6 Smoke Test
     runs-on: ubuntu-latest
@@ -276,9 +276,9 @@ jobs:
         with:
           filename: infra/load/smoke.js
 
-  # ── Mobile (Flutter): dart analyze + tests ───────────────
+  # â”€â”€ Mobile (Flutter): dart analyze + tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   mobile:
-    name: Mobile (dart analyze · test)
+    name: Mobile (dart analyze Â· test)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -293,5 +293,5 @@ jobs:
       - run: flutter pub get
       # Default `dart analyze` fails on errors/warnings but not info-level lints,
       # matching the project's flutter_lints baseline in analysis_options.yaml.
-      - run: dart analyze
+      - run: flutter analyze
       - run: flutter test
