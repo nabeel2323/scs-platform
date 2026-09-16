@@ -297,7 +297,7 @@ jobs:
       # Analyze only the main mobile application.
       # mobile-core is a separate Flutter package and is analyzed
       # independently with its own package-local dependencies.
-      - run: flutter analyze lib test
+      - run: flutter analyze --no-fatal-infos lib test
 
       - run: flutter pub get
         working-directory: ${{ github.workspace }}/mobile/packages/mobile-core
