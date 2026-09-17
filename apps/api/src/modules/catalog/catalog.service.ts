@@ -17,6 +17,7 @@ import {
   favorites,
   savedSuppliers,
 } from './catalog.schema';
+import { enrichProductCards } from './product-card';
 import { stores } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { eq, and, isNull, desc, sql, inArray } from 'drizzle-orm';
@@ -214,15 +215,57 @@ export class CatalogService {
     return product;
   }
 
-  async listProductsByStore(storeId: string, filters?: { status?: string; categoryId?: string }) {
-    const conditions = [eq(products.storeId, storeId), isNull(products.deletedAt)];
-    if (filters?.status) conditions.push(eq(products.status, filters.status));
-    if (filters?.categoryId) conditions.push(eq(products.categoryId, filters.categoryId));
+  async listProductsByStore(
+    storeId: string,
+    filters?: {
+      status?: string;
+      categoryId?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const conditions = [
+      eq(products.storeId, storeId),
+      isNull(products.deletedAt),
+    ];
 
-    return this.db.db.query.products.findMany({
+    if (filters?.status) {
+      conditions.push(eq(products.status, filters.status));
+    }
+
+    if (filters?.categoryId) {
+      conditions.push(eq(products.categoryId, filters.categoryId));
+    }
+
+    const limit =
+      typeof filters?.limit === 'number' &&
+      Number.isFinite(filters.limit) &&
+      filters.limit > 0
+        ? Math.min(Math.floor(filters.limit), 500)
+        : undefined;
+
+    const offset =
+      typeof filters?.offset === 'number' &&
+      Number.isFinite(filters.offset) &&
+      filters.offset >= 0
+        ? Math.floor(filters.offset)
+        : undefined;
+
+    const items = await this.db.db.query.products.findMany({
       where: and(...conditions),
       orderBy: [desc(products.createdAt)],
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
     });
+
+    const enrichedItems = await enrichProductCards(this.db.db, items);
+
+    return {
+      items: enrichedItems,
+      total: enrichedItems.length,
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    };
   }
 
   async updateProduct(id: string, input: UpdateProductInput) {
