@@ -3,7 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { IdentityService } from './identity.service';
 import { AuthController } from './auth.controller';
 import { ProfileController } from './profile.controller';
-import { OrganizationsController } from './organizations.controller';
+import { OrganizationsController, RolesController } from './organizations.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CatalogModule } from '../catalog/catalog.module';
 import { AuditModule } from '../audit/index';
@@ -27,7 +27,7 @@ import { resolveJwtAccessSecret } from '../../config/env-gate';
     CatalogModule,
     AuditModule,
   ],
-  controllers: [AuthController, ProfileController, OrganizationsController],
+  controllers: [AuthController, ProfileController, OrganizationsController, RolesController],
   providers: [IdentityService, RateLimitService],
   exports: [IdentityService],
 })

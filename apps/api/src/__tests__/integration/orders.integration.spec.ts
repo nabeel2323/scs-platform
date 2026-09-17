@@ -53,6 +53,8 @@ function createStatefulMocks(initialStatus: string) {
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+          // A5-16: grouped line counts for the list endpoint.
+          groupBy: vi.fn().mockResolvedValue([]),
         }),
       }),
     }),
@@ -72,6 +74,19 @@ function createStatefulMocks(initialStatus: string) {
       products: { findFirst: vi.fn() },
       carts: { findFirst: vi.fn() },
       cartItems: { findMany: vi.fn() },
+      // A2-4/A4-6: reads resolve the seller's name and its currency from here.
+      stores: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: STORE_ID,
+            displayName: 'Al Noor Trading',
+            slug: 'al-noor',
+            currency: 'SAR',
+          },
+        ]),
+      },
+      // A4-4: transitions now consult the stock ledger before writing the status.
+      stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
     },
   };
 
@@ -346,6 +361,13 @@ describe('Order Lifecycle Integration', () => {
       expect(result.items).toHaveLength(1);
       expect(result.financialBreakdown).toBeDefined();
       expect(result.status).toBe('ACCEPTED');
+      // A2-4/A4-6: the response names the seller and states the currency of
+      // every amount on it. This row carries no snapshot, so the answer is
+      // flagged as an inference instead of passing for a record.
+      expect(result.storeName).toBe('Al Noor Trading');
+      expect(result.storeSlug).toBe('al-noor');
+      expect(result.currency).toBe('SAR');
+      expect(result.currencyFromSnapshot).toBe(false);
     });
 
     it('should return status history', async () => {

@@ -97,6 +97,12 @@ function createMocks() {
       orderStatusHistory: { findMany: vi.fn() },
       productVariants: { findFirst: vi.fn() },
       products: { findFirst: vi.fn() },
+      // A2-4: checkout snapshots each supplier's currency, and the read paths
+      // name the seller. Default to "nothing readable" so a test that does not
+      // care still exercises the honest branch.
+      stores: { findMany: vi.fn().mockResolvedValue([]) },
+      // A4-4: transitions now consult the stock ledger before writing the status.
+      stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
     },
   };
 
@@ -370,6 +376,56 @@ describe('Checkout Integration', () => {
         totalMinor: 2300,
       });
       expect(mocks.mockPromotions.redeemPromotion).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('currency snapshot (A2-4)', () => {
+    const runCheckout = async () => {
+      mocks.db.query.masterOrders.findFirst.mockResolvedValue({
+        id: 'new-master',
+        buyerId: BUYER_ID,
+        status: 'SUBMITTED',
+      });
+      mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
+      // Three lines across two suppliers, so grouping yields two sub-orders.
+      mocks.db.query.cartItems.findMany.mockResolvedValue(mockCartItems);
+      mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
+      mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.orders.findMany.mockResolvedValue([]);
+
+      return service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+    };
+
+    const insertedOrders = () =>
+      mocks.insertValues.mock.calls
+        .map((c: any[]) => c[0])
+        .filter((v: any) => v && 'currency' in v);
+
+    it('records each supplier\'s own currency on its own sub-order', async () => {
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR' },
+        { id: STORE_2, currency: 'AED' },
+      ]);
+
+      await runCheckout();
+
+      const rows = insertedOrders();
+      expect(rows).toHaveLength(2);
+      expect(rows.find((r: any) => r['storeId'] === STORE_1)?.['currency']).toBe('SAR');
+      expect(rows.find((r: any) => r['storeId'] === STORE_2)?.['currency']).toBe('AED');
+      // One batch read for the whole checkout, not one per supplier.
+      expect(mocks.db.query.stores.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('stores nothing rather than a guessed code', async () => {
+      // An unreadable seller row must not silently become "SAR" on the invoice.
+      mocks.db.query.stores.findMany.mockResolvedValue([]);
+
+      await runCheckout();
+
+      const rows = insertedOrders();
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r: any) => r['currency'] === null)).toBe(true);
     });
   });
 });

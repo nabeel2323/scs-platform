@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { searchProducts, fetchCategories, fetchBrands, fetchProductVariants, addToCart, Product, Category } from '../../lib/buyer-api';
-import { formatMinor, EmptyState, LoadingSpinner, ErrorBanner } from '../../components/Shared';
+import { formatMinor, EmptyState, LoadingSpinner, ErrorBanner, productImageSrc } from '../../components/Shared';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
@@ -16,6 +16,8 @@ export default function SearchPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
+  // A5-2: a failed add used to be swallowed, so "+ Cart" looked broken.
+  const [cartError, setCartError] = useState('');
 
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => {});
@@ -47,17 +49,25 @@ export default function SearchPage() {
   }, [doSearch]);
 
   const handleAddToCart = async (product: Product) => {
+    setCartError('');
     try {
       // The listing shows products, but the cart references a variant — resolve
-      // the product's default (first active) variant before adding.
+      // the product's default (first active) variant before adding. A fallback
+      // to an inactive variant was removed: `addItem` rejects inactive ones, so
+      // it could only ever turn a clear message into a server error.
       const variants = await fetchProductVariants(product.id);
-      const variant = variants.find(v => v.isActive) ?? variants[0];
-      if (!variant) return;
-      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: 1 });
+      const variant = variants.find(v => v.isActive);
+      if (!variant) {
+        setCartError(`"${product.title}" has no orderable variant yet.`);
+        return;
+      }
+      // Buy at the product's MOQ: adding below it is rejected at checkout, so a
+      // quantity the listing itself declares invalid only defers the failure.
+      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: product.moq || 1 });
       setAddedItems(prev => new Set(prev).add(product.id));
       setTimeout(() => setAddedItems(prev => { const n = new Set(prev); n.delete(product.id); return n; }), 2000);
-    } catch {
-      // silently fail
+    } catch (err) {
+      setCartError(err instanceof Error ? err.message : `Could not add "${product.title}" to your cart.`);
     }
   };
 
@@ -130,6 +140,11 @@ export default function SearchPage() {
       </div>
 
       {error && <ErrorBanner message={error} onRetry={doSearch} />}
+      {cartError && (
+        <div role="alert" style={{ marginBottom: 16, padding: 14, background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 8 }}>
+          <span style={{ color: '#9b2c2c', fontWeight: 600, fontSize: 13 }}>{cartError}</span>
+        </div>
+      )}
       {loading && <LoadingSpinner />}
 
       {/* Results grid */}
@@ -147,8 +162,8 @@ export default function SearchPage() {
             <div key={product.id} style={cardStyle}>
               <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                 <div style={imgPlaceholderStyle}>
-                  {product.images && (product.images as any[]).length > 0 ? (
-                    <img src={(product.images as any[])[0]?.url || ''} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {productImageSrc(product.images) ? (
+                    <img src={productImageSrc(product.images)} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <span style={{ color: '#a0aec0', fontSize: 32 }}>📦</span>
                   )}
@@ -157,12 +172,30 @@ export default function SearchPage() {
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {product.title}
                   </div>
-                  <div style={{ fontSize: 12, color: '#5b6b74', marginBottom: 8 }}>
+                  {/* A5-2: price is what makes two listings comparable at all. */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+                    {product.priceFromMinor != null ? (
+                      <>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#0f3340' }}>
+                          {formatMinor(product.priceFromMinor, product.priceCurrency ?? undefined)}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#5b6b74' }}>from</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#92400e' }}>Price on request</span>
+                    )}
+                    {product.store?.verificationStatus === 'VERIFIED' && (
+                      <span style={{ marginLeft: 'auto', padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#d1fae5', color: '#065f46' }}>
+                        VERIFIED
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#5b6b74' }}>
                     MOQ: {product.moq}
                   </div>
                 </div>
               </Link>
-              <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '0 16px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <button
                   onClick={() => handleAddToCart(product)}
                   style={{
@@ -172,6 +205,13 @@ export default function SearchPage() {
                 >
                   {addedItems.has(product.id) ? '✓ Added' : '+ Cart'}
                 </button>
+                {/* Its own link — nesting an anchor inside the product link above
+                    would be invalid markup. */}
+                {product.store && (
+                  <Link href={`/stores/${product.store.slug || product.store.id}`} style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '55%' }}>
+                    by {product.store.name} →
+                  </Link>
+                )}
               </div>
             </div>
           ))}

@@ -22,10 +22,13 @@ export const DEFAULT_VAT_RATE = 0.15;
 export const DEFAULT_COMMISSION_RATE = 0.05;
 
 /**
- * Default flat platform-delivery fee in minor units (0 = free until a delivery
- * pricing model lands in Phase 2). Override with env `PLATFORM_DELIVERY_FEE_MINOR`.
+ * Default flat platform-delivery fee in minor units.
+ *
+ * §9 policy decision (pilot phase): waived (0) for the pilot. Phase 2 will
+ * introduce a configurable delivery pricing model. When that lands, set this
+ * to the base fee or read it from env `PLATFORM_DELIVERY_FEE_MINOR`.
  */
-export const DEFAULT_PLATFORM_DELIVERY_FEE_MINOR = 0;
+export const DEFAULT_PLATFORM_DELIVERY_FEE_MINOR = 0; // PILOT: free delivery
 
 /** Fulfillment methods recognised at checkout. */
 export type FulfillmentMethod = 'PLATFORM_DELIVERY' | 'MERCHANT_DELIVERY' | 'PICKUP';

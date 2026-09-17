@@ -3,8 +3,9 @@ import { DatabaseService } from '../../common/database/database.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
-import { priceLists, priceTiers } from '../pricing/pricing.schema';
-import { eq, and, desc, lte } from 'drizzle-orm';
+import { stores } from '../merchant/merchant.schema';
+import { resolveVariantPrices } from '../pricing/price-resolution';
+import { eq, and } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -87,23 +88,18 @@ export class CartService {
     // Resolve the unit price server-side from the store's active price lists
     // (highest-priority list, best tier whose minQty <= finalQty). The price is
     // SNAPSHOT here and is NEVER taken from the client — a client-supplied
-    // price would be a tampering vector.
-    const tierRows = await this.db.db
-      .select({ unitPriceMinor: priceTiers.unitPriceMinor, minQty: priceTiers.minQty })
-      .from(priceTiers)
-      .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
-      .where(
-        and(
-          eq(priceLists.storeId, storeId),
-          eq(priceLists.isActive, true),
-          eq(priceTiers.variantId, variant['id']),
-          lte(priceTiers.minQty, finalQty),
-        ),
-      )
-      .orderBy(desc(priceLists.priority), desc(priceTiers.minQty))
-      .limit(1);
+    // price would be a tampering vector. A5-1: the same shared resolver backs the
+    // product detail page, so what a buyer is shown is what they are charged.
+    const pricing = await resolveVariantPrices(
+      this.db.db,
+      storeId,
+      [variant['id']],
+      finalQty,
+      // Snapshotting needs the unit price only; the tier ladder is for display.
+      { ladder: false },
+    );
+    const tier = pricing.get(variant['id']);
 
-    const tier = tierRows[0];
     if (!tier) {
       throw new BadRequestException(
         'No price is available for this item at the requested quantity',
@@ -140,6 +136,87 @@ export class CartService {
     // Recalculate cart total
     await this.recalculateTotal(cart['id']);
     return this.getActiveCartWithItems(userId);
+  }
+
+  /**
+   * Batch add — used by reorder to add multiple lines in one call.
+   * A5-4 residual: the old path called addItem once per line, re-reading
+   * and re-snapshotting the whole cart each time. This batches the reads
+   * and does a single recalculateTotal at the end.
+   */
+  async addItems(userId: string, items: AddCartItemInput[]) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('items must be a non-empty array');
+    }
+    const cart = await this.getOrCreateCart(userId);
+    const skipped: { variantId: string; reason: string }[] = [];
+    const added: string[] = [];
+
+    for (const input of items) {
+      if (!Number.isInteger(input.quantity) || input.quantity < 1) {
+        skipped.push({ variantId: input.variantId, reason: 'Invalid quantity' });
+        continue;
+      }
+      try {
+        const variant = await this.db.db.query.productVariants.findFirst({
+          where: eq(productVariants.id, input.variantId),
+        });
+        if (!variant || !variant['isActive']) {
+          skipped.push({ variantId: input.variantId, reason: 'No longer available' });
+          continue;
+        }
+        const product = await this.db.db.query.products.findFirst({
+          where: eq(products.id, variant['productId']),
+        });
+        if (!product) {
+          skipped.push({ variantId: input.variantId, reason: 'Product not found' });
+          continue;
+        }
+        const storeId = product['storeId'];
+        const existing = await this.db.db.query.cartItems.findFirst({
+          where: and(eq(cartItems.cartId, cart['id']), eq(cartItems.variantId, variant['id'])),
+        });
+        const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
+        const pricing = await resolveVariantPrices(
+          this.db.db,
+          storeId,
+          [variant['id']],
+          finalQty,
+          { ladder: false },
+        );
+        const tier = pricing.get(variant['id']);
+        if (!tier) {
+          skipped.push({ variantId: input.variantId, reason: 'No price at this quantity' });
+          continue;
+        }
+        const priceMinor = tier.unitPriceMinor;
+        const lineTotalMinor = finalQty * priceMinor;
+        if (existing) {
+          await this.db.db
+            .update(cartItems)
+            .set({ quantity: finalQty, priceMinor, tierMinQty: tier.minQty, lineTotalMinor, updatedAt: new Date() })
+            .where(eq(cartItems.id, existing['id']));
+        } else {
+          await this.db.db.insert(cartItems).values({
+            id: crypto.randomUUID(),
+            cartId: cart['id'],
+            storeId,
+            variantId: variant['id'],
+            quantity: finalQty,
+            priceMinor,
+            tierMinQty: tier.minQty,
+            lineTotalMinor,
+          });
+        }
+        added.push(variant['id']);
+      } catch {
+        skipped.push({ variantId: input.variantId, reason: 'Internal error' });
+      }
+    }
+
+    await this.recalculateTotal(cart['id']);
+    const cartWithItems = await this.getActiveCartWithItems(userId);
+    return { ...cartWithItems, added, skipped };
   }
 
   async updateItemQuantity(userId: string, itemId: string, quantity: number) {
@@ -235,10 +312,39 @@ export class CartService {
   }
 
   async listCartItems(cartId: string) {
-    return this.db.db.query.cartItems.findMany({
-      where: eq(cartItems.cartId, cartId),
-      orderBy: [cartItems.createdAt],
-    });
+    // A5-3: project readable labels onto the raw rows. `cart_items` stores no
+    // title/sku/store snapshot, so without this join the cart and checkout UIs
+    // rendered "Item" for every line and a UUID stub for every supplier.
+    // LEFT joins keep lines visible even if a variant/product/store is gone.
+    const rows = await this.db.db
+      .select({
+        item: cartItems,
+        variantTitle: productVariants.title,
+        productTitle: products.title,
+        sku: productVariants.sku,
+        storeName: stores.displayName,
+        storeSlug: stores.slug,
+        storeCurrency: stores.currency,
+      })
+      .from(cartItems)
+      .leftJoin(productVariants, eq(cartItems.variantId, productVariants.id))
+      .leftJoin(products, eq(productVariants.productId, products.id))
+      .leftJoin(stores, eq(cartItems.storeId, stores.id))
+      // Scope to this cart: without the WHERE the join would return every cart
+      // line on the platform.
+      .where(eq(cartItems.cartId, cartId))
+      .orderBy(cartItems.createdAt);
+
+    return rows.map(
+      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency }) => ({
+        ...item,
+        title: variantTitle || productTitle || undefined,
+        sku: sku || undefined,
+        storeName: storeName || undefined,
+        storeSlug: storeSlug || undefined,
+        currency: storeCurrency || undefined,
+      }),
+    );
   }
 
   private async recalculateTotal(cartId: string) {

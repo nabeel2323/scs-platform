@@ -17,6 +17,7 @@ import {
   CreateWarehouseInput,
   UploadDocumentInput,
 } from './merchant.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
@@ -24,6 +25,7 @@ import {
   JwtPayload,
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
+import crypto from 'node:crypto';
 
 /**
  * Merchant API — store lifecycle, warehouses, documents, verification.
@@ -38,6 +40,7 @@ import {
  *   GET    /stores/:id/warehouses      — list warehouses
  *   PATCH  /warehouses/:id             — update warehouse
  *   POST   /documents                  — register document upload
+ *   POST   /documents/presign-upload   — get presigned upload URL for documents
  *   GET    /documents/org/:orgId       — list org documents
  *   GET    /documents/store/:storeId   — list store documents
  *   POST   /documents/:id/presign      — get presigned download URL
@@ -49,7 +52,10 @@ import {
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class MerchantController {
-  constructor(private readonly merchantService: MerchantService) {}
+  constructor(
+    private readonly merchantService: MerchantService,
+    private readonly storage: StorageService,
+  ) {}
 
   // ── Stores ─────────────────────────────────────────────────────
 
@@ -150,6 +156,20 @@ export class MerchantController {
       ...input,
       uploadedBy: user.sub,
     });
+  }
+
+  @Post('documents/presign-upload')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async presignDocumentUpload(@Body() body: { fileName: string; mimeType: string }) {
+    const key = `docs/${crypto.randomUUID()}/${body.fileName}`;
+    const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    const uploadUrl = await this.storage.createPresignedPutUrl(
+      bucket,
+      key,
+      body.mimeType || 'application/pdf',
+    );
+    return { uploadUrl, storageKey: key };
   }
 
   @Get('documents/org/:orgId')

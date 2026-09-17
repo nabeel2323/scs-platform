@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
 import { organizations, organizationMembers } from '../identity/identity.schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
@@ -28,6 +29,7 @@ export class MerchantService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    private readonly storage: StorageService,
   ) {}
 
   // ── Stores ─────────────────────────────────────────────────────
@@ -128,7 +130,9 @@ export class MerchantService {
     const storeIds = orgStores.map((s) => s.id);
 
     // Query orders to find unique buyers with aggregated stats
-    // This is a simplified version - in production you'd use a proper SQL query with joins
+    // A2-4 residual: total_spent_minor sums across currencies when an org has
+    // stores in multiple currencies. The per-currency breakdown is returned as
+    // spentByCurrency so the client can label the mixed total honestly.
     const orders = await this.db.db.execute(sql`
       SELECT 
         o.buyer_id,
@@ -146,7 +150,45 @@ export class MerchantService {
       ORDER BY last_order_at DESC
     `);
 
-    return orders;
+    // A2-4 residual: per-currency spending per buyer, so the client can show
+    // "500 SAR + 200 AED" instead of "700" (which is not an amount anyone pays).
+    const currencyBreakdown = await this.db.db.execute(sql`
+      SELECT
+        o.buyer_id,
+        COALESCE(o.currency, 'UNKNOWN') as currency,
+        SUM(o.total_minor) as total_minor
+      FROM orders o
+      WHERE o.store_id = ANY(${storeIds})
+        AND o.status NOT IN ('CANCELLED', 'REJECTED')
+      GROUP BY o.buyer_id, COALESCE(o.currency, 'UNKNOWN')
+    `);
+
+    // A4-8: the raw SQL returns snake_case columns, but both clients (web and
+    // mobile) parse camelCase keys. Map here so the contract is stable.
+    const rows = (orders as any).rows ?? orders;
+    const currencyRows = (currencyBreakdown as any).rows ?? currencyBreakdown;
+
+    // Group the currency breakdown by buyer for easy lookup.
+    const currencyByBuyer = new Map<string, { currency: string; totalMinor: number }[]>();
+    for (const row of currencyRows as any[]) {
+      const buyerId = row.buyer_id;
+      if (!currencyByBuyer.has(buyerId)) currencyByBuyer.set(buyerId, []);
+      currencyByBuyer.get(buyerId)!.push({
+        currency: row.currency,
+        totalMinor: Number(row.total_minor),
+      });
+    }
+
+    return (rows as any[]).map((row: any) => ({
+      buyerId: row.buyer_id,
+      buyerName: row.buyer_name,
+      buyerPhone: row.buyer_phone,
+      buyerEmail: row.buyer_email,
+      orderCount: Number(row.order_count),
+      totalSpentMinor: Number(row.total_spent_minor),
+      spentByCurrency: currencyByBuyer.get(row.buyer_id) || [],
+      lastOrderAt: row.last_order_at,
+    }));
   }
 
   async listStores(filters?: {
@@ -287,9 +329,11 @@ export class MerchantService {
   async generatePresignedUrl(docId: string): Promise<{ downloadUrl: string }> {
     const doc = await this.getDocument(docId);
 
-    // In production: generate S3/MinIO presigned URL (15 min expiry)
-    // For now: return a placeholder
-    const downloadUrl = `https://storage.local/${doc['storageKey']}?expires=900`;
+    const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    const downloadUrl = await this.storage.createPresignedGetUrl(
+      bucket,
+      doc['storageKey'],
+    );
 
     await this.db.db
       .update(businessDocuments)

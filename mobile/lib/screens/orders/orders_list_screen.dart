@@ -34,8 +34,11 @@ class OrdersListScreen extends ConsumerWidget {
                             title: Text('Order #${o.id.substring(0, 8)}',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600)),
+                            // A4-6: two suppliers produce two unreadable hex ids,
+                            // so say who ships each order and how many lines.
                             subtitle: Text(
-                                '${DateTime.tryParse(o.createdAt)?.toLocal().toString().substring(0, 16) ?? o.createdAt} · ${formatMinor(o.totalMinor)}'),
+                                '${o.storeName ?? 'Seller unavailable'} · ${o.itemCount} ${o.itemCount == 1 ? 'item' : 'items'}\n'
+                                '${DateTime.tryParse(o.createdAt)?.toLocal().toString().substring(0, 16) ?? o.createdAt} · ${formatMinor(o.totalMinor, o.currency)}'),
                             trailing: StatusBadge(o.status),
                             onTap: () => context.push('/orders/${o.id}')));
                   }),

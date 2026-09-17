@@ -2,19 +2,39 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchOrder, fetchOrderHistory, cancelOrder, reorder, StatusHistoryEntry, OrderItem } from '../../../lib/buyer-api';
+import Link from 'next/link';
+import {
+  fetchOrder,
+  fetchOrderHistory,
+  cancelOrder,
+  reorder,
+  ReorderResult,
+  StatusHistoryEntry,
+  OrderItem,
+} from '../../../lib/buyer-api';
 import { onOrderStatus, watchOrder } from '../../../lib/realtime';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
 import { OrderTimeline } from '../../../components/OrderTimeline';
 
 interface OrderDetail {
   id: string;
+  // A4-7: this page shows a sub-order; reorder is addressed by the master order.
+  masterOrderId?: string;
   status: string;
   totalMinor: number;
   subtotalMinor: number;
   discountMinor: number;
   deliveryFeeMinor: number;
   taxMinor: number;
+  // A2-4: every *_Minor above (and every line item) is expressed in this
+  // currency, so it is resolved once for the whole page instead of per amount.
+  currency?: string;
+  /** False when the code was inferred from the seller, not snapshotted. */
+  currencyFromSnapshot?: boolean;
+  storeId?: string;
+  // A4-6: who shipped this order, named rather than identified by hex.
+  storeName?: string;
+  storeSlug?: string;
   fulfillmentMethod: string;
   createdAt: string;
   items: OrderItem[];
@@ -29,12 +49,28 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancel, setShowCancel] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [reordering, setReordering] = useState(false);
+  const [reorderResult, setReorderResult] = useState<ReorderResult | null>(null);
+  const [reorderError, setReorderError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setLoadError('');
     Promise.all([
       fetchOrder(orderId).then(setOrder as any),
       fetchOrderHistory(orderId).then(setHistory),
-    ]).catch(() => {}).finally(() => setLoading(false));
+    ])
+      // A4-6: a swallowed rejection rendered as "Order not found", which sends
+      // the buyer to file a support ticket for an order that does exist.
+      .catch((err: any) => setLoadError(err.message || 'Could not load this order'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   // Live order-status push (WEB-B6): join this order's room and update the badge
@@ -54,25 +90,62 @@ export default function OrderDetailPage() {
 
   const handleCancel = async () => {
     if (!cancelReason.trim()) return;
-    await cancelOrder(orderId, cancelReason);
-    const updated = await fetchOrder(orderId);
-    setOrder(updated as any);
-    setShowCancel(false);
+    setCancelError('');
+    try {
+      await cancelOrder(orderId, cancelReason);
+      const updated = await fetchOrder(orderId);
+      setOrder(updated as any);
+      setShowCancel(false);
+    } catch (err: any) {
+      setCancelError(err.message || 'Failed to cancel order');
+    }
   };
 
   const handleReorder = async () => {
+    if (!order) return;
+    setReordering(true);
+    setReorderResult(null);
+    setReorderError('');
     try {
-      await reorder(orderId);
-      window.location.href = '/cart';
+      // The endpoint keys off the master order — this page is a sub-order, and
+      // posting its own id used to 404 before the server learned to resolve it.
+      const result = await reorder(order.masterOrderId || orderId);
+      setReorderResult(result);
     } catch (err: any) {
-      alert(err.message || 'Failed to reorder');
+      setReorderError(err.message || 'Failed to reorder');
+    } finally {
+      setReordering(false);
     }
   };
 
   if (loading) return <LoadingSpinner />;
-  if (!order) return <EmptyState title="Order not found" />;
+  if (!order) {
+    return (
+      <EmptyState
+        title={loadError ? 'Order unavailable' : 'Order not found'}
+        description={loadError || undefined}
+        action={loadError ? (
+          <button onClick={load} style={{ display: 'inline-block', padding: '8px 20px', background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Try Again</button>
+        ) : undefined}
+      />
+    );
+  }
 
-  const canCancel = ['SUBMITTED', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'CONFIRMED', 'PREPARING', 'READY'].includes(order.status);
+  // Currency comes from the sub-order snapshot; a legacy order with no snapshot
+  // is labelled as inferred instead of silently shown in the platform default.
+  const money = (minor: number) => formatMinor(minor, order.currency);
+  const currencyCaveat =
+    order.currency === undefined
+      ? 'The API reported no currency for this order, so amounts are shown in the platform default.'
+      : order.currencyFromSnapshot === false
+        ? `Currency was inferred from ${order.storeName || 'the seller'}'s current setting — this order predates currency being recorded on it.`
+        : '';
+
+  // Matches the backend cancellable list in orders.service.cancelOrder. Fresh
+  // orders sit in PENDING_CONFIRMATION during the merchant's 15-minute review
+  // window — the most natural cancel moment; the legacy CONFIRMED status no
+  // longer exists in the FSM.
+  const canCancel = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'].includes(order.status);
   const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
 
   return (
@@ -83,11 +156,53 @@ export default function OrderDetailPage() {
           <div>
             <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Order #{order.id.slice(0, 8)}</h1>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>{formatDate(order.createdAt)} · {order.fulfillmentMethod}</div>
+            {/* A4-6: name the seller and keep the storefront one click away. */}
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
+              {order.storeName ? (
+                order.storeSlug ? (
+                  <Link href={`/stores/${order.storeSlug}`} style={{ color: '#fff', textDecoration: 'underline' }}>Sold by {order.storeName}</Link>
+                ) : (
+                  <span>Sold by {order.storeName}</span>
+                )
+              ) : (
+                <span>Seller no longer available</span>
+              )}
+            </div>
           </div>
           <StatusBadge status={order.status} />
         </div>
       </div>
       <div style={{ padding: '20px 24px 48px' }}>
+
+      {/* A4-5: post-checkout success feedback — the outbox emits
+          order.pending_confirmation after ~15s, but the buyer UI never told
+          the story. Show an SLA banner while the order is in the merchant's
+          review window so the buyer knows what to expect. */}
+      {(order.status === 'SUBMITTED' || order.status === 'PENDING_CONFIRMATION') && (
+        <div
+          style={{
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>✓</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46' }}>
+              Order placed successfully
+            </div>
+            <div style={{ fontSize: 13, color: '#065f46', marginTop: 2 }}>
+              {order.storeName || 'The merchant'} will review your order and confirm within 15 minutes.
+              You can cancel anytime before confirmation.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
         {/* Left column */}
@@ -101,7 +216,7 @@ export default function OrderDetailPage() {
                   <div style={{ fontSize: 14, color: '#0f3340' }}>{item.title}</div>
                   <div style={{ fontSize: 12, color: '#5b6b74' }}>SKU: {item.sku} · Qty: {item.quantity}{item.qtyConfirmed != null ? ` (Confirmed: ${item.qtyConfirmed})` : ''}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340' }}>{formatMinor(item.lineTotalMinor)}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340' }}>{money(item.lineTotalMinor)}</div>
               </div>
             ))}
           </div>
@@ -118,13 +233,19 @@ export default function OrderDetailPage() {
               ].filter(([, v]) => v !== 0).map(([label, val]) => (
                 <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
                   <span>{label}</span>
-                  <span>{formatMinor(val as number)}</span>
+                  <span>{money(val as number)}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: '#0f3340', borderTop: '1px solid #d9e2e6', paddingTop: 8, marginTop: 8 }}>
                 <span>Total</span>
-                <span>{formatMinor(order.totalMinor)}</span>
+                <span>{money(order.totalMinor)}</span>
               </div>
+              {currencyCaveat && (
+                // Say so rather than let a SAR-looking number pass for a record.
+                <div style={{ fontSize: 11, color: '#92400e', marginTop: 8 }}>
+                  {currencyCaveat}
+                </div>
+              )}
             </div>
           )}
 
@@ -136,14 +257,37 @@ export default function OrderDetailPage() {
               </button>
             )}
             {canReorder && (
-              <button onClick={handleReorder} style={{ padding: '8px 16px', fontSize: 13, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
-                Reorder
+              <button onClick={handleReorder} disabled={reordering} style={{ padding: '8px 16px', fontSize: 13, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: reordering ? 0.6 : 1 }}>
+                {reordering ? 'Reordering…' : 'Reorder'}
               </button>
             )}
           </div>
+          {/* A4-7: reorder is per-line — some items may no longer be purchasable,
+              so say what happened instead of dropping the buyer on an empty cart. */}
+          {reorderError && (
+            <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#991b1b' }}>
+              {reorderError}
+            </div>
+          )}
+          {reorderResult && (
+            <div style={{ background: reorderResult.added.length > 0 ? '#ecfdf5' : '#fffbeb', border: `1px solid ${reorderResult.added.length > 0 ? '#6ee7b7' : '#fcd34d'}`, borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#0f3340' }}>
+              {reorderResult.added.length > 0
+                ? `${reorderResult.added.length} item(s) added to your cart`
+                : 'Nothing could be re-added from this order'}
+              {reorderResult.skipped.length > 0 && (
+                <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}>
+                  Unavailable: {reorderResult.skipped.map(s => `${s.title} — ${s.reason}`).join(' · ')}
+                </div>
+              )}
+              <Link href="/cart" style={{ display: 'inline-block', marginTop: 8, fontSize: 12, fontWeight: 600, color: '#0f3340', textDecoration: 'underline' }}>
+                Review cart
+              </Link>
+            </div>
+          )}
           {showCancel && (
             <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 8, padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 8 }}>Reason for cancellation</div>
+              {cancelError && <div style={{ fontSize: 12, color: '#991b1b', marginBottom: 8 }}>{cancelError}</div>}
               <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>

@@ -3,6 +3,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { products, productVariants, brands, categories } from './catalog.schema';
 import { searchQueries } from './search.schema';
 import { eq, and, isNull, or, like, sql, desc } from 'drizzle-orm';
+import { enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
 
 /**
@@ -34,34 +35,47 @@ export class SearchService {
       if (options?.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
       if (options?.brandId) conditions.push(eq(products.brandId, options.brandId));
 
-      const rows = await this.db.db.query.products.findMany({
-        where: and(...conditions),
-        orderBy: [desc(products.createdAt)],
-        limit,
-        offset,
-      });
+      const [rows, countResult] = await Promise.all([
+        this.db.db.query.products.findMany({
+          where: and(...conditions),
+          orderBy: [desc(products.createdAt)],
+          limit,
+          offset,
+        }),
+        this.db.db
+          .select({ count: sql<number>`count(*)` })
+          .from(products)
+          .where(and(...conditions)),
+      ]);
+
+      const total = Number(countResult[0]?.count ?? 0);
 
       return {
-        items: rows.map(row => ({
-          id: row.id,
-          storeId: row.storeId,
-          categoryId: row.categoryId,
-          brandId: row.brandId,
-          slug: row.slug,
-          title: row.title,
-          titleAr: row.titleAr,
-          description: row.description,
-          status: row.status,
-          condition: row.condition,
-          isAvailable: row.isAvailable,
-          moq: row.moq,
-          images: row.images,
-          attributes: row.attributes,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-          score: null,
-        })),
-        total: rows.length,
+        // A5-2: cards carry the seller and a comparable price, so a buyer can
+        // compare the same product across stores without opening each one.
+        items: await enrichProductCards(
+          this.db.db,
+          rows.map(row => ({
+            id: row.id,
+            storeId: row.storeId,
+            categoryId: row.categoryId,
+            brandId: row.brandId,
+            slug: row.slug,
+            title: row.title,
+            titleAr: row.titleAr,
+            description: row.description,
+            status: row.status,
+            condition: row.condition,
+            isAvailable: row.isAvailable,
+            moq: row.moq,
+            images: row.images,
+            attributes: row.attributes,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+            score: null,
+          })),
+        ),
+        total,
         matchType: 'all',
         query: '',
       };
@@ -83,9 +97,34 @@ export class SearchService {
       const product = await this.db.db.query.products.findFirst({
         where: eq(products.id, skuMatch['productId']),
       });
-      if (product && !product['deletedAt']) {
+      // The other two paths filter on status = 'ACTIVE'; the fast path must too,
+      // otherwise scanning the SKU of a DRAFT or SUSPENDED listing exposes it to
+      // any buyer who happens to have its code.
+      if (product && !product['deletedAt'] && product['status'] === 'ACTIVE') {
+        // A5-2 residual: use the same explicit projection as the other two
+        // paths so no client can depend on `matchedVariant` being present.
         return {
-          items: [{ ...product, matchedVariant: skuMatch }],
+          items: await enrichProductCards(this.db.db, [
+            {
+              id: product.id,
+              storeId: product.storeId,
+              categoryId: product.categoryId,
+              brandId: product.brandId,
+              slug: product.slug,
+              title: product.title,
+              titleAr: product.titleAr,
+              description: product.description,
+              status: product.status,
+              condition: product.condition,
+              isAvailable: product.isAvailable,
+              moq: product.moq,
+              images: product.images,
+              attributes: product.attributes,
+              createdAt: product.createdAt,
+              updatedAt: product.updatedAt,
+              score: null,
+            },
+          ]),
           total: 1,
           matchType: 'exact',
           query,
@@ -114,28 +153,44 @@ export class SearchService {
     }
 
     // Use raw SQL for trigram similarity + FTS
-    const results = await this.db.db.execute(sql`
-      SELECT p.*, 
-        similarity(
-          normalize_arabic(p.title),
-          normalize_arabic(${query})
-        ) AS sim_score
-      FROM products p
-      WHERE p.deleted_at IS NULL
-        AND p.status = 'ACTIVE'
-        ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
-        ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
-        AND (
-          to_tsvector('simple', normalize_arabic(COALESCE(p.title, ''))) @@ plainto_tsquery('simple', normalize_arabic(${query}))
-          OR similarity(normalize_arabic(p.title), normalize_arabic(${query})) > 0.3
-          OR normalize_arabic(p.title) ILIKE '%' || normalize_arabic(${query}) || '%'
-        )
-      ORDER BY sim_score DESC, p.created_at DESC
-      LIMIT ${limit}
-      OFFSET ${offset}
-    `);
+    const [results, countResult] = await Promise.all([
+      this.db.db.execute(sql`
+        SELECT p.*, 
+          similarity(
+            normalize_arabic(p.title),
+            normalize_arabic(${query})
+          ) AS sim_score
+        FROM products p
+        WHERE p.deleted_at IS NULL
+          AND p.status = 'ACTIVE'
+          ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
+          ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
+          AND (
+            to_tsvector('simple', normalize_arabic(COALESCE(p.title, ''))) @@ plainto_tsquery('simple', normalize_arabic(${query}))
+            OR similarity(normalize_arabic(p.title), normalize_arabic(${query})) > 0.3
+            OR normalize_arabic(p.title) ILIKE '%' || normalize_arabic(${query}) || '%'
+          )
+        ORDER BY sim_score DESC, p.created_at DESC
+        LIMIT ${limit}
+        OFFSET ${offset}
+      `),
+      this.db.db.execute(sql`
+        SELECT count(*) AS total
+        FROM products p
+        WHERE p.deleted_at IS NULL
+          AND p.status = 'ACTIVE'
+          ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
+          ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
+          AND (
+            to_tsvector('simple', normalize_arabic(COALESCE(p.title, ''))) @@ plainto_tsquery('simple', normalize_arabic(${query}))
+            OR similarity(normalize_arabic(p.title), normalize_arabic(${query})) > 0.3
+            OR normalize_arabic(p.title) ILIKE '%' || normalize_arabic(${query}) || '%'
+          )
+      `),
+    ]);
 
     const rows = (results as any).rows ?? results;
+    const countRows = (countResult as any).rows ?? countResult;
     const items = (rows as any[]).map(row => ({
       id: row.id,
       storeId: row.store_id,
@@ -156,12 +211,14 @@ export class SearchService {
       score: row.sim_score,
     }));
 
+    const total = Number((countRows as any[])?.[0]?.total ?? items.length);
+
     // 3. Log search query for analytics
     await this.logSearchQuery(query, normalized, options?.storeId, options?.userId, items.length);
 
     return {
-      items,
-      total: items.length,
+      items: await enrichProductCards(this.db.db, items),
+      total,
       matchType: items.length > 0 ? 'fuzzy' : 'none',
       query,
     };

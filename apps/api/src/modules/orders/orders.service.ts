@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  InternalServerErrorException,
   Optional,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
@@ -15,10 +16,11 @@ import {
   orderStatusHistory,
 } from './orders.schema';
 import { carts, cartItems } from './cart.schema';
+import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { priceTiers, priceLists } from '../pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
-import { warehouses } from '../merchant/merchant.schema';
+import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import {
@@ -28,8 +30,16 @@ import {
   DEFAULT_COMMISSION_RATE,
   DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
 } from './order-pricing';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { attachItemCounts, attachOrderIdentity, totalsByCurrency } from './order-identity';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import {
+  CallerContext,
+  assertOrderAccessible,
+  assertMasterOrderAccessible,
+  assertStoreInOrg,
+  isTenantPrivileged,
+} from '../../common/tenant-scope';
 
 /**
  * Orders service — checkout, FSM, accept/reject/confirm/cancel.
@@ -55,6 +65,11 @@ export class OrdersService {
     // Optional so existing unit tests that build the service with the three core
     // deps keep compiling; supplied by the @Global RealtimeModule at runtime.
     @Optional() private readonly realtime?: RealtimeGateway,
+    // A4-7: reorder replays an old order through the same validated cart path.
+    // Optional only so the existing specs (which construct the service directly)
+    // keep compiling — `reorder` refuses loudly rather than silently doing
+    // nothing if the provider is ever missing.
+    @Optional() private readonly cart?: CartService,
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
@@ -126,7 +141,21 @@ export class OrdersService {
       process.env['PLATFORM_DELIVERY_FEE_MINOR'] ?? DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
     );
     const fulfillmentMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
+    // A platform-flat fee in minor units: it is charged in whichever currency the
+    // supplier's sub-order uses, so 500 means 5.00 SAR at a SAR store and 5.00 AED
+    // at an AED one. Per-currency fee policy is an open decision (audit §9), not
+    // something this call may invent.
     const deliveryFee = resolveDeliveryFeeMinor(fulfillmentMethod, platformDeliveryFee);
+
+    // Currency belongs to the supplier, not to the cart: one checkout can split
+    // into sub-orders priced in different currencies, so each records its own
+    // (A2-4). One batch read instead of one per group.
+    const currencyByStore = new Map<string, string>();
+    const storeRows = await this.db.db.query.stores.findMany({
+      where: inArray(stores.id, [...grouped.keys()]),
+      columns: { id: true, currency: true },
+    });
+    for (const store of storeRows) currencyByStore.set(store['id'], store['currency']);
 
     // Create sub-orders per supplier
     const subOrderIds: string[] = [];
@@ -176,6 +205,9 @@ export class OrdersService {
         deliveryFeeMinor: fin.deliveryFeeMinor,
         taxMinor: fin.taxMinor,
         totalMinor: fin.totalMinor,
+        // Null only when the seller's row cannot be read; the snapshot is never
+        // guessed, because a wrong code on an invoice is worse than none.
+        currency: currencyByStore.get(storeId) ?? null,
         slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12h SLA
       });
 
@@ -248,6 +280,10 @@ export class OrdersService {
       .where(eq(carts.id, cart['id']));
 
     // Emit domain event
+    // grandTotalMinor adds every sub-order total together, which is only
+    // meaningful while all suppliers share a currency; the event has no field for
+    // a per-currency figure. Consumers that care must read the master order, whose
+    // response breaks the same total down by currency.
     await this.outbox.publish('order.submitted', masterId, {
       masterOrderId: masterId,
       buyerId: input.buyerId,
@@ -297,8 +333,9 @@ export class OrdersService {
 
   // ── Merchant Actions ─────────────────────────────────────────
 
-  async acceptOrder(orderId: string, merchantUserId: string) {
+  async acceptOrder(orderId: string, merchantUserId: string, caller?: CallerContext) {
     const order = await this.getOrder(orderId);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
     // Accept from PENDING_CONFIRMATION (or SUBMITTED for backward compat — auto-advance first)
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
@@ -341,8 +378,10 @@ export class OrdersService {
     orderId: string,
     merchantUserId: string,
     confirmations: ItemConfirmation[],
+    caller?: CallerContext,
   ) {
     const order = await this.getOrder(orderId);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
       await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
@@ -391,14 +430,19 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async rejectOrder(orderId: string, merchantUserId: string, reason: string) {
+  async rejectOrder(orderId: string, merchantUserId: string, reason: string, caller?: CallerContext) {
     const order = await this.getOrder(orderId);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
       await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
       currentStatus = 'PENDING_CONFIRMATION';
     }
     this.assertTransition(currentStatus, 'REJECTED');
+
+    // A4-4: REJECTED is written directly rather than through transitionStatus,
+    // so the release has to be triggered here too.
+    await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId);
 
     await this.db.db
       .update(orders)
@@ -422,7 +466,11 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async confirmItem(orderId: string, itemId: string, qtyConfirmed: number, merchantUserId: string) {
+  async confirmItem(orderId: string, itemId: string, qtyConfirmed: number, merchantUserId: string, caller?: CallerContext) {
+    if (caller) {
+      const order = await this.getOrder(orderId);
+      await assertOrderAccessible(this.db, caller, order);
+    }
     const item = await this.db.db.query.orderItems.findFirst({
       where: and(eq(orderItems.id, itemId), eq(orderItems.orderId, orderId)),
     });
@@ -444,9 +492,15 @@ export class OrdersService {
     userId: string,
     actorType: string,
     reason?: string,
+    caller?: CallerContext,
   ) {
     const order = await this.getOrder(orderId);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
     this.assertTransition(order['status'], newStatus);
+
+    // A4-4: free or consume the stock this order reserved before recording the
+    // new status.
+    await this.settleStockForStatus(orderId, newStatus, userId);
 
     await this.db.db
       .update(orders)
@@ -495,8 +549,12 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async cancelOrder(orderId: string, userId: string, reason: string) {
+  async cancelOrder(orderId: string, userId: string, reason: string, caller?: CallerContext) {
     const order = await this.getOrder(orderId);
+
+    // A3-1: object-level check — buyers cancel their own orders, merchants
+    // cancel orders their org fulfills, platform staff bypass.
+    if (caller) await assertOrderAccessible(this.db, caller, order);
 
     // Can only cancel pre-DELIVERED
     const cancellable = [
@@ -517,7 +575,7 @@ export class OrdersService {
 
   // ── Queries ──────────────────────────────────────────────────
 
-  async getMasterOrder(id: string) {
+  async getMasterOrder(id: string, caller?: CallerContext) {
     const master = await this.db.db.query.masterOrders.findFirst({
       where: eq(masterOrders.id, id),
     });
@@ -526,6 +584,14 @@ export class OrdersService {
     const subOrders = await this.db.db.query.orders.findMany({
       where: eq(orders.masterOrderId, id),
     });
+    if (caller) {
+      await assertMasterOrderAccessible(
+        this.db,
+        caller,
+        { buyerId: master['buyerId'] },
+        subOrders.map((so) => so['storeId'] as string),
+      );
+    }
 
     const itemsByOrder: Record<string, any[]> = {};
     for (const so of subOrders) {
@@ -534,9 +600,21 @@ export class OrdersService {
       });
     }
 
+    const identified = await attachOrderIdentity(this.db.db, subOrders);
+    const totals = totalsByCurrency(identified);
+    const currencies = Object.keys(totals);
+    const soleCurrency = currencies.length === 1 ? currencies[0] : undefined;
+
     return {
       ...master,
-      subOrders: subOrders.map((so) => ({ ...so, items: itemsByOrder[so['id']] || [] })),
+      // Seller name and currency per sub-order (A2-4/A4-6): a buyer reading a
+      // multi-supplier order needs to know who ships each part and in what money.
+      subOrders: identified.map((so) => ({ ...so, items: itemsByOrder[so['id']] || [] })),
+      // A master order can span suppliers with different currencies, so a single
+      // grand total is not an amount anyone could pay. One code when they agree,
+      // null when they do not — `totalsByCurrency` is always the honest answer.
+      currency: soleCurrency ?? null,
+      totalsByCurrency: totals,
     };
   }
 
@@ -548,63 +626,124 @@ export class OrdersService {
     return order;
   }
 
-  async getOrderWithItems(id: string) {
+  async getOrderWithItems(id: string, caller?: CallerContext) {
     const order = await this.getOrder(id);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
     const items = await this.db.db.query.orderItems.findMany({
       where: eq(orderItems.orderId, id),
     });
     const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
       where: eq(orderFinancialBreakdown.orderId, id),
     });
-    return { ...order, items, financialBreakdown: breakdown };
+    // Every amount on the response — the totals, the lines, the breakdown — is in
+    // this currency, which is why it is resolved once here rather than per line.
+    const [identified] = await attachOrderIdentity(this.db.db, [order]);
+    return { ...order, ...identified, items, financialBreakdown: breakdown };
   }
 
-  async listOrders(buyerId?: string, storeId?: string, status?: string) {
+  async listOrders(buyerId?: string, storeId?: string, status?: string, caller?: CallerContext) {
+    // A3-1: merchants may only list orders for stores in their own org, and a
+    // scoped caller without a store filter is pinned to their own orders.
+    if (storeId && caller) await assertStoreInOrg(this.db, caller, storeId);
+    if (caller && !storeId && !isTenantPrivileged(caller)) buyerId = caller.sub;
     const conditions = [];
     if (buyerId) conditions.push(eq(orders.buyerId, buyerId));
     if (storeId) conditions.push(eq(orders.storeId, storeId));
     if (status) conditions.push(eq(orders.status, status));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    return this.db.db.query.orders.findMany({
+    const rows = await this.db.db.query.orders.findMany({
       where,
       orderBy: [desc(orders.createdAt)],
     });
+    // The buyer's list and the merchant's queue both render these rows, and both
+    // need the supplier's name and currency to label an amount at all.
+    const identified = await attachOrderIdentity(this.db.db, rows);
+    // These rows carry no `items`, so the count is what the cards can honestly
+    // show instead of `items?.length` (A5-16).
+    return attachItemCounts(this.db.db, identified);
   }
 
-  async getStatusHistory(orderId: string) {
+  async getStatusHistory(orderId: string, caller?: CallerContext) {
+    if (caller) {
+      const order = await this.getOrder(orderId);
+      await assertOrderAccessible(this.db, caller, order);
+    }
     return this.db.db.query.orderStatusHistory.findMany({
       where: eq(orderStatusHistory.orderId, orderId),
       orderBy: [orderStatusHistory.createdAt],
     });
   }
 
-  async reorder(masterOrderId: string, buyerId: string) {
-    const master = await this.getMasterOrder(masterOrderId);
+  /**
+   * A4-7: copy a past order back into the buyer's active cart.
+   *
+   * This used to be a stub: the loop body only ensured a cart row existed, yet
+   * the response still said "Items re-added to cart". Lines now go through
+   * `CartService.addItem`, which is the single place that verifies the variant is
+   * still listed, derives the store from the product, and snapshots the current
+   * tier price — a reorder must not quietly re-introduce stale prices.
+   *
+   * One line being unavailable (delisted variant, withdrawn price list) is
+   * reported per line instead of failing the whole reorder, because the cart is
+   * already partially written by the time the first error can surface.
+   */
+  async reorder(orderId: string, buyerId: string) {
+    if (!this.cart) {
+      throw new InternalServerErrorException('Cart service unavailable — reorder cannot proceed');
+    }
+
+    // The route is addressed by master id, but the web and mobile order detail
+    // screens both pass the sub-order id they are showing, so accept either.
+    let masterId = orderId;
+    const asMaster = await this.db.db.query.masterOrders.findFirst({
+      where: eq(masterOrders.id, orderId),
+    });
+    if (!asMaster) {
+      masterId = (await this.getOrder(orderId))['masterOrderId'] ?? orderId;
+    }
+
+    const master = await this.getMasterOrder(masterId);
     if (master['buyerId'] !== buyerId) {
       throw new BadRequestException('Not your order');
     }
 
-    // Re-add items to cart
+    const added: { title: string; quantity: number }[] = [];
+    const skipped: { title: string; reason: string }[] = [];
+
+    // A4-7 residual: use the batch addItems path so reorder does one
+    // recalculateTotal instead of one per line.
+    const lines: { variantId: string; quantity: number; title: string }[] = [];
     for (const subOrder of master['subOrders']) {
-      for (const item of subOrder['items']) {
-        const existing = await this.db.db.query.carts.findFirst({
-          where: and(eq(carts.userId, buyerId), eq(carts.status, 'ACTIVE')),
-        });
-        if (!existing) {
-          // Create new cart
-          const cartId = crypto.randomUUID();
-          await this.db.db.insert(carts).values({
-            id: cartId,
-            userId: buyerId,
-            status: 'ACTIVE',
-          });
-        }
-        // Add item to cart (via cart service in real flow)
+      for (const item of subOrder['items'] || []) {
+        const title = item['title'] || item['sku'] || item['variantId'];
+        const quantity = item['qtyConfirmed'] ?? item['quantity'];
+        lines.push({ variantId: item['variantId'], quantity, title });
       }
     }
 
-    return { message: 'Items re-added to cart', masterOrderId };
+    if (lines.length > 0) {
+      const batchResult = await this.cart.addItems(
+        buyerId,
+        lines.map(l => ({ variantId: l.variantId, quantity: l.quantity })),
+      );
+      for (const line of lines) {
+        if (batchResult.added.includes(line.variantId)) {
+          added.push({ title: line.title, quantity: line.quantity });
+        }
+      }
+      for (const s of batchResult.skipped) {
+        const line = lines.find(l => l.variantId === s.variantId);
+        skipped.push({ title: line?.title || s.variantId, reason: s.reason });
+      }
+    }
+
+    return {
+      masterOrderId: masterId,
+      added,
+      skipped,
+      cart: await this.cart.getActiveCartWithItems(buyerId),
+    };
   }
 
   // ── Re-Price Guard ──────────────────────────────────────────
@@ -699,12 +838,15 @@ export class OrdersService {
               })
               .where(eq(inventoryItems.id, inv['id']));
 
-            // Record stock movement
+            // Record stock movement — `quantity` is signed "positive = in,
+            // negative = out" per 0005_inventory.sql, and a reservation takes
+            // stock out of what is available (inventory.service.reserveStock
+            // already writes it this way).
             await this.db.db.insert(stockMovements).values({
               id: crypto.randomUUID(),
               inventoryItemId: inv['id'],
               movementType: 'RESERVE',
-              quantity: qtyToReserve,
+              quantity: -qtyToReserve,
               referenceType: 'ORDER',
               referenceId: orderId,
               reason: `Stock reserved for order ${orderId}`,
@@ -713,6 +855,91 @@ export class OrdersService {
           break; // Only reserve from first warehouse with stock
         }
       }
+    }
+  }
+
+  /**
+   * A4-4: keep the inventory ledger in step with the order FSM.
+   *
+   * `reserveStock` takes stock aside when a merchant accepts an order; nothing
+   * used to undo it, so a cancelled order reserved stock forever and a delivered
+   * order never left on-hand quantities. The source of truth here is the ledger
+   * itself (RESERVE rows tagged with this order), because checkout reserves only
+   * what was actually available, which can be less than the ordered quantity.
+   *
+   * Movement semantics per infra/drizzle/migrations/0005_inventory.sql:
+   * RESERVE/RELEASE move qty_reserved, SALE moves qty_on_hand, and `quantity`
+   * is signed "positive = in, negative = out".
+   *
+   * Called BEFORE the status write, so a failure leaves the order in its
+   * previous status and the caller can retry, rather than an order that moved on
+   * with its stock unaccounted for.
+   */
+  private async settleStockForStatus(orderId: string, toStatus: string, performedBy?: string) {
+    const releasesStock = toStatus === 'CANCELLED' || toStatus === 'REJECTED';
+    const consumesStock = toStatus === 'DELIVERED';
+    if (!releasesStock && !consumesStock) return;
+
+    const movements = await this.db.db.query.stockMovements.findMany({
+      where: and(
+        eq(stockMovements.referenceType, 'ORDER'),
+        eq(stockMovements.referenceId, orderId),
+      ),
+    });
+    if (movements.length === 0) return;
+
+    // Net what is still outstanding per inventory item. Subtracting the settled
+    // types makes a replayed transition a no-op instead of a double release, and
+    // Math.abs normalises rows written under the older unsigned convention.
+    const outstanding = new Map<string, number>();
+    for (const movement of movements) {
+      const itemId = movement['inventoryItemId'];
+      if (!itemId) continue;
+      const quantity = Math.abs(movement['quantity'] ?? 0);
+      const type = movement['movementType'];
+      let delta = 0;
+      if (type === 'RESERVE') delta = quantity;
+      else if (type === 'RELEASE' || type === 'SALE') delta = -quantity;
+      if (delta === 0) continue;
+      outstanding.set(itemId, (outstanding.get(itemId) ?? 0) + delta);
+    }
+
+    for (const [itemId, quantity] of outstanding) {
+      if (quantity <= 0) continue; // Already settled
+
+      if (releasesStock) {
+        await this.db.db
+          .update(inventoryItems)
+          .set({
+            qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, itemId));
+      } else {
+        // Delivered: the goods leave the warehouse, so on-hand drops along with
+        // the reservation that was holding them.
+        await this.db.db
+          .update(inventoryItems)
+          .set({
+            qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${quantity}, 0)`,
+            qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, itemId));
+      }
+
+      await this.db.db.insert(stockMovements).values({
+        id: crypto.randomUUID(),
+        inventoryItemId: itemId,
+        movementType: releasesStock ? 'RELEASE' : 'SALE',
+        quantity: releasesStock ? quantity : -quantity,
+        referenceType: 'ORDER',
+        referenceId: orderId,
+        performedBy: performedBy || null,
+        reason: releasesStock
+          ? `Reservation released for ${toStatus.toLowerCase()} order ${orderId}`
+          : `Stock deducted on delivery of order ${orderId}`,
+      });
     }
   }
 

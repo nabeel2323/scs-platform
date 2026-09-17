@@ -110,10 +110,27 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                       Row(children: [
                         StatusBadge(o.status),
                         const Spacer(),
-                        Text(formatMinor(o.totalMinor, o.currency ?? 'SAR'),
+                        Text(formatMinor(o.totalMinor, o.currency),
                             style: const TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.w700))
                       ]),
+                      // A4-6: who this order came from, named instead of a UUID.
+                      Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                              o.storeName == null
+                                  ? 'Seller no longer available'
+                                  : 'Sold by ${o.storeName}',
+                              style: const TextStyle(
+                                  fontSize: 13, color: TaifTokens.muted))),
+                      // A2-4: an inferred currency is stated, not implied.
+                      if (!o.currencyFromSnapshot)
+                        const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Text(
+                                'Currency inferred from the seller — this order predates currency being recorded on it.',
+                                style: TextStyle(
+                                    fontSize: 11, color: TaifTokens.warn))),
                       const SizedBox(height: 16),
                       const Text('Items',
                           style: TextStyle(
@@ -123,8 +140,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                           child: ListTile(
                               title: Text(item.title),
                               subtitle: Text(
-                                  'Qty ${item.quantity} × ${formatMinor(item.unitPriceMinor)}'),
-                              trailing: Text(formatMinor(item.lineTotalMinor),
+                                  'Qty ${item.quantity} × ${formatMinor(item.unitPriceMinor, o.currency)}'),
+                              trailing: Text(
+                                  formatMinor(item.lineTotalMinor, o.currency),
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600))))),
                       const SizedBox(height: 16),
@@ -132,12 +150,16 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                           style: TextStyle(
                               fontWeight: FontWeight.w600, fontSize: 14)),
                       const SizedBox(height: 8),
-                      _row('Subtotal', formatMinor(o.subtotalMinor)),
-                      _row('Discount', '-${formatMinor(o.discountMinor)}'),
-                      _row('Delivery', formatMinor(o.deliveryFeeMinor)),
-                      _row('Tax', formatMinor(o.taxMinor)),
+                      _row(
+                          'Subtotal', formatMinor(o.subtotalMinor, o.currency)),
+                      _row('Discount',
+                          '-${formatMinor(o.discountMinor, o.currency)}'),
+                      _row('Delivery',
+                          formatMinor(o.deliveryFeeMinor, o.currency)),
+                      _row('Tax', formatMinor(o.taxMinor, o.currency)),
                       const Divider(),
-                      _row('Total', formatMinor(o.totalMinor), bold: true),
+                      _row('Total', formatMinor(o.totalMinor, o.currency),
+                          bold: true),
                       const SizedBox(height: 16),
                       // Reorder button for completed/delivered orders
                       if (['DELIVERED', 'COMPLETED'].contains(o.status))
@@ -146,10 +168,19 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                           child: ElevatedButton.icon(
                             onPressed: () async {
                               try {
-                                await ref
+                                // The endpoint re-adds line by line and reports
+                                // what it could not (delisted variant, price tier
+                                // removed since). This call was typed
+                                // `Future<void>`, so a two-of-five reorder
+                                // announced itself exactly like a full one
+                                // (A5-14).
+                                final result = await ref
                                     .read(apiServiceProvider)
                                     .reorder(o.id);
+                                ref.invalidate(cartProvider);
                                 if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(result.summary)));
                                   context.go('/cart');
                                 }
                               } catch (e) {

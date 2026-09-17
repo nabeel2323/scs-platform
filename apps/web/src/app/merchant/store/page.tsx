@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchStore, updateStore, createWarehouse, Store } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
 import { fetchStoreWarehouses, WarehouseSummary } from '../../../lib/buyer-api';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge } from '../../../components/Shared';
 
@@ -62,7 +63,7 @@ export default function StoreProfilePage() {
     (async () => {
       try {
         const stores = await fetchMyStores();
-        const first = stores[0];
+        const first = pickStore(stores);
         if (!first) { setNoStore(true); return; }
         const full = await fetchStore(first.id);
         populate(full);

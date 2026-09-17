@@ -668,6 +668,16 @@ export const SubOrderSchema = z.object({
   deliveryFeeMinor: z.number(),
   taxMinor: z.number(),
   totalMinor: z.number(),
+  // A2-4: every *_Minor amount above is expressed in this currency. Optional
+  // because a response built from a pre-0019 row has no snapshot to report, and
+  // nullable because the seller's own code can be unreadable; the API resolves a
+  // code either way (apps/api/src/modules/orders/order-identity.ts).
+  currency: z.string().length(3).optional().nullable(),
+  /** False when `currency` was inferred from the seller instead of snapshotted. */
+  currencyFromSnapshot: z.boolean().optional(),
+  /** Supplier identity, joined on read so a listing never shows a bare UUID. */
+  storeName: z.string().nullable().optional(),
+  storeSlug: z.string().nullable().optional(),
   items: z.array(OrderItemSchema).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -680,6 +690,10 @@ export const MasterOrderSchema = z.object({
   deliveryAddress: z.record(z.unknown()),
   notes: z.string().nullable(),
   subOrders: z.array(SubOrderSchema).optional(),
+  // A master order can span suppliers whose currencies differ, so the aggregate
+  // is per currency and `currency` is null when they do not all agree.
+  currency: z.string().length(3).nullable().optional(),
+  totalsByCurrency: z.record(z.number()).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

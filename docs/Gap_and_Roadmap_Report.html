@@ -108,10 +108,10 @@
       <p>The platform is a <strong>B2B-first marketplace</strong> delivered as a modular monolith with four client surfaces. It is <strong>pilot-ready for Phase&nbsp;1</strong>: all three critical launch blockers were resolved and verified on 2026-09-04, and on <strong>2026-09-08 the full P1 + P2 backlog closed</strong> &mdash; checkout pricing (<code>API-B4</code>), merchant-write RBAC (<code>API-B6</code>), the identity N+1 / prod-JWT-gate / switch-org revocation / auth-DTO hardening (<code>API-B7</code>&ndash;<code>B10</code>), admin <code>/v1/me</code> hydration (<code>ADM-B2</code>), the shared <code>@scs/contracts</code> package, realtime wiring and typed mobile models. The remaining Phase&nbsp;1 gaps are <strong>deeper automated test coverage</strong>, <strong>k6 load-test evidence</strong> and a few Low-severity UI items. Phases&nbsp;2&ndash;7 are forward-declared &mdash; schema and FSM states exist, behaviour is dark.</p>
 
       <div class="grid c4">
-        <div class="card"><div class="kpi">93<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">Up from 88 after the 09-08 P1/P2 closure</p></div>
+        <div class="card"><div class="kpi">94<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">Up from 93 after the 09-14 storage integration</p></div>
         <div class="card"><div class="kpi">96%</div><h4>Phase 1 coverage</h4><p class="small muted">Saved suppliers + checkout pricing closed</p></div>
         <div class="card"><div class="kpi">3 / 3</div><h4>P0 blockers resolved</h4><p class="small muted">Device trust · CORS · CSV import</p></div>
-        <div class="card"><div class="kpi">0</div><h4>High issues open</h4><p class="small muted">API-B4 + API-B6 closed 09-08</p></div>
+        <div class="card"><div class="kpi">0</div><h4>High issues open</h4><p class="small muted">API-B4 + API-B6 closed 09-08; STR-B1&ndash;B3 closed 09-14</p></div>
       </div>
 
       <h3>1.1 Maturity scorecard</h3>
@@ -122,7 +122,7 @@
           <tr><td>Phase 1 Feature Coverage</td><td class="score">96%</td><td>30%</td><td><div class="bar"><span style="width:96%;background:var(--ok)"></span></div></td><td>Import real since 09-04; checkout pricing + saved suppliers closed 09-08</td></tr>
           <tr><td>Security Posture</td><td class="score">93%</td><td>25%</td><td><div class="bar"><span style="width:93%;background:var(--ok)"></span></div></td><td>Dual-auth E2E; merchant-write RBAC (<code>API-B6</code>), prod JWT gate (<code>API-B7</code>), switch-org revocation (<code>API-B9</code>) + auth DTOs (<code>API-B10</code>) closed 09-08</td></tr>
           <tr><td>Code Quality</td><td class="score">89%</td><td>15%</td><td><div class="bar"><span style="width:89%;background:var(--info)"></span></div></td><td>All apps compile/analyze clean (mobile 0 issues); identity + orders unit tests now &ge;40% line coverage (46% / 51%, 09-08)</td></tr>
-          <tr><td>Cross-Platform Consistency</td><td class="score">92%</td><td>15%</td><td><div class="bar"><span style="width:92%;background:var(--ok)"></span></div></td><td>Device trust on web + mobile; admin password login + credential self-service; realtime wired; shared <code>@scs/contracts</code> across surfaces</td></tr>
+          <tr><td>Cross-Platform Consistency</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>Device trust on web + mobile; admin password login + credential self-service; realtime wired; shared <code>@scs/contracts</code> across surfaces; storage presign now real across web + mobile + API</td></tr>
           <tr><td>Launch Readiness (&sect;21.6)</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>6/8 criteria fully met; 2 partial (load evidence, ops ownership)</td></tr>
         </tbody>
       </table>
@@ -259,6 +259,19 @@ flowchart LR
           <tr><td><code>MOB-B4</code></td><td><span class="pill p-info">Medium</span></td><td><code>router.dart</code></td><td><code>/verify/:phone</code> retained while <code>LoginScreen</code> handles OTP inline &rarr; dead-route risk</td><td><span class="pill p-ok">Fixed 09-08</span> dead <code>/verify/:phone</code> route + <code>OtpVerifyScreen</code>/<code>OtpRequestScreen</code> removed</td></tr>
           <tr><td><code>MOB-B5</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>3 test files only; no golden/widget tests for auth screens</td><td><span class="pill p-warn">Partial 09-08</span> auth/session model + switch-org unit tests added (<code>auth_models_test.dart</code>); golden/widget tests still open</td></tr>
           <tr><td><code>MOB-B6</code></td><td><span class="pill p-muted">Low</span></td><td>&mdash;</td><td>No offline queue despite the <code>drift</code> dependency being present</td><td><span class="pill p-err">Open</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.5 Object Storage (<code>StorageService</code>)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Sev</th><th>Location</th><th>Issue</th><th>Live status</th></tr></thead>
+        <tbody>
+          <tr><td><code>STR-B1</code></td><td><span class="pill p-err">Critical</span></td><td><code>catalog.controller.ts:197</code>, <code>merchant.service.ts:330</code></td><td>Both presign endpoints returned fake <code>https://storage.local/...</code> URLs; <code>StorageService</code> was registered as a global module but never injected or called</td><td><span class="pill p-ok">Fixed 09-14</span> <code>StorageService</code> injected into <code>CatalogController</code> + <code>MerchantService</code>; presign endpoints now generate real S3 presigned URLs via <code>createPresignedPutUrl</code> / <code>createPresignedGetUrl</code></td></tr>
+          <tr><td><code>STR-B2</code></td><td><span class="pill p-warn">High</span></td><td><code>storage.service.ts</code></td><td>No <code>createPresignedPutUrl</code> method existed; browser/mobile uploads required a presigned PUT URL but only GET was available</td><td><span class="pill p-ok">Fixed 09-14</span> <code>createPresignedPutUrl(bucket, key, contentType, expiresInSeconds)</code> added with 15-min hard cap</td></tr>
+          <tr><td><code>STR-B3</code></td><td><span class="pill p-warn">High</span></td><td><code>storage.service.ts</code></td><td>No bucket validation &mdash; any caller could pass an arbitrary bucket name to <code>putObject</code>, <code>getObject</code>, etc.</td><td><span class="pill p-ok">Fixed 09-14</span> <code>allowedBuckets</code> set built from <code>S3_MEDIA_BUCKET</code> + <code>S3_UPLOADS_BUCKET</code> at boot; every operation calls <code>assertBucketAllowed</code></td></tr>
+          <tr><td><code>STR-B4</code></td><td><span class="pill p-info">Medium</span></td><td><code>merchant.controller.ts</code></td><td>No presigned upload endpoint for business documents; the <code>POST /documents</code> flow recorded metadata but gave clients no way to upload the actual file to S3</td><td><span class="pill p-ok">Fixed 09-14</span> <code>POST /documents/presign-upload</code> returns a presigned PUT URL + storage key</td></tr>
+          <tr><td><code>STR-B5</code></td><td><span class="pill p-info">Medium</span></td><td><code>storage.service.ts</code></td><td>No unit tests for any S3 operation</td><td><span class="pill p-ok">Fixed 09-14</span> 15 tests covering constructor validation, bucket allow-list, put/get/delete/presign paths, expiry clamping, and not-found edge case</td></tr>
+          <tr><td><code>STR-B6</code></td><td><span class="pill p-muted">Low</span></td><td><code>storage.service.ts</code></td><td>Presigned URLs had no maximum expiry cap; a caller could request a 24-hour URL</td><td><span class="pill p-ok">Fixed 09-14</span> <code>MAX_PRESIGN_EXPIRY = 900</code> (15 min) hard cap applied to both GET and PUT presign methods</td></tr>
         </tbody>
       </table>
     </section>
@@ -399,7 +412,7 @@ const total = subtotal - discount + deliveryFee + tax;</code></pre>
 
     <section id="enhance">
       <h2>9. Enhancement Recommendations</h2>
-      <div class="callout ok"><strong class="label">Landed 09-08</strong><p>Most of these are now implemented: N+1 claim building, single-flight refresh and Socket.IO push (Performance); merchant/catalog RBAC, prod JWT gate and auth DTOs (Security); CI pipeline, <code>@scs/contracts</code> and identity/orders coverage gates (DX); remaining-attempts lockout UX (UX). The bullets are kept as a record; still open are Redis category caching, pagination-default enforcement, FCM lockout notifications, pen test, and the offline/queue/replica scalability notes.</p></div>
+      <div class="callout ok"><strong class="label">Landed 09-08 + 09-14</strong><p>Most of these are now implemented: N+1 claim building, single-flight refresh and Socket.IO push (Performance); merchant/catalog RBAC, prod JWT gate and auth DTOs (Security); CI pipeline, <code>@scs/contracts</code> and identity/orders coverage gates (DX); remaining-attempts lockout UX (UX); S3 storage integration with bucket validation, presigned PUT URLs and 15-min expiry caps (09-14). Still open: Redis category caching, pagination-default enforcement, FCM lockout notifications, pen test, and the offline/queue/replica scalability notes.</p></div>
       <div class="grid c2">
         <div class="card"><h4>Performance</h4><ul class="tight small">
           <li>Fix N+1 in claim building with a single join; target &lt;5 queries per refresh.</li>
@@ -414,6 +427,7 @@ const total = subtotal - discount + deliveryFee + tax;</code></pre>
           <li>DTOs for all auth bodies so <code>forbidNonWhitelisted</code> actually filters.</li>
           <li>Account-lockout notification via the existing FCM channel on rate-limit trips.</li>
           <li>External pen test before Phase 3 payments go live.</li>
+          <li>Storage bucket allow-list + 15-min presigned-URL cap <span class="pill p-ok">Done 09-14</span>.</li>
         </ul></div>
         <div class="card"><h4>Developer experience</h4><ul class="tight small">
           <li>CI: typecheck + lint + <code>dart analyze</code> + migration dry-run on every PR.</li>
@@ -492,7 +506,7 @@ flowchart TB
 </div>
 
 <footer class="site">
-  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Gap &amp; Roadmap Report. Synthesised from the 2026-09-05 codebase audit and re-verified against the live source tree on 2026-09-08 (admin dual-auth present; the full P1 + P2 backlog &mdash; <code>API-B4</code>, <code>API-B6</code> and the rest &mdash; closed). Companion documents: <em>Developer Guide</em> and <em>User Guide</em>.</p>
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Gap &amp; Roadmap Report. Synthesised from the 2026-09-05 codebase audit and re-verified against the live source tree on 2026-09-14 (storage integration closed: <code>STR-B1</code>&ndash;<code>STR-B6</code>; companion documents: <em>Developer Guide</em> and <em>User Guide</em>).</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>

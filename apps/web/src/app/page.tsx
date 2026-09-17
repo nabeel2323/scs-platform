@@ -4,11 +4,17 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { AuthCard } from '../components/AuthCard';
 import { MerchantRegistrationCard } from '../components/MerchantRegistrationCard';
+import { useAuth } from '../components/AuthProvider';
+import { isMerchantRole } from '../lib/auth';
 
 /* ── Home Page ───────────────────────────────────────────── */
 
 export default function HomePage() {
   const [now, setNow] = useState<Date | null>(null);
+  const { user } = useAuth();
+  // Merchant tooling only renders for merchant roles (audit A1-1) — the
+  // registration CTA below self-hides for users who are already onboarded.
+  const isMerchant = isMerchantRole(user?.role);
 
   useEffect(() => {
     setNow(new Date());
@@ -73,7 +79,9 @@ export default function HomePage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
           <QuickLink href="/notifications"     emoji="🔔" title="Notifications"     desc="Order updates & alerts" />
-          <QuickLink href="/merchant/orders"   emoji="📋" title="Merchant Orders"   desc="Manage incoming orders" />
+          {isMerchant && (
+            <QuickLink href="/merchant/orders" emoji="📋" title="Merchant Orders"   desc="Manage incoming orders" />
+          )}
           <QuickLink href="/reviews"           emoji="⭐" title="Reviews & Disputes" desc="Rate stores or open disputes" />
           <QuickLink href="/favorites"         emoji="❤️" title="Saved Suppliers"    desc="Your favorite wholesalers" />
           <MerchantRegistrationCard />

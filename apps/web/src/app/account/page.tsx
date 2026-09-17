@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
-import { isAuthenticated } from '../../lib/auth';
+import { isAuthenticated, switchOrg } from '../../lib/auth';
+import { ErrorBanner } from '../../components/Shared';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -15,6 +16,8 @@ export default function AccountPage() {
   const [form, setForm] = useState({ fullName: '', email: '', locale: 'en' });
   const [saving, setSaving] = useState(false);
   const [deviceAction, setDeviceAction] = useState<string | null>(null);
+  const [switchingOrg, setSwitchingOrg] = useState<string | null>(null);
+  const [orgError, setOrgError] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -40,6 +43,29 @@ export default function AccountPage() {
       setEditing(false);
     } catch { /* ignore */ }
     finally { setSaving(false); }
+  };
+
+  // A2-2: the JWT's activeOrg claim drives every merchant-side scope, so a user
+  // belonging to several orgs must be able to change it (previously only the
+  // registration wizard ever called switchOrg). switchOrg re-hydrates the cached
+  // user, and the profile/orgs are refetched so this page reflects the new role.
+  const handleSwitchOrg = async (orgId: string) => {
+    setSwitchingOrg(orgId);
+    setOrgError('');
+    try {
+      await switchOrg(orgId);
+      const [p, list] = await Promise.all([
+        fetchProfile().catch(() => null),
+        fetchMyOrganizations().catch(() => null),
+      ]);
+      if (p) setProfile(p);
+      if (list) setOrgs(list);
+      router.refresh();
+    } catch (err: any) {
+      setOrgError(err.message || 'Failed to switch organization');
+    } finally {
+      setSwitchingOrg(null);
+    }
   };
 
   const handleUnregisterDevice = async (token: string) => {
@@ -129,23 +155,51 @@ export default function AccountPage() {
 
       {/* Organizations */}
       <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Organizations</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>Organizations</h2>
+        <p style={{ color: '#5b6b74', fontSize: 13, margin: '0 0 12px' }}>
+          Merchant tools operate on the active organization{profile.role ? ` — your current role is ${profile.role}` : ''}.
+        </p>
+        {orgError && <ErrorBanner message={orgError} />}
         {orgs.length === 0 ? (
           <p style={{ color: '#5b6b74', fontSize: 13 }}>No organization memberships.</p>
         ) : (
-          orgs.map((org: any, i: number) => (
-            <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #edf2f7', fontSize: 13 }}>
-              <div>
-                <strong>{org.name || org.orgId}</strong> — {org.role || 'Member'} ({org.status || 'ACTIVE'})
-              </div>
-              {org.inviteCode && (
-                <div style={{ marginTop: 4 }}>
-                  <span style={{ fontSize: 11, color: '#5b6b74' }}>Invite code: </span>
-                  <code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.5px' }}>{org.inviteCode}</code>
+          orgs.map((org: any, i: number) => {
+            // GET /v1/me/organizations spreads the organizations row, so the id
+            // is `id` (there is no `orgId`/`role`/`status` on it).
+            const orgId: string | undefined = org.id || org.orgId;
+            const isActive = !!orgId && orgId === profile.activeOrgId;
+            return (
+              <div key={orgId || i} style={{ padding: '10px 0', borderBottom: '1px solid #edf2f7', fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div>
+                    <div>
+                      <strong>{org.name || orgId}</strong> — {org.type || 'ORG'} ·{' '}
+                      {org.verificationStatus || org.membershipStatus || 'PENDING'}
+                    </div>
+                    {org.inviteCode && (
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: '#5b6b74' }}>Invite code: </span>
+                        <code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.5px' }}>{org.inviteCode}</code>
+                      </div>
+                    )}
+                  </div>
+                  {isActive ? (
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: '#d1fae5', color: '#065f46', whiteSpace: 'nowrap' }}>
+                      Active
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => orgId && handleSwitchOrg(orgId)}
+                      disabled={!orgId || !!switchingOrg}
+                      style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', opacity: switchingOrg && switchingOrg !== orgId ? 0.5 : 1 }}
+                    >
+                      {switchingOrg === orgId ? 'Switching…' : 'Switch to'}
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
 

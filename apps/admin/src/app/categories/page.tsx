@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment, useRef } from 'react';
 import { fetchAdminCategories, createAdminCategory, updateAdminCategory, deleteAdminCategory } from '../../lib/api';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 interface Category {
   id: string;
@@ -16,6 +17,7 @@ interface Category {
 }
 
 export default function AdminCategoriesPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['catalog:categories:write']);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -166,6 +168,7 @@ export default function AdminCategoriesPage() {
 
       {/* Content */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+        {!hasAccess && <AccessDenied requiredPerms={['catalog:categories:write']} missingPerms={missingPerms} />}
         {error && (
           <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#991b1b', fontSize: 13 }}>
             {error}

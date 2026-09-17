@@ -613,6 +613,59 @@ export class IdentityService {
     return { success: true };
   }
 
+  /**
+   * Look up a user by phone or email for adding to an organization.
+   * Returns user ID, name, and phone for the add-member UI.
+   */
+  async lookupUser(query: string) {
+    if (!query || query.trim().length < 3) {
+      return [];
+    }
+    const q = query.trim();
+    // Search by phone or email
+    const userRows = await this.db.db.query.users.findMany({
+      where: inArray(users.phone, [q]),
+    });
+    // Also try email if it looks like an email
+    if (q.includes('@')) {
+      const emailRows = await this.db.db.query.users.findMany({
+        where: inArray(users.email, [q]),
+      });
+      // Combine and dedupe
+      const seen = new Set<string>();
+      const combined = [...userRows, ...emailRows].filter((u) => {
+        if (seen.has(u.id)) return false;
+        seen.add(u.id);
+        return true;
+      });
+      return combined.map((u) => ({
+        id: u.id,
+        fullName: u.fullName,
+        phone: u.phone,
+        email: u.email,
+      }));
+    }
+    return userRows.map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      phone: u.phone,
+      email: u.email,
+    }));
+  }
+
+  /**
+   * List available roles for organization membership.
+   * Returns role ID, key, and name.
+   */
+  async listRoles() {
+    const roleRows = await this.db.db.query.roles.findMany();
+    return roleRows.map((r) => ({
+      id: r.id,
+      key: r.key,
+      name: r.name,
+    }));
+  }
+
   // ── Dual Authentication (Password Login) ──────────────────
 
   /**

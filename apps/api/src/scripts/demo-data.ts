@@ -281,9 +281,10 @@ async function main() {
     psql(`INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point, max_stock)
       VALUES (${sqlValue(invId)}, ${sqlValue(electronicsVariants[i]!)}, ${sqlValue(IDs.warehouseRiyadh)}, ${qty}, ${Math.round(qty * 0.05)}, ${Math.round(qty * 0.1)}, ${qty * 2})
       ON CONFLICT DO NOTHING;`);
-    // Stock movement: initial stock
+    // Stock movement: initial stock (§9: use 'IMPORT', not 'INBOUND' — the
+    // migration 0020 CHECK constraint enforces the documented vocabulary).
     psql(`INSERT INTO stock_movements (id, inventory_item_id, movement_type, quantity, reference_type, reason, performed_by)
-      VALUES (${sqlValue(uuid())}, ${sqlValue(invId)}, 'INBOUND', ${qty}, 'INITIAL_STOCK', 'Demo initial stock', ${sqlValue(IDs.merchantStaff1)})
+      VALUES (${sqlValue(uuid())}, ${sqlValue(invId)}, 'IMPORT', ${qty}, 'INITIAL_STOCK', 'Demo initial stock', ${sqlValue(IDs.merchantStaff1)})
       ON CONFLICT DO NOTHING;`);
   }
   // Some electronics → Dammam overflow
@@ -301,8 +302,9 @@ async function main() {
     psql(`INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point, max_stock)
       VALUES (${sqlValue(invId)}, ${sqlValue(groceryVariants[i]!)}, ${sqlValue(IDs.warehouseJeddah)}, ${qty}, ${Math.round(qty * 0.02)}, ${Math.round(qty * 0.15)}, ${qty * 3})
       ON CONFLICT DO NOTHING;`);
+    // §9: use 'IMPORT' (migration 0020 CHECK constraint enforces the vocabulary).
     psql(`INSERT INTO stock_movements (id, inventory_item_id, movement_type, quantity, reference_type, reason, performed_by)
-      VALUES (${sqlValue(uuid())}, ${sqlValue(invId)}, 'INBOUND', ${qty}, 'INITIAL_STOCK', 'Demo initial stock', ${sqlValue(IDs.merchantOwner2)})
+      VALUES (${sqlValue(uuid())}, ${sqlValue(invId)}, 'IMPORT', ${qty}, 'INITIAL_STOCK', 'Demo initial stock', ${sqlValue(IDs.merchantOwner2)})
       ON CONFLICT DO NOTHING;`);
   }
 

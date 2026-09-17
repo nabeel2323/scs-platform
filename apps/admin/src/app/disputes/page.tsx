@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch } from '../../lib/auth';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
@@ -41,6 +42,7 @@ interface DisputeEvent {
 }
 
 export default function DisputesPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['support:disputes:resolve']);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -142,6 +144,7 @@ export default function DisputesPage() {
 
       {/* Content */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+        {!hasAccess && <AccessDenied requiredPerms={['support:disputes:resolve']} missingPerms={missingPerms} />}
         {/* Filters */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'flex-end' }}>
           <div>

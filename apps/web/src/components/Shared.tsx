@@ -4,16 +4,21 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   // Order statuses
   DRAFT: { bg: '#edf2f7', text: '#4a5568' },
   SUBMITTED: { bg: '#fef3c7', text: '#92400e' },
+  PENDING_CONFIRMATION: { bg: '#fef3c7', text: '#92400e' },
   ACCEPTED: { bg: '#d1fae5', text: '#065f46' },
   PARTIALLY_ACCEPTED: { bg: '#fef3c7', text: '#92400e' },
   REJECTED: { bg: '#fee2e2', text: '#991b1b' },
-  CONFIRMED: { bg: '#dbeafe', text: '#1e40af' },
+  CONFIRMED: { bg: '#dbeafe', text: '#1e40af' }, // legacy alias, kept for old history rows
   PREPARING: { bg: '#e0e7ff', text: '#3730a3' },
   READY: { bg: '#d1fae5', text: '#065f46' },
+  ASSIGNED: { bg: '#dbeafe', text: '#1e40af' },
+  PICKED_UP: { bg: '#dbeafe', text: '#1e40af' },
   OUT_FOR_DELIVERY: { bg: '#dbeafe', text: '#1e40af' },
   DELIVERED: { bg: '#d1fae5', text: '#065f46' },
   COMPLETED: { bg: '#d1fae5', text: '#065f46' },
+  PAYMENT_PENDING: { bg: '#fef3c7', text: '#92400e' },
   CANCELLED: { bg: '#fee2e2', text: '#991b1b' },
+  DISPUTED: { bg: '#fee2e2', text: '#991b1b' },
   // Store statuses
   VERIFIED: { bg: '#d1fae5', text: '#065f46' },
   PENDING: { bg: '#fef3c7', text: '#92400e' },
@@ -61,6 +66,27 @@ export function formatMinor(minor: number, currency = 'SAR'): string {
   return `${major.toFixed(2)} ${currency}`;
 }
 
+/**
+ * First image of a product, from either shape the column has ever held.
+ *
+ * `products.images` is a JSONB array of URL **strings** (contracts declare
+ * `z.array(z.string().url())`, migration 0004 comments "primary image URLs
+ * array"), but the listings read `images[0].url` — undefined for a string — so
+ * every card rendered `<img src="">`, which the browser resolves against the
+ * page URL: a broken image where the 📦 placeholder was meant to be. Objects
+ * with a `url` are still accepted, because the column has no constraint.
+ */
+export function productImageSrc(images: unknown): string | undefined {
+  if (!Array.isArray(images) || images.length === 0) return undefined;
+  const first: unknown = images[0];
+  if (typeof first === 'string') return first || undefined;
+  if (first && typeof first === 'object') {
+    const url = (first as Record<string, unknown>)['url'];
+    if (typeof url === 'string' && url) return url;
+  }
+  return undefined;
+}
+
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -104,7 +130,7 @@ export function LoadingSpinner() {
 
 export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div style={{
+    <div role="alert" style={{
       background: '#fee2e2',
       border: '1px solid #fca5a5',
       borderRadius: 8,

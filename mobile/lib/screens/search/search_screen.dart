@@ -18,6 +18,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _debounce;
   String? _selectedCategory;
   String? _selectedBrand;
+  String? _searchError;
 
   void _onChanged(String q) {
     _debounce?.cancel();
@@ -32,15 +33,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           categoryId: _selectedCategory,
           brandId: _selectedBrand,
           limit: 30);
+      if (!mounted) return;
+      setState(() => _searchError = null);
       ref.read(searchResultsProvider.notifier).state = result;
-    } catch (_) {}
+    } catch (e) {
+      // Was `catch (_) {}`: on a failed request the previous query's results
+      // stayed on screen looking like an answer to the new one.
+      if (!mounted) return;
+      setState(() => _searchError = 'Search failed: $e');
+    }
   }
 
   Future<void> _addToCart(Product p) async {
     try {
-      await ref
-          .read(apiServiceProvider)
-          .addToCart(variantId: p.id, storeId: p.storeId, quantity: p.moq);
+      // The cart line references a variant, not a product; the service resolves
+      // the default one and buys at the MOQ (A5-12 — this used to post `p.id`
+      // as the variantId, which the server always rejected).
+      await ref.read(apiServiceProvider).addProductToCart(p);
       ref.invalidate(cartProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -111,9 +120,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink()),
           const SizedBox(height: 8),
+          if (_searchError != null)
+            ErrorBanner(
+                message: _searchError!, onRetry: () => _search(_ctrl.text)),
           Expanded(
               child: results == null
-                  ? const LoadingSpinner()
+                  // A failed first search left this spinner running forever,
+                  // because nothing else ever set the results.
+                  ? (_searchError != null
+                      ? const EmptyState(
+                          title: 'Search unavailable',
+                          description: 'The request failed. Check the term and '
+                              'try again.')
+                      : const LoadingSpinner())
                   : results.products.isEmpty
                       ? const EmptyState(
                           title: 'No products found',
@@ -124,7 +143,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
                                   mainAxisSpacing: 8,
-                                  crossAxisSpacing: 8),
+                                  crossAxisSpacing: 8,
+                                  // Cards now carry price and seller as well; at
+                                  // the default 1.0 the content overflowed the tile.
+                                  childAspectRatio: 0.62),
                           itemCount: results.products.length,
                           itemBuilder: (_, i) {
                             final p = results.products[i];

@@ -8,11 +8,102 @@ class SearchResult {
   SearchResult(
       {required this.products, required this.total, required this.query});
   factory SearchResult.fromJson(Map<String, dynamic> j) => SearchResult(
-        products: (j['products'] as List? ?? [])
+        // A5-7: every path of GET /v1/search returns its hits under `items`. This
+        // read `products`, and because the cast below defaults to an empty list,
+        // the response parsed "successfully" into zero results — mobile search
+        // showed nothing for queries that had matches, with no error anywhere.
+        products: (j['items'] as List? ?? [])
             .map((e) => Product.fromJson(e))
             .toList(),
         total: j['total'] as int? ?? 0,
         query: j['query'] as String? ?? '',
+      );
+}
+
+/// One line of a reorder outcome. Used for both shapes the endpoint returns:
+/// re-added lines carry `quantity`, skipped ones carry `reason`.
+class ReorderLine {
+  final String title, reason;
+  final int quantity;
+  ReorderLine({required this.title, this.quantity = 0, this.reason = ''});
+  factory ReorderLine.fromJson(Map<String, dynamic> j) => ReorderLine(
+      title: j['title'] ?? '',
+      quantity: j['quantity'] as int? ?? 0,
+      reason: j['reason'] ?? '');
+}
+
+/// POST /v1/orders/master/:id/reorder (A4-7). The endpoint re-adds each line
+/// through the cart, so it reports per-line outcomes: a past order can hold
+/// variants that were delisted or lost their price tier since. Discarding the
+/// body made a partial reorder look like a complete one.
+class ReorderResult {
+  final String masterOrderId;
+  final List<ReorderLine> added;
+  final List<ReorderLine> skipped;
+  ReorderResult(
+      {required this.masterOrderId,
+      this.added = const [],
+      this.skipped = const []});
+  factory ReorderResult.fromJson(Map<String, dynamic> j) => ReorderResult(
+        masterOrderId: j['masterOrderId'] ?? '',
+        added: (j['added'] as List? ?? [])
+            .map((e) =>
+                ReorderLine.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        skipped: (j['skipped'] as List? ?? [])
+            .map((e) =>
+                ReorderLine.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+
+  int get total => added.length + skipped.length;
+
+  /// Snack-bar text. Which lines did not come back matters more than how many
+  /// did, so the first reason is named and the rest counted.
+  String get summary {
+    if (added.isEmpty) {
+      return skipped.isEmpty
+          ? 'That order had no items to re-order'
+          : 'Nothing could be re-ordered — $_reasons';
+    }
+    if (skipped.isEmpty) {
+      return 'Added $total item${total == 1 ? '' : 's'} to your cart';
+    }
+    return 'Added ${added.length} of $total — $_reasons';
+  }
+
+  String get _reasons {
+    if (skipped.isEmpty) return '';
+    final first = skipped.first;
+    final more = skipped.length > 1 ? ' (+${skipped.length - 1} more)' : '';
+    return '${first.title}: ${first.reason}$more';
+  }
+}
+
+/// Seller identity attached to a listing or a product detail response.
+///
+/// Separate from [Store] because the listing payload is a projection: it carries
+/// the five fields a card needs (identity, verification, currency) and none of
+/// `Store`'s required columns (`orgId`, `createdAt`), so parsing it as a `Store`
+/// would silently fill them with "".
+class ListingStore {
+  final String id, name, slug, verificationStatus;
+  final String? currency;
+  ListingStore(
+      {required this.id,
+      required this.name,
+      required this.slug,
+      required this.verificationStatus,
+      this.currency});
+  bool get isVerified => verificationStatus == 'VERIFIED';
+  factory ListingStore.fromJson(Map<String, dynamic> j) => ListingStore(
+        // Search and store grids send `name`; the product detail endpoint sends
+        // both `name` and the underlying `displayName`.
+        id: j['id'] ?? '',
+        name: j['name'] ?? j['displayName'] ?? '',
+        slug: j['slug'] ?? '',
+        verificationStatus: j['verificationStatus'] ?? 'PENDING',
+        currency: j['currency'],
       );
 }
 
@@ -23,6 +114,19 @@ class Product {
   final int moq;
   final List<dynamic> images;
   final Map<String, dynamic> attributes;
+
+  /// A5-2: the listing-card enrichment. Null on endpoints that do not enrich
+  /// (a merchant's own product list), so every reader must treat it as optional.
+  final ListingStore? store;
+
+  /// Cheapest active variant price at this product's MOQ, or null when no price
+  /// list covers it — which is "Price on request", never a fabricated figure.
+  final int? priceFromMinor;
+  final String? priceCurrency;
+
+  /// Embedded by GET /v1/products/:id (A5-1) with each variant's effective
+  /// `priceMinor`. Empty on list endpoints, which do not carry variants.
+  final List<ProductVariant> variants;
   Product(
       {required this.id,
       required this.storeId,
@@ -37,6 +141,10 @@ class Product {
       required this.moq,
       this.images = const [],
       this.attributes = const {},
+      this.store,
+      this.priceFromMinor,
+      this.priceCurrency,
+      this.variants = const [],
       required this.createdAt});
   factory Product.fromJson(Map<String, dynamic> j) => Product(
       id: j['id'],
@@ -52,7 +160,45 @@ class Product {
       moq: j['moq'] as int? ?? 1,
       images: j['images'] as List<dynamic>? ?? [],
       attributes: Map<String, dynamic>.from(j['attributes'] as Map? ?? {}),
+      store: j['store'] is Map
+          ? ListingStore.fromJson(Map<String, dynamic>.from(j['store'] as Map))
+          : null,
+      priceFromMinor: j['priceFromMinor'] as int?,
+      priceCurrency: j['priceCurrency'] as String?,
+      variants: (j['variants'] as List? ?? [])
+          .map((e) =>
+              ProductVariant.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
       createdAt: j['createdAt'] ?? '');
+
+  /// First variant a buyer can actually order, when the payload embeds them.
+  ProductVariant? get orderableVariant {
+    for (final v in variants) {
+      if (v.isActive) return v;
+    }
+    return null;
+  }
+
+  /// First image URL, tolerating both shapes the JSONB column has held: the
+  /// contract declares an array of URL strings, while older writers used
+  /// objects carrying `url` (A5-9).
+  String? get imageUrl {
+    if (images.isEmpty) return null;
+    final first = images.first;
+    if (first is String) return first.isEmpty ? null : first;
+    if (first is Map) {
+      final url = first['url'];
+      if (url is String && url.isNotEmpty) return url;
+    }
+    return null;
+  }
+
+  /// Display price for a card. `priceCurrency` always arrives with
+  /// `priceFromMinor` (the enrichment sets both or neither); the store currency
+  /// is a fallback for payloads that carry only the seller.
+  String get priceLabel => priceFromMinor == null
+      ? 'Price on request'
+      : formatMinor(priceFromMinor!, priceCurrency ?? store?.currency ?? 'SAR');
 }
 
 class ProductVariant {
@@ -195,6 +341,8 @@ class CartItem {
   final String id, cartId, storeId, variantId;
   final int quantity, priceMinor, tierMinQty, lineTotalMinor;
   final String? title, sku, storeName;
+  // A5-3: the supplier's currency for this line, so a cart is not assumed SAR.
+  final String? currency;
   CartItem(
       {required this.id,
       required this.cartId,
@@ -206,7 +354,8 @@ class CartItem {
       required this.lineTotalMinor,
       this.title,
       this.sku,
-      this.storeName});
+      this.storeName,
+      this.currency});
   factory CartItem.fromJson(Map<String, dynamic> j) => CartItem(
       id: j['id'],
       cartId: j['cartId'] ?? '',
@@ -218,7 +367,8 @@ class CartItem {
       lineTotalMinor: j['lineTotalMinor'] as int? ?? 0,
       title: j['title'],
       sku: j['sku'],
-      storeName: j['storeName']);
+      storeName: j['storeName'],
+      currency: j['currency']);
 }
 
 class MasterOrder {
@@ -226,6 +376,10 @@ class MasterOrder {
   final Map<String, dynamic> deliveryAddress;
   final String? notes;
   final List<SubOrder> subOrders;
+  // A2-4: null when the checkout's suppliers do not share a currency, in which
+  // case no single total is payable and `totalsByCurrency` is the answer.
+  final String? currency;
+  final Map<String, int> totalsByCurrency;
   MasterOrder(
       {required this.id,
       required this.buyerId,
@@ -233,7 +387,9 @@ class MasterOrder {
       required this.deliveryAddress,
       this.notes,
       required this.createdAt,
-      required this.subOrders});
+      required this.subOrders,
+      this.currency,
+      this.totalsByCurrency = const {}});
   factory MasterOrder.fromJson(Map<String, dynamic> j) => MasterOrder(
       id: j['id'],
       buyerId: j['buyerId'] ?? '',
@@ -242,6 +398,9 @@ class MasterOrder {
           Map<String, dynamic>.from(j['deliveryAddress'] as Map? ?? {}),
       notes: j['notes'],
       createdAt: j['createdAt'] ?? '',
+      currency: j['currency'],
+      totalsByCurrency: (j['totalsByCurrency'] as Map? ?? {}).map(
+          (key, value) => MapEntry(key.toString(), (value as num).toInt())),
       subOrders: (j['subOrders'] as List? ?? [])
           .map((e) => SubOrder.fromJson(e))
           .toList());
@@ -261,7 +420,18 @@ class SubOrder {
       taxMinor,
       totalMinor;
   final List<OrderItem> items;
+  // A2-4: every *_Minor above is expressed in this currency.
   final String? currency;
+
+  /// False when the API inferred it from the seller instead of reading the
+  /// snapshot taken at checkout — a legacy order, not a record.
+  final bool currencyFromSnapshot;
+  // A4-6: which supplier this sub-order belongs to, named.
+  final String? storeName, storeSlug;
+
+  /// Lines in the order. `listOrders` returns orders without `items`, so the
+  /// server ships a count instead (A5-16).
+  final int itemCount;
   SubOrder(
       {required this.id,
       required this.masterOrderId,
@@ -276,7 +446,11 @@ class SubOrder {
       required this.totalMinor,
       required this.createdAt,
       this.items = const [],
-      this.currency});
+      this.currency,
+      this.currencyFromSnapshot = false,
+      this.storeName,
+      this.storeSlug,
+      this.itemCount = 0});
   factory SubOrder.fromJson(Map<String, dynamic> j) => SubOrder(
       id: j['id'],
       masterOrderId: j['masterOrderId'] ?? '',
@@ -293,7 +467,13 @@ class SubOrder {
       items: (j['items'] as List? ?? [])
           .map((e) => OrderItem.fromJson(e))
           .toList(),
-      currency: j['currency']);
+      currency: j['currency'],
+      currencyFromSnapshot: j['currencyFromSnapshot'] == true,
+      storeName: j['storeName'],
+      storeSlug: j['storeSlug'],
+      // A detail response embeds the lines but no count; a list response is the
+      // other way round. Either way the screen has a real number to show.
+      itemCount: j['itemCount'] as int? ?? (j['items'] as List? ?? []).length);
 }
 
 class OrderItem {
@@ -518,8 +698,14 @@ class OrgMember {
       );
 }
 
-String formatMinor(int minor, [String currency = 'SAR']) =>
-    '${(minor / 100).toStringAsFixed(2)} $currency';
+/// Minor units → `"12.50 AED"`.
+///
+/// [currency] is nullable on purpose: orders and cart lines now report the
+/// currency their amounts are actually in (A2-4), and callers should forward it
+/// untouched instead of repeating an inline `?? 'SAR'`. The fallback stays here
+/// as the single visible place that assumption lives.
+String formatMinor(int minor, [String? currency]) =>
+    '${(minor / 100).toStringAsFixed(2)} ${currency ?? 'SAR'}';
 
 /// Product media row returned by GET /v1/products/:id/media.
 class MediaItem {

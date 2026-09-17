@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/app.dart';
 import 'core/app_flavor.dart';
 
-/// Entry point — flavor is selected via --dart-define=FLAVOR=retail|wholesale
+/// Entry point â€” flavor is selected via --dart-define=FLAVOR=retail|wholesale
 ///
 /// Run retail:   flutter run --dart-define=FLAVOR=retail
 /// Run wholesale: flutter run --dart-define=FLAVOR=wholesale

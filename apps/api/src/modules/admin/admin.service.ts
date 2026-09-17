@@ -193,13 +193,19 @@ export class AdminService {
           lte(orders.createdAt, dateTo),
         )),
 
-      // Total revenue (sum of total_minor)
-      this.db.db.select({ total: sql<number>`coalesce(sum(total_minor), 0)` }).from(orders)
+      // Total revenue (sum of total_minor) — A2-4 residual: grouped by currency
+      // so the admin dashboard never presents a mixed-currency figure as a single
+      // total. Legacy rows with currency NULL are bucketed as 'UNKNOWN'.
+      this.db.db.select({
+        currency: sql<string>`coalesce(currency, 'UNKNOWN')`,
+        total: sql<number>`coalesce(sum(total_minor), 0)`,
+      }).from(orders)
         .where(and(
           inArray(orders.status, ['DELIVERED', 'COMPLETED']),
           gte(orders.createdAt, dateFrom),
           lte(orders.createdAt, dateTo),
-        )),
+        ))
+        .groupBy(sql`coalesce(currency, 'UNKNOWN')`),
 
       // Repeat buyers (users with >1 completed order)
       this.db.db.select({
@@ -220,7 +226,13 @@ export class AdminService {
     const totalOrdersCount = totalOrders[0]?.count || 0;
     const completedCount = completedOrders[0]?.count || 0;
     const cancelledCount = cancelledOrders[0]?.count || 0;
-    const totalRevenue = revenueResult[0]?.total || 0;
+    // A2-4 residual: revenue is now an array of { currency, totalMinor } pairs
+    // rather than a single mixed-currency figure. The admin dashboard can sum
+    // for display but must label the result as multi-currency.
+    const revenueByCurrency = (revenueResult as any[]).map(r => ({
+      currency: r.currency,
+      totalMinor: Number(r.total),
+    }));
     const repeatBuyersCount = repeatBuyersResult.length;
 
     // Compute rates
@@ -242,7 +254,7 @@ export class AdminService {
         completionRate: Math.round(completionRate * 100) / 100,
         cancellationRate: Math.round(cancellationRate * 100) / 100,
       },
-      revenue: { totalMinor: totalRevenue },
+      revenue: { byCurrency: revenueByCurrency },
       conversion: {
         firstOrderRate: Math.round(firstOrderConversion * 100) / 100,
         repeatOrderRate: Math.round(repeatRate * 100) / 100,

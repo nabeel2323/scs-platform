@@ -11,10 +11,10 @@ import {
   ProductVariant, Category, MediaItem,
 } from '../../../../../lib/buyer-api';
 import { fetchMyStores } from '../../../../../lib/api';
+import { pickStore } from '../../../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner } from '../../../../../components/Shared';
 
 const CONDITIONS = ['NEW', 'USED', 'REFURBISHED'];
-const STATUSES = ['DRAFT', 'ACTIVE', 'ARCHIVED'];
 
 type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
 
@@ -42,6 +42,7 @@ export default function ProductEditorPage() {
   const [moq, setMoq] = useState('1');
   const [isAvailable, setIsAvailable] = useState(false);
   const [status, setStatus] = useState('DRAFT');
+  const [resubmit, setResubmit] = useState(false);
   const [imagesText, setImagesText] = useState('');
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -69,7 +70,7 @@ export default function ProductEditorPage() {
         let sid = '';
         if (isNew) {
           const stores = await fetchMyStores();
-          sid = stores[0]?.id || '';
+          sid = pickStore(stores)?.id || '';
         } else {
           const p = await fetchProduct(id);
           sid = p.storeId;
@@ -83,6 +84,7 @@ export default function ProductEditorPage() {
           setMoq(String(p.moq ?? 1));
           setIsAvailable(!!p.isAvailable);
           setStatus(p.status || 'DRAFT');
+          setResubmit((p.status || 'DRAFT') === 'REJECTED');
           setImagesText((p.images || []).map(u => String(u)).join('\n'));
         }
         setStoreId(sid);
@@ -131,8 +133,9 @@ export default function ProductEditorPage() {
           moq: moq ? Number(moq) : undefined,
           images,
         });
-        // status/isAvailable are not accepted on create — apply via update
-        await updateProduct(created.id, { status, isAvailable });
+        // Products always start as DRAFT for platform review (A3-2); only
+        // isAvailable is applied via update.
+        await updateProduct(created.id, { isAvailable });
         router.push(`/merchant/catalog/product/${created.id}`);
       } else {
         await updateProduct(id, {
@@ -145,7 +148,7 @@ export default function ProductEditorPage() {
           condition: condition || undefined,
           moq: moq ? Number(moq) : undefined,
           isAvailable,
-          status,
+          status: resubmit ? 'DRAFT' : undefined,
           images,
         });
         setSavedMsg('Product saved');
@@ -263,9 +266,7 @@ export default function ProductEditorPage() {
           </label>
           {!isNew && (
             <label style={label}>Status
-              <select value={status} onChange={e => setStatus(e.target.value)} style={input}>
-                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <div style={{ ...input, background: '#f7f9fa', fontWeight: 600, color: '#0f3340' }}>{status.replace(/_/g, ' ')}</div>
             </label>
           )}
         </div>
@@ -275,6 +276,17 @@ export default function ProductEditorPage() {
             <input type="checkbox" checked={isAvailable} onChange={e => setIsAvailable(e.target.checked)} />
             Available for purchase
           </label>
+        )}
+        {!isNew && status === 'REJECTED' && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#0f3340', margin: '12px 0' }}>
+            <input type="checkbox" checked={resubmit} onChange={e => setResubmit(e.target.checked)} />
+            Resubmit for platform review
+          </label>
+        )}
+        {!isNew && (
+          <p style={{ fontSize: 12, color: '#5b6b74', margin: '8px 0' }}>
+            Products go live only after platform review — publishing is handled by moderators. Use "Available for purchase" to control whether an approved product can be ordered.
+          </p>
         )}
 
         <label style={label}>Description

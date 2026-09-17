@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { logout } from '../lib/auth';
+import { logout, isMerchantRole } from '../lib/auth';
 import { useAuth } from './AuthProvider';
 import { useEffect, useState } from 'react';
 import { fetchUnreadCount } from '../lib/buyer-api';
@@ -12,6 +12,9 @@ export function Navbar() {
   const { user } = useAuth();
   const router = useRouter();
   const [unread, setUnread] = useState(0);
+  // Merchant tooling is hidden from buyers/visitors (audit A1-1); derived from
+  // the contextual user so it updates on login/logout without a remount.
+  const isMerchant = isMerchantRole(user?.role);
 
   useEffect(() => {
     if (!user) return;
@@ -62,9 +65,11 @@ export function Navbar() {
           <Link href="/orders" style={linkStyle}>
             Orders
           </Link>
-          <Link href="/merchant" style={linkStyle}>
-            Merchant
-          </Link>
+          {isMerchant && (
+            <Link href="/merchant" style={linkStyle}>
+              Merchant
+            </Link>
+          )}
           <Link href="/notifications" style={{ ...linkStyle, position: 'relative' }}>
             Notifications
             {unread > 0 && <span style={badgeStyle}>{unread > 99 ? '99+' : unread}</span>}

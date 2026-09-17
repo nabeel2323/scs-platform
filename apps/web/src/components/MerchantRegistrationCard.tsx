@@ -3,16 +3,19 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchMyOrganizations } from '../lib/buyer-api';
+import { useAuth } from './AuthProvider';
+import { isMerchantRole } from '../lib/auth';
 
 interface OrgInfo {
-  orgId: string;
+  id: string;
   name: string;
-  role: string;
-  status: string;
-  storeVerificationStatus?: string;
+  type: string;
+  verificationStatus?: string;
+  membershipStatus?: string;
 }
 
 export function MerchantRegistrationCard() {
+  const { user } = useAuth();
   const [orgs, setOrgs] = useState<OrgInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegistration, setShowRegistration] = useState(false);
@@ -23,20 +26,27 @@ export function MerchantRegistrationCard() {
         const orgList = await fetchMyOrganizations() as OrgInfo[];
         setOrgs(orgList);
         
-        // Show registration only if user has no orgs or no verified store
+        // A verified business org hides the CTA. The org list carries the DB
+        // column name `verificationStatus` — the previous check read
+        // `storeVerificationStatus`, which never exists, so this card never
+        // self-hid (audit A1-2).
         const hasVerifiedStore = orgList.some(org => 
-          org.storeVerificationStatus === 'VERIFIED' || org.role === 'MERCHANT_OWNER'
+          org.verificationStatus === 'VERIFIED'
         );
-        setShowRegistration(!hasVerifiedStore);
+        // Owners and staff are already onboarded, so never pitch them the
+        // registration flow — `role` is only exposed on the profile, not on the
+        // org list (which returns a `roleId` UUID).
+        setShowRegistration(!hasVerifiedStore && !isMerchantRole(user?.role));
       } catch {
-        // If not authenticated or error, show registration
-        setShowRegistration(true);
+        // Unauthenticated visitors get the CTA; a failed lookup for a signed-in
+        // user must not default to showing it.
+        setShowRegistration(!user);
       } finally {
         setLoading(false);
       }
     }
     checkEligibility();
-  }, []);
+  }, [user]);
 
   if (loading) {
     return (

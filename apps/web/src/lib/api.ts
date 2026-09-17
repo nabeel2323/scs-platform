@@ -187,6 +187,31 @@ export async function removeOrgMember(orgId: string, userId: string): Promise<un
   return res.json();
 }
 
+export interface UserLookupResult {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+}
+
+export async function lookupOrgMember(orgId: string, query: string): Promise<UserLookupResult[]> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/member-lookup?q=${encodeURIComponent(query)}`);
+  if (!res.ok) throw new Error(`Failed to lookup user: ${res.status}`);
+  return res.json();
+}
+
+export interface RoleInfo {
+  id: string;
+  key: string;
+  name: string;
+}
+
+export async function fetchRoles(): Promise<RoleInfo[]> {
+  const res = await authFetch(`${API_URL}/v1/roles`);
+  if (!res.ok) throw new Error(`Failed to fetch roles: ${res.status}`);
+  return res.json();
+}
+
 // ── Stores ───────────────────────────────────────────────────
 
 export async function createStore(input: {

@@ -1,7 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { inventoryItems, stockMovements } from './inventory.schema';
-import { eq, and, lte, desc } from 'drizzle-orm';
+import { stores, warehouses } from '../merchant/merchant.schema';
+import {
+  CallerContext,
+  assertInventoryItemInOrg,
+  assertVariantInOrg,
+  assertWarehouseInOrg,
+  isTenantPrivileged,
+} from '../../common/tenant-scope';
+import { eq, and, lte, desc, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -46,20 +54,25 @@ export class InventoryService {
     return item;
   }
 
-  async listByWarehouse(warehouseId: string) {
+  async listByWarehouse(warehouseId: string, caller?: CallerContext) {
+    if (caller) await assertWarehouseInOrg(this.db, caller, warehouseId);
     return this.db.db.query.inventoryItems.findMany({
       where: eq(inventoryItems.warehouseId, warehouseId),
     });
   }
 
-  async listByVariant(variantId: string) {
+  async listByVariant(variantId: string, caller?: CallerContext) {
+    if (caller) await assertVariantInOrg(this.db, caller, variantId);
     return this.db.db.query.inventoryItems.findMany({
       where: eq(inventoryItems.variantId, variantId),
     });
   }
 
-  async updateItem(id: string, input: UpdateInventoryInput) {
-    const item = await this.getItem(id);
+  async updateItem(id: string, input: UpdateInventoryInput, caller?: CallerContext) {
+    // Existence check first: PATCH on an unknown item must 404 rather than
+    // silently update zero rows.
+    await this.getItem(id);
+    if (caller) await assertInventoryItemInOrg(this.db, caller, id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.reorderPoint !== undefined) updates['reorderPoint'] = input.reorderPoint;
@@ -70,12 +83,29 @@ export class InventoryService {
     return this.getItem(id);
   }
 
-  async getLowStockItems(warehouseId?: string) {
+  async getLowStockItems(warehouseId?: string, caller?: CallerContext) {
     const conditions = [
       lte(inventoryItems.qtyOnHand, inventoryItems.reorderPoint),
       eq(inventoryItems.lowStockAlert, true),
     ];
-    if (warehouseId) conditions.push(eq(inventoryItems.warehouseId, warehouseId));
+    if (warehouseId) {
+      if (caller) await assertWarehouseInOrg(this.db, caller, warehouseId);
+      conditions.push(eq(inventoryItems.warehouseId, warehouseId));
+    } else if (caller && !isTenantPrivileged(caller)) {
+      // A3-1: without an explicit warehouse, non-staff callers only see items
+      // inside their own organization's warehouses.
+      const orgStores = await this.db.db.query.stores.findMany({
+        where: eq(stores.orgId, caller.activeOrg || ''),
+        columns: { id: true },
+      });
+      if (orgStores.length === 0) return [];
+      const orgWarehouses = await this.db.db.query.warehouses.findMany({
+        where: inArray(warehouses.storeId, orgStores.map((s) => s.id)),
+        columns: { id: true },
+      });
+      if (orgWarehouses.length === 0) return [];
+      conditions.push(inArray(inventoryItems.warehouseId, orgWarehouses.map((w) => w.id)));
+    }
 
     return this.db.db.query.inventoryItems.findMany({
       where: and(...conditions),
@@ -84,8 +114,9 @@ export class InventoryService {
 
   // ── Stock Adjustments ────────────────────────────────────────
 
-  async adjustStock(input: AdjustStockInput) {
+  async adjustStock(input: AdjustStockInput, caller?: CallerContext) {
     const item = await this.getItem(input.inventoryItemId);
+    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
 
     // Update quantity
     const newQty = item['qtyOnHand'] + input.quantity;
@@ -112,8 +143,9 @@ export class InventoryService {
 
   // ── Reservations ─────────────────────────────────────────────
 
-  async reserveStock(input: ReserveStockInput) {
+  async reserveStock(input: ReserveStockInput, caller?: CallerContext) {
     const item = await this.getItem(input.inventoryItemId);
+    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
     const available = item['qtyOnHand'] - item['qtyReserved'];
 
     if (available < input.quantity) {
@@ -139,8 +171,9 @@ export class InventoryService {
     return { movementId };
   }
 
-  async releaseStock(input: ReserveStockInput) {
+  async releaseStock(input: ReserveStockInput, caller?: CallerContext) {
     const item = await this.getItem(input.inventoryItemId);
+    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
 
     const newReserved = Math.max(0, item['qtyReserved'] - input.quantity);
     await this.db.db
@@ -164,7 +197,8 @@ export class InventoryService {
 
   // ── Stock Movements ──────────────────────────────────────────
 
-  async listMovements(inventoryItemId: string, limit = 50) {
+  async listMovements(inventoryItemId: string, limit = 50, caller?: CallerContext) {
+    if (caller) await assertInventoryItemInOrg(this.db, caller, inventoryItemId);
     return this.db.db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, inventoryItemId),
       orderBy: [desc(stockMovements.createdAt)],

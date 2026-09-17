@@ -113,66 +113,129 @@ class ErrorBanner extends StatelessWidget {
 }
 
 /// Product card widget.
+///
+/// A card used to offer neither price nor seller, so nothing on it could be
+/// compared with the next card — the point of a B2B listing (A5-2 on the API,
+/// A5-13 for this card).
 class ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback? onTap;
   final VoidCallback? onAddToCart;
+
+  /// False on a seller's own grid, where repeating one name on every card says
+  /// nothing.
+  final bool showStore;
   const ProductCard(
-      {super.key, required this.product, this.onTap, this.onAddToCart});
+      {super.key,
+      required this.product,
+      this.onTap,
+      this.onAddToCart,
+      this.showStore = true});
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 80,
+  Widget build(BuildContext context) {
+    final seller = product.store;
+    final priced = product.priceFromMinor != null;
+    final image = product.imageUrl;
+    return GestureDetector(
+      onTap: onTap,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The thumbnail absorbs the tile's height instead of taking a
+              // fixed 80 px: with four text rows below it, a fixed box overflowed
+              // the square grid tile these cards are laid out in.
+              Expanded(
+                child: Container(
                   width: double.infinity,
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: TaifTokens.bg,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.inventory_2_outlined,
-                        color: TaifTokens.muted),
+                  child: image == null
+                      ? const Center(
+                          child: Icon(Icons.inventory_2_outlined,
+                              color: TaifTokens.muted))
+                      : Image.network(image,
+                          fit: BoxFit.cover,
+                          // A URL that 404s must not leave a red exception box.
+                          errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.inventory_2_outlined,
+                                  color: TaifTokens.muted))),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                product.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                // "from" because it is the cheapest variant at the MOQ, which is
+                // the same figure the cart charges for that line.
+                priced ? 'from ${product.priceLabel}' : product.priceLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: priced ? TaifTokens.ok : TaifTokens.muted),
+              ),
+              if (showStore && seller != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'by ${seller.name}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 11, color: TaifTokens.muted),
+                        ),
+                      ),
+                      if (seller.isVerified)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(Icons.verified,
+                              size: 13, color: TaifTokens.ok),
+                        ),
+                    ],
                   ),
                 ),
+              const SizedBox(height: 4),
+              Text(
+                'MOQ: ${product.moq}',
+                style: const TextStyle(fontSize: 11, color: TaifTokens.muted),
+              ),
+              if (onAddToCart != null) ...[
                 const SizedBox(height: 8),
-                Text(
-                  product.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'MOQ: ${product.moq}',
-                  style: const TextStyle(fontSize: 11, color: TaifTokens.muted),
-                ),
-                if (onAddToCart != null) ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: onAddToCart,
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Add', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        minimumSize: Size.zero,
-                      ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: onAddToCart,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      minimumSize: Size.zero,
                     ),
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// QuantityStepper — ± buttons, direct entry, MOQ floor guard.

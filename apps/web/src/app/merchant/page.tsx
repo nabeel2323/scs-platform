@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchProfile, fetchMyStores, Store, UserProfile } from '../../lib/api';
+import { pickStore, rememberStoreId } from '../../lib/merchant-store';
 import { LoadingSpinner, StatusBadge } from '../../components/Shared';
 
 const CARDS = [
@@ -19,6 +20,7 @@ const CARDS = [
 export default function MerchantDashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stores, setStores] = useState<Store[]>([]);
+  const [activeId, setActiveId] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,16 +32,24 @@ export default function MerchantDashboardPage() {
         ]);
         setProfile(p);
         setStores(s);
+        setActiveId(pickStore(s)?.id || '');
       } catch { /* handled below via hasOrg */ }
       finally { setLoading(false); }
     })();
   }, []);
 
+  // A2-1: selecting a store persists the preference, so every merchant tool
+  // (orders, catalog, inventory, pricing, store profile) opens on the same one.
+  const handleSelectStore = (sid: string) => {
+    rememberStoreId(sid);
+    setActiveId(sid);
+  };
+
   if (loading) return <LoadingSpinner />;
 
   const hasOrg = !!profile?.activeOrgId || (profile?.organizations?.length ?? 0) > 0;
   const org = profile?.organizations?.find(o => o.id === profile?.activeOrgId) || profile?.organizations?.[0];
-  const store = stores[0];
+  const store = stores.find(s => s.id === activeId) || pickStore(stores);
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -72,6 +82,37 @@ export default function MerchantDashboardPage() {
         </div>
       ) : (
         <>
+          {stores.length > 1 && (
+            <div style={{ marginBottom: 20, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 12, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#5b6b74', marginBottom: 10 }}>
+                Your stores ({stores.length}) — the tools below open on the selected store
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {stores.map(s => {
+                  const active = s.id === store?.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => handleSelectStore(s.id)}
+                      aria-pressed={active}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '6px 12px', fontSize: 13, cursor: 'pointer',
+                        background: active ? '#e6f0f3' : '#fff',
+                        color: '#0f3340',
+                        border: `1px solid ${active ? '#0f3340' : '#d9e2e6'}`,
+                        borderRadius: 8,
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {s.displayName}
+                      <StatusBadge status={s.verificationStatus} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <span style={{ fontSize: 14, color: '#0f3340', fontWeight: 600 }}>{store.displayName}</span>
             <StatusBadge status={store.verificationStatus} />

@@ -7,6 +7,7 @@ import {
   WarehouseSummary, InventoryItem,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 
 export default function MerchantInventoryPage() {
@@ -39,7 +40,7 @@ export default function MerchantInventoryPage() {
     (async () => {
       try {
         const stores = await fetchMyStores();
-        const s = stores[0];
+        const s = pickStore(stores);
         if (!s) { setNoStore(true); setLoading(false); return; }
         const whs = await fetchStoreWarehouses(s.id);
         setWarehouses(whs);

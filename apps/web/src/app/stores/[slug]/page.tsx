@@ -11,9 +11,11 @@ import {
   fetchSavedSuppliers,
   saveSupplier,
   removeSavedSupplier,
+  fetchTrust,
   Product,
+  TrustSnapshot,
 } from '../../../lib/buyer-api';
-import { formatMinor, LoadingSpinner, EmptyState } from '../../../components/Shared';
+import { formatMinor, LoadingSpinner, EmptyState, ErrorBanner, productImageSrc } from '../../../components/Shared';
 
 interface StoreDetail {
   id: string;
@@ -30,10 +32,15 @@ export default function StoreDetailPage() {
   const slugOrId = params['slug'] as string;
   const [store, setStore] = useState<StoreDetail | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [trust, setTrust] = useState<TrustSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [addedItems, setAddedItems] = useState<Set<string>>(new Set());
   const [isSaved, setIsSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Loads and failed adds used to end in `catch { /* ignore */ }`, so a broken
+  // fetch was indistinguishable from a store that has nothing to sell.
+  const [loadError, setLoadError] = useState('');
+  const [cartError, setCartError] = useState('');
 
   useEffect(() => {
     async function loadData() {
@@ -42,10 +49,16 @@ export default function StoreDetailPage() {
         const storeData = (await fetchPublicStore(slugOrId)) as StoreDetail;
         setStore(storeData);
 
-        // Then fetch products using the store ID
+        // Then fetch products using the store ID. ACTIVE only: this endpoint is
+        // shared with the merchant's own catalog screen (which must still see
+        // its drafts), so a buyer-facing caller has to ask for the published
+        // set — otherwise every DRAFT/REJECTED listing lands on a public page.
         if (storeData?.id) {
-          const productsData = await fetchStoreProducts(storeData.id, { limit: 50 });
-          setProducts(productsData as Product[]);
+          const productsData = await fetchStoreProducts(storeData.id, {
+            limit: 50,
+            status: 'ACTIVE',
+          });
+          setProducts(productsData.items as Product[]);
           // Reflect whether this supplier is already saved by the retailer (§21.3).
           try {
             const saved = await fetchSavedSuppliers();
@@ -53,9 +66,18 @@ export default function StoreDetailPage() {
           } catch {
             /* not authenticated or no saves yet */
           }
+          // A5-5: fetch the store's trust snapshot (rating, review count, badges).
+          // The endpoint returns 404 when no reviews exist yet, which fetchTrust
+          // maps to null so the UI can render "No reviews yet" instead of crashing.
+          try {
+            const trustData = await fetchTrust('STORE', storeData.id);
+            setTrust(trustData);
+          } catch {
+            /* trust unavailable — render without rating */
+          }
         }
-      } catch {
-        // ignore
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load this store');
       } finally {
         setLoading(false);
       }
@@ -64,13 +86,23 @@ export default function StoreDetailPage() {
   }, [slugOrId]);
 
   const handleAddToCart = async (product: Product) => {
+    setCartError('');
     try {
       // The listing shows products, but the cart references a variant — resolve
       // the product's default (first active) variant before adding.
       const variants = await fetchProductVariants(product.id);
-      const variant = variants.find((v) => v.isActive) ?? variants[0];
-      if (!variant) return;
-      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: 1 });
+      const variant = variants.find((v) => v.isActive);
+      if (!variant) {
+        setCartError(`"${product.title}" has no purchasable variant right now.`);
+        return;
+      }
+      // At the MOQ, not 1: the card advertises the minimum and the cart accepts
+      // the line either way, so adding 1 only moved the rejection to checkout.
+      await addToCart({
+        variantId: variant.id,
+        storeId: product.storeId,
+        quantity: product.moq || 1,
+      });
       setAddedItems((prev) => new Set(prev).add(product.id));
       setTimeout(
         () =>
@@ -81,8 +113,8 @@ export default function StoreDetailPage() {
           }),
         2000,
       );
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setCartError(err instanceof Error ? err.message : 'Could not add that item to the cart');
     }
   };
 
@@ -105,7 +137,12 @@ export default function StoreDetailPage() {
   };
 
   if (loading) return <LoadingSpinner />;
-  if (!store) return <EmptyState title="Store not found" />;
+  if (!store)
+    return loadError ? (
+      <ErrorBanner message={`This store could not be loaded: ${loadError}`} />
+    ) : (
+      <EmptyState title="Store not found" />
+    );
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -170,6 +207,38 @@ export default function StoreDetailPage() {
             >
               {store.verificationStatus}
             </span>
+            {/* A5-5: show the store's rating and review count next to the verification badge. */}
+            {trust && trust.totalReviews > 0 && (
+              <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 13, color: '#f59e0b' }}>★</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>
+                  {Number(trust.avgRating).toFixed(1)}
+                </span>
+                <span style={{ fontSize: 12, color: '#5b6b74' }}>
+                  ({trust.totalReviews} {trust.totalReviews === 1 ? 'review' : 'reviews'})
+                </span>
+                {trust.badges.length > 0 && trust.badges[0] && (
+                  <span
+                    style={{
+                      padding: '1px 6px',
+                      borderRadius: 6,
+                      fontSize: 10,
+                      fontWeight: 600,
+                      background: '#dbeafe',
+                      color: '#1e40af',
+                      marginLeft: 4,
+                    }}
+                  >
+                    {trust.badges[0].replace('_', ' ')}
+                  </span>
+                )}
+              </span>
+            )}
+            {(!trust || trust.totalReviews === 0) && (
+              <span style={{ marginLeft: 8, fontSize: 12, color: '#9ca3af' }}>
+                No reviews yet
+              </span>
+            )}
           </div>
           <button
             onClick={handleToggleSave}
@@ -193,6 +262,8 @@ export default function StoreDetailPage() {
       </div>
 
       {/* Products */}
+      {loadError && <ErrorBanner message={loadError} />}
+      {cartError && <ErrorBanner message={cartError} />}
       <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 16 }}>
         Products
       </h2>
@@ -229,10 +300,10 @@ export default function StoreDetailPage() {
                     justifyContent: 'center',
                   }}
                 >
-                  {product.images && (product.images as any[]).length > 0 ? (
+                  {productImageSrc(product.images) ? (
                     <img
-                      src={(product.images as any[])[0]?.url || ''}
-                      alt=""
+                      src={productImageSrc(product.images)}
+                      alt={product.title}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
@@ -251,6 +322,22 @@ export default function StoreDetailPage() {
                     }}
                   >
                     {product.title}
+                  </div>
+                  {/* The same product is priced in search now, so the grid has to
+                      agree with it or the two listings contradict each other. */}
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f3340', marginTop: 6 }}>
+                    {product.priceFromMinor != null ? (
+                      <>
+                        {formatMinor(product.priceFromMinor, product.priceCurrency ?? undefined)}
+                        <span style={{ fontSize: 11, fontWeight: 500, color: '#5b6b74' }}>
+                          {' '}from
+                        </span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 500, color: '#92400e' }}>
+                        Price on request
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: '#5b6b74', marginTop: 4 }}>
                     MOQ: {product.moq}

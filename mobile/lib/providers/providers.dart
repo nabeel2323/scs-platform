@@ -64,8 +64,12 @@ final storesProvider = FutureProvider<List<Store>>(
 
 // ── Cart ────────────────────────────────────────────────────
 
-final cartProvider =
-    FutureProvider<Cart>((ref) => ref.watch(apiServiceProvider).fetchCart());
+// A5-14 residual: autoDispose so the cart is re-fetched whenever the cart
+// screen is (re)mounted. Individual mutation sites still call ref.invalidate
+// for the in-place case, but forgetting it no longer leaves a stale cart
+// behind — navigating to /cart re-creates the provider from scratch.
+final cartProvider = FutureProvider.autoDispose<Cart>(
+    (ref) => ref.watch(apiServiceProvider).fetchCart());
 
 // ── Orders ──────────────────────────────────────────────────
 

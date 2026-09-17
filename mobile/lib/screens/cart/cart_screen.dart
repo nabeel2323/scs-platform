@@ -35,6 +35,16 @@ class CartScreen extends ConsumerWidget {
             for (final item in c.items) {
               (grouped[item.storeId] ??= []).add(item);
             }
+            // A5-3: mirror the web cart — name a currency for the total only when
+            // every line agrees (a mixed cart has no single payable total).
+            // §9 policy: show per-supplier subtotals when currencies are mixed.
+            final currencies = c.items
+                .map((item) => item.currency)
+                .whereType<String>()
+                .toSet();
+            final cartCurrency =
+                currencies.length == 1 ? currencies.first : null;
+            final isMixedCurrency = currencies.length > 1;
             return Column(children: [
               Expanded(
                   child: ListView(
@@ -61,7 +71,7 @@ class CartScreen extends ConsumerWidget {
                                                 item.sku ??
                                                 item.variantId.substring(0, 8)),
                                             subtitle: Text(
-                                                '${item.quantity} × ${formatMinor(item.priceMinor)}'),
+                                                '${item.quantity} × ${formatMinor(item.priceMinor, item.currency)}'),
                                             trailing: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
@@ -126,21 +136,70 @@ class CartScreen extends ConsumerWidget {
                       border: Border(top: BorderSide(color: TaifTokens.line))),
                   child: SafeArea(
                       child: Row(children: [
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Total',
-                              style: TextStyle(
-                                  fontSize: 12, color: TaifTokens.muted)),
-                          Text(formatMinor(c.totalMinor),
-                              style: const TextStyle(
-                                  fontSize: 20, fontWeight: FontWeight.w700))
-                        ]),
-                    const Spacer(),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: isMixedCurrency
+                              ? [
+                                  // §9 policy: per-supplier subtotals when currencies
+                                  // are mixed — a single total would be an amount
+                                  // nobody can actually pay.
+                                  for (final entry in grouped.entries)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 2),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              entry.value.first.storeName ??
+                                                  'Store ${entry.key.substring(0, 8)}',
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          Text(
+                                            formatMinor(
+                                              entry.value.fold<int>(
+                                                  0,
+                                                  (sum, item) =>
+                                                      sum +
+                                                      item.lineTotalMinor),
+                                              entry.value.first.currency,
+                                            ),
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  const Text(
+                                    'Separate invoices per supplier',
+                                    style: TextStyle(
+                                        fontSize: 10, color: TaifTokens.muted),
+                                  ),
+                                ]
+                              : [
+                                  const Text('Total',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: TaifTokens.muted)),
+                                  Text(formatMinor(c.totalMinor, cartCurrency),
+                                      style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w700))
+                                ]),
+                    ),
+                    const SizedBox(width: 12),
                     ElevatedButton(
                         onPressed: () => context.push('/checkout'),
                         style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(160, 48)),
+                            minimumSize: const Size(140, 48)),
                         child: const Text('Checkout')),
                   ]))),
             ]);

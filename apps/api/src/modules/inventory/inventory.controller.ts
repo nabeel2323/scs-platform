@@ -14,29 +14,30 @@ export class InventoryController {
 
   @Get('inventory/warehouse/:warehouseId')
   @RequirePermission('merchant:inventory:read')
-  async listByWarehouse(@Param('warehouseId') warehouseId: string) {
-    return this.inventoryService.listByWarehouse(warehouseId);
+  async listByWarehouse(@CurrentUser() user: JwtPayload, @Param('warehouseId') warehouseId: string) {
+    return this.inventoryService.listByWarehouse(warehouseId, user);
   }
 
   @Get('inventory/variant/:variantId')
   @RequirePermission('merchant:inventory:read')
-  async listByVariant(@Param('variantId') variantId: string) {
-    return this.inventoryService.listByVariant(variantId);
+  async listByVariant(@CurrentUser() user: JwtPayload, @Param('variantId') variantId: string) {
+    return this.inventoryService.listByVariant(variantId, user);
   }
 
   @Get('inventory/low-stock')
   @RequirePermission('merchant:inventory:read')
-  async getLowStock(@Query('warehouseId') warehouseId?: string) {
-    return this.inventoryService.getLowStockItems(warehouseId);
+  async getLowStock(@CurrentUser() user: JwtPayload, @Query('warehouseId') warehouseId?: string) {
+    return this.inventoryService.getLowStockItems(warehouseId, user);
   }
 
   @Patch('inventory/:id')
   @RequirePermission('merchant:inventory:write')
   async updateItem(
+    @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Body() input: UpdateInventoryInput,
   ) {
-    return this.inventoryService.updateItem(id, input);
+    return this.inventoryService.updateItem(id, input, user);
   }
 
   @Post('inventory/adjust')
@@ -48,7 +49,7 @@ export class InventoryController {
     return this.inventoryService.adjustStock({
       ...input,
       userId: user.sub,
-    });
+    }, user);
   }
 
   @Post('inventory/reserve')
@@ -60,7 +61,7 @@ export class InventoryController {
     return this.inventoryService.reserveStock({
       ...input,
       userId: user.sub,
-    });
+    }, user);
   }
 
   @Post('inventory/release')
@@ -72,15 +73,16 @@ export class InventoryController {
     return this.inventoryService.releaseStock({
       ...input,
       userId: user.sub,
-    });
+    }, user);
   }
 
   @Get('inventory/:id/movements')
   @RequirePermission('merchant:inventory:read')
   async listMovements(
+    @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
     @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.listMovements(id, limit ? parseInt(limit, 10) : 50);
+    return this.inventoryService.listMovements(id, limit ? parseInt(limit, 10) : 50, user);
   }
 }

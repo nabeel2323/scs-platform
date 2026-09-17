@@ -8,6 +8,7 @@ import {
   Product, Category,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 
 type Tab = 'products' | 'categories';
@@ -37,7 +38,7 @@ export default function MerchantCatalogPage() {
     setPLoading(true);
     try {
       const data = await fetchStoreProducts(sid, { limit: 200 });
-      setProducts(data as Product[]);
+      setProducts(data.items as Product[]);
     } catch (err: any) {
       setError(err.message || 'Failed to load products');
     } finally {
@@ -61,7 +62,7 @@ export default function MerchantCatalogPage() {
     (async () => {
       try {
         const stores = await fetchMyStores();
-        const s = stores[0];
+        const s = pickStore(stores);
         if (!s) { setNoStore(true); setPLoading(false); setCLoading(false); return; }
         setStoreId(s.id);
         setStoreName(s.displayName);

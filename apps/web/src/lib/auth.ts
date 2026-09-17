@@ -159,10 +159,18 @@ export function isAuthenticated(): boolean {
   return session !== null && session.expiresAt > Date.now();
 }
 
+/**
+ * Whether a role key denotes merchant-side membership (owner or staff).
+ * Consumed by components that gate UI from `useAuth().user` instead of the
+ * imperative helper below, so the render stays reactive (and hydration-safe).
+ */
+export function isMerchantRole(role?: string | null): boolean {
+  return role === 'MERCHANT_OWNER' || role === 'MERCHANT_STAFF';
+}
+
 /** Whether the current user has merchant-level access (owner or staff). */
 export function hasMerchantAccess(): boolean {
-  const user = getUser();
-  return user?.role === 'MERCHANT_OWNER' || user?.role === 'MERCHANT_STAFF';
+  return isMerchantRole(getUser()?.role);
 }
 
 /** Whether the current user has admin-level access. */
@@ -176,6 +184,34 @@ export function setCurrentUser(user: AuthUser | null) {
   currentUser = user;
   persistUser(user);
   notifyAuthChange();
+}
+
+/**
+ * Refresh the cached user from GET /v1/me — the server-side source of truth for
+ * the role/permissions projected for the caller's *active* organization. Called
+ * after every flow that mints a token (OTP verify, password login, switch-org)
+ * so client-side gating always matches what PermissionsGuard enforces.
+ */
+async function hydrateUserFromProfile(accessToken: string): Promise<void> {
+  try {
+    const profileRes = await fetch(`${API_URL}/v1/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!profileRes.ok) return;
+    const profile = (await profileRes.json()) as UserProfile;
+    currentUser = {
+      id: profile.id,
+      phone: profile.phone,
+      fullName: profile.fullName,
+      activeOrgId: profile.activeOrgId ?? undefined,
+      role: profile.role ?? undefined,
+      perms: profile.perms ?? undefined,
+    };
+    persistUser(currentUser);
+    notifyAuthChange();
+  } catch {
+    // Profile fetch is best-effort; the session stays valid
+  }
 }
 
 // ── Auth flows ───────────────────────────────────────────────
@@ -218,30 +254,8 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   currentSession = session;
   persistSession(session);
 
-  // Fetch user profile using the new access token
-  try {
-    const profileRes = await fetch(`${API_URL}/v1/me`, {
-      headers: { Authorization: `Bearer ${session.accessToken}` },
-    });
-    if (profileRes.ok) {
-      // /v1/me is the UserProfile contract; the server now resolves `role` for
-      // the caller's active org, so the web hydrates it directly from the
-      // profile (no client-side JWT decoding) — matching the admin projection.
-      const profile = (await profileRes.json()) as UserProfile;
-      currentUser = {
-        id: profile.id,
-        phone: profile.phone,
-        fullName: profile.fullName,
-        activeOrgId: profile.activeOrgId ?? undefined,
-        role: profile.role ?? undefined,
-        perms: profile.perms ?? undefined,
-      };
-      persistUser(currentUser);
-      notifyAuthChange();
-    }
-  } catch {
-    // Profile fetch is best-effort; session is still valid
-  }
+  // Fetch the projected role/perms for the active org using the new token
+  await hydrateUserFromProfile(session.accessToken);
 
   return session;
 }
@@ -337,6 +351,10 @@ export async function switchOrg(orgId: string): Promise<AuthSession> {
   };
   currentSession = session;
   persistSession(session);
+  // The projected role/permissions are per-organization, so refresh the cached
+  // user (audit A2-2) — otherwise client-side gating keeps the previous org's
+  // role until the next full login.
+  await hydrateUserFromProfile(session.accessToken);
   return session;
 }
 
@@ -407,27 +425,8 @@ export async function loginPassword(
   currentSession = session;
   persistSession(session);
 
-  // Fetch user profile
-  try {
-    const profileRes = await fetch(`${API_URL}/v1/me`, {
-      headers: { Authorization: `Bearer ${session.accessToken}` },
-    });
-    if (profileRes.ok) {
-      const profile = (await profileRes.json()) as UserProfile;
-      currentUser = {
-        id: profile.id,
-        phone: profile.phone,
-        fullName: profile.fullName,
-        activeOrgId: profile.activeOrgId ?? undefined,
-        role: profile.role ?? undefined,
-        perms: profile.perms ?? undefined,
-      };
-      persistUser(currentUser);
-      notifyAuthChange();
-    }
-  } catch {
-    // Profile fetch is best-effort
-  }
+  // Fetch the projected role/perms for the active org
+  await hydrateUserFromProfile(session.accessToken);
 
   return session;
 }

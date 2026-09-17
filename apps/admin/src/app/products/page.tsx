@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authFetch } from '../../lib/auth';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const STATUSES = ['', 'DRAFT', 'ACTIVE', 'REJECTED'];
@@ -17,6 +18,7 @@ interface ModerationProduct {
 }
 
 export default function ProductsModerationPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:merchants:read']);
   const [products, setProducts] = useState<ModerationProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +152,7 @@ export default function ProductsModerationPage() {
 
       {/* ── Content ───────────────────────────────────────── */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
+        {!hasAccess && <AccessDenied requiredPerms={['admin:merchants:read']} missingPerms={missingPerms} />}
         <p style={{ color: '#a0aec0', fontSize: 11, marginBottom: 20 }}>
           Shortcuts: <kbd style={kbdStyle}>j</kbd>/<kbd style={kbdStyle}>k</kbd> navigate · <kbd style={kbdStyle}>A</kbd> approve · <kbd style={kbdStyle}>X</kbd> reject · <kbd style={kbdStyle}>/</kbd> search
         </p>

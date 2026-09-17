@@ -30,6 +30,15 @@ export interface Product {
   images: unknown[];
   attributes: Record<string, unknown>;
   createdAt: string;
+  /**
+   * Listing-card enrichment (A5-2), present on search results and on a store's
+   * product grid: the seller and the cheapest variant price at this product's
+   * MOQ. `priceFromMinor` is null when no active price list covers the product's
+   * variants.
+   */
+  store?: ProductStore | null;
+  priceFromMinor?: number | null;
+  priceCurrency?: string | null;
 }
 
 export interface ProductVariant {
@@ -44,6 +53,41 @@ export interface ProductVariant {
   isActive: boolean;
   priceMinor?: number;
   minQty?: number;
+  /** Effective tier pricing for this variant, present on product detail (A5-1). */
+  pricing?: VariantPricing | null;
+}
+
+/** One step of a volume-price ladder. `maxQty` is exclusive; null = unlimited. */
+export interface PriceTierDisplay {
+  minQty: number;
+  maxQty: number | null;
+  unitPriceMinor: number;
+}
+
+export interface VariantPricing {
+  priceListId: string;
+  priceListName: string;
+  currency: string;
+  unitPriceMinor: number;
+  minQty: number;
+  tiers: PriceTierDisplay[];
+}
+
+/** Seller identity as exposed on a product (A5-1) — never the full store record. */
+export interface ProductStore {
+  id: string;
+  displayName: string;
+  name: string;
+  slug: string;
+  /** The store's own currency, used when no price list has been resolved. */
+  currency: string;
+  verificationStatus: string;
+  status: string;
+}
+
+export interface ProductDetail extends Product {
+  store: ProductStore | null;
+  variants: ProductVariant[];
 }
 
 export interface Category {
@@ -75,10 +119,12 @@ export interface CartItem {
   tierMinQty: number;
   lineTotalMinor: number;
   promoSnapshot: Record<string, unknown>;
-  // joined
+  // projected by CartService.listCartItems (A5-3)
   title?: string;
   sku?: string;
   storeName?: string;
+  storeSlug?: string;
+  currency?: string;
 }
 
 export interface MasterOrder {
@@ -89,6 +135,10 @@ export interface MasterOrder {
   notes: string | null;
   createdAt: string;
   subOrders: SubOrder[];
+  // A2-4: set only when every sub-order shares one currency; null means the cart
+  // spanned suppliers with different money, so totalsByCurrency is the answer.
+  currency?: string | null;
+  totalsByCurrency?: Record<string, number>;
 }
 
 export interface SubOrder {
@@ -107,6 +157,17 @@ export interface SubOrder {
   items: OrderItem[];
   // joined
   storeName?: string;
+  storeSlug?: string;
+  // A2-4: the currency every *_Minor field on this order is expressed in.
+  currency?: string;
+  /** False when it was inferred from the seller rather than snapshotted. */
+  currencyFromSnapshot?: boolean;
+  /**
+   * Line count, from `listOrders`, which returns orders without their `items`
+   * (A5-16). A card must read this instead of `items?.length`, which is
+   * undefined on a list response and used to render "0 items" for every order.
+   */
+  itemCount?: number;
 }
 
 export interface OrderItem {
@@ -195,7 +256,8 @@ export async function fetchBrands(): Promise<
 
 // ── Products ─────────────────────────────────────────────────
 
-export async function fetchProduct(id: string): Promise<Product> {
+/** Product + seller + per-variant pricing (`store`/`variants` added by A5-1). */
+export async function fetchProduct(id: string): Promise<ProductDetail> {
   const res = await authFetch(`${API_URL}/v1/products/${id}`);
   if (!res.ok) throw new Error(`Product failed: ${res.status}`);
   return res.json();
@@ -227,12 +289,26 @@ export async function fetchPublicStore(slugOrId: string): Promise<unknown> {
   return res.json();
 }
 
+/**
+ * A store's product grid. Rows arrive enriched like search results (name,
+ * price), so `Product.store` / `priceFromMinor` are populated here too.
+ *
+ * `status` is not defaulted: the endpoint is shared with the merchant's own
+ * catalog screen, which must keep seeing DRAFT and REJECTED listings, so a
+ * buyer-facing caller has to ask for ACTIVE explicitly.
+ */
+export interface StoreProductsEnvelope {
+  items: unknown[];
+  total: number;
+}
+
 export async function fetchStoreProducts(
   storeId: string,
-  params?: { categoryId?: string; limit?: number; offset?: number },
-): Promise<unknown[]> {
+  params?: { categoryId?: string; status?: string; limit?: number; offset?: number },
+): Promise<StoreProductsEnvelope> {
   const qs = new URLSearchParams();
   if (params?.categoryId) qs.set('categoryId', params.categoryId);
+  if (params?.status) qs.set('status', params.status);
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products?${qs}`);
@@ -355,8 +431,17 @@ export async function cancelOrder(orderId: string, reason: string): Promise<unkn
   return res.json();
 }
 
-export async function reorder(masterOrderId: string): Promise<unknown> {
-  const res = await authFetch(`${API_URL}/v1/orders/master/${masterOrderId}/reorder`, {
+/** A4-7: reorder reports per-line outcomes, because a past order can contain
+ *  variants that were delisted or lost their price tier since. */
+export interface ReorderResult {
+  masterOrderId: string;
+  added: { title: string; quantity: number }[];
+  skipped: { title: string; reason: string }[];
+  cart: Cart;
+}
+
+export async function reorder(orderId: string): Promise<ReorderResult> {
+  const res = await authFetch(`${API_URL}/v1/orders/master/${orderId}/reorder`, {
     method: 'POST',
   });
   if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
@@ -412,6 +497,25 @@ export async function createReview(
 export async function fetchStoreReviews(storeId: string): Promise<Review[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/reviews`);
   if (!res.ok) throw new Error(`Store reviews failed: ${res.status}`);
+  return res.json();
+}
+
+export interface TrustSnapshot {
+  entityId: string;
+  entityType: string;
+  avgRating: string | null;
+  totalReviews: number;
+  score: string;
+  badges: string[];
+  computedAt: string;
+}
+
+export async function fetchTrust(entityType: string, entityId: string): Promise<TrustSnapshot | null> {
+  const res = await authFetch(`${API_URL}/v1/trust/${entityType}/${entityId}`);
+  if (!res.ok) {
+    if (res.status === 404) return null;
+    throw new Error(`Trust snapshot failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -559,6 +663,10 @@ export interface UserProfile {
   fullName: string;
   locale: string;
   status: string;
+  /** Resolved server-side for the caller's active org (RBAC audit GAP-6). */
+  role?: string;
+  activeOrgId?: string | null;
+  perms?: string[];
 }
 
 export async function fetchProfile(): Promise<UserProfile> {
@@ -715,7 +823,15 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update product failed: ${res.status}`);
+  if (!res.ok) {
+    // Surface the RFC 7807 detail (e.g. moderation-guard rejections) to the UI
+    let detail = `Update product failed: ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.detail) detail = body.detail;
+    } catch { /* non-JSON body */ }
+    throw new Error(detail);
+  }
   return res.json();
 }
 

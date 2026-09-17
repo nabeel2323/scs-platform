@@ -415,16 +415,25 @@ class ApiService {
       (await _dio.get('/v1/stores/$storeId/warehouses'))
           .data
           .cast<Map<String, dynamic>>();
+
+  /// A store's product grid. Rows arrive enriched (seller + price), like search.
+  ///
+  /// `status` is deliberately not defaulted: this endpoint also serves a
+  /// merchant's own catalog, which must keep seeing DRAFT and REJECTED listings.
+  /// A buyer screen has to ask for ACTIVE itself (A5-10).
   Future<List<Product>> fetchStoreProducts(String storeId,
-      {String? categoryId, int? limit, int? offset}) async {
+      {String? categoryId, String? status, int? limit, int? offset}) async {
     final p = <String, dynamic>{};
     if (categoryId != null) p['categoryId'] = categoryId;
+    if (status != null) p['status'] = status;
     if (limit != null) p['limit'] = limit;
     if (offset != null) p['offset'] = offset;
-    return (await _dio.get('/v1/stores/$storeId/products', queryParameters: p))
-        .data
-        .map<Product>((e) => Product.fromJson(e))
-        .toList();
+    final res =
+        await _dio.get('/v1/stores/$storeId/products', queryParameters: p);
+    // A5-11: the endpoint now returns { items, total } for honest paging.
+    final items =
+        res.data is List ? res.data : (res.data['items'] as List? ?? []);
+    return items.map<Product>((e) => Product.fromJson(e)).toList();
   }
 
   // ── Cart ──────────────────────────────────────────────────
@@ -439,6 +448,38 @@ class ApiService {
         'storeId': storeId,
         'quantity': quantity
       });
+
+  /// Add a *product* to the cart, resolving which variant to buy.
+  ///
+  /// `cart_items.variant_id` is a foreign key to `product_variants`, so posting
+  /// a product id is rejected outright — and every listing screen has a product,
+  /// not a variant, in hand. The lookup lives here so no screen can forget it
+  /// again (A5-12). Detail responses embed variants with their prices, so only a
+  /// listing card pays the extra request.
+  Future<void> addProductToCart(Product product, {String? variantId}) async {
+    String? chosen = variantId ?? product.orderableVariant?.id;
+    if (chosen == null) {
+      for (final v in await fetchVariants(product.id)) {
+        if (v.isActive) {
+          chosen = v.id;
+          break;
+        }
+      }
+    }
+    if (chosen == null) {
+      // Thrown rather than ignored: a button that does nothing silently reads
+      // as a broken app, and this line was previously unexplained either way.
+      throw StateError(
+          '"${product.title}" has no purchasable variant right now.');
+    }
+    // At the advertised MOQ: the cart accepts a below-minimum line and only
+    // rejects it at checkout, which looks like a different bug.
+    return addToCart(
+        variantId: chosen,
+        storeId: product.storeId,
+        quantity: product.moq > 0 ? product.moq : 1);
+  }
+
   Future<void> updateCartItem(String itemId, int quantity) async =>
       _dio.patch('/v1/cart/items/$itemId', data: {'quantity': quantity});
   Future<void> removeCartItem(String itemId) async =>
@@ -488,8 +529,13 @@ class ApiService {
           .toList();
   Future<void> cancelOrder(String orderId, String reason) async =>
       _dio.post('/v1/orders/$orderId/cancel', data: {'reason': reason});
-  Future<void> reorder(String masterOrderId) async =>
-      _dio.post('/v1/orders/master/$masterOrderId/reorder');
+
+  /// Re-add a past order. The body reports per-line outcomes, because a line can
+  /// have been delisted or lost its price tier since — returning void here
+  /// discarded the only notice a buyer got that the reorder was partial.
+  Future<ReorderResult> reorder(String masterOrderId) async =>
+      ReorderResult.fromJson(
+          (await _dio.post('/v1/orders/master/$masterOrderId/reorder')).data);
 
   // ── Notifications ─────────────────────────────────────────
   Future<List<AppNotification>> fetchNotifications(

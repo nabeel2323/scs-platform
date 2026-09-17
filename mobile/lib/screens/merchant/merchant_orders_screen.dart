@@ -73,8 +73,10 @@ class MerchantOrdersScreen extends ConsumerWidget {
       child: ListTile(
           title: Text('Order #${o.id.substring(0, 8)}',
               style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle:
-              Text('${formatMinor(o.totalMinor)} · ${o.items.length} items'),
+          // A5-16: the list endpoint returns orders without their lines, so the
+          // count comes from the server; `items.length` was always 0 here.
+          subtitle: Text(
+              '${formatMinor(o.totalMinor, o.currency)} · ${o.itemCount} ${o.itemCount == 1 ? 'item' : 'items'}'),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
             ElevatedButton(
                 onPressed: () async {
@@ -101,7 +103,7 @@ class MerchantOrdersScreen extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: ListTile(
             title: Text('Order #${o.id.substring(0, 8)}'),
-            subtitle: Text(formatMinor(o.totalMinor)),
+            subtitle: Text(formatMinor(o.totalMinor, o.currency)),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
               StatusBadge(o.status),
               ...next.map((ns) => Padding(

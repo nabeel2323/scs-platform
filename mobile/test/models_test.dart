@@ -47,6 +47,219 @@ void main() {
     });
   });
 
+  group('Product listing enrichment', () {
+    // The seller and price a search or store-grid card shows (A5-2/A5-7 parity).
+    Product listed([Map<String, dynamic> extra = const {}]) =>
+        Product.fromJson({
+          'id': 'p1',
+          'storeId': 's1',
+          'slug': 'rice',
+          'title': 'Rice',
+          'status': 'ACTIVE',
+          'isAvailable': true,
+          'moq': 10,
+          'createdAt': '2024-01-01',
+          ...extra,
+        });
+
+    test('parses the seller and price a search result carries', () {
+      final p = listed({
+        'store': {
+          'id': 's1',
+          'name': 'Al Noor Trading',
+          'slug': 'al-noor',
+          'verificationStatus': 'VERIFIED',
+          'currency': 'SAR',
+        },
+        'priceFromMinor': 850,
+        'priceCurrency': 'SAR',
+      });
+      expect(p.store?.name, 'Al Noor Trading');
+      expect(p.store?.isVerified, isTrue);
+      expect(p.priceLabel, '8.50 SAR');
+    });
+
+    test('reads displayName from the product detail projection', () {
+      // GET /v1/products/:id sends both names, a listing only `name`.
+      final p = listed({
+        'store': {
+          'id': 's1',
+          'displayName': 'Al Noor Trading',
+          'slug': 'al-noor',
+          'verificationStatus': 'PENDING',
+          'currency': 'AED',
+        },
+        'priceFromMinor': 990,
+        'priceCurrency': 'AED',
+      });
+      expect(p.store?.name, 'Al Noor Trading');
+      expect(p.store?.isVerified, isFalse);
+      expect(p.priceLabel, '9.90 AED');
+    });
+
+    test('says price on request rather than inventing one', () {
+      // Null is what the API returns when no active price list covers the MOQ,
+      // and the cart rejects such a line — showing 0.00 would be a false quote.
+      expect(listed().priceLabel, 'Price on request');
+      expect(listed({'priceFromMinor': null, 'priceCurrency': null}).priceLabel,
+          'Price on request');
+    });
+
+    test('falls back to the seller currency when the price has none', () {
+      final p = listed({
+        'store': {
+          'id': 's1',
+          'name': 'X',
+          'slug': 'x',
+          'verificationStatus': 'VERIFIED',
+          'currency': 'USD',
+        },
+        'priceFromMinor': 500,
+      });
+      expect(p.priceLabel, '5.00 USD');
+    });
+
+    test('leaves the seller absent on endpoints that do not enrich', () {
+      // A merchant's own product list is not enriched; its card must not render
+      // an empty seller row.
+      final p = listed();
+      expect(p.store, isNull);
+      expect(p.priceFromMinor, isNull);
+    });
+  });
+
+  group('Product.imageUrl', () {
+    // A5-9: the JSONB column holds URL strings, but nothing constrains it to.
+    Product withImages(List<dynamic> images) => Product.fromJson({
+          'id': 'p',
+          'storeId': 's',
+          'slug': '',
+          'title': 't',
+          'status': 'ACTIVE',
+          'isAvailable': true,
+          'moq': 1,
+          'createdAt': '',
+          'images': images,
+        });
+
+    test('reads a bare URL string, which is what the contract declares', () {
+      expect(withImages(['https://cdn/x.jpg']).imageUrl, 'https://cdn/x.jpg');
+    });
+
+    test('still reads a legacy object carrying url', () {
+      expect(
+          withImages([
+            {'url': 'https://cdn/old.jpg'}
+          ]).imageUrl,
+          'https://cdn/old.jpg');
+    });
+
+    test('returns null rather than a src the browser cannot load', () {
+      expect(withImages([]).imageUrl, isNull);
+      expect(withImages(['']).imageUrl, isNull);
+      expect(
+          withImages([
+            {'url': ''}
+          ]).imageUrl,
+          isNull);
+      expect(
+          withImages([
+            {'thumb': 'https://cdn/x.jpg'}
+          ]).imageUrl,
+          isNull);
+    });
+  });
+
+  group('Product.orderableVariant', () {
+    // addProductToCart resolves the line through this, because the cart's
+    // variant_id is a foreign key to product_variants (A5-12).
+    Product detail(List<Map<String, dynamic>> variants) => Product.fromJson({
+          'id': 'p',
+          'storeId': 's',
+          'slug': '',
+          'title': 't',
+          'status': 'ACTIVE',
+          'isAvailable': true,
+          'moq': 2,
+          'createdAt': '',
+          'variants': variants,
+        });
+
+    test('skips variants the seller deactivated', () {
+      final p = detail([
+        {'id': 'v-off', 'isActive': false, 'sku': 'A'},
+        {'id': 'v-on', 'isActive': true, 'sku': 'B', 'priceMinor': 900},
+      ]);
+      expect(p.orderableVariant?.id, 'v-on');
+      expect(p.variants.first.priceMinor, isNull);
+    });
+
+    test('is null when nothing is purchasable', () {
+      expect(detail([]).orderableVariant, isNull);
+      expect(
+          detail([
+            {'id': 'v-off', 'isActive': false}
+          ]).orderableVariant,
+          isNull);
+    });
+  });
+
+  group('ReorderResult', () {
+    // A4-7 parity: the endpoint re-adds line by line, so a partial reorder has
+    // to say so instead of landing the buyer on a thinner cart.
+    test('names the first skip and counts the rest', () {
+      final r = ReorderResult.fromJson({
+        'masterOrderId': 'm1',
+        'added': [
+          {'title': 'Rice', 'quantity': 10}
+        ],
+        'skipped': [
+          {'title': 'Oil', 'reason': 'No longer available'},
+          {'title': 'Salt', 'reason': 'No price tier'},
+        ],
+      });
+      expect(r.total, 3);
+      expect(r.summary, 'Added 1 of 3 — Oil: No longer available (+1 more)');
+    });
+
+    test('is explicit when nothing came back', () {
+      final r = ReorderResult.fromJson({
+        'masterOrderId': 'm1',
+        'added': <dynamic>[],
+        'skipped': [
+          {'title': 'Oil', 'reason': 'Delisted'}
+        ],
+      });
+      expect(r.summary, 'Nothing could be re-ordered — Oil: Delisted');
+    });
+
+    test('reads a clean reorder without mentioning skips', () {
+      final r = ReorderResult.fromJson({
+        'masterOrderId': 'm1',
+        'added': [
+          {'title': 'Rice', 'quantity': 10},
+          {'title': 'Oil', 'quantity': 5},
+        ],
+        'skipped': <dynamic>[],
+      });
+      expect(r.summary, 'Added 2 items to your cart');
+    });
+
+    test('handles an absent body and a single item', () {
+      // `added`/`skipped` default to empty rather than throwing, because a 200
+      // with an unexpected shape still has to render something.
+      expect(ReorderResult.fromJson({'masterOrderId': 'm'}).summary,
+          'That order had no items to re-order');
+      final one = ReorderResult.fromJson({
+        'masterOrderId': 'm',
+        'added': [
+          {'title': 'Rice', 'quantity': 10}
+        ],
+      });
+      expect(one.summary, 'Added 1 item to your cart');
+    });
+  });
+
   group('Store.fromJson', () {
     test('parses orgId correctly', () {
       final s = Store.fromJson({
@@ -61,6 +274,53 @@ void main() {
       });
       expect(s.orgId, 'org-1');
       expect(s.verificationStatus, 'VERIFIED');
+    });
+  });
+
+  group('SearchResult.fromJson', () {
+    // A5-7: the search endpoint returns its hits under `items`, never `products`.
+    test('reads hits from the items key', () {
+      final r = SearchResult.fromJson({
+        'items': [
+          {
+            'id': 'p1',
+            'storeId': 's1',
+            'slug': 'rice',
+            'title': 'Rice',
+            'status': 'ACTIVE',
+            'isAvailable': true,
+            'moq': 10,
+            'createdAt': '2024-01-01'
+          }
+        ],
+        'total': 1,
+        'matchType': 'fuzzy',
+        'query': 'rice',
+      });
+      expect(r.products.length, 1);
+      expect(r.products.first.id, 'p1');
+      expect(r.total, 1);
+    });
+
+    test('ignores a products key so a contract change cannot pass silently',
+        () {
+      final r = SearchResult.fromJson({
+        'products': [
+          {
+            'id': 'p1',
+            'storeId': 's1',
+            'slug': 'rice',
+            'title': 'Rice',
+            'status': 'ACTIVE',
+            'isAvailable': true,
+            'moq': 10,
+            'createdAt': '2024-01-01'
+          }
+        ],
+        'total': 1,
+        'query': 'rice',
+      });
+      expect(r.products, isEmpty);
     });
   });
 
@@ -208,6 +468,130 @@ void main() {
 
     test('supports custom currency', () {
       expect(formatMinor(1050, 'USD'), '10.50 USD');
+    });
+
+    test('falls back to SAR only when no currency was reported', () {
+      // A2-4: callers forward `order.currency` untouched, so the fallback has to
+      // live in the formatter rather than at every call site.
+      expect(formatMinor(1050, null), '10.50 SAR');
+    });
+  });
+
+  group('SubOrder money identity', () {
+    test('reads seller, currency and line count from a list response', () {
+      // GET /v1/orders returns orders without their lines, so the server ships
+      // the count and the identity alongside them (A4-6, A5-16).
+      final o = SubOrder.fromJson({
+        'id': 'a1b2c3d4-0000-0000-0000-000000000001',
+        'storeId': 'store-1',
+        'status': 'DELIVERED',
+        'totalMinor': 4500,
+        'storeName': 'Emirates Fresh',
+        'storeSlug': 'emirates-fresh',
+        'currency': 'AED',
+        'currencyFromSnapshot': true,
+        'itemCount': 3,
+      });
+      expect(o.storeName, 'Emirates Fresh');
+      expect(o.storeSlug, 'emirates-fresh');
+      expect(o.currency, 'AED');
+      expect(o.currencyFromSnapshot, isTrue);
+      expect(o.itemCount, 3);
+      expect(formatMinor(o.totalMinor, o.currency), '45.00 AED');
+    });
+
+    test('counts the embedded lines of a detail response', () {
+      final o = SubOrder.fromJson({
+        'id': 'a1b2c3d4-0000-0000-0000-000000000002',
+        'currency': 'SAR',
+        'currencyFromSnapshot': true,
+        'items': [
+          {'id': 'i1', 'title': 'Flour', 'quantity': 5, 'lineTotalMinor': 1000},
+          {'id': 'i2', 'title': 'Rice', 'quantity': 2, 'lineTotalMinor': 900},
+        ],
+      });
+      expect(o.itemCount, 2);
+      expect(o.items.length, 2);
+    });
+
+    test('a legacy row reports no snapshot instead of inventing one', () {
+      final o = SubOrder.fromJson({
+        'id': 'a1b2c3d4-0000-0000-0000-000000000003',
+        'totalMinor': 1200,
+      });
+      expect(o.currency, isNull);
+      expect(o.currencyFromSnapshot, isFalse);
+      expect(o.storeName, isNull);
+      expect(o.itemCount, 0);
+      // The screen must still print something, and the formatter's documented
+      // default is what the platform seeded stores with.
+      expect(formatMinor(o.totalMinor, o.currency), '12.00 SAR');
+    });
+  });
+
+  group('MasterOrder totals by currency', () {
+    test('keeps each currency separate when suppliers disagree', () {
+      final m = MasterOrder.fromJson({
+        'id': 'master-1',
+        'status': 'SUBMITTED',
+        'createdAt': '2026-09-01T00:00:00Z',
+        'currency': null,
+        'totalsByCurrency': {'SAR': 1200, 'AED': 4500},
+        'subOrders': [
+          {'id': 's1', 'currency': 'SAR', 'totalMinor': 1200},
+          {'id': 's2', 'currency': 'AED', 'totalMinor': 4500},
+        ],
+      });
+      expect(m.currency, isNull);
+      expect(m.totalsByCurrency, {'SAR': 1200, 'AED': 4500});
+      expect(m.subOrders[1].currency, 'AED');
+    });
+
+    test('parses a sole currency and absent aggregates', () {
+      final m = MasterOrder.fromJson({
+        'id': 'master-2',
+        'status': 'SUBMITTED',
+        'currency': 'SAR',
+        'totalsByCurrency': {'SAR': 3000},
+      });
+      expect(m.currency, 'SAR');
+      expect(m.totalsByCurrency['SAR'], 3000);
+      expect(m.subOrders, isEmpty);
+    });
+
+    test('defaults to an empty map when the API sends none', () {
+      final m = MasterOrder.fromJson({'id': 'master-3', 'status': 'DRAFT'});
+      expect(m.totalsByCurrency, isEmpty);
+      expect(m.currency, isNull);
+    });
+  });
+
+  group('CartItem currency', () {
+    test('parses the supplier currency projected onto each line', () {
+      final item = CartItem.fromJson({
+        'id': 'ci-1',
+        'cartId': 'c-1',
+        'storeId': 's-1',
+        'variantId': 'v-1',
+        'quantity': 10,
+        'priceMinor': 250,
+        'tierMinQty': 10,
+        'lineTotalMinor': 2500,
+        'storeName': 'Emirates Fresh',
+        'currency': 'AED',
+      });
+      expect(item.currency, 'AED');
+      expect(formatMinor(item.lineTotalMinor, item.currency), '25.00 AED');
+    });
+
+    test('stays null on an unenriched line', () {
+      final item = CartItem.fromJson({
+        'id': 'ci-2',
+        'cartId': 'c-1',
+        'storeId': 's-1',
+        'variantId': 'v-1',
+      });
+      expect(item.currency, isNull);
     });
   });
 }

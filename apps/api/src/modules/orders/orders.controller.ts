@@ -28,8 +28,8 @@ export class OrdersController {
   // ── Master Orders ────────────────────────────────────────────
 
   @Get('orders/master/:id')
-  async getMasterOrder(@Param('id') id: string) {
-    return this.ordersService.getMasterOrder(id);
+  async getMasterOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.getMasterOrder(id, user);
   }
 
   @Post('orders/master/:id/reorder')
@@ -49,17 +49,17 @@ export class OrdersController {
   ) {
     // Buyer sees own orders; merchant sees store orders
     const buyerId = storeId ? undefined : user.sub;
-    return this.ordersService.listOrders(buyerId, storeId, status);
+    return this.ordersService.listOrders(buyerId, storeId, status, user);
   }
 
   @Get('orders/:id')
-  async getOrder(@Param('id') id: string) {
-    return this.ordersService.getOrderWithItems(id);
+  async getOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.getOrderWithItems(id, user);
   }
 
   @Get('orders/:id/history')
-  async getStatusHistory(@Param('id') id: string) {
-    return this.ordersService.getStatusHistory(id);
+  async getStatusHistory(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.getStatusHistory(id, user);
   }
 
   // ── Merchant Actions ─────────────────────────────────────────
@@ -68,7 +68,7 @@ export class OrdersController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:write')
   async acceptOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.ordersService.acceptOrder(id, user.sub);
+    return this.ordersService.acceptOrder(id, user.sub, user);
   }
 
   @Post('orders/:id/partial-accept')
@@ -79,7 +79,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() body: { confirmations: ItemConfirmation[] },
   ) {
-    return this.ordersService.partiallyAcceptOrder(id, user.sub, body.confirmations);
+    return this.ordersService.partiallyAcceptOrder(id, user.sub, body.confirmations, user);
   }
 
   @Post('orders/:id/reject')
@@ -90,7 +90,7 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() body: { reason: string },
   ) {
-    return this.ordersService.rejectOrder(id, user.sub, body.reason);
+    return this.ordersService.rejectOrder(id, user.sub, body.reason, user);
   }
 
   @Post('orders/:id/items/:itemId/confirm')
@@ -102,7 +102,7 @@ export class OrdersController {
     @Param('itemId') itemId: string,
     @Body() body: { qtyConfirmed: number },
   ) {
-    return this.ordersService.confirmItem(orderId, itemId, body.qtyConfirmed, user.sub);
+    return this.ordersService.confirmItem(orderId, itemId, body.qtyConfirmed, user.sub, user);
   }
 
   // ── Status Transitions ───────────────────────────────────────
@@ -121,6 +121,7 @@ export class OrdersController {
       user.sub,
       user.role || 'SYSTEM',
       body.reason,
+      user,
     );
   }
 
@@ -132,6 +133,6 @@ export class OrdersController {
     @Param('id') id: string,
     @Body() body: { reason: string },
   ) {
-    return this.ordersService.cancelOrder(id, user.sub, body.reason);
+    return this.ordersService.cancelOrder(id, user.sub, body.reason, user);
   }
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, bigint, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, char, text, integer, bigint, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { productVariants } from '../catalog/catalog.schema';
@@ -12,6 +12,10 @@ import { promotions } from '../promotions/promotions.schema';
  * - order_items: line items with SNAPSHOT prices (not FK to price_tiers)
  * - order_financial_breakdown: full financial picture per sub-order
  * - order_status_history: append-only audit trail of every status transition
+ *
+ * Amounts are minor units of `orders.currency` (migration 0019), which is a
+ * snapshot of the supplier's currency taken at checkout — a sub-order is exactly
+ * one store, so one currency covers every line and total on it.
  */
 
 export const masterOrders = pgTable('master_orders', {
@@ -40,6 +44,9 @@ export const orders = pgTable('orders', {
   deliveryFeeMinor: bigint('delivery_fee_minor', { mode: 'number' }).notNull().default(0),
   taxMinor: bigint('tax_minor', { mode: 'number' }).notNull().default(0),
   totalMinor: bigint('total_minor', { mode: 'number' }).notNull().default(0),
+  // Nullable: rows written before 0019 predate the snapshot and must not be
+  // backfilled with a guessed code.
+  currency: char('currency', { length: 3 }),
   slaConfirmedAt: timestamp('sla_confirmed_at', { withTimezone: true }),
   slaAt: timestamp('sla_at', { withTimezone: true }),
   rejectionReason: text('rejection_reason'),

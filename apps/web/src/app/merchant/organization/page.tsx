@@ -5,7 +5,8 @@ import Link from 'next/link';
 import {
   fetchProfile, fetchOrganization, updateOrganization,
   fetchOrgMembers, addOrgMember, removeOrgMember,
-  Organization, OrgMember,
+  lookupOrgMember, fetchRoles,
+  Organization, OrgMember, UserLookupResult, RoleInfo,
 } from '../../../lib/api';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
 
@@ -28,6 +29,11 @@ export default function MerchantOrganizationPage() {
   const [newUserId, setNewUserId] = useState('');
   const [newRoleId, setNewRoleId] = useState('');
   const [addingMember, setAddingMember] = useState(false);
+  const [roles, setRoles] = useState<RoleInfo[]>([]);
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<UserLookupResult[]>([]);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserLookupResult | null>(null);
 
   const populate = useCallback((o: Organization) => {
     setOrg(o);
@@ -62,6 +68,12 @@ export default function MerchantOrganizationPage() {
     })();
   }, [populate, loadMembers]);
 
+  useEffect(() => {
+    if (addOpen && roles.length === 0) {
+      fetchRoles().then(setRoles).catch(() => {});
+    }
+  }, [addOpen, roles.length]);
+
   const handleSave = async () => {
     if (!org) return;
     if (!name.trim()) { setError('Organization name is required'); return; }
@@ -90,12 +102,33 @@ export default function MerchantOrganizationPage() {
     try {
       await addOrgMember(org.id, newUserId.trim(), newRoleId.trim());
       setNewUserId(''); setNewRoleId(''); setAddOpen(false);
+      setLookupQuery(''); setLookupResults([]); setSelectedUser(null);
       await loadMembers(org.id);
     } catch (err: any) {
       setError(err.message || 'Add member failed');
     } finally {
       setAddingMember(false);
     }
+  };
+
+  const handleLookup = async () => {
+    if (!org || !lookupQuery.trim() || lookupQuery.trim().length < 3) return;
+    setLookingUp(true);
+    try {
+      const results = await lookupOrgMember(org.id, lookupQuery.trim());
+      setLookupResults(results);
+    } catch (err: any) {
+      setError(err.message || 'Lookup failed');
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const handleSelectUser = (user: UserLookupResult) => {
+    setSelectedUser(user);
+    setNewUserId(user.id);
+    setLookupResults([]);
+    setLookupQuery('');
   };
 
   const handleRemoveMember = async (m: OrgMember) => {
@@ -181,12 +214,81 @@ export default function MerchantOrganizationPage() {
         {addOpen && (
           <div style={{ background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 8, padding: 14, marginBottom: 14 }}>
             <p style={{ fontSize: 12, color: '#5b6b74', marginBottom: 10 }}>
-              Enter the user&apos;s ID and a role ID. (The role catalog is admin-managed.)
+              Search for a user by phone or email, then select a role.
             </p>
-            <div style={grid}>
-              <input type="text" placeholder="User ID (UUID)" value={newUserId} onChange={e => setNewUserId(e.target.value)} style={{ ...input, fontFamily: 'monospace', fontSize: 12 }} />
-              <input type="text" placeholder="Role ID (UUID)" value={newRoleId} onChange={e => setNewRoleId(e.target.value)} style={{ ...input, fontFamily: 'monospace', fontSize: 12 }} />
+            
+            {/* User Lookup */}
+            {!selectedUser ? (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <input
+                    type="text"
+                    placeholder="Phone or email (min 3 characters)"
+                    value={lookupQuery}
+                    onChange={e => setLookupQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleLookup()}
+                    style={{ ...input, flex: 1 }}
+                  />
+                  <button
+                    onClick={handleLookup}
+                    disabled={lookingUp || lookupQuery.trim().length < 3}
+                    style={{ ...primaryBtn, whiteSpace: 'nowrap', opacity: lookingUp || lookupQuery.trim().length < 3 ? 0.5 : 1 }}
+                  >
+                    {lookingUp ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+                {lookupResults.length > 0 && (
+                  <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {lookupResults.map(user => (
+                      <div
+                        key={user.id}
+                        onClick={() => handleSelectUser(user)}
+                        style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f2f4', fontSize: 13 }}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#f7f9fa')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                      >
+                        <div style={{ fontWeight: 600, color: '#0f3340' }}>{user.fullName || 'Unknown'}</div>
+                        <div style={{ fontSize: 11, color: '#5b6b74' }}>
+                          {user.phone}{user.email ? ` · ${user.email}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {lookupResults.length === 0 && lookupQuery.trim().length >= 3 && !lookingUp && (
+                  <p style={{ fontSize: 12, color: '#8a9ba5', margin: '8px 0 0' }}>No users found. Try a different phone or email.</p>
+                )}
+              </div>
+            ) : (
+              <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 6, padding: '10px 12px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: '#2e7d32', fontSize: 13 }}>{selectedUser.fullName || 'Unknown'}</div>
+                  <div style={{ fontSize: 11, color: '#5b6b74' }}>{selectedUser.phone}{selectedUser.email ? ` · ${selectedUser.email}` : ''}</div>
+                </div>
+                <button
+                  onClick={() => { setSelectedUser(null); setNewUserId(''); }}
+                  style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 12 }}
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
+            {/* Role Selection */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 12, color: '#5b6b74', marginBottom: 4 }}>Role *</label>
+              <select
+                value={newRoleId}
+                onChange={e => setNewRoleId(e.target.value)}
+                style={{ ...input, fontSize: 13 }}
+              >
+                <option value="">Select a role...</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.id}>{r.name} ({r.key})</option>
+                ))}
+              </select>
             </div>
+
             <button onClick={handleAddMember} disabled={addingMember || !newUserId.trim() || !newRoleId.trim()} style={primaryBtn}>
               {addingMember ? 'Adding…' : 'Add Member'}
             </button>

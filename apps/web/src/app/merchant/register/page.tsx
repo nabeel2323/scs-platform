@@ -336,17 +336,13 @@ export default function MerchantRegistrationPage() {
     <main style={{ maxWidth: 720, margin: '0 auto' }}>
       {/* Header Banner */}
       <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Register Organization</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Set up your business to start trading</p>
+        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Become a Seller</h1>
+        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Register your business to start trading on the platform</p>
       </div>
       <div style={{ padding: '20px 24px 48px' }}>
 
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>
-        Merchant Registration
-      </h1>
       <p style={{ color: '#5b6b74', marginBottom: 24 }}>
-        Register your business on the platform — create an organization, set up your store, and
-        submit for verification.
+        Create your organization, set up your store, and submit for verification.
       </p>
 
       {/* Step indicator */}
@@ -463,6 +459,9 @@ export default function MerchantRegistrationPage() {
               <p style={{ color: '#8a9ba5', fontSize: 13, margin: 0 }}>
                 Enter the invite code shared by an organization owner to join as a member.
               </p>
+              <div style={{ padding: '10px 14px', background: '#e3f2fd', borderRadius: 6, fontSize: 13, color: '#1565c0', marginBottom: 8 }}>
+                <strong>Note:</strong> You'll join as a staff member. The store owner manages the catalog and orders. This completes the registration immediately.
+              </div>
               <Field label="Invite Code *">
                 <input
                   type="text"

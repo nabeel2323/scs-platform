@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { fetchStorePriceLists, fetchPriceListTiers, PriceList, PriceTier } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 import { TierLadder } from '../../../components/QuantityStepper';
 
@@ -53,7 +54,7 @@ export default function MerchantPricingPage() {
     (async () => {
       try {
         const stores = await fetchMyStores();
-        const s = stores[0];
+        const s = pickStore(stores);
         if (!s) { setNoStore(true); setLoading(false); return; }
         setStoreId(s.id);
         await loadLists(s.id);

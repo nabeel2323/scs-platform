@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -15,6 +15,8 @@ import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/
  *   POST   /v1/organizations/:id/members  — add member
  *   GET    /v1/organizations/:id/members  — list members
  *   DELETE /v1/organizations/:id/members/:userId — remove member
+ *   GET    /v1/organizations/:id/member-lookup?q= — lookup user by phone/email
+ *   GET    /v1/roles                      — list available roles
  */
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
@@ -77,5 +79,22 @@ export class OrganizationsController {
     @Param('userId') userId: string,
   ) {
     return this.identityService.removeOrgMember(orgId, userId);
+  }
+
+  @Get(':id/member-lookup')
+  async lookupMember(@Param('id') orgId: string, @Req() req: any) {
+    const query = req.query.q || '';
+    return this.identityService.lookupUser(query);
+  }
+}
+
+@Controller('roles')
+@UseGuards(JwtAuthGuard)
+export class RolesController {
+  constructor(private readonly identityService: IdentityService) {}
+
+  @Get()
+  async listRoles() {
+    return this.identityService.listRoles();
   }
 }
