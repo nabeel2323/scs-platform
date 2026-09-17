@@ -33,6 +33,3 @@ WHERE movement_type = 'INBOUND';
 ALTER TABLE stock_movements
 ADD CONSTRAINT chk_stock_movements_type
 CHECK (movement_type IN ('ADJUST', 'RESERVE', 'RELEASE', 'SALE', 'CANCEL', 'IMPORT', 'RETURN'));
-
--- Log the migration for the runner.
-INSERT INTO _migration_log (name) VALUES ('0020_stock_movement_constraint');
