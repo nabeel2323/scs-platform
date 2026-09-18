@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { fetchAdminMerchants, AdminMerchant } from '../../lib/api';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const VERIFICATION_STATUSES = ['', 'PENDING', 'VERIFIED', 'REJECTED', 'REVISION'];
 const STORE_STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
 
 export default function MerchantsPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:merchants:read']);
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:merchants:read']} missingPerms={missingPerms} />;
+
   const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -130,6 +135,7 @@ export default function MerchantsPage() {
                   <th style={thStyle}>Status</th>
                   <th style={thStyle}>Currency</th>
                   <th style={thStyle}>Created</th>
+                  <th style={thStyle}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -148,6 +154,23 @@ export default function MerchantsPage() {
                     </td>
                     <td style={tdStyle}>{m.currency}</td>
                     <td style={tdStyle}>{new Date(m.createdAt).toLocaleDateString()}</td>
+                    <td style={tdStyle}>
+                      {m.verificationStatus === 'PENDING' ? (
+                        <Link
+                          href={`/verification?store=${m.id}`}
+                          style={{
+                            padding: '4px 12px', fontSize: '12px', fontWeight: 600,
+                            background: '#0f3340', color: '#fff',
+                            border: 'none', borderRadius: 4, textDecoration: 'none',
+                          }}
+                        >Review</Link>
+                      ) : (
+                        <Link
+                          href={`/verification?store=${m.id}`}
+                          style={{ fontSize: '12px', color: '#1d5fa8' }}
+                        >View</Link>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

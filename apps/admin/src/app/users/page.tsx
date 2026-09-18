@@ -7,10 +7,14 @@ import {
   AdminUser, AdminUserDetail, RoleInfo, AdminOrg,
 } from '../../lib/api';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
 
 export default function UsersPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:users:read']);
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:users:read']} missingPerms={missingPerms} />;
+
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

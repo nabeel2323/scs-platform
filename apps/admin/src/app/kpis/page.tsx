@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { fetchKpis, KpiResponse } from '../../lib/api';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 /* ── SVG Icons (Feather-style, 20×20) ───────────────────── */
 
@@ -26,6 +27,9 @@ const IconCheck    = () => (<svg {...s}><path d="M22 11.08V12a10 10 0 1 1-5.93-9
 /* ── Page ────────────────────────────────────────────────── */
 
 export default function KpiDashboardPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:kpis:read']);
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:kpis:read']} missingPerms={missingPerms} />;
+
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState('');

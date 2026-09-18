@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Phased Remediation Implementation Plan for the Smart Commerce &amp; Supply Platform (TAIF) — specific file modifications, code snippets, effort estimates, testing strategies, and rollout phases for all 10 audit gaps.">
+<title>Implementation Plan &mdash; Comprehensive Audit Remediation</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  pre{background:#0f3340;color:#e8f0f4;padding:1rem 1.2rem;border-radius:8px;overflow-x:auto;font-size:.84rem;line-height:1.55;margin:.8rem 0}
+  pre code{background:transparent;border:none;color:inherit;padding:0;font-size:inherit}
+  .kw{color:#7dd3fc} .str{color:#86efac} .cm{color:#94a3b8} .fn{color:#fbbf24} .num{color:#f9a8d4}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .p-p0{background:#f7e3e1;color:var(--err)} .p-p1{background:#fbeedd;color:var(--warn)} .p-p2{background:#e2edf9;color:var(--info)}
+  .p-effort{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .kpi{font-size:1.6rem;font-weight:800;color:var(--brand)}
+  .muted{color:var(--muted)} .small{font-size:.85rem}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.25rem 0}
+  .phase-banner{display:flex;align-items:center;gap:.7rem;padding:.7rem 1rem;border-radius:8px;margin-bottom:1rem;font-weight:700;font-size:.95rem}
+  .phase-banner.p1{background:#fbeedd;border:1px solid #f6c98a;color:#92400e}
+  .phase-banner.p2{background:#e2edf9;border:1px solid #a8c8e8;color:#1e40af}
+  .phase-banner.p3{background:#e9eef0;border:1px solid #c8d0d4;color:#4a5b64}
+  .file-tag{display:inline-block;background:#0f3340;color:#7dd3fc;padding:.1rem .5rem;border-radius:4px;font-size:.78rem;font-family:var(--mono);margin:.15rem .15rem .15rem 0}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){.layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none} .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Implementation Plan</h1>
+    <p class="sub">Phased remediation roadmap for all 10 gaps identified in the <a href="Comprehensive_Audit_Report.html" style="color:#fff;text-decoration:underline">Comprehensive Audit Report</a> &mdash; specific file modifications, code patches, effort estimates, dependencies, testing strategies, and rollout phases.</p>
+    <div class="meta">
+      <span>Plan date 2026-09-18</span>
+      <span>10 gaps addressed</span>
+      <span>3 phases</span>
+      <span>Phase 1 &amp; 2 implemented</span>
+      <span>Companion to Audit Report</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">1. Plan Overview</a></li>
+      <li><a href="#phase1">2. Phase 1 &mdash; P1/P2 High-Priority Fixes</a></li>
+      <li><a href="#gap1" style="padding-left:1rem">2.1 GAP-1: Mobile Role Gate</a></li>
+      <li><a href="#gap2" style="padding-left:1rem">2.2 GAP-2/3: Web Perms-Aware Gate</a></li>
+      <li><a href="#gap5" style="padding-left:1rem">2.3 GAP-5: Admin Page Hooks</a></li>
+      <li><a href="#phase2">3. Phase 2 &mdash; P2 Enhancements</a></li>
+      <li><a href="#gap9" style="padding-left:1rem">3.1 GAP-9: Merchants Verify Action</a></li>
+      <li><a href="#gap10" style="padding-left:1rem">3.2 GAP-10: Document Download</a></li>
+      <li><a href="#gap4" style="padding-left:1rem">3.3 GAP-4: MODERATOR Products</a></li>
+      <li><a href="#gap6" style="padding-left:1rem">3.4 GAP-6: Analytics Guard</a></li>
+      <li><a href="#phase3">4. Phase 3 &mdash; P3 Future/Cleanup</a></li>
+      <li><a href="#gap7" style="padding-left:1rem">4.1 GAP-7: Driver Role</a></li>
+      <li><a href="#gap8" style="padding-left:1rem">4.2 GAP-8: Unused Keys</a></li>
+      <li><a href="#matrix">5. Dependency &amp; Ordering Matrix</a></li>
+      <li><a href="#testing">6. Testing Strategy</a></li>
+      <li><a href="#rollback">7. Rollback &amp; Safety</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="overview">
+      <h2>1. Plan Overview</h2>
+      <p>This plan remediates all 10 gaps from the audit report in <strong>3 phases</strong>, ordered by severity and dependency. Each phase preserves existing workflows and does not break current functionality.</p>
+
+      <div class="callout ok">
+        <span class="label">Implementation Status (2026-09-18)</span>
+        <p><strong>Phase 1</strong> (GAP-1, GAP-2/3, GAP-5) and <strong>Phase 2</strong> (GAP-9, GAP-10, GAP-4, GAP-6) are <span class="pill p-ok">Implemented</span> as specified below, with minor as-built deviations noted in each section. TypeScript compiles clean (<code>pnpm exec tsc --noEmit</code>) for <code>api</code>, <code>web</code>, and <code>admin</code>; the mobile router passes <code>dart analyze</code>. <strong>Phase 3</strong> (GAP-7, GAP-8) is <span class="pill p-muted">Not started</span>. Seed-affecting gaps (GAP-4, GAP-6) require <code>pnpm --filter @scs/api db:seed</code> + user re-login to take effect at runtime.</p>
+      </div>
+
+      <div class="grid c3">
+        <div class="card">
+          <div class="kpi">Phase 1</div>
+          <h4>High-Priority Fixes</h4>
+          <p><span class="pill p-ok">Implemented</span></p>
+          <p class="small muted">GAP-1, GAP-2/3, GAP-5 &mdash; P1/P2<br>Effort: M + M + L = <strong>~2.5 days</strong><br>No backend changes required</p>
+        </div>
+        <div class="card">
+          <div class="kpi">Phase 2</div>
+          <h4>Enhancements</h4>
+          <p><span class="pill p-ok">Implemented</span></p>
+          <p class="small muted">GAP-9, GAP-10, GAP-4, GAP-6 &mdash; P2<br>Effort: M + M + S + S = <strong>~2 days</strong><br>Some backend changes needed</p>
+        </div>
+        <div class="card">
+          <div class="kpi">Phase 3</div>
+          <h4>Future / Cleanup</h4>
+          <p><span class="pill p-muted">Not started</span></p>
+          <p class="small muted">GAP-7, GAP-8 &mdash; P3<br>Effort: H + L = <strong>~2 days</strong><br>New role + seed cleanup</p>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Phase</th><th>Gaps</th><th>Apps Touched</th><th>Breaking?</th><th>Prerequisite</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill p-p1">Phase 1</span></td><td>GAP-1, GAP-2/3, GAP-5</td><td>Mobile, Web, Admin</td><td><span class="pill p-ok">No</span></td><td>None &mdash; pure UI gating</td><td><span class="pill p-ok">Implemented</span></td></tr>
+          <tr><td><span class="pill p-p2">Phase 2</span></td><td>GAP-9, GAP-10, GAP-4, GAP-6</td><td>Admin, API</td><td><span class="pill p-ok">No</span></td><td>Phase 1 (admin hooks)</td><td><span class="pill p-ok">Implemented</span></td></tr>
+          <tr><td><span class="pill p-muted">Phase 3</span></td><td>GAP-7, GAP-8</td><td>API, Mobile</td><td><span class="pill p-warn">Additive</span></td><td>Phase 2 (verify stable)</td><td><span class="pill p-muted">Not started</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok">
+        <span class="label">Safety Principle</span>
+        <p>All phases are <strong>additive or tightening</strong> &mdash; they add UI guards or restrict access further. No phase removes existing permissions, changes API contracts, or modifies database schemas. Every change can be individually reverted without affecting other phases.</p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PHASE 1 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="phase1">
+      <h2>2. Phase 1 &mdash; P1/P2 High-Priority Fixes</h2>
+      <div class="phase-banner p1">Phase 1 &mdash; No backend changes &bull; Frontend-only &bull; ~2.5 days effort &bull; Zero breaking changes</div>
+      <p>Phase 1 addresses the two P1 gaps (mobile has no role gating, web shows write controls to staff who get 403s) and the P2 gap where admin pages rely solely on sidebar hiding. All changes are <strong>frontend-only</strong> &mdash; no API modifications, no database changes, no seed updates.</p>
+    </section>
+
+    <!-- GAP-1: Mobile Role Gate -->
+    <section id="gap1">
+      <h2>2.1 GAP-1: Mobile Role Gate</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p1">P1</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Medium</span> &mdash; ~1 day</td></tr>
+          <tr><td>Apps</td><td>Mobile</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">mobile/lib/router/router.dart</span> <span class="file-tag">mobile/lib/providers/providers.dart</span></td></tr>
+          <tr><td>Depends on</td><td>None</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; adds redirect, does not remove routes</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; as specified. <code>profileProvider</code> was already available via the existing <code>providers.dart</code> import, so the extra <code>models.dart</code> import was unnecessary; the redirect also exempts <code>/merchant/register</code>. Passes <code>dart analyze</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p><code>router.dart:36-42</code> only checks <code>isAuthenticatedProvider</code>. Every route (merchant dashboard, driver scaffold) is reachable by any authenticated user, including BUYERs who get 403 errors on action.</p>
+
+      <h3>Solution</h3>
+      <p>Add a role-aware redirect in the router's <code>redirect</code> callback. The <code>profileProvider</code> already exposes <code>role</code> from <code>GET /v1/me</code>. Merchant routes redirect non-merchant roles to <code>/home</code>; driver route is hidden until Phase 2.</p>
+
+      <h3>Patch</h3>
+      <p><span class="file-tag">mobile/lib/router/router.dart</span></p>
+<pre><span class="cm">// Add at top of file:</span>
+<span class="kw">import</span> <span class="str">'../models/models.dart'</span>;
+
+<span class="cm">// Inside routerProvider, replace the redirect callback:</span>
+redirect: (context, state) {
+  <span class="kw">final</span> loggedIn = ref.read(isAuthenticatedProvider);
+  <span class="kw">final</span> goingToLogin = state.matchedLocation == <span class="str">'/login'</span>;
+  <span class="kw">if</span> (!loggedIn && !goingToLogin) <span class="kw">return</span> <span class="str">'/login'</span>;
+  <span class="kw">if</span> (loggedIn && goingToLogin) <span class="kw">return</span> <span class="str">'/home'</span>;
+
+  <span class="cm">// Role-based route protection (GAP-1 remediation)</span>
+  <span class="kw">if</span> (loggedIn) {
+    <span class="kw">final</span> profileAsync = ref.read(profileProvider);
+    <span class="kw">final</span> role = profileAsync.maybeWhen(
+      data: (p) => p.role,
+      orElse: () => <span class="kw">null</span>,
+    );
+    <span class="kw">final</span> isMerchant =
+        role == <span class="str">'MERCHANT_OWNER'</span> || role == <span class="str">'MERCHANT_STAFF'</span>;
+    <span class="kw">final</span> path = state.matchedLocation;
+
+    <span class="cm">// Merchant routes require merchant role</span>
+    <span class="kw">if</span> (path.startsWith(<span class="str">'/merchant'</span>) && !isMerchant) {
+      <span class="kw">return</span> <span class="str">'/home'</span>;
+    }
+    <span class="cm">// Driver route hidden until DRIVER role exists (GAP-7)</span>
+    <span class="kw">if</span> (path.startsWith(<span class="str">'/driver'</span>)) {
+      <span class="kw">return</span> <span class="str">'/home'</span>;
+    }
+  }
+  <span class="kw">return null</span>;
+},</pre>
+
+      <div class="callout warn">
+        <span class="label">Note</span>
+        <p>The <code>profileProvider</code> is a <code>FutureProvider</code>. During initial load, <code>maybeWhen(orElse:)</code> returns <code>null</code>, so the redirect does not fire until the profile is loaded. This avoids a flash of redirect for legitimate merchant users. If the profile fails to load, the server's 403 on the API call remains the fallback.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Negative</strong>: Login as BUYER &rarr; navigate to <code>/merchant</code> &rarr; expect redirect to <code>/home</code></li>
+        <li><strong>Negative</strong>: Login as BUYER &rarr; navigate to <code>/driver</code> &rarr; expect redirect to <code>/home</code></li>
+        <li><strong>Positive</strong>: Login as MERCHANT_OWNER &rarr; navigate to <code>/merchant</code> &rarr; expect dashboard renders</li>
+        <li><strong>Positive</strong>: Login as MERCHANT_STAFF &rarr; navigate to <code>/merchant/catalog</code> &rarr; expect catalog renders</li>
+        <li><strong>Edge</strong>: Login as BUYER &rarr; navigate to <code>/merchant/register</code> &rarr; expect registration page (open path, any user can become merchant)</li>
+      </ul>
+    </section>
+
+    <!-- GAP-2/3: Web Perms-Aware Gate -->
+    <section id="gap2">
+      <h2>2.2 GAP-2/3: Web Perms-Aware Gate</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p1">P1</span> (GAP-2) / <span class="pill p-p2">P2</span> (GAP-3)</td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Medium</span> &mdash; ~1 day</td></tr>
+          <tr><td>Apps</td><td>Web</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/web/src/app/merchant/layout.tsx</span> <span class="file-tag">apps/web/src/lib/auth.ts</span></td></tr>
+          <tr><td>Depends on</td><td>None</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; hides controls that already 403 server-side</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; <code>hasPerm()</code>/<code>hasAllPerms()</code> added to <code>lib/auth.ts</code>; store page gated on <code>merchant:stores:write</code> and organization page on <code>identity:organizations:write</code>, each with a read-only fallback for staff.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p><code>merchant/layout.tsx:39</code> uses <code>hasMerchantAccess()</code> which checks role (OWNER or STAFF). Both roles can enter the merchant section, but STAFF lacks <code>merchant:stores:write</code> and <code>identity:organizations:write</code>, so store-settings and organization pages render write controls that always 403.</p>
+
+      <h3>Solution</h3>
+      <p>Add a <code>hasPerm()</code> helper to <code>lib/auth.ts</code> and use it in the merchant sub-pages that require write permissions. The layout continues to allow both OWNER and STAFF into the merchant section; individual pages hide write controls for staff.</p>
+
+      <h3>Step 1: Add hasPerm helper</h3>
+      <p><span class="file-tag">apps/web/src/lib/auth.ts</span></p>
+<pre><span class="cm">/** Check if the current user has a specific permission key. */</span>
+<span class="kw">export function</span> <span class="fn">hasPerm</span>(perm: <span class="kw">string</span>): <span class="kw">boolean</span> {
+  <span class="kw">const</span> perms = getUser()?.perms ?? [];
+  <span class="kw">return</span> perms.includes(perm);
+}
+
+<span class="cm">/** Check if the current user has ALL specified permission keys. */</span>
+<span class="kw">export function</span> <span class="fn">hasAllPerms</span>(perms: <span class="kw">string</span>[]): <span class="kw">boolean</span> {
+  <span class="kw">const</span> userPerms = getUser()?.perms ?? [];
+  <span class="kw">return</span> perms.every(p => userPerms.includes(p));
+}</pre>
+
+      <h3>Step 2: Hide write controls on store page for STAFF</h3>
+      <p><span class="file-tag">apps/web/src/app/merchant/store/page.tsx</span></p>
+<pre><span class="kw">import</span> { hasPerm } <span class="kw">from</span> <span class="str">'../../../lib/auth'</span>;
+
+<span class="cm">// Inside the component, wrap the save/edit controls:</span>
+<span class="kw">const</span> canEdit = <span class="fn">hasPerm</span>(<span class="str">'merchant:stores:write'</span>);
+
+<span class="cm">{/* Render save button only if user has write permission */}</span>
+{canEdit && (
+  &lt;<span class="fn">button</span> onClick={handleSave} disabled={saving}&gt;
+    {saving ? <span class="str">'Saving...'</span> : <span class="str">'Save Changes'</span>}
+  &lt;/<span class="fn">button</span>&gt;
+)}</pre>
+
+      <h3>Step 3: Hide write controls on organization page for STAFF</h3>
+      <p><span class="file-tag">apps/web/src/app/merchant/organization/page.tsx</span></p>
+<pre><span class="kw">import</span> { hasPerm } <span class="kw">from</span> <span class="str">'../../../lib/auth'</span>;
+
+<span class="cm">// Inside the component:</span>
+<span class="kw">const</span> canEdit = <span class="fn">hasPerm</span>(<span class="str">'identity:organizations:write'</span>);
+
+<span class="cm">{/* Conditionally render edit controls */}</span>
+{canEdit && (
+  &lt;<span class="fn">button</span> onClick={handleUpdateOrg}&gt;Update Organization&lt;/<span class="fn">button</span>&gt;
+)}</pre>
+
+      <div class="callout info">
+        <span class="label">GAP-3 Resolution</span>
+        <p>This patch also resolves GAP-3 ("Web never consumes <code>perms</code> for feature-level gating") by introducing the first consumers of <code>AuthUser.perms</code> in web components. Future pages can follow the same <code>hasPerm()</code> pattern.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Negative</strong>: Login as MERCHANT_STAFF &rarr; open <code>/merchant/store</code> &rarr; expect read-only view, no Save button</li>
+        <li><strong>Positive</strong>: Login as MERCHANT_OWNER &rarr; open <code>/merchant/store</code> &rarr; expect Save button visible and functional</li>
+        <li><strong>Negative</strong>: Login as MERCHANT_STAFF &rarr; open <code>/merchant/organization</code> &rarr; expect no Update button</li>
+        <li><strong>Edge</strong>: Login as BUYER &rarr; navigate to <code>/merchant/store</code> &rarr; expect redirect to <code>/search</code> (existing layout guard)</li>
+      </ul>
+    </section>
+
+    <!-- GAP-5: Admin Page Hooks -->
+    <section id="gap5">
+      <h2>2.3 GAP-5: Admin Page-Level Permission Hooks</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p2">P2</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Low</span> &mdash; ~0.5 day</td></tr>
+          <tr><td>Apps</td><td>Admin</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/admin/src/app/users/page.tsx</span> <span class="file-tag">apps/admin/src/app/orders/page.tsx</span> <span class="file-tag">apps/admin/src/app/merchants/page.tsx</span> <span class="file-tag">apps/admin/src/app/verification/page.tsx</span> <span class="file-tag">apps/admin/src/app/kpis/page.tsx</span> <span class="file-tag">apps/admin/src/app/audit/page.tsx</span></td></tr>
+          <tr><td>Depends on</td><td>None &mdash; hook + AccessDenied already exist</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; adds pre-emptive access-denied banner</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; all six pages (users, orders, merchants, verification, kpis, audit) now guard with <code>useRequirePerms</code> + <code>AccessDenied</code> exactly per the mapping below.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p>Only 3 of 11 admin pages (products, categories, disputes) use <code>useRequirePerms</code>. The other 8 pages rely solely on sidebar hiding. Deep links render the page, fetch data (which may 403), and show error states instead of a clean access-denied message.</p>
+
+      <h3>Solution</h3>
+      <p>Add the same <code>useRequirePerms</code> + <code>AccessDenied</code> pattern already used by <code>products/page.tsx</code> to the 6 remaining data pages. The pattern is mechanical &mdash; 2 lines of imports + 3 lines of guard at the top of each component.</p>
+
+      <h3>Template (applied to each page)</h3>
+      <p><span class="file-tag">Pattern for each page</span></p>
+<pre><span class="kw">import</span> { useRequirePerms, AccessDenied } <span class="kw">from</span> <span class="str">'../../hooks/useRequirePerms'</span>;
+
+<span class="kw">export default function</span> <span class="fn">SomePage</span>() {
+  <span class="kw">const</span> { hasAccess, missingPerms } = <span class="fn">useRequirePerms</span>([<span class="str">'admin:xxx:read'</span>]);
+  <span class="kw">if</span> (!hasAccess) <span class="kw">return</span> &lt;<span class="fn">AccessDenied</span>
+    requiredPerms={[<span class="str">'admin:xxx:read'</span>]} missingPerms={missingPerms} /&gt;;
+
+  <span class="cm">// ... existing page content unchanged ...</span>
+}</pre>
+
+      <h3>Permission mapping per page</h3>
+      <table>
+        <thead><tr><th>Page</th><th>Required Permission</th><th>Sidebar Match</th></tr></thead>
+        <tbody>
+          <tr><td><code>users/page.tsx</code></td><td><code>admin:users:read</code></td><td>AdminSidebar line 9</td></tr>
+          <tr><td><code>orders/page.tsx</code></td><td><code>admin:orders:read</code></td><td>AdminSidebar line 10</td></tr>
+          <tr><td><code>merchants/page.tsx</code></td><td><code>admin:merchants:read</code></td><td>AdminSidebar line 11</td></tr>
+          <tr><td><code>verification/page.tsx</code></td><td><code>merchant:verification:review</code></td><td>AdminSidebar line 12</td></tr>
+          <tr><td><code>kpis/page.tsx</code></td><td><code>admin:kpis:read</code></td><td>AdminSidebar line 16</td></tr>
+          <tr><td><code>audit/page.tsx</code></td><td><code>admin:audit:read</code></td><td>AdminSidebar line 17</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok">
+        <span class="label">Why This Is Safe</span>
+        <p>The sidebar already hides these pages using the exact same permission keys. This patch adds defense-in-depth for deep links. If a user without <code>admin:orders:read</code> navigates directly to <code>/orders</code>, they now see a clean "Access Denied" banner instead of a page that loads and then fails on the API call.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Per page</strong>: Login as MODERATOR &rarr; deep-link to <code>/users</code> &rarr; expect AccessDenied banner (MOD lacks <code>admin:users:read</code>)</li>
+        <li><strong>Per page</strong>: Login as ADMIN &rarr; deep-link to <code>/orders</code> &rarr; expect page renders normally</li>
+        <li><strong>Regression</strong>: Login as SUPER_ADMIN &rarr; all pages accessible (has all perms)</li>
+      </ul>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PHASE 2 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="phase2">
+      <h2>3. Phase 2 &mdash; P2 Enhancements</h2>
+      <div class="phase-banner p2">Phase 2 &mdash; Frontend + minor backend &bull; ~2 days effort &bull; No breaking changes</div>
+      <p>Phase 2 adds missing UI actions (verify link on merchants page, document download on verification detail), aligns MODERATOR product access, and adds a permission guard to the analytics write endpoints.</p>
+    </section>
+
+    <!-- GAP-9: Merchants Verify Action -->
+    <section id="gap9">
+      <h2>3.1 GAP-9: Merchants Page Verify Action</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p2">P2</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Medium</span> &mdash; ~0.5 day</td></tr>
+          <tr><td>Apps</td><td>Admin</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/admin/src/app/merchants/page.tsx</span></td></tr>
+          <tr><td>Depends on</td><td>GAP-5 (merchants page has useRequirePerms)</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; adds a column to existing table</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; "Actions" column added with <code>next/link</code>; PENDING &rarr; "Review" button, otherwise "View" link, both to <code>/verification?store=&lt;id&gt;</code> as in the patch below.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p><code>merchants/page.tsx:126-152</code> shows a table with columns: Store Name, Slug, Verification, Status, Currency, Created. There is no action column. Users see PENDING stores but must navigate to <code>/verification</code> separately to take action.</p>
+
+      <h3>Solution</h3>
+      <p>Add an "Actions" column to the table. For stores with <code>verificationStatus === 'PENDING'</code>, show a "Review" link that navigates to <code>/verification</code> filtered by that store. For <code>VERIFIED</code>/<code>REJECTED</code> stores, show a "View" link.</p>
+
+      <h3>Patch</h3>
+      <p><span class="file-tag">apps/admin/src/app/merchants/page.tsx</span></p>
+<pre><span class="cm">// Add import at top:</span>
+<span class="kw">import</span> Link <span class="kw">from</span> <span class="str">'next/link'</span>;
+
+<span class="cm">// Add to table header (after the "Created" th):</span>
+&lt;th style={thStyle}&gt;Actions&lt;/th&gt;
+
+<span class="cm">// Add to table body row (after the Created td, line ~150):</span>
+&lt;td style={tdStyle}&gt;
+  {m.verificationStatus === <span class="str">'PENDING'</span> ? (
+    &lt;<span class="fn">Link</span>
+      href={<span class="str">`/verification?store=</span>${m.id}<span class="str">`</span>}
+      style={{
+        padding: <span class="str">'4px 12px'</span>, fontSize: <span class="str">'12px'</span>, fontWeight: <span class="num">600</span>,
+        background: <span class="str">'#0f3340'</span>, color: <span class="str">'#fff'</span>,
+        border: <span class="str">'none'</span>, borderRadius: <span class="num">4</span>, textDecoration: <span class="str">'none'</span>,
+      }}
+    &gt;Review&lt;/<span class="fn">Link</span>&gt;
+  ) : (
+    &lt;<span class="fn">Link</span>
+      href={<span class="str">`/verification?store=</span>${m.id}<span class="str">`</span>}
+      style={{ fontSize: <span class="str">'12px'</span>, color: <span class="str">'#1d5fa8'</span> }}
+    &gt;View&lt;/<span class="fn">Link</span>&gt;
+  )}
+&lt;/td&gt;</pre>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Positive</strong>: Navigate to <code>/merchants</code> &rarr; PENDING store shows "Review" button</li>
+        <li><strong>Positive</strong>: Click "Review" &rarr; navigates to <code>/verification</code> with store filter</li>
+        <li><strong>Positive</strong>: VERIFIED store shows "View" link</li>
+        <li><strong>Regression</strong>: Existing table columns and filters still work</li>
+      </ul>
+    </section>
+
+    <!-- GAP-10: Document Download -->
+    <section id="gap10">
+      <h2>3.2 GAP-10: Verification Document Download</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p2">P2</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Medium</span> &mdash; ~0.5 day</td></tr>
+          <tr><td>Apps</td><td>Admin, API (minor)</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/admin/src/app/verification/[id]/page.tsx</span> <span class="file-tag">apps/api/src/modules/merchant/merchant.controller.ts</span></td></tr>
+          <tr><td>Depends on</td><td>None</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; adds a button + extends endpoint guard</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; presign guard changed to <code>merchant:verification:review</code>; Download button added. See the <em>As-Built</em> note below for three deviations from the illustrative snippet.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p><code>verification/[id]/page.tsx:193-227</code> renders document rows with type, filename, size, and verification status, but no download/view button. The presign endpoint requires <code>merchant:stores:write</code>, which reviewers may not have.</p>
+
+      <h3>Solution</h3>
+      <p><strong>Step 1</strong>: Add a "Download" button to each document row in the verification detail page.<br>
+      <strong>Step 2</strong>: Change the presign endpoint to accept <code>merchant:verification:review</code> instead of <code>merchant:stores:write</code>, so reviewers can download documents.</p>
+
+      <h3>Step 1: Add download button</h3>
+      <p><span class="file-tag">apps/admin/src/app/verification/[id]/page.tsx</span></p>
+<pre><span class="cm">// Inside the documents.map(), after the status span (line ~225):</span>
+&lt;<span class="fn">button</span>
+  onClick={<span class="kw">async</span> () => {
+    <span class="kw">try</span> {
+      <span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(
+        <span class="str">`${API_URL}/v1/documents/${doc.id}/presign`</span>,
+        { headers: { Authorization: <span class="str">`Bearer ${token}`</span> } }
+      );
+      <span class="kw">if</span> (res.ok) {
+        <span class="kw">const</span> { url } = <span class="kw">await</span> res.<span class="fn">json</span>();
+        window.<span class="fn">open</span>(url, <span class="str">'_blank'</span>);
+      }
+    } <span class="kw">catch</span> { <span class="cm">/* toast error */</span> }
+  }}
+  style={{
+    padding: <span class="str">'4px 12px'</span>, fontSize: <span class="str">'12px'</span>, fontWeight: <span class="num">600</span>,
+    background: <span class="str">'#1d5fa8'</span>, color: <span class="str">'#fff'</span>,
+    border: <span class="str">'none'</span>, borderRadius: <span class="num">4</span>,
+    cursor: <span class="str">'pointer'</span>, marginLeft: <span class="str">'8px'</span>,
+  }}
+&gt;Download&lt;/<span class="fn">button</span>&gt;</pre>
+
+      <h3>Step 2: Update presign endpoint permission</h3>
+      <p><span class="file-tag">apps/api/src/modules/merchant/merchant.controller.ts</span></p>
+<pre><span class="cm">// Change the presign endpoint decorator from:</span>
+@<span class="fn">RequirePermission</span>(<span class="str">'merchant:stores:write'</span>)
+
+<span class="cm">// To:</span>
+@<span class="fn">RequirePermission</span>(<span class="str">'merchant:verification:review'</span>)</pre>
+
+      <div class="callout warn">
+        <span class="label">Permission Design Note</span>
+        <p>If merchant-side document access is also needed (e.g., merchants reviewing their own submissions), consider implementing an OR-semantics guard that accepts either <code>merchant:stores:write</code> or <code>merchant:verification:review</code>. The simplest approach above changes the requirement to the reviewer permission.</p>
+      </div>
+
+      <div class="callout ok">
+        <span class="label">As-Built (implemented)</span>
+        <p>The simple approach was taken: the presign endpoint now requires <code>merchant:verification:review</code>. Three deviations from the illustrative snippet above were required for correctness and type-safety:</p>
+        <ul class="tight">
+          <li>The endpoint is <code>POST /v1/documents/:id/presign</code> (not GET).</li>
+          <li>It returns <code>{ downloadUrl }</code> (not <code>{ url }</code>).</li>
+          <li>Instead of an inline <code>fetch</code> referencing undefined <code>API_URL</code>/<code>token</code>, a <code>presignDocumentDownload(id)</code> helper was added to <code>apps/admin/src/lib/api.ts</code> using the existing <code>authFetch</code>; the button opens the returned URL in a new tab.</li>
+        </ul>
+        <p>No client previously called this endpoint, so changing its required permission is non-breaking.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Positive</strong>: Login as SUPER_ADMIN &rarr; open verification detail &rarr; click "Download" &rarr; expect document opens in new tab</li>
+        <li><strong>Negative</strong>: Login as BUYER &rarr; call presign endpoint directly &rarr; expect 403</li>
+        <li><strong>Edge</strong>: Verification detail with no documents &rarr; expect "No documents uploaded" message (unchanged)</li>
+      </ul>
+    </section>
+
+    <!-- GAP-4: MODERATOR Products -->
+    <section id="gap4">
+      <h2>3.3 GAP-4: MODERATOR Product Curation Access</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p2">P2</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Small</span> &mdash; ~0.25 day</td></tr>
+          <tr><td>Apps</td><td>API (seed)</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/api/src/scripts/seed.ts</span></td></tr>
+          <tr><td>Depends on</td><td>None</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; additive permission grant</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented</span> &mdash; <code>admin:merchants:read</code> added to the MODERATOR grants array in <code>seed.ts</code> (simple/recommended approach). Requires seed re-run + re-login.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p>The Admin Products page requires <code>admin:merchants:read</code> (sidebar line 15, page line 21). MODERATOR lacks this permission &mdash; it has <code>merchant:products:write</code> instead. The sidebar hides the Products page for MODERATOR.</p>
+
+      <h3>Solution</h3>
+      <p>Grant MODERATOR the <code>admin:merchants:read</code> permission in the seed. This is a view-only permission that lets moderators see the Products and Merchants pages. The server's existing permission guard ensures they still cannot perform write actions they lack keys for.</p>
+
+      <h3>Patch</h3>
+      <p><span class="file-tag">apps/api/src/scripts/seed.ts</span></p>
+<pre><span class="cm">// In the MODERATOR grants array, add:</span>
+<span class="str">'admin:merchants:read'</span>,  <span class="cm">// Allow moderators to view Products/Merchants pages</span></pre>
+
+      <div class="callout info">
+        <span class="label">Alternative</span>
+        <p>If product curation needs a separate permission from merchant directory access, create a new <code>admin:products:read</code> key and update both the sidebar and the Products page to use it. The simpler approach above is recommended unless there is a specific reason to separate these.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Positive</strong>: Re-run seed &rarr; login as MODERATOR &rarr; Products link visible in sidebar</li>
+        <li><strong>Positive</strong>: Navigate to <code>/products</code> &rarr; page renders without AccessDenied banner</li>
+        <li><strong>Negative</strong>: MODERATOR still cannot access <code>/users</code> or <code>/orders</code> (lacks those read perms)</li>
+      </ul>
+    </section>
+
+    <!-- GAP-6: Analytics Guard -->
+    <section id="gap6">
+      <h2>3.4 GAP-6: Analytics Write Endpoint Guard</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-p2">P2</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Small</span> &mdash; ~0.25 day</td></tr>
+          <tr><td>Apps</td><td>API</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/api/src/modules/analytics/analytics.controller.ts</span></td></tr>
+          <tr><td>Depends on</td><td>None</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; adds guard to previously unguarded endpoints</td></tr>
+          <tr><td>Status</td><td><span class="pill p-ok">Implemented (Option A)</span> &mdash; new <code>analytics:track</code> key granted to all six roles; both write endpoints guarded. See the <em>As-Built</em> note below.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p><code>analytics.controller.ts:20-48</code> exposes <code>POST track</code> and <code>POST track/batch</code> with JWT authentication only (no <code>@RequirePermission</code> decorator). Any authenticated user can emit analytics events.</p>
+
+      <h3>Solution</h3>
+      <p>Two options depending on design intent:</p>
+
+      <h3>Option A: Permission guard (recommended if tracking should be controlled)</h3>
+      <p><span class="file-tag">apps/api/src/modules/analytics/analytics.controller.ts</span></p>
+<pre>@<span class="fn">RequirePermission</span>(<span class="str">'analytics:track'</span>)
+@<span class="fn">Post</span>(<span class="str">'track'</span>)
+<span class="kw">async</span> <span class="fn">trackEvent</span>(...) { ... }
+
+<span class="cm">// Also add to seed.ts:</span>
+<span class="cm">// New permission key: { key: 'analytics:track', name: 'Track Analytics' }</span>
+<span class="cm">// Grant to ALL roles (BUYER, STAFF, OWNER, MODERATOR, ADMIN, SUPER_ADMIN)</span></pre>
+
+      <h3>Option B: Rate-limit only (recommended if tracking is universal)</h3>
+<pre>@<span class="fn">Throttle</span>(<span class="num">60</span>, <span class="num">60</span>) <span class="cm">// 60 requests per 60 seconds per user</span>
+@<span class="fn">Post</span>(<span class="str">'track'</span>)
+<span class="kw">async</span> <span class="fn">trackEvent</span>(...) { ... }</pre>
+
+      <div class="callout warn">
+        <span class="label">Design Decision</span>
+        <p>If analytics tracking is a universal need (all roles emit events), Option B (rate-limit without permission guard) may be more practical. If tracking should be controlled, use Option A. The key risk is event pollution from compromised accounts, which rate-limiting mitigates regardless.</p>
+      </div>
+
+      <div class="callout ok">
+        <span class="label">As-Built (implemented &mdash; Option A)</span>
+        <p>Option A was chosen: this is an RBAC-tightening audit and <strong>no client currently calls <code>/analytics/track</code></strong> (only docs reference it), so a permission guard carries zero breakage risk. <code>ThrottlerGuard</code> is not wired anywhere in the API, so Option B would have needed extra setup. Implemented as:</p>
+        <ul class="tight">
+          <li>New <code>analytics:track</code> key added to the <code>PERMISSIONS</code> array in <code>seed.ts</code> and granted to all six roles (SUPER_ADMIN inherits it via <code>PERMISSIONS</code>).</li>
+          <li><code>POST track</code> and <code>POST track/batch</code> now carry <code>@UseGuards(PermissionsGuard)</code> + <code>@RequirePermission('analytics:track')</code>.</li>
+        </ul>
+        <p>Requires <code>pnpm --filter @scs/api db:seed</code> + user re-login so refreshed JWT <code>perms</code> include the new key.</p>
+      </div>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>If Option A</strong>: Login as BUYER (with <code>analytics:track</code>) &rarr; POST track &rarr; expect 200</li>
+        <li><strong>If Option A</strong>: Login as user without <code>analytics:track</code> &rarr; POST track &rarr; expect 403</li>
+        <li><strong>If Option B</strong>: Send 61 requests in 60s &rarr; expect 429 on 61st</li>
+      </ul>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PHASE 3 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section id="phase3">
+      <h2>4. Phase 3 &mdash; P3 Future / Cleanup</h2>
+      <div class="phase-banner p3">Phase 3 &mdash; Additive backend changes &bull; ~2 days effort &bull; New role + seed cleanup</div>
+      <p>Phase 3 addresses forward-looking items: defining the DRIVER role so the mobile driver scaffold can ship, and documenting/cleaning up the 23 unused permission keys.</p>
+    </section>
+
+    <!-- GAP-7: Driver Role -->
+    <section id="gap7">
+      <h2>4.1 GAP-7: Define DRIVER Role</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-muted">P3</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">High</span> &mdash; ~1.5 days</td></tr>
+          <tr><td>Apps</td><td>API, Mobile</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/api/src/scripts/seed.ts</span> <span class="file-tag">mobile/lib/router/router.dart</span></td></tr>
+          <tr><td>Depends on</td><td>Phase 1 (mobile role gate in place)</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-warn">Additive</span> &mdash; new role, new permissions, new endpoints</td></tr>
+          <tr><td>Status</td><td><span class="pill p-muted">Not started</span> &mdash; Phase 3. GAP-1's mobile gate is already in place, so the <code>/driver</code> route is safely blocked pending this work.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p>The driver scaffold exists in mobile but there is no DRIVER role in the RBAC system, no permission keys, no backend endpoints. Phase 1 blocks the route as a safety net.</p>
+
+      <h3>Solution</h3>
+      <ol class="tight">
+        <li><strong>Seed</strong>: Add DRIVER role with keys: <code>driver:deliveries:read</code>, <code>driver:deliveries:write</code>, <code>driver:route:read</code></li>
+        <li><strong>API</strong>: Create <code>driver.controller.ts</code> with delivery endpoints</li>
+        <li><strong>Mobile</strong>: Update router to allow DRIVER role to access <code>/driver</code></li>
+      </ol>
+
+      <h3>Seed addition</h3>
+      <p><span class="file-tag">apps/api/src/scripts/seed.ts</span></p>
+<pre><span class="cm">// Add DRIVER role</span>
+{ key: <span class="str">'DRIVER'</span>, name: <span class="str">'Driver'</span>,
+  description: <span class="str">'Delivery driver — manages assigned deliveries'</span> },
+
+<span class="cm">// Add permission keys</span>
+{ key: <span class="str">'driver:deliveries:read'</span>, name: <span class="str">'View Deliveries'</span> },
+{ key: <span class="str">'driver:deliveries:write'</span>, name: <span class="str">'Update Deliveries'</span> },
+{ key: <span class="str">'driver:route:read'</span>, name: <span class="str">'View Route'</span> },
+
+<span class="cm">// Grant to DRIVER role</span>
+DRIVER: [<span class="str">'driver:deliveries:read'</span>, <span class="str">'driver:deliveries:write'</span>, <span class="str">'driver:route:read'</span>],</pre>
+
+      <h3>Mobile router update</h3>
+      <p><span class="file-tag">mobile/lib/router/router.dart</span></p>
+<pre><span class="cm">// Update the driver route check in redirect:</span>
+<span class="kw">final</span> isDriver = role == <span class="str">'DRIVER'</span>;
+<span class="kw">if</span> (path.startsWith(<span class="str">'/driver'</span>) && !isDriver) {
+  <span class="kw">return</span> <span class="str">'/home'</span>;
+}</pre>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>Positive</strong>: Login as DRIVER &rarr; <code>/driver</code> renders dashboard</li>
+        <li><strong>Negative</strong>: Login as BUYER &rarr; <code>/driver</code> redirects to <code>/home</code></li>
+        <li><strong>API</strong>: DRIVER token &rarr; GET /v1/driver/deliveries &rarr; 200</li>
+        <li><strong>API</strong>: BUYER token &rarr; GET /v1/driver/deliveries &rarr; 403</li>
+      </ul>
+    </section>
+
+    <!-- GAP-8: Unused Keys -->
+    <section id="gap8">
+      <h2>4.2 GAP-8: Document Unused Permission Keys</h2>
+      <table>
+        <thead><tr><th>Attribute</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Severity</td><td><span class="pill p-muted">P3</span></td></tr>
+          <tr><td>Effort</td><td><span class="pill p-effort">Low</span> &mdash; ~0.5 day</td></tr>
+          <tr><td>Apps</td><td>API (documentation)</td></tr>
+          <tr><td>Files</td><td><span class="file-tag">apps/api/src/scripts/seed.ts</span></td></tr>
+          <tr><td>Depends on</td><td>Phase 2 complete (all gaps addressed)</td></tr>
+          <tr><td>Breaking?</td><td><span class="pill p-ok">No</span> &mdash; comments only, or remove keys after verification</td></tr>
+          <tr><td>Status</td><td><span class="pill p-muted">Not started</span> &mdash; Phase 3. Note: GAP-6 added <code>analytics:track</code> (now decorator-used), so the unused-key inventory remains 23.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Problem</h3>
+      <p>23 seeded permission keys are not used by any HTTP <code>@RequirePermission</code> decorator. They create audit noise and make it harder to reason about the effective permission surface.</p>
+
+      <h3>Solution</h3>
+      <p><strong>Option A (recommended)</strong>: Add comments to the seed file categorizing each unused key as "planned for Phase X" or "reserved for future use."<br>
+      <strong>Option B</strong>: Remove keys confirmed as unnecessary. Re-run seed to verify no grants reference them.</p>
+
+      <h3>Documentation template</h3>
+      <p><span class="file-tag">apps/api/src/scripts/seed.ts</span></p>
+<pre><span class="cm">// ── Unused / Reserved Permission Keys ──────────────────────</span>
+<span class="cm">// These keys are seeded but not yet used by HTTP decorators.</span>
+<span class="cm">//</span>
+<span class="cm">// Planned for Phase 2 (GAP-10):</span>
+<span class="cm">//   merchant:stores:verify   — verification document download</span>
+<span class="cm">//</span>
+<span class="cm">// Reserved for future features:</span>
+<span class="cm">//   identity:users:read      — admin user list</span>
+<span class="cm">//   identity:users:write     — admin user edit</span>
+<span class="cm">//   orders:refund            — refund workflow</span>
+<span class="cm">//   payments:read            — payment dashboard</span>
+<span class="cm">//   payments:refund          — payment refund action</span>
+<span class="cm">//   ads:campaigns:*          — advertising feature (3 keys)</span>
+<span class="cm">//</span>
+<span class="cm">// Redundant with admin:* equivalents (consider removing):</span>
+<span class="cm">//   identity:users:delete    — use admin:users:write instead?</span>
+<span class="cm">//   catalog:products:read    — use admin:merchants:read instead?</span></pre>
+
+      <h3>Testing</h3>
+      <ul class="tight">
+        <li><strong>If Option A</strong>: Re-run seed &rarr; verify all roles still have same effective permissions</li>
+        <li><strong>If Option B</strong>: Remove key &rarr; re-run seed &rarr; verify no role loses a permission they actually use</li>
+      </ul>
+    </section>
+
+    <!-- DEPENDENCY MATRIX -->
+    <section id="matrix">
+      <h2>5. Dependency &amp; Ordering Matrix</h2>
+      <p>Items within a phase can be developed in parallel unless noted. Cross-phase dependencies are strict.</p>
+
+      <table>
+        <thead><tr><th>Item</th><th>Phase</th><th>Depends On</th><th>Blocks</th><th>Parallel With</th></tr></thead>
+        <tbody>
+          <tr><td>GAP-1 (Mobile gate)</td><td><span class="pill p-p1">P1</span></td><td>None</td><td>GAP-7 (Phase 3)</td><td>GAP-2/3, GAP-5</td></tr>
+          <tr><td>GAP-2/3 (Web gate)</td><td><span class="pill p-p1">P1</span></td><td>None</td><td>None</td><td>GAP-1, GAP-5</td></tr>
+          <tr><td>GAP-5 (Admin hooks)</td><td><span class="pill p-p1">P1</span></td><td>None</td><td>GAP-9 (Phase 2)</td><td>GAP-1, GAP-2/3</td></tr>
+          <tr><td>GAP-9 (Merchants verify)</td><td><span class="pill p-p2">P2</span></td><td>GAP-5</td><td>None</td><td>GAP-10, GAP-4, GAP-6</td></tr>
+          <tr><td>GAP-10 (Doc download)</td><td><span class="pill p-p2">P2</span></td><td>None</td><td>None</td><td>GAP-9, GAP-4, GAP-6</td></tr>
+          <tr><td>GAP-4 (MOD products)</td><td><span class="pill p-p2">P2</span></td><td>None</td><td>None</td><td>GAP-9, GAP-10, GAP-6</td></tr>
+          <tr><td>GAP-6 (Analytics guard)</td><td><span class="pill p-p2">P2</span></td><td>None</td><td>None</td><td>GAP-9, GAP-10, GAP-4</td></tr>
+          <tr><td>GAP-7 (Driver role)</td><td><span class="pill p-muted">P3</span></td><td>GAP-1</td><td>None</td><td>GAP-8</td></tr>
+          <tr><td>GAP-8 (Unused keys)</td><td><span class="pill p-muted">P3</span></td><td>Phase 2 complete</td><td>None</td><td>GAP-7</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <span class="label">Critical Path</span>
+        <p>The critical path is: <strong>GAP-5</strong> (Phase 1) &rarr; <strong>GAP-9</strong> (Phase 2). All other items have no downstream blockers. GAP-7 (Phase 3) depends on GAP-1 (Phase 1) being in place so the driver route is properly gated before the DRIVER role is created.</p>
+        <p><strong>Progress:</strong> the entire critical path (GAP-5 &rarr; GAP-9) plus every other Phase 1 &amp; 2 item is <span class="pill p-ok">complete</span>. Only Phase 3 (GAP-7, GAP-8) remains; GAP-1's mobile gate is already in place, unblocking GAP-7.</p>
+      </div>
+    </section>
+
+    <!-- TESTING STRATEGY -->
+    <section id="testing">
+      <h2>6. Testing Strategy</h2>
+      <p>Each phase should be validated before proceeding to the next. The testing strategy follows a layered approach:</p>
+
+      <h3>6.1 Per-Gap Validation</h3>
+      <table>
+        <thead><tr><th>Layer</th><th>What</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Unit</strong></td><td>Helper functions (<code>hasPerm</code>, <code>hasAllPerms</code>)</td><td>Jest tests with mock user objects</td></tr>
+          <tr><td><strong>Component</strong></td><td>Permission-gated UI elements</td><td>React Testing Library &mdash; render with different role/perms</td></tr>
+          <tr><td><strong>Integration</strong></td><td>Page-level access control</td><td>Navigate to page with different roles &rarr; verify render/redirect</td></tr>
+          <tr><td><strong>E2E</strong></td><td>Full workflow (verification flow with new links)</td><td>Playwright &mdash; login, navigate, click verify, confirm redirect</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.2 Regression Checklist (per phase)</h3>
+      <ul class="tight">
+        <li>SUPER_ADMIN can still access all admin pages</li>
+        <li>ADMIN can access all pages except those explicitly restricted</li>
+        <li>MODERATOR sees correct sidebar items after seed update (Phase 2)</li>
+        <li>MERCHANT_OWNER can still save store settings and manage organization</li>
+        <li>MERCHANT_STAFF sees read-only store/org pages (Phase 1)</li>
+        <li>BUYER cannot access merchant routes in web or mobile</li>
+        <li>Verification workflow (submit &rarr; review &rarr; approve/reject) still functions end-to-end</li>
+        <li>Order lifecycle (create &rarr; accept &rarr; prepare &rarr; deliver) still functions</li>
+      </ul>
+
+      <h3>6.3 Permission Audit Script</h3>
+      <p>After each phase, run a reconciliation script that verifies:</p>
+      <ul class="tight">
+        <li>Every <code>@RequirePermission</code> key exists in the seed</li>
+        <li>Every sidebar <code>perms</code> array matches the page's <code>useRequirePerms</code> call</li>
+        <li>Every role's grants are a subset of seeded permission keys</li>
+      </ul>
+    </section>
+
+    <!-- ROLLBACK -->
+    <section id="rollback">
+      <h2>7. Rollback &amp; Safety</h2>
+      <p>Every change in this plan is <strong>individually revertible</strong>:</p>
+
+      <table>
+        <thead><tr><th>Change</th><th>Revert Action</th><th>Side Effects</th></tr></thead>
+        <tbody>
+          <tr><td>GAP-1: Mobile role redirect</td><td>Remove redirect block from <code>router.dart</code></td><td>None &mdash; returns to auth-only gating</td></tr>
+          <tr><td>GAP-2/3: Web hasPerm helper</td><td>Remove <code>hasPerm()</code> calls from pages</td><td>None &mdash; returns to role-only gating</td></tr>
+          <tr><td>GAP-5: Admin useRequirePerms</td><td>Remove hook calls from pages</td><td>None &mdash; returns to sidebar-only gating</td></tr>
+          <tr><td>GAP-9: Merchants action column</td><td>Remove "Actions" column from table</td><td>None &mdash; returns to display-only table</td></tr>
+          <tr><td>GAP-10: Document download</td><td>Remove download button + revert presign perm change</td><td>None &mdash; returns to display-only documents</td></tr>
+          <tr><td>GAP-4: MODERATOR grant</td><td>Remove <code>admin:merchants:read</code> from MODERATOR in seed</td><td>Re-run seed required</td></tr>
+          <tr><td>GAP-6: Analytics guard</td><td>Remove <code>@RequirePermission('analytics:track')</code> from both endpoints; optionally drop the <code>analytics:track</code> key/grants from seed</td><td>Returns to JWT-only guard; re-run seed if the key is removed</td></tr>
+          <tr><td>GAP-7: DRIVER role</td><td>Remove DRIVER role + keys from seed</td><td>Re-run seed; driver screens unreachable</td></tr>
+          <tr><td>GAP-8: Key documentation</td><td>Remove comments from seed</td><td>None &mdash; comments only</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok">
+        <span class="label">Deployment Safety</span>
+        <p>No phase requires a database migration, schema change, or API contract modification. All changes are either frontend-only (Phase 1), additive backend (Phase 2), or seed-only (Phase 3). Each phase can be deployed independently and rolled back independently.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Implementation Plan &mdash; Smart Commerce &amp; Supply Platform (TAIF) &mdash; Generated 2026-09-18 &mdash; Companion to <a href="Comprehensive_Audit_Report.html">Comprehensive Audit Report</a> &mdash; HEAD 6ee4f7ec68a4 &mdash; Phase 1 &amp; 2 implemented (8 of 10 gaps); Phase 3 pending.</p>
+</footer>
+</body>
+</html>

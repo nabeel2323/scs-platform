@@ -179,6 +179,18 @@ export function hasAdminAccess(): boolean {
   return user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
 }
 
+/** Check if the current user has a specific permission key (GAP-2/3). */
+export function hasPerm(perm: string): boolean {
+  const perms = getUser()?.perms ?? [];
+  return perms.includes(perm);
+}
+
+/** Check if the current user has ALL specified permission keys (GAP-3). */
+export function hasAllPerms(perms: string[]): boolean {
+  const userPerms = getUser()?.perms ?? [];
+  return perms.every((p) => userPerms.includes(p));
+}
+
 /** Set the current user (called after profile fetch). */
 export function setCurrentUser(user: AuthUser | null) {
   currentUser = user;

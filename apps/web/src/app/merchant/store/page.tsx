@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { fetchMyStores, fetchStore, updateStore, createWarehouse, Store } from '../../../lib/api';
+import { hasPerm } from '../../../lib/auth';
 import { pickStore } from '../../../lib/merchant-store';
 import { fetchStoreWarehouses, WarehouseSummary } from '../../../lib/buyer-api';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge } from '../../../components/Shared';
@@ -125,6 +126,9 @@ export default function StoreProfilePage() {
     }
   };
 
+  // GAP-2/3: Staff lacks merchant:stores:write — hide write controls
+  const canEdit = hasPerm('merchant:stores:write');
+
   if (loading) return <LoadingSpinner />;
 
   if (noStore || !store) {
@@ -210,18 +214,25 @@ export default function StoreProfilePage() {
           </label>
         </div>
 
+        {canEdit && (
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <button onClick={handleSave} disabled={saving || !displayName.trim()} style={primaryBtn}>
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+        )}
+        {!canEdit && (
+          <p style={{ fontSize: 12, color: '#5b6b74', marginTop: 8, fontStyle: 'italic' }}>
+            Read-only view — you do not have permission to edit store settings.
+          </p>
+        )}
       </div>
 
       {/* Warehouses */}
       <div style={{ ...card, marginTop: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Warehouses ({warehouses.length})</h2>
-          <button onClick={() => setWhFormOpen(v => !v)} style={ghostBtn}>{whFormOpen ? 'Close' : '+ Add Warehouse'}</button>
+          {canEdit && <button onClick={() => setWhFormOpen(v => !v)} style={ghostBtn}>{whFormOpen ? 'Close' : '+ Add Warehouse'}</button>}
         </div>
 
         {whFormOpen && (

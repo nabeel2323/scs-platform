@@ -3,11 +3,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchAuditLogs, AuditLog } from '../../lib/api';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const RESOURCES = ['', 'order', 'store', 'verification', 'user', 'product', 'inventory', 'notification'];
 const ACTIONS = ['', 'create', 'update', 'delete', 'transition', 'approve', 'reject', 'review'];
 
 export default function AuditLogPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:audit:read']);
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:audit:read']} missingPerms={missingPerms} />;
+
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);

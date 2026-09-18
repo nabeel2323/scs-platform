@@ -8,6 +8,7 @@ import {
   fetchStore,
   fetchStoreDocuments,
   reviewVerification,
+  presignDocumentDownload,
   type VerificationRequest,
   type Store,
   type BusinessDocument,
@@ -213,16 +214,34 @@ export default function VerificationReviewPage() {
                       {doc.fileName} &middot; {(doc.fileSize / 1024).toFixed(1)} KB
                     </div>
                   </div>
-                  <span style={{
-                    padding: '3px 10px',
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: doc.verificationStatus === 'VERIFIED' ? '#e8f5e9' : doc.verificationStatus === 'REJECTED' ? '#ffebee' : '#fff8e1',
-                    color: doc.verificationStatus === 'VERIFIED' ? '#2e7d32' : doc.verificationStatus === 'REJECTED' ? '#c62828' : '#8a6d00',
-                  }}>
-                    {doc.verificationStatus}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      padding: '3px 10px',
+                      borderRadius: 12,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: doc.verificationStatus === 'VERIFIED' ? '#e8f5e9' : doc.verificationStatus === 'REJECTED' ? '#ffebee' : '#fff8e1',
+                      color: doc.verificationStatus === 'VERIFIED' ? '#2e7d32' : doc.verificationStatus === 'REJECTED' ? '#c62828' : '#8a6d00',
+                    }}>
+                      {doc.verificationStatus}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const url = await presignDocumentDownload(doc.id);
+                          if (url) window.open(url, '_blank', 'noopener');
+                        } catch {
+                          setError('Failed to prepare document download.');
+                        }
+                      }}
+                      style={{
+                        padding: '4px 12px', fontSize: '12px', fontWeight: 600,
+                        background: '#1d5fa8', color: '#fff',
+                        border: 'none', borderRadius: 4,
+                        cursor: 'pointer', marginLeft: '8px',
+                      }}
+                    >Download</button>
+                  </div>
                 </div>
               ))}
             </div>

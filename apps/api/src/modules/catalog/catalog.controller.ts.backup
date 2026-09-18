@@ -1,0 +1,281 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  CatalogService,
+  CreateCategoryInput,
+  UpdateCategoryInput,
+  CreateBrandInput,
+  CreateProductInput,
+  UpdateProductInput,
+  CreateVariantInput,
+  AddMediaInput,
+  CreateImportJobInput,
+} from './catalog.service';
+import { SearchService, SearchOptions } from './search.service';
+import { StorageService } from '../../common/storage/storage.service';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
+
+/**
+ * Catalog API — categories, brands, products, variants, media, imports.
+ */
+@Controller()
+@UseGuards(JwtAuthGuard)
+export class CatalogController {
+  constructor(
+    private readonly catalogService: CatalogService,
+    private readonly searchService: SearchService,
+    private readonly storage: StorageService,
+  ) {}
+
+  // ── Categories ───────────────────────────────────────────────
+
+  @Post('categories')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
+  async createCategory(@Body() input: CreateCategoryInput) {
+    return this.catalogService.createCategory(input);
+  }
+
+  @Get('categories')
+  async listCategories(@Query('storeId') storeId?: string, @Query('parentId') parentId?: string) {
+    return this.catalogService.listCategories({
+      storeId,
+      parentId,
+      isActive: true,
+    });
+  }
+
+  @Get('categories/:id')
+  async getCategory(@Param('id') id: string) {
+    return this.catalogService.getCategory(id);
+  }
+
+  @Patch('categories/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
+  async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
+    return this.catalogService.updateCategory(id, input);
+  }
+
+  @Delete('categories/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:categories:write')
+  async deleteCategory(@Param('id') id: string) {
+    return this.catalogService.deleteCategory(id);
+  }
+
+  // ── Brands ───────────────────────────────────────────────────
+
+  @Post('brands')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:brands:manage')
+  async createBrand(@Body() input: CreateBrandInput) {
+    return this.catalogService.createBrand(input);
+  }
+
+  @Get('brands')
+  async listBrands() {
+    return this.catalogService.listBrands();
+  }
+
+  // ── Products ─────────────────────────────────────────────────
+
+  @Post('products')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async createProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
+    return this.catalogService.createProduct(input, user);
+  }
+
+  // Store product grid, priced and attributed like search results (A5-2).
+  // Now returns a paging envelope { items, total } (A5-11).
+  // `status` is what separates the two audiences of this endpoint: the buyer
+  // profile passes ACTIVE, a merchant's own catalog page passes nothing and
+  // still sees its DRAFT/REJECTED listings.
+  @Get('stores/:storeId/products')
+  async listProducts(
+    @Param('storeId') storeId: string,
+    @Query('status') status?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.catalogService.listProductsByStore(storeId, {
+      status,
+      categoryId,
+      // Query params arrive as strings; anything unparseable is left absent
+      // rather than reaching the service as NaN.
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  // Buyer-facing catalog by slug — server-enforces ACTIVE-only (A5-10).
+  // Unlike the storeId endpoint above, a merchant cannot accidentally expose
+  // DRAFT/REJECTED listings through this route.
+  @Get('stores/:slug/catalog')
+  async buyerCatalog(
+    @Param('slug') slug: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const store = await this.catalogService.getStoreBySlug(slug);
+    return this.catalogService.listProductsByStore(store.id, {
+      status: 'ACTIVE',
+      categoryId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  // Buyer-facing detail: includes the seller and the effective tier price (A5-1).
+  @Get('products/:id')
+  async getProduct(@Param('id') id: string) {
+    return this.catalogService.getProductDetail(id);
+  }
+
+  @Patch('products/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async updateProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string, @Body() input: UpdateProductInput) {
+    return this.catalogService.updateProduct(id, input, user);
+  }
+
+  @Delete('products/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.catalogService.deleteProduct(id, user);
+  }
+
+  // ── Variants ─────────────────────────────────────────────────
+
+  @Post('products/:productId/variants')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async createVariant(@CurrentUser() user: JwtPayload, @Param('productId') productId: string, @Body() input: CreateVariantInput) {
+    return this.catalogService.createVariant(productId, input, user);
+  }
+
+  @Get('products/:productId/variants')
+  async listVariants(@Param('productId') productId: string) {
+    return this.catalogService.listVariantsByProduct(productId);
+  }
+
+  // ── Media ────────────────────────────────────────────────────
+
+  @Post('products/:productId/media')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async addMedia(@CurrentUser() user: JwtPayload, @Param('productId') productId: string, @Body() input: AddMediaInput) {
+    return this.catalogService.addMedia(productId, input, user);
+  }
+
+  @Get('products/:productId/media')
+  async listMedia(@Param('productId') productId: string) {
+    return this.catalogService.listMediaByProduct(productId);
+  }
+
+  @Post('media/presign')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async presignMedia(@Body() body: { fileName: string; mimeType: string }) {
+    const key = `products/${crypto.randomUUID()}/${body.fileName}`;
+    const bucket = process.env['S3_MEDIA_BUCKET'] || 'scs-media';
+    const uploadUrl = await this.storage.createPresignedPutUrl(
+      bucket,
+      key,
+      body.mimeType || 'application/octet-stream',
+    );
+    return { uploadUrl, storageKey: key };
+  }
+
+  // ── Import Jobs ──────────────────────────────────────────────
+
+  @Post('stores/:storeId/imports')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async createImportJob(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() input: CreateImportJobInput,
+  ) {
+    return this.catalogService.createImportJob(storeId, input, user);
+  }
+
+  @Get('stores/:storeId/imports')
+  async listImportJobs(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.catalogService.listImportJobsByStore(storeId, user);
+  }
+
+  @Get('imports/:id')
+  async getImportJob(@Param('id') id: string) {
+    return this.catalogService.getImportJob(id);
+  }
+
+  @Post('imports/:id/rows')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async stageImportRows(
+    @Param('id') id: string,
+    @Body() body: { rows: Record<string, string>[]; append?: boolean },
+  ) {
+    return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
+  }
+
+  @Post('imports/:id/process')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async processImportJob(@Param('id') id: string) {
+    return this.catalogService.processImportJob(id);
+  }
+
+  // ── Search ───────────────────────────────────────────────────
+
+  @Get('search')
+  async search(
+    @Query('q') q: string,
+    @Query('storeId') storeId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('brandId') brandId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.searchService.search(q, {
+      storeId,
+      categoryId,
+      brandId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get('search/categories')
+  async getTopCategories(@Query('storeId') storeId?: string) {
+    return this.searchService.getTopCategories(storeId);
+  }
+
+  @Get('search/brands')
+  async getPopularBrands() {
+    return this.searchService.getPopularBrands();
+  }
+}
