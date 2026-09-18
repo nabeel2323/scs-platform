@@ -3,10 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchAdminOrders, fetchAdminOrderDetail, AdminOrder, AdminOrderDetail } from '../../lib/api';
 import TablePagination from '../../components/TablePagination';
+import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 
 const STATUSES = ['', 'SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DISPUTED'];
 
 export default function AdminOrdersPage() {
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:orders:read']);
+
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -69,6 +72,8 @@ export default function AdminOrdersPage() {
   };
 
   const fmt = (n: number) => (n / 100).toFixed(2);
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:orders:read']} missingPerms={missingPerms} />;
 
   return (
     <>

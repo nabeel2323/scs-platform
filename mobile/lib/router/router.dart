@@ -38,6 +38,31 @@ final routerProvider = Provider<GoRouter>((ref) {
       final goingToLogin = state.matchedLocation == '/login';
       if (!loggedIn && !goingToLogin) return '/login';
       if (loggedIn && goingToLogin) return '/home';
+
+      // Role-based route protection (GAP-1 remediation).
+      // profileProvider is a FutureProvider; during initial load maybeWhen
+      // returns null so the redirect does not fire until the profile arrives.
+      if (loggedIn) {
+        final profileAsync = ref.read(profileProvider);
+        final role = profileAsync.maybeWhen(
+          data: (p) => p.role,
+          orElse: () => null,
+        );
+        final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
+        final path = state.matchedLocation;
+
+        // Merchant routes require merchant role, except /merchant/register
+        // which is open so any authenticated user can become a merchant.
+        if (path.startsWith('/merchant') &&
+            path != '/merchant/register' &&
+            !isMerchant) {
+          return '/home';
+        }
+        // Driver route hidden until DRIVER role exists (GAP-7).
+        if (path.startsWith('/driver')) {
+          return '/home';
+        }
+      }
       return null;
     },
     routes: [

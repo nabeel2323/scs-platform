@@ -60,6 +60,7 @@ const PERMISSIONS = [
   'payments:refund',
   // Analytics
   'analytics:read',
+  'analytics:track',
   // Audit
   'audit:read',
   // Support
@@ -107,6 +108,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'payments:read',
       'payments:refund',
       'analytics:read',
+      'analytics:track',
       'audit:read',
       'support:tickets:read',
       'support:tickets:write',
@@ -140,6 +142,10 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       // Moderators curate the platform catalog, so they retain product writes
       // now that product endpoints require merchant:products:write (API-B6).
       'merchant:products:write',
+      // GAP-4: allow moderators to view the Admin Products/Merchants pages
+      // (both gated on admin:merchants:read). View-only; write actions still
+      // require keys the moderator does not hold.
+      'admin:merchants:read',
       'support:tickets:read',
       'support:tickets:write',
       'support:tickets:escalate',
@@ -149,6 +155,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:inventory:read',
       'merchant:pricing:read',
       'support:disputes:write',
+      'analytics:track',
     ],
   },
   {
@@ -175,6 +182,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:pricing:read',
       'merchant:pricing:write',
       'identity:organizations:write',
+      'analytics:track',
     ],
   },
   {
@@ -197,12 +205,13 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'analytics:track',
     ],
   },
   {
     key: 'BUYER',
     name: 'Buyer',
-    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'orders:cancel', 'merchant:stores:read'],
+    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'orders:cancel', 'merchant:stores:read', 'analytics:track'],
   },
 ];
 

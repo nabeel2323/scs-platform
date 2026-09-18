@@ -1,4 +1,5 @@
 packages:
   - "apps/*"
+  - "!apps/scs-platform-b2-test"
   - "packages/*"
   - "mobile/packages/*"

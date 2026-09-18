@@ -18,6 +18,8 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Post('track')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('analytics:track')
   async track(
     @CurrentUser() user: { sub: string; activeOrg: string | null },
     @Body() body: { eventType: string; sessionId?: string; properties?: Record<string, unknown>; device?: string },
@@ -33,6 +35,8 @@ export class AnalyticsController {
   }
 
   @Post('track/batch')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('analytics:track')
   async trackBatch(
     @CurrentUser() user: { sub: string; activeOrg: string | null },
     @Body() body: { events: Array<{ eventType: string; sessionId?: string; properties?: Record<string, unknown>; device?: string }> },

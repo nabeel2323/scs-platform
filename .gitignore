@@ -66,3 +66,6 @@ mobile/packages/api_client/
 # Misc
 *.tgz
 .cache/
+
+# Separate CI worktree
+apps/scs-platform-b2-test/

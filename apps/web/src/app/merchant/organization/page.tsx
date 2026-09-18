@@ -8,6 +8,7 @@ import {
   lookupOrgMember, fetchRoles,
   Organization, OrgMember, UserLookupResult, RoleInfo,
 } from '../../../lib/api';
+import { hasPerm } from '../../../lib/auth';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
 
 export default function MerchantOrganizationPage() {
@@ -143,6 +144,9 @@ export default function MerchantOrganizationPage() {
     }
   };
 
+  // GAP-2/3: Staff lacks identity:organizations:write — hide write controls
+  const canEdit = hasPerm('identity:organizations:write');
+
   if (loading) return <LoadingSpinner />;
 
   if (noOrg || !org) {
@@ -197,18 +201,25 @@ export default function MerchantOrganizationPage() {
           <ReadOnlyField label="Invite Code" value={org.inviteCode || '—'} mono />
         </div>
 
+        {canEdit && (
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={handleSave} disabled={saving || !name.trim()} style={primaryBtn}>
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+        )}
+        {!canEdit && (
+          <p style={{ fontSize: 12, color: '#5b6b74', marginTop: 16, fontStyle: 'italic' }}>
+            Read-only view — you do not have permission to edit organization settings.
+          </p>
+        )}
       </div>
 
       {/* Members */}
       <div style={{ ...card, marginTop: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h2 style={{ ...sectionTitle, marginBottom: 0 }}>Members ({members.length})</h2>
-          <button onClick={() => setAddOpen(v => !v)} style={ghostBtn}>{addOpen ? 'Close' : '+ Add Member'}</button>
+          {canEdit && <button onClick={() => setAddOpen(v => !v)} style={ghostBtn}>{addOpen ? 'Close' : '+ Add Member'}</button>}
         </div>
 
         {addOpen && (
@@ -313,7 +324,7 @@ export default function MerchantOrganizationPage() {
                     <td style={td}>{m.status}</td>
                     <td style={td}>{m.joinedAt ? formatDate(m.joinedAt) : '—'}</td>
                     <td style={td}>
-                      <button onClick={() => handleRemoveMember(m)} style={deleteBtn}>Remove</button>
+                      {canEdit && <button onClick={() => handleRemoveMember(m)} style={deleteBtn}>Remove</button>}
                     </td>
                   </tr>
                 ))}

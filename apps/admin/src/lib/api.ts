@@ -148,6 +148,20 @@ export async function fetchOrgDocuments(orgId: string): Promise<BusinessDocument
   return res.json();
 }
 
+/**
+ * Request a presigned download URL for a verification document (GAP-10).
+ * Backed by POST /v1/documents/:id/presign, which now accepts
+ * `merchant:verification:review` so reviewers can download submissions.
+ */
+export async function presignDocumentDownload(id: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/documents/${id}/presign`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Failed to presign document download: ${res.status}`);
+  const body = (await res.json()) as { downloadUrl: string };
+  return body.downloadUrl;
+}
+
 // ── Admin Orders ─────────────────────────────────────────────
 
 export interface AdminOrder {

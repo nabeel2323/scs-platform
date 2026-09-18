@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Role &amp; Permission Matrix for the Smart Commerce &amp; Supply Platform (TAIF) — RBAC catalog, per-role capabilities, server-side guard coverage and UI consistency verification across Web, Admin and Mobile.">
+<title>Role &amp; Permission Matrix &mdash; Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#eef2f4;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--brand);border-radius:0 var(--radius) var(--radius) 0;padding:.8rem 1rem;margin:1rem 0;background:#f7fafb}
+  .callout.ok{border-color:var(--ok);background:#eef8f2}
+  .callout.warn{border-color:var(--warn);background:#fdf6ed}
+  .callout.err{border-color:var(--err);background:#fdf0ee}
+  .callout .label{display:inline-block;background:var(--brand);color:#fff;padding:.15rem .6rem;border-radius:4px;font-size:.82rem;margin-bottom:.35rem}
+  .callout.ok .label{background:var(--ok)} .callout.warn .label{background:var(--warn)} .callout.err .label{background:var(--err)}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .grid.c3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .grid.c4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  .card h4{margin-top:0}
+  .kpi{font-size:2.2rem;font-weight:700;color:var(--brand)}
+  .small{font-size:.88rem} .muted{color:var(--muted)}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.3rem}
+  ul.tight li,ol.tight li{margin:.2rem 0}
+  .badge{display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:600;vertical-align:middle;margin-left:.3rem}
+  .badge-web{background:#e2edf9;color:var(--info)} .badge-mob{background:#e4f3ea;color:var(--ok)}
+  .badge-adm{background:#fbeedd;color:var(--warn)} .badge-api{background:#eef2f4;color:var(--muted)}
+  footer.site{text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);margin-top:2rem}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;max-height:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Role &amp; Permission Matrix &mdash; Smart Commerce &amp; Supply Platform</h1>
+    <p class="sub">Complete map of user roles, RBAC permission keys, server-side guard coverage and client-side UI consistency across the Web app, Admin Console and Flutter Mobile. Validated against live source: seed script, guards, all 15 controllers, and every client gate.</p>
+    <div class="meta">
+      <span>Phase 1 B2B MVP</span>
+      <span>46 permission keys</span>
+      <span>6 seeded roles</span>
+      <span>73 guarded endpoints</span>
+      <span>RBAC health 91/100</span>
+      <span>2026-09-18</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#summary">Executive Summary</a>
+        <ol style="margin:.2rem 0 0;padding-left:1rem">
+          <li><a href="#summary" style="font-size:.82rem">1.1 Role Coverage</a></li>
+          <li><a href="#summary" style="font-size:.82rem">1.2 App Separation &amp; Role Boundaries</a></li>
+        </ol>
+      </li>
+      <li><a href="#arch">RBAC Architecture</a></li>
+      <li><a href="#catalog">Permission Catalog</a></li>
+      <li><a href="#matrix">Role &rarr; Permission Matrix</a></li>
+      <li><a href="#roles">Role Profiles &amp; Endpoints</a></li>
+      <li><a href="#guards">Server-Side Guard Coverage</a></li>
+      <li><a href="#ui-web">UI Consistency &mdash; Web</a></li>
+      <li><a href="#ui-admin">UI Consistency &mdash; Admin</a></li>
+      <li><a href="#ui-mobile">UI Consistency &mdash; Mobile</a></li>
+      <li><a href="#xref">UI &harr; Permission Cross-Reference</a></li>
+      <li><a href="#gaps">Known Gaps &amp; Inconsistencies</a>
+        <ol style="margin:.2rem 0 0;padding-left:1rem">
+          <li><a href="#gaps" style="font-size:.82rem">11.1 Gap Table</a></li>
+          <li><a href="#gaps" style="font-size:.82rem">11.2 UI Action Gaps by Role</a></li>
+        </ol>
+      </li>
+      <li><a href="#recs">Recommendations</a></li>
+      <li><a href="#qa">QA Validation Checklist</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="summary">
+      <h2>1. Executive Summary</h2>
+      <p>Every authenticated action in the platform is authorized through a single chain: a JWT <code>perms</code> claim minted per <strong>active organization role</strong>, enforced server-side by <code>PermissionsGuard</code>, and mirrored client-side where each surface consumes role/permission data returned by <code>GET /v1/me</code>. The seed defines <strong>46 permission keys</strong> across <strong>6 roles</strong>; <strong>73 of ~120 endpoints</strong> carry an explicit <code>@RequirePermission</code> key, with the remainder self-scoped (a user may only read/modify their own resources).</p>
+
+      <div class="grid c4">
+        <div class="card"><div class="kpi">46</div><h4>Permission Keys</h4><p class="small muted">Seeded across 11 domains</p></div>
+        <div class="card"><div class="kpi">6</div><h4>RBAC Roles</h4><p class="small muted">Driver is Phase&nbsp;2 (no RBAC yet)</p></div>
+        <div class="card"><div class="kpi">73</div><h4>Guarded Endpoints</h4><p class="small muted">Rest are user-scoped by design</p></div>
+        <div class="card"><div class="kpi">3/4</div><h4>Surfaces Gated</h4><p class="small muted">Mobile lacks role gating</p></div>
+      </div>
+
+      <h3>1.1 Role Coverage at a Glance</h3>
+      <table>
+        <thead><tr><th>Role</th><th>Permissions</th><th>Primary Surface</th><th>Server Enforcement</th><th>Client Gating</th></tr></thead>
+        <tbody>
+          <tr><td><code>SUPER_ADMIN</code></td><td><span class="pill p-brand">46 (all)</span></td><td>Admin Console</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Sidebar + pages</span></td></tr>
+          <tr><td><code>ADMIN</code></td><td><span class="pill p-brand">31</span></td><td>Admin Console</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Sidebar + pages</span></td></tr>
+          <tr><td><code>MODERATOR</code></td><td><span class="pill p-info">14</span></td><td>Admin Console</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Sidebar filtered</span></td></tr>
+          <tr><td><code>MERCHANT_OWNER</code></td><td><span class="pill p-info">17</span></td><td>Web + Mobile</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Layout gate</span></td></tr>
+          <tr><td><code>MERCHANT_STAFF</code></td><td><span class="pill p-info">13</span></td><td>Web + Mobile</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-warn">Role-only gate</span></td></tr>
+          <tr><td><code>BUYER</code></td><td><span class="pill p-muted">5</span></td><td>Web + Mobile</td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Redirects</span></td></tr>
+          <tr><td><strong>Driver</strong></td><td><span class="pill p-err">0 &mdash; not seeded</span></td><td>Mobile (scaffold)</td><td><span class="pill p-muted">n/a</span></td><td><span class="pill p-muted">n/a</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>1.2 App Separation &amp; Role Boundaries</h3>
+      <p>The platform has <strong>3 separate applications</strong>, each serving distinct user groups. Roles do <strong>not</strong> span all apps &mdash; each role uses only the app(s) designed for their workflow:</p>
+
+      <table>
+        <thead><tr><th>Application</th><th>Path</th><th>Who Uses It</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Admin Console</strong></td>
+            <td><code>apps/admin</code></td>
+            <td><code>SUPER_ADMIN</code>, <code>ADMIN</code>, <code>MODERATOR</code></td>
+            <td>Platform oversight: manage users, merchants, verification requests, categories, orders, KPIs, audit logs, disputes</td>
+          </tr>
+          <tr>
+            <td><strong>Web App</strong></td>
+            <td><code>apps/web</code></td>
+            <td><code>BUYER</code>, <code>MERCHANT_OWNER</code>, <code>MERCHANT_STAFF</code></td>
+            <td>Buyer flows (search, cart, checkout, orders) <strong>and</strong> merchant flows (store management, catalog, pricing, inventory, promotions)</td>
+          </tr>
+          <tr>
+            <td><strong>Mobile App</strong></td>
+            <td><code>mobile/</code></td>
+            <td><code>BUYER</code>, <code>MERCHANT_OWNER</code>, <code>MERCHANT_STAFF</code></td>
+            <td>Same as Web App but mobile-optimized</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <span class="label">Key Insight</span>
+        <p><strong>SUPER_ADMIN, ADMIN, and MODERATOR only use the Admin Console</strong> &mdash; they never access buyer or merchant flows. <strong>BUYER only uses Web App and Mobile</strong> &mdash; they never access the Admin Console. <strong>MERCHANT_OWNER and MERCHANT_STAFF use Web App (merchant segment) and Mobile</strong> &mdash; they never access the Admin Console.</p>
+        <p style="margin-top:.5rem">This means when analyzing UI gaps, you must check the <strong>correct app</strong> for each role. For example:</p>
+        <ul style="margin:.3rem 0 0">
+          <li>SUPER_ADMIN verifying merchants &rarr; check <strong>Admin Console</strong> <code>/verification</code> pages</li>
+          <li>ADMIN managing categories &rarr; check <strong>Admin Console</strong> <code>/categories</code> page</li>
+          <li>MERCHANT_STAFF updating store settings &rarr; check <strong>Web App</strong> <code>/merchant/store</code> page</li>
+          <li>BUYER browsing products &rarr; check <strong>Web App</strong> <code>/search</code> or <strong>Mobile</strong> home screen</li>
+        </ul>
+      </div>
+
+      <div class="callout ok">
+        <span class="label">Verified Findings</span>
+        <p>The earlier audit gaps (GAP-1..GAP-10) are confirmed closed in live source: inventory (8), pricing (10), analytics reads (2), organization writes (4), order checkout/reorder/cancel (3), dispute resolve/response (2) and document presign endpoints all carry explicit guards. Client-side gating exists in Web (<code>merchant/layout.tsx</code>, <code>Navbar.tsx</code>) and Admin (<code>AdminSidebar.tsx</code>, <code>useRequirePerms</code>), and <code>/v1/me</code> returns the <code>perms</code> array (GAP-6). Remaining gaps are documented in section&nbsp;11.</p>
+      </div>
+    </section>
+
+    <section id="arch">
+      <h2>2. RBAC Architecture</h2>
+      <h3>2.1 Authorization Chain</h3>
+      <ol class="tight">
+        <li><strong>Role assignment</strong> &mdash; each user holds <code>organization_members</code> rows linking them to an org + role. The <em>active</em> membership determines authorization context.</li>
+        <li><strong>Claims resolution</strong> &mdash; <code>IdentityService.buildClaims()</code> (<code>identity.service.ts:1055-1071</code>) resolves <code>rolePermissions</code> for the active <code>roleId</code>, batch-fetches permission keys, and returns <code>{ activeOrgId, roleKey, permissions }</code>.</li>
+        <li><strong>JWT minting</strong> &mdash; access tokens carry <code>sub, activeOrg, role, perms, sid, jti</code> (<code>current-user.decorator.ts:JwtPayload</code>). Refresh, password login and <code>switch-org</code> all re-mint with fresh claims; the old token's <code>jti</code> is denylisted in Redis on switch, closing the stale-permission window.</li>
+        <li><strong>Server enforcement</strong> &mdash; <code>PermissionsGuard</code> (<code>permissions.guard.ts</code>) reads <code>PERMISSIONS_KEY</code> metadata set by <code>@RequirePermission(...)</code> and requires <em>every</em> listed key to be present in <code>request.user.perms</code>; failures return <strong>403</strong> with an RFC&nbsp;7807 body (<code>https://errors.scs.local/forbidden</code>).</li>
+        <li><strong>Client mirroring</strong> &mdash; <code>GET /v1/me</code> re-resolves the same permission set (<code>identity.service.ts:334-348</code>, audit GAP-6) so clients gate UI from the identical source of truth. Web hydrates <code>AuthUser.perms</code> after every token mint; Admin stores <code>AdminUser.perms</code>.</li>
+      </ol>
+
+      <h3>2.2 Key Implementation Files</h3>
+      <table>
+        <thead><tr><th>Concern</th><th>File</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Permission / role seed</td><td><code>apps/api/src/scripts/seed.ts</code></td><td>46 keys, 6 roles, idempotent (<code>ON CONFLICT DO NOTHING</code>)</td></tr>
+          <tr><td>Guard</td><td><code>apps/api/src/common/guards/permissions.guard.ts</code></td><td>AND-semantics on <code>perms</code>; RFC 7807 403</td></tr>
+          <tr><td>Decorator + payload</td><td><code>apps/api/src/common/guards/current-user.decorator.ts</code></td><td><code>@RequirePermission</code>, <code>@CurrentUser</code>, <code>JwtPayload</code></td></tr>
+          <tr><td>Claims + profile perms</td><td><code>apps/api/src/modules/identity/identity.service.ts</code></td><td><code>buildClaims()</code> L1055; <code>getProfile()</code> L334</td></tr>
+          <tr><td>Contract shape</td><td><code>packages/contracts/src/index.ts</code></td><td><code>perms: z.array(z.string())</code> on <code>UserProfileSchema</code></td></tr>
+          <tr><td>Web gate</td><td><code>apps/web/src/app/merchant/layout.tsx</code></td><td>Route-group gate; open paths exempt</td></tr>
+          <tr><td>Web helpers</td><td><code>apps/web/src/lib/auth.ts</code></td><td><code>isMerchantRole()</code>, <code>hasMerchantAccess()</code>, <code>hasAdminAccess()</code></td></tr>
+          <tr><td>Admin sidebar filter</td><td><code>apps/admin/src/components/AdminSidebar.tsx</code></td><td>Per-item <code>perms</code> arrays, AND-matched</td></tr>
+          <tr><td>Admin page guard hook</td><td><code>apps/admin/src/hooks/useRequirePerms.tsx</code></td><td>+ <code>AccessDenied</code> banner component</td></tr>
+          <tr><td>Staging staff contract</td><td><code>apps/api/bootstrap-staging-staff.ts</code></td><td>Asserts <code>MERCHANT_STAFF</code> = exactly 13 permissions</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <span class="label">Convention</span>
+        <p>Permission keys in the seed <strong>must exactly match</strong> the strings in <code>@RequirePermission</code>. A missing key yields an empty <code>perms</code> array and 403 for every role &mdash; including <code>SUPER_ADMIN</code>. When debugging authorization, first diff the guard keys against the seed list (section&nbsp;3).</p>
+      </div>
+    </section>
+
+    <section id="catalog">
+      <h2>3. Permission Catalog (46 keys)</h2>
+      <p>Source: <code>apps/api/src/scripts/seed.ts</code> lines 25&ndash;84. Domains are comment groups in the seed; usage counts show how many endpoints reference each key via <code>@RequirePermission</code>.</p>
+      <table>
+        <thead><tr><th>Domain</th><th>Keys</th><th>Used By</th></tr></thead>
+        <tbody>
+          <tr><td>Identity</td><td><code>identity:users:read</code>, <code>identity:users:write</code>, <code>identity:users:delete</code>, <code>identity:roles:read</code>, <code>identity:roles:write</code></td><td><code>admin.controller.ts</code> (users list/detail/status/roles)</td></tr>
+          <tr><td>Identity &mdash; Orgs</td><td><code>identity:organizations:write</code></td><td><code>organizations.controller.ts</code> (create/update/addMember/removeMember &times;4)</td></tr>
+          <tr><td>Merchant &mdash; Stores</td><td><code>merchant:stores:read</code>, <code>merchant:stores:write</code>, <code>merchant:stores:verify</code>, <code>merchant:stores:reject</code></td><td><code>merchant.controller.ts</code> stores/warehouses/documents &times;8</td></tr>
+          <tr><td>Merchant &mdash; Verification</td><td><code>merchant:verification:review</code></td><td>queue/detail/review &times;3; Admin <code>/verification</code> sidebar</td></tr>
+          <tr><td>Merchant &mdash; Catalog</td><td><code>merchant:products:write</code>, <code>merchant:orders:write</code>, <code>merchant:promotions:write</code></td><td><code>catalog.controller.ts</code> &times;9; <code>orders.controller.ts</code> &times;5</td></tr>
+          <tr><td>Inventory (GAP-1)</td><td><code>merchant:inventory:read</code>, <code>merchant:inventory:write</code></td><td><code>inventory.controller.ts</code> &times;8</td></tr>
+          <tr><td>Pricing (GAP-2)</td><td><code>merchant:pricing:read</code>, <code>merchant:pricing:write</code></td><td><code>pricing.controller.ts</code> &times;10</td></tr>
+          <tr><td>Catalog</td><td><code>catalog:products:read</code>, <code>catalog:products:write</code>, <code>catalog:products:delete</code>, <code>catalog:categories:read</code>, <code>catalog:categories:write</code>, <code>catalog:brands:manage</code></td><td><code>catalog.controller.ts</code> categories &times;3, brands &times;1</td></tr>
+          <tr><td>Orders</td><td><code>orders:read</code>, <code>orders:write</code>, <code>orders:cancel</code>, <code>orders:refund</code></td><td>checkout/reorder &times;2, cancel &times;1</td></tr>
+          <tr><td>Payments</td><td><code>payments:read</code>, <code>payments:refund</code></td><td>Reserved for Phase&nbsp;3 gateway</td></tr>
+          <tr><td>Analytics (GAP-5)</td><td><code>analytics:read</code></td><td><code>analytics.controller.ts</code> events/activity &times;2</td></tr>
+          <tr><td>Audit</td><td><code>audit:read</code></td><td>Admin <code>/audit</code> page (via <code>admin:audit:read</code>)</td></tr>
+          <tr><td>Support</td><td><code>support:tickets:read</code>, <code>support:tickets:write</code>, <code>support:tickets:escalate</code>, <code>support:disputes:resolve</code>, <code>support:disputes:write</code></td><td><code>disputes.controller.ts</code> resolve/response &times;2; Admin <code>/disputes</code></td></tr>
+          <tr><td>Ads</td><td><code>ads:campaigns:read</code>, <code>ads:campaigns:write</code>, <code>ads:campaigns:approve</code></td><td>Reserved (no controller yet)</td></tr>
+          <tr><td>Admin (platform ops)</td><td><code>admin:orders:read</code>, <code>admin:merchants:read</code>, <code>admin:kpis:read</code>, <code>admin:audit:read</code>, <code>admin:users:read</code>, <code>admin:users:write</code></td><td><code>admin.controller.ts</code> &times;15</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="matrix">
+      <h2>4. Role &rarr; Permission Matrix</h2>
+      <p>Counts verified against the seed; <code>MERCHANT_STAFF = 13</code> is additionally asserted at runtime by <code>bootstrap-staging-staff.ts:137</code>. Dots (&middot;) mark ownership; <strong>P</strong> = granted.</p>
+      <table>
+        <thead><tr><th>Permission Group</th><th>SUPER_ADMIN</th><th>ADMIN</th><th>MODERATOR</th><th>MERCHANT_OWNER</th><th>MERCHANT_STAFF</th><th>BUYER</th></tr></thead>
+        <tbody>
+          <tr><td>Identity users (read/write/delete)</td><td>P</td><td>read</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Identity roles (read/write)</td><td>P</td><td>read</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Organizations write</td><td>P</td><td>P</td><td>&mdash;</td><td>P</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Merchant stores (read)</td><td>P</td><td>P</td><td>&mdash;</td><td>P</td><td>&mdash;</td><td>P</td></tr>
+          <tr><td>Merchant stores (write/verify/reject)</td><td>P</td><td>P</td><td>&mdash;</td><td>P</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Verification review</td><td>P</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Merchant products/orders/promotions write</td><td>P</td><td>&mdash;</td><td>products</td><td>P</td><td>P</td><td>&mdash;</td></tr>
+          <tr><td>Inventory read/write</td><td>P</td><td>P</td><td>read</td><td>P</td><td>P</td><td>&mdash;</td></tr>
+          <tr><td>Pricing read/write</td><td>P</td><td>P</td><td>read</td><td>P</td><td>P</td><td>&mdash;</td></tr>
+          <tr><td>Catalog products (read/write/delete)</td><td>P</td><td>read</td><td>P</td><td>P</td><td>read/write</td><td>read</td></tr>
+          <tr><td>Catalog categories (read/write)</td><td>P</td><td>&mdash;</td><td>P</td><td>P</td><td>P</td><td>&mdash;</td></tr>
+          <tr><td>Catalog brands manage</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Orders (read/write/cancel/refund)</td><td>P</td><td>read/cancel/refund</td><td>read</td><td>read/write</td><td>read/write</td><td>read/write/cancel</td></tr>
+          <tr><td>Payments (read/refund)</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Analytics read</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Audit read</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Support tickets (read/write/escalate)</td><td>P</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Disputes (resolve/write)</td><td>P</td><td>P</td><td>write</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Ads campaigns (read/write/approve)</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td>Admin platform ops (orders/merchants/kpis/audit/users)</td><td>P</td><td>P</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+          <tr><td><strong>Total keys</strong></td><td><strong>46</strong></td><td><strong>31</strong></td><td><strong>14</strong></td><td><strong>17</strong></td><td><strong>13</strong></td><td><strong>5</strong></td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">Cell values: <strong>P</strong> = full group granted; named items (e.g. <code>read</code>) = partial grant of that group. Derived 1:1 from <code>seed.ts</code> ROLES array.</p>
+    </section>
+
+    <section id="roles">
+      <h2>5. Role Profiles &amp; Accessible Endpoints</h2>
+
+      <h3>5.1 SUPER_ADMIN &mdash; 46 keys (all permissions)</h3>
+      <p><strong>Capabilities:</strong> every platform operation including user/role management, organization writes, merchant verification, product moderation, KPIs and audit access. Only role that holds <code>identity:users:delete</code>, <code>identity:roles:write</code>, <code>catalog:brands:manage</code> and the <code>ads:*</code> trio (reserved).</p>
+      <p><strong>Endpoints:</strong> all 120+ API routes; every guarded endpoint passes. <strong>Surfaces:</strong> full Admin Console (all 11 sidebar items visible).</p>
+      <p class="small muted">Source: <code>seed.ts:88-91</code> (grants <code>PERMISSIONS</code> wholesale).</p>
+
+      <h3>5.2 ADMIN (Platform Admin) &mdash; 31 keys</h3>
+      <p><strong>Capabilities:</strong> platform operations without destructive identity powers &mdash; merchant verification approve/reject, user read/write (no delete), order oversight with cancel/refund, inventory + pricing oversight (RBAC audit), full admin ops (<code>admin:*</code>), payments read/refund, analytics and audit reads, dispute resolution.</p>
+      <table>
+        <thead><tr><th>Endpoint Group</th><th>Permission</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>GET/PATCH /admin/users</code>, role assign/remove</td><td><code>admin:users:read</code>, <code>admin:users:write</code></td><td><code>admin.controller.ts:117-164</code></td></tr>
+          <tr><td><code>GET /admin/orders</code>, detail, KPIs, audit</td><td><code>admin:orders:read</code>, <code>admin:kpis:read</code>, <code>admin:audit:read</code></td><td><code>admin.controller.ts:27-97</code></td></tr>
+          <tr><td><code>GET /admin/merchants</code>, product moderation</td><td><code>admin:merchants:read</code></td><td><code>admin.controller.ts:55-69,180-203</code></td></tr>
+          <tr><td><code>POST /verification/:id/review</code></td><td><code>merchant:verification:review</code></td><td><code>merchant.controller.ts:223-244</code></td></tr>
+          <tr><td><code>PATCH /disputes/:id/resolve</code></td><td><code>support:disputes:resolve</code></td><td><code>disputes.controller.ts:68-77</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.3 MODERATOR &mdash; 14 keys</h3>
+      <p><strong>Capabilities:</strong> curates the platform catalog (product/category CRUD incl. <code>merchant:products:write</code> so guarded catalog writes pass), reviews merchant verifications, reads inventory/pricing, responds to disputes. <strong>Cannot</strong> manage users, view KPIs or audit logs (sidebar hides these).</p>
+      <div class="callout warn"><span class="label">Mismatch Watch</span><p>MODERATOR holds <code>merchant:products:write</code> but <em>not</em> <code>admin:merchants:read</code>, so the Admin <strong>Products moderation page</strong> (requires <code>admin:merchants:read</code>) is hidden and its API returns 403. Product curation happens through catalog write endpoints instead. See GAP-4.</p></div>
+
+      <h3>5.4 MERCHANT_OWNER &mdash; 17 keys</h3>
+      <p><strong>Capabilities:</strong> full store lifecycle (create/update store, warehouses, documents + presign upload, verification submission), product/variant/media/import management, merchant order actions (accept/partial/reject/confirm/transition), promotions, inventory and pricing management, organization writes (add/remove members).</p>
+      <table>
+        <thead><tr><th>Endpoint Group</th><th>Permission</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /stores</code>, <code>PATCH /stores/:id</code>, warehouses, documents, presign</td><td><code>merchant:stores:write</code> (&times;8)</td><td><code>merchant.controller.ts:62-199</code></td></tr>
+          <tr><td><code>POST /products</code>, variants, media, <code>/media/presign</code>, imports</td><td><code>merchant:products:write</code> (&times;9)</td><td><code>catalog.controller.ts:99-250</code></td></tr>
+          <tr><td><code>/orders/:id/accept|partial-accept|reject|items/confirm|status</code></td><td><code>merchant:orders:write</code> (&times;5)</td><td><code>orders.controller.ts:68-127</code></td></tr>
+          <tr><td><code>/inventory/*</code> (8), <code>/price-lists/*</code> (10)</td><td><code>merchant:inventory:*</code>, <code>merchant:pricing:*</code></td><td><code>inventory.controller.ts</code>, <code>pricing.controller.ts</code></td></tr>
+          <tr><td><code>POST /organizations</code>, members add/remove</td><td><code>identity:organizations:write</code> (&times;4)</td><td><code>organizations.controller.ts:26-83</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.5 MERCHANT_STAFF &mdash; 13 keys</h3>
+      <p><strong>Capabilities:</strong> day-to-day store operations &mdash; identical to owner for products, orders, promotions, inventory and pricing. <strong>Cannot</strong> create/update stores or warehouses (<code>merchant:stores:write</code> is owner-only), cannot write organizations. Count is contract-asserted at exactly 13 by <code>bootstrap-staging-staff.ts:137</code> (staging user <code>+966500000011</code>).</p>
+      <div class="callout warn"><span class="label">UI/API Mismatch</span><p>The Web merchant gate checks <em>role</em> (<code>MERCHANT_OWNER | MERCHANT_STAFF</code>), so staff can open <code>/merchant/store</code> and <code>/merchant/organization</code> pages, but every write action there returns 403 because staff lack <code>merchant:stores:write</code> / <code>identity:organizations:write</code>. See GAP-2.</p></div>
+
+      <h3>5.6 BUYER &mdash; 5 keys</h3>
+      <p><strong>Capabilities:</strong> browse verified stores, search/view catalog, cart + checkout (<code>orders:write</code>), order history (<code>orders:read</code>), cancel eligible orders (<code>orders:cancel</code>). Reviews, disputes, favorites, saved suppliers, profile/credentials and notifications are self-scoped routes guarded only by <code>JwtAuthGuard</code> &mdash; any authenticated user (including buyers) passes, with row-level ownership enforced in services.</p>
+      <table>
+        <thead><tr><th>Flow</th><th>Guard</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /checkout</code>, <code>/orders/master/:id/reorder</code></td><td><code>orders:write</code></td><td><code>orders.controller.ts:19-38</code></td></tr>
+          <tr><td><code>POST /orders/:id/cancel</code></td><td><code>orders:cancel</code></td><td><code>orders.controller.ts:129-135</code></td></tr>
+          <tr><td>Reviews / disputes / conversations / favorites</td><td>JWT only (self-scoped)</td><td>Service checks buyer ownership + delivered status</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.7 Driver &mdash; not in RBAC (Phase 2)</h3>
+      <p>No <code>DRIVER</code> role, permission keys or org-membership model exists in the seed. The mobile <code>/driver</code> route renders a UI scaffold with hardcoded data (<code>driver_dashboard_screen.dart</code>); the Accept button is a no-op. Any authenticated mobile user can currently navigate there because mobile has no role gating (GAP-1). Driver RBAC is a Phase&nbsp;2 deliverable.</p>
+    </section>
+
+    <section id="guards">
+      <h2>6. Server-Side Guard Coverage Map</h2>
+      <p>Every <code>@RequirePermission</code> in the API (73 decorators across 9 controllers), verified by grep. Endpoints listed as <em>self-scoped</em> are protected by <code>JwtAuthGuard</code> with row-level ownership checks in services &mdash; a deliberate design for user-owned resources.</p>
+
+      <h3>6.1 Fully Guarded Controllers</h3>
+      <table>
+        <thead><tr><th>Controller</th><th>Guarded Endpoints</th><th>Keys</th></tr></thead>
+        <tbody>
+          <tr><td><code>admin.controller.ts</code></td><td>15/15 &mdash; orders list+detail, merchants, KPIs, audit, verifications alias, users CRUD + role assign/remove, roles list, orgs list, product moderation</td><td><code>admin:*</code> (6 keys)</td></tr>
+          <tr><td><code>inventory.controller.ts</code></td><td>8/8 &mdash; warehouse/variant reads, low-stock, update, adjust, reserve, release, movements</td><td><code>merchant:inventory:read/write</code></td></tr>
+          <tr><td><code>pricing.controller.ts</code></td><td>10/10 &mdash; price-list CRUD, tiers CRUD, variant pricing, resolve</td><td><code>merchant:pricing:read/write</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.2 Mixed Coverage (writes guarded, reads self-scoped or public)</h3>
+      <table>
+        <thead><tr><th>Controller</th><th>Guarded (count)</th><th>Keys</th><th>Unguarded &amp; Rationale</th></tr></thead>
+        <tbody>
+          <tr><td><code>catalog.controller.ts</code></td><td>13 &mdash; category write &times;3, brand manage &times;1, product/variant/media/import writes &times;9</td><td><code>catalog:categories:write</code>, <code>catalog:brands:manage</code>, <code>merchant:products:write</code></td><td>Reads (categories, brands, products, variants, media, search, buyer catalog) are public buyer surfaces behind JWT</td></tr>
+          <tr><td><code>merchant.controller.ts</code></td><td>11 &mdash; store/warehouse/document writes + presign &times;8, verification &times;3</td><td><code>merchant:stores:write</code>, <code>merchant:verification:review</code></td><td>Store/org reads role-scoped in-controller (admins see all, merchants see own org, buyers see VERIFIED only, <code>merchant.controller.ts:69-101</code>)</td></tr>
+          <tr><td><code>orders.controller.ts</code></td><td>8 &mdash; checkout, reorder, accept, partial-accept, reject, confirm item, status transition, cancel</td><td><code>orders:write</code> &times;2, <code>merchant:orders:write</code> &times;5, <code>orders:cancel</code> &times;1</td><td>Order reads self-scoped to buyer/merchant of record</td></tr>
+          <tr><td><code>organizations.controller.ts</code></td><td>4 &mdash; create, update, addMember, removeMember</td><td><code>identity:organizations:write</code></td><td>Join uses invite code; reads scoped to membership</td></tr>
+          <tr><td><code>analytics.controller.ts</code></td><td>2 &mdash; <code>GET events</code>, <code>GET activity</code></td><td><code>analytics:read</code></td><td><code>POST track/batch</code> JWT-only by design (any user emits events)</td></tr>
+          <tr><td><code>disputes.controller.ts</code></td><td>2 &mdash; <code>PATCH resolve</code>, <code>POST response</code></td><td><code>support:disputes:resolve</code>, <code>support:disputes:write</code></td><td>Create/list/evidence/conversation self-scoped (party-of-record); class-level guard deliberately omitted</td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.3 Self-Scoped Controllers (JWT only, no permission keys)</h3>
+      <table>
+        <thead><tr><th>Controller</th><th>Endpoints</th><th>Scope Rule</th></tr></thead>
+        <tbody>
+          <tr><td><code>auth.controller.ts</code></td><td>OTP, refresh, logout, switch-org, password login, device-check</td><td>Public or token-bearer</td></tr>
+          <tr><td><code>profile.controller.ts</code></td><td>/me, favorites, saved-suppliers, credentials, sessions, devices</td><td>Own data only (<code>user.sub</code>)</td></tr>
+          <tr><td><code>cart.controller.ts</code></td><td>/cart CRUD + promo</td><td>One active cart per user</td></tr>
+          <tr><td><code>reviews.controller.ts</code></td><td>create review, store/order reviews, trust</td><td>Reviewed-order ownership + DELIVERED status in service</td></tr>
+          <tr><td><code>notifications.controller.ts</code></td><td>list, unread-count, mark-read, preferences, device tokens</td><td>Own notifications only</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok"><span class="label">Health Note</span><p>All write paths on shared resources (products, orders, inventory, pricing, stores, orgs, moderation) require an explicit permission key. The self-scoped remainder cannot mutate other users' data. No P0/P1 enforcement holes remain from the original audit.</p></div>
+    </section>
+
+    <section id="ui-web">
+      <h2>7. UI Consistency &mdash; Web App (apps/web)</h2>
+      <h3>7.1 Navigation Gating</h3>
+      <p><code>Navbar.tsx</code> (<code>apps/web/src/components/Navbar.tsx:17,68-72</code>) derives <code>isMerchant</code> from <code>isMerchantRole(user?.role)</code> &mdash; reactive to login/logout via <code>useAuth()</code> &mdash; and renders the <strong>Merchant</strong> link only for <code>MERCHANT_OWNER</code>/<code>MERCHANT_STAFF</code>. Buyer links (Search, Stores, Favorites, Suppliers, Cart, Orders, Notifications) are always visible; Sign In/Account switch on authentication state.</p>
+
+      <h3>7.2 Route-Group Gate</h3>
+      <p><code>apps/web/src/app/merchant/layout.tsx</code> is a client layout covering the entire <code>/merchant/*</code> segment. For each navigation it (1) exempts open paths, (2) requires <code>isAuthenticated()</code> else redirects to <code>/auth/login</code>, (3) requires <code>hasMerchantAccess()</code> else redirects buyers to <code>/search</code>. It renders nothing until checks pass, preventing flash-of-forbidden-content.</p>
+      <table>
+        <thead><tr><th>Path</th><th>Gate</th><th>Server Key Needed for Writes</th><th>Consistency</th></tr></thead>
+        <tbody>
+          <tr><td><code>/merchant/register</code>, <code>/merchant/onboard</code>, <code>/merchant/success</code></td><td>Open (any authenticated user)</td><td><code>merchant:stores:write</code> (on submit)</td><td><span class="pill p-ok">Aligned</span> &mdash; a buyer who registers becomes MERCHANT_OWNER via org creation</td></tr>
+          <tr><td><code>/merchant</code> (dashboard), <code>/merchant/orders</code>, <code>/merchant/catalog</code>, <code>/merchant/customers</code>, <code>/merchant/import</code></td><td>Role: MERCHANT_OWNER | MERCHANT_STAFF</td><td><code>merchant:orders:write</code>, <code>merchant:products:write</code></td><td><span class="pill p-ok">Aligned</span> &mdash; both roles hold these keys</td></tr>
+          <tr><td><code>/merchant/pricing</code>, <code>/merchant/inventory</code></td><td>Role gate</td><td><code>merchant:pricing:*</code>, <code>merchant:inventory:*</code></td><td><span class="pill p-ok">Aligned</span> &mdash; both roles hold read+write</td></tr>
+          <tr><td><code>/merchant/store</code> (profile edit), <code>/merchant/organization</code></td><td>Role gate</td><td><code>merchant:stores:write</code>, <code>identity:organizations:write</code></td><td><span class="pill p-warn">Mismatch (GAP-2)</span> &mdash; staff reach the UI but writes 403</td></tr>
+        </tbody>
+      </table>
+
+      <h3>7.3 Page-Level Checks</h3>
+      <ul class="tight">
+        <li><strong>Hydration</strong> &mdash; <code>lib/auth.ts:hydrateUserFromProfile()</code> refreshes role+perms from <code>/v1/me</code> after OTP verify, password login and <code>switchOrg</code>, so gating matches the server after org switches (audit A2-2).</li>
+        <li><strong>Admin links</strong> &mdash; <code>hasAdminAccess()</code> exists in <code>lib/auth.ts:177-180</code> but no web route group currently consumes it (web has no admin pages; admins use the Admin Console).</li>
+        <li><strong>Perms underuse</strong> &mdash; web checks <em>role</em>, not the <code>perms</code> array, for merchant gating; feature-level permission awareness is not implemented client-side (GAP-3).</li>
+      </ul>
+    </section>
+
+    <section id="ui-admin">
+      <h2>8. UI Consistency &mdash; Admin Console (apps/admin)</h2>
+      <h3>8.1 Sidebar Permission Filter</h3>
+      <p><code>AdminSidebar.tsx:7-19</code> declares a required-permission array per nav item and filters rendering on <code>user.perms</code> (AND semantics, <code>AdminSidebar.tsx:55-61</code>) &mdash; exactly mirroring the server's AND-match in <code>PermissionsGuard</code>.</p>
+      <table>
+        <thead><tr><th>Sidebar Item</th><th>Required Perm</th><th>SUPER_ADMIN</th><th>ADMIN</th><th>MODERATOR</th><th>Server Guard</th></tr></thead>
+        <tbody>
+          <tr><td>Dashboard</td><td>&mdash; (any)</td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><code>GET /admin/kpis</code> etc. (dashboard page uses public + KPI mix)</td></tr>
+          <tr><td>Users</td><td><code>admin:users:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:117</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Orders</td><td><code>admin:orders:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:27</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Merchants</td><td><code>admin:merchants:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:55</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Verification</td><td><code>merchant:verification:review</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><code>merchant.controller.ts:201</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Categories</td><td><code>catalog:categories:write</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span> (ADMIN lacks key)</td><td><span class="pill p-ok">Show</span></td><td><code>catalog.controller.ts:48</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Disputes</td><td><code>support:disputes:resolve</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-warn">Hidden</span> (MOD has write only)</td><td><code>disputes.controller.ts:70</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Products</td><td><code>admin:merchants:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:180</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>KPIs</td><td><code>admin:kpis:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:71</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Audit Log</td><td><code>admin:audit:read</code></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-err">Hidden</span></td><td><code>admin.controller.ts:77</code> <span class="pill p-ok">Match</span></td></tr>
+          <tr><td>Account Security</td><td>&mdash; (any)</td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td><span class="pill p-ok">Show</span></td><td>Self-scoped profile endpoints</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">Hidden entries are deep-link-protected only where a page-level hook exists; otherwise the API still returns 403 (fail-secure). See GAP-5 for page coverage.</p>
+
+      <h3>8.2 Page-Level <code>useRequirePerms</code> Coverage</h3>
+      <p>The <code>useRequirePerms</code> hook + <code>AccessDenied</code> banner (<code>apps/admin/src/hooks/useRequirePerms.tsx</code>) is applied to <strong>3 of 11</strong> pages:</p>
+      <table>
+        <thead><tr><th>Page</th><th>Guard</th><th>File</th></tr></thead>
+        <tbody>
+          <tr><td>Product moderation</td><td><code>useRequirePerms(['admin:merchants:read'])</code></td><td><code>app/products/page.tsx:21</code></td></tr>
+          <tr><td>Category management</td><td><code>useRequirePerms(['catalog:categories:write'])</code></td><td><code>app/categories/page.tsx:20</code></td></tr>
+          <tr><td>Dispute oversight</td><td><code>useRequirePerms(['support:disputes:resolve'])</code></td><td><code>app/disputes/page.tsx:45</code></td></tr>
+        </tbody>
+      </table>
+      <p>Pages without the hook (users, orders, merchants, verification, kpis, audit, account) still fail-secure: the server rejects with 403 and pages render an error state &mdash; but the experience is an error banner rather than a pre-emptive access-denied screen (GAP-5).</p>
+    </section>
+
+    <section id="ui-mobile">
+      <h2>9. UI Consistency &mdash; Mobile (mobile/)</h2>
+      <h3>9.1 Route Protection</h3>
+      <p><code>mobile/lib/router/router.dart:36-42</code> implements a single authentication redirect: unauthenticated users are forced to <code>/login</code>; authenticated users are pushed away from <code>/login</code> to <code>/home</code>. <strong>No role-based redirect exists.</strong> All 30 routes &mdash; buyer, merchant and driver &mdash; are reachable by any authenticated token holder.</p>
+      <h3>9.2 Role Data Availability</h3>
+      <p>The mobile model layer already carries <code>role</code> (<code>models.dart:605-628</code>, <code>UserProfile.role</code> from <code>/v1/me</code>) and membership roles per org (<code>models.dart:692</code> maps <code>roleKey</code>), and screens display role labels (e.g. <code>profile_screen.dart:119</code>). The data needed for gating is present; only the router decision and screen-level conditionals are missing.</p>
+      <table>
+        <thead><tr><th>Screen Group</th><th>Server Keys Required</th><th>Mobile Gate</th><th>Consistency</th></tr></thead>
+        <tbody>
+          <tr><td>Home, Search, Stores, Product, Cart, Checkout, Orders, Notifications, Profile, Organizations, Reviews</td><td>Self-scoped / <code>orders:*</code></td><td>Auth only</td><td><span class="pill p-ok">Aligned</span> (all roles legitimately use these)</td></tr>
+          <tr><td>Merchant: dashboard, orders, catalog, product edit, categories, customers</td><td><code>merchant:products/orders:write</code></td><td><span class="pill p-err">None</span></td><td><span class="pill p-warn">GAP-1</span> &mdash; buyer can open screens; API 403s on action</td></tr>
+          <tr><td>Merchant: registration, store profile</td><td><code>merchant:stores:write</code></td><td><span class="pill p-err">None</span></td><td><span class="pill p-warn">GAP-1/2</span> &mdash; staff can open store profile; writes 403</td></tr>
+          <tr><td>Driver dashboard</td><td>Phase 2 (no keys)</td><td><span class="pill p-err">None</span></td><td><span class="pill p-warn">GAP-1</span> &mdash; scaffold with no backend</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><span class="label">Risk Assessment</span><p>Exposure is information-level only: every mutating merchant endpoint is guarded server-side, so a buyer poking merchant screens receives 403 before any data change. Impact is UX (error states) plus limited read-surface shape leaks, not privilege escalation.</p></div>
+    </section>
+
+    <section id="xref">
+      <h2>10. UI &harr; Permission Cross-Reference</h2>
+      <p>Feature-level matrix tying each client capability to the exact permission key and the guard/gate that enforces it.</p>
+      <table>
+        <thead><tr><th>Feature</th><th>Permission Key</th><th>API Guard</th><th>Web UI</th><th>Admin UI</th><th>Mobile UI</th></tr></thead>
+        <tbody>
+          <tr><td>Checkout / reorder</td><td><code>orders:write</code></td><td><code>orders.controller.ts:19,37</code></td><td><span class="pill p-ok">OK</span></td><td>n/a</td><td><span class="pill p-ok">OK</span></td></tr>
+          <tr><td>Cancel order</td><td><code>orders:cancel</code></td><td><code>orders.controller.ts:130</code></td><td><span class="pill p-ok">OK</span></td><td>n/a</td><td><span class="pill p-ok">OK</span></td></tr>
+          <tr><td>Accept / partial / reject / status</td><td><code>merchant:orders:write</code></td><td><code>orders.controller.ts:69-113</code></td><td><span class="pill p-ok">Gate + key</span></td><td>n/a</td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Product / variant / media / import CRUD</td><td><code>merchant:products:write</code></td><td><code>catalog.controller.ts</code> &times;9</td><td><span class="pill p-ok">Gate + key</span></td><td><span class="pill p-ok">Hook</span></td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Inventory adjust / reserve</td><td><code>merchant:inventory:write</code></td><td><code>inventory.controller.ts</code></td><td><span class="pill p-ok">Gate</span></td><td>n/a</td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Price list / tier CRUD</td><td><code>merchant:pricing:write</code></td><td><code>pricing.controller.ts</code></td><td><span class="pill p-ok">Gate</span></td><td>n/a</td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Store create/update + documents</td><td><code>merchant:stores:write</code></td><td><code>merchant.controller.ts</code> &times;8</td><td><span class="pill p-warn">Role gate only</span> (staff 403)</td><td>n/a</td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Verification review</td><td><code>merchant:verification:review</code></td><td><code>merchant.controller.ts:203-227</code></td><td>n/a</td><td><span class="pill p-ok">Sidebar match</span></td><td>n/a</td></tr>
+          <tr><td>User management</td><td><code>admin:users:read/write</code></td><td><code>admin.controller.ts:117-164</code></td><td>n/a</td><td><span class="pill p-warn">Sidebar only</span> (GAP-5)</td><td>n/a</td></tr>
+          <tr><td>KPIs / audit</td><td><code>admin:kpis:read</code> / <code>admin:audit:read</code></td><td><code>admin.controller.ts:71,77</code></td><td>n/a</td><td><span class="pill p-warn">Sidebar only</span> (GAP-5)</td><td>n/a</td></tr>
+          <tr><td>Dispute resolve / response</td><td><code>support:disputes:resolve/write</code></td><td><code>disputes.controller.ts:57-77</code></td><td>n/a</td><td><span class="pill p-ok">Hook + sidebar</span></td><td>n/a</td></tr>
+          <tr><td>Org member management</td><td><code>identity:organizations:write</code></td><td><code>organizations.controller.ts:26-83</code></td><td><span class="pill p-warn">Role gate only</span></td><td>n/a</td><td><span class="pill p-warn">Auth-only</span></td></tr>
+          <tr><td>Analytics read</td><td><code>analytics:read</code></td><td><code>analytics.controller.ts:51-64</code></td><td>n/a</td><td>n/a (no page yet)</td><td>n/a</td></tr>
+          <tr><td>Category management</td><td><code>catalog:categories:write</code></td><td><code>catalog.controller.ts:48-77</code></td><td>n/a</td><td><span class="pill p-ok">Hook + sidebar</span></td><td>n/a</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted"><span class="pill p-ok">OK/Match</span> = client gate and server guard agree. <span class="pill p-warn">Auth-only / Role gate only / Sidebar only</span> = client is coarser than the server; server remains authoritative (fail-secure).</p>
+    </section>
+
+    <section id="gaps">
+      <h2>11. Known Gaps &amp; Inconsistencies</h2>
+      <p>All items verified against live source on 2026-09-18. None is a privilege-escalation vector; the server remains fail-secure for every listed case.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Gap</th><th>Severity</th><th>Evidence</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr><td>GAP-1</td><td><strong>Mobile has no role-based UI gating</strong> &mdash; every route (merchant tools, driver scaffold) reachable by any authenticated user</td><td><span class="pill p-warn">Medium</span></td><td><code>router.dart:36-42</code> (auth-only redirect)</td><td>Buyers see merchant screens and 403 error states on action; confusing UX</td></tr>
+          <tr><td>GAP-2</td><td><strong>Web merchant gate is role-based, not perms-based</strong> &mdash; MERCHANT_STAFF can open <code>/merchant/store</code> and <code>/merchant/organization</code> but all writes 403 (staff lack <code>merchant:stores:write</code> / <code>identity:organizations:write</code>)</td><td><span class="pill p-warn">Medium</span></td><td><code>merchant/layout.tsx:39</code> uses <code>hasMerchantAccess()</code> (role)</td><td>Staff-facing pages render controls that cannot succeed</td></tr>
+          <tr><td>GAP-3</td><td><strong>Web never consumes <code>perms</code> for feature-level gating</strong> &mdash; <code>AuthUser.perms</code> is hydrated but unused in components</td><td><span class="pill p-muted">Low</span></td><td><code>lib/auth.ts:39,208</code> stored; no consumer</td><td>Cannot hide individual actions (e.g. Import button for read-only future roles)</td></tr>
+          <tr><td>GAP-4</td><td><strong>MODERATOR cannot use Admin Products page</strong> &mdash; page + API need <code>admin:merchants:read</code>; MOD holds <code>merchant:products:write</code> instead</td><td><span class="pill p-muted">Low</span> (design decision)</td><td><code>products/page.tsx:21</code> vs <code>seed.ts:132-152</code></td><td>Product curation limited to catalog write endpoints</td></tr>
+          <tr><td>GAP-5</td><td><strong>Admin page-level <code>useRequirePerms</code> on 3 of 11 pages</strong> &mdash; users/orders/merchants/verification/kpis/audit rely on sidebar hiding only</td><td><span class="pill p-muted">Low</span></td><td>grep <code>useRequirePerms(</code> &rarr; 3 pages</td><td>Deep links show error banner after fetch instead of pre-emptive access-denied</td></tr>
+          <tr><td>GAP-6</td><td><strong>Analytics <code>POST track/batch</code> unguarded</strong> (JWT only) &mdash; any user can emit events; reads properly guarded</td><td><span class="pill p-muted">Low</span> (by design)</td><td><code>analytics.controller.ts:20-48</code></td><td>Event pollution possible from any authenticated caller</td></tr>
+          <tr><td>GAP-7</td><td><strong>Driver role absent from RBAC</strong> &mdash; no keys, no org model, mobile scaffold has no backend</td><td><span class="pill p-muted">Low</span> (Phase 2 scope)</td><td><code>seed.ts</code> (6 roles), <code>driver_dashboard_screen.dart</code></td><td>Driver features cannot ship until role + guards defined</td></tr>
+          <tr><td>GAP-8</td><td><strong>Reserved keys without controllers</strong> &mdash; <code>payments:*</code>, <code>ads:*</code>, <code>identity:users:delete</code>, <code>orders:refund</code> (API side), <code>support:tickets:*</code> have no enforcing endpoints yet</td><td><span class="pill p-muted">Low</span></td><td>Section 3 usage column</td><td>Grant surface ahead of implementation; harmless but audit noise</td></tr>
+          <tr><td>GAP-9</td><td><strong>ADMIN cannot manage categories from UI</strong> &mdash; sidebar hides Categories (requires <code>catalog:categories:write</code> which ADMIN lacks); if ADMIN needs to manage categories, they cannot from UI</td><td><span class="pill p-muted">Low</span> (design decision)</td><td><code>AdminSidebar.tsx:63</code> (Categories requires <code>catalog:categories:write</code>), <code>seed.ts:95-129</code> (ADMIN lacks it)</td><td>ADMIN cannot perform category CRUD operations from UI; MODERATOR handles this</td></tr>
+          <tr><td>GAP-10</td><td><strong>Merchants page shows verification status but no action to verify</strong> &mdash; <code>/merchants</code> displays verification status (PENDING, VERIFIED, etc.) but provides no "Verify" button or link to the verification detail page; user must navigate to <code>/verification</code> separately</td><td><span class="pill p-warn">Medium</span> (UX gap)</td><td><code>merchants/page.tsx:136-152</code> (table rows, no action column)</td><td>SUPER_ADMIN/ADMIN/MODERATOR see PENDING stores but cannot verify directly from the Merchants page; must navigate to Verification Queue page</td></tr>
+        </tbody>
+      </table>
+
+      <h3>11.2 UI Action Gaps by Role &mdash; What Each Role Can and Cannot Do</h3>
+      <p>This subsection clarifies each role's goal and whether they can perform their actions from the UI. All gaps documented above are fail-secure (server 403s protect data), but some create confusing UX where users see controls that cannot succeed. <strong>Note which app each role uses</strong> &mdash; roles do not span all apps (see section 1.2).</p>
+
+      <table>
+        <thead><tr><th>Role</th><th>App</th><th>Goal (Simple Words)</th><th>UI Capabilities</th><th>UI Gaps / Limitations</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>SUPER_ADMIN</strong></td>
+            <td><strong>Admin Console</strong></td>
+            <td>Full platform control &mdash; manage everything</td>
+            <td>
+              &bull; Can access all 11 admin pages (Dashboard, Users, Orders, Merchants, Verification, Categories, Disputes, Products, KPIs, Audit, Account)<br>
+              &bull; Can approve/reject merchant verification requests (UI exists at <code>/verification/[id]</code> with decision buttons, notes, rejection reason)<br>
+              &bull; Can manage categories (CRUD UI at <code>/categories</code>)<br>
+              &bull; Can suspend/activate users, assign roles, manage orders, view KPIs, audit logs
+            </td>
+            <td>
+              <strong>GAP-10</strong>: Merchants page shows verification status but no "Verify" button &mdash; must navigate to <code>/verification</code> separately to review requests.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>ADMIN</strong></td>
+            <td><strong>Admin Console</strong></td>
+            <td>Platform operations &mdash; oversee users, merchants, orders, KPIs</td>
+            <td>
+              &bull; Can access 10 of 11 admin pages (all except Categories)<br>
+              &bull; Can manage users (suspend/activate, assign roles)<br>
+              &bull; Can review merchant verification requests (approve/reject)<br>
+              &bull; Can manage orders, view merchants, KPIs, audit logs, resolve disputes
+            </td>
+            <td>
+              <strong>GAP-9</strong>: Cannot manage categories from UI (sidebar hides it, lacks <code>catalog:categories:write</code>). If ADMIN needs to manage categories, they cannot. <em>Design decision: MODERATOR handles category curation.</em><br>
+              <strong>GAP-10</strong>: Merchants page shows verification status but no "Verify" button &mdash; must navigate to <code>/verification</code> separately.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>MODERATOR</strong></td>
+            <td><strong>Admin Console</strong></td>
+            <td>Catalog curation &mdash; manage products, categories, verify merchants</td>
+            <td>
+              &bull; Can access 3 admin pages: Verification, Categories, Disputes (respond only)<br>
+              &bull; Can approve/reject merchant verification requests<br>
+              &bull; Can manage categories (CRUD)<br>
+              &bull; Can respond to disputes (write, not resolve)
+            </td>
+            <td>
+              <strong>GAP-4</strong>: Cannot use Admin Products page (sidebar hides it, lacks <code>admin:merchants:read</code>). Product curation limited to catalog write endpoints.<br>
+              <strong>GAP-5</strong>: Verification/Categories pages don't have <code>useRequirePerms</code> &mdash; deep links show error state instead of pre-emptive access-denied.<br>
+              <strong>GAP-10</strong>: Merchants page shows verification status but no "Verify" button &mdash; must navigate to <code>/verification</code> separately.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>MERCHANT_OWNER</strong></td>
+            <td><strong>Web App + Mobile</strong></td>
+            <td>Full store management &mdash; create/update store, manage products, orders, pricing, inventory, promotions, org members</td>
+            <td>
+              &bull; Can access all 9 web merchant pages (Dashboard, Orders, Catalog, Store, Pricing, Inventory, Customers, Import, Organization)<br>
+              &bull; Can create/update store settings<br>
+              &bull; Can manage organization members<br>
+              &bull; Can perform all store operations from UI
+            </td>
+            <td><strong>No UI gaps</strong> &mdash; all actions can be performed from UI</td>
+          </tr>
+          <tr>
+            <td><strong>MERCHANT_STAFF</strong></td>
+            <td><strong>Web App + Mobile</strong></td>
+            <td>Day-to-day store operations &mdash; manage products, orders, pricing, inventory, promotions</td>
+            <td>
+              &bull; Can access all 9 web merchant pages (same as OWNER)<br>
+              &bull; Can manage products, orders, pricing, inventory, promotions<br>
+              &bull; Can view store settings and organization (read-only)
+            </td>
+            <td>
+              <strong>GAP-2</strong>: Can open <code>/merchant/store</code> and <code>/merchant/organization</code> pages but all writes 403 (lacks <code>merchant:stores:write</code> / <code>identity:organizations:write</code>). UI shows controls that cannot succeed &mdash; confusing UX.
+            </td>
+          </tr>
+          <tr>
+            <td><strong>BUYER</strong></td>
+            <td><strong>Web App + Mobile</strong></td>
+            <td>Browse, shop, order &mdash; search products, add to cart, checkout, track orders</td>
+            <td>
+              &bull; Can access all buyer pages (Search, Stores, Favorites, Suppliers, Cart, Orders, Notifications, Profile)<br>
+              &bull; Can browse products, add to cart, checkout, track orders<br>
+              &bull; Can manage favorites, view order history
+            </td>
+            <td><strong>No UI gaps</strong> &mdash; all actions can be performed from UI</td>
+          </tr>
+          <tr>
+            <td><strong>Mobile (all roles)</strong></td>
+            <td><strong>Mobile</strong></td>
+            <td>Same as web, but mobile-optimized</td>
+            <td>
+              &bull; All screens reachable by any authenticated user<br>
+              &bull; Buyer flows work (search, cart, checkout, orders)<br>
+              &bull; Merchant screens visible to buyers (403 on action)
+            </td>
+            <td>
+              <strong>GAP-1</strong>: No role-based UI gating &mdash; buyers can open merchant screens and see 403 errors on action. Server guards protect data, but UX is confusing.<br>
+              <strong>GAP-7</strong>: Driver role absent from RBAC &mdash; mobile scaffold has no backend.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>Key Insight:</strong> All gaps are <strong>fail-secure</strong> &mdash; the server returns 403 for unauthorized actions. However, some gaps create confusing UX where users see controls that cannot succeed (GAP-2, GAP-1) or cannot find actions (GAP-10). The most impactful gaps are:
+        <ul style="margin:.5rem 0 0">
+          <li><strong>GAP-1</strong> (Mobile): Buyers see merchant screens and 403 errors &mdash; confusing</li>
+          <li><strong>GAP-2</strong> (Web Staff): Staff can open store/organization pages but writes 403 &mdash; confusing</li>
+          <li><strong>GAP-9</strong> (Admin Categories): ADMIN cannot manage categories from UI &mdash; design decision (MODERATOR handles this)</li>
+          <li><strong>GAP-10</strong> (Admin Merchants): Merchants page shows verification status but no "Verify" button &mdash; must navigate to Verification page separately</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="recs">
+      <h2>12. Recommendations</h2>
+      <ol class="tight">
+        <li><strong>Mobile role gate (GAP-1)</strong> &mdash; extend <code>router.dart</code> redirect: read <code>role</code> from the profile provider and redirect non-merchant roles away from <code>/merchant/*</code> (to <code>/home</code>) and hide <code>/driver</code> until Phase&nbsp;2. Data already available in <code>UserProfile.role</code>.</li>
+        <li><strong>Perms-aware web gate (GAP-2/3)</strong> &mdash; replace/augment <code>hasMerchantAccess()</code> with a <code>hasPerm('merchant:stores:write')</code> check inside store-settings and organization pages, or hide those nav entries for staff (mirroring <code>AdminSidebar.tsx</code>).</li>
+        <li><strong>Finish admin page hooks (GAP-5)</strong> &mdash; wrap remaining six pages with <code>useRequirePerms</code>; the hook + <code>AccessDenied</code> component already exist, so this is mechanical (e.g. Users: <code>admin:users:read</code>, KPIs: <code>admin:kpis:read</code>, Audit: <code>admin:audit:read</code>).</li>
+        <li><strong>Align MODERATOR product curation (GAP-4)</strong> &mdash; either grant moderators <code>admin:merchants:read</code> (view-only) or accept the current catalog-endpoint path and document it in the admin runbook.</li>
+        <li><strong>Phase 2 driver RBAC</strong> &mdash; before enabling driver flows: add <code>driver:*</code> keys + role to <code>seed.ts</code>, guard new delivery controllers, and gate the mobile <code>/driver</code> route by role.</li>
+        <li><strong>Guard-rail test</strong> &mdash; add a unit test that diffs every <code>@RequirePermission</code> string against the seed <code>PERMISSIONS</code> array (catches the mismatch class documented in section&nbsp;2.2 before runtime 403s).</li>
+      </ol>
+    </section>
+
+    <section id="qa">
+      <h2>13. QA Validation Checklist</h2>
+      <p>Manual pass/fail checks for QA, ordered by surface. Each maps to a concrete reproducible login + action.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Check</th><th>Role / Login</th><th>Expected</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>RB-01</td><td>Admin login shows sidebar filtered by role</td><td>MODERATOR <code>+966500000003</code></td><td>Users/Orders/Merchants/Products/KPIs/Audit hidden; Verification + Categories visible</td><td><code>AdminSidebar.tsx</code>, seed roles</td></tr>
+          <tr><td>RB-02</td><td>Deep-link to hidden admin page fails secure</td><td>MODERATOR &rarr; <code>/users</code></td><td>403 from API; error state, no data leak</td><td><code>admin.controller.ts:117</code></td></tr>
+          <tr><td>RB-03</td><td>Buyer cannot open merchant web pages</td><td>BUYER account</td><td><code>/merchant</code> redirects to <code>/search</code>; Merchant nav link absent</td><td><code>merchant/layout.tsx:39</code>, <code>Navbar.tsx:68</code></td></tr>
+          <tr><td>RB-04</td><td>Staff can operate catalog but not store settings</td><td><code>+966500000011</code> (MERCHANT_STAFF)</td><td>Product create OK; store profile save &rarr; 403 toast/error</td><td><code>seed.ts:181-201</code>, <code>merchant.controller.ts:121</code></td></tr>
+          <tr><td>RB-05</td><td>Buyer checkout works; merchant accept works</td><td>BUYER &rarr; checkout; OWNER &rarr; accept</td><td>Both 2xx; order FSM advances</td><td><code>orders.controller.ts:19,69</code></td></tr>
+          <tr><td>RB-06</td><td>Buyer cannot adjust inventory</td><td>BUYER &rarr; <code>POST /inventory/adjust</code></td><td>403 missing <code>merchant:inventory:write</code></td><td><code>inventory.controller.ts:44</code></td></tr>
+          <tr><td>RB-07</td><td>Org switch re-projects role/perms</td><td>User in 2 orgs</td><td>Post-switch <code>/v1/me</code> role+perms match new org; old token denylisted</td><td><code>identity.service.ts</code>, <code>auth.ts:333-358</code></td></tr>
+          <tr><td>RB-08</td><td>Verification approve flips store to VERIFIED</td><td>ADMIN &rarr; <code>/verification/[id]</code></td><td>Store visible in buyer <code>/stores</code> after approval</td><td><code>merchant.controller.ts:223-244</code></td></tr>
+          <tr><td>RB-09</td><td>Mobile merchant screens open for merchant role</td><td>OWNER on device</td><td>Dashboard/catalog/orders function end-to-end</td><td><code>router.dart</code> + <code>merchant_*.dart</code></td></tr>
+          <tr><td>RB-10</td><td>Mobile route gate absence is fail-secure (known GAP-1)</td><td>BUYER on device &rarr; <code>/merchant</code></td><td>Screens render; every write returns handled 403; no data mutation</td><td><code>router.dart:36-42</code></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok">
+        <span class="label">Verdict</span>
+        <p>RBAC health <strong>91/100</strong>. Server-side enforcement is complete for every shared-resource write path; the remaining work is client-side polish (mobile gating, staff-aware web gate, admin page hooks) and Phase&nbsp;2 driver RBAC. Safe to pilot with current state &mdash; all identified gaps are UX-level, not security-level.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform &mdash; Role &amp; Permission Matrix v1.0 &mdash; 2026-09-18</p>
+  <p>Verified against seed.ts, permissions.guard.ts, 15 controllers, web/admin auth modules and mobile router.</p>
+</footer>
+</body>
+</html>
