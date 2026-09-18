@@ -16,7 +16,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 
 export default function VerificationQueuePage() {
   const { hasAccess, missingPerms } = useRequirePerms(['merchant:verification:review']);
-  if (!hasAccess) return <AccessDenied requiredPerms={['merchant:verification:review']} missingPerms={missingPerms} />;
 
   const [requests, setRequests] = useState<VerificationRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +59,8 @@ export default function VerificationQueuePage() {
     return (req.storeName || '').toLowerCase().includes(q) || (req.orgName || '').toLowerCase().includes(q) || req.status.toLowerCase().includes(q) || (req.storeSlug || '').toLowerCase().includes(q);
   });
   const paginatedData = filteredData.slice(page * limit, (page + 1) * limit);
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['merchant:verification:review']} missingPerms={missingPerms} />;
 
   return (
     <>

@@ -11,7 +11,6 @@ const STORE_STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
 
 export default function MerchantsPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:merchants:read']);
-  if (!hasAccess) return <AccessDenied requiredPerms={['admin:merchants:read']} missingPerms={missingPerms} />;
 
   const [merchants, setMerchants] = useState<AdminMerchant[]>([]);
   const [total, setTotal] = useState(0);
@@ -62,6 +61,8 @@ export default function MerchantsPage() {
     const map: Record<string, string> = { ACTIVE: '#065f46', SUSPENDED: '#991b1b', INACTIVE: '#5b6b74' };
     return map[s] || '#5b6b74';
   };
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:merchants:read']} missingPerms={missingPerms} />;
 
   return (
     <>

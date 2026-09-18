@@ -9,7 +9,6 @@ const STATUSES = ['', 'SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALL
 
 export default function AdminOrdersPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:orders:read']);
-  if (!hasAccess) return <AccessDenied requiredPerms={['admin:orders:read']} missingPerms={missingPerms} />;
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [total, setTotal] = useState(0);
@@ -73,6 +72,8 @@ export default function AdminOrdersPage() {
   };
 
   const fmt = (n: number) => (n / 100).toFixed(2);
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:orders:read']} missingPerms={missingPerms} />;
 
   return (
     <>

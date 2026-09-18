@@ -28,7 +28,6 @@ const IconCheck    = () => (<svg {...s}><path d="M22 11.08V12a10 10 0 1 1-5.93-9
 
 export default function KpiDashboardPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:kpis:read']);
-  if (!hasAccess) return <AccessDenied requiredPerms={['admin:kpis:read']} missingPerms={missingPerms} />;
 
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +66,8 @@ export default function KpiDashboardPage() {
     borderRadius: 6, fontSize: 12, background: 'rgba(255,255,255,0.1)',
     color: '#fff', colorScheme: 'dark' as React.CSSProperties['colorScheme'],
   };
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:kpis:read']} missingPerms={missingPerms} />;
 
   return (
     <>

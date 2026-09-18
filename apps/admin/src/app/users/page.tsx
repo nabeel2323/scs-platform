@@ -13,7 +13,6 @@ const STATUSES = ['', 'ACTIVE', 'SUSPENDED', 'INACTIVE'];
 
 export default function UsersPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:users:read']);
-  if (!hasAccess) return <AccessDenied requiredPerms={['admin:users:read']} missingPerms={missingPerms} />;
 
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -113,6 +112,8 @@ export default function UsersPage() {
     };
     return map[key] || '#5b6b74';
   };
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:users:read']} missingPerms={missingPerms} />;
 
   return (
     <>
