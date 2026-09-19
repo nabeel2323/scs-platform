@@ -65,9 +65,16 @@ describe('OrganizationsController', () => {
     expect(svc.updateOrg).toHaveBeenCalledWith('org-1', body);
   });
 
-  it('addMember forwards orgId + userId + roleId', async () => {
-    await controller.addMember('org-1', { userId: 'u2', roleId: 'r1' });
-    expect(svc.addOrgMember).toHaveBeenCalledWith('org-1', 'u2', 'r1');
+  it('addMember forwards orgId + userId + roleId + the actor identity', async () => {
+    await controller.addMember(
+      payload({ sub: 'user-1', perms: ['identity:organizations:write'] }),
+      'org-1',
+      { userId: 'u2', roleId: 'r1' },
+    );
+    expect(svc.addOrgMember).toHaveBeenCalledWith('org-1', 'u2', 'r1', {
+      sub: 'user-1',
+      perms: ['identity:organizations:write'],
+    });
   });
 
   it('listMembers forwards the orgId (API-B8 batched path)', async () => {

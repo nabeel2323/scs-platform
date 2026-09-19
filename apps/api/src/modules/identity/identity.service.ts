@@ -29,6 +29,16 @@ import { denylistKey, secondsUntilExp } from '../../common/auth/token-denylist';
 import { AuditService, AuditRequestContext } from '../audit/index';
 
 /**
+ * Roles assignable through the organization-membership endpoint
+ * (POST /v1/organizations/:id/members). Platform roles
+ * (SUPER_ADMIN/ADMIN/MODERATOR) are deliberately excluded — they are granted
+ * ONLY via the guarded admin endpoint POST /v1/admin/users/:id/assign-role.
+ * Enforcing this allow-list server-side closes the privilege-escalation vector
+ * where a MERCHANT_OWNER assigns a platform role to an arbitrary user.
+ */
+const MERCHANT_ASSIGNABLE_ROLE_KEYS = ['MERCHANT_OWNER', 'MERCHANT_STAFF'];
+
+/**
  * Identity service — phone-first identity with multi-org support.
  *
  * Handles:
@@ -538,12 +548,55 @@ export class IdentityService {
 
   /**
    * Add a member to an organization.
+   *
+   * Security (privilege-escalation fix): the caller-supplied `roleId` is
+   * validated against a merchant-scoped allow-list, the actor is required to be
+   * an ACTIVE member of the target org (tenant scoping), and both the role and
+   * the target user must exist. Platform actors (holding `admin:users:write`)
+   * are exempt from the allow-list/tenant checks so platform tooling still works.
    */
-  async addOrgMember(orgId: string, userId: string, roleId: string) {
+  async addOrgMember(
+    orgId: string,
+    userId: string,
+    roleId: string,
+    actor?: { sub: string; perms?: string[] },
+  ) {
+    // 1. Reject unknown/invalid roleId.
+    const role = await this.db.db.query.roles.findFirst({ where: eq(roles.id, roleId) });
+    if (!role) throw new BadRequestException('Invalid role');
+
+    // 2. Privilege-boundary enforcement — a non-platform actor may only assign
+    //    merchant-scoped roles, never SUPER_ADMIN/ADMIN/MODERATOR.
+    const isPlatformActor = !!actor?.perms?.includes('admin:users:write');
+    if (!isPlatformActor && !MERCHANT_ASSIGNABLE_ROLE_KEYS.includes(role.key)) {
+      throw new ForbiddenException('Role cannot be assigned through organization membership');
+    }
+
+    // 3. Tenant scoping — non-platform actors must be an ACTIVE member of the org.
+    if (actor && !isPlatformActor) {
+      const actorMembership = await this.db.db.query.organizationMembers.findFirst({
+        where: and(
+          eq(organizationMembers.orgId, orgId),
+          eq(organizationMembers.userId, actor.sub),
+          eq(organizationMembers.status, 'ACTIVE'),
+        ),
+      });
+      if (!actorMembership) {
+        throw new ForbiddenException('You do not have access to this organization');
+      }
+    }
+
+    // 4. Target user must exist.
+    const target = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+      columns: { id: true },
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    // 5. Prevent duplicate membership.
     const existing = await this.db.db.query.organizationMembers.findFirst({
       where: and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)),
     });
-
     if (existing) {
       throw new ConflictException('User is already a member of this organization');
     }
@@ -654,11 +707,17 @@ export class IdentityService {
   }
 
   /**
-   * List available roles for organization membership.
-   * Returns role ID, key, and name.
+   * List roles assignable to organization membership (merchant-scoped only).
+   *
+   * Security: this backs GET /v1/roles, consumed by the merchant web app's
+   * add-member dropdown. Platform roles are filtered out so they are never
+   * surfaced to merchant clients. The Admin Console lists all roles via the
+   * separate GET /v1/admin/roles endpoint (admin.controller.ts).
    */
   async listRoles() {
-    const roleRows = await this.db.db.query.roles.findMany();
+    const roleRows = await this.db.db.query.roles.findMany({
+      where: inArray(roles.key, MERCHANT_ASSIGNABLE_ROLE_KEYS),
+    });
     return roleRows.map((r) => ({
       id: r.id,
       key: r.key,
