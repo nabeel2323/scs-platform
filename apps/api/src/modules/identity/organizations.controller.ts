@@ -60,10 +60,16 @@ export class OrganizationsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('identity:organizations:write')
   async addMember(
+    @CurrentUser() user: JwtPayload,
     @Param('id') orgId: string,
     @Body() body: { userId: string; roleId: string },
   ) {
-    return this.identityService.addOrgMember(orgId, body.userId, body.roleId);
+    // Forward the actor so the service can enforce role-scope + tenant checks
+    // (prevents a MERCHANT_OWNER from assigning privileged platform roles).
+    return this.identityService.addOrgMember(orgId, body.userId, body.roleId, {
+      sub: user.sub,
+      perms: user.perms,
+    });
   }
 
   @Get(':id/members')
