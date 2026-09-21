@@ -16,6 +16,7 @@ export interface Organization {
   country: string;
   verificationStatus: string;
   inviteCode: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -277,6 +278,16 @@ export async function fetchOrgDocuments(orgId: string): Promise<BusinessDocument
   const res = await authFetch(`${API_URL}/v1/documents/org/${orgId}`);
   if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
   return res.json();
+}
+
+/** Request a presigned download URL for a verification document (merchant-accessible). */
+export async function presignDocumentDownload(id: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/documents/${id}/merchant-presign`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Failed to presign document download: ${res.status}`);
+  const body = (await res.json()) as { downloadUrl: string };
+  return body.downloadUrl;
 }
 
 export async function presignDocumentUpload(input: {

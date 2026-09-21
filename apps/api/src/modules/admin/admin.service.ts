@@ -354,7 +354,22 @@ export class AdminService {
       name: organizations.name,
       type: organizations.type,
       verificationStatus: organizations.verificationStatus,
+      isActive: organizations.isActive,
     }).from(organizations).orderBy(organizations.name);
+  }
+
+  /**
+   * Deactivate (soft-delete) or reactivate an organization.
+   */
+  async deactivateOrganization(orgId: string, isActive: boolean) {
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, orgId),
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+    await this.db.db.update(organizations)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(organizations.id, orgId));
+    return { success: true, orgId, isActive };
   }
 
   /**

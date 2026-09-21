@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   fetchProfile, fetchOrganization, updateOrganization,
   fetchOrgMembers, addOrgMember, removeOrgMember,
-  lookupOrgMember, fetchRoles, fetchOrgDocuments,
+  lookupOrgMember, fetchRoles, fetchOrgDocuments, presignDocumentDownload,
   Organization, OrgMember, UserLookupResult, RoleInfo, BusinessDocument,
 } from '../../../lib/api';
 import { hasPerm } from '../../../lib/auth';
@@ -39,6 +39,7 @@ export default function MerchantOrganizationPage() {
   // Documents
   const [documents, setDocuments] = useState<BusinessDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
 
   // Remove member confirmation
   const [removeTarget, setRemoveTarget] = useState<OrgMember | null>(null);
@@ -161,6 +162,19 @@ export default function MerchantOrganizationPage() {
     });
   };
 
+  const handleDownload = async (docId: string, fileName: string) => {
+    setDownloadingDoc(docId);
+    setError('');
+    try {
+      const url = await presignDocumentDownload(docId);
+      window.open(url, '_blank');
+    } catch (err: any) {
+      setError(err.message || 'Failed to download document');
+    } finally {
+      setDownloadingDoc(null);
+    }
+  };
+
   const canEdit = hasPerm('identity:organizations:write');
 
   const fmtSize = (bytes: number) => {
@@ -225,6 +239,17 @@ export default function MerchantOrganizationPage() {
         </div>
 
         <div style={{ padding: '0 28px 48px', background: '#f5f7f9', minHeight: 400 }}>
+
+          {/* Deactivation warning */}
+          {org.isActive === false && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginTop: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>⚠</span>
+              <div>
+                <div style={{ fontWeight: 600, color: '#991b1b', fontSize: 14 }}>Organization Deactivated</div>
+                <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>Your organization has been deactivated by an administrator. Some features may be restricted. Contact support for assistance.</div>
+              </div>
+            </div>
+          )}
 
           {error && <div style={{ marginTop: 20 }}><ErrorBanner message={error} /></div>}
           {savedMsg && <div style={successBanner}>{savedMsg}</div>}
@@ -307,6 +332,7 @@ export default function MerchantOrganizationPage() {
                     <th style={th}>Status</th>
                     <th style={th}>Size</th>
                     <th style={th}>Uploaded</th>
+                    <th style={th}>Action</th>
                   </tr></thead>
                   <tbody>
                     {documents.map(doc => (
@@ -324,6 +350,16 @@ export default function MerchantOrganizationPage() {
                         <td style={td}><StatusBadge status={doc.verificationStatus} /></td>
                         <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{fmtSize(doc.fileSize)}</td>
                         <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{formatDate(doc.createdAt)}</td>
+                        <td style={td}>
+                          <button
+                            onClick={() => handleDownload(doc.id, doc.fileName)}
+                            disabled={downloadingDoc === doc.id}
+                            style={downloadBtn}
+                            aria-label={`Download ${doc.fileName}`}
+                          >
+                            {downloadingDoc === doc.id ? '…' : '↓ Download'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -543,6 +579,7 @@ const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fon
 const ghostBtn: React.CSSProperties = { padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const dangerBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
 const deleteBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' };
+const downloadBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#e6f0f5', color: '#0f3340', border: '1px solid #b8d4e3', borderRadius: 4, cursor: 'pointer', whiteSpace: 'nowrap' };
 const successBanner: React.CSSProperties = { background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', borderRadius: 8, padding: '10px 14px', marginTop: 16, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 };
 const chip: React.CSSProperties = { display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#4a5568' };
 const readOnlyRow: React.CSSProperties = { display: 'flex', gap: 24, flexWrap: 'wrap', padding: '14px 0 0', borderTop: '1px solid #eef2f5', marginTop: 4 };

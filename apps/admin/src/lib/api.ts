@@ -404,6 +404,7 @@ export interface AdminOrg {
   name: string;
   type: string;
   verificationStatus: string;
+  isActive: boolean;
 }
 
 export async function fetchAdminUsers(params?: {
@@ -465,6 +466,16 @@ export async function fetchRoles(): Promise<RoleInfo[]> {
 export async function fetchAdminOrganizations(): Promise<AdminOrg[]> {
   const res = await authFetch(`${API_URL}/v1/admin/organizations`);
   if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateAdminOrganization(id: string, isActive: boolean): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations/${id}/deactivate`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isActive }),
+  });
+  if (!res.ok) throw new Error(`Failed to deactivate organization: ${res.status}`);
   return res.json();
 }
 

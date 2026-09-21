@@ -197,6 +197,14 @@ export class MerchantController {
     return this.merchantService.generatePresignedUrl(id);
   }
 
+  /** Merchant-accessible document download (org-members only). */
+  @Post('documents/:id/merchant-presign')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:write')
+  async presignMerchantDocument(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.presignForMerchant(id, user.sub);
+  }
+
   // ── Verification ───────────────────────────────────────────────
 
   @Post('stores/:storeId/verify')

@@ -353,6 +353,23 @@ export class MerchantService {
     return { downloadUrl };
   }
 
+  /**
+   * Merchant-accessible presign: verifies the user is a member of the org
+   * that owns the document before generating a download URL.
+   */
+  async presignForMerchant(docId: string, userId: string): Promise<{ downloadUrl: string }> {
+    const doc = await this.getDocument(docId);
+    // Verify the requesting user is a member of the document's organization
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, doc.orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (!membership) throw new ForbiddenException('Not authorized to access this document');
+    return this.generatePresignedUrl(docId);
+  }
+
   // ── Verification ───────────────────────────────────────────────
 
   async submitVerification(storeId: string, userId: string) {

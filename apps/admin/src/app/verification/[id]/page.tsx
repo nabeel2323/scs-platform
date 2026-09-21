@@ -10,6 +10,7 @@ import {
   fetchStoreDocuments,
   reviewVerification,
   presignDocumentDownload,
+  deactivateAdminOrganization,
   type VerificationRequest,
   type Store,
   type BusinessDocument,
@@ -44,6 +45,8 @@ export default function VerificationReviewPage() {
   const [notes, setNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const [orgDeactivated, setOrgDeactivated] = useState(false);
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -92,6 +95,36 @@ export default function VerificationReviewPage() {
     } finally {
       pending.current = false;
       if (generation === active.current) setSubmitting(false);
+    }
+  }
+
+  async function handleDeactivateOrg() {
+    if (!store || !window.confirm('Deactivate this merchant organization? They will lose platform access.')) return;
+    setDeactivating(true);
+    setError(null);
+    try {
+      await deactivateAdminOrganization(store.orgId, false);
+      setOrgDeactivated(true);
+      setSuccess('Organization deactivated successfully.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to deactivate organization');
+    } finally {
+      setDeactivating(false);
+    }
+  }
+
+  async function handleReactivateOrg() {
+    if (!store || !window.confirm('Reactivate this merchant organization?')) return;
+    setDeactivating(true);
+    setError(null);
+    try {
+      await deactivateAdminOrganization(store.orgId, true);
+      setOrgDeactivated(false);
+      setSuccess('Organization reactivated successfully.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to reactivate organization');
+    } finally {
+      setDeactivating(false);
     }
   }
 
@@ -382,6 +415,37 @@ export default function VerificationReviewPage() {
               {request.resolvedAt && (
                 <InfoRow label="Resolved" value={new Date(request.resolvedAt).toLocaleString()} />
               )}
+            </div>
+          </section>
+        )}
+
+        {/* Merchant Deactivation */}
+        {store && (
+          <section style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Merchant Status</h2>
+            <div style={{ background: '#f8fafb', borderRadius: 10, padding: 20, border: '1px solid #e0e7eb' }}>
+              <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 12 }}>
+                Deactivate the merchant organization to revoke platform access. Data is preserved but the merchant cannot perform operations.
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {!orgDeactivated ? (
+                  <button
+                    onClick={handleDeactivateOrg}
+                    disabled={deactivating}
+                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
+                  >
+                    {deactivating ? 'Deactivating…' : 'Deactivate Merchant'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleReactivateOrg}
+                    disabled={deactivating}
+                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
+                  >
+                    {deactivating ? 'Reactivating…' : 'Reactivate Merchant'}
+                  </button>
+                )}
+              </div>
             </div>
           </section>
         )}

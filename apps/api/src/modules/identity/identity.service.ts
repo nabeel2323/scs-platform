@@ -514,6 +514,18 @@ export class IdentityService {
   }
 
   /**
+   * Deactivate (soft-delete) or reactivate an organization.
+   * Admin-only operation — deactivated orgs lose platform access.
+   */
+  async deactivateOrg(orgId: string, isActive: boolean) {
+    await this.getOrg(orgId); // ensure exists
+    await this.db.db.update(organizations)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(organizations.id, orgId));
+    return this.getOrg(orgId);
+  }
+
+  /**
    * List user's organizations with membership details.
    */
   async listUserOrgs(userId: string) {
