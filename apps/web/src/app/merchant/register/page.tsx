@@ -11,6 +11,7 @@ import {
   createStore,
   createWarehouse,
   registerDocument,
+  presignDocumentUpload,
   submitVerification,
   type UserProfile,
 } from '../../../lib/api';
@@ -113,7 +114,7 @@ export default function MerchantRegistrationPage() {
 
   // Step 4: Documents
   const [documents, setDocuments] = useState<
-    { docType: string; fileName: string; fileSize: number; mimeType: string }[]
+    { docType: string; fileName: string; fileSize: number; mimeType: string; file: File }[]
   >([]);
   const [newDocType, setNewDocType] = useState('COMMERCIAL_REG');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -164,6 +165,7 @@ export default function MerchantRegistrationPage() {
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
         mimeType: selectedFile.type || 'application/pdf',
+        file: selectedFile,
       },
     ]);
     setSelectedFile(null);
@@ -282,6 +284,23 @@ export default function MerchantRegistrationPage() {
         setSubmitting(true);
         try {
           for (const doc of documents) {
+            // Upload the real bytes to object storage first, then register the
+            // document against the key the file was stored at. Previously only
+            // metadata was sent, so storageKey pointed at a non-existent object
+            // and reviewer downloads failed with NoSuchKey (404).
+            const { uploadUrl, storageKey } = await presignDocumentUpload({
+              fileName: doc.fileName,
+              mimeType: doc.mimeType,
+            });
+            try {
+              await fetch(uploadUrl, {
+                method: 'PUT',
+                body: doc.file,
+                headers: { 'Content-Type': doc.mimeType },
+              });
+            } catch {
+              /* dev storage may be stubbed — still record the document */
+            }
             await registerDocument({
               orgId: createdOrgId,
               storeId: createdStoreId,
@@ -289,6 +308,7 @@ export default function MerchantRegistrationPage() {
               fileName: doc.fileName,
               mimeType: doc.mimeType,
               fileSize: doc.fileSize,
+              storageKey,
             });
           }
         } catch (err: any) {

@@ -74,11 +74,12 @@
     <p class="sub">Deep-dive analysis of UI/UX gaps, workflow inconsistencies, user management issues, and permission system weaknesses across apps/api, apps/web, apps/admin, and mobile &mdash; verified against live source at HEAD <code>6ee4f7ec</code>.</p>
     <div class="meta">
       <span>Audit date 2026-09-18</span>
-      <span>HEAD 6ee4f7ec68a4</span>
+      <span>Baseline HEAD 6ee4f7ec68a4</span>
       <span>4 apps audited</span>
       <span>164 endpoints inventoried</span>
       <span>Audit: read-only</span>
       <span>Phase 1 &amp; 2 remediated 2026-09-18</span>
+      <span>Document upload follow-up 2026-09-19</span>
     </div>
   </div>
 </header>
@@ -110,6 +111,11 @@
         <p><strong>Phase 1</strong> (GAP-1, GAP-2/3, GAP-5) and <strong>Phase 2</strong> (GAP-9, GAP-10, GAP-4, GAP-6) are <span class="pill p-ok">Implemented</span> &mdash; 8 of 10 gaps closed. All changes are additive/tightening and typecheck clean (<code>tsc --noEmit</code> for api, web, admin; <code>dart analyze</code> for the mobile router). <strong>Phase 3</strong> (GAP-7 Driver role, GAP-8 unused-key cleanup) remains <span class="pill p-muted">Open</span>. Seed changes (GAP-4, GAP-6) require <code>pnpm --filter @scs/api db:seed</code> + user re-login to take effect at runtime.</p>
       </div>
 
+      <div class="callout">
+        <span class="label">GAP-10 / STR-B4 follow-up (2026-09-19)</span>
+        <p>The earlier GAP-10 fix added the reviewer Download action and permission alignment, but registration still recorded metadata without uploading file bytes. API, Web and Mobile upload wiring is now <span class="pill p-ok">Implemented</span>: retain bytes &rarr; presign &rarr; attempt PUT &rarr; register the returned key. Local checks passed; deployed round-trip acceptance, legacy re-uploads and failure-handling hardening remain. See <a href="#document-upload-follow-up">the follow-up evidence</a>. This extends the existing finding; the original ten-gap inventory and endpoint counts are not recalculated.</p>
+      </div>
+
       <div class="grid c4">
         <div class="card"><div class="kpi">164</div><h4>HTTP Endpoints</h4><p class="small muted">77 permission-guarded, 79 JWT-only, 8 public</p></div>
         <div class="card"><div class="kpi">47</div><h4>Permission Keys</h4><p class="small muted">24 used by decorators, 23 reserved/unused</p></div>
@@ -125,7 +131,7 @@
           <tr><td>Identity &amp; session lifecycle</td><td><span class="pill p-ok">Source-traced</span></td><td>JWT denylist, refresh rotation, org-switch, device trust all traced in source</td></tr>
           <tr><td>Permission &amp; delegation policy</td><td><span class="pill p-warn">Partially traced</span></td><td>Guards verified; delegation hierarchy (addOrgMember, assignRole) lacks caller-context checks</td></tr>
           <tr><td>Tenant/object access</td><td><span class="pill p-ok">Source-traced</span></td><td>tenant-scope.ts helpers for inventory, orders, cart; positive controls verified</td></tr>
-          <tr><td>Merchant verification</td><td><span class="pill p-warn">Partially traced</span></td><td>Queue/detail/review traced; <strong>document download added (GAP-10)</strong>; DRAFT vs SUBMITTED distinction unclear to users</td></tr>
+          <tr><td>Merchant verification</td><td><span class="pill p-warn">Runtime acceptance pending</span></td><td>Queue/detail/review traced; Download action added 09-18 (GAP-10); document byte-upload and stored-key wiring implemented 09-19. Key persistence has unit tests; failed-upload handling remains incomplete and no live storage round trip was verified. DRAFT vs SUBMITTED distinction remains unclear to users.</td></tr>
           <tr><td>Commerce lifecycle</td><td><span class="pill p-warn">Partially traced</span></td><td>Order FSM traced; partial acceptance, refund, payment provider integration not verified</td></tr>
           <tr><td>Intended-role UI completeness</td><td><span class="pill p-ok">Remediated</span></td><td>Mobile role gating added (GAP-1); web merchant STAFF write controls hidden (GAP-2/3); admin Merchants page verify action added (GAP-9)</td></tr>
           <tr><td>Accessibility &amp; recovery UX</td><td><span class="pill p-muted">Not assessed</span></td><td>No browser/device testing performed</td></tr>
@@ -389,9 +395,9 @@
             <td><span class="pill p-p2">P2</span></td>
             <td><strong>Verification detail page has no document download action</strong> &mdash; document section displays type/filename/size/status but no view/download button; separate presign endpoint exists but requires <code>merchant:stores:write</code> (not <code>merchant:verification:review</code>)</td>
             <td>Admin</td>
-            <td><code>verification/[id]/page.tsx:185-230</code> (document section, no action)</td>
-            <td>Reviewers cannot download documents to verify them</td>
-            <td><span class="pill p-ok">Resolved</span></td>
+            <td>Original: <code>verification/[id]/page.tsx</code> lacked an action. Follow-up: API merchant controller/service and Web/Mobile registration paths recorded metadata without uploading bytes; see <a href="#document-upload-follow-up">source evidence</a>.</td>
+            <td>Originally no Download action; after the UI fix, absent objects caused <code>NoSuchKey</code> (404).</td>
+            <td><span class="pill p-ok">UI resolved 09-18</span> <span class="pill p-ok">Upload wiring 09-19</span> <span class="pill p-warn">Runtime acceptance pending</span></td>
           </tr>
         </tbody>
       </table>
@@ -417,6 +423,8 @@
           <tr><td>Store creation</td><td><code>merchant:stores:write</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Register/Onboard</span></td><td><span class="pill p-muted">N/A</span></td><td><span class="pill p-ok">Registration</span></td></tr>
           <tr><td>Verification submission</td><td><code>merchant:stores:write</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Onboard</span></td><td><span class="pill p-muted">N/A</span></td><td><span class="pill p-ok">Registration</span></td></tr>
           <tr><td>Verification review</td><td><code>merchant:verification:review</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-muted">N/A</span></td><td><span class="pill p-ok">/verification/[id]</span></td><td><span class="pill p-muted">N/A</span></td></tr>
+          <tr><td>Document upload presign / registration</td><td><code>merchant:stores:write</code></td><td><span class="pill p-ok">Yes</span></td><td>Registration: bytes &rarr; presign &rarr; PUT &rarr; metadata (09-19)</td><td><span class="pill p-muted">N/A</span></td><td>Registration: retained bytes + standalone storage PUT (09-19)</td></tr>
+          <tr><td>Document download presign</td><td><code>merchant:verification:review</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-muted">N/A</span></td><td>Download on <code>/verification/[id]</code>; requires an existing object at the saved key</td><td><span class="pill p-muted">N/A</span></td></tr>
           <tr><td>Product writes</td><td><code>merchant:products:write</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Catalog/Editor</span></td><td><span class="pill p-ok">/products (MOD after seed)</span></td><td><span class="pill p-ok">Catalog/Editor</span></td></tr>
           <tr><td>Category writes</td><td><code>catalog:categories:write</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Catalog categories</span></td><td><span class="pill p-ok">/categories</span></td><td><span class="pill p-ok">/merchant/categories</span></td></tr>
           <tr><td>Inventory adjust</td><td><code>merchant:inventory:write</code></td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Inventory page</span></td><td><span class="pill p-muted">N/A</span></td><td><span class="pill p-muted">API only</span></td></tr>
@@ -434,16 +442,32 @@
       <h3>7.1 Merchant Verification Flow</h3>
       <ol class="tight">
         <li><strong>Store creation</strong>: <code>POST /v1/stores</code> &rarr; DRAFT/PENDING store (<code>merchant.service.ts:66-92</code>)</li>
-        <li><strong>Document registration</strong>: <code>POST /v1/documents</code> &rarr; metadata + storage key (<code>merchant.service.ts:286-304</code>)</li>
+        <li><strong>Document upload and registration (09-19)</strong>: Web retains the selected file; Mobile retains bytes with <code>withData: true</code>. <code>POST /v1/documents/presign-upload</code> returns <code>{ uploadUrl, storageKey }</code> &rarr; client attempts PUT of raw bytes &rarr; <code>POST /v1/documents</code> persists metadata and that key. Current clients can still register metadata after a failed upload; see the limits below.</li>
         <li><strong>Submission</strong>: <code>POST /v1/stores/:storeId/verify</code> &rarr; SUBMITTED request, store PENDING (<code>merchant.service.ts:348-383</code>)</li>
         <li><strong>Queue</strong>: <code>GET /v1/verification/queue</code> &rarr; verificationRequests joined to stores/orgs (<code>merchant.service.ts:386-424</code>)</li>
         <li><strong>Detail</strong>: <code>GET /v1/verification/:id</code> &rarr; request + store + documents (<code>verification/[id]/page.tsx:45-61</code>)</li>
+        <li><strong>Document download</strong>: reviewer clicks Download &rarr; <code>POST /v1/documents/:id/presign</code> &rarr; signed GET for the stored <code>storageKey</code>. The endpoint requires <code>merchant:verification:review</code>; signing alone does not prove the object exists.</li>
         <li><strong>Decision</strong>: <code>POST /v1/verification/:id/review</code> &rarr; APPROVED/REJECTED/REVISION (<code>merchant.service.ts:435-490</code>)</li>
       </ol>
 
       <div class="callout ok">
         <span class="label">Workflow Gap &mdash; Resolved (GAP-9)</span>
         <p>The Admin <code>/merchants</code> page now includes an <strong>Actions</strong> column: PENDING stores show a "Review" button and other stores a "View" link, both navigating to <code>/verification?store=&lt;id&gt;</code>. Users no longer need to navigate to <code>/verification</code> separately.</p>
+      </div>
+
+      <h3 id="document-upload-follow-up">7.1.1 Document upload closure evidence &mdash; GAP-10 / STR-B4</h3>
+      <p><strong>Root cause confirmed 2026-09-19:</strong> the upload-presign endpoint existed but neither registration client called it. Web discarded the selected file after collecting metadata; Mobile picked without retaining bytes. The API generated <code>docs/{orgId}/{docId}/{fileName}</code> for the database, independently of the presign endpoint's <code>docs/{uuid}/{fileName}</code>. The missing bytes and mismatched keys explain the reported reviewer <code>NoSuchKey</code> 404. The unsigned favicon request's 403 is separate and does not require making the bucket public.</p>
+      <ul class="tight">
+        <li><strong>API:</strong> <code>apps/api/src/modules/merchant/merchant.service.ts</code> now persists optional <code>UploadDocumentInput.storageKey</code>; <code>merchant.controller.ts</code> sanitizes upload filenames. Legacy callers without a key still receive the old generated-key fallback.</li>
+        <li><strong>Web:</strong> <code>apps/web/src/app/merchant/register/page.tsx</code> retains the <code>File</code> and attempts PUT before registration; <code>apps/web/src/lib/api.ts</code> adds <code>presignDocumentUpload()</code> and forwards <code>storageKey</code>.</li>
+        <li><strong>Mobile:</strong> <code>mobile/lib/screens/merchant/merchant_registration_screen.dart</code> retains picked bytes; <code>mobile/lib/services/api_service.dart</code> adds <code>presignDocumentUpload()</code> and <code>uploadBusinessDocument()</code>, using standalone Dio without the API auth interceptor for storage PUT.</li>
+        <li><strong>Recorded verification:</strong> API and Web <code>tsc --noEmit</code> passed; merchant tests passed <strong>5/5</strong>, including two new tests in <code>apps/api/src/__tests__/unit/merchant/merchant.service.spec.ts</code> for supplied-key persistence and legacy fallback. Targeted API ESLint: 0 errors, 1 pre-existing unrelated warning; Web lint: clean; targeted Mobile <code>dart analyze</code>: no issues. No live Backblaze upload/download round trip was executed.</li>
+      </ul>
+      <div class="callout warn">
+        <span class="label">Implemented wiring is not a complete reliability guarantee</span>
+        <p><strong>Remaining hardening:</strong> Web swallows PUT exceptions and does not check <code>response.ok</code>; Mobile swallows PUT failures and can skip upload when bytes or URL are missing. The API accepts a missing key via fallback and does not verify object existence. These paths can still create metadata for absent objects. Reject failed/missing uploads before registration and add failure-path tests in a follow-up.</p>
+        <p><strong>Rollout:</strong> deploy the API and both clients; verify uploads-bucket CORS permits the Web origin's PUT with <code>Content-Type</code> (API/media-bucket CORS is separate). Keep documents private. Existing metadata-only records require re-uploading original files; no historical data repair was performed. Acceptance remains pending: upload a fresh document from each client, confirm PUT success and exact stored-key equality, then download as a reviewer, including filenames with spaces/parentheses.</p>
+        <p>The companion <a href="Gap_and_Roadmap_Report.html#document-upload-closure">STR-B4 closure entry</a> records the same implementation scope and operational limits.</p>
       </div>
 
       <h3>7.2 Order FSM</h3>
@@ -500,6 +524,7 @@ CANCELLED / REJECTED / DISPUTED &rarr; no outgoing transition</pre>
         <li>Accessibility, keyboard navigation, responsive layouts, screen-reader behavior, and visual hierarchy were not tested in a browser/device</li>
         <li>Actual deployed grants, request records, object storage, provider configuration, and external delivery are unknown</li>
         <li>No complete HTTP/database/browser end-to-end suite was executed</li>
+        <li>The 2026-09-19 document follow-up has local typecheck/lint and key-persistence unit-test evidence only; deployed uploads-bucket CORS, real PUT/GET success and upload-failure recovery are not verified</li>
       </ul>
 
       <div class="callout info">
@@ -515,7 +540,8 @@ CANCELLED / REJECTED / DISPUTED &rarr; no outgoing transition</pre>
         <li><span class="pill p-ok">Implemented</span> <strong>Perms-aware web gate (GAP-2/3, P1/P2)</strong> &mdash; replace/augment <code>hasMerchantAccess()</code> with a <code>hasPerm('merchant:stores:write')</code> check inside store-settings and organization pages, or hide those nav entries for staff (mirroring <code>AdminSidebar.tsx</code>).</li>
         <li><span class="pill p-ok">Implemented</span> <strong>Finish admin page hooks (GAP-5, P2)</strong> &mdash; wrapped the remaining six pages (users, orders, merchants, verification, kpis, audit) with <code>useRequirePerms</code> + <code>AccessDenied</code>.</li>
         <li><span class="pill p-ok">Implemented</span> <strong>Add verify action to Merchants page (GAP-9, P2)</strong> &mdash; added an "Actions" column to <code>merchants/page.tsx</code>: PENDING stores get a "Review" button, others a "View" link, both to <code>/verification?store=&lt;id&gt;</code>.</li>
-        <li><span class="pill p-ok">Implemented</span> <strong>Add document download to verification detail (GAP-10, P2)</strong> &mdash; added a "Download" button per document row in <code>verification/[id]/page.tsx</code> calling <code>presignDocumentDownload()</code> (admin <code>lib/api.ts</code>, via <code>authFetch</code>, POST <code>/v1/documents/:id/presign</code> &rarr; <code>downloadUrl</code>). The presign endpoint's <code>@RequirePermission</code> was changed from <code>merchant:stores:write</code> to <code>merchant:verification:review</code>.</li>
+        <li><span class="pill p-ok">Implemented</span> <strong>Add document download to verification detail (GAP-10, P2)</strong> &mdash; added a "Download" button per document row in <code>verification/[id]/page.tsx</code> calling <code>presignDocumentDownload()</code> (admin <code>lib/api.ts</code>, via <code>authFetch</code>, POST <code>/v1/documents/:id/presign</code> &rarr; <code>downloadUrl</code>). The presign endpoint's <code>@RequirePermission</code> was changed from <code>merchant:stores:write</code> to <code>merchant:verification:review</code>. Follow-up 09-19: API/Web/Mobile byte-upload and key-persistence wiring implemented; <a href="#document-upload-follow-up">runtime acceptance and reliability caveats remain</a>.</li>
+        <li><span class="pill p-warn">Follow-up</span> <strong>Document upload reliability and rollout (GAP-10 / STR-B4)</strong> &mdash; block metadata registration after failed or missing PUTs, verify object existence before accepting a key, add negative-path tests, confirm uploads-bucket CORS, re-upload legacy metadata-only documents, and record fresh Web/Mobile-to-reviewer download acceptance.</li>
         <li><span class="pill p-ok">Implemented</span> <strong>Align MODERATOR product curation (GAP-4, P2)</strong> &mdash; granted MODERATOR <code>admin:merchants:read</code> (view-only) in <code>seed.ts</code>; requires seed re-run + re-login.</li>
         <li><span class="pill p-muted">Open</span> <strong>Define driver role (GAP-7, P3)</strong> &mdash; add DRIVER role to seed with appropriate permissions; implement backend endpoints for driver workflows.</li>
         <li><span class="pill p-muted">Open</span> <strong>Clean up unused permission keys (GAP-8, P3)</strong> &mdash; document which of the 23 unused keys are planned for future phases and which should be removed from seed.</li>
@@ -523,14 +549,14 @@ CANCELLED / REJECTED / DISPUTED &rarr; no outgoing transition</pre>
 
       <div class="callout ok">
         <span class="label">Status &amp; Next Steps</span>
-        <p>Phases 1 &amp; 2 (GAP-1, GAP-2/3, GAP-5, GAP-9, GAP-10, GAP-4, GAP-6) are <strong>implemented and typecheck-clean</strong>. GAP-6 (analytics write guard) was closed via <strong>Option A</strong>: a new <code>analytics:track</code> permission key granted to all six roles, with <code>@RequirePermission('analytics:track')</code> added to <code>POST track</code> and <code>POST track/batch</code>. Remaining: <strong>Phase 3</strong> (GAP-7 Driver role, GAP-8 unused-key cleanup). Runtime note: re-run <code>pnpm --filter @scs/api db:seed</code> and have users re-login so refreshed JWT <code>perms</code> pick up the GAP-4/GAP-6 grants. The companion <a href="Comprehensive_Audit_Implementation_Plan.html">Implementation Plan</a> records the as-built patches and per-gap testing strategies.</p>
+        <p>Phases 1 &amp; 2 (GAP-1, GAP-2/3, GAP-5, GAP-9, GAP-10, GAP-4, GAP-6) are <strong>implemented and typecheck-clean</strong>. GAP-6 (analytics write guard) was closed via <strong>Option A</strong>: a new <code>analytics:track</code> permission key granted to all six roles, with <code>@RequirePermission('analytics:track')</code> added to <code>POST track</code> and <code>POST track/batch</code>. Remaining original gaps: <strong>Phase 3</strong> (GAP-7 Driver role, GAP-8 unused-key cleanup). The 09-19 GAP-10 / STR-B4 follow-up closes missing upload wiring, with <strong>upload-failure hardening, staging acceptance and legacy re-uploads still outstanding</strong>. Runtime note: re-run <code>pnpm --filter @scs/api db:seed</code> and have users re-login so refreshed JWT <code>perms</code> pick up the GAP-4/GAP-6 grants. The companion <a href="Comprehensive_Audit_Implementation_Plan.html">Implementation Plan</a> records the as-built patches and per-gap testing strategies.</p>
       </div>
     </section>
   </main>
 </div>
 
 <footer class="site">
-  <p>Comprehensive Audit Report &mdash; Smart Commerce &amp; Supply Platform (TAIF) &mdash; Generated 2026-09-18 &mdash; HEAD 6ee4f7ec68a4 &mdash; Audit performed read-only; Phase 1 &amp; 2 remediation subsequently applied (8 of 10 gaps closed).</p>
+  <p>Comprehensive Audit Report &mdash; Smart Commerce &amp; Supply Platform (TAIF) &mdash; Generated 2026-09-18 &mdash; Baseline HEAD 6ee4f7ec68a4 &mdash; Audit performed read-only; Phase 1 &amp; 2 remediation subsequently applied (8 of 10 original gaps implemented). Updated 2026-09-19 with GAP-10 / STR-B4 document upload wiring, local verification evidence, and explicit reliability/rollout limits. No new full audit or runtime certification is implied.</p>
 </footer>
 </body>
 </html>
