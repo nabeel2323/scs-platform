@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   CatalogService,
@@ -111,8 +112,8 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  async getProduct(@Param('id') id: string) {
-    return this.catalogService.getProduct(id);
+  async getProduct(@Param('id', ParseUUIDPipe) id: string) {
+    return this.catalogService.getProductDetail(id);
   }
 
   @Patch('products/:id')

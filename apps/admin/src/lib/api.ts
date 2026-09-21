@@ -5,6 +5,48 @@ import { authFetch } from './auth';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
+export type AdminRecord = { id: string; [key: string]: unknown };
+export type AdminTableQuery = Record<string, string | number | undefined>;
+export interface AdminProduct extends AdminRecord {
+  title: string;
+  slug: string;
+  storeId: string;
+  status: string;
+  isAvailable: boolean;
+  images: unknown;
+  imageCount: number;
+  store: (AdminRecord & { displayName: string; slug: string }) | null;
+  media: (AdminRecord & { mediaType: string; url: string })[];
+  variants: (AdminRecord & { images: unknown })[];
+}
+
+export async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authFetch(`${API_URL}/v1/${path}`, init);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const message = body.detail || body.message || `Request failed (${response.status})`;
+    throw new Error(Array.isArray(message) ? message.join('; ') : message);
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json();
+}
+
+export function fetchAdminTable<T = AdminRecord>(endpoint: string, query: AdminTableQuery, signal?: AbortSignal): Promise<PaginatedResult<T>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));
+  return adminRequest(`admin/${endpoint}?${params}`, { signal });
+}
+
+export function fetchAdminProduct(id: string, signal?: AbortSignal): Promise<AdminProduct> {
+  return adminRequest(`products/${encodeURIComponent(id)}`, { signal });
+}
+
+export function moderateAdminProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED') {
+  return adminRequest(`admin/products/${encodeURIComponent(id)}/moderate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
+  });
+}
+
 // ── Types ────────────────────────────────────────────────────
 
 export interface VerificationRequest {
@@ -18,6 +60,7 @@ export interface VerificationRequest {
   decisionNotes: string | null;
   rejectionReasons: string[] | null;
   autoVerified: boolean;
+  autoActivatedProductCount?: number;
   submittedAt: string;
   resolvedAt: string | null;
   createdAt: string;
@@ -103,7 +146,10 @@ export async function reviewVerification(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ decision, notes, rejectionReasons }),
   });
-  if (!res.ok) throw new Error(`Failed to review verification: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to review verification: ${res.status}`);
+  }
   return res.json();
 }
 

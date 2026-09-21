@@ -1,13 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
-import { orders, masterOrders, orderItems, orderStatusHistory } from '../orders/orders.schema';
-import { stores, verificationRequests } from '../merchant/merchant.schema';
+import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
+import { stores } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, roles, permissions, rolePermissions } from '../identity/identity.schema';
-import { products } from '../catalog/catalog.schema';
-import { auditLogs, analyticsEvents } from '../audit/audit.schema';
-import { eq, and, desc, isNull, sql, count, gte, lte, inArray, like, ilike, or } from 'drizzle-orm';
-import { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { isUuid, isUuidPrefix } from '../../common/utils/uuid';
+import { products, productMedia, productVariants } from '../catalog/catalog.schema';
+import { eq, and, isNull, sql, gte, lte, inArray, getTableColumns } from 'drizzle-orm';
+import { disputes, disputeEvents } from '../reviews/support.schema';
+import { StorageService } from '../../common/storage/storage.service';
+import { imageReferences, isProductMediaKey } from '../catalog/product-images';
+import { AdminListInput } from './dto/admin-list-query.dto';
+import { listAdminTable, safeUserFields } from './admin-tables';
 
 /**
  * Admin service — platform-wide operations for admin users.
@@ -20,79 +22,18 @@ import { isUuid, isUuidPrefix } from '../../common/utils/uuid';
  */
 @Injectable()
 export class AdminService {
-  constructor(private readonly db: DatabaseService) {}
-
-  /**
-   * UUID filter helper — the admin UIs list truncated IDs (first 8 chars),
-   * so accept either a full UUID (exact match) or a hex prefix (ILIKE match).
-   * Anything else is a typed 400 rather than an unhandled Postgres cast error.
-   */
-  private uuidFilter(column: AnyPgColumn, value: string) {
-    if (isUuid(value)) return eq(column, value);
-    if (isUuidPrefix(value)) return sql`${column}::text ILIKE ${value + '%'}`;
-
-    throw new BadRequestException('ID filter must be a full UUID or a hex prefix');
-  }
-
-  /** Date filter helper — rejects unparseable input with a typed 400. */
-  private dateFilter(column: AnyPgColumn, value: string, op: 'gte' | 'lte') {
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      throw new BadRequestException(`Invalid date filter: ${value}`);
-    }
-    return op === 'gte' ? gte(column, date) : lte(column, date);
-  }
+  constructor(private readonly db: DatabaseService, private readonly storage: StorageService) {}
 
   // ── Orders ───────────────────────────────────────────────────
 
-  async listOrders(filters: {
-    status?: string;
-    storeId?: string;
-    buyerId?: string;
-    from?: string;
-    to?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [];
-
-    if (filters.status) {
-      conditions.push(eq(orders.status, filters.status));
-    }
-    if (filters.storeId) {
-      conditions.push(this.uuidFilter(orders.storeId, filters.storeId));
-    }
-    if (filters.buyerId) {
-      conditions.push(this.uuidFilter(orders.buyerId, filters.buyerId));
-    }
-    if (filters.from) {
-      conditions.push(this.dateFilter(orders.createdAt, filters.from, 'gte'));
-    }
-    if (filters.to) {
-      conditions.push(this.dateFilter(orders.createdAt, filters.to, 'lte'));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(orders)
-        .where(where)
-        .orderBy(desc(orders.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(orders).where(where),
-    ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+  async listOrders(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'orders', filters);
   }
 
   async getOrderDetail(orderId: string) {
-    const orderRows = await this.db.db.select().from(orders)
+    const orderRows = await this.db.db.select({ ...getTableColumns(orders), storeName: stores.displayName,
+      storeSlug: stores.slug, buyerName: users.fullName }).from(orders)
+      .leftJoin(stores, eq(orders.storeId, stores.id)).leftJoin(users, eq(orders.buyerId, users.id))
       .where(eq(orders.id, orderId))
       .limit(1);
 
@@ -110,38 +51,8 @@ export class AdminService {
 
   // ── Merchants ────────────────────────────────────────────────
 
-  async listMerchants(filters: {
-    status?: string;
-    verificationStatus?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [];
-
-    if (filters.status) {
-      conditions.push(eq(stores.status, filters.status));
-    }
-    if (filters.verificationStatus) {
-      conditions.push(eq(stores.verificationStatus, filters.verificationStatus));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(stores)
-        .where(where)
-        .orderBy(desc(stores.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(stores).where(where),
-    ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+  async listMerchants(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'merchants', filters);
   }
 
   // ── KPIs ─────────────────────────────────────────────────────
@@ -301,187 +212,71 @@ export class AdminService {
 
   // ── Audit Logs ───────────────────────────────────────────────
 
-  async getAuditLogs(filters: {
-    action?: string;
-    resource?: string;
-    actorId?: string;
-    from?: string;
-    to?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [];
-
-    // Substring match: the console offers verb/noun fragments ('create',
-    // 'order') while rows store dotted actions and plural resources
-    // ('order.created', 'orders'), so exact equality never matched.
-    if (filters.action) {
-      conditions.push(ilike(auditLogs.action, `%${filters.action}%`));
-    }
-    if (filters.resource) {
-      conditions.push(ilike(auditLogs.resource, `%${filters.resource}%`));
-    }
-    if (filters.actorId) {
-      conditions.push(this.uuidFilter(auditLogs.actorId, filters.actorId));
-    }
-    if (filters.from) {
-      conditions.push(this.dateFilter(auditLogs.createdAt, filters.from, 'gte'));
-    }
-    if (filters.to) {
-      conditions.push(this.dateFilter(auditLogs.createdAt, filters.to, 'lte'));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(auditLogs)
-        .where(where)
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(auditLogs).where(where),
-    ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+  async getAuditLogs(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'audit', filters);
   }
 
   // ── Verifications (alias for verification queue) ───────────
 
-  async listVerifications(filters: {
-    status?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [];
-    if (filters.status) conditions.push(eq(verificationRequests.status, filters.status));
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(verificationRequests)
-        .where(where)
-        .orderBy(desc(verificationRequests.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(verificationRequests).where(where),
-    ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+  async listVerifications(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'verifications', filters);
   }
 
   // ── Product Moderation ─────────────────────────────────────
 
-  async listProductsModeration(filters: {
-    status?: string;
-    storeId?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [isNull(products.deletedAt)];
-    if (filters.status) conditions.push(eq(products.status, filters.status));
-    if (filters.storeId) conditions.push(eq(products.storeId, filters.storeId));
+  async listProductsModeration(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'products', filters);
+  }
 
-    const where = and(...conditions);
+  async listCategories(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'categories', filters);
+  }
 
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(products)
-        .where(where)
-        .orderBy(desc(products.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(products).where(where),
+  async listDisputes(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'disputes', filters);
+  }
+
+  async getDisputeDetail(id: string) {
+    const dispute = await this.db.db.query.disputes.findFirst({ where: eq(disputes.id, id) });
+    if (!dispute) throw new NotFoundException('Dispute not found');
+    const events = await this.db.db.select().from(disputeEvents).where(eq(disputeEvents.disputeId, id)).orderBy(disputeEvents.createdAt);
+    const people = await this.db.db.select({ id: users.id, name: users.fullName }).from(users)
+      .where(inArray(users.id, [dispute.raisedBy, dispute.againstId]));
+    return { ...dispute, events, raisedByName: people.find(p => p.id === dispute.raisedBy)?.name ?? null,
+      againstName: people.find(p => p.id === dispute.againstId)?.name ?? null };
+  }
+
+  async productMediaPreviews(id: string) {
+    const product = await this.db.db.query.products.findFirst({ where: and(eq(products.id, id), isNull(products.deletedAt)) });
+    if (!product) throw new NotFoundException('Product not found');
+    const [media, variants] = await Promise.all([
+      this.db.db.select().from(productMedia).where(eq(productMedia.productId, id)),
+      this.db.db.select().from(productVariants).where(eq(productVariants.productId, id)),
     ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+    const references = [...new Set([...imageReferences(product.images, media),
+      ...variants.flatMap(v => imageReferences(v.images))])].filter(isProductMediaKey);
+    const previews: Record<string, string> = {};
+    for (const key of references) {
+      previews[key] = await this.storage.createPresignedGetUrl(process.env['S3_MEDIA_BUCKET'] || 'scs-media', key);
+    }
+    return { previews };
   }
 
   // ── User Management ──────────────────────────────────────────
 
-  async listUsers(filters: {
-    status?: string;
-    search?: string;
-    limit?: number;
-    offset?: number;
-  }) {
-    const conditions = [];
-
-    if (filters.status) {
-      conditions.push(eq(users.status, filters.status));
-    }
-    if (filters.search) {
-      const term = `%${filters.search}%`;
-      conditions.push(or(
-        like(users.fullName, term),
-        like(users.phone, term),
-        like(users.email, term),
-      ));
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const [rows, totalResult] = await Promise.all([
-      this.db.db.select().from(users)
-        .where(where)
-        .orderBy(desc(users.createdAt))
-        .limit(filters.limit || 50)
-        .offset(filters.offset || 0),
-      this.db.db.select({ count: sql<number>`count(*)` }).from(users).where(where),
-    ]);
-
-    return {
-      data: rows,
-      total: totalResult[0]?.count || 0,
-      limit: filters.limit || 50,
-      offset: filters.offset || 0,
-    };
+  async listUsers(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'users', filters);
   }
 
   async getUserDetail(userId: string) {
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
+    const [user] = await this.db.db.select(safeUserFields).from(users).where(eq(users.id, userId)).limit(1);
     if (!user) throw new NotFoundException('User not found');
-
-    // Get org memberships with role and org details
-    const memberships = await this.db.db.query.organizationMembers.findMany({
-      where: eq(organizationMembers.userId, userId),
-    });
-
-    const orgDetails = [];
-    for (const m of memberships) {
-      const org = await this.db.db.query.organizations.findFirst({
-        where: eq(organizations.id, m.orgId),
-      });
-      const role = await this.db.db.query.roles.findFirst({
-        where: eq(roles.id, m.roleId),
-      });
-      orgDetails.push({
-        orgId: m.orgId,
-        orgName: org?.name ?? 'Unknown',
-        orgType: org?.type ?? 'UNKNOWN',
-        roleId: m.roleId,
-        roleKey: role?.key ?? 'UNKNOWN',
-        roleName: role?.name ?? 'Unknown',
-        membershipStatus: m.status,
-        joinedAt: m.createdAt,
-      });
-    }
-
+    const orgDetails = await this.db.db.select({
+      orgId: organizationMembers.orgId, orgName: organizations.name, orgType: organizations.type,
+      roleId: organizationMembers.roleId, roleKey: roles.key, roleName: roles.name,
+      membershipStatus: organizationMembers.status, joinedAt: organizationMembers.createdAt,
+    }).from(organizationMembers).leftJoin(organizations, eq(organizationMembers.orgId, organizations.id))
+      .leftJoin(roles, eq(organizationMembers.roleId, roles.id)).where(eq(organizationMembers.userId, userId));
     return { ...user, organizations: orgDetails };
   }
 
@@ -599,9 +394,9 @@ export class AdminService {
 
   async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string) {
     const product = await this.db.db.query.products.findFirst({
-      where: eq(products.id, id),
+      where: and(eq(products.id, id), isNull(products.deletedAt)),
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product || product.status === 'ARCHIVED') throw new NotFoundException('Product not found');
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -630,7 +425,7 @@ export class AdminService {
     const [updated] = await this.db.db
       .update(products)
       .set(updates)
-      .where(eq(products.id, id))
+      .where(and(eq(products.id, id), isNull(products.deletedAt), sql`${products.status} <> 'ARCHIVED'`))
       .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
     if (!updated) throw new NotFoundException('Product not found');
     return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };

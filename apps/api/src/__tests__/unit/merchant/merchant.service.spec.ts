@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { MerchantService } from '../../../modules/merchant/merchant.service';
+import { products } from '../../../modules/catalog/catalog.schema';
+import { stores, verificationRequests } from '../../../modules/merchant/merchant.schema';
+import { organizations } from '../../../modules/identity/identity.schema';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 /**
  * A4-8 — merchant customers endpoint returns snake_case rows from raw SQL,
@@ -31,6 +35,79 @@ function createMocks() {
 
   return { db, outbox, storage, execute };
 }
+
+describe('MerchantService.reviewVerification', () => {
+  function setup(status = 'SUBMITTED', missing?: 'request' | 'store', mismatch = false) {
+    const request = { id: 'request', storeId: 'store', orgId: 'org', status };
+    const lock = vi.fn().mockResolvedValueOnce(missing === 'request' ? [] : [request])
+      .mockResolvedValueOnce(missing === 'store' ? [] : [{ id: 'store', orgId: mismatch ? 'wrong' : 'org' }]);
+    const updates: { table: unknown; values: any; predicate: any }[] = [];
+    const insert = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      select: () => ({ from: () => ({ where: () => ({ for: lock }) }) }),
+      update: (table: unknown) => ({ set: (values: any) => ({ where: (predicate: any) => {
+        updates.push({ table, values, predicate });
+        return { returning: async () => table === verificationRequests ? [{ ...request, ...values }] : [{ id: 'product' }] };
+      } }) }),
+      insert: () => ({ values: insert }),
+    };
+    const transaction = vi.fn(async (callback: any) => callback(tx));
+    const outbox = { publish: vi.fn() };
+    const service = new MerchantService({ db: { transaction } } as any, outbox as any, {} as any);
+    return { service, updates, insert, transaction, outbox, lock };
+  }
+  it('locks request/store, batches scoped activation, and inserts transactional outbox', async () => {
+    const test = setup();
+    const result = await test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'Reviewed');
+    expect(test.lock.mock.calls).toEqual([['update'], ['update']]);
+    expect(result.autoActivatedProductCount).toBe(1);
+    const productUpdate = test.updates.find(update => update.table === products)!;
+    expect(productUpdate.values).toMatchObject({ status: 'ACTIVE', isAvailable: true, updatedAt: result.reviewedAt });
+    const query = new PgDialect().sqlToQuery(productUpdate.predicate);
+    expect(query.params).toContain('store');
+    expect(query.params).toContain('DRAFT');
+    expect(query.sql).toContain('"products"."deleted_at" is null');
+    expect(query.sql).toContain('count(distinct ref)');
+    expect(test.updates.find(update => update.table === stores)?.values.updatedAt).toBe(result.reviewedAt);
+    expect(test.updates.some(update => update.table === organizations)).toBe(true);
+    expect(test.insert).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ autoActivatedProductCount: 1 }) }));
+    expect(test.outbox.publish).not.toHaveBeenCalled();
+  });
+  it.each(['REJECTED', 'REVISION'] as const)('%s does not activate products', async decision => {
+    const test = setup();
+    const result = await test.service.reviewVerification('request', 'reviewer', decision);
+    expect(result.autoActivatedProductCount).toBe(0);
+    expect(test.updates.some(update => update.table === products)).toBe(false);
+    expect(result.resolvedAt === null).toBe(decision === 'REVISION');
+  });
+  it.each(['APPROVED', 'REJECTED'])('refuses already %s requests', async status => {
+    const test = setup(status);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('already resolved');
+    expect(test.updates).toHaveLength(0);
+  });
+  it.each(['request', 'store'] as const)('rejects missing %s without writes', async missing => {
+    const test = setup('SUBMITTED', missing);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('not found');
+    expect(test.updates).toHaveLength(0);
+  });
+  it('rejects organization mismatch', async () => {
+    const test = setup('SUBMITTED', undefined, true);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('does not match');
+    expect(test.updates).toHaveLength(0);
+  });
+  it('validates decisions and bounded notes before opening a transaction', async () => {
+    const test = setup();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'INVALID' as any)).rejects.toThrow();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'x'.repeat(5001))).rejects.toThrow();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'REJECTED', undefined, ['x'.repeat(501)])).rejects.toThrow();
+    expect(test.transaction).not.toHaveBeenCalled();
+  });
+  it('propagates an outbox failure to the transaction', async () => {
+    const test = setup();
+    test.insert.mockRejectedValue(new Error('outbox unavailable'));
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('outbox unavailable');
+  });
+});
 
 describe('MerchantService.getCustomersByOrg', () => {
   it('returns an empty array when the org has no stores', async () => {

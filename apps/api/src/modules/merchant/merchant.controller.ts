@@ -17,6 +17,7 @@ import {
   CreateWarehouseInput,
   UploadDocumentInput,
 } from './merchant.service';
+import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { StorageService } from '../../common/storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -234,12 +235,7 @@ export class MerchantController {
   async reviewVerification(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      decision: 'APPROVED' | 'REJECTED' | 'REVISION';
-      notes?: string;
-      rejectionReasons?: string[];
-    },
+    @Body() body: ReviewVerificationDto,
   ) {
     return this.merchantService.reviewVerification(
       id,

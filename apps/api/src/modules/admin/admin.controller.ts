@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards, HttpCode, ParseUUIDPipe } from '@nestjs/common';
+import { AdminListInput } from './dto/admin-list-query.dto';
 import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -26,24 +27,8 @@ export class AdminController {
 
   @Get('orders')
   @RequirePermission('admin:orders:read')
-  async listOrders(
-    @Query('status') status?: string,
-    @Query('storeId') storeId?: string,
-    @Query('buyerId') buyerId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listOrders({
-      status,
-      storeId,
-      buyerId,
-      from,
-      to,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async listOrders(@Query() query: AdminListInput) {
+    return this.adminService.listOrders(query);
   }
 
   @Get('orders/:id')
@@ -54,18 +39,8 @@ export class AdminController {
 
   @Get('merchants')
   @RequirePermission('admin:merchants:read')
-  async listMerchants(
-    @Query('status') status?: string,
-    @Query('verificationStatus') verificationStatus?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listMerchants({
-      status,
-      verificationStatus,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async listMerchants(@Query() query: AdminListInput) {
+    return this.adminService.listMerchants(query);
   }
 
   @Get('kpis')
@@ -76,58 +51,48 @@ export class AdminController {
 
   @Get('audit-logs')
   @RequirePermission('admin:audit:read')
-  async getAuditLogs(
-    @Query('action') action?: string,
-    @Query('resource') resource?: string,
-    @Query('actorId') actorId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.getAuditLogs({
-      action,
-      resource,
-      actorId,
-      from,
-      to,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async getAuditLogs(@Query() query: AdminListInput) {
+    return this.adminService.getAuditLogs(query);
   }
 
   // ── Verification queue alias (plan §13.4 compliance) ───────
 
   @Get('verifications')
   @RequirePermission('admin:merchants:read')
-  async listVerifications(
-    @Query('status') status?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listVerifications({
-      status,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async listVerifications(@Query() query: AdminListInput) {
+    return this.adminService.listVerifications(query);
+  }
+
+  @Get('verification-queue')
+  @RequirePermission('merchant:verification:review')
+  async verificationQueue(@Query() query: AdminListInput) {
+    return this.adminService.listVerifications(query);
+  }
+
+  @Get('categories')
+  @RequirePermission('catalog:categories:write')
+  async listCategories(@Query() query: AdminListInput) {
+    return this.adminService.listCategories(query);
+  }
+
+  @Get('disputes')
+  @RequirePermission('support:disputes:resolve')
+  async listDisputes(@Query() query: AdminListInput) {
+    return this.adminService.listDisputes(query);
+  }
+
+  @Get('disputes/:id')
+  @RequirePermission('support:disputes:resolve')
+  async getDispute(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getDisputeDetail(id);
   }
 
   // ── User Management (plan §21.4, §5.1) ────────────────────
 
   @Get('users')
   @RequirePermission('admin:users:read')
-  async listUsers(
-    @Query('status') status?: string,
-    @Query('search') search?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listUsers({
-      status,
-      search,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async listUsers(@Query() query: AdminListInput) {
+    return this.adminService.listUsers(query);
   }
 
   @Get('users/:id')
@@ -179,24 +144,27 @@ export class AdminController {
 
   @Get('products')
   @RequirePermission('admin:merchants:read')
-  async listProductsModeration(
-    @Query('status') status?: string,
-    @Query('storeId') storeId?: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.adminService.listProductsModeration({
-      status,
-      storeId,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      offset: offset ? parseInt(offset, 10) : undefined,
-    });
+  async listProductsModeration(@Query() query: AdminListInput) {
+    return this.adminService.listProductsModeration(query);
+  }
+
+  @Get('products/:id/media-previews')
+  @RequirePermission('admin:merchants:read')
+  async productMediaPreviews(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.productMediaPreviews(id);
+  }
+
+  @Post('products/:id/moderate')
+  @HttpCode(200)
+  @RequirePermission('admin:merchants:read')
+  async moderateProductPost(@Param('id', ParseUUIDPipe) id: string, @Body() body: ModerateProductDto) {
+    return this.adminService.moderateProduct(id, body.decision, body.reason);
   }
 
   @Patch('products/:id/moderate')
   @RequirePermission('admin:merchants:read')
   async moderateProduct(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ModerateProductDto,
   ) {
     return this.adminService.moderateProduct(id, body.decision, body.reason);

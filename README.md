@@ -88,6 +88,41 @@ identity → merchant → catalog → inventory → pricing → orders → revie
                                                         audit
 ```
 
+## Admin Management & Moderation
+
+The Admin console (`apps/admin`) provides eight database-backed management pages — **Products, Users, Merchants, Orders, Verification, Disputes, Audit, Categories** — with URL-query-backed search, filtering, sorting, pagination, and accessible detail dialogs.
+
+### Product Moderation
+
+- `POST /v1/admin/products/:id/moderate` (also `PATCH`) — approve/reject/archive products; permission `admin:merchants:read`.
+- Moderation decisions are echoed in the response with an audit trail; `reason` is not persisted.
+- Signed media previews are restricted to product-owned `products/...` keys only.
+
+### Merchant Verification & Draft Activation
+
+When a reviewer approves a verification request (`POST /v1/verification/:id/review`):
+
+1. The store is atomically set to VERIFIED and the organization to VERIFIED.
+2. Eligible **current non-deleted DRAFT** products for that store are activated in the same transaction:
+   - Trimmed title length 1–300, non-blank slug, MOQ ≥ 1, condition NEW/USED/REFURBISHED.
+   - At least one distinct image reference (from `products.images` JSON or `product_media` IMAGE rows).
+3. Ineligible drafts remain unchanged — no backfill, no future-product activation.
+4. Activated products retain their existing `publishedAt` if set; otherwise the decision timestamp is used.
+5. `isAvailable` is set to `true`; availability is not toggled for ineligible records.
+6. A transactional outbox event is emitted with `autoActivatedProductCount`.
+
+Image references are deduplicated and trimmed identically in SQL (`btrim` with ECMAScript whitespace) and JavaScript normalization. Variant-associated `product_media` qualifies through `productId`. Variant JSON `images` do not independently qualify the parent.
+
+### Testing
+
+```bash
+pnpm --filter @scs/api test:unit          # API unit tests (Vitest)
+pnpm --filter @scs/api test:integration   # PostgreSQL integration tests (Testcontainers)
+pnpm --filter @scs/admin test             # Admin UI tests (Vitest + jsdom)
+```
+
+Integration tests require Docker (Testcontainers PostgreSQL 16). Two migrations (`0013_analytics.sql`, `0018_analytics_retention.sql`) are excluded from the test harness because they depend on `pg_partman`.
+
 ## Documentation
 
 - [Development & Implementation Plan](./Smart_Commerce_Development_Implementation_Plan.md) — developer-ready specification

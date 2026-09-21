@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { AccessDenied, useRequirePerms } from '../../../hooks/useRequirePerms';
 import Link from 'next/link';
 import {
   fetchVerificationRequest,
@@ -24,8 +25,13 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 export default function VerificationReviewPage() {
   const params = useParams();
-  const router = useRouter();
   const requestId = params['id'] as string;
+  const { hasAccess, missingPerms } = useRequirePerms(['merchant:verification:review']);
+  const [ready, setReady] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const [success, setSuccess] = useState<string | null>(null);
+  const pending = useRef(false);
+  const active = useRef(0);
 
   const [request, setRequest] = useState<VerificationRequest | null>(null);
   const [store, setStore] = useState<Store | null>(null);
@@ -39,47 +45,58 @@ export default function VerificationReviewPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => setReady(true), []);
   useEffect(() => {
-    loadData();
-  }, [requestId]);
-
-  async function loadData() {
+    if (!ready || !hasAccess) return;
+    let current = true;
+    active.current += 1;
     setLoading(true);
-    try {
-      const req = await fetchVerificationRequest(requestId);
-      setRequest(req);
-
+    setError(null);
+    setRequest(null);
+    fetchVerificationRequest(requestId).then(async req => {
       const [storeData, docs] = await Promise.all([
-        fetchStore(req.storeId),
-        fetchStoreDocuments(req.storeId),
+        fetchStore(req.storeId), fetchStoreDocuments(req.storeId),
       ]);
-      setStore(storeData);
-      setDocuments(docs);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load verification details');
-    } finally {
-      setLoading(false);
-    }
-  }
+      if (current) {
+        setRequest(req);
+        setStore(storeData);
+        setDocuments(docs);
+      }
+    }).catch((err: unknown) => {
+      if (current) setError(err instanceof Error ? err.message : 'Failed to load verification details');
+    }).finally(() => { if (current) setLoading(false); });
+    return () => { current = false; active.current += 1; };
+  }, [requestId, ready, hasAccess, revision]);
 
   async function handleSubmit() {
-    if (!request) return;
+    if (!request || pending.current || !hasAccess) return;
+    pending.current = true;
+    const generation = active.current;
     setSubmitting(true);
+    setError(null);
+    setSuccess(null);
     try {
       const reasons = decision === 'REJECTED' && rejectionReason
         ? [rejectionReason]
         : undefined;
 
-      await reviewVerification(request.id, decision, notes || undefined, reasons);
-      router.push('/verification');
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit review');
+      const updated = await reviewVerification(request.id, decision, notes || undefined, reasons);
+      if (generation !== active.current) return;
+      setRequest(updated);
+      setSuccess(decision === 'APPROVED'
+        ? `Verification approved. ${updated.autoActivatedProductCount ?? 0} eligible draft products activated.`
+        : `Verification decision saved: ${decision}. No products activated.`);
+      setRevision(value => value + 1);
+    } catch (err: unknown) {
+      if (generation === active.current) setError(err instanceof Error ? err.message : 'Failed to submit review');
     } finally {
-      setSubmitting(false);
+      pending.current = false;
+      if (generation === active.current) setSubmitting(false);
     }
   }
 
-  if (loading) {
+  if (ready && !hasAccess) return <AccessDenied requiredPerms={['merchant:verification:review']} missingPerms={missingPerms} />;
+  if (!ready || loading) {
     return (
       <>
         {/* Header Banner */}
@@ -114,6 +131,7 @@ export default function VerificationReviewPage() {
         </div>
         <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
           <p style={{ color: '#c62828' }}>{error}</p>
+          <button onClick={() => setRevision(value => value + 1)}>Retry</button>
           <Link href="/verification" style={{ color: '#174a5b' }}>&larr; Back to Queue</Link>
         </div>
       </>
@@ -149,6 +167,8 @@ export default function VerificationReviewPage() {
             {error}
           </div>
         )}
+
+        {success && <p role="status" style={{ padding: 16, background: '#e8f5e9', color: '#256029' }}>{success}</p>}
 
         {/* Store Info */}
         {store && (
@@ -279,12 +299,20 @@ export default function VerificationReviewPage() {
                 ))}
               </div>
 
+              {decision === 'APPROVED' && <p>
+                Approval also activates this store’s current, nondeleted DRAFT products with a trimmed title
+                of 1–300 characters, a nonblank slug, MOQ of at least 1, a supported condition, and at least
+                one stored image reference. Eligible products become available; an existing published date
+                is preserved. Ineligible drafts remain unchanged. Image references do not guarantee uploaded
+                files exist. Future products and previously approved stores are not backfilled.
+              </p>}
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
                   Reviewer Notes
                 </label>
                 <textarea
                   value={notes}
+                  maxLength={5000}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
                   style={{
@@ -309,6 +337,7 @@ export default function VerificationReviewPage() {
                   <input
                     type="text"
                     value={rejectionReason}
+                    maxLength={500}
                     onChange={(e) => setRejectionReason(e.target.value)}
                     style={{
                       width: '100%',
