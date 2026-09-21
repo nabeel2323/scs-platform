@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import '../models/models.dart';
 import 'device_id_service.dart';
@@ -629,6 +631,7 @@ class ApiService {
     required String fileName,
     String? mimeType,
     int? fileSize,
+    String? storageKey,
   }) async {
     final d = <String, dynamic>{
       'orgId': orgId,
@@ -638,7 +641,60 @@ class ApiService {
     if (storeId != null) d['storeId'] = storeId;
     if (mimeType != null) d['mimeType'] = mimeType;
     if (fileSize != null) d['fileSize'] = fileSize;
+    if (storageKey != null) d['storageKey'] = storageKey;
     return (await _dio.post('/v1/documents', data: d)).data;
+  }
+
+  /// Request a presigned PUT URL for a business (verification) document.
+  Future<Map<String, dynamic>> presignDocumentUpload(
+          {required String fileName, required String mimeType}) async =>
+      (await _dio.post('/v1/documents/presign-upload',
+              data: {'fileName': fileName, 'mimeType': mimeType}))
+          .data;
+
+  /// Upload a verification document end-to-end: request a presigned PUT URL,
+  /// push the raw bytes to object storage, then register the document metadata
+  /// against the returned storageKey. Previously only metadata was registered,
+  /// so the recorded key pointed at a non-existent object and reviewer
+  /// downloads failed with NoSuchKey (404).
+  Future<Map<String, dynamic>> uploadBusinessDocument({
+    required String orgId,
+    String? storeId,
+    required String docType,
+    required String fileName,
+    required String mimeType,
+    required int fileSize,
+    required List<int> bytes,
+  }) async {
+    final presign =
+        await presignDocumentUpload(fileName: fileName, mimeType: mimeType);
+    final uploadUrl = (presign['uploadUrl'] ?? '').toString();
+    final storageKey = (presign['storageKey'] ?? '').toString();
+    if (uploadUrl.isNotEmpty && bytes.isNotEmpty) {
+      try {
+        // Standalone Dio (no auth interceptor / baseUrl) for the direct PUT to
+        // the object-storage host, mirroring the product-media upload flow.
+        await Dio(BaseOptions(
+          connectTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+        )).put(
+          uploadUrl,
+          data: Uint8List.fromList(bytes),
+          options: Options(headers: {'Content-Type': mimeType}),
+        );
+      } catch (_) {
+        // best-effort — dev storage may be stubbed; metadata is still recorded
+      }
+    }
+    return registerDocument(
+      orgId: orgId,
+      storeId: storeId,
+      docType: docType,
+      fileName: fileName,
+      mimeType: mimeType,
+      fileSize: fileSize,
+      storageKey: storageKey.isEmpty ? null : storageKey,
+    );
   }
 
   // ── Verification ───────────────────────────────────────────

@@ -222,3 +222,50 @@ describe('MerchantService.getCustomersByOrg', () => {
     ]);
   });
 });
+
+describe('MerchantService.uploadDocument', () => {
+  function mockUploadDb() {
+    const values = vi.fn().mockResolvedValue(undefined);
+    const insert = vi.fn(() => ({ values }));
+    const findFirst = vi.fn().mockResolvedValue({ id: 'doc-1' });
+    const db = { db: { insert, query: { businessDocuments: { findFirst } } } };
+    return { db, values };
+  }
+
+  it('persists the client-supplied storageKey so downloads presign the uploaded object', async () => {
+    const { db, values } = mockUploadDb();
+    const storage = { createPresignedGetUrl: vi.fn(), createPresignedPutUrl: vi.fn() };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+
+    await service.uploadDocument({
+      orgId: 'org-1',
+      docType: 'COMMERCIAL_REG',
+      fileName: 'cr.pdf',
+      uploadedBy: 'user-1',
+      storageKey: 'docs/presigned-uuid/cr.pdf',
+    });
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'cr.pdf',
+        storageKey: 'docs/presigned-uuid/cr.pdf',
+      }),
+    );
+  });
+
+  it('falls back to a deterministic docs/{orgId}/{docId}/{fileName} key when none is supplied', async () => {
+    const { db, values } = mockUploadDb();
+    const storage = { createPresignedGetUrl: vi.fn(), createPresignedPutUrl: vi.fn() };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+
+    await service.uploadDocument({
+      orgId: 'org-1',
+      docType: 'COMMERCIAL_REG',
+      fileName: 'cr.pdf',
+      uploadedBy: 'user-1',
+    });
+
+    const inserted = values.mock.calls.at(-1)?.[0] as { storageKey: string };
+    expect(inserted.storageKey).toMatch(/^docs\/org-1\/[^/]+\/cr\.pdf$/);
+  });
+});

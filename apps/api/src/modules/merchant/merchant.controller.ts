@@ -163,7 +163,14 @@ export class MerchantController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:stores:write')
   async presignDocumentUpload(@Body() body: { fileName: string; mimeType: string }) {
-    const key = `docs/${crypto.randomUUID()}/${body.fileName}`;
+    // Sanitize the client-supplied filename before embedding it in the object
+    // key (strip path separators / traversal). The exact key returned here is
+    // sent back by the client on POST /documents and persisted as storageKey,
+    // so the upload and download keys always match.
+    const safeName =
+      (body.fileName || 'document').replace(/\.\./g, '_').replace(/[\\/]+/g, '_').trim() ||
+      'document';
+    const key = `docs/${crypto.randomUUID()}/${safeName}`;
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
     const uploadUrl = await this.storage.createPresignedPutUrl(
       bucket,

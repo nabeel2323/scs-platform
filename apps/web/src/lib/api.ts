@@ -273,6 +273,19 @@ export async function createWarehouse(storeId: string, input: {
 
 // ── Documents ────────────────────────────────────────────────
 
+export async function presignDocumentUpload(input: {
+  fileName: string;
+  mimeType: string;
+}): Promise<{ uploadUrl: string; storageKey: string }> {
+  const res = await authFetch(`${API_URL}/v1/documents/presign-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Failed to presign document upload: ${res.status}`);
+  return res.json();
+}
+
 export async function registerDocument(input: {
   orgId: string;
   storeId?: string;
@@ -280,6 +293,7 @@ export async function registerDocument(input: {
   fileName: string;
   mimeType?: string;
   fileSize?: number;
+  storageKey?: string;
 }): Promise<BusinessDocument> {
   const res = await authFetch(`${API_URL}/v1/documents`, {
     method: 'POST',

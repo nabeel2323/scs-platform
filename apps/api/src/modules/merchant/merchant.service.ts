@@ -290,7 +290,12 @@ export class MerchantService {
 
   async uploadDocument(input: UploadDocumentInput) {
     const docId = crypto.randomUUID();
-    const storageKey = `docs/${input.orgId}/${docId}/${input.fileName}`;
+    // Persist the key the client actually uploaded to (returned by
+    // POST /documents/presign-upload). Without this the record points at a key
+    // no object was ever written to, and the download presign 404s NoSuchKey.
+    // Fall back to a deterministic key only for legacy callers.
+    const storageKey =
+      input.storageKey?.trim() || `docs/${input.orgId}/${docId}/${input.fileName}`;
 
     await this.db.db.insert(businessDocuments).values({
       id: docId,
@@ -556,6 +561,8 @@ export interface UploadDocumentInput {
   fileName: string;
   mimeType?: string;
   fileSize?: number;
+  /** Object key the file was uploaded to via POST /documents/presign-upload. */
+  storageKey?: string;
   uploadedBy: string;
   expiresAt?: Date;
 }
