@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchStorePriceLists, fetchPriceListTiers, createPriceList,
   addPriceTier, updatePriceTier, removePriceTier,
-  PriceList, PriceTier,
+  fetchStoreProducts, fetchProductVariants,
+  PriceList, PriceTier, ProductVariant,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
@@ -35,6 +36,12 @@ export default function MerchantPricingPage() {
   const [newMaxQty, setNewMaxQty] = useState('');
   const [newUnitPrice, setNewUnitPrice] = useState('');
   const [addingTier, setAddingTier] = useState(false);
+
+  // Variant searchable dropdown
+  const [allVariants, setAllVariants] = useState<ProductVariant[]>([]);
+  const [variantSearch, setVariantSearch] = useState('');
+  const [showVariantDrop, setShowVariantDrop] = useState(false);
+  const variantDropRef = useRef<HTMLDivElement>(null);
 
   // Edit tier
   const [editingTier, setEditingTier] = useState('');
@@ -89,6 +96,48 @@ export default function MerchantPricingPage() {
     })();
   }, [loadLists]);
 
+  // Load all store variants for the searchable dropdown
+  useEffect(() => {
+    if (!storeId || !showAddTier) return;
+    (async () => {
+      try {
+        const products: any[] = [];
+        let offset = 0;
+        while (true) {
+          const env = await fetchStoreProducts(storeId, { limit: 50, offset });
+          products.push(...(env.items as any[]));
+          if (products.length >= env.total || env.items.length === 0) break;
+          offset += 50;
+        }
+        const variantArrays = await Promise.all(
+          products.map(p => fetchProductVariants(p.id).catch(() => []))
+        );
+        setAllVariants(variantArrays.flat());
+      } catch { /* silent */ }
+    })();
+  }, [storeId, showAddTier]);
+
+  // Close variant dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (variantDropRef.current && !variantDropRef.current.contains(e.target as Node)) {
+        setShowVariantDrop(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredVariants = allVariants.filter(v => {
+    if (!variantSearch) return true;
+    const q = variantSearch.toLowerCase();
+    return v.sku.toLowerCase().includes(q)
+      || (v.title || '').toLowerCase().includes(q)
+      || v.unit.toLowerCase().includes(q);
+  });
+
+  const variantInfo = allVariants.reduce((acc, v) => { acc[v.id] = v; return acc; }, {} as Record<string, ProductVariant>);
+
   const fmt = (n: number) => (n / 100).toFixed(2);
 
   const handleCreateList = async () => {
@@ -110,7 +159,7 @@ export default function MerchantPricingPage() {
   };
 
   const handleAddTier = async () => {
-    if (!selectedList || !newVariantId.trim() || !newUnitPrice.trim()) return;
+    if (!selectedList || !newVariantId || !newUnitPrice.trim()) return;
     const minQty = Number(newMinQty) || 1;
     const unitPriceMinor = Math.round(parseFloat(newUnitPrice) * 100);
     if (unitPriceMinor <= 0) { setError('Unit price must be positive'); return; }
@@ -119,13 +168,15 @@ export default function MerchantPricingPage() {
     try {
       await addPriceTier({
         priceListId: selectedList,
-        variantId: newVariantId.trim(),
+        variantId: newVariantId,
         minQty,
         maxQty: newMaxQty.trim() ? Number(newMaxQty) : undefined,
         unitPriceMinor,
       });
       setShowAddTier(false);
       setNewVariantId('');
+      setVariantSearch('');
+      setShowVariantDrop(false);
       setNewMinQty('1');
       setNewMaxQty('');
       setNewUnitPrice('');
@@ -247,7 +298,11 @@ export default function MerchantPricingPage() {
               <tbody>
                 {tiers.map(t => (
                   <tr key={t.id} className="tbl-row" style={tbodyRow}>
-                    <td style={td}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{t.variantId.slice(0, 8)}</span></td>
+                    <td style={td}>
+                      {(() => { const vi = variantInfo[t.variantId]; return vi
+                        ? <span style={{ fontSize: 12 }}><strong>{vi.sku}</strong>{vi.title ? ` · ${vi.title}` : ''}</span>
+                        : <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#9ca3af' }}>Variant removed</span>; })()}
+                    </td>
                     {editingTier === t.id ? (
                       <>
                         <td style={td}><input type="number" value={editMinQty} onChange={e => setEditMinQty(e.target.value)} style={inlineInput} min={1} /></td>
@@ -283,7 +338,9 @@ export default function MerchantPricingPage() {
             <h3 style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 8 }}>Tier Preview</h3>
             {Object.entries(tiersByVariant).slice(0, 3).map(([variantId, variantTiers]) => (
               <div key={variantId} style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: '#5b6b74', marginBottom: 4, fontFamily: 'monospace' }}>Variant #{variantId.slice(0, 8)}</div>
+                <div style={{ fontSize: 11, color: '#5b6b74', marginBottom: 4 }}>
+                  {variantInfo[variantId] ? <><strong>{variantInfo[variantId].sku}</strong>{variantInfo[variantId].title ? ` · ${variantInfo[variantId].title.slice(0, 20)}` : ''}</> : `Variant #${variantId.slice(0, 8)}`}
+                </div>
                 <TierLadder tiers={variantTiers} />
               </div>
             ))}
@@ -320,8 +377,40 @@ export default function MerchantPricingPage() {
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Add Price Tier</h3>
-            <label style={label}>Variant ID *
-              <input type="text" value={newVariantId} onChange={e => setNewVariantId(e.target.value)} placeholder="UUID of the product variant" style={input} autoFocus />
+            <label style={label}>Product Variant *
+              <div ref={variantDropRef} style={variantDropWrap}>
+                <input
+                  type="text"
+                  value={showVariantDrop ? variantSearch : (newVariantId ? (variantInfo[newVariantId]?.sku || 'Selected variant') : '')}
+                  onChange={e => { setVariantSearch(e.target.value); setShowVariantDrop(true); }}
+                  onFocus={() => setShowVariantDrop(true)}
+                  onClick={e => e.stopPropagation()}
+                  placeholder="Search by SKU, name, or unit…"
+                  style={input}
+                  autoComplete="off"
+                />
+                {allVariants.length === 0 && <div style={variantEmpty}>Loading variants…</div>}
+                {showVariantDrop && allVariants.length > 0 && (
+                  <div style={variantMenu}>
+                    {filteredVariants.length === 0 ? (
+                      <div style={variantNoMatch}>No variants match "{variantSearch}"</div>
+                    ) : filteredVariants.map(v => (
+                      <div
+                        key={v.id}
+                        onClick={() => { setNewVariantId(v.id); setVariantSearch(''); setShowVariantDrop(false); }}
+                        style={{
+                          ...variantOption,
+                          background: v.id === newVariantId ? '#e6f0f5' : 'transparent',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 12, color: '#0f3340' }}>{v.sku}</span>
+                        {v.title && <span style={{ fontSize: 11, color: '#5b6b74', marginLeft: 6 }}>{v.title}</span>}
+                        <span style={{ fontSize: 10, color: '#9ca3af', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{v.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </label>
             <div style={{ display: 'flex', gap: 12 }}>
               <label style={{ ...label, flex: 1 }}>Min Qty *
@@ -335,7 +424,7 @@ export default function MerchantPricingPage() {
               <input type="number" value={newUnitPrice} onChange={e => setNewUnitPrice(e.target.value)} placeholder="e.g. 12.50" style={input} step="0.01" min={0} />
             </label>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button onClick={handleAddTier} disabled={addingTier || !newVariantId.trim() || !newUnitPrice.trim()} style={primaryBtn}>{addingTier ? 'Adding…' : 'Add Tier'}</button>
+              <button onClick={handleAddTier} disabled={addingTier || !newVariantId || !newUnitPrice.trim()} style={primaryBtn}>{addingTier ? 'Adding…' : 'Add Tier'}</button>
               <button onClick={() => setShowAddTier(false)} style={ghostBtn}>Cancel</button>
             </div>
           </div>
@@ -368,3 +457,8 @@ const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 
 const dialog: React.CSSProperties = { background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' };
 const label: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 10 };
 const input: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, fontWeight: 400, color: '#1f2937' };
+const variantDropWrap: React.CSSProperties = { position: 'relative' };
+const variantMenu: React.CSSProperties = { position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 8, maxHeight: 220, overflowY: 'auto', zIndex: 300, boxShadow: '0 6px 20px rgba(0,0,0,0.12)', marginTop: 4 };
+const variantOption: React.CSSProperties = { padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, borderBottom: '1px solid #f3f4f6' };
+const variantEmpty: React.CSSProperties = { fontSize: 11, color: '#9ca3af', padding: '6px 0 0' };
+const variantNoMatch: React.CSSProperties = { padding: '12px 16px', fontSize: 12, color: '#9ca3af', textAlign: 'center' };

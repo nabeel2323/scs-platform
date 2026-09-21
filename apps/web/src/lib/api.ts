@@ -273,6 +273,12 @@ export async function createWarehouse(storeId: string, input: {
 
 // ── Documents ────────────────────────────────────────────────
 
+export async function fetchOrgDocuments(orgId: string): Promise<BusinessDocument[]> {
+  const res = await authFetch(`${API_URL}/v1/documents/org/${orgId}`);
+  if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
+  return res.json();
+}
+
 export async function presignDocumentUpload(input: {
   fileName: string;
   mimeType: string;
