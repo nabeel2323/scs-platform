@@ -146,6 +146,15 @@ export class AdminController {
     return this.adminService.listOrganizations();
   }
 
+  @Patch('organizations/:id/deactivate')
+  @RequirePermission('admin:users:write')
+  async deactivateOrganization(
+    @Param('id') id: string,
+    @Body() body: { isActive: boolean },
+  ) {
+    return this.adminService.deactivateOrganization(id, body.isActive);
+  }
+
   // ── Product moderation (plan §13.4) ────────────────────────
 
   @Get('products')
