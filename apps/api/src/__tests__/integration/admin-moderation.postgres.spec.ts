@@ -12,7 +12,7 @@ import { adminTables, AdminTable, listAdminTable } from '../../modules/admin/adm
 import { AdminService } from '../../modules/admin/admin.service';
 import { CatalogService } from '../../modules/catalog/catalog.service';
 import { MerchantService } from '../../modules/merchant/merchant.service';
-import { products, productMedia, productVariants, categories } from '../../modules/catalog/catalog.schema';
+import { products, productMedia, productVariants, categories, brands } from '../../modules/catalog/catalog.schema';
 import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
 import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { masterOrders, orders } from '../../modules/orders/orders.schema';
@@ -35,7 +35,7 @@ describe('admin moderation on PostgreSQL', () => {
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
-    db = drizzle(pool, { schema: { products, productMedia, productVariants, stores, categories, verificationRequests, users, organizations, disputes } }) as unknown as DatabaseService['db'];
+    db = drizzle(pool, { schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes } }) as unknown as DatabaseService['db'];
     const migrations = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     // Analytics partition maintenance needs pg_partman; it is unrelated to these tables.
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
@@ -55,6 +55,7 @@ describe('admin moderation on PostgreSQL', () => {
       await db.insert(stores).values({ id, orgId, slug: `fixture-${index}`, displayName: label, createdAt: date });
       await db.insert(products).values({ id, storeId: id, slug: `fixture-${index}`, title: label, images: ['https://image.invalid/a'], createdAt: date });
       await db.insert(categories).values({ id, name: label, slug: `fixture-${index}`, parentId: index ? fixtureIds[0] : null, createdAt: date });
+      await db.insert(brands).values({ id, name: label, slug: `fixture-${index}`, createdAt: date });
       await db.insert(masterOrders).values({ id, buyerId: id });
       await db.insert(orders).values({ id, masterOrderId: id, buyerId: id, storeId: id, currency: 'SAR', totalMinor: index * 100, createdAt: date });
       await db.insert(verificationRequests).values({ id, orgId, storeId: id, submittedBy: actorId, submittedAt: date });

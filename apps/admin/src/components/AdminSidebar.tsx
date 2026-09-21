@@ -11,6 +11,7 @@ const navItems: { href: string; label: string; icon: string; perms: string[] }[]
   { href: '/merchants', label: 'Merchants', icon: '🏪', perms: ['admin:merchants:read'] },
   { href: '/verification', label: 'Verification', icon: '✓', perms: ['merchant:verification:review'] },
   { href: '/categories', label: 'Categories', icon: '📁', perms: ['catalog:categories:write'] },
+  { href: '/brands', label: 'Brands', icon: '🏷', perms: ['catalog:brands:manage'] },
   { href: '/disputes', label: 'Disputes', icon: '⚖', perms: ['support:disputes:resolve'] },
   { href: '/products', label: 'Products', icon: '📋', perms: ['admin:merchants:read'] },
   { href: '/kpis', label: 'KPIs', icon: '📊', perms: ['admin:kpis:read'] },

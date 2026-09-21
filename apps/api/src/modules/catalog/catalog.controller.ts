@@ -89,8 +89,27 @@ export class CatalogController {
   }
 
   @Get('brands')
-  async listBrands() {
-    return this.catalogService.listBrands();
+  async listBrands(@Query('includeInactive') includeInactive?: string) {
+    return this.catalogService.listBrands(includeInactive === 'true');
+  }
+
+  @Get('brands/:id')
+  async getBrand(@Param('id') id: string) {
+    return this.catalogService.getBrand(id);
+  }
+
+  @Patch('brands/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:brands:manage')
+  async updateBrand(@Param('id') id: string, @Body() input: Record<string, unknown>) {
+    return this.catalogService.updateBrand(id, input as any);
+  }
+
+  @Delete('brands/:id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:brands:manage')
+  async deactivateBrand(@Param('id') id: string) {
+    return this.catalogService.deactivateBrand(id);
   }
 
   // ── Products ─────────────────────────────────────────────────
@@ -156,6 +175,13 @@ export class CatalogController {
   @Get('products/:productId/media')
   async listMedia(@Param('productId') productId: string) {
     return this.catalogService.listMediaByProduct(productId);
+  }
+
+  @Delete('products/:productId/media/:mediaId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async removeMedia(@Param('productId') productId: string, @Param('mediaId') mediaId: string) {
+    return this.catalogService.removeMedia(productId, mediaId);
   }
 
   @Post('media/presign')

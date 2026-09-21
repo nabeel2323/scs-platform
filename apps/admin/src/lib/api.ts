@@ -573,3 +573,49 @@ export async function deleteAdminCategory(id: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`Failed to delete category: ${res.status}`);
 }
+
+// ── Brands ─────────────────────────────────────────────────────
+
+export interface AdminBrand {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  slug: string;
+  logoUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAdminBrands(includeInactive = false): Promise<AdminBrand[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  const res = await authFetch(`${API_URL}/v1/brands${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch brands: ${res.status}`);
+  return res.json();
+}
+
+export async function createAdminBrand(data: { name: string; nameAr?: string; logoUrl?: string; description?: string }): Promise<AdminBrand> {
+  const res = await authFetch(`${API_URL}/v1/brands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create brand: ${res.status}`);
+  return res.json();
+}
+
+export async function updateAdminBrand(id: string, data: Partial<AdminBrand>): Promise<AdminBrand> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update brand: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateAdminBrand(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to deactivate brand: ${res.status}`);
+}

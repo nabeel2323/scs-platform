@@ -10,7 +10,7 @@ import TablePagination from './TablePagination';
 import DetailDialog from './DetailDialog';
 import ProductDetails, { ProductModerationActions } from './ProductDetails';
 import { ErrorNotice, PreviewImage, RecordFields, textValue } from './RecordFields';
-import { CategoryEditor, DisputeActions, useAdminMutation, UserMemberships, UserStatusActions, userDetailKeys } from './EntityActions';
+import { CategoryEditor, BrandEditor, DisputeActions, useAdminMutation, UserMemberships, UserStatusActions, userDetailKeys } from './EntityActions';
 import styles from './management.module.css';
 
 export default function ManagementPage({ entity }: { entity: ManagementEntity }) {
@@ -91,7 +91,10 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
   const filterFields: FilterDefinition[] = [...config.filters,
     { key: 'dateField', label: 'Date field (UTC)', options: config.dates }, { key: 'from', label: 'From (UTC)', type: 'date' }, { key: 'to', label: 'To (UTC)', type: 'date' }];
   const open = (row: AdminRecord, edit = false) => { setSelectedId(row.id); setSelected(row); setEditing(edit); };
-  const remove = (row: AdminRecord) => { if (window.confirm('Delete this category?')) deletion.run(`categories/${row.id}`, 'DELETE'); };
+  const remove = (row: AdminRecord) => {
+    const label = entity === 'brands' ? 'brand' : 'category';
+    if (window.confirm(`Delete this ${label}?`)) deletion.run(`${entity}/${row.id}`, 'DELETE');
+  };
   const sort = (field: string) => state.change({ sortBy: field, sortDir: state.sortBy === field && state.sortDir === 'asc' ? 'desc' : 'asc' });
   return <div ref={root} className={styles['shell']}>
     <header className={styles['header']}><h1>{config.title}</h1><p>{total} matching records · Search and sorting apply across all records</p></header>
@@ -104,6 +107,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
         <label>Direction<select value={state.sortDir} onChange={e => state.change({ sortDir: e.target.value })}><option value="asc">Ascending</option><option value="desc">Descending</option></select></label>
         <button type="button" onClick={list.reload}>Refresh</button>
         {entity === 'categories' && <button type="button" onClick={() => setCreating(true)}>Add category</button>}
+        {entity === 'brands' && <button type="button" onClick={() => setCreating(true)}>Add brand</button>}
       </div>
       <details className={styles['filters']}><summary>Advanced filters</summary>
         <form onSubmit={event => { event.preventDefault(); state.apply(); }}>
@@ -137,6 +141,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
               {entity === 'users' && <UserStatusActions record={row} onDone={list.reload} />}
               <VerificationLink entity={entity} row={row} />
               {entity === 'categories' && <><button type="button" onClick={() => open(row, true)}>Edit</button><button type="button" disabled={deletion.busy} onClick={() => remove(row)}>Delete</button></>}
+              {entity === 'brands' && <><button type="button" onClick={() => open(row, true)}>Edit</button><button type="button" disabled={deletion.busy} onClick={() => remove(row)}>Deactivate</button></>}
             </div></td>
           </tr>)}
           {!rows.length && <tr><td colSpan={config.columns.length + 1}>No matching records.</td></tr>}
@@ -145,17 +150,19 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
       <TablePagination page={state.page} total={total} limit={state.limit} onPageChange={page => state.change({ page: String(page) }, false)} onLimitChange={limit => state.change({ limit: String(limit) })} />
       {selected && <DetailDialog title={`${editing ? 'Edit' : 'Details'} — ${textValue(selected['title'] || selected['name'] || selected['fullName'] || selected['displayName'] || selected.id)}`} onClose={() => setSelected(null)}>
         {entity === 'products' ? <ProductDetails key={selected.id} id={selected.id} returnTo={state.returnTo} onChanged={list.reload} />
-          : editing ? <CategoryEditor key={selected.id} record={selected} onCancel={() => setEditing(false)} onDone={() => { setSelected(null); list.reload(); }} />
+          : editing && (entity === 'categories' || entity === 'brands') ? (entity === 'categories' ? <CategoryEditor key={selected.id} record={selected} onCancel={() => setEditing(false)} onDone={() => { setSelected(null); list.reload(); }} /> : <BrandEditor key={selected.id} record={selected} onCancel={() => setEditing(false)} onDone={() => { setSelected(null); list.reload(); }} />)
           : <EntityDetails key={selected.id} entity={entity} row={selected} onChanged={list.reload} onEdit={() => setEditing(true)} />}
       </DetailDialog>}
-      {creating && <DetailDialog title="New category" onClose={() => setCreating(false)}><CategoryEditor onCancel={() => setCreating(false)} onDone={() => { setCreating(false); list.reload(); }} /></DetailDialog>}
+      {creating && <DetailDialog title={entity === 'brands' ? 'New brand' : 'New category'} onClose={() => setCreating(false)}>
+        {entity === 'brands' ? <BrandEditor onCancel={() => setCreating(false)} onDone={() => { setCreating(false); list.reload(); }} /> : <CategoryEditor onCancel={() => setCreating(false)} onDone={() => { setCreating(false); list.reload(); }} />}
+      </DetailDialog>}
     </div>
   </div>;
 }
 
 function EntityDetails({ entity, row, onChanged, onEdit }: { entity: ManagementEntity; row: AdminRecord; onChanged: () => void; onEdit: () => void }) {
   const path = entity === 'users' || entity === 'orders' || entity === 'disputes' ? `admin/${entity}/${row.id}`
-    : entity === 'verification' ? `verification/${row.id}` : entity === 'merchants' ? `stores/${row.id}` : entity === 'categories' ? `categories/${row.id}` : null;
+    : entity === 'verification' ? `verification/${row.id}` : entity === 'merchants' ? `stores/${row.id}` : entity === 'categories' ? `categories/${row.id}` : entity === 'brands' ? `brands/${row.id}` : null;
   const detail = useAdminResource<AdminRecord>(path);
   if (detail.loading) return <p role="status">Loading details…</p>;
   if (detail.error) return <ErrorNotice message={detail.error} retry={detail.reload} />;
@@ -166,6 +173,7 @@ function EntityDetails({ entity, row, onChanged, onEdit }: { entity: ManagementE
       <VerificationLink entity={entity} row={record} />
       {entity === 'users' && <UserStatusActions record={record} onDone={changed} />}
       {entity === 'categories' && <button type="button" onClick={onEdit}>Edit category</button>}
+      {entity === 'brands' && <button type="button" onClick={onEdit}>Edit brand</button>}
     </div>
     <RecordFields record={record} keys={entity === 'users' ? userDetailKeys : undefined} omit={['items', 'history', 'events', 'organizations']} />
     {entity === 'categories' && typeof record['imageUrl'] === 'string' && <div className={styles['gallery']}><PreviewImage reference={record['imageUrl']} /></div>}

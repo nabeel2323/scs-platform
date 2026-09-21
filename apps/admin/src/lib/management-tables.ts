@@ -1,4 +1,4 @@
-export type ManagementEntity = 'products' | 'users' | 'merchants' | 'orders' | 'verification' | 'disputes' | 'audit' | 'categories';
+export type ManagementEntity = 'products' | 'users' | 'merchants' | 'orders' | 'verification' | 'disputes' | 'audit' | 'categories' | 'brands';
 export type FilterDefinition = { key: string; label: string; options?: string[]; type?: 'number' | 'date' };
 export interface ManagementConfig {
   title: string;
@@ -27,6 +27,7 @@ const userSorts = ['fullName', 'email', 'phone', 'status', 'locale'];
 const orderSorts = ['status', 'storeName', 'buyerName', 'totalMinor', 'currency', 'fulfillmentMethod'];
 const auditSorts = ['action', 'resource', 'resourceId', 'actorId', 'actorType'];
 const categorySorts = ['name', 'slug', 'parentName', 'sortOrder', 'productCount', 'isActive'];
+const brandSorts = ['name', 'slug', 'isActive'];
 export const managementTables: Record<ManagementEntity, ManagementConfig> = {
   products: {
     title: 'Product Moderation', endpoint: 'products', permission: 'admin:merchants:read',
@@ -71,5 +72,11 @@ export const managementTables: Record<ManagementEntity, ManagementConfig> = {
     columns: ['name', 'nameAr', 'slug', 'path', 'parentName', 'storeName', 'sortOrder', 'productCount', 'isActive', ...dates], sorts: categorySorts, dates,
     defaultSort: 'sortOrder', defaultDirection: 'asc',
     filters: [boolean('isActive'), select('scope', ['all', 'global', 'store']), ...text('storeId', 'parentId'), boolean('rootsOnly')],
+  },
+  brands: {
+    title: 'Brand Management', endpoint: 'brands', permission: 'catalog:brands:manage',
+    columns: ['name', 'nameAr', 'slug', 'logoUrl', 'isActive', ...dates], sorts: brandSorts, dates,
+    defaultSort: 'name', defaultDirection: 'asc',
+    filters: [boolean('isActive')],
   },
 };

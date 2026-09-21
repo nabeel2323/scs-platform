@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
@@ -187,21 +188,72 @@ class _BarcodeScanner extends StatefulWidget {
 }
 
 class _BarcodeScannerState extends State<_BarcodeScanner> {
+  final MobileScannerController _controller = MobileScannerController(
+    detectionTimeoutMs: 500,
+    formats: const [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.code128,
+      BarcodeFormat.qrCode,
+    ],
+  );
+  bool _handled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan Barcode')),
-      body: const Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.qr_code_scanner, size: 64, color: TaifTokens.muted),
-          SizedBox(height: 16),
-          Text('Camera access required for barcode scanning',
-              style: TextStyle(color: TaifTokens.muted, fontSize: 14)),
-          SizedBox(height: 8),
-          Text('mobile_scanner integration pending camera permissions',
-              style: TextStyle(color: TaifTokens.muted, fontSize: 12)),
-        ]),
+      appBar: AppBar(
+        title: const Text('Scan Barcode'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on),
+            onPressed: () => _controller.toggleTorch(),
+            tooltip: 'Toggle flash',
+          ),
+        ],
       ),
+      body: Stack(children: [
+        MobileScanner(
+          controller: _controller,
+          onDetect: (capture) {
+            if (_handled) return;
+            final barcodes = capture.barcodes;
+            if (barcodes.isEmpty) return;
+            final code = barcodes.first.rawValue;
+            if (code == null || code.isEmpty) return;
+            _handled = true;
+            Navigator.of(context).pop(code);
+          },
+          errorBuilder: (context, error, child) {
+            return Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 12),
+                Text('Camera error: $error',
+                    style: const TextStyle(color: Colors.white),
+                    textAlign: TextAlign.center),
+              ]),
+            );
+          },
+        ),
+        // Scanner overlay frame
+        Center(
+          child: Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white, width: 3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   fetchStoreWarehouses, fetchWarehouseInventory, adjustStock,
+  fetchInventoryMovements, StockMovement,
   WarehouseSummary, InventoryItem,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
@@ -23,6 +24,11 @@ export default function MerchantInventoryPage() {
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
+
+  // Movement history
+  const [historyItemId, setHistoryItemId] = useState('');
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const loadInventory = useCallback(async (warehouseId: string) => {
     if (!warehouseId) return;
@@ -68,6 +74,18 @@ export default function MerchantInventoryPage() {
     setAdjustId(item.id);
     setAdjustQty('');
     setAdjustReason('');
+  };
+
+  const openHistory = async (item: InventoryItem) => {
+    setHistoryItemId(item.id);
+    setLoadingHistory(true);
+    try {
+      setMovements(await fetchInventoryMovements(item.id));
+    } catch {
+      setMovements([]);
+    } finally {
+      setLoadingHistory(false);
+    }
   };
 
   const handleAdjust = async () => {
@@ -173,7 +191,10 @@ export default function MerchantInventoryPage() {
                             : <span style={{ ...pill, background: '#d1fae5', color: '#065f46' }}>OK</span>}
                         </td>
                         <td style={td}>
-                          <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>
+                            <button onClick={() => openHistory(item)} style={historyBtn}>History</button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -183,6 +204,54 @@ export default function MerchantInventoryPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Movement history dialog */}
+      {historyItemId && (
+        <div style={overlay}>
+          <div style={{ ...dialog, maxWidth: 600 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Stock Movement History</h3>
+            {loadingHistory ? <LoadingSpinner /> : movements.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#5b6b74' }}>No movements recorded yet.</p>
+            ) : (
+              <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#f3f6f9' }}>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#5b6b74' }}>Date</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#5b6b74' }}>Type</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: '#5b6b74' }}>Qty</th>
+                      <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#5b6b74' }}>Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movements.map(m => (
+                      <tr key={m.id} style={{ borderTop: '1px solid #e2e8f0' }}>
+                        <td style={{ padding: '8px 12px', color: '#1e2d35' }}>{new Date(m.createdAt).toLocaleString()}</td>
+                        <td style={{ padding: '8px 12px' }}>
+                          <span style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                            background: m.movementType === 'ADJUSTMENT' ? '#dbeafe' : m.movementType === 'RESERVATION' ? '#fef3c7' : '#e2e8f0',
+                            color: m.movementType === 'ADJUSTMENT' ? '#1e40af' : m.movementType === 'RESERVATION' ? '#92400e' : '#475569',
+                          }}>{m.movementType}</span>
+                        </td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 600, color: m.quantity > 0 ? '#065f46' : '#991b1b' }}>
+                          {m.quantity > 0 ? '+' : ''}{m.quantity}
+                        </td>
+                        <td style={{ padding: '8px 12px', color: '#5b6b74', fontSize: 11, fontFamily: 'monospace' }}>
+                          {m.referenceType ? `${m.referenceType}` : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button onClick={() => setHistoryItemId('')} style={ghostBtn}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Adjust dialog */}
@@ -219,6 +288,7 @@ const select: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d
 const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
 const ghostBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const editBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#0f3340', border: 'none', borderRadius: 4, cursor: 'pointer' };
+const historyBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: 4, cursor: 'pointer' };
 const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
 const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };

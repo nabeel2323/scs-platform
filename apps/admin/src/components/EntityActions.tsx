@@ -126,3 +126,29 @@ export function CategoryEditor({ record, onDone, onCancel }: { record?: AdminRec
     <div className={styles['actions']}><button disabled={action.busy || !name.trim()}>Save category</button><button type="button" onClick={onCancel}>Cancel</button></div>
   </form>;
 }
+
+export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord; onDone: () => void; onCancel: () => void }) {
+  const [name, setName] = useState(String(record?.['name'] || ''));
+  const [nameAr, setNameAr] = useState(String(record?.['nameAr'] || ''));
+  const [logoUrl, setLogoUrl] = useState(String(record?.['logoUrl'] || ''));
+  const [description, setDescription] = useState(String(record?.['description'] || ''));
+  const [isActive, setActive] = useState(record?.['isActive'] !== false);
+  const action = useAdminMutation(onDone);
+  const { hasAccess } = useRequirePerms(['catalog:brands:manage']);
+  if (!hasAccess) return null;
+  return <form onSubmit={event => {
+    event.preventDefault(); if (!name.trim()) return;
+    const body: Record<string, unknown> = { name: name.trim(), nameAr: nameAr.trim() || undefined, logoUrl: logoUrl.trim() || undefined, description: description.trim() || undefined };
+    if (record) body['isActive'] = isActive;
+    action.run(record ? `brands/${record.id}` : 'brands', record ? 'PATCH' : 'POST', body);
+  }}>
+    <div className={styles['toolbar']}><label>Name (English)<input required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></label>
+      <label>Name (Arabic)<input dir="rtl" maxLength={200} value={nameAr} onChange={e => setNameAr(e.target.value)} /></label>
+      {record && <label>Active<input type="checkbox" checked={isActive} onChange={e => setActive(e.target.checked)} /></label>}
+    </div>
+    <label>Logo URL<input type="url" maxLength={1000} value={logoUrl} onChange={e => setLogoUrl(e.target.value)} placeholder="https://..." /></label>
+    <label>Description<textarea maxLength={2000} value={description} onChange={e => setDescription(e.target.value)} /></label>
+    <ErrorNotice message={action.error} />
+    <div className={styles['actions']}><button disabled={action.busy || !name.trim()}>Save brand</button><button type="button" onClick={onCancel}>Cancel</button></div>
+  </form>;
+}

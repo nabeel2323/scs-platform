@@ -75,6 +75,12 @@ export class AdminController {
     return this.adminService.listCategories(query);
   }
 
+  @Get('brands')
+  @RequirePermission('catalog:brands:manage')
+  async listBrands(@Query() query: AdminListInput) {
+    return this.adminService.listBrands(query);
+  }
+
   @Get('disputes')
   @RequirePermission('support:disputes:resolve')
   async listDisputes(@Query() query: AdminListInput) {
