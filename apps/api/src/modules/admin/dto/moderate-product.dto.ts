@@ -16,7 +16,7 @@ export class ModerateProductDto {
   })
   decision!: 'APPROVED' | 'REJECTED' | 'ARCHIVED';
 
-  @ApiPropertyOptional({ description: 'Optional reviewer note stored with the audit trail' })
+  @ApiPropertyOptional({ description: 'Optional reviewer note echoed in the response; not persisted' })
   @IsOptional()
   @IsString()
   @MaxLength(500)

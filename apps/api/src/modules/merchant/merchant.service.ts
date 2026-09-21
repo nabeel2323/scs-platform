@@ -10,7 +10,12 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import { StorageService } from '../../common/storage/storage.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
 import { organizations, organizationMembers } from '../identity/identity.schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, isNull, inArray } from 'drizzle-orm';
+import { validateSync } from 'class-validator';
+import { ReviewVerificationDto } from './dto/review-verification.dto';
+import { products } from '../catalog/catalog.schema';
+import { productImageCount, trimProductReference } from '../catalog/product-images';
+import { outboxEvents } from '../audit/audit.schema';
 import { isUuid } from '../../common/utils/uuid';
 import crypto from 'node:crypto';
 
@@ -439,55 +444,52 @@ export class MerchantService {
     notes?: string,
     rejectionReasons?: string[],
   ) {
-    const request = await this.getVerificationRequest(requestId);
+    const validation = validateSync(Object.assign(new ReviewVerificationDto(), { decision, notes, rejectionReasons }));
+    if (validation.length) throw new BadRequestException(validation.map(error => Object.values(error.constraints || {}).join(', ')).join('; '));
 
-    if (request['status'] === 'APPROVED' || request['status'] === 'REJECTED') {
-      throw new BadRequestException('Verification request already resolved');
-    }
+    return this.db.db.transaction(async tx => {
+      const [request] = await tx.select().from(verificationRequests)
+        .where(eq(verificationRequests.id, requestId)).for('update');
+      if (!request) throw new NotFoundException('Verification request not found');
+      if (request.status === 'APPROVED' || request.status === 'REJECTED') {
+        throw new BadRequestException('Verification request already resolved');
+      }
+      const [store] = await tx.select().from(stores).where(eq(stores.id, request.storeId)).for('update');
+      if (!store) throw new NotFoundException('Store not found');
+      if (store.orgId !== request.orgId) throw new BadRequestException('Verification organization does not match the store');
+      const now = new Date();
+      const [updated] = await tx.update(verificationRequests).set({
+        status: decision, reviewedBy: reviewerId, reviewedAt: now, decisionNotes: notes || null,
+        rejectionReasons: rejectionReasons || [], resolvedAt: decision !== 'REVISION' ? now : null, updatedAt: now,
+      }).where(eq(verificationRequests.id, requestId)).returning();
 
-    await this.db.db
-      .update(verificationRequests)
-      .set({
-        status: decision,
-        reviewedBy: reviewerId,
-        reviewedAt: new Date(),
-        decisionNotes: notes || null,
-        rejectionReasons: rejectionReasons || [],
-        resolvedAt: decision !== 'REVISION' ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(verificationRequests.id, requestId));
+      const verificationStatus = decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'REVIEW';
+      await tx.update(stores).set({ verificationStatus, updatedAt: now,
+        ...(decision === 'APPROVED' ? { status: 'ACTIVE' } : {}),
+      }).where(eq(stores.id, request.storeId));
 
-    // Update store verification status based on decision
-    const storeVerificationStatus =
-      decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'REVIEW';
-
-    await this.db.db
-      .update(stores)
-      .set({ verificationStatus: storeVerificationStatus, updatedAt: new Date() })
-      .where(eq(stores.id, request['storeId']));
-
-    // If approved, also activate the store and org
-    if (decision === 'APPROVED') {
-      await this.db.db
-        .update(stores)
-        .set({ status: 'ACTIVE', updatedAt: new Date() })
-        .where(eq(stores.id, request['storeId']));
-
-      await this.db.db
-        .update(organizations)
-        .set({ verificationStatus: 'VERIFIED', updatedAt: new Date() })
-        .where(eq(organizations.id, request['orgId']));
-    }
-
-    await this.outbox.publish(
-      `merchant.verification.${decision.toLowerCase()}`,
-      requestId,
-      { requestId, storeId: request['storeId'], decision, reviewerId },
-      { userId: reviewerId },
-    );
-
-    return this.getVerificationRequest(requestId);
+      let autoActivatedProductCount = 0;
+      if (decision === 'APPROVED') {
+        await tx.update(organizations).set({ verificationStatus: 'VERIFIED', updatedAt: now })
+          .where(eq(organizations.id, request.orgId));
+        const activated = await tx.update(products).set({ status: 'ACTIVE', isAvailable: true,
+          publishedAt: sql`coalesce(${products.publishedAt}, ${now.toISOString()}::timestamptz)`, updatedAt: now,
+        }).where(and(eq(products.storeId, request.storeId), eq(products.status, 'DRAFT'), isNull(products.deletedAt),
+          sql`length(${trimProductReference(products.title)}) between 1 and 300`,
+          sql`length(${trimProductReference(products.slug)}) > 0`,
+          sql`${products.moq} >= 1`, inArray(products.condition, ['NEW', 'USED', 'REFURBISHED']),
+          sql`${productImageCount} > 0`,
+        )).returning({ id: products.id });
+        autoActivatedProductCount = activated.length;
+      }
+      // The global outbox publisher is not transaction-aware; use this transaction.
+      await tx.insert(outboxEvents).values({ id: crypto.randomUUID(),
+        eventType: `merchant.verification.${decision.toLowerCase()}`, aggregateId: requestId,
+        payload: { requestId, storeId: request.storeId, decision, reviewerId, autoActivatedProductCount },
+        metadata: { userId: reviewerId }, status: 'PENDING',
+      });
+      return { ...updated!, autoActivatedProductCount };
+    });
   }
 
   // ── Helpers ────────────────────────────────────────────────────

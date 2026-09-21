@@ -18,6 +18,8 @@ import {
   savedSuppliers,
 } from './catalog.schema';
 import { enrichProductCards } from './product-card';
+import { imageReferences } from './product-images';
+import { organizations } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { eq, and, isNull, desc, sql, inArray } from 'drizzle-orm';
@@ -213,6 +215,23 @@ export class CatalogService {
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
+  }
+
+  async getProductDetail(id: string) {
+    const product = await this.getProduct(id);
+    const [storeRows, media, variants, labels] = await Promise.all([
+      this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
+        slug: stores.slug, currency: stores.currency, status: stores.status,
+        verificationStatus: stores.verificationStatus, orgId: stores.orgId, orgName: organizations.name,
+      }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, product.storeId)),
+      this.listMediaByProduct(id),
+      this.listVariantsByProduct(id),
+      this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
+        .where(eq(products.id, id)),
+    ]);
+    return { ...product, ...labels[0], store: storeRows[0] ?? null, media, variants,
+      imageCount: imageReferences(product.images, media).length };
   }
 
   async listProductsByStore(

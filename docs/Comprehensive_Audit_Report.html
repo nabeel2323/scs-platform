@@ -436,15 +436,24 @@
         <li><strong>Store creation</strong>: <code>POST /v1/stores</code> &rarr; DRAFT/PENDING store (<code>merchant.service.ts:66-92</code>)</li>
         <li><strong>Document registration</strong>: <code>POST /v1/documents</code> &rarr; metadata + storage key (<code>merchant.service.ts:286-304</code>)</li>
         <li><strong>Submission</strong>: <code>POST /v1/stores/:storeId/verify</code> &rarr; SUBMITTED request, store PENDING (<code>merchant.service.ts:348-383</code>)</li>
-        <li><strong>Queue</strong>: <code>GET /v1/verification/queue</code> &rarr; verificationRequests joined to stores/orgs (<code>merchant.service.ts:386-424</code>)</li>
-        <li><strong>Detail</strong>: <code>GET /v1/verification/:id</code> &rarr; request + store + documents (<code>verification/[id]/page.tsx:45-61</code>)</li>
-        <li><strong>Decision</strong>: <code>POST /v1/verification/:id/review</code> &rarr; APPROVED/REJECTED/REVISION (<code>merchant.service.ts:435-490</code>)</li>
+        <li><strong>Legacy queue</strong>: <code>GET /v1/verification/queue</code> &rarr; verificationRequests joined to stores/orgs (<code>merchant.service.ts:386-424</code>)</li>
+        <li><strong>Admin paginated queue</strong>: <code>GET /v1/admin/verification-queue</code> &rarr; paginated, searchable, sortable; permission <code>merchant:verification:review</code></li>
+        <li><strong>Detail</strong>: <code>GET /v1/verification/:id</code> &rarr; request + store + documents (<code>verification/[id]/page.tsx</code>)</li>
+        <li><strong>Decision</strong>: <code>POST /v1/verification/:id/review</code> &rarr; APPROVED/REJECTED/REVISION in a single transaction (<code>merchant.service.ts:435-490</code>)</li>
       </ol>
 
       <div class="callout ok">
-        <span class="label">Workflow Gap &mdash; Resolved (GAP-9)</span>
-        <p>The Admin <code>/merchants</code> page now includes an <strong>Actions</strong> column: PENDING stores show a "Review" button and other stores a "View" link, both navigating to <code>/verification?store=&lt;id&gt;</code>. Users no longer need to navigate to <code>/verification</code> separately.</p>
+        <span class="label">Approval &amp; Draft Activation (09-09)</span>
+        <p>On APPROVED, the same transaction: (1) sets the store VERIFIED and org VERIFIED, (2) batch-activates eligible <strong>current non-deleted DRAFT</strong> products for that store &mdash; trimmed title 1&ndash;300, non-blank slug, MOQ &ge; 1, condition NEW/USED/REFURBISHED, at least one distinct image reference. Ineligible drafts are left unchanged. No backfill, no future-product activation. Activated products retain their existing <code>publishedAt</code> or receive the decision timestamp. <code>isAvailable</code> is set to <code>true</code>. A transactional outbox event records <code>autoActivatedProductCount</code>.</p>
       </div>
+
+      <div class="callout ok">
+        <span class="label">Workflow Gap &mdash; Resolved (GAP-9)</span>
+        <p>The Admin <code>/merchants</code> page includes an <strong>Actions</strong> column: PENDING stores show a &ldquo;Review&rdquo; button and other stores a &ldquo;View&rdquo; link, both navigating to the latest verification request for that store. The Admin <code>/verification</code> page provides a full paginated queue with search, filter, and sort.</p>
+      </div>
+
+      <h3>7.1b Product Moderation</h3>
+      <p>Admin product moderation uses <code>POST /v1/admin/products/:id/moderate</code> (also <code>PATCH</code>) with the existing <code>admin:merchants:read</code> permission. Decisions (APPROVE/REJECT/ARCHIVE) are echoed in the response; <code>reason</code> is not persisted. Signed media previews are restricted to product-owned <code>products/...</code> keys. The Admin <code>/products</code> page and <code>/products/[id]</code> route share detail content and moderation actions via <code>ProductDetails</code>.</p>
 
       <h3>7.2 Order FSM</h3>
       <p>The service's declared transitions (<code>orders.service.ts:968-985</code>):</p>
