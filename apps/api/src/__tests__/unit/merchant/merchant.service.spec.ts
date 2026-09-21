@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MerchantService } from '../../../modules/merchant/merchant.service';
 import { products } from '../../../modules/catalog/catalog.schema';
 import { stores, verificationRequests } from '../../../modules/merchant/merchant.schema';
@@ -267,5 +268,52 @@ describe('MerchantService.uploadDocument', () => {
 
     const inserted = values.mock.calls.at(-1)?.[0] as { storageKey: string };
     expect(inserted.storageKey).toMatch(/^docs\/org-1\/[^/]+\/cr\.pdf$/);
+  });
+});
+
+describe('MerchantService.presignForMerchant', () => {
+  function setup(doc: any, membership: any) {
+    const findFirstDoc = vi.fn().mockResolvedValue(doc);
+    const findFirstMember = vi.fn().mockResolvedValue(membership);
+    const db = {
+      db: {
+        query: {
+          businessDocuments: { findFirst: findFirstDoc },
+          organizationMembers: { findFirst: findFirstMember },
+        },
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+        }),
+      },
+    };
+    const storage = { createPresignedGetUrl: vi.fn().mockResolvedValue('https://presigned-url') };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+    return { service, findFirstDoc, findFirstMember, storage };
+  }
+
+  it('returns presigned URL when user is an org member', async () => {
+    const doc = { id: 'doc-1', orgId: 'org-1', storageKey: 'docs/org-1/doc-1/cr.pdf' };
+    const membership = { userId: 'user-1', orgId: 'org-1' };
+    const { service, storage } = setup(doc, membership);
+
+    const result = await service.presignForMerchant('doc-1', 'user-1');
+
+    expect(result.downloadUrl).toBe('https://presigned-url');
+    expect(storage.createPresignedGetUrl).toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException when user is not an org member', async () => {
+    const doc = { id: 'doc-1', orgId: 'org-1', storageKey: 'docs/org-1/doc-1/cr.pdf' };
+    const { service } = setup(doc, null);
+
+    await expect(service.presignForMerchant('doc-1', 'intruder'))
+      .rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws NotFoundException when document does not exist', async () => {
+    const { service } = setup(null, null);
+
+    await expect(service.presignForMerchant('nonexistent', 'user-1'))
+      .rejects.toThrow(NotFoundException);
   });
 });
