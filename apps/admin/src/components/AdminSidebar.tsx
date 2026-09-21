@@ -9,6 +9,7 @@ const navItems: { href: string; label: string; icon: string; perms: string[] }[]
   { href: '/users', label: 'Users', icon: '👥', perms: ['admin:users:read'] },
   { href: '/orders', label: 'Orders', icon: '📦', perms: ['admin:orders:read'] },
   { href: '/merchants', label: 'Merchants', icon: '🏪', perms: ['admin:merchants:read'] },
+  { href: '/organizations', label: 'Organizations', icon: '🏢', perms: ['admin:users:read'] },
   { href: '/verification', label: 'Verification', icon: '✓', perms: ['merchant:verification:review'] },
   { href: '/categories', label: 'Categories', icon: '📁', perms: ['catalog:categories:write'] },
   { href: '/brands', label: 'Brands', icon: '🏷', perms: ['catalog:brands:manage'] },

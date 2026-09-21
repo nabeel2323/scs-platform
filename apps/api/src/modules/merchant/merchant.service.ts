@@ -10,7 +10,7 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import { StorageService } from '../../common/storage/storage.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
 import { organizations, organizationMembers } from '../identity/identity.schema';
-import { eq, and, desc, sql, isNull, inArray } from 'drizzle-orm';
+import { eq, and, or, desc, sql, isNull, inArray } from 'drizzle-orm';
 import { validateSync } from 'class-validator';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { products } from '../catalog/catalog.schema';
@@ -322,14 +322,32 @@ export class MerchantService {
     return doc;
   }
 
-  async listDocumentsByOrg(orgId: string) {
+  /**
+   * Asserts the caller may access an organization's documents: either a
+   * platform reviewer (merchant:verification:review) or an org member.
+   */
+  private async assertOrgAccess(orgId: string, userId: string, perms: string[]) {
+    if (perms.includes('merchant:verification:review')) return;
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (!membership) throw new ForbiddenException('Not authorized to access these documents');
+  }
+
+  async listDocumentsByOrg(orgId: string, userId: string, perms: string[] = []) {
+    await this.assertOrgAccess(orgId, userId, perms);
     return this.db.db.query.businessDocuments.findMany({
       where: eq(businessDocuments.orgId, orgId),
       orderBy: [desc(businessDocuments.createdAt)],
     });
   }
 
-  async listDocumentsByStore(storeId: string) {
+  async listDocumentsByStore(storeId: string, userId: string, perms: string[] = []) {
+    const store = await this.getStore(storeId);
+    await this.assertOrgAccess(store.orgId, userId, perms);
     return this.db.db.query.businessDocuments.findMany({
       where: eq(businessDocuments.storeId, storeId),
       orderBy: [desc(businessDocuments.createdAt)],
@@ -456,7 +474,37 @@ export class MerchantService {
       where: eq(verificationRequests.id, requestId),
     });
     if (!req) throw new NotFoundException('Verification request not found');
-    return req;
+    // Attach the owning organization so admin UIs can show its active/deactivated
+    // state without a separate endpoint.
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, req.orgId),
+      columns: { id: true, name: true, isActive: true },
+    });
+    return { ...req, org: org ?? null };
+  }
+
+  /**
+   * Merchant-accessible verification history for their own organization.
+   * Members see all requests for stores under the org (newest first), which
+   * powers the "correction requested" surface on the web organization page.
+   */
+  async listVerificationsForOrg(orgId: string, userId: string) {
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(
+        eq(organizationMembers.orgId, orgId),
+        eq(organizationMembers.userId, userId),
+      ),
+    });
+    if (!membership) throw new ForbiddenException('Not authorized to view these verification requests');
+    const orgStores = await this.db.db.query.stores.findMany({
+      where: eq(stores.orgId, orgId),
+      columns: { id: true },
+    });
+    if (orgStores.length === 0) return [];
+    return this.db.db.query.verificationRequests.findMany({
+      where: inArray(verificationRequests.storeId, orgStores.map(s => s.id)),
+      orderBy: [desc(verificationRequests.submittedAt)],
+    });
   }
 
   async reviewVerification(
@@ -489,6 +537,16 @@ export class MerchantService {
       await tx.update(stores).set({ verificationStatus, updatedAt: now,
         ...(decision === 'APPROVED' ? { status: 'ACTIVE' } : {}),
       }).where(eq(stores.id, request.storeId));
+
+      // Mirror the decision onto the submitted documents so merchant/admin UIs
+      // show real per-document outcomes (G2). REVISION returns docs to PENDING.
+      const docStatus = decision === 'APPROVED' ? 'VERIFIED' : decision === 'REJECTED' ? 'REJECTED' : 'PENDING';
+      await tx.update(businessDocuments).set({
+        verificationStatus: docStatus, reviewedBy: reviewerId, reviewedAt: now,
+      }).where(or(
+        eq(businessDocuments.storeId, request.storeId),
+        and(eq(businessDocuments.orgId, request.orgId), isNull(businessDocuments.storeId)),
+      ));
 
       let autoActivatedProductCount = 0;
       if (decision === 'APPROVED') {

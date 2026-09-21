@@ -62,6 +62,17 @@ export default function MerchantDashboardPage() {
       </div>
       <div style={{ padding: '20px 24px 48px' }}>
 
+      {/* Deactivation warning (G16) — mirrors the organization page banner */}
+      {org && org.isActive === false && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⚠</span>
+          <div>
+            <div style={{ fontWeight: 600, color: '#991b1b', fontSize: 14 }}>Organization Deactivated</div>
+            <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>Your organization has been deactivated by an administrator. Merchant tools are read-only until it is reactivated. Contact support for assistance.</div>
+          </div>
+        </div>
+      )}
+
       {!hasOrg ? (
         <div style={ctaCard}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>

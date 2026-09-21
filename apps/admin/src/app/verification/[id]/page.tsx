@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AccessDenied, useRequirePerms } from '../../../hooks/useRequirePerms';
+import { getUser } from '../../../lib/auth';
 import Link from 'next/link';
 import {
   fetchVerificationRequest,
@@ -47,6 +48,11 @@ export default function VerificationReviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [orgDeactivated, setOrgDeactivated] = useState(false);
+  const [orgStatusLoaded, setOrgStatusLoaded] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'deactivate' | 'reactivate' | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const adminUser = getUser();
+  const canManageOrgs = (adminUser?.perms ?? []).includes('admin:users:write');
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -64,6 +70,11 @@ export default function VerificationReviewPage() {
         setRequest(req);
         setStore(storeData);
         setDocuments(docs);
+        // Hydrate the real org status so the toggle reflects the database (G11).
+        if (req.org) {
+          setOrgDeactivated(!req.org.isActive);
+          setOrgStatusLoaded(true);
+        }
       }
     }).catch((err: unknown) => {
       if (current) setError(err instanceof Error ? err.message : 'Failed to load verification details');
@@ -99,7 +110,7 @@ export default function VerificationReviewPage() {
   }
 
   async function handleDeactivateOrg() {
-    if (!store || !window.confirm('Deactivate this merchant organization? They will lose platform access.')) return;
+    if (!store) return;
     setDeactivating(true);
     setError(null);
     try {
@@ -110,11 +121,12 @@ export default function VerificationReviewPage() {
       setError(err instanceof Error ? err.message : 'Failed to deactivate organization');
     } finally {
       setDeactivating(false);
+      setConfirmAction(null);
     }
   }
 
   async function handleReactivateOrg() {
-    if (!store || !window.confirm('Reactivate this merchant organization?')) return;
+    if (!store) return;
     setDeactivating(true);
     setError(null);
     try {
@@ -125,6 +137,19 @@ export default function VerificationReviewPage() {
       setError(err instanceof Error ? err.message : 'Failed to reactivate organization');
     } finally {
       setDeactivating(false);
+      setConfirmAction(null);
+    }
+  }
+
+  async function handleDownloadDoc(docId: string) {
+    setDownloadingDocId(docId);
+    try {
+      const url = await presignDocumentDownload(docId);
+      if (url) window.open(url, '_blank', 'noopener');
+    } catch {
+      setError('Failed to prepare document download.');
+    } finally {
+      setDownloadingDocId(null);
     }
   }
 
@@ -279,21 +304,17 @@ export default function VerificationReviewPage() {
                       {doc.verificationStatus}
                     </span>
                     <button
-                      onClick={async () => {
-                        try {
-                          const url = await presignDocumentDownload(doc.id);
-                          if (url) window.open(url, '_blank', 'noopener');
-                        } catch {
-                          setError('Failed to prepare document download.');
-                        }
-                      }}
+                      onClick={() => handleDownloadDoc(doc.id)}
+                      disabled={downloadingDocId === doc.id}
                       style={{
                         padding: '4px 12px', fontSize: '12px', fontWeight: 600,
                         background: '#1d5fa8', color: '#fff',
                         border: 'none', borderRadius: 4,
-                        cursor: 'pointer', marginLeft: '8px',
+                        cursor: downloadingDocId === doc.id ? 'not-allowed' : 'pointer',
+                        opacity: downloadingDocId === doc.id ? 0.6 : 1,
+                        marginLeft: '8px',
                       }}
-                    >Download</button>
+                    >{downloadingDocId === doc.id ? 'Preparing…' : 'Download'}</button>
                   </div>
                 </div>
               ))}
@@ -424,32 +445,83 @@ export default function VerificationReviewPage() {
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Merchant Status</h2>
             <div style={{ background: '#f8fafb', borderRadius: 10, padding: 20, border: '1px solid #e0e7eb' }}>
-              <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 12 }}>
-                Deactivate the merchant organization to revoke platform access. Data is preserved but the merchant cannot perform operations.
-              </p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!orgDeactivated ? (
-                  <button
-                    onClick={handleDeactivateOrg}
-                    disabled={deactivating}
-                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
-                  >
-                    {deactivating ? 'Deactivating…' : 'Deactivate Merchant'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleReactivateOrg}
-                    disabled={deactivating}
-                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
-                  >
-                    {deactivating ? 'Reactivating…' : 'Reactivate Merchant'}
-                  </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 13, color: '#5b6b74' }}>Organization: <strong style={{ color: '#0f3340' }}>{request?.org?.name || store.orgId}</strong></span>
+                {orgStatusLoaded && (
+                  <span style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
+                    background: orgDeactivated ? '#fef2f2' : '#d1fae5',
+                    color: orgDeactivated ? '#991b1b' : '#065f46',
+                    border: `1px solid ${orgDeactivated ? '#fca5a5' : '#6ee7b7'}`,
+                  }}>
+                    {orgDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
+                  </span>
                 )}
               </div>
+              {!canManageOrgs ? (
+                <p style={{ fontSize: 13, color: '#8a9ba5', margin: 0 }}>
+                  Deactivation controls require the <code style={{ background: '#eef2f5', padding: '1px 5px', borderRadius: 3 }}>admin:users:write</code> permission.
+                </p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 12 }}>
+                    Deactivate the merchant organization to revoke platform write access. Data is preserved but store, catalog, document and verification operations are blocked.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {!orgDeactivated ? (
+                      <button
+                        onClick={() => setConfirmAction('deactivate')}
+                        disabled={deactivating}
+                        style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
+                      >
+                        {deactivating ? 'Deactivating…' : 'Deactivate Merchant'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmAction('reactivate')}
+                        disabled={deactivating}
+                        style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
+                      >
+                        {deactivating ? 'Reactivating…' : 'Reactivate Merchant'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </section>
         )}
       </div>
+
+      {/* Deactivation confirmation modal (G15) */}
+      {confirmAction && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 8px' }}>
+              {confirmAction === 'deactivate' ? 'Deactivate Merchant Organization' : 'Reactivate Merchant Organization'}
+            </h3>
+            <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 20, lineHeight: 1.5 }}>
+              {confirmAction === 'deactivate'
+                ? <>Are you sure you want to deactivate <strong style={{ color: '#0f3340' }}>{request?.org?.name || 'this organization'}</strong>? The merchant will immediately lose write access to stores, catalog, documents and verification. Data is preserved and can be restored by reactivating.</>
+                : <>Reactivate <strong style={{ color: '#0f3340' }}>{request?.org?.name || 'this organization'}</strong>? The merchant will regain full platform access.</>}
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmAction(null)}
+                disabled={deactivating}
+                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}
+              >Cancel</button>
+              <button
+                onClick={confirmAction === 'deactivate' ? handleDeactivateOrg : handleReactivateOrg}
+                disabled={deactivating}
+                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: confirmAction === 'deactivate' ? '#dc2626' : '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
+              >
+                {deactivating ? 'Working…' : confirmAction === 'deactivate' ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

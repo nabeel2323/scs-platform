@@ -1,8 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards, Req, ParseUUIDPipe } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import { OrgUpdateRequestDto } from './dto/org-update-request.dto';
 
 /**
  * Organizations controller — CRUD for organizations and membership.
@@ -16,6 +17,8 @@ import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/
  *   GET    /v1/organizations/:id/members  — list members
  *   DELETE /v1/organizations/:id/members/:userId — remove member
  *   GET    /v1/organizations/:id/member-lookup?q= — lookup user by phone/email
+ *   POST   /v1/organizations/:id/update-requests — submit an update request (admin approval)
+ *   GET    /v1/organizations/:id/update-requests — list update requests for the org
  *   GET    /v1/roles                      — list available roles
  */
 @Controller('organizations')
@@ -91,6 +94,25 @@ export class OrganizationsController {
   async lookupMember(@Param('id') orgId: string, @Req() req: any) {
     const query = req.query.q || '';
     return this.identityService.lookupUser(query);
+  }
+
+  @Post(':id/update-requests')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('identity:organizations:write')
+  async requestUpdate(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) orgId: string,
+    @Body() body: OrgUpdateRequestDto,
+  ) {
+    return this.identityService.requestOrgUpdate(orgId, user.sub, body);
+  }
+
+  @Get(':id/update-requests')
+  async listUpdateRequests(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) orgId: string,
+  ) {
+    return this.identityService.listOrgUpdateRequests(orgId, user.sub);
   }
 }
 
