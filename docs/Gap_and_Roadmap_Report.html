@@ -79,7 +79,7 @@
     <h1>Gap &amp; Roadmap Report</h1>
     <p class="sub">A status report on the Smart Commerce &amp; Supply Platform (TAIF): maturity scorecard, Phase&nbsp;0&ndash;7 progress, verified gaps between implementation and design, critical blockers, and a prioritized backlog to reach full maturity.</p>
     <div class="meta">
-      <span>Baseline audit 2026-09-05</span><span>Verified against live source</span>
+      <span>Baseline audit 2026-09-05</span><span>Verified against live source</span><span>Document upload follow-up 2026-09-19</span>
       <span>Maturity 88/100</span><span>Phase 1 · 93% pilot-ready</span><span>All P0 blockers resolved</span>
     </div>
   </div>
@@ -107,6 +107,8 @@
       <h2>1. Executive Summary</h2>
       <p>The platform is a <strong>B2B-first marketplace</strong> delivered as a modular monolith with four client surfaces. It is <strong>pilot-ready for Phase&nbsp;1</strong>: all three critical launch blockers were resolved and verified on 2026-09-04, and on <strong>2026-09-08 the full P1 + P2 backlog closed</strong> &mdash; checkout pricing (<code>API-B4</code>), merchant-write RBAC (<code>API-B6</code>), the identity N+1 / prod-JWT-gate / switch-org revocation / auth-DTO hardening (<code>API-B7</code>&ndash;<code>B10</code>), admin <code>/v1/me</code> hydration (<code>ADM-B2</code>), the shared <code>@scs/contracts</code> package, realtime wiring and typed mobile models. The remaining Phase&nbsp;1 gaps are <strong>deeper automated test coverage</strong>, <strong>k6 load-test evidence</strong> and a few Low-severity UI items. Phases&nbsp;2&ndash;7 are forward-declared &mdash; schema and FSM states exist, behaviour is dark.</p>
 
+      <div class="callout"><strong class="label">2026-09-19 &mdash; Verification-document upload wiring implemented</strong><p>The earlier <code>STR-B4</code> closure covered the upload-presign endpoint only. Web and mobile now retain file bytes, request a presigned PUT URL, attempt the upload, and register the returned <code>storageKey</code>; the API persists that key for reviewer downloads. Local checks passed; deployed upload/download acceptance and upload-failure handling remain outstanding. See <a href="#document-upload-closure">the closure evidence and rollout limits</a>. Existing maturity scores are unchanged by this targeted follow-up.</p></div>
+
       <div class="grid c4">
         <div class="card"><div class="kpi">94<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">Up from 93 after the 09-14 storage integration</p></div>
         <div class="card"><div class="kpi">96%</div><h4>Phase 1 coverage</h4><p class="small muted">Saved suppliers + checkout pricing closed</p></div>
@@ -122,7 +124,7 @@
           <tr><td>Phase 1 Feature Coverage</td><td class="score">96%</td><td>30%</td><td><div class="bar"><span style="width:96%;background:var(--ok)"></span></div></td><td>Import real since 09-04; checkout pricing + saved suppliers closed 09-08</td></tr>
           <tr><td>Security Posture</td><td class="score">93%</td><td>25%</td><td><div class="bar"><span style="width:93%;background:var(--ok)"></span></div></td><td>Dual-auth E2E; merchant-write RBAC (<code>API-B6</code>), prod JWT gate (<code>API-B7</code>), switch-org revocation (<code>API-B9</code>) + auth DTOs (<code>API-B10</code>) closed 09-08</td></tr>
           <tr><td>Code Quality</td><td class="score">89%</td><td>15%</td><td><div class="bar"><span style="width:89%;background:var(--info)"></span></div></td><td>All apps compile/analyze clean (mobile 0 issues); identity + orders unit tests now &ge;40% line coverage (46% / 51%, 09-08)</td></tr>
-          <tr><td>Cross-Platform Consistency</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>Device trust on web + mobile; admin password login + credential self-service; realtime wired; shared <code>@scs/contracts</code> across surfaces; storage presign now real across web + mobile + API</td></tr>
+          <tr><td>Cross-Platform Consistency</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>Device trust on web + mobile; admin password login + credential self-service; realtime wired; shared <code>@scs/contracts</code> across surfaces; storage presign endpoints wired 09-14; verification-document byte uploads wired across web + mobile + API 09-19 (runtime acceptance pending)</td></tr>
           <tr><td>Launch Readiness (&sect;21.6)</td><td class="score">94%</td><td>15%</td><td><div class="bar"><span style="width:94%;background:var(--ok)"></span></div></td><td>6/8 criteria fully met; 2 partial (load evidence, ops ownership)</td></tr>
         </tbody>
       </table>
@@ -269,11 +271,29 @@ flowchart LR
           <tr><td><code>STR-B1</code></td><td><span class="pill p-err">Critical</span></td><td><code>catalog.controller.ts:197</code>, <code>merchant.service.ts:330</code></td><td>Both presign endpoints returned fake <code>https://storage.local/...</code> URLs; <code>StorageService</code> was registered as a global module but never injected or called</td><td><span class="pill p-ok">Fixed 09-14</span> <code>StorageService</code> injected into <code>CatalogController</code> + <code>MerchantService</code>; presign endpoints now generate real S3 presigned URLs via <code>createPresignedPutUrl</code> / <code>createPresignedGetUrl</code></td></tr>
           <tr><td><code>STR-B2</code></td><td><span class="pill p-warn">High</span></td><td><code>storage.service.ts</code></td><td>No <code>createPresignedPutUrl</code> method existed; browser/mobile uploads required a presigned PUT URL but only GET was available</td><td><span class="pill p-ok">Fixed 09-14</span> <code>createPresignedPutUrl(bucket, key, contentType, expiresInSeconds)</code> added with 15-min hard cap</td></tr>
           <tr><td><code>STR-B3</code></td><td><span class="pill p-warn">High</span></td><td><code>storage.service.ts</code></td><td>No bucket validation &mdash; any caller could pass an arbitrary bucket name to <code>putObject</code>, <code>getObject</code>, etc.</td><td><span class="pill p-ok">Fixed 09-14</span> <code>allowedBuckets</code> set built from <code>S3_MEDIA_BUCKET</code> + <code>S3_UPLOADS_BUCKET</code> at boot; every operation calls <code>assertBucketAllowed</code></td></tr>
-          <tr><td><code>STR-B4</code></td><td><span class="pill p-info">Medium</span></td><td><code>merchant.controller.ts</code></td><td>No presigned upload endpoint for business documents; the <code>POST /documents</code> flow recorded metadata but gave clients no way to upload the actual file to S3</td><td><span class="pill p-ok">Fixed 09-14</span> <code>POST /documents/presign-upload</code> returns a presigned PUT URL + storage key</td></tr>
+          <tr><td><code>STR-B4</code></td><td><span class="pill p-info">Medium</span></td><td>API merchant controller/service; web and mobile registration clients</td><td>Business documents were metadata-only: the upload-presign endpoint added 09-14 had no client callers, file bytes were discarded, and the API generated a different key from the upload endpoint. Reviewer downloads returned <code>NoSuchKey</code> (404).</td><td><span class="pill p-ok">Wiring implemented 09-19</span> Clients retain bytes and call presign &rarr; PUT &rarr; register with the returned key; API persists it and sanitizes upload filenames. <span class="pill p-warn">Runtime acceptance pending</span> <a href="#document-upload-closure">Evidence and remaining limits</a>.</td></tr>
           <tr><td><code>STR-B5</code></td><td><span class="pill p-info">Medium</span></td><td><code>storage.service.ts</code></td><td>No unit tests for any S3 operation</td><td><span class="pill p-ok">Fixed 09-14</span> 15 tests covering constructor validation, bucket allow-list, put/get/delete/presign paths, expiry clamping, and not-found edge case</td></tr>
           <tr><td><code>STR-B6</code></td><td><span class="pill p-muted">Low</span></td><td><code>storage.service.ts</code></td><td>Presigned URLs had no maximum expiry cap; a caller could request a 24-hour URL</td><td><span class="pill p-ok">Fixed 09-14</span> <code>MAX_PRESIGN_EXPIRY = 900</code> (15 min) hard cap applied to both GET and PUT presign methods</td></tr>
         </tbody>
       </table>
+
+      <h3 id="document-upload-closure">4.5.1 Verification-document follow-up &mdash; 2026-09-19</h3>
+      <p><strong>Root cause:</strong> registration recorded name, size and MIME type without uploading bytes. The unused presign endpoint issued <code>docs/{uuid}/{fileName}</code>, while metadata registration generated <code>docs/{orgId}/{docId}/{fileName}</code>. Download signing used the database key without checking object existence. The reported <code>NoSuchKey</code> was a missing-object error, not an XML styling problem; the separate unsigned <code>/favicon.ico</code> 403 is unrelated.</p>
+      <ul class="tight">
+        <li><strong>API:</strong> <code>apps/api/src/modules/merchant/merchant.service.ts</code> accepts optional <code>UploadDocumentInput.storageKey</code> and persists it; the legacy generated-key fallback remains. <code>merchant.controller.ts</code> strips traversal sequences and path separators from filenames before issuing the upload key.</li>
+        <li><strong>Web:</strong> <code>apps/web/src/app/merchant/register/page.tsx</code> retains the selected <code>File</code>; <code>apps/web/src/lib/api.ts</code> provides upload presigning and accepts <code>storageKey</code> during registration. Submission attempts a direct PUT before recording metadata.</li>
+        <li><strong>Mobile:</strong> <code>mobile/lib/screens/merchant/merchant_registration_screen.dart</code> picks with <code>withData: true</code> and retains bytes; <code>mobile/lib/services/api_service.dart</code> adds presigning and <code>uploadBusinessDocument()</code>, using a standalone Dio client for the storage PUT.</li>
+        <li><strong>Reviewer download:</strong> the existing Admin action calls <code>POST /v1/documents/:id/presign</code> under <code>merchant:verification:review</code>. Successful uploads are now registered against the same key used for download. This extends <a href="Comprehensive_Audit_Report.html#document-upload-follow-up">GAP-10 in the Comprehensive Audit Report</a>; no new download permission was introduced.</li>
+      </ul>
+      <p><strong>Local verification recorded during implementation:</strong> API and Web <code>tsc --noEmit</code> passed; merchant unit tests passed <strong>5/5</strong>, including two new assertions for supplied-key persistence and legacy fallback. Targeted API ESLint had 0 errors and 1 pre-existing unrelated warning; Web lint was clean; <code>dart analyze</code> on the two changed mobile files reported no issues. These checks do not establish a live S3 upload/download round trip.</p>
+      <div class="callout warn"><strong class="label">Closure scope &mdash; wiring complete, reliability and rollout checks remain</strong>
+        <ul class="tight">
+          <li><strong>Failed uploads can still produce metadata:</strong> Web catches PUT exceptions and does not check <code>response.ok</code>; mobile catches PUT failures and can skip PUT for missing bytes/URL. The API still permits a generated-key fallback and does not verify object existence. Blocking registration after failed/missing uploads remains a hardening follow-up, not part of this closure.</li>
+          <li><strong>Existing records:</strong> documents created by the old metadata-only flow need their original files re-uploaded. No data repair or backfill was performed; metadata cannot reconstruct absent bytes.</li>
+          <li><strong>Bucket configuration:</strong> confirm the uploads bucket allows the Web origin to PUT with <code>Content-Type</code>. API CORS and media-bucket CORS do not configure the uploads bucket; native mobile is not subject to browser CORS. Keep verification documents private.</li>
+          <li><strong>Deployment acceptance:</strong> after deploying the API and updated clients, upload a fresh document from each client, confirm PUT success and stored-key equality, then download it as a reviewer. Include a filename with spaces/parentheses and failed-upload cases. These staging checks have not been run.</li>
+        </ul>
+      </div>
     </section>
 
     <section id="blockers">
@@ -315,7 +335,7 @@ const total = subtotal - discount + deliveryFee + tax;</code></pre>
         <thead><tr><th>Requirement</th><th>Status</th><th>Gap</th></tr></thead>
         <tbody>
           <tr><td>Store &amp; business profile</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
-          <tr><td>Basic verification</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
+          <tr><td>Basic verification</td><td><span class="pill p-ok">Implemented</span></td><td>Document byte-upload wiring completed 09-19 (<code>STR-B4</code>); <a href="#document-upload-closure">runtime acceptance, legacy re-uploads and failure-handling follow-up</a> remain.</td></tr>
           <tr><td>Category, product, media management</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
           <tr><td>Excel/CSV import</td><td><span class="pill p-ok">Complete</span></td><td>Real staged-CSV pipeline since 09-04 (Redis-staged rows, per-row validation, SKU-idempotent upsert, persisted stats)</td></tr>
           <tr><td>Manual stock management</td><td><span class="pill p-ok">Complete</span></td><td>&mdash;</td></tr>
@@ -506,7 +526,7 @@ flowchart TB
 </div>
 
 <footer class="site">
-  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Gap &amp; Roadmap Report. Synthesised from the 2026-09-05 codebase audit and re-verified against the live source tree on 2026-09-14 (storage integration closed: <code>STR-B1</code>&ndash;<code>STR-B6</code>; companion documents: <em>Developer Guide</em> and <em>User Guide</em>).</p>
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Gap &amp; Roadmap Report. Synthesized from the 2026-09-05 codebase audit with storage-endpoint updates on 2026-09-14. Targeted follow-up 2026-09-19: <code>STR-B4</code> document byte-upload wiring implemented across API, Web and Mobile; local verification recorded, runtime acceptance and reliability limits documented above. This follow-up does not re-audit unrelated findings or recalculate maturity scores. Companion documents: <em>Developer Guide</em>, <em>User Guide</em> and <a href="Comprehensive_Audit_Report.html#document-upload-follow-up">Comprehensive Audit Report</a>.</p>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>

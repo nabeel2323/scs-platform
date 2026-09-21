@@ -107,8 +107,14 @@ class _MerchantRegistrationScreenState
   final _managerNameCtrl = TextEditingController();
 
   // Step 4: Documents
-  final List<({String docType, String fileName, int fileSize, String mimeType})>
-      _documents = [];
+  final List<
+      ({
+        String docType,
+        String fileName,
+        int fileSize,
+        String mimeType,
+        List<int>? bytes
+      })> _documents = [];
   String _newDocType = 'COMMERCIAL_REG';
 
   // Created IDs
@@ -143,7 +149,7 @@ class _MerchantRegistrationScreenState
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-      withData: false,
+      withData: true,
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
@@ -153,6 +159,7 @@ class _MerchantRegistrationScreenState
         fileName: file.name,
         fileSize: file.size,
         mimeType: _mimeTypeForExtension(file.extension ?? ''),
+        bytes: file.bytes,
       ));
     });
   }
@@ -305,13 +312,14 @@ class _MerchantRegistrationScreenState
         setState(() => _submitting = true);
         try {
           for (final doc in _documents) {
-            await api.registerDocument(
+            await api.uploadBusinessDocument(
               orgId: _createdOrgId!,
               storeId: _createdStoreId,
               docType: doc.docType,
               fileName: doc.fileName,
               mimeType: doc.mimeType,
               fileSize: doc.fileSize,
+              bytes: doc.bytes ?? const <int>[],
             );
           }
         } catch (e) {
