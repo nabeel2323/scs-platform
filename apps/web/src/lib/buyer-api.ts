@@ -876,6 +876,11 @@ export async function addMedia(productId: string, input: AddMediaInput): Promise
   return res.json();
 }
 
+export async function removeMedia(productId: string, mediaId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Remove media failed: ${res.status}`);
+}
+
 export async function presignMedia(input: {
   fileName: string;
   mimeType: string;
@@ -982,6 +987,70 @@ export async function adjustStock(input: {
   return res.json();
 }
 
+export interface StockMovement {
+  id: string;
+  inventoryItemId: string;
+  movementType: string;
+  quantity: number;
+  referenceType: string | null;
+  referenceId: string | null;
+  performedBy: string | null;
+  createdAt: string;
+}
+
+export async function fetchInventoryMovements(inventoryItemId: string, limit = 50): Promise<StockMovement[]> {
+  const res = await authFetch(`${API_URL}/v1/inventory/${inventoryItemId}/movements?limit=${limit}`);
+  if (!res.ok) throw new Error(`Movements failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Brand Management ──────────────────────────────────────────
+
+export interface Brand {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  slug: string;
+  logoUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchBrandsAdmin(includeInactive = false): Promise<Brand[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  const res = await authFetch(`${API_URL}/v1/brands${qs}`);
+  if (!res.ok) throw new Error(`Brands failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createBrand(input: { name: string; nameAr?: string; logoUrl?: string; description?: string }): Promise<Brand> {
+  const res = await authFetch(`${API_URL}/v1/brands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create brand failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateBrand(id: string, input: Partial<Brand>): Promise<Brand> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update brand failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateBrand(id: string): Promise<Brand> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Deactivate brand failed: ${res.status}`);
+  return res.json();
+}
+
 // ── Merchant Pricing ─────────────────────────────────────────
 
 export interface PriceList {
@@ -1020,6 +1089,41 @@ export async function fetchPriceListTiers(listId: string): Promise<PriceTier[]> 
   const res = await authFetch(`${API_URL}/v1/price-lists/${listId}/tiers`);
   if (!res.ok) throw new Error(`Price tiers failed: ${res.status}`);
   return res.json();
+}
+
+export async function createPriceList(input: { storeId: string; name: string; currency: string; channel?: string; audience?: string }): Promise<PriceList> {
+  const res = await authFetch(`${API_URL}/v1/price-lists`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create price list failed: ${res.status}`);
+  return res.json();
+}
+
+export async function addPriceTier(input: { priceListId: string; variantId: string; minQty: number; maxQty?: number; unitPriceMinor: number }): Promise<PriceTier> {
+  const res = await authFetch(`${API_URL}/v1/price-lists/${input.priceListId}/tiers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Add tier failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updatePriceTier(tierId: string, input: { minQty?: number; maxQty?: number | null; unitPriceMinor?: number }): Promise<PriceTier> {
+  const res = await authFetch(`${API_URL}/v1/tiers/${tierId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update tier failed: ${res.status}`);
+  return res.json();
+}
+
+export async function removePriceTier(tierId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/tiers/${tierId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Remove tier failed: ${res.status}`);
 }
 
 // ── Device Management ────────────────────────────────────────

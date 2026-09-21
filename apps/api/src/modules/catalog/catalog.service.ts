@@ -171,11 +171,30 @@ export class CatalogService {
     return brand;
   }
 
-  async listBrands() {
+  async listBrands(includeInactive = false) {
     return this.db.db.query.brands.findMany({
-      where: eq(brands.isActive, true),
+      where: includeInactive ? undefined : eq(brands.isActive, true),
       orderBy: [brands.name],
     });
+  }
+
+  async updateBrand(id: string, input: Partial<CreateBrandInput> & { isActive?: boolean }) {
+    const brand = await this.getBrand(id);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) {
+      updates['name'] = input.name;
+      updates['slug'] = input.slug || input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+    if (input.nameAr !== undefined) updates['nameAr'] = input.nameAr || null;
+    if (input.logoUrl !== undefined) updates['logoUrl'] = input.logoUrl || null;
+    if (input.description !== undefined) updates['description'] = input.description || null;
+    if (input.isActive !== undefined) updates['isActive'] = input.isActive;
+    await this.db.db.update(brands).set(updates).where(eq(brands.id, id));
+    return this.getBrand(id);
+  }
+
+  async deactivateBrand(id: string) {
+    return this.updateBrand(id, { isActive: false });
   }
 
   // ── Products ─────────────────────────────────────────────────
@@ -400,6 +419,16 @@ export class CatalogService {
       where: eq(productMedia.productId, productId),
       orderBy: [productMedia.sortOrder],
     });
+  }
+
+  async removeMedia(productId: string, mediaId: string) {
+    await this.getProduct(productId);
+    const item = await this.db.db.query.productMedia.findFirst({
+      where: eq(productMedia.id, mediaId),
+    });
+    if (!item || item.productId !== productId) throw new NotFoundException('Media not found');
+    await this.db.db.delete(productMedia).where(eq(productMedia.id, mediaId));
+    return { success: true };
   }
 
   // ── Import Jobs ──────────────────────────────────────────────

@@ -232,6 +232,10 @@ export class AdminService {
     return listAdminTable(this.db.db, 'categories', filters);
   }
 
+  async listBrands(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'brands', filters);
+  }
+
   async listDisputes(filters: AdminListInput) {
     return listAdminTable(this.db.db, 'disputes', filters);
   }

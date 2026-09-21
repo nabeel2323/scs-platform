@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   fetchProduct, createProduct, updateProduct,
   listVariants, createVariant,
-  listMedia, addMedia, presignMedia,
+  listMedia, addMedia, removeMedia, presignMedia,
   fetchStoreCategories, fetchBrands,
   ProductVariant, Category, MediaItem,
 } from '../../../../../lib/buyer-api';
@@ -196,6 +196,20 @@ export default function ProductEditorPage() {
     }
   };
 
+  const handleRemoveMedia = async (mediaId: string) => {
+    if (!window.confirm('Remove this media?')) return;
+    setMediaSaving(true);
+    setError('');
+    try {
+      await removeMedia(id, mediaId);
+      setMedia(await listMedia(id));
+    } catch (err: any) {
+      setError(err.message || 'Remove media failed');
+    } finally {
+      setMediaSaving(false);
+    }
+  };
+
   const handleUploadFile = async (file: File) => {
     setUploading(true);
     setError('');
@@ -354,11 +368,12 @@ export default function ProductEditorPage() {
             {media.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
                 {media.map(m => (
-                  <div key={m.id} style={{ width: 96, textAlign: 'center' }}>
+                  <div key={m.id} style={{ width: 96, textAlign: 'center', position: 'relative' }}>
                     <div style={{ width: 96, height: 72, borderRadius: 6, border: '1px solid #d9e2e6', background: '#f7f9fa center/cover no-repeat', backgroundImage: m.url.startsWith('http') ? `url(${m.url})` : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#a0aec0', overflow: 'hidden' }}>
                       {!m.url.startsWith('http') && '🖼'}
                     </div>
                     <div style={{ fontSize: 10, color: '#5b6b74', marginTop: 4, wordBreak: 'break-all' }}>{m.mediaType}</div>
+                    <button onClick={() => handleRemoveMedia(m.id)} style={removeMediaBtn} title="Remove media">✕</button>
                   </div>
                 ))}
               </div>
@@ -396,3 +411,4 @@ const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f
 const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
 const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };
+const removeMediaBtn: React.CSSProperties = { position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', background: 'rgba(153,27,27,0.8)', color: '#fff', border: 'none', fontSize: 10, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 };
