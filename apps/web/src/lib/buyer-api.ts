@@ -55,6 +55,8 @@ export interface ProductVariant {
   minQty?: number;
   /** Effective tier pricing for this variant, present on product detail (A5-1). */
   pricing?: VariantPricing | null;
+  /** Stock summary across all store warehouses, present on product detail. */
+  stock?: { totalAvailable: number; totalOnHand: number; warehouseCount: number } | null;
 }
 
 /** One step of a volume-price ladder. `maxQty` is exclusive; null = unlimited. */
@@ -1041,6 +1043,61 @@ export async function fetchInventoryMovements(inventoryItemId: string, limit = 5
   const res = await authFetch(`${API_URL}/v1/inventory/${inventoryItemId}/movements?limit=${limit}`);
   if (!res.ok) throw new Error(`Movements failed: ${res.status}`);
   return res.json();
+}
+
+export async function createInventoryItem(input: {
+  variantId: string;
+  warehouseId: string;
+  initialQty?: number;
+  reason?: string;
+}): Promise<InventoryItem> {
+  const res = await authFetch(`${API_URL}/v1/inventory`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create inventory item failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateInventoryItem(id: string, input: {
+  reorderPoint?: number;
+  maxStock?: number;
+  lowStockAlert?: boolean;
+}): Promise<InventoryItem> {
+  const res = await authFetch(`${API_URL}/v1/inventory/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update inventory item failed: ${res.status}`);
+  return res.json();
+}
+
+export async function bulkAdjustStock(items: Array<{
+  inventoryItemId: string;
+  quantity: number;
+  reason?: string;
+}>): Promise<Array<{ inventoryItemId: string; newQty: number }>> {
+  const res = await authFetch(`${API_URL}/v1/inventory/bulk-adjust`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  if (!res.ok) throw new Error(`Bulk adjust failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchStoreInventory(storeId: string): Promise<InventoryItem[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory`);
+  if (!res.ok) throw new Error(`Store inventory failed: ${res.status}`);
+  return res.json();
+}
+
+export async function exportInventoryCsv(storeId: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/export`);
+  if (!res.ok) throw new Error(`Export inventory failed: ${res.status}`);
+  return res.text();
 }
 
 // ── Brand Management ──────────────────────────────────────────

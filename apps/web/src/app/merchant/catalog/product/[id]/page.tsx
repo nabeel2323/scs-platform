@@ -473,27 +473,33 @@ export default function ProductEditorPage() {
             </div>
           </div>
 
-          {/* Stock Overview (Phase 3D) */}
+          {/* Stock Overview (Phase 3D — enhanced with live stock data) */}
           {variants.length > 0 && (
             <div style={{ ...card, marginTop: 20 }}>
               <h2 style={sectionTitle}>Stock Overview</h2>
               <div style={{ ...tableWrap }}>
                 <table style={table}>
                   <thead><tr style={theadRow}>
-                    <th style={th}>SKU</th><th style={th}>Variant</th><th style={th}>Inventory</th>
+                    <th style={th}>SKU</th><th style={th}>Variant</th><th style={th}>On Hand</th><th style={th}>Available</th><th style={th}>Warehouses</th><th style={th}>Inventory</th>
                   </tr></thead>
                   <tbody>
-                    {variants.map(v => (
-                      <tr key={v.id} style={tbodyRow}>
-                        <td style={td}><code style={{ fontSize: 12 }}>{v.sku}</code></td>
-                        <td style={td}>{v.title || v.sku}</td>
-                        <td style={td}>
-                          <Link href={`/merchant/inventory?variant=${v.id}`} style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 600 }}>
-                            View stock →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                    {variants.map(v => {
+                      const stock = (v as any).stock;
+                      return (
+                        <tr key={v.id} style={tbodyRow}>
+                          <td style={td}><code style={{ fontSize: 12 }}>{v.sku}</code></td>
+                          <td style={td}>{v.title || v.sku}</td>
+                          <td style={td}>{stock ? stock.totalOnHand : '—'}</td>
+                          <td style={td}><strong>{stock ? stock.totalAvailable : '—'}</strong></td>
+                          <td style={td}>{stock && stock.warehouseCount > 0 ? stock.warehouseCount : <span style={{ color: '#991b1b', fontSize: 11 }}>Unassigned</span>}</td>
+                          <td style={td}>
+                            <Link href={`/merchant/inventory?variant=${v.id}`} style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 600 }}>
+                              View stock →
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

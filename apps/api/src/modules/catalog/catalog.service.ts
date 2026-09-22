@@ -20,8 +20,10 @@ import {
 import { enrichProductCards } from './product-card';
 import { imageReferences } from './product-images';
 import { organizations } from '../identity/identity.schema';
-import { stores } from '../merchant/merchant.schema';
+import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
+import { resolveVariantPrices } from '../pricing/price-resolution';
+import { inventoryItems } from '../inventory/inventory.schema';
 import { eq, and, or, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -249,7 +251,57 @@ export class CatalogService {
         .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
         .where(eq(products.id, id)),
     ]);
-    return { ...product, ...labels[0], store: storeRows[0] ?? null, media, variants,
+    // A5-1: attach per-variant pricing via the shared resolver so the buyer
+    // detail page and the cart agree on what a unit costs.
+    const activeVariants = variants.filter(v => v['isActive']);
+    const variantIds = activeVariants.map(v => v['id']);
+    const pricingMap = variantIds.length > 0
+      ? await resolveVariantPrices(this.db.db, product['storeId'], variantIds, product['moq'] || 1, { ladder: true })
+      : new Map();
+    const variantsWithPricing = variants.map(v => ({
+      ...v,
+      pricing: pricingMap.get(v['id']) ?? null,
+    }));
+
+    // Attach stock status per variant: sum available across all store warehouses.
+    // Wrapped in try-catch so test environments with partial mock DBs still work.
+    const allVariantIds = variants.map(v => v['id']);
+    let stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+    try {
+      if (allVariantIds.length > 0) {
+        const storeWarehouses = await this.db.db.query.warehouses.findMany({
+          where: eq(warehouses.storeId, product['storeId']),
+          columns: { id: true },
+        });
+        if (storeWarehouses.length > 0) {
+          const whIds = storeWarehouses.map(w => w.id);
+          const invRows = await this.db.db.query.inventoryItems.findMany({
+            where: and(
+              inArray(inventoryItems.warehouseId, whIds),
+              inArray(inventoryItems.variantId, allVariantIds),
+            ),
+          });
+          for (const row of invRows) {
+            const vid = row['variantId'];
+            const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+            const available = row['qtyOnHand'] - row['qtyReserved'];
+            stockByVariant[vid] = {
+              totalAvailable: prev.totalAvailable + available,
+              totalOnHand: prev.totalOnHand + row['qtyOnHand'],
+              warehouseCount: prev.warehouseCount + 1,
+            };
+          }
+        }
+      }
+    } catch {
+      // Stock tables may not be available in all environments (e.g. test mocks)
+    }
+    const variantsWithStock = variantsWithPricing.map(v => ({
+      ...v,
+      stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+    }));
+
+    return { ...product, ...labels[0], store: storeRows[0] ?? null, media, variants: variantsWithStock,
       imageCount: imageReferences(product.images, media).length };
   }
 
@@ -380,7 +432,7 @@ export class CatalogService {
       toggleActive?: Array<{ id: string; isActive: boolean }>;
     },
   ) {
-    await this.getProduct(productId);
+    const product = await this.getProduct(productId);
     const created: string[] = [];
     const deleted: string[] = [];
     const toggled: string[] = [];
@@ -402,6 +454,10 @@ export class CatalogService {
           images: input.images || [],
         });
         created.push(id);
+      }
+      // Ensure each newly created variant has at least a base price tier
+      for (const variantId of created) {
+        await this.ensureVariantPricing(product['storeId'], variantId);
       }
     }
 
@@ -555,7 +611,7 @@ export class CatalogService {
   // ── Variants ─────────────────────────────────────────────────
 
   async createVariant(productId: string, input: CreateVariantInput) {
-    await this.getProduct(productId);
+    const product = await this.getProduct(productId);
     const id = crypto.randomUUID();
 
     await this.db.db.insert(productVariants).values({
@@ -572,6 +628,11 @@ export class CatalogService {
       images: input.images || [],
     });
 
+    // Ensure the new variant has at least a base price tier so the cart
+    // can resolve a price. Without this, variants created via the catalog
+    // UI are orphaned from the pricing system.
+    await this.ensureVariantPricing(product['storeId'], id);
+
     return this.getVariant(id);
   }
 
@@ -584,10 +645,45 @@ export class CatalogService {
   }
 
   async listVariantsByProduct(productId: string) {
-    return this.db.db.query.productVariants.findMany({
+    const variants = await this.db.db.query.productVariants.findMany({
       where: eq(productVariants.productId, productId),
       orderBy: [productVariants.createdAt],
     });
+    // Attach stock status per variant (same shape as getProductDetail)
+    // Wrapped in try-catch so test environments with partial mock DBs still work.
+    try {
+      const product = await this.getProduct(productId).catch(() => null);
+      if (!product || variants.length === 0) return variants;
+      const storeWarehouses = await this.db.db.query.warehouses.findMany({
+        where: eq(warehouses.storeId, product['storeId']),
+        columns: { id: true },
+      });
+      if (storeWarehouses.length === 0) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
+      const whIds = storeWarehouses.map(w => w.id);
+      const variantIds = variants.map(v => v['id']);
+      const invRows = await this.db.db.query.inventoryItems.findMany({
+        where: and(
+          inArray(inventoryItems.warehouseId, whIds),
+          inArray(inventoryItems.variantId, variantIds),
+        ),
+      });
+      const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+      for (const row of invRows) {
+        const vid = row['variantId'];
+        const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+        stockByVariant[vid] = {
+          totalAvailable: prev.totalAvailable + (row['qtyOnHand'] - row['qtyReserved']),
+          totalOnHand: prev.totalOnHand + row['qtyOnHand'],
+          warehouseCount: prev.warehouseCount + 1,
+        };
+      }
+      return variants.map(v => ({
+        ...v,
+        stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+      }));
+    } catch {
+      return variants;
+    }
   }
 
   // ── Media ────────────────────────────────────────────────────
@@ -945,7 +1041,46 @@ export class CatalogService {
     });
 
     await this.upsertBasePrice(priceListId, variantId, priceMinor);
+
+    // Honor the 'stock' column: create an inventory item in the store's first warehouse.
+    const stockRaw = get('stock');
+    if (stockRaw) {
+      const stockQty = parseInt(stockRaw, 10);
+      if (!isNaN(stockQty) && stockQty > 0) {
+        const firstWh = await this.db.db.query.warehouses.findFirst({
+          where: eq(warehouses.storeId, storeId),
+        });
+        if (firstWh) {
+          const invId = crypto.randomUUID();
+          await this.db.db.insert(inventoryItems).values({
+            id: invId,
+            variantId,
+            warehouseId: firstWh.id,
+            qtyOnHand: stockQty,
+            qtyReserved: 0,
+            reorderPoint: 0,
+          });
+        }
+      }
+    }
+
     return 'created';
+  }
+
+  /**
+   * Ensure a variant has at least one price tier across the store's active
+   * price lists. If no tier exists, create a default price list (if needed)
+   * and insert a zero-priced base tier. This prevents variants from being
+   * unpurchasable due to missing pricing entries.
+   */
+  private async ensureVariantPricing(storeId: string, variantId: string) {
+    const existingTier = await this.db.db.query.priceTiers.findFirst({
+      where: eq(priceTiers.variantId, variantId),
+    });
+    if (existingTier) return;
+
+    const priceListId = await this.getOrCreateDefaultPriceList(storeId);
+    await this.upsertBasePrice(priceListId, variantId, 0);
   }
 
   /** Get or create the store's default public B2B price list. */

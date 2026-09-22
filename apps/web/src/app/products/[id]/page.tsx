@@ -104,11 +104,18 @@ export default function ProductDetailPage() {
               MOQ: {product.moq}
             </span>
           </div>
-          {/* A5-6: warehouse-level stock isn't exposed yet (acceptable for pilot).
-              Show a note so wholesale buyers know to enquire about lead times. */}
+          {/* A5-6: Real stock status from warehouse inventory */}
           {product.isAvailable && (
             <div style={{ fontSize: 12, color: '#5b6b74', marginBottom: 16, padding: '8px 12px', background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 6 }}>
-              <strong>Stock:</strong> Available from supplier warehouse. Contact supplier for exact stock levels and lead times on large orders.
+              {(() => {
+                const activeVariants = variants.filter(v => v.isActive);
+                const totalStock = activeVariants.reduce((sum, v) => sum + ((v.stock?.totalAvailable ?? 0)), 0);
+                const hasAnyStock = activeVariants.some(v => (v.stock?.totalAvailable ?? 0) > 0);
+                if (hasAnyStock) {
+                  return <><strong style={{ color: '#065f46' }}>In Stock:</strong> {totalStock} units available across {activeVariants.filter(v => (v.stock?.totalAvailable ?? 0) > 0).length} variant(s). Large orders may require lead time.</>;
+                }
+                return <><strong>Stock:</strong> Available from supplier warehouse. Contact supplier for exact stock levels and lead times on large orders.</>;
+              })()}
             </div>
           )}
           {product.description && <p style={{ color: '#5b6b74', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>{product.description}</p>}
