@@ -137,6 +137,15 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+/** Compact date for list rows: "Sep 22, 2026" (MMM DD, YYYY). */
+export function formatDateCompact(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export function EmptyState({ title, description, action }: {
   title: string;
   description?: string;

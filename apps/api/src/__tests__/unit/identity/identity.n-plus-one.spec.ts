@@ -313,4 +313,72 @@ describe('IdentityService — N+1 elimination (P2)', () => {
       expect(mocks.mockJwt.sign.mock.calls[0][0].perms).toEqual([]);
     });
   });
+
+  // A freshly registered buyer has no organization membership yet. buildClaims
+  // must still carry the seeded BUYER role's permissions, or PermissionsGuard
+  // 403s every buyer action (checkout: "Missing required permissions:
+  // orders:write"). refreshToken exercises buildClaims for such a user.
+  describe('buildClaims (via refreshToken) — membership-less buyer', () => {
+    it('carries the BUYER role permissions instead of an empty perms array', async () => {
+      mocks.db.query.sessions.findFirst.mockResolvedValue({
+        id: 'sess-1',
+        userId: USER_ID,
+        tokenHash: 'hash-1',
+        device: 'web',
+        deviceId: null,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      });
+      // No org membership at all.
+      mocks.db.query.organizationMembers.findMany.mockResolvedValue([]);
+      // Falls back to the seeded BUYER role, then batch-loads its grants.
+      mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-buyer', key: 'BUYER' });
+      mocks.db.query.rolePermissions.findMany.mockResolvedValue([
+        { roleId: 'role-buyer', permissionId: 'p1' },
+        { roleId: 'role-buyer', permissionId: 'p2' },
+      ]);
+      mocks.db.query.permissions.findMany.mockResolvedValue([
+        { id: 'p1', key: 'orders:read' },
+        { id: 'p2', key: 'orders:write' },
+      ]);
+
+      await service.refreshToken('refresh-1');
+
+      const signed = mocks.mockJwt.sign.mock.calls[0][0];
+      expect(signed.role).toBe('BUYER');
+      expect(signed.activeOrg).toBeNull();
+      expect(signed.perms).toContain('orders:write');
+      // Still batched: permissions resolved with one findMany, never per-row.
+      expect(mocks.db.query.permissions.findMany).toHaveBeenCalledTimes(1);
+      expect(mocks.db.query.permissions.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getProfile — membership-less buyer', () => {
+    it('resolves role BUYER and returns its permission keys (client gating)', async () => {
+      mocks.db.query.users.findFirst.mockResolvedValue({
+        id: USER_ID,
+        phone: '+966500000009',
+        email: 'solo@buyer.test',
+        fullName: 'Solo Buyer',
+        locale: 'en',
+        status: 'ACTIVE',
+        createdAt: new Date('2026-01-01'),
+      });
+      mocks.db.query.organizationMembers.findMany.mockResolvedValue([]);
+      mocks.db.query.roles.findFirst.mockResolvedValue({ id: 'role-buyer', key: 'BUYER' });
+      mocks.db.query.rolePermissions.findMany.mockResolvedValue([
+        { roleId: 'role-buyer', permissionId: 'p1' },
+      ]);
+      mocks.db.query.permissions.findMany.mockResolvedValue([
+        { id: 'p1', key: 'orders:write' },
+      ]);
+
+      const profile = await service.getProfile(USER_ID);
+
+      expect(profile.role).toBe('BUYER');
+      expect(profile.activeOrgId).toBeNull();
+      expect(profile.perms).toEqual(['orders:write']);
+    });
+  });
 });

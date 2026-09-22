@@ -105,6 +105,10 @@ export default function ProductEditorPage() {
   // Media
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaUrl, setMediaUrl] = useState('');
+  // Empty string means the image belongs to the master product; a variant id
+  // scopes it to that specific variant. Sticky so a merchant can attach a
+  // batch of photos to the same variant without re-selecting each time.
+  const [mediaVariantId, setMediaVariantId] = useState('');
   const [mediaSaving, setMediaSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [reorderLoading, setReorderLoading] = useState(false);
@@ -308,7 +312,7 @@ export default function ProductEditorPage() {
     setMediaSaving(true);
     setError('');
     try {
-      await addMedia(id, { url: mediaUrl.trim() });
+      await addMedia(id, { url: mediaUrl.trim(), variantId: mediaVariantId || undefined });
       setMediaUrl('');
       setMedia(await listMedia(id));
     } catch (err: any) {
@@ -367,7 +371,12 @@ export default function ProductEditorPage() {
       if (!putRes.ok) {
         throw new Error(`Upload to storage failed (${putRes.status}). Check bucket CORS rules.`);
       }
-      await addMedia(id, { url: storageKey, mimeType: file.type || undefined, fileSize: file.size });
+      await addMedia(id, {
+        url: storageKey,
+        mimeType: file.type || undefined,
+        fileSize: file.size,
+        variantId: mediaVariantId || undefined,
+      });
       setMedia(await listMedia(id));
     } catch (err: any) {
       setError(err.message || 'Upload failed');
@@ -626,7 +635,17 @@ export default function ProductEditorPage() {
                     <span style={{ fontSize: 11, color: '#5b6b74', width: 20, textAlign: 'center', fontWeight: 600 }}>{idx + 1}</span>
                     <MediaThumb item={m} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: '#5b6b74', wordBreak: 'break-all' }}>{m.url.length > 60 ? `${m.url.slice(0, 60)}…` : m.url}</div>
+                      {(() => {
+                        const v = m.variantId ? variants.find(vv => vv.id === m.variantId) : null;
+                        return v ? (
+                          <span style={variantChip} title="This image is scoped to a specific variant">
+                            🏷 Variant: {v.title || v.sku} · <code style={{ fontSize: 10 }}>{v.sku}</code>
+                          </span>
+                        ) : (
+                          <span style={masterChip} title="This image applies to the whole product">📦 Master product</span>
+                        );
+                      })()}
+                      <div style={{ fontSize: 11, color: '#5b6b74', wordBreak: 'break-all', marginTop: 2 }}>{m.url.length > 60 ? `${m.url.slice(0, 60)}…` : m.url}</div>
                       <div style={{ fontSize: 10, color: '#a0aec0' }}>{m.mediaType}{m.mimeType ? ` · ${m.mimeType}` : ''}</div>
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -639,6 +658,17 @@ export default function ProductEditorPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select
+                value={mediaVariantId}
+                onChange={e => setMediaVariantId(e.target.value)}
+                aria-label="Associate added media with a variant"
+                style={{ ...input, minWidth: 210, maxWidth: 320 }}
+              >
+                <option value="">📦 Master product (all variants)</option>
+                {variants.map(v => (
+                  <option key={v.id} value={v.id}>{`${v.title || v.sku} · ${v.sku}`}</option>
+                ))}
+              </select>
               <input type="text" placeholder="Add image by URL…" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} style={{ ...input, flex: 1, minWidth: 220 }} />
               <button onClick={handleAddMediaUrl} disabled={mediaSaving || !mediaUrl.trim()} style={primaryBtn}>
                 {mediaSaving ? 'Adding…' : '+ Add URL'}
@@ -649,6 +679,10 @@ export default function ProductEditorPage() {
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadFile(f); e.target.value = ''; }} />
               </label>
             </div>
+            <p style={{ fontSize: 11, color: '#5b6b74', margin: '8px 0 0' }}>
+              Media added while a variant is selected is attached to that variant; leave it on
+              &quot;Master product&quot; to apply the image to the whole listing.
+            </p>
           </div>
         </>
       )}
@@ -677,6 +711,8 @@ const deleteBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, font
 const editBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#1e6178', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer' };
 const moveBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 12, fontWeight: 700, background: '#edf2f7', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 const removeMediaBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 11, fontWeight: 700, background: 'rgba(153,27,27,0.1)', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
+const variantChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#eff8ff', color: '#1e6178', border: '1px solid #93c5fd', marginBottom: 2 };
+const masterChip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: '#edf2f7', color: '#5b6b74', border: '1px solid #d9e2e6', marginBottom: 2 };
 
 /** Build hierarchical category options sorted by path. */
 function buildCategoryOptions(cats: Category[]): Array<{ cat: Category; depth: number }> {
