@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { authFetch } from '../../../lib/auth';
+import { fetchMyStores } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
@@ -99,6 +101,9 @@ export default function ImportWizardPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Auto-resolve store
+  const [storeName, setStoreName] = useState('');
+
   // Step 1: Upload
   const [file, setFile] = useState<File | null>(null);
   const [storeId, setStoreId] = useState('');
@@ -117,6 +122,61 @@ export default function ImportWizardPage() {
 
   // Step 5: Review
   const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
+
+  // Auto-resolve store on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const stores = await fetchMyStores();
+        const s = pickStore(stores);
+        if (s) {
+          setStoreId(s.id);
+          setStoreName(s.displayName);
+        }
+      } catch { /* handled during upload */ }
+    })();
+  }, []);
+
+  /** Download a CSV template with TARGET_COLUMNS headers and 2 example rows. */
+  const downloadTemplate = () => {
+    const header = TARGET_COLUMNS.map(c => c.label).join(',');
+    const row1 = TARGET_COLUMNS.map(c => {
+      if (c.key === 'name') return 'Widget Pro';
+      if (c.key === 'nameAr') return 'ودجت برو';
+      if (c.key === 'sku') return 'WDG-001';
+      if (c.key === 'barcode') return '6281001234567';
+      if (c.key === 'category') return 'Electronics';
+      if (c.key === 'brand') return 'Acme';
+      if (c.key === 'unit') return 'PCS';
+      if (c.key === 'priceMinor') return '1050';
+      if (c.key === 'moq') return '5';
+      if (c.key === 'description') return 'High-quality widget';
+      if (c.key === 'stock') return '100';
+      return '';
+    }).join(',');
+    const row2 = TARGET_COLUMNS.map(c => {
+      if (c.key === 'name') return 'Gadget Plus';
+      if (c.key === 'nameAr') return 'غادجيت بلس';
+      if (c.key === 'sku') return 'GDG-002';
+      if (c.key === 'barcode') return '6281009876543';
+      if (c.key === 'category') return 'Accessories';
+      if (c.key === 'brand') return 'TechCo';
+      if (c.key === 'unit') return 'PCS';
+      if (c.key === 'priceMinor') return '2500';
+      if (c.key === 'moq') return '10';
+      if (c.key === 'description') return 'Premium gadget';
+      if (c.key === 'stock') return '50';
+      return '';
+    }).join(',');
+    const csv = [header, row1, row2].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   /** Parse CSV file to extract headers and preview rows. */
   const parseCsvFile = (csvText: string) => {
@@ -338,12 +398,16 @@ export default function ImportWizardPage() {
       {step === 0 && (
         <div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Store ID</label>
-            <input
-              type="text" value={storeId} onChange={e => setStoreId(e.target.value)}
-              placeholder="Enter your store ID"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 14 }}
-            />
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Store</label>
+            {storeName ? (
+              <div style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 14, backgroundColor: '#F9FAFB', color: '#0f3340', fontWeight: 600 }}>
+                {storeName}
+              </div>
+            ) : (
+              <div style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
+                No store found — please onboard a store first.
+              </div>
+            )}
           </div>
 
           <div
@@ -369,14 +433,17 @@ export default function ImportWizardPage() {
             )}
           </div>
 
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={downloadTemplate} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#174A5B', border: '1px solid #174A5B', borderRadius: 6, cursor: 'pointer' }}>
+              Download Template
+            </button>
             <button
               onClick={() => { if (file && detectedHeaders.length > 0) setStep(1); else if (file) setStep(1); }}
-              disabled={!file}
+              disabled={!file || !storeId}
               style={{
                 padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600,
-                backgroundColor: file ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
-                cursor: file ? 'pointer' : 'not-allowed',
+                backgroundColor: file && storeId ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
+                cursor: file && storeId ? 'pointer' : 'not-allowed',
               }}
             >
               Next: Map Columns →
@@ -565,7 +632,7 @@ export default function ImportWizardPage() {
 
           <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
             <button
-              onClick={() => router.push('/merchant/orders')}
+              onClick={() => router.push('/merchant/catalog')}
               style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}
             >
               Go to Catalog

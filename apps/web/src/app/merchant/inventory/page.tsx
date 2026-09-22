@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   fetchStoreWarehouses, fetchWarehouseInventory, adjustStock,
-  fetchInventoryMovements, StockMovement,
-  WarehouseSummary, InventoryItem,
+  fetchInventoryMovements, fetchStoreVariants,
+  StockMovement,
+  WarehouseSummary, InventoryItem, ProductVariant,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
@@ -13,6 +14,7 @@ import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Sha
 
 export default function MerchantInventoryPage() {
   const [noStore, setNoStore] = useState(false);
+  const [storeId, setStoreId] = useState('');
   const [warehouses, setWarehouses] = useState<WarehouseSummary[]>([]);
   const [selectedWh, setSelectedWh] = useState('');
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -29,6 +31,9 @@ export default function MerchantInventoryPage() {
   const [historyItemId, setHistoryItemId] = useState('');
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Variant lookup for SKU display
+  const [variantMap, setVariantMap] = useState<Record<string, ProductVariant>>({});
 
   const loadInventory = useCallback(async (warehouseId: string) => {
     if (!warehouseId) return;
@@ -48,6 +53,7 @@ export default function MerchantInventoryPage() {
         const stores = await fetchMyStores();
         const s = pickStore(stores);
         if (!s) { setNoStore(true); setLoading(false); return; }
+        setStoreId(s.id);
         const whs = await fetchStoreWarehouses(s.id);
         setWarehouses(whs);
         const first = whs[0];
@@ -63,6 +69,16 @@ export default function MerchantInventoryPage() {
       }
     })();
   }, [loadInventory]);
+
+  // Batch-fetch variant details for SKU display
+  useEffect(() => {
+    if (!storeId) return;
+    fetchStoreVariants(storeId).then(variants => {
+      const map: Record<string, ProductVariant> = {};
+      for (const v of variants) map[v.id] = v;
+      setVariantMap(map);
+    }).catch(() => {});
+  }, [storeId]);
 
   const onWarehouseChange = async (whId: string) => {
     setSelectedWh(whId);
@@ -178,9 +194,19 @@ export default function MerchantInventoryPage() {
                   {items.map(item => {
                     const available = item.qtyOnHand - item.qtyReserved;
                     const low = isLowStock(item);
+                    const variant = variantMap[item.variantId];
                     return (
                       <tr key={item.id} className="tbl-row" style={{ ...tbodyRow, background: low ? '#fef2f2' : undefined }}>
-                        <td style={td}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{item.variantId.slice(0, 8)}</span></td>
+                        <td style={td}>
+                          {variant ? (
+                            <div>
+                              <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: '#0f3340' }}>{variant.sku}</span>
+                              {variant.title && <span style={{ fontSize: 11, color: '#5b6b74', marginLeft: 6 }}>{variant.title}</span>}
+                            </div>
+                          ) : (
+                            <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{item.variantId.slice(0, 8)}</span>
+                          )}
+                        </td>
                         <td style={td}>{item.qtyOnHand}</td>
                         <td style={td}>{item.qtyReserved}</td>
                         <td style={td}><strong>{available}</strong></td>

@@ -126,8 +126,17 @@ export class CatalogController {
     @Param('storeId') storeId: string,
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('q') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.catalogService.listProductsByStore(storeId, { status, categoryId });
+    return this.catalogService.listProductsByStore(storeId, {
+      status,
+      categoryId,
+      search,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
   }
 
   @Get('products/:id')
@@ -161,6 +170,52 @@ export class CatalogController {
   @Get('products/:productId/variants')
   async listVariants(@Param('productId') productId: string) {
     return this.catalogService.listVariantsByProduct(productId);
+  }
+
+  @Post('products/:productId/variants/bulk')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async bulkVariantOperations(
+    @Param('productId') productId: string,
+    @Body() body: {
+      create?: CreateVariantInput[];
+      deleteIds?: string[];
+      toggleActive?: Array<{ id: string; isActive: boolean }>;
+    },
+  ) {
+    return this.catalogService.bulkVariantOperations(productId, body);
+  }
+
+  @Post('stores/:storeId/products/bulk')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async bulkProductOperations(
+    @Param('storeId') storeId: string,
+    @Body() body: { ids: string[]; action: 'delete' | 'archive' | 'draft' },
+  ) {
+    return this.catalogService.bulkProductOperations(storeId, body.ids, body.action);
+  }
+
+  @Get('stores/:storeId/products/export')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async exportProducts(@Param('storeId') storeId: string) {
+    return this.catalogService.exportProductsCsv(storeId);
+  }
+
+  @Get('stores/:storeId/variants')
+  async listStoreVariants(@Param('storeId') storeId: string) {
+    return this.catalogService.listVariantsByStore(storeId);
+  }
+
+  @Post('products/:productId/media/reorder')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async reorderMedia(
+    @Param('productId') productId: string,
+    @Body() body: { order: string[] },
+  ) {
+    return this.catalogService.reorderMedia(productId, body.order);
   }
 
   // ── Media ────────────────────────────────────────────────────

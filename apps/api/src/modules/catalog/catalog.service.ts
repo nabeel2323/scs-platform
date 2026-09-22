@@ -22,7 +22,7 @@ import { imageReferences } from './product-images';
 import { organizations } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
-import { eq, and, isNull, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -258,6 +258,7 @@ export class CatalogService {
     filters?: {
       status?: string;
       categoryId?: string;
+      search?: string;
       limit?: number;
       offset?: number;
     },
@@ -275,6 +276,12 @@ export class CatalogService {
       conditions.push(eq(products.categoryId, filters.categoryId));
     }
 
+    if (filters?.search) {
+      conditions.push(ilike(products.title, `%${filters.search}%`));
+    }
+
+    const where = and(...conditions);
+
     const limit =
       typeof filters?.limit === 'number' &&
       Number.isFinite(filters.limit) &&
@@ -289,8 +296,14 @@ export class CatalogService {
         ? Math.floor(filters.offset)
         : undefined;
 
+    // Real COUNT for pagination (not page-size)
+    const [countResult] = await this.db.db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(where);
+
     const items = await this.db.db.query.products.findMany({
-      where: and(...conditions),
+      where,
       orderBy: [desc(products.createdAt)],
       ...(limit !== undefined ? { limit } : {}),
       ...(offset !== undefined ? { offset } : {}),
@@ -300,7 +313,7 @@ export class CatalogService {
 
     return {
       items: enrichedItems,
-      total: enrichedItems.length,
+      total: countResult?.count ?? 0,
       ...(limit !== undefined ? { limit } : {}),
       ...(offset !== undefined ? { offset } : {}),
     };
@@ -325,6 +338,8 @@ export class CatalogService {
     if (input.attributes !== undefined) updates['attributes'] = input.attributes;
     if (input.categoryId !== undefined) updates['categoryId'] = input.categoryId;
     if (input.brandId !== undefined) updates['brandId'] = input.brandId;
+    if (input.slug !== undefined) updates['slug'] = input.slug;
+    if (input.metadata !== undefined) updates['metadata'] = input.metadata;
 
     await this.db.db.update(products).set(updates).where(eq(products.id, id));
 
@@ -349,6 +364,191 @@ export class CatalogService {
         updatedAt: new Date(),
       })
       .where(eq(products.id, id));
+    return { success: true };
+  }
+
+  // ── Bulk Operations ──────────────────────────────────────────
+
+  /**
+   * Bulk variant operations for a single product: create, delete, toggle active.
+   */
+  async bulkVariantOperations(
+    productId: string,
+    ops: {
+      create?: CreateVariantInput[];
+      deleteIds?: string[];
+      toggleActive?: Array<{ id: string; isActive: boolean }>;
+    },
+  ) {
+    await this.getProduct(productId);
+    const created: string[] = [];
+    const deleted: string[] = [];
+    const toggled: string[] = [];
+
+    if (ops.create?.length) {
+      for (const input of ops.create) {
+        const id = crypto.randomUUID();
+        await this.db.db.insert(productVariants).values({
+          id,
+          productId,
+          sku: input.sku,
+          barcode: input.barcode || null,
+          title: input.title || null,
+          titleAr: input.titleAr || null,
+          unit: input.unit || 'PCS',
+          weightGrams: input.weightGrams || null,
+          dimensionsMm: input.dimensionsMm || {},
+          attributes: input.attributes || {},
+          images: input.images || [],
+        });
+        created.push(id);
+      }
+    }
+
+    if (ops.deleteIds?.length) {
+      await this.db.db
+        .delete(productVariants)
+        .where(and(eq(productVariants.productId, productId), inArray(productVariants.id, ops.deleteIds)));
+      deleted.push(...ops.deleteIds);
+    }
+
+    if (ops.toggleActive?.length) {
+      for (const t of ops.toggleActive) {
+        await this.db.db
+          .update(productVariants)
+          .set({ isActive: t.isActive, updatedAt: new Date() })
+          .where(and(eq(productVariants.id, t.id), eq(productVariants.productId, productId)));
+        toggled.push(t.id);
+      }
+    }
+
+    return { created, deleted, toggled };
+  }
+
+  /**
+   * Bulk product operations: delete (soft), archive, or set to draft.
+   */
+  async bulkProductOperations(
+    storeId: string,
+    ids: string[],
+    action: 'delete' | 'archive' | 'draft',
+  ) {
+    // Verify all products belong to this store
+    const existing = await this.db.db.query.products.findMany({
+      where: and(inArray(products.id, ids), eq(products.storeId, storeId), isNull(products.deletedAt)),
+    });
+    const validIds = existing.map((p) => p['id']);
+    if (validIds.length === 0) return { affected: 0 };
+
+    const now = new Date();
+    if (action === 'delete') {
+      await this.db.db
+        .update(products)
+        .set({ deletedAt: now, isAvailable: false, updatedAt: now })
+        .where(inArray(products.id, validIds));
+    } else if (action === 'archive') {
+      await this.db.db
+        .update(products)
+        .set({ status: 'ARCHIVED', updatedAt: now })
+        .where(inArray(products.id, validIds));
+    } else {
+      await this.db.db
+        .update(products)
+        .set({ status: 'DRAFT', updatedAt: now })
+        .where(inArray(products.id, validIds));
+    }
+
+    return { affected: validIds.length };
+  }
+
+  /**
+   * Export products for a store as CSV rows.
+   * Columns: title, titleAr, sku, priceMinor, category, brand, status, moq, description
+   */
+  async exportProductsCsv(storeId: string) {
+    const prods = await this.db.db.query.products.findMany({
+      where: and(eq(products.storeId, storeId), isNull(products.deletedAt)),
+      orderBy: [desc(products.createdAt)],
+    });
+
+    const header = 'title,titleAr,sku,priceMinor,category,brand,status,moq,description';
+    const rows: string[] = [header];
+
+    for (const p of prods) {
+      const [variants, labels] = await Promise.all([
+        this.db.db.query.productVariants.findMany({
+          where: eq(productVariants.productId, p['id']),
+          limit: 1,
+        }),
+        this.db.db
+          .select({ categoryName: categories.name, brandName: brands.name })
+          .from(products)
+          .leftJoin(categories, eq(products.categoryId, categories.id))
+          .leftJoin(brands, eq(products.brandId, brands.id))
+          .where(eq(products.id, p['id'])),
+      ]);
+
+      let priceMinor = '';
+      const variant = variants[0];
+      if (variant) {
+        const tier = await this.db.db.query.priceTiers.findFirst({
+          where: and(eq(priceTiers.variantId, variant['id']), eq(priceTiers.minQty, 1)),
+        });
+        if (tier) priceMinor = String(tier['unitPriceMinor']);
+      }
+
+      const cat = labels[0]?.['categoryName'] ?? '';
+      const brand = labels[0]?.['brandName'] ?? '';
+      const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+
+      rows.push(
+        [
+          esc(p['title']),
+          esc(p['titleAr'] ?? ''),
+          esc(variant?.['sku'] ?? ''),
+          priceMinor,
+          esc(cat),
+          esc(brand),
+          p['status'],
+          String(p['moq']),
+          esc(p['description'] ?? ''),
+        ].join(','),
+      );
+    }
+
+    return rows.join('\n');
+  }
+
+  /**
+   * List all variants across all products for a store.
+   * Eliminates the N+1 pattern where clients paginate products then fetch variants per product.
+   */
+  async listVariantsByStore(storeId: string) {
+    const storeProducts = await this.db.db
+      .select({ id: products.id })
+      .from(products)
+      .where(and(eq(products.storeId, storeId), isNull(products.deletedAt)));
+
+    const productIds = storeProducts.map((p) => p.id);
+    if (productIds.length === 0) return [];
+
+    return this.db.db.query.productVariants.findMany({
+      where: inArray(productVariants.productId, productIds),
+      orderBy: [productVariants.createdAt],
+    });
+  }
+
+  /**
+   * Reorder product media by setting sortOrder for each media item.
+   */
+  async reorderMedia(productId: string, order: string[]) {
+    await this.getProduct(productId);
+    for (let i = 0; i < order.length; i++) {
+      await this.db.db
+        .update(productMedia)
+        .set({ sortOrder: i })
+        .where(and(eq(productMedia.id, order[i]!), eq(productMedia.productId, productId)));
+    }
     return { success: true };
   }
 
@@ -995,6 +1195,8 @@ export interface UpdateProductInput {
   attributes?: Record<string, unknown>;
   categoryId?: string;
   brandId?: string;
+  slug?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateVariantInput {

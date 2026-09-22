@@ -304,11 +304,12 @@ export interface StoreProductsEnvelope {
 
 export async function fetchStoreProducts(
   storeId: string,
-  params?: { categoryId?: string; status?: string; limit?: number; offset?: number },
+  params?: { categoryId?: string; status?: string; search?: string; limit?: number; offset?: number },
 ): Promise<StoreProductsEnvelope> {
   const qs = new URLSearchParams();
   if (params?.categoryId) qs.set('categoryId', params.categoryId);
   if (params?.status) qs.set('status', params.status);
+  if (params?.search) qs.set('q', params.search);
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products?${qs}`);
@@ -765,6 +766,8 @@ export interface UpdateProductInput {
   attributes?: Record<string, unknown>;
   categoryId?: string;
   brandId?: string;
+  slug?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateVariantInput {
@@ -885,6 +888,36 @@ export async function addMedia(productId: string, input: AddMediaInput): Promise
 export async function removeMedia(productId: string, mediaId: string): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`Remove media failed: ${res.status}`);
+}
+
+export async function bulkVariantOperations(
+  productId: string,
+  ops: {
+    create?: CreateVariantInput[];
+    deleteIds?: string[];
+    toggleActive?: Array<{ id: string; isActive: boolean }>;
+  },
+): Promise<{ created: string[]; deleted: string[]; toggled: string[] }> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ops),
+  });
+  if (!res.ok) throw new Error(`Bulk variant ops failed: ${res.status}`);
+  return res.json();
+}
+
+export async function reorderProductMedia(
+  productId: string,
+  order: string[],
+): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/media/reorder`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order }),
+  });
+  if (!res.ok) throw new Error(`Reorder media failed: ${res.status}`);
+  return res.json();
 }
 
 export async function presignMedia(input: {
@@ -1155,5 +1188,32 @@ export async function unregisterDevice(token: string): Promise<{ success: boolea
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Unregister device failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Bulk / Export / Store Variants ───────────────────
+
+export async function bulkProductAction(
+  storeId: string,
+  body: { ids: string[]; action: 'delete' | 'archive' | 'draft' },
+): Promise<{ affected: number }> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products/bulk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Bulk action failed: ${res.status}`);
+  return res.json();
+}
+
+export async function exportProductsCsv(storeId: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products/export`);
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return res.text();
+}
+
+export async function fetchStoreVariants(storeId: string): Promise<ProductVariant[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/variants`);
+  if (!res.ok) throw new Error(`Store variants failed: ${res.status}`);
   return res.json();
 }
