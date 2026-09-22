@@ -13,6 +13,7 @@ import { AdminService } from '../../../modules/admin/admin.service';
 
 function createMocks() {
   const findFirstUpdateReq = vi.fn();
+  const findFirstOrg = vi.fn();
   const updateSet = vi.fn();
   const updateWhere = vi.fn();
   const updateReturning = vi.fn();
@@ -25,7 +26,7 @@ function createMocks() {
 
   const db = {
     query: {
-      organizations: { findFirst: vi.fn() },
+      organizations: { findFirst: findFirstOrg },
       organizationUpdateRequests: { findFirst: findFirstUpdateReq },
     },
     update: vi.fn().mockReturnValue(updateChain),
@@ -34,17 +35,19 @@ function createMocks() {
 
   const mockDb = { db } as any;
   const mockStorage = { createPresignedGetUrl: vi.fn() } as any;
+  const mockNotifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
 
-  return { db, findFirstUpdateReq, updateSet, updateWhere, updateReturning, mockDb, mockStorage };
+  return { db, findFirstUpdateReq, findFirstOrg, updateSet, updateWhere, updateReturning, mockDb, mockStorage, mockNotifications };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
-  return new AdminService(mocks.mockDb, mocks.mockStorage);
+  return new AdminService(mocks.mockDb, mocks.mockStorage, mocks.mockNotifications);
 }
 
 const pendingRequest = {
   id: 'req-1',
   orgId: 'org-1',
+  requestedBy: 'user-1',
   status: 'PENDING',
   payload: { legalName: 'New Legal', taxId: '300000000000003' },
 };
@@ -57,6 +60,7 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
     mocks = createMocks();
     service = createService(mocks);
     mocks.findFirstUpdateReq.mockResolvedValue(pendingRequest);
+    mocks.findFirstOrg.mockResolvedValue({ id: 'org-1', name: 'Test Org' });
     mocks.updateReturning.mockResolvedValue([{ ...pendingRequest, status: 'APPROVED' }]);
   });
 
@@ -66,6 +70,28 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
     // First update = organizations (payload applied), second = the request row
     expect(mocks.db.update).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ status: 'APPROVED' });
+  });
+
+  it('sends org_update.approved notification on APPROVED', async () => {
+    await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'APPROVED', 'Looks good');
+
+    expect(mocks.mockNotifications.send).toHaveBeenCalledWith(
+      'user-1',
+      'org_update.approved',
+      { orgName: 'Test Org', notes: 'Looks good' },
+    );
+  });
+
+  it('sends org_update.rejected notification on REJECTED', async () => {
+    mocks.updateReturning.mockResolvedValue([{ ...pendingRequest, status: 'REJECTED' }]);
+
+    await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'REJECTED', 'Invalid tax ID');
+
+    expect(mocks.mockNotifications.send).toHaveBeenCalledWith(
+      'user-1',
+      'org_update.rejected',
+      { orgName: 'Test Org', notes: 'Invalid tax ID' },
+    );
   });
 
   it('does not touch the organization on REJECTED', async () => {

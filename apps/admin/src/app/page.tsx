@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { fetchKpis, KpiResponse } from '../lib/api';
+import { fetchKpis, fetchAdminOrgUpdateRequests, KpiResponse, AdminOrgUpdateRequest } from '../lib/api';
 
 /* ── SVG Icons (Feather-style, 20×20) ───────────────────── */
 
@@ -23,10 +23,14 @@ const IconActivity = () => (<svg {...s}><polyline points="22 12 18 12 15 21 9 3 
 
 export default function AdminHomePage() {
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
+  const [updateReqs, setUpdateReqs] = useState<AdminOrgUpdateRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchKpis().then(setKpis).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      fetchKpis().then(setKpis).catch(() => {}),
+      fetchAdminOrgUpdateRequests('PENDING').then(setUpdateReqs).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const fmt = (n: number) =>
@@ -78,6 +82,84 @@ export default function AdminHomePage() {
           <KpiCard icon={<IconBox />}      label="Total Orders"        value={loading ? '—' : String(kpis?.orders.total ?? 0)}                accent="#1d5fa8" tint="#e8f1f9" />
           <KpiCard icon={<IconDollar />}   label="Revenue"             value={loading ? '—' : `${fmt(kpis?.revenue.totalMinor ?? 0)} SAR`}    accent="#7c3aed" tint="#f3efff" />
           <KpiCard icon={<IconActivity />} label="Completion Rate"     value={loading ? '—' : `${kpis?.orders.completionRate ?? 0}%`}         accent="#047857" tint="#eaf5ef" />
+        </div>
+
+        {/* Pending Organization Updates Widget */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 12,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)',
+          marginBottom: 40,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            padding: '16px 22px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid #e2e8f0',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18 }}>🔄</span>
+              <h2 style={{ fontSize: 15, fontWeight: 600, color: '#0f3340', margin: 0 }}>Pending Organization Updates</h2>
+              <span style={{
+                background: updateReqs.length > 0 ? '#fef3c7' : '#f1f5f9',
+                color: updateReqs.length > 0 ? '#92400e' : '#64748b',
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: 10,
+              }}>{updateReqs.length}</span>
+            </div>
+            <Link href="/organizations" style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 500 }}>
+              View all →
+            </Link>
+          </div>
+          {updateReqs.length === 0 ? (
+            <div style={{ padding: '28px 22px', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+              No pending update requests
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  <th style={{ textAlign: 'left', padding: '10px 18px', fontWeight: 600, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Organization</th>
+                  <th style={{ textAlign: 'left', padding: '10px 18px', fontWeight: 600, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Proposed Changes</th>
+                  <th style={{ textAlign: 'left', padding: '10px 18px', fontWeight: 600, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Submitted</th>
+                  <th style={{ textAlign: 'right', padding: '10px 18px', fontWeight: 600, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {updateReqs.slice(0, 5).map(req => {
+                  const changes = Object.entries(req.payload || {})
+                    .filter(([, v]) => v)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(', ');
+                  return (
+                    <tr key={req.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 18px', color: '#0f3340', fontWeight: 500 }}>{req.orgName || 'Unknown'}</td>
+                      <td style={{ padding: '12px 18px', color: '#475569', fontSize: 12, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{changes || '—'}</td>
+                      <td style={{ padding: '12px 18px', color: '#64748b', fontSize: 12 }}>{new Date(req.createdAt).toLocaleDateString()}</td>
+                      <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                        <Link href="/organizations" style={{
+                          display: 'inline-block',
+                          padding: '4px 12px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: '#eef4f6',
+                          color: '#0f3340',
+                          border: '1px solid #b8d4e3',
+                          borderRadius: 4,
+                          textDecoration: 'none',
+                        }}>Review</Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Quick Access */}
