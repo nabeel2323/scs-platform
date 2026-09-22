@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchOrder,
@@ -12,6 +12,7 @@ import {
   StatusHistoryEntry,
   OrderItem,
 } from '../../../lib/buyer-api';
+import { useAuth } from '../../../components/AuthProvider';
 import { onOrderStatus, watchOrder } from '../../../lib/realtime';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
 import { OrderTimeline } from '../../../components/OrderTimeline';
@@ -43,6 +44,8 @@ interface OrderDetail {
 
 export default function OrderDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const orderId = params['id'] as string;
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
@@ -55,7 +58,16 @@ export default function OrderDetailPage() {
   const [reorderError, setReorderError] = useState('');
   const [loadError, setLoadError] = useState('');
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace(`/auth/login?redirect=/orders/${orderId}`);
+      return;
+    }
+  }, [user, authLoading, router, orderId]);
+
   const load = () => {
+    if (!user) return;
     setLoading(true);
     setLoadError('');
     Promise.all([
@@ -69,14 +81,15 @@ export default function OrderDetailPage() {
   };
 
   useEffect(() => {
+    if (!user || authLoading) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [orderId, user, authLoading]);
 
   // Live order-status push (WEB-B6): join this order's room and update the badge
   // + timeline in place, replacing manual refresh / polling.
   useEffect(() => {
-    if (!orderId) return;
+    if (!orderId || !user) return;
     const unwatch = watchOrder(orderId);
     const off = onOrderStatus((evt) => {
       setOrder((prev) => (prev ? ({ ...prev, status: evt.status } as OrderDetail) : prev));
@@ -86,7 +99,7 @@ export default function OrderDetailPage() {
       off();
       unwatch();
     };
-  }, [orderId]);
+  }, [orderId, user]);
 
   const handleCancel = async () => {
     if (!cancelReason.trim()) return;
@@ -118,6 +131,7 @@ export default function OrderDetailPage() {
     }
   };
 
+  if (authLoading || !user) return <LoadingSpinner />;
   if (loading) return <LoadingSpinner />;
   if (!order) {
     return (

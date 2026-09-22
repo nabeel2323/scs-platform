@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchSavedSuppliers, removeSavedSupplier, SavedSupplier } from '../../lib/buyer-api';
+import { useAuth } from '../../components/AuthProvider';
 import Link from 'next/link';
 
 /**
@@ -9,10 +11,21 @@ import Link from 'next/link';
  * Retailers bookmark the suppliers they source from repeatedly.
  */
 export default function SavedSuppliersPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [saved, setSaved] = useState<SavedSupplier[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/auth/login?redirect=/saved-suppliers');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  const load = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
       setSaved(await fetchSavedSuppliers());
@@ -21,11 +34,11 @@ export default function SavedSuppliersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: '#5b6b74' }}>Loading...</div>;
 
   const handleRemove = async (storeId: string) => {
     try {

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
-import { isAuthenticated, switchOrg } from '../../lib/auth';
+import { isAuthenticated, switchOrg, hasMerchantAccess } from '../../lib/auth';
 import { ErrorBanner } from '../../components/Shared';
 
 export default function AccountPage() {
@@ -207,6 +208,87 @@ export default function AccountPage() {
           })
         )}
       </div>
+
+      {/* Become a Merchant CTA — shown when user has no org memberships */}
+      {orgs.length === 0 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)',
+          borderRadius: 10, padding: 24, marginBottom: 20, color: '#fff',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 12,
+              background: 'rgba(255,255,255,0.15)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              fontSize: 24, flexShrink: 0, border: '1px solid rgba(255,255,255,0.2)',
+            }}>
+              🏪
+            </div>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 6px' }}>Become a Merchant</h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', margin: '0 0 16px', lineHeight: 1.5 }}>
+                Register your business to sell products on the platform. You&apos;ll create an organization, set up your first store, and submit for verification.
+              </p>
+
+              {/* Benefits */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', marginBottom: 16 }}>
+                {[
+                  { icon: '📦', text: 'List unlimited products' },
+                  { icon: '💰', text: 'Set your own pricing & promotions' },
+                  { icon: '📊', text: 'Track orders & analytics' },
+                  { icon: '🏢', text: 'Manage stores & warehouses' },
+                ].map(b => (
+                  <div key={b.text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>
+                    <span>{b.icon}</span> {b.text}
+                  </div>
+                ))}
+              </div>
+
+              {/* Responsibilities */}
+              <div style={{
+                padding: '10px 14px', background: 'rgba(0,0,0,0.15)',
+                borderRadius: 6, fontSize: 12, color: 'rgba(255,255,255,0.75)',
+                marginBottom: 16, lineHeight: 1.5,
+              }}>
+                <strong style={{ color: 'rgba(255,255,255,0.9)' }}>Merchant responsibilities:</strong>{' '}
+                Maintain accurate product listings, fulfill orders promptly, handle returns per platform policy, and keep business documents up to date for verification.
+              </div>
+
+              <Link href="/merchant/register" style={{
+                display: 'inline-block',
+                padding: '10px 24px', fontSize: 14, fontWeight: 600,
+                background: '#fff', color: '#065f46',
+                borderRadius: 6, textDecoration: 'none',
+              }}>
+                Start Registration &rarr;
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merchant Dashboard link — shown when user already has merchant access */}
+      {orgs.length > 0 && hasMerchantAccess() && (
+        <div style={{
+          background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10,
+          padding: '16px 24px', marginBottom: 20,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 2px' }}>Merchant Dashboard</h2>
+            <p style={{ fontSize: 13, color: '#5b6b74', margin: 0 }}>
+              Manage your store, catalog, orders, and organization settings.
+            </p>
+          </div>
+          <Link href="/merchant" style={{
+            padding: '8px 20px', fontSize: 13, fontWeight: 600,
+            background: '#0f3340', color: '#fff', borderRadius: 6,
+            textDecoration: 'none', whiteSpace: 'nowrap',
+          }}>
+            Go to Dashboard &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* Security */}
       <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
