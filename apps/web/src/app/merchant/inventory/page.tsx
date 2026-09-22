@@ -7,6 +7,7 @@ import {
   fetchStoreWarehouses, fetchWarehouseInventory, adjustStock,
   fetchInventoryMovements, fetchStoreVariants, createInventoryItem,
   updateInventoryItem, bulkAdjustStock, fetchStoreInventory, exportInventoryCsv,
+  transferStock, exportMovementsCsv, checkLowStock,
   StockMovement,
   WarehouseSummary, InventoryItem, ProductVariant,
 } from '../../../lib/buyer-api';
@@ -63,6 +64,16 @@ function InventoryPageContent() {
   const [bulkQty, setBulkQty] = useState('');
   const [bulkReason, setBulkReason] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Transfer dialog
+  const [transferItemId, setTransferItemId] = useState('');
+  const [transferToWh, setTransferToWh] = useState('');
+  const [transferQty, setTransferQty] = useState('');
+  const [transferReason, setTransferReason] = useState('');
+  const [transferring, setTransferring] = useState(false);
+
+  // Low-stock check
+  const [lowStockChecking, setLowStockChecking] = useState(false);
 
   const loadInventory = useCallback(async (warehouseId: string) => {
     if (!warehouseId) return;
@@ -294,6 +305,71 @@ function InventoryPageContent() {
     }
   };
 
+  const handleExportMovements = async () => {
+    if (!storeId) return;
+    try {
+      const csv = await exportMovementsCsv(storeId);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `movements-${storeId.slice(0, 8)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err.message || 'Movement export failed');
+    }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferItemId || !transferToWh || !transferQty.trim()) return;
+    const qty = Number(transferQty);
+    if (Number.isNaN(qty) || qty <= 0) return;
+    setTransferring(true);
+    setError('');
+    try {
+      const item = items.find(i => i.id === transferItemId);
+      if (!item) return;
+      await transferStock({
+        inventoryItemId: transferItemId,
+        fromWarehouseId: item.warehouseId,
+        toWarehouseId: transferToWh,
+        quantity: qty,
+        reason: transferReason.trim() || undefined,
+      });
+      setTransferItemId('');
+      setTransferToWh('');
+      setTransferQty('');
+      setTransferReason('');
+      if (viewMode === 'variant' && variantFilter) await loadVariantInventory(variantFilter);
+      else if (viewMode === 'all') await loadAllInventory();
+      else if (selectedWh) await loadInventory(selectedWh);
+    } catch (err: any) {
+      setError(err.message || 'Transfer failed');
+    } finally {
+      setTransferring(false);
+    }
+  };
+
+  const handleCheckLowStock = async () => {
+    if (!storeId) return;
+    setLowStockChecking(true);
+    setError('');
+    try {
+      const alerted = await checkLowStock(storeId);
+      if (alerted.length === 0) {
+        setError(''); // clear any prior error
+        alert('All stock levels are above reorder points.');
+      } else {
+        alert(`${alerted.length} item(s) triggered low-stock alerts. Notifications dispatched.`);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Low-stock check failed');
+    } finally {
+      setLowStockChecking(false);
+    }
+  };
+
   if (noStore) {
     return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
@@ -356,6 +432,8 @@ function InventoryPageContent() {
             <div style={{ flex: 1 }} />
             <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
             <button onClick={handleExport} style={{ ...editBtn, fontSize: 12 }}>Export CSV</button>
+            <button onClick={handleExportMovements} style={{ ...editBtn, fontSize: 12 }}>Movements</button>
+            <button onClick={handleCheckLowStock} disabled={lowStockChecking} style={{ ...editBtn, fontSize: 12 }}>{lowStockChecking ? 'Checking…' : 'Check Low Stock'}</button>
           </div>
 
           {/* Bulk action bar */}
@@ -423,6 +501,9 @@ function InventoryPageContent() {
                             <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>
                             <button onClick={() => openHistory(item)} style={historyBtn}>History</button>
                             <button onClick={() => openSettings(item)} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Settings</button>
+                            {warehouses.length > 1 && (
+                              <button onClick={() => { setTransferItemId(item.id); setTransferToWh(warehouses.find(w => w.id !== item.warehouseId)?.id || ''); }} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Transfer</button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -578,6 +659,33 @@ function InventoryPageContent() {
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button onClick={handleBulkAdjust} disabled={bulkLoading || !bulkQty.trim()} style={primaryBtn}>{bulkLoading ? 'Applying…' : 'Apply to All'}</button>
               <button onClick={() => setShowBulkAdjust(false)} style={ghostBtn}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer dialog */}
+      {transferItemId && (
+        <div style={overlay}>
+          <div style={dialog}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Transfer Stock</h3>
+            <p style={{ fontSize: 12, color: '#5b6b74', marginBottom: 12 }}>Move stock from the current warehouse to another.</p>
+            <label style={label}>Destination warehouse *
+              <select value={transferToWh} onChange={e => setTransferToWh(e.target.value)} style={input}>
+                {warehouses.filter(w => w.id !== items.find(i => i.id === transferItemId)?.warehouseId).map(w => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+            </label>
+            <label style={label}>Quantity *
+              <input type="number" value={transferQty} onChange={e => setTransferQty(e.target.value)} placeholder="e.g. 25" style={input} min="1" autoFocus />
+            </label>
+            <label style={label}>Reason
+              <input type="text" value={transferReason} onChange={e => setTransferReason(e.target.value)} placeholder="e.g. Rebalancing stock" style={input} />
+            </label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={handleTransfer} disabled={transferring || !transferQty.trim() || !transferToWh} style={primaryBtn}>{transferring ? 'Transferring…' : 'Transfer'}</button>
+              <button onClick={() => setTransferItemId('')} style={ghostBtn}>Cancel</button>
             </div>
           </div>
         </div>

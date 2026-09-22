@@ -266,7 +266,7 @@ export class CatalogService {
     // Attach stock status per variant: sum available across all store warehouses.
     // Wrapped in try-catch so test environments with partial mock DBs still work.
     const allVariantIds = variants.map(v => v['id']);
-    let stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+    const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
     try {
       if (allVariantIds.length > 0) {
         const storeWarehouses = await this.db.db.query.warehouses.findMany({

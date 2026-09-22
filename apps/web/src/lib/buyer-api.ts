@@ -1100,6 +1100,36 @@ export async function exportInventoryCsv(storeId: string): Promise<string> {
   return res.text();
 }
 
+export async function transferStock(input: {
+  inventoryItemId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  reason?: string;
+}): Promise<{ sourceNewQty: number; destId: string; destNewQty: number }> {
+  const res = await authFetch(`${API_URL}/v1/inventory/transfer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Transfer failed: ${res.status}`);
+  return res.json();
+}
+
+export async function exportMovementsCsv(storeId: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/movements/export`);
+  if (!res.ok) throw new Error(`Export movements failed: ${res.status}`);
+  return res.text();
+}
+
+export async function checkLowStock(storeId: string): Promise<InventoryItem[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/check-low-stock`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Low stock check failed: ${res.status}`);
+  return res.json();
+}
+
 // ── Brand Management ──────────────────────────────────────────
 
 export interface Brand {

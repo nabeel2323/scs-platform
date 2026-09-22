@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { inventoryItems, stockMovements } from './inventory.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import {
@@ -22,7 +23,10 @@ import crypto from 'node:crypto';
  */
 @Injectable()
 export class InventoryService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly outbox: OutboxDispatcher,
+  ) {}
 
   // ── Inventory Items ──────────────────────────────────────────
 
@@ -271,6 +275,17 @@ export class InventoryService {
       performedBy: input.userId || null,
     });
 
+    // Emit low-stock alert if stock dropped below reorder point
+    if (item['lowStockAlert'] && newQty <= item['reorderPoint']) {
+      await this.outbox.publish('inventory.low_stock', input.inventoryItemId, {
+        inventoryItemId: input.inventoryItemId,
+        variantId: item['variantId'],
+        warehouseId: item['warehouseId'],
+        qtyOnHand: newQty,
+        reorderPoint: item['reorderPoint'],
+      });
+    }
+
     return { movementId, newQty };
   }
 
@@ -338,6 +353,188 @@ export class InventoryService {
       limit,
     });
   }
+
+  // ── Warehouse Transfer ───────────────────────────────────────
+
+  /**
+   * Transfer stock from one warehouse to another.
+   * Decrements source inventory and increments (or creates) destination inventory.
+   * Records ADJUST movements on both sides for audit trail.
+   */
+  async transferStock(input: TransferStockInput, caller?: CallerContext) {
+    if (input.quantity <= 0) throw new BadRequestException('Transfer quantity must be positive');
+    if (input.fromWarehouseId === input.toWarehouseId) throw new BadRequestException('Source and destination warehouses must differ');
+
+    if (caller) {
+      await assertWarehouseInOrg(this.db, caller, input.fromWarehouseId);
+      await assertWarehouseInOrg(this.db, caller, input.toWarehouseId);
+      await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
+    }
+
+    const item = await this.getItem(input.inventoryItemId);
+    if (item['warehouseId'] !== input.fromWarehouseId) {
+      throw new BadRequestException('Inventory item does not belong to source warehouse');
+    }
+
+    const sourceQty = item['qtyOnHand'] - input.quantity;
+    if (sourceQty < 0) throw new BadRequestException('Insufficient stock for transfer');
+
+    // Decrement source
+    await this.db.db
+      .update(inventoryItems)
+      .set({ qtyOnHand: sourceQty, updatedAt: new Date() })
+      .where(eq(inventoryItems.id, input.inventoryItemId));
+
+    await this.db.db.insert(stockMovements).values({
+      id: crypto.randomUUID(),
+      inventoryItemId: input.inventoryItemId,
+      movementType: 'ADJUST',
+      quantity: -input.quantity,
+      reason: input.reason || `Transfer to warehouse ${input.toWarehouseId}`,
+      performedBy: input.userId || null,
+    });
+
+    // Find or create destination inventory item for the same variant
+    const destItem = await this.db.db.query.inventoryItems.findFirst({
+      where: and(
+        eq(inventoryItems.variantId, item['variantId']),
+        eq(inventoryItems.warehouseId, input.toWarehouseId),
+      ),
+    });
+
+    let destId: string;
+    if (destItem) {
+      destId = destItem.id;
+      await this.db.db
+        .update(inventoryItems)
+        .set({ qtyOnHand: destItem['qtyOnHand'] + input.quantity, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, destId));
+    } else {
+      destId = crypto.randomUUID();
+      await this.db.db.insert(inventoryItems).values({
+        id: destId,
+        variantId: item['variantId'],
+        warehouseId: input.toWarehouseId,
+        qtyOnHand: input.quantity,
+        qtyReserved: 0,
+        reorderPoint: 0,
+      });
+    }
+
+    await this.db.db.insert(stockMovements).values({
+      id: crypto.randomUUID(),
+      inventoryItemId: destId,
+      movementType: 'ADJUST',
+      quantity: input.quantity,
+      reason: input.reason || `Transfer from warehouse ${input.fromWarehouseId}`,
+      performedBy: input.userId || null,
+    });
+
+    // Emit outbox event for notifications / audit
+    await this.outbox.publish('inventory.transferred', input.inventoryItemId, {
+      inventoryItemId: input.inventoryItemId,
+      variantId: item['variantId'],
+      fromWarehouseId: input.fromWarehouseId,
+      toWarehouseId: input.toWarehouseId,
+      quantity: input.quantity,
+    });
+
+    return { sourceNewQty: sourceQty, destId, destNewQty: destItem ? destItem['qtyOnHand'] + input.quantity : input.quantity };
+  }
+
+  // ── Movement Export ───────────────────────────────────────────
+
+  /**
+   * Export all stock movements for a store as CSV.
+   * Fetches across all warehouses owned by the store.
+   */
+  async exportMovementsCsv(storeId: string) {
+    const whs = await this.db.db.query.warehouses.findMany({
+      where: eq(warehouses.storeId, storeId),
+    });
+    if (whs.length === 0) return 'Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date\n';
+
+    const whIds = whs.map(w => w.id);
+    const items = await this.db.db.query.inventoryItems.findMany({
+      where: inArray(inventoryItems.warehouseId, whIds),
+    });
+    if (items.length === 0) return 'Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date\n';
+
+    const itemIds = items.map(i => i.id);
+    const movements = await this.db.db.query.stockMovements.findMany({
+      where: inArray(stockMovements.inventoryItemId, itemIds),
+      orderBy: [desc(stockMovements.createdAt)],
+      limit: 5000,
+    });
+
+    const itemById = new Map(items.map(i => [i.id, i]));
+    const whById = new Map(whs.map(w => [w.id, w]));
+
+    // Batch-fetch variant + product info
+    const variantIds = [...new Set(items.map(i => i['variantId']))];
+    const variantRows = await this.db.db.query.productVariants.findMany({
+      where: inArray(productVariants.id, variantIds),
+    });
+    const variantById = new Map(variantRows.map(v => [v.id, v]));
+    const productIds = [...new Set(variantRows.map(v => v['productId']))];
+    const productRows = productIds.length > 0
+      ? await this.db.db.query.products.findMany({ where: inArray(products.id, productIds) })
+      : [];
+    const productById = new Map(productRows.map(p => [p.id, p]));
+
+    const escape = (s: string) => s.includes(',') ? `"${s}"` : s;
+    const lines = ['Movement Type,SKU,Product,Warehouse,Quantity,Reason,Date'];
+    for (const m of movements) {
+      const item = itemById.get(m['inventoryItemId']);
+      const variant = item ? variantById.get(item['variantId']) : undefined;
+      const product = variant ? productById.get(variant['productId']) : undefined;
+      const wh = item ? whById.get(item['warehouseId']) : undefined;
+      lines.push([
+        m['movementType'],
+        escape(variant?.sku ?? ''),
+        escape(product?.title ?? ''),
+        escape(wh?.name ?? ''),
+        String(m['quantity']),
+        escape(m['reason'] ?? ''),
+        m['createdAt'] instanceof Date ? m['createdAt'].toISOString() : String(m['createdAt']),
+      ].join(','));
+    }
+    return lines.join('\n');
+  }
+
+  // ── Low-Stock Check & Notification ───────────────────────────
+
+  /**
+   * Check all inventory items for a store and emit low-stock outbox events
+   * for items that have dropped below their reorder point with alerts enabled.
+   * Returns the list of items that triggered alerts.
+   */
+  async checkAndNotifyLowStock(storeId: string) {
+    const whs = await this.db.db.query.warehouses.findMany({
+      where: eq(warehouses.storeId, storeId),
+      columns: { id: true },
+    });
+    if (whs.length === 0) return [];
+
+    const items = await this.db.db.query.inventoryItems.findMany({
+      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
+    });
+
+    const lowItems = items.filter(i => i['lowStockAlert'] && i['qtyOnHand'] - i['qtyReserved'] <= i['reorderPoint']);
+
+    for (const item of lowItems) {
+      await this.outbox.publish('inventory.low_stock', item.id, {
+        inventoryItemId: item.id,
+        variantId: item['variantId'],
+        warehouseId: item['warehouseId'],
+        qtyOnHand: item['qtyOnHand'],
+        qtyReserved: item['qtyReserved'],
+        reorderPoint: item['reorderPoint'],
+      });
+    }
+
+    return lowItems;
+  }
 }
 
 // ── Input types ──────────────────────────────────────────────────
@@ -368,5 +565,14 @@ export interface ReserveStockInput {
   quantity: number;
   referenceType?: string;
   referenceId?: string;
+  userId?: string;
+}
+
+export interface TransferStockInput {
+  inventoryItemId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  reason?: string;
   userId?: string;
 }

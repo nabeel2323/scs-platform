@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { productVariants } from './catalog.schema';
-import { stores } from '../merchant/merchant.schema';
+import { stores, warehouses } from '../merchant/merchant.schema';
+import { inventoryItems } from '../inventory/inventory.schema';
 import { resolveVariantPrices, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 
@@ -44,6 +45,12 @@ export interface CardEnrichment {
    */
   priceFromMinor: number | null;
   priceCurrency: string | null;
+  /**
+   * Aggregate stock status across all store warehouses for the product's active
+   * variants. 'IN_STOCK' if any variant has available stock, 'LOW_STOCK' if max
+   * available is between 1 and 10, 'OUT_OF_STOCK' otherwise.
+   */
+  stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
 }
 
 export async function enrichProductCards<T extends CardSource>(
@@ -121,6 +128,50 @@ export async function enrichProductCards<T extends CardSource>(
     );
   }
 
+  // Batch-fetch stock data for all products' variants across their store warehouses
+  const stockByProduct = new Map<string, 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN'>();
+  try {
+    const storeIdsForStock = [...new Set(items.map(i => i.storeId))];
+    const allWhs = storeIdsForStock.length > 0
+      ? await db.query.warehouses.findMany({
+          where: inArray(warehouses.storeId, storeIdsForStock),
+          columns: { id: true, storeId: true },
+        })
+      : [];
+    // Filter warehouses to only those belonging to the product stores
+    const relevantWhs = allWhs.filter(w => storeIdsForStock.includes(w['storeId']));
+    if (relevantWhs.length > 0) {
+      const whIds = relevantWhs.map(w => w.id);
+      const allVariantIds = [...new Set(variantRows.map(v => v.id))];
+      if (allVariantIds.length > 0) {
+        const invRows = await db.query.inventoryItems.findMany({
+          where: and(
+            inArray(inventoryItems.warehouseId, whIds),
+            inArray(inventoryItems.variantId, allVariantIds),
+          ),
+          columns: { variantId: true, qtyOnHand: true, qtyReserved: true },
+        });
+        // Group available stock by variant
+        const stockByVariant = new Map<string, number>();
+        for (const row of invRows) {
+          const vid = row.variantId;
+          const prev = stockByVariant.get(vid) ?? 0;
+          stockByVariant.set(vid, prev + (row.qtyOnHand - row.qtyReserved));
+        }
+        // Compute per-product stock status
+        for (const item of items) {
+          const pVariantIds = variantsByProduct.get(item.id) ?? [];
+          const totalAvailable = pVariantIds.reduce((sum, vid) => sum + (stockByVariant.get(vid) ?? 0), 0);
+          if (totalAvailable > 10) stockByProduct.set(item.id, 'IN_STOCK');
+          else if (totalAvailable > 0) stockByProduct.set(item.id, 'LOW_STOCK');
+          else stockByProduct.set(item.id, 'OUT_OF_STOCK');
+        }
+      }
+    }
+  } catch {
+    // Stock tables may not be available in all environments
+  }
+
   return items.map(item => {
     const prices = pricesByBatch.get(`${item.storeId}|${item.moq ?? 1}`);
     let cheapest: VariantPricing | undefined;
@@ -134,6 +185,7 @@ export async function enrichProductCards<T extends CardSource>(
       store: storeById.get(item.storeId) ?? null,
       priceFromMinor: cheapest ? cheapest.unitPriceMinor : null,
       priceCurrency: cheapest ? cheapest.currency : null,
+      stockStatus: stockByProduct.get(item.id) ?? 'UNKNOWN',
     };
   });
 }
