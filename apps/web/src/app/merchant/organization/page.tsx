@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchProfile, fetchOrganization, updateOrganization,
@@ -146,7 +146,7 @@ export default function MerchantOrganizationPage() {
         taxId: taxId.trim() || undefined,
       });
       await loadUpdateRequests(org.id);
-      setSavedMsg('Update request submitted — it will take effect once an admin approves it');
+      setSavedMsg('Update request submitted — it will take effect once an admin approves it. This page will update automatically.');
       setTimeout(() => setSavedMsg(''), 6000);
     } catch (err: any) {
       setError(err.message || 'Failed to submit update request');
@@ -237,6 +237,43 @@ export default function MerchantOrganizationPage() {
 
   const isVerified = org?.verificationStatus === 'VERIFIED';
   const pendingUpdate = updateRequests.find(r => r.status === 'PENDING');
+
+  // Refs for polling (avoids stale closures)
+  const populateRef = useRef(populate);
+  populateRef.current = populate;
+
+  // Re-populate form fields whenever the org data changes (e.g. after admin approval)
+  useEffect(() => {
+    if (org) populate(org);
+  // Only react to org data changes, not every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org?.name, org?.legalName, org?.taxId]);
+
+  // Auto-poll for update-request approval while a request is pending
+  useEffect(() => {
+    if (!pendingUpdate || !org) return;
+    const interval = setInterval(async () => {
+      try {
+        const [freshOrg, freshReqs] = await Promise.all([
+          fetchOrganization(org.id),
+          fetchOrgUpdateRequests(org.id),
+        ]);
+        const stillPending = freshReqs.find(r => r.id === pendingUpdate.id && r.status === 'PENDING');
+        if (!stillPending) {
+          // Request was decided — refresh everything so the merchant sees the result
+          populateRef.current(freshOrg);
+          setUpdateRequests(freshReqs);
+          const approved = freshReqs.find(r => r.id === pendingUpdate.id && r.status === 'APPROVED');
+          if (approved) {
+            setSavedMsg('Your update request has been approved and the changes are now reflected.');
+            setTimeout(() => setSavedMsg(''), 6000);
+          }
+        }
+      } catch { /* non-fatal — will retry next interval */ }
+    }, 15_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUpdate?.id, org?.id]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -416,6 +453,20 @@ export default function MerchantOrganizationPage() {
                     {saving ? 'Saving…' : 'Save Changes'}
                   </button>
                 )}
+                <button onClick={async () => {
+                  if (!org) return;
+                  try {
+                    const full = await fetchOrganization(org.id);
+                    populate(full);
+                    await loadUpdateRequests(org.id);
+                    setSavedMsg('Page refreshed with latest data');
+                    setTimeout(() => setSavedMsg(''), 3000);
+                  } catch (err: any) {
+                    setError(err.message || 'Failed to refresh');
+                  }
+                }} style={ghostBtn}>
+                  ↻ Refresh
+                </button>
                 <button onClick={() => { setName(org.name || ''); setLegalName(org.legalName || ''); setTaxId(org.taxId || ''); }} style={ghostBtn}>
                   Reset
                 </button>

@@ -120,6 +120,22 @@ export class NotificationsService implements OnModuleInit {
         body: `Your verification was not approved. Reason: ${data['reason'] || 'Please review your submission.'}`,
       }),
     },
+    'org_update.approved': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Organization Update Approved',
+        body: `Your requested changes to ${data['orgName'] || 'your organization'} have been approved and applied.`,
+      }),
+    },
+    'org_update.rejected': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Organization Update Rejected',
+        body: `Your requested changes to ${data['orgName'] || 'your organization'} were not approved. ${data['notes'] ? 'Notes: ' + data['notes'] : 'Please review and resubmit.'}`,
+      }),
+    },
     'promo.applied': {
       type: 'PROMOTIONAL',
       channels: ['IN_APP', 'PUSH'],

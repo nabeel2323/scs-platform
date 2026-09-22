@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
@@ -22,7 +23,11 @@ import { listAdminTable, safeUserFields } from './admin-tables';
  */
 @Injectable()
 export class AdminService {
-  constructor(private readonly db: DatabaseService, private readonly storage: StorageService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly storage: StorageService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   // ── Orders ───────────────────────────────────────────────────
 
@@ -398,6 +403,7 @@ export class AdminService {
   /**
    * Approve or reject an organization update request (G5).
    * On APPROVED the proposed payload is applied to the organizations row.
+   * Notifies the requesting user of the decision.
    */
   async reviewOrgUpdateRequest(
     requestId: string,
@@ -412,6 +418,12 @@ export class AdminService {
     if (request.status !== 'PENDING') {
       throw new BadRequestException(`Update request is already ${request.status.toLowerCase()}`);
     }
+
+    // Fetch org name for notification
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, request.orgId),
+      columns: { id: true, name: true },
+    });
 
     if (decision === 'APPROVED') {
       const payload = (request.payload ?? {}) as Record<string, unknown>;
@@ -439,6 +451,14 @@ export class AdminService {
       })
       .where(eq(organizationUpdateRequests.id, requestId))
       .returning();
+
+    // Notify the requesting user of the decision
+    const templateName = decision === 'APPROVED' ? 'org_update.approved' : 'org_update.rejected';
+    await this.notifications.send(request.requestedBy, templateName, {
+      orgName: org?.name ?? 'your organization',
+      notes: notes ?? '',
+    });
+
     return updated;
   }
 

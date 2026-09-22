@@ -386,3 +386,24 @@ export async function submitVerification(storeId: string): Promise<unknown> {
   if (!res.ok) throw new Error(`Failed to submit verification: ${res.status}`);
   return res.json();
 }
+
+// ── Warehouses (fetch & update) ──────────────────────────────
+
+export async function fetchWarehouses(storeId: string): Promise<Warehouse[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/warehouses`);
+  if (!res.ok) throw new Error(`Failed to fetch warehouses: ${res.status}`);
+  return res.json();
+}
+
+export async function updateWarehouse(
+  id: string,
+  data: { name?: string; address?: Record<string, string>; managerName?: string; managerPhone?: string },
+): Promise<Warehouse> {
+  const res = await authFetch(`${API_URL}/v1/warehouses/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update warehouse: ${res.status}`);
+  return res.json();
+}

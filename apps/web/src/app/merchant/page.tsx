@@ -8,6 +8,7 @@ import { LoadingSpinner, StatusBadge } from '../../components/Shared';
 
 const CARDS = [
   { href: '/merchant/store', title: 'Store Profile', desc: 'Name, description, currency, address & warehouses', icon: '🏬' },
+  { href: '/merchant/warehouses', title: 'Warehouses', desc: 'Manage warehouse locations & contacts', icon: '📦' },
   { href: '/merchant/catalog', title: 'Catalog', desc: 'Products, variants, media & categories', icon: '📦' },
   { href: '/merchant/orders', title: 'Orders', desc: 'Incoming orders — accept & fulfil', icon: '🧾' },
   { href: '/merchant/customers', title: 'Customers', desc: 'Buyers, revenue & order stats', icon: '👥' },
