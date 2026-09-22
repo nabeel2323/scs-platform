@@ -6,9 +6,11 @@ import {
   fetchProfile, fetchOrganization, updateOrganization,
   fetchOrgMembers, addOrgMember, removeOrgMember,
   lookupOrgMember, fetchRoles, fetchOrgDocuments, presignDocumentDownload,
-  Organization, OrgMember, UserLookupResult, RoleInfo, BusinessDocument,
+  fetchOrgVerifications, submitOrgUpdateRequest, fetchOrgUpdateRequests,
+  Organization, OrgMember, UserLookupResult, RoleInfo, BusinessDocument, VerificationRequestInfo, OrgUpdateRequest,
 } from '../../../lib/api';
 import { hasPerm } from '../../../lib/auth';
+import { DOCUMENT_STATUS_LABELS, UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
 
 export default function MerchantOrganizationPage() {
@@ -39,7 +41,15 @@ export default function MerchantOrganizationPage() {
   // Documents
   const [documents, setDocuments] = useState<BusinessDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState('');
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
+
+  // Verification history (admin correction feedback)
+  const [verifications, setVerifications] = useState<VerificationRequestInfo[]>([]);
+  const [membersError, setMembersError] = useState('');
+
+  // Update requests (admin approval workflow for verified orgs)
+  const [updateRequests, setUpdateRequests] = useState<OrgUpdateRequest[]>([]);
 
   // Remove member confirmation
   const [removeTarget, setRemoveTarget] = useState<OrgMember | null>(null);
@@ -56,13 +66,23 @@ export default function MerchantOrganizationPage() {
   }, []);
 
   const loadMembers = useCallback(async (orgId: string) => {
-    try { setMembers(await fetchOrgMembers(orgId)); } catch { /* non-fatal */ }
+    try { setMembers(await fetchOrgMembers(orgId)); setMembersError(''); }
+    catch (err: any) { setMembersError(err.message || 'Failed to load members'); }
   }, []);
 
   const loadDocuments = useCallback(async (orgId: string) => {
     setDocsLoading(true);
-    try { setDocuments(await fetchOrgDocuments(orgId)); } catch { /* non-fatal */ }
+    try { setDocuments(await fetchOrgDocuments(orgId)); setDocsError(''); }
+    catch (err: any) { setDocsError(err.message || 'Failed to load documents'); }
     finally { setDocsLoading(false); }
+  }, []);
+
+  const loadVerifications = useCallback(async (orgId: string) => {
+    try { setVerifications(await fetchOrgVerifications(orgId)); } catch { /* non-fatal */ }
+  }, []);
+
+  const loadUpdateRequests = useCallback(async (orgId: string) => {
+    try { setUpdateRequests(await fetchOrgUpdateRequests(orgId)); } catch { /* non-fatal */ }
   }, []);
 
   useEffect(() => {
@@ -77,11 +97,13 @@ export default function MerchantOrganizationPage() {
         populate(full);
         await loadMembers(full.id);
         await loadDocuments(full.id);
+        await loadVerifications(full.id);
+        await loadUpdateRequests(full.id);
       } catch (err: any) {
         setError(err.message || 'Failed to load organization');
       } finally { setLoading(false); }
     })();
-  }, [populate, loadMembers, loadDocuments]);
+  }, [populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests]);
 
   useEffect(() => {
     if (addOpen && roles.length === 0) {
@@ -106,6 +128,28 @@ export default function MerchantOrganizationPage() {
       setTimeout(() => setSavedMsg(''), 4000);
     } catch (err: any) {
       setError(err.message || 'Save failed');
+    } finally { setSaving(false); }
+  };
+
+  // Verified orgs cannot edit legal details directly — changes go through an
+  // admin-approved update request (G5).
+  const handleSubmitUpdateRequest = async () => {
+    if (!org) return;
+    if (!name.trim()) { setError('Organization name is required'); return; }
+    setSaving(true);
+    setError('');
+    setSavedMsg('');
+    try {
+      await submitOrgUpdateRequest(org.id, {
+        name: name.trim(),
+        legalName: legalName.trim() || undefined,
+        taxId: taxId.trim() || undefined,
+      });
+      await loadUpdateRequests(org.id);
+      setSavedMsg('Update request submitted — it will take effect once an admin approves it');
+      setTimeout(() => setSavedMsg(''), 6000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to submit update request');
     } finally { setSaving(false); }
   };
 
@@ -162,12 +206,12 @@ export default function MerchantOrganizationPage() {
     });
   };
 
-  const handleDownload = async (docId: string, fileName: string) => {
+  const handleDownload = async (docId: string) => {
     setDownloadingDoc(docId);
     setError('');
     try {
       const url = await presignDocumentDownload(docId);
-      window.open(url, '_blank');
+      window.open(url, '_blank', 'noopener');
     } catch (err: any) {
       setError(err.message || 'Failed to download document');
     } finally {
@@ -183,10 +227,16 @@ export default function MerchantOrganizationPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const docStatusLabel = (s: string) => {
-    const map: Record<string, string> = { PENDING: 'Under Review', APPROVED: 'Approved', REJECTED: 'Rejected', NEEDS_CHANGES: 'Needs Changes' };
-    return map[s] || s.replace(/_/g, ' ');
-  };
+  const docStatusLabel = (s: string) => DOCUMENT_STATUS_LABELS[s] || s.replace(/_/g, ' ');
+
+  // Latest verification request drives the correction banner (G8): admins
+  // return REVISION/REJECTED with notes the merchant must be able to see.
+  const latestVerification = verifications[0];
+  const needsCorrection = latestVerification &&
+    (latestVerification.status === 'REVISION' || latestVerification.status === 'REJECTED');
+
+  const isVerified = org?.verificationStatus === 'VERIFIED';
+  const pendingUpdate = updateRequests.find(r => r.status === 'PENDING');
 
   if (loading) return <LoadingSpinner />;
 
@@ -246,8 +296,42 @@ export default function MerchantOrganizationPage() {
               <span style={{ fontSize: 18 }}>⚠</span>
               <div>
                 <div style={{ fontWeight: 600, color: '#991b1b', fontSize: 14 }}>Organization Deactivated</div>
-                <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>Your organization has been deactivated by an administrator. Some features may be restricted. Contact support for assistance.</div>
+                <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>Your organization has been deactivated by an administrator. Store, catalog, document and verification actions are blocked until it is reactivated. Contact support for assistance.</div>
               </div>
+            </div>
+          )}
+
+          {/* Correction requested / rejection banner (admin review feedback) */}
+          {needsCorrection && latestVerification && (
+            <div style={{
+              background: latestVerification.status === 'REJECTED' ? '#fef2f2' : '#fffbeb',
+              border: `1px solid ${latestVerification.status === 'REJECTED' ? '#fca5a5' : '#fcd34d'}`,
+              borderRadius: 8, padding: '12px 16px', marginTop: org.isActive === false ? 12 : 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>{latestVerification.status === 'REJECTED' ? '✕' : '⚠'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: latestVerification.status === 'REJECTED' ? '#991b1b' : '#92400e' }}>
+                    {latestVerification.status === 'REJECTED' ? 'Verification Rejected' : 'Correction Requested'}
+                  </div>
+                  <div style={{ fontSize: 12, color: latestVerification.status === 'REJECTED' ? '#7f1d1d' : '#78350f', marginTop: 2 }}>
+                    {latestVerification.status === 'REJECTED'
+                      ? 'Your verification request was rejected. Review the reasons below and submit a new request once resolved.'
+                      : 'An administrator has requested changes to your verification. Review the notes below and resubmit.'}
+                    {latestVerification.reviewedAt ? ` Reviewed ${formatDate(latestVerification.reviewedAt)}.` : ''}
+                  </div>
+                </div>
+              </div>
+              {latestVerification.rejectionReasons?.length > 0 && (
+                <ul style={{ margin: '8px 0 0', paddingLeft: 34, fontSize: 12, color: '#7f1d1d' }}>
+                  {latestVerification.rejectionReasons.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              )}
+              {latestVerification.decisionNotes && (
+                <div style={{ margin: '8px 0 0 34', fontSize: 12, color: '#5b6b74', fontStyle: 'italic' }}>
+                  Reviewer notes: {latestVerification.decisionNotes}
+                </div>
+              )}
             </div>
           )}
 
@@ -268,7 +352,7 @@ export default function MerchantOrganizationPage() {
             <div className="metric-card" style={metricCard}>
               <div style={metricLabel}>Documents</div>
               <div style={metricValue}>{documents.length}</div>
-              <div style={metricHint}>{documents.filter(d => d.verificationStatus === 'APPROVED').length} approved</div>
+              <div style={metricHint}>{documents.filter(d => d.verificationStatus === 'VERIFIED').length} verified</div>
             </div>
             <div className="metric-card" style={{ ...metricCard, cursor: org.inviteCode ? 'pointer' : 'default' }} onClick={handleCopyInvite}>
               <div style={metricLabel}>Invite Code</div>
@@ -304,11 +388,34 @@ export default function MerchantOrganizationPage() {
               <ReadOnlyField label="Member Since" value={org.createdAt ? new Date(org.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'} />
             </div>
 
+            {canEdit && isVerified && (
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginTop: 16, fontSize: 12, color: '#1e40af' }}>
+                Your organization is verified — changes to business details require admin approval. Submitting creates an update request that takes effect once approved.
+              </div>
+            )}
+
             {canEdit && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-                <button onClick={handleSave} disabled={saving || !name.trim()} style={primaryBtn}>
-                  {saving ? 'Saving…' : 'Save Changes'}
-                </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+                {isVerified ? (
+                  <>
+                    <button
+                      onClick={handleSubmitUpdateRequest}
+                      disabled={saving || !name.trim() || !!pendingUpdate}
+                      style={{ ...primaryBtn, opacity: saving || !!pendingUpdate ? 0.6 : 1 }}
+                    >
+                      {saving ? 'Submitting…' : 'Submit Update Request'}
+                    </button>
+                    {pendingUpdate && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>
+                        ⏳ Update pending approval (submitted {formatDate(pendingUpdate.createdAt)})
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <button onClick={handleSave} disabled={saving || !name.trim()} style={primaryBtn}>
+                    {saving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                )}
                 <button onClick={() => { setName(org.name || ''); setLegalName(org.legalName || ''); setTaxId(org.taxId || ''); }} style={ghostBtn}>
                   Reset
                 </button>
@@ -316,10 +423,50 @@ export default function MerchantOrganizationPage() {
             )}
           </div>
 
+          {/* Update Requests (admin approval history) */}
+          {updateRequests.length > 0 && (
+            <div style={{ ...card, marginTop: 20 }}>
+              <h2 style={sectionTitle}>Update Requests</h2>
+              <div style={tableWrap}>
+                <table style={table}>
+                  <thead><tr style={theadRow}>
+                    <th style={th}>Submitted</th>
+                    <th style={th}>Proposed Changes</th>
+                    <th style={th}>Status</th>
+                    <th style={th}>Decision</th>
+                  </tr></thead>
+                  <tbody>
+                    {updateRequests.map(r => (
+                      <tr key={r.id} className="tbl-row" style={tbodyRow}>
+                        <td style={{ ...td, color: '#5b6b74', fontSize: 12, whiteSpace: 'nowrap' }}>{formatDate(r.createdAt)}</td>
+                        <td style={{ ...td, fontSize: 12 }}>{summarizePayload(r.payload)}</td>
+                        <td style={td}>
+                          <span style={updateReqChip(r.status)}>
+                            {UPDATE_REQUEST_STATUS_LABELS[r.status] ?? r.status}
+                          </span>
+                        </td>
+                        <td style={{ ...td, fontSize: 12, color: '#5b6b74' }}>
+                          {r.decisionNotes
+                            ? <span style={{ fontStyle: 'italic' }}>“{r.decisionNotes}”{r.decidedAt ? ` — ${formatDate(r.decidedAt)}` : ''}</span>
+                            : r.decidedAt ? formatDate(r.decidedAt) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Verification Documents */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>Verification Documents</h2>
-            {docsLoading ? <LoadingSpinner /> : documents.length === 0 ? (
+            {docsLoading ? <LoadingSpinner /> : docsError ? (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <ErrorBanner message={docsError} />
+                <button onClick={() => org && loadDocuments(org.id)} style={{ ...ghostBtn, marginTop: 8 }}>Retry</button>
+              </div>
+            ) : documents.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '24px 0', color: '#5b6b74', fontSize: 13 }}>
                 No documents submitted yet. Documents are uploaded during the registration process.
               </div>
@@ -347,12 +494,12 @@ export default function MerchantOrganizationPage() {
                           </div>
                         </td>
                         <td style={td}><span style={chip}>{doc.docType.replace(/_/g, ' ')}</span></td>
-                        <td style={td}><StatusBadge status={doc.verificationStatus} /></td>
+                        <td style={td}><StatusBadge status={docStatusLabel(doc.verificationStatus)} /></td>
                         <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{fmtSize(doc.fileSize)}</td>
                         <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{formatDate(doc.createdAt)}</td>
                         <td style={td}>
                           <button
-                            onClick={() => handleDownload(doc.id, doc.fileName)}
+                            onClick={() => handleDownload(doc.id)}
                             disabled={downloadingDoc === doc.id}
                             style={downloadBtn}
                             aria-label={`Download ${doc.fileName}`}
@@ -455,7 +602,9 @@ export default function MerchantOrganizationPage() {
               </div>
             )}
 
-            {members.length === 0 ? (
+            {membersError ? (
+              <div style={{ padding: '12px 0' }}><ErrorBanner message={membersError} /></div>
+            ) : members.length === 0 ? (
               <p style={{ fontSize: 13, color: '#5b6b74', textAlign: 'center', padding: '20px 0' }}>No members found.</p>
             ) : (
               <div style={tableWrap}>
@@ -557,6 +706,24 @@ function ReadOnlyField({ label, value, mono }: { label: string; value: string; m
       <div style={{ fontSize: 13, color: '#0f3340', fontFamily: mono ? 'monospace' : undefined }}>{value}</div>
     </div>
   );
+}
+
+function summarizePayload(p: { name?: string; legalName?: string; taxId?: string }): string {
+  const parts: string[] = [];
+  if (p.name !== undefined) parts.push(`Name: ${p.name || '—'}`);
+  if (p.legalName !== undefined) parts.push(`Legal: ${p.legalName || '—'}`);
+  if (p.taxId !== undefined) parts.push(`Tax ID: ${p.taxId || '—'}`);
+  return parts.join(' · ') || '—';
+}
+
+function updateReqChip(status: string): React.CSSProperties {
+  const colors: Record<string, { bg: string; text: string }> = {
+    PENDING: { bg: '#fef3c7', text: '#92400e' },
+    APPROVED: { bg: '#d1fae5', text: '#065f46' },
+    REJECTED: { bg: '#fee2e2', text: '#991b1b' },
+  };
+  const c = colors[status] || { bg: '#edf2f7', text: '#4a5568' };
+  return { display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: c.bg, color: c.text };
 }
 
 // ── Styles ────────────────────────────────────────────────────

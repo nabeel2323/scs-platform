@@ -8,6 +8,9 @@
 
 import { z } from 'zod';
 
+// Shared status vocabulary (plain constants + label maps, no zod).
+export * from './statuses';
+
 // ── Auth ─────────────────────────────────────────────────────
 //
 // Single source of truth for the auth/session wire contract (ADM-B3). These

@@ -2,9 +2,11 @@ import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards, Ht
 import { AdminListInput } from './dto/admin-list-query.dto';
 import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
+import { DeactivateOrganizationDto } from './dto/deactivate-organization.dto';
+import { ReviewOrgUpdateDto } from './dto/review-org-update.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission } from '../../common/guards/current-user.decorator';
+import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 
 /**
  * Admin controller — 4 endpoints
@@ -149,10 +151,28 @@ export class AdminController {
   @Patch('organizations/:id/deactivate')
   @RequirePermission('admin:users:write')
   async deactivateOrganization(
-    @Param('id') id: string,
-    @Body() body: { isActive: boolean },
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: DeactivateOrganizationDto,
   ) {
     return this.adminService.deactivateOrganization(id, body.isActive);
+  }
+
+  // ── Organization update requests (G5) ──────────────────
+
+  @Get('org-update-requests')
+  @RequirePermission('admin:users:read')
+  async listOrgUpdateRequests(@Query('status') status?: string) {
+    return this.adminService.listOrgUpdateRequests(status);
+  }
+
+  @Patch('org-update-requests/:id/review')
+  @RequirePermission('admin:users:write')
+  async reviewOrgUpdateRequest(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: ReviewOrgUpdateDto,
+  ) {
+    return this.adminService.reviewOrgUpdateRequest(id, user.sub, body.decision, body.notes);
   }
 
   // ── Product moderation (plan §13.4) ────────────────────────

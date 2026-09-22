@@ -2,9 +2,9 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from '../../common/database/database.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores } from '../merchant/merchant.schema';
-import { users, organizations, organizationMembers, roles, permissions, rolePermissions } from '../identity/identity.schema';
+import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products, productMedia, productVariants } from '../catalog/catalog.schema';
-import { eq, and, isNull, sql, gte, lte, inArray, getTableColumns } from 'drizzle-orm';
+import { eq, and, isNull, sql, gte, lte, inArray, desc, getTableColumns } from 'drizzle-orm';
 import { disputes, disputeEvents } from '../reviews/support.schema';
 import { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from '../catalog/product-images';
@@ -370,6 +370,76 @@ export class AdminService {
       .set({ isActive, updatedAt: new Date() })
       .where(eq(organizations.id, orgId));
     return { success: true, orgId, isActive };
+  }
+
+  /**
+   * List organization update requests for admin review (G5).
+   * Optional status filter ('PENDING' | 'APPROVED' | 'REJECTED'); newest first.
+   */
+  async listOrgUpdateRequests(status?: string) {
+    const rows = await this.db.db.select({
+      id: organizationUpdateRequests.id,
+      orgId: organizationUpdateRequests.orgId,
+      orgName: organizations.name,
+      requestedBy: organizationUpdateRequests.requestedBy,
+      payload: organizationUpdateRequests.payload,
+      status: organizationUpdateRequests.status,
+      decisionNotes: organizationUpdateRequests.decisionNotes,
+      decidedBy: organizationUpdateRequests.decidedBy,
+      decidedAt: organizationUpdateRequests.decidedAt,
+      createdAt: organizationUpdateRequests.createdAt,
+    })
+      .from(organizationUpdateRequests)
+      .leftJoin(organizations, eq(organizationUpdateRequests.orgId, organizations.id))
+      .orderBy(desc(organizationUpdateRequests.createdAt));
+    return status ? rows.filter((r) => r.status === status) : rows;
+  }
+
+  /**
+   * Approve or reject an organization update request (G5).
+   * On APPROVED the proposed payload is applied to the organizations row.
+   */
+  async reviewOrgUpdateRequest(
+    requestId: string,
+    reviewerId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    notes?: string,
+  ) {
+    const request = await this.db.db.query.organizationUpdateRequests.findFirst({
+      where: eq(organizationUpdateRequests.id, requestId),
+    });
+    if (!request) throw new NotFoundException('Update request not found');
+    if (request.status !== 'PENDING') {
+      throw new BadRequestException(`Update request is already ${request.status.toLowerCase()}`);
+    }
+
+    if (decision === 'APPROVED') {
+      const payload = (request.payload ?? {}) as Record<string, unknown>;
+      const updates: Record<string, string | Date> = {};
+      for (const field of ['name', 'legalName', 'taxId'] as const) {
+        const value = payload[field];
+        if (typeof value === 'string') updates[field] = value;
+      }
+      if (Object.keys(updates).length === 0) {
+        throw new BadRequestException('Update request payload contains no applicable fields');
+      }
+      updates['updatedAt'] = new Date();
+      await this.db.db.update(organizations)
+        .set(updates)
+        .where(eq(organizations.id, request.orgId));
+    }
+
+    const [updated] = await this.db.db.update(organizationUpdateRequests)
+      .set({
+        status: decision,
+        decisionNotes: notes ?? null,
+        decidedBy: reviewerId,
+        decidedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(organizationUpdateRequests.id, requestId))
+      .returning();
+    return updated;
   }
 
   /**

@@ -290,6 +290,62 @@ export async function presignDocumentDownload(id: string): Promise<string> {
   return body.downloadUrl;
 }
 
+// ── Verification history (merchant-facing) ───────────────────
+
+export interface VerificationRequestInfo {
+  id: string;
+  storeId: string;
+  orgId: string;
+  status: string; // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | REVISION
+  decisionNotes: string | null;
+  rejectionReasons: string[];
+  submittedAt: string;
+  reviewedAt: string | null;
+}
+
+/** Verification requests for the org's stores, newest first (org members only). */
+export async function fetchOrgVerifications(orgId: string): Promise<VerificationRequestInfo[]> {
+  const res = await authFetch(`${API_URL}/v1/verification/org/${orgId}`);
+  if (!res.ok) throw new Error(`Failed to fetch verification history: ${res.status}`);
+  return res.json();
+}
+
+export interface OrgUpdateRequest {
+  id: string;
+  orgId: string;
+  requestedBy: string;
+  payload: { name?: string; legalName?: string; taxId?: string };
+  status: string; // PENDING | APPROVED | REJECTED
+  decisionNotes: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+/** Submit proposed changes to org details for admin approval (used when VERIFIED). */
+export async function submitOrgUpdateRequest(
+  orgId: string,
+  data: { name?: string; legalName?: string; taxId?: string },
+): Promise<OrgUpdateRequest> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/update-requests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.message ?? `Failed to submit update request: ${res.status}`);
+  }
+  return res.json();
+}
+
+/** Update requests for an org, newest first (org members only). */
+export async function fetchOrgUpdateRequests(orgId: string): Promise<OrgUpdateRequest[]> {
+  const res = await authFetch(`${API_URL}/v1/organizations/${orgId}/update-requests`);
+  if (!res.ok) throw new Error(`Failed to fetch update requests: ${res.status}`);
+  return res.json();
+}
+
 export async function presignDocumentUpload(input: {
   fileName: string;
   mimeType: string;

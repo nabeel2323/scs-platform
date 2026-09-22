@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet, jsonb } from 'drizzle-orm/pg-core';
 
 /**
  * Identity & access schema (migration 0001_identity)
@@ -72,6 +72,29 @@ export const organizationMembers = pgTable('organization_members', {
     .references(() => roles.id),
   status: varchar('status', { length: 12 }).notNull().default('ACTIVE'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Organization update requests — merchants submit proposed changes to legal
+ * business details; admins review and approve/reject them. On approval the
+ * payload is applied to the organizations row. (migration 0022)
+ */
+export const organizationUpdateRequests = pgTable('organization_update_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  requestedBy: uuid('requested_by')
+    .notNull()
+    .references(() => users.id),
+  // Proposed field changes: { name?, legalName?, taxId? }
+  payload: jsonb('payload').notNull().default({}),
+  status: varchar('status', { length: 12 }).notNull().default('PENDING'), // PENDING | APPROVED | REJECTED
+  decisionNotes: text('decision_notes'),
+  decidedBy: uuid('decided_by').references(() => users.id),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const sessions = pgTable('sessions', {

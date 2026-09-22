@@ -70,6 +70,8 @@ export interface VerificationRequest {
   storeSlug?: string | null;
   orgName?: string | null;
   orgType?: string | null;
+  /** Owning organization (attached by GET /v1/verification/:id). */
+  org?: { id: string; name: string; isActive: boolean } | null;
 }
 
 export interface Store {
@@ -476,6 +478,45 @@ export async function deactivateAdminOrganization(id: string, isActive: boolean)
     body: JSON.stringify({ isActive }),
   });
   if (!res.ok) throw new Error(`Failed to deactivate organization: ${res.status}`);
+  return res.json();
+}
+
+// ── Organization update requests (G5) ────────────────────
+
+export interface AdminOrgUpdateRequest {
+  id: string;
+  orgId: string;
+  orgName: string | null;
+  requestedBy: string;
+  payload: { name?: string; legalName?: string; taxId?: string };
+  status: string; // PENDING | APPROVED | REJECTED
+  decisionNotes: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchAdminOrgUpdateRequests(status?: string): Promise<AdminOrgUpdateRequest[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await authFetch(`${API_URL}/v1/admin/org-update-requests${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch update requests: ${res.status}`);
+  return res.json();
+}
+
+export async function reviewOrgUpdateRequest(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  notes?: string,
+): Promise<AdminOrgUpdateRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/org-update-requests/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, notes }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.message ?? `Failed to review update request: ${res.status}`);
+  }
   return res.json();
 }
 

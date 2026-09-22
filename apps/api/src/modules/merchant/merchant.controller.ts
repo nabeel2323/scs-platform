@@ -21,6 +21,7 @@ import { ReviewVerificationDto } from './dto/review-verification.dto';
 import { StorageService } from '../../common/storage/storage.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { ActiveOrgGuard } from '../../common/guards/active-org.guard';
 import {
   CurrentUser,
   JwtPayload,
@@ -42,11 +43,13 @@ import crypto from 'node:crypto';
  *   PATCH  /warehouses/:id             — update warehouse
  *   POST   /documents                  — register document upload
  *   POST   /documents/presign-upload   — get presigned upload URL for documents
- *   GET    /documents/org/:orgId       — list org documents
- *   GET    /documents/store/:storeId   — list store documents
- *   POST   /documents/:id/presign      — get presigned download URL
+ *   GET    /documents/org/:orgId       — list org documents (member or reviewer)
+ *   GET    /documents/store/:storeId   — list store documents (member or reviewer)
+ *   POST   /documents/:id/presign      — get presigned download URL (admin)
+ *   POST   /documents/:id/merchant-presign — get presigned download URL (org member)
  *   POST   /stores/:id/verify          — submit verification request
  *   GET    /verification/queue         — list pending verifications (admin)
+ *   GET    /verification/org/:orgId    — list org's verification requests (member)
  *   GET    /verification/:id           — get verification request
  *   POST   /verification/:id/review    — approve/reject/revision (admin)
  */
@@ -61,7 +64,7 @@ export class MerchantController {
   // ── Stores ─────────────────────────────────────────────────────
 
   @Post('stores')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async createStore(@CurrentUser() user: JwtPayload, @Body() input: CreateStoreInput) {
     return this.merchantService.createStore(input, user.sub);
@@ -120,7 +123,7 @@ export class MerchantController {
   }
 
   @Patch('stores/:id')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async updateStore(@Param('id') id: string, @Body() input: UpdateStoreInput) {
     return this.merchantService.updateStore(id, input);
@@ -129,7 +132,7 @@ export class MerchantController {
   // ── Warehouses ─────────────────────────────────────────────────
 
   @Post('stores/:storeId/warehouses')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async createWarehouse(@Param('storeId') storeId: string, @Body() input: CreateWarehouseInput) {
     return this.merchantService.createWarehouse(storeId, input);
@@ -141,7 +144,7 @@ export class MerchantController {
   }
 
   @Patch('warehouses/:id')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async updateWarehouse(@Param('id') id: string, @Body() input: CreateWarehouseInput) {
     return this.merchantService.updateWarehouse(id, input);
@@ -150,7 +153,7 @@ export class MerchantController {
   // ── Documents ──────────────────────────────────────────────────
 
   @Post('documents')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async uploadDocument(@CurrentUser() user: JwtPayload, @Body() input: UploadDocumentInput) {
     return this.merchantService.uploadDocument({
@@ -160,7 +163,7 @@ export class MerchantController {
   }
 
   @Post('documents/presign-upload')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async presignDocumentUpload(@Body() body: { fileName: string; mimeType: string }) {
     // Sanitize the client-supplied filename before embedding it in the object
@@ -181,13 +184,13 @@ export class MerchantController {
   }
 
   @Get('documents/org/:orgId')
-  async listOrgDocuments(@Param('orgId') orgId: string) {
-    return this.merchantService.listDocumentsByOrg(orgId);
+  async listOrgDocuments(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.listDocumentsByOrg(orgId, user.sub, user.perms);
   }
 
   @Get('documents/store/:storeId')
-  async listStoreDocuments(@Param('storeId') storeId: string) {
-    return this.merchantService.listDocumentsByStore(storeId);
+  async listStoreDocuments(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.listDocumentsByStore(storeId, user.sub, user.perms);
   }
 
   @Post('documents/:id/presign')
@@ -208,7 +211,7 @@ export class MerchantController {
   // ── Verification ───────────────────────────────────────────────
 
   @Post('stores/:storeId/verify')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async submitVerification(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
     return this.merchantService.submitVerification(storeId, user.sub);
@@ -227,6 +230,15 @@ export class MerchantController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+  }
+
+  /**
+   * Merchant-accessible verification history for their own organization.
+   * Must be declared BEFORE `verification/:id` so 'org' is not parsed as an id.
+   */
+  @Get('verification/org/:orgId')
+  async listOrgVerifications(@Param('orgId') orgId: string, @CurrentUser() user: JwtPayload) {
+    return this.merchantService.listVerificationsForOrg(orgId, user.sub);
   }
 
   @Get('verification/:id')

@@ -175,6 +175,11 @@ export default function AccountPage() {
                     <div>
                       <strong>{org.name || orgId}</strong> — {org.type || 'ORG'} ·{' '}
                       {org.verificationStatus || org.membershipStatus || 'PENDING'}
+                      {org.isActive === false && (
+                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>
+                          DEACTIVATED
+                        </span>
+                      )}
                     </div>
                     {org.inviteCode && (
                       <div style={{ marginTop: 4 }}>

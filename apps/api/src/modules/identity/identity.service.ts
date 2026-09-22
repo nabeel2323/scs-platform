@@ -13,6 +13,7 @@ import {
   users,
   organizations,
   organizationMembers,
+  organizationUpdateRequests,
   sessions,
   roles,
   rolePermissions,
@@ -498,17 +499,20 @@ export class IdentityService {
 
   /**
    * Update organization fields.
+   * Deactivated organizations cannot be edited (G7) — reactivate first.
    */
   async updateOrg(orgId: string, data: { name?: string; legalName?: string; taxId?: string }) {
-    const updates: Record<string, string> = {};
+    const org = await this.getOrg(orgId);
+    if (org.isActive === false) {
+      throw new ForbiddenException('Organization is deactivated and cannot be edited. Contact support for assistance.');
+    }
+    const updates: Record<string, string | Date> = {};
     if (data['name']) updates['name'] = data['name'];
     if (data['legalName'] !== undefined) updates['legalName'] = data['legalName'] ?? '';
     if (data['taxId'] !== undefined) updates['taxId'] = data['taxId'] ?? '';
-    updates['updatedAt'] = new Date().toISOString();
+    updates['updatedAt'] = new Date();
 
-    if (Object.keys(updates).length > 0) {
-      await this.db.db.update(organizations).set(updates).where(eq(organizations.id, orgId));
-    }
+    await this.db.db.update(organizations).set(updates).where(eq(organizations.id, orgId));
 
     return this.getOrg(orgId);
   }
@@ -523,6 +527,65 @@ export class IdentityService {
       .set({ isActive, updatedAt: new Date() })
       .where(eq(organizations.id, orgId));
     return this.getOrg(orgId);
+  }
+
+  /**
+   * Create a pending update request for organization details (G5).
+   * Used when changes require admin approval (e.g. VERIFIED organizations).
+   * Only one PENDING request per org at a time.
+   */
+  async requestOrgUpdate(
+    orgId: string,
+    userId: string,
+    data: { name?: string; legalName?: string; taxId?: string },
+  ) {
+    const org = await this.getOrg(orgId);
+    if (org.isActive === false) {
+      throw new ForbiddenException('Organization is deactivated and cannot be edited. Contact support for assistance.');
+    }
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)),
+    });
+    if (!membership) throw new ForbiddenException('Not authorized for this organization');
+
+    const payload: Record<string, string> = {};
+    if (data.name !== undefined) payload['name'] = data.name;
+    if (data.legalName !== undefined) payload['legalName'] = data.legalName ?? '';
+    if (data.taxId !== undefined) payload['taxId'] = data.taxId ?? '';
+    if (Object.keys(payload).length === 0) {
+      throw new BadRequestException('At least one field (name, legalName, taxId) must be provided');
+    }
+
+    const pending = await this.db.db.query.organizationUpdateRequests.findFirst({
+      where: and(
+        eq(organizationUpdateRequests.orgId, orgId),
+        eq(organizationUpdateRequests.status, 'PENDING'),
+      ),
+    });
+    if (pending) {
+      throw new ConflictException('An update request is already pending review for this organization');
+    }
+
+    const [request] = await this.db.db.insert(organizationUpdateRequests)
+      .values({ orgId, requestedBy: userId, payload })
+      .returning();
+    return request;
+  }
+
+  /**
+   * List update requests for an organization (merchant-facing, newest first).
+   */
+  async listOrgUpdateRequests(orgId: string, userId: string) {
+    await this.getOrg(orgId);
+    const membership = await this.db.db.query.organizationMembers.findFirst({
+      where: and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)),
+    });
+    if (!membership) throw new ForbiddenException('Not authorized for this organization');
+
+    return this.db.db.query.organizationUpdateRequests.findMany({
+      where: eq(organizationUpdateRequests.orgId, orgId),
+      orderBy: [desc(organizationUpdateRequests.createdAt)],
+    });
   }
 
   /**
