@@ -18,7 +18,8 @@ import {
   savedSuppliers,
 } from './catalog.schema';
 import { enrichProductCards } from './product-card';
-import { imageReferences, isProductMediaKey } from './product-images';
+import { imageReferences } from './product-images';
+import { createMediaRefResolver } from './product-card';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -38,30 +39,13 @@ export class CatalogService {
     private readonly redis: RedisService,
     private readonly outbox: OutboxDispatcher,
     private readonly storage: StorageService,
-  ) {}
-
-  /**
-   * Convert a stored media reference to a URL a browser can render.
-   *
-   * `product_media.url` holds either a full URL (already-hosted image) or an
-   * object-storage key like `products/{uuid}/{file}`. Only keys are signed;
-   * failures resolve to null so the client can fall back to a placeholder.
-   */
-  private async resolveMediaRef(ref: string | null | undefined): Promise<string | null> {
-    if (!ref) return null;
-    const trimmed = ref.trim();
-    if (!trimmed) return null;
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    if (!isProductMediaKey(trimmed)) return null;
-    try {
-      return await this.storage.createPresignedGetUrl(
-        process.env['S3_MEDIA_BUCKET'] || 'scs-media',
-        trimmed,
-      );
-    } catch {
-      return null;
-    }
+  ) {
+    // Shared with card enrichment so every surface renders media the same way.
+    this.resolveMediaRef = createMediaRefResolver(storage);
   }
+
+  /** Convert a stored media reference (URL or object key) to a renderable URL. */
+  private readonly resolveMediaRef: (ref: string | null | undefined) => Promise<string | null>;
 
   /** Resolve every image reference of one media row (url + thumbUrl). */
   private async resolveMediaRow<T extends { url: string; thumbUrl: string | null }>(row: T): Promise<T & { displayUrl: string | null; thumbSrc: string | null }> {
@@ -399,7 +383,9 @@ export class CatalogService {
       ...(offset !== undefined ? { offset } : {}),
     });
 
-    const enrichedItems = await enrichProductCards(this.db.db, items);
+    const enrichedItems = await enrichProductCards(this.db.db, items, {
+      resolveImage: ref => this.resolveMediaRef(ref),
+    });
 
     return {
       items: enrichedItems,
@@ -745,14 +731,29 @@ export class CatalogService {
       mimeType: input.mimeType || null,
     });
 
-    return { id, ...input };
+    const created = {
+      id,
+      productId,
+      variantId: input.variantId || null,
+      mediaType: input.mediaType || 'IMAGE',
+      url: input.url,
+      thumbUrl: input.thumbUrl || null,
+      blurhash: input.blurhash || null,
+      altText: input.altText || null,
+      altTextAr: input.altTextAr || null,
+      sortOrder: input.sortOrder || 0,
+      fileSize: input.fileSize || 0,
+      mimeType: input.mimeType || null,
+    };
+    return this.resolveMediaRow(created);
   }
 
   async listMediaByProduct(productId: string) {
-    return this.db.db.query.productMedia.findMany({
+    const rows = await this.db.db.query.productMedia.findMany({
       where: eq(productMedia.productId, productId),
       orderBy: [productMedia.sortOrder],
     });
+    return Promise.all(rows.map(r => this.resolveMediaRow(r)));
   }
 
   async removeMedia(productId: string, mediaId: string) {

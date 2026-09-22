@@ -7,7 +7,7 @@ import {
   searchProducts, fetchCategories, fetchBrands, fetchProductVariants, addToCart,
   Product, Category,
 } from '../../lib/buyer-api';
-import { formatMinor, EmptyState, ErrorBanner, productImageSrc } from '../../components/Shared';
+import { formatMinor, EmptyState, ErrorBanner, ProductCardImage } from '../../components/Shared';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -425,17 +425,17 @@ function SearchPageContent() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
                   {displayedResults.map(product => {
-                    const imgSrc = productImageSrc(product.images);
                     const isVerified = product.store?.verificationStatus === 'VERIFIED';
                     return (
                       <div key={product.id} className="sr-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                           <div style={{ height: 180, background: '#f7f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                            {imgSrc ? (
-                              <img src={imgSrc} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-                            ) : (
-                              <span style={{ color: '#a0aec0', fontSize: 40 }}>📦</span>
-                            )}
+                            <ProductCardImage
+                              product={product}
+                              alt={product.title}
+                              imgStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              placeholderStyle={{ color: '#a0aec0', fontSize: 40 }}
+                            />
                             {isVerified && (
                               <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: '#0f3340', color: '#fff', letterSpacing: '0.5px' }}>
                                 ✓ VERIFIED

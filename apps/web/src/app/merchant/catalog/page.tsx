@@ -9,7 +9,7 @@ import {
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
-import { LoadingSpinner, ErrorBanner, EmptyState, productImageSrc } from '../../../components/Shared';
+import { LoadingSpinner, ErrorBanner, EmptyState, ProductCardImage } from '../../../components/Shared';
 
 type Tab = 'products' | 'categories';
 const PAGE_SIZE = 20;
@@ -352,7 +352,6 @@ export default function MerchantCatalogPage() {
                   </thead>
                   <tbody>
                     {products.map(p => {
-                      const imgSrc = productImageSrc(p.images);
                       return (
                         <tr key={p.id} className="tbl-row" style={tbodyRow}>
                           <td style={td}>
@@ -360,11 +359,12 @@ export default function MerchantCatalogPage() {
                           </td>
                           <td style={td}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              {imgSrc ? (
-                                <img src={imgSrc} alt="" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, background: '#f0f0f0' }} />
-                              ) : (
-                                <div style={{ width: 36, height: 36, borderRadius: 6, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8', flexShrink: 0 }}>📦</div>
-                              )}
+                              <ProductCardImage
+                                product={p}
+                                alt=""
+                                imgStyle={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0, background: '#f0f0f0' }}
+                                placeholderStyle={{ width: 36, height: 36, borderRadius: 6, background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#94a3b8', flexShrink: 0 }}
+                              />
                               <div>
                                 <span style={{ fontWeight: 600, color: '#0f3340' }}>{p.title}</span>
                                 {p.titleAr && <span style={{ color: '#5b6b74', marginLeft: 8, fontSize: 12 }}>{p.titleAr}</span>}

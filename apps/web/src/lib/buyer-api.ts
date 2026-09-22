@@ -39,6 +39,8 @@ export interface Product {
   store?: ProductStore | null;
   priceFromMinor?: number | null;
   priceCurrency?: string | null;
+  /** Card enrichment: first product image signed for display; null if unresolvable. */
+  imageUrl?: string | null;
 }
 
 export interface ProductVariant {

@@ -15,7 +15,7 @@ import {
   Product,
   TrustSnapshot,
 } from '../../../lib/buyer-api';
-import { formatMinor, LoadingSpinner, EmptyState, ErrorBanner, productImageSrc } from '../../../components/Shared';
+import { formatMinor, LoadingSpinner, EmptyState, ErrorBanner, ProductCardImage } from '../../../components/Shared';
 
 interface StoreDetail {
   id: string;
@@ -300,15 +300,13 @@ export default function StoreDetailPage() {
                     justifyContent: 'center',
                   }}
                 >
-                  {productImageSrc(product.images) ? (
-                    <img
-                      src={productImageSrc(product.images)}
-                      alt={product.title}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 32, opacity: 0.3 }}>📦</span>
-                  )}
+                  <ProductCardImage
+                    product={product}
+                    alt={product.title}
+                    imgStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    placeholderStyle={{ fontSize: 32, opacity: 0.3 }}
+                    placeholder="\u{1F4E6}"
+                  />
                 </div>
                 <div style={{ padding: '12px 16px' }}>
                   <div

@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   // Order statuses
   DRAFT: { bg: '#edf2f7', text: '#4a5568' },
@@ -85,6 +87,44 @@ export function productImageSrc(images: unknown): string | undefined {
     if (typeof url === 'string' && url) return url;
   }
   return undefined;
+}
+
+/**
+ * Listing-card image with graceful degradation.
+ *
+ * Prefers the API-resolved `imageUrl` (signed storage key or absolute URL),
+ * falls back to the legacy `images` JSONB array via {@link productImageSrc},
+ * and swaps to the placeholder when the URL fails to load (404 / broken link)
+ * — so a card never shows a torn-image icon.
+ */
+export function ProductCardImage({
+  product,
+  alt,
+  imgStyle,
+  placeholderStyle,
+  placeholder = '\u{1F4E6}',
+}: {
+  product: { imageUrl?: string | null; images?: unknown };
+  alt: string;
+  imgStyle: React.CSSProperties;
+  placeholderStyle: React.CSSProperties;
+  placeholder?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const resolved = product.imageUrl ?? productImageSrc(product.images);
+  const src = !failed && resolved ? resolved : undefined;
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        onError={() => setFailed(true)}
+        style={imgStyle}
+      />
+    );
+  }
+  return <div style={placeholderStyle} aria-label="No image available">{placeholder}</div>;
 }
 
 export function formatDate(dateStr: string): string {

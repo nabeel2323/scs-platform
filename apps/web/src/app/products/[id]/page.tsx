@@ -39,17 +39,26 @@ function unitPriceFor(variant: ProductVariant, qty: number): number | undefined 
  * Primary source is the resolved `product_media` rows (server signs storage
  * keys into `displayUrl`). `products.images` (JSONB URL strings) fills in any
  * full-URL entries not already covered, so legacy uploads still render.
+ * Variant-scoped rows (variantId set) carry a label so buyers can tell which
+ * variant a photo shows.
  */
-function galleryImages(product: ProductDetail): { src: string; alt: string }[] {
+function galleryImages(product: ProductDetail): { src: string; alt: string; variantLabel?: string }[] {
   const media = product.media ?? [];
-  const out: { src: string; alt: string }[] = [];
+  const variantById = new Map((product.variants ?? []).map(v => [v.id, v]));
+  const out: { src: string; alt: string; variantLabel?: string }[] = [];
   const seen = new Set<string>();
   for (const m of media) {
     if (m.mediaType !== 'IMAGE') continue;
     const src = m.displayUrl ?? m.thumbSrc;
     if (!src || seen.has(src)) continue;
     seen.add(src);
-    out.push({ src, alt: m.altText || product.title });
+    const v = m.variantId ? variantById.get(m.variantId) : undefined;
+    const variantLabel = v ? `Variant: ${v.title || v.sku}` : undefined;
+    out.push({
+      src,
+      alt: variantLabel ? `${variantLabel} — ${m.altText || product.title}` : (m.altText || product.title),
+      variantLabel,
+    });
   }
   // Legacy images array: only absolute URLs are renderable client-side
   if (Array.isArray(product.images)) {
@@ -71,7 +80,7 @@ function galleryImages(product: ProductDetail): { src: string; alt: string }[] {
 
 // ── Amazon-style gallery ─────────────────────────────────────────
 
-function ProductGallery({ images, title }: { images: { src: string; alt: string }[]; title: string }) {
+function ProductGallery({ images, title }: { images: { src: string; alt: string; variantLabel?: string }[]; title: string }) {
   const [selected, setSelected] = useState(0);
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(false);
@@ -111,6 +120,13 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string 
             transition: 'transform 0.25s ease',
           }}
         />
+        {current.variantLabel && (
+          <span style={{
+            position: 'absolute', bottom: 12, left: 12, padding: '3px 10px',
+            borderRadius: 10, fontSize: 11, fontWeight: 600,
+            background: 'rgba(15,51,64,0.85)', color: '#fff',
+          }}>{current.variantLabel}</span>
+        )}
         {visible.length > 1 && (
           <>
             <button
