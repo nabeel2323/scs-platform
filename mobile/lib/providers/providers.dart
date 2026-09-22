@@ -152,3 +152,10 @@ final warehouseInventoryProvider =
   if (warehouseId.isEmpty) return <InventoryItem>[];
   return ref.watch(apiServiceProvider).fetchWarehouseInventory(warehouseId);
 });
+
+/// All inventory items across a store's warehouses.
+final storeInventoryProvider =
+    FutureProvider.family<List<InventoryItem>, String>((ref, storeId) async {
+  if (storeId.isEmpty) return <InventoryItem>[];
+  return ref.watch(apiServiceProvider).fetchStoreInventory(storeId);
+});

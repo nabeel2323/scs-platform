@@ -777,6 +777,74 @@ class ApiService {
         if (reason != null) 'reason': reason,
       });
 
+  /// Create a new inventory item (variant ↔ warehouse link) with optional
+  /// initial stock.
+  Future<InventoryItem> createInventoryItem({
+    required String variantId,
+    required String warehouseId,
+    int initialQty = 0,
+    String? reason,
+  }) async {
+    final d = <String, dynamic>{
+      'variantId': variantId,
+      'warehouseId': warehouseId,
+      'initialQty': initialQty,
+    };
+    if (reason != null) d['reason'] = reason;
+    return InventoryItem.fromJson(
+        (await _dio.post('/v1/inventory', data: d)).data);
+  }
+
+  /// Transfer stock between warehouses.
+  Future<Map<String, dynamic>> transferStock({
+    required String inventoryItemId,
+    required String fromWarehouseId,
+    required String toWarehouseId,
+    required int quantity,
+    String? reason,
+  }) async {
+    final d = <String, dynamic>{
+      'inventoryItemId': inventoryItemId,
+      'fromWarehouseId': fromWarehouseId,
+      'toWarehouseId': toWarehouseId,
+      'quantity': quantity,
+    };
+    if (reason != null) d['reason'] = reason;
+    return (await _dio.post('/v1/inventory/transfer', data: d)).data;
+  }
+
+  /// Bulk-adjust stock for multiple items at once.
+  Future<List<Map<String, dynamic>>> bulkAdjustStock(
+      List<Map<String, dynamic>> items) async {
+    return (await _dio
+            .post('/v1/inventory/bulk-adjust', data: {'items': items}))
+        .data
+        .cast<Map<String, dynamic>>();
+  }
+
+  /// Fetch all inventory items across a store's warehouses.
+  Future<List<InventoryItem>> fetchStoreInventory(String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/inventory'))
+          .data
+          .map<InventoryItem>((e) => InventoryItem.fromJson(e))
+          .toList();
+
+  /// Export stock movements as CSV text.
+  Future<String> exportMovementsCsv(String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/inventory/movements/export')).data
+          as String;
+
+  /// Export inventory as CSV text.
+  Future<String> exportInventoryCsv(String storeId) async =>
+      (await _dio.get('/v1/stores/$storeId/inventory/export')).data as String;
+
+  /// Check all items for low stock and emit notifications.
+  Future<List<InventoryItem>> checkLowStock(String storeId) async =>
+      (await _dio.post('/v1/stores/$storeId/inventory/check-low-stock'))
+          .data
+          .map<InventoryItem>((e) => InventoryItem.fromJson(e))
+          .toList();
+
   // ── Merchant Pricing ───────────────────────────────────────
   Future<List<PriceList>> fetchStorePriceLists(String storeId) async =>
       (await _dio.get('/v1/stores/$storeId/price-lists'))

@@ -23,6 +23,7 @@ import '../screens/merchant/merchant_catalog_screen.dart';
 import '../screens/merchant/product_edit_screen.dart';
 import '../screens/merchant/category_manage_screen.dart';
 import '../screens/merchant/merchant_customers_screen.dart';
+import '../screens/merchant/inventory_screen.dart';
 import '../screens/reviews/reviews_disputes_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/organizations/organizations_screen.dart';
@@ -116,6 +117,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/merchant/customers',
           builder: (_, __) => const MerchantCustomersScreen()),
+      GoRoute(
+          path: '/merchant/inventory',
+          builder: (_, __) => const InventoryScreen()),
       GoRoute(
           path: '/reviews', builder: (_, __) => const ReviewsDisputesScreen()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),

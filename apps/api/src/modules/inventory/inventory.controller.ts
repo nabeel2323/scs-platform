@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch,
   Param, Body, Query, UseGuards,
 } from '@nestjs/common';
-import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryInput, CreateInventoryItemInput } from './inventory.service';
+import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryInput, CreateInventoryItemInput, TransferStockInput } from './inventory.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
@@ -18,6 +18,18 @@ export class InventoryController {
   @RequirePermission('merchant:inventory:read')
   async exportInventory(@Param('storeId') storeId: string) {
     return this.inventoryService.exportInventoryCsv(storeId);
+  }
+
+  @Get('stores/:storeId/inventory/movements/export')
+  @RequirePermission('merchant:inventory:read')
+  async exportMovements(@Param('storeId') storeId: string) {
+    return this.inventoryService.exportMovementsCsv(storeId);
+  }
+
+  @Post('stores/:storeId/inventory/check-low-stock')
+  @RequirePermission('merchant:inventory:write')
+  async checkLowStock(@Param('storeId') storeId: string) {
+    return this.inventoryService.checkAndNotifyLowStock(storeId);
   }
 
   @Get('stores/:storeId/inventory')
@@ -45,6 +57,15 @@ export class InventoryController {
     @Body() body: { items: Array<{ inventoryItemId: string; quantity: number; reason?: string }> },
   ) {
     return this.inventoryService.bulkAdjustStock(body.items, user.sub, user);
+  }
+
+  @Post('inventory/transfer')
+  @RequirePermission('merchant:inventory:write')
+  async transferStock(
+    @CurrentUser() user: JwtPayload,
+    @Body() input: TransferStockInput,
+  ) {
+    return this.inventoryService.transferStock({ ...input, userId: user.sub }, user);
   }
 
   @Get('inventory/warehouse/:warehouseId')

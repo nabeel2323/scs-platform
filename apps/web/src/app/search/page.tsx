@@ -463,6 +463,20 @@ function SearchPageContent() {
                                 <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>Price on request</span>
                               )}
                             </div>
+                            {/* Stock status badge */}
+                            {(product as any).stockStatus && (product as any).stockStatus !== 'UNKNOWN' && (
+                              <div style={{ marginBottom: 6 }}>
+                                {(product as any).stockStatus === 'IN_STOCK' && (
+                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#d1fae5', color: '#065f46' }}>In Stock</span>
+                                )}
+                                {(product as any).stockStatus === 'LOW_STOCK' && (
+                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>Low Stock</span>
+                                )}
+                                {(product as any).stockStatus === 'OUT_OF_STOCK' && (
+                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#fee2e2', color: '#991b1b' }}>Out of Stock</span>
+                                )}
+                              </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#5b6b74' }}>
                               <span>MOQ: {product.moq}</span>
                               {product.store && (

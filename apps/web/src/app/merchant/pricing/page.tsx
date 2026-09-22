@@ -272,15 +272,22 @@ export default function MerchantPricingPage() {
 
       {/* Pricing health banner */}
       {!loading && selectedList && (
-        <div style={{ background: zeroPricedCount > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${zeroPricedCount > 0 ? '#fcd34d' : '#6ee7b7'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ background: zeroPricedCount > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${zeroPricedCount > 0 ? '#fcd34d' : '#6ee7b7'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
           <span style={{ fontSize: 13, color: zeroPricedCount > 0 ? '#92400e' : '#065f46', fontWeight: 500 }}>
             {zeroPricedCount > 0
               ? `⚠ ${zeroPricedCount} variant(s) have zero-priced tiers — cart will reject these items`
               : `✓ All ${pricedVariantIds.size} priced variant(s) have valid prices`}
           </span>
-          <span style={{ fontSize: 12, color: zeroPricedCount > 0 ? '#b45309' : '#047857' }}>
-            {pricedVariantIds.size} variant(s) with tiers
-          </span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {zeroPricedCount > 0 && (
+              <button onClick={() => { setShowAddTier(true); }} style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, background: '#b45309', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                Assign prices
+              </button>
+            )}
+            <span style={{ fontSize: 12, color: zeroPricedCount > 0 ? '#b45309' : '#047857' }}>
+              {pricedVariantIds.size} variant(s) with tiers
+            </span>
+          </div>
         </div>
       )}
 

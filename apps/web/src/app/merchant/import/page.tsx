@@ -115,6 +115,7 @@ export default function ImportWizardPage() {
   // Step 3: Validation
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [validRows, setValidRows] = useState(0);
+  const [stockPreview, setStockPreview] = useState<{ totalRows: number; rowsWithStock: number; totalStock: number } | null>(null);
 
   // Step 4: Progress
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
@@ -265,6 +266,33 @@ export default function ImportWizardPage() {
 
       // Move to validation step
       setStep(2);
+      // Compute stock preview from the uploaded file
+      if (file) {
+        try {
+          const allRows = await parseAllRows(file);
+          const stockCol = columnMapping['stock'] || Object.keys(columnMapping).find(k => k === 'stock');
+          const mappedHeaders = detectedHeaders;
+          // Find the actual header that maps to 'stock'
+          const stockHeader = stockCol || mappedHeaders.find(h => h.toLowerCase().includes('stock'));
+          let rowsWithStock = 0;
+          let totalStock = 0;
+          if (stockHeader) {
+            for (const row of allRows) {
+              const val = row[stockHeader];
+              if (val) {
+                const qty = parseInt(val, 10);
+                if (!isNaN(qty) && qty > 0) {
+                  rowsWithStock++;
+                  totalStock += qty;
+                }
+              }
+            }
+          }
+          setStockPreview({ totalRows: allRows.length, rowsWithStock, totalStock });
+        } catch {
+          setStockPreview(null);
+        }
+      }
       // Simulate validation results (in production, server validates)
       setValidationErrors([]);
       setValidRows(0);
@@ -552,6 +580,16 @@ export default function ImportWizardPage() {
                   <a href="#" style={{ color: '#174A5B' }}> Download full report</a>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Stock preview summary */}
+          {stockPreview && (
+            <div style={{ padding: '12px 16px', backgroundColor: stockPreview.rowsWithStock > 0 ? '#EFF6FF' : '#F3F4F6', border: `1px solid ${stockPreview.rowsWithStock > 0 ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, marginBottom: 16, fontSize: 13, color: stockPreview.rowsWithStock > 0 ? '#1E40AF' : '#6B7280' }}>
+              <strong>Stock Preview:</strong>{' '}
+              {stockPreview.rowsWithStock > 0
+                ? `${stockPreview.rowsWithStock} of ${stockPreview.totalRows} rows will create inventory items with a total of ${stockPreview.totalStock} units`
+                : `No stock values detected — ${stockPreview.totalRows} product(s) will be created without inventory items`}
             </div>
           )}
 

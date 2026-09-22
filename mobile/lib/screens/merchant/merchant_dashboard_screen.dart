@@ -105,6 +105,8 @@ class MerchantDashboardScreen extends ConsumerWidget {
                 TaifTokens.brandPrimary),
             _card(context, 'Catalog', Icons.inventory_2, '/merchant/catalog',
                 TaifTokens.info),
+            _card(context, 'Inventory', Icons.bar_chart, '/merchant/inventory',
+                const Color(0xFF059669)),
             _card(context, 'Categories', Icons.category, '/merchant/categories',
                 TaifTokens.warn),
             _card(context, 'Orders', Icons.receipt_long, '/merchant/orders',
