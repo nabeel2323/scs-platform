@@ -424,6 +424,19 @@ export class NotificationsService implements OnModuleInit {
     return { success: true };
   }
 
+  async markAsUnread(notificationId: string, userId: string) {
+    const rows = await this.db.db.select().from(notifications)
+      .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
+      .limit(1);
+    if (!rows[0]) return { success: false };
+
+    await this.db.db
+      .update(notifications)
+      .set({ readAt: null, status: 'SENT' })
+      .where(eq(notifications.id, notificationId));
+    return { success: true };
+  }
+
   async markAllAsRead(userId: string) {
     await this.db.db
       .update(notifications)
