@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchProduct, createProduct, updateProduct,
-  listVariants, createVariant, bulkVariantOperations,
+  listVariants, createVariant, updateVariant, bulkVariantOperations,
   listMedia, addMedia, removeMedia, presignMedia, reorderProductMedia,
   fetchStoreCategories, fetchBrands,
   ProductVariant, Category, MediaItem,
@@ -92,6 +92,15 @@ export default function ProductEditorPage() {
   const [vWeight, setVWeight] = useState('');
   const [vSaving, setVSaving] = useState(false);
   const [vActionLoading, setVActionLoading] = useState('');
+
+  // Variant edit state
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null);
+  const [editSku, setEditSku] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [editUnit, setEditUnit] = useState('');
+  const [editBarcode, setEditBarcode] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   // Media
   const [media, setMedia] = useState<MediaItem[]>([]);
@@ -241,6 +250,43 @@ export default function ProductEditorPage() {
       setError(err.message || 'Delete variant failed');
     } finally {
       setVActionLoading('');
+    }
+  };
+
+  const startEditVariant = (v: ProductVariant) => {
+    setEditingVariant(v);
+    setEditSku(v.sku);
+    setEditTitle(v.title || '');
+    setEditUnit(v.unit || '');
+    setEditBarcode(v.barcode || '');
+    setEditWeight(v.weightGrams ? String(v.weightGrams) : '');
+    setError('');
+  };
+
+  const cancelEditVariant = () => {
+    setEditingVariant(null);
+    setEditSku(''); setEditTitle(''); setEditUnit(''); setEditBarcode(''); setEditWeight('');
+  };
+
+  const handleSaveVariant = async () => {
+    if (!editingVariant) return;
+    if (!editSku.trim()) { setError('Variant SKU is required'); return; }
+    setEditSaving(true);
+    setError('');
+    try {
+      await updateVariant(id, editingVariant.id, {
+        sku: editSku.trim(),
+        title: editTitle.trim() || undefined,
+        unit: editUnit.trim() || undefined,
+        barcode: editBarcode.trim() || undefined,
+        weightGrams: editWeight ? Number(editWeight) : undefined,
+      });
+      setVariants(await listVariants(id));
+      cancelEditVariant();
+    } catch (err: any) {
+      setError(err.message || 'Update variant failed');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -483,14 +529,42 @@ export default function ProductEditorPage() {
                           </button>
                         </td>
                         <td style={td}>
-                          <button onClick={() => handleDeleteVariant(v.id)} disabled={vActionLoading === v.id} style={deleteBtn}>
-                            {vActionLoading === v.id ? '…' : 'Delete'}
-                          </button>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button onClick={() => startEditVariant(v)} disabled={vActionLoading === v.id} style={editBtn}>
+                              Edit
+                            </button>
+                            <button onClick={() => handleDeleteVariant(v.id)} disabled={vActionLoading === v.id} style={deleteBtn}>
+                              {vActionLoading === v.id ? '…' : 'Delete'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {/* Inline edit form */}
+            {editingVariant && (
+              <div style={{ background: '#eff8ff', border: '1px solid #93c5fd', borderRadius: 8, padding: 16, marginBottom: 12 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', margin: '0 0 12px' }}>
+                  Editing variant: <code style={{ fontSize: 12 }}>{editingVariant.sku}</code>
+                </h3>
+                <div style={grid}>
+                  <input type="text" placeholder="SKU *" value={editSku} onChange={e => setEditSku(e.target.value)} style={input} />
+                  <input type="text" placeholder="Title" value={editTitle} onChange={e => setEditTitle(e.target.value)} style={input} />
+                  <input type="text" placeholder="Unit (e.g. KG, PCS)" value={editUnit} onChange={e => setEditUnit(e.target.value)} style={input} />
+                  <input type="text" placeholder="Barcode" value={editBarcode} onChange={e => setEditBarcode(e.target.value)} style={input} />
+                  <input type="number" placeholder="Weight (g)" value={editWeight} onChange={e => setEditWeight(e.target.value)} style={input} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button onClick={handleSaveVariant} disabled={editSaving || !editSku.trim()} style={primaryBtn}>
+                    {editSaving ? 'Saving…' : 'Save Changes'}
+                  </button>
+                  <button onClick={cancelEditVariant} disabled={editSaving} style={ghostBtn}>
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
             <div style={grid}>
@@ -600,6 +674,7 @@ const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontW
 const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };
 const toggleBtn: React.CSSProperties = { padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d9e2e6', borderRadius: 10, cursor: 'pointer' };
 const deleteBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' };
+const editBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#1e6178', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer' };
 const moveBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 12, fontWeight: 700, background: '#edf2f7', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 const removeMediaBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 11, fontWeight: 700, background: 'rgba(153,27,27,0.1)', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
 

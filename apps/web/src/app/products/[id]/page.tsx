@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import {
   fetchProduct,
@@ -78,35 +78,61 @@ function galleryImages(product: ProductDetail): { src: string; alt: string; vari
   return out;
 }
 
-// ── Amazon-style gallery ─────────────────────────────────────────
+// ── Amazon-style gallery with mouse-follow zoom, thumbnail hover, counter ──
 
 function ProductGallery({ images, title }: { images: { src: string; alt: string; variantLabel?: string }[]; title: string }) {
   const [selected, setSelected] = useState(0);
+  const [hoveredThumb, setHoveredThumb] = useState<number | null>(null);
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(false);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
+  const mainRef = useRef<HTMLDivElement>(null);
 
   const visible = images.filter(i => !failed.has(i.src));
   const current = visible[selected] ?? visible[0];
+  const total = visible.length;
+
+  // Clamp selection when images fail to load
+  useEffect(() => {
+    if (selected >= total) setSelected(Math.max(0, total - 1));
+  }, [total, selected]);
+
+  const goTo = useCallback((idx: number) => {
+    setSelected(Math.max(0, Math.min(total - 1, idx)));
+  }, [total]);
+
+  // Keyboard navigation: left/right arrows when gallery is focused
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') { goTo(selected - 1); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { goTo(selected + 1); e.preventDefault(); }
+  }, [selected, goTo]);
+
+  // Mouse-follow zoom: track cursor position relative to the main image container
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!mainRef.current) return;
+    const rect = mainRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomOrigin({ x, y });
+  }, []);
 
   if (!current) {
     return (
-      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 12, height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="pd-gallery-placeholder">
         <span style={{ fontSize: 72, opacity: 0.2 }} aria-label="No image">📦</span>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Main image — hover zoom (Amazon-style magnification) */}
+    <div onKeyDown={handleKeyDown} tabIndex={0} role="region" aria-label="Product image gallery" style={{ outline: 'none' }}>
+      {/* Main image — mouse-follow zoom (Amazon-style magnification) */}
       <div
-        style={{
-          background: '#fff', border: '1px solid #d9e2e6', borderRadius: 12, height: 460,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-          position: 'relative', cursor: 'zoom-in',
-        }}
+        ref={mainRef}
+        className="pd-gallery-main"
         onMouseEnter={() => setZoom(true)}
         onMouseLeave={() => setZoom(false)}
+        onMouseMove={handleMouseMove}
       >
         <img
           key={current.src}
@@ -114,12 +140,23 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
           alt={current.alt || title}
           loading="eager"
           onError={() => setFailed(prev => new Set(prev).add(current.src))}
+          draggable={false}
           style={{
             maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
-            transform: zoom ? 'scale(1.6)' : 'scale(1)',
-            transition: 'transform 0.25s ease',
+            transform: zoom ? 'scale(1.8)' : 'scale(1)',
+            transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+            transition: zoom ? 'none' : 'transform 0.3s ease',
+            userSelect: 'none',
           }}
         />
+        {/* Image counter badge */}
+        {total > 1 && (
+          <span style={{
+            position: 'absolute', bottom: 12, right: 12, padding: '3px 10px',
+            borderRadius: 10, fontSize: 11, fontWeight: 600,
+            background: 'rgba(0,0,0,0.6)', color: '#fff',
+          }}>{selected + 1} / {total}</span>
+        )}
         {current.variantLabel && (
           <span style={{
             position: 'absolute', bottom: 12, left: 12, padding: '3px 10px',
@@ -127,50 +164,71 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
             background: 'rgba(15,51,64,0.85)', color: '#fff',
           }}>{current.variantLabel}</span>
         )}
-        {visible.length > 1 && (
+        {total > 1 && (
           <>
             <button
-              onClick={() => setSelected(s => Math.max(0, s - 1))}
+              onClick={() => goTo(selected - 1)}
               disabled={selected === 0}
               aria-label="Previous image"
               style={{
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                 width: 36, height: 36, borderRadius: '50%', border: '1px solid #d9e2e6',
-                background: 'rgba(255,255,255,0.92)', fontSize: 16, cursor: 'pointer', opacity: selected === 0 ? 0.4 : 1,
+                background: 'rgba(255,255,255,0.92)', fontSize: 18, cursor: 'pointer',
+                opacity: selected === 0 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
               }}
             >‹</button>
             <button
-              onClick={() => setSelected(s => Math.min(visible.length - 1, s + 1))}
-              disabled={selected === visible.length - 1}
+              onClick={() => goTo(selected + 1)}
+              disabled={selected === total - 1}
               aria-label="Next image"
               style={{
                 position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                 width: 36, height: 36, borderRadius: '50%', border: '1px solid #d9e2e6',
-                background: 'rgba(255,255,255,0.92)', fontSize: 16, cursor: 'pointer', opacity: selected === visible.length - 1 ? 0.4 : 1,
+                background: 'rgba(255,255,255,0.92)', fontSize: 18, cursor: 'pointer',
+                opacity: selected === total - 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
               }}
             >›</button>
           </>
         )}
       </div>
 
-      {/* Thumbnail strip */}
-      {visible.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, overflowX: 'auto', paddingBottom: 4 }}>
-          {visible.map((img, i) => (
-            <button
-              key={img.src}
-              onClick={() => setSelected(i)}
-              aria-label={`View image ${i + 1} of ${visible.length}`}
-              aria-current={i === selected}
-              style={{
-                width: 64, height: 64, flexShrink: 0, borderRadius: 8, overflow: 'hidden',
-                border: i === selected ? '2px solid #0f3340' : '1px solid #d9e2e6',
-                background: '#fff', cursor: 'pointer', padding: 2,
-              }}
-            >
-              <img src={img.src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
-            </button>
-          ))}
+      {/* Thumbnail strip — hover previews + click to select */}
+      {total > 1 && (
+        <div className="pd-gallery-thumbs">
+          {visible.map((img, i) => {
+            const isSelected = i === selected;
+            const isHovered = i === hoveredThumb;
+            return (
+              <button
+                key={img.src}
+                onClick={() => goTo(i)}
+                onMouseEnter={() => setHoveredThumb(i)}
+                onMouseLeave={() => setHoveredThumb(null)}
+                aria-label={`View image ${i + 1} of ${total}`}
+                aria-current={isSelected}
+                style={{
+                  width: 60, height: 60, flexShrink: 0, borderRadius: 8, overflow: 'hidden',
+                  border: isSelected ? '2px solid #0f3340' : isHovered ? '2px solid #1e6178' : '1px solid #d9e2e6',
+                  background: '#fff', cursor: 'pointer', padding: 2,
+                  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                  boxShadow: isSelected ? '0 0 0 1px #0f3340' : isHovered ? '0 0 0 1px #1e6178' : 'none',
+                }}
+              >
+                <img
+                  src={img.src}
+                  alt=""
+                  style={{
+                    width: '100%', height: '100%', objectFit: 'cover',
+                    opacity: isSelected ? 1 : isHovered ? 0.9 : 0.75,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                  loading="lazy"
+                />
+              </button>
+            );
+          })}
         </div>
       )}
       {images.length > 0 && visible.length === 0 && (
@@ -243,6 +301,27 @@ export default function ProductDetailPage() {
   const baseCurrency = activeVariants[0]?.pricing?.currency ?? store?.currency ?? 'SAR';
 
   return (
+    <>
+    <style>{`
+      .pd-gallery-placeholder {
+        background: #fff; border: 1px solid #d9e2e6; border-radius: 12px; height: 460px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .pd-gallery-main {
+        background: #fff; border: 1px solid #d9e2e6; border-radius: 12px; height: 460px;
+        display: flex; align-items: center; justify-content: center; overflow: hidden;
+        position: relative; cursor: zoom-in;
+      }
+      .pd-gallery-thumbs {
+        display: flex; gap: 8; margin-top: 10px; overflow-x: auto; padding-bottom: 4px;
+      }
+      @media (max-width: 768px) {
+        .pd-detail-grid { grid-template-columns: 1fr !important; }
+        .pd-gallery-main { height: 320px; }
+        .pd-gallery-placeholder { height: 320px; }
+        .pd-gallery-thumbs { gap: 6px; }
+      }
+    `}</style>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Header Banner */}
       <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
@@ -252,7 +331,7 @@ export default function ProductDetailPage() {
         </p>
       </div>
       <div style={{ padding: '20px 24px 48px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: 32, alignItems: 'start' }}>
+      <div className="pd-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: 32, alignItems: 'start' }}>
         {/* Gallery */}
         <ProductGallery images={images} title={product.title} />
 
@@ -412,5 +491,6 @@ export default function ProductDetailPage() {
       </div>
       </div>
     </div>
+    </>
   );
 }

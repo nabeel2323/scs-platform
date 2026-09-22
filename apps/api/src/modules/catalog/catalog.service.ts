@@ -660,6 +660,28 @@ export class CatalogService {
     return this.getVariant(id);
   }
 
+  async updateVariant(productId: string, variantId: string, input: Partial<CreateVariantInput>) {
+    const product = await this.getProduct(productId);
+    const existing = await this.db.db.query.productVariants.findFirst({
+      where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
+    });
+    if (!existing) throw new NotFoundException('Variant not found in this product');
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input['sku'] !== undefined) updates['sku'] = input['sku'];
+    if (input['barcode'] !== undefined) updates['barcode'] = input['barcode'] || null;
+    if (input['title'] !== undefined) updates['title'] = input['title'] || null;
+    if (input['titleAr'] !== undefined) updates['titleAr'] = input['titleAr'] || null;
+    if (input['unit'] !== undefined) updates['unit'] = input['unit'];
+    if (input['weightGrams'] !== undefined) updates['weightGrams'] = input['weightGrams'] || null;
+
+    const [updated] = await this.db.db.update(productVariants)
+      .set(updates)
+      .where(eq(productVariants.id, variantId))
+      .returning();
+    return updated;
+  }
+
   async getVariant(id: string) {
     const variant = await this.db.db.query.productVariants.findFirst({
       where: eq(productVariants.id, id),

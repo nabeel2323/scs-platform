@@ -172,6 +172,17 @@ export class CatalogController {
     return this.catalogService.listVariantsByProduct(productId);
   }
 
+  @Patch('products/:productId/variants/:variantId')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async updateVariant(
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+    @Body() input: Partial<CreateVariantInput>,
+  ) {
+    return this.catalogService.updateVariant(productId, variantId, input);
+  }
+
   @Post('products/:productId/variants/bulk')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')

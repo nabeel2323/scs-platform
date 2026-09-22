@@ -882,6 +882,20 @@ export async function createVariant(
   return res.json();
 }
 
+export async function updateVariant(
+  productId: string,
+  variantId: string,
+  input: Partial<CreateVariantInput>,
+): Promise<ProductVariant> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/${variantId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Update variant failed: ${res.status}`);
+  return res.json();
+}
+
 export async function listMedia(productId: string): Promise<MediaItem[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/media`);
   if (!res.ok) throw new Error(`Media failed: ${res.status}`);
