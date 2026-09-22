@@ -10,6 +10,8 @@ import {
   isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { eq, and, lte, desc, inArray } from 'drizzle-orm';
+import { productVariants } from '../catalog/catalog.schema';
+import { products } from '../catalog/catalog.schema';
 import crypto from 'node:crypto';
 
 /**
@@ -112,6 +114,137 @@ export class InventoryService {
     });
   }
 
+  // ── Store-level queries ──────────────────────────────────────
+
+  async listByStore(storeId: string) {
+    const whs = await this.db.db.query.warehouses.findMany({
+      where: eq(warehouses.storeId, storeId),
+      columns: { id: true },
+    });
+    if (whs.length === 0) return [];
+    return this.db.db.query.inventoryItems.findMany({
+      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
+    });
+  }
+
+  /**
+   * Create an inventory item (variant ↔ warehouse link) with optional initial stock.
+   * If the item already exists, returns the existing row unchanged.
+   */
+  async createItem(input: CreateInventoryItemInput, caller?: CallerContext) {
+    if (caller) {
+      await assertWarehouseInOrg(this.db, caller, input.warehouseId);
+      await assertVariantInOrg(this.db, caller, input.variantId);
+    }
+    const existing = await this.db.db.query.inventoryItems.findFirst({
+      where: and(
+        eq(inventoryItems.variantId, input.variantId),
+        eq(inventoryItems.warehouseId, input.warehouseId),
+      ),
+    });
+    if (existing) return existing;
+
+    const id = crypto.randomUUID();
+    const initialQty = input.initialQty ?? 0;
+    await this.db.db.insert(inventoryItems).values({
+      id,
+      variantId: input.variantId,
+      warehouseId: input.warehouseId,
+      qtyOnHand: initialQty,
+      qtyReserved: 0,
+      reorderPoint: 0,
+    });
+
+    // Record an IMPORT movement when initial stock is provided
+    if (initialQty > 0) {
+      await this.db.db.insert(stockMovements).values({
+        id: crypto.randomUUID(),
+        inventoryItemId: id,
+        movementType: 'IMPORT',
+        quantity: initialQty,
+        reason: input.reason || 'Initial stock',
+        performedBy: input.userId || null,
+      });
+    }
+
+    return this.getItem(id);
+  }
+
+  async bulkAdjustStock(items: Array<{ inventoryItemId: string; quantity: number; reason?: string }>, userId?: string, caller?: CallerContext) {
+    const results: Array<{ inventoryItemId: string; newQty: number }> = [];
+    for (const item of items) {
+      if (caller) await assertInventoryItemInOrg(this.db, caller, item.inventoryItemId);
+      const inv = await this.getItem(item.inventoryItemId);
+      const newQty = inv['qtyOnHand'] + item.quantity;
+      if (newQty < 0) throw new BadRequestException(`Insufficient stock for ${item.inventoryItemId}`);
+
+      await this.db.db
+        .update(inventoryItems)
+        .set({ qtyOnHand: newQty, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, item.inventoryItemId));
+
+      await this.db.db.insert(stockMovements).values({
+        id: crypto.randomUUID(),
+        inventoryItemId: item.inventoryItemId,
+        movementType: 'ADJUST',
+        quantity: item.quantity,
+        reason: item.reason || null,
+        performedBy: userId || null,
+      });
+
+      results.push({ inventoryItemId: item.inventoryItemId, newQty });
+    }
+    return results;
+  }
+
+  async exportInventoryCsv(storeId: string) {
+    const whs = await this.db.db.query.warehouses.findMany({
+      where: eq(warehouses.storeId, storeId),
+    });
+    if (whs.length === 0) return 'Warehouse,SKU,Product,On Hand,Reserved,Available,Reorder Point\n';
+
+    const items = await this.db.db.query.inventoryItems.findMany({
+      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
+    });
+
+    const whById = new Map(whs.map(w => [w.id, w]));
+
+    // Batch-fetch variant + product info
+    const variantIds = [...new Set(items.map(i => i['variantId']))];
+    const variantRows = variantIds.length > 0
+      ? await this.db.db.query.productVariants.findMany({
+          where: inArray(productVariants.id, variantIds),
+        })
+      : [];
+    const variantById = new Map(variantRows.map(v => [v.id, v]));
+
+    const productIds = [...new Set(variantRows.map(v => v['productId']))];
+    const productRows = productIds.length > 0
+      ? await this.db.db.query.products.findMany({
+          where: inArray(products.id, productIds),
+        })
+      : [];
+    const productById = new Map(productRows.map(p => [p.id, p]));
+
+    const escape = (s: string) => s.includes(',') ? `"${s}"` : s;
+    const lines = ['Warehouse,SKU,Product,On Hand,Reserved,Available,Reorder Point'];
+    for (const item of items) {
+      const wh = whById.get(item['warehouseId']);
+      const variant = variantById.get(item['variantId']);
+      const product = variant ? productById.get(variant['productId']) : undefined;
+      lines.push([
+        escape(wh?.name ?? ''),
+        escape(variant?.sku ?? ''),
+        escape(product?.title ?? ''),
+        String(item['qtyOnHand']),
+        String(item['qtyReserved']),
+        String(item['qtyOnHand'] - item['qtyReserved']),
+        String(item['reorderPoint']),
+      ].join(','));
+    }
+    return lines.join('\n');
+  }
+
   // ── Stock Adjustments ────────────────────────────────────────
 
   async adjustStock(input: AdjustStockInput, caller?: CallerContext) {
@@ -208,6 +341,14 @@ export class InventoryService {
 }
 
 // ── Input types ──────────────────────────────────────────────────
+
+export interface CreateInventoryItemInput {
+  variantId: string;
+  warehouseId: string;
+  initialQty?: number;
+  reason?: string;
+  userId?: string;
+}
 
 export interface UpdateInventoryInput {
   reorderPoint?: number;

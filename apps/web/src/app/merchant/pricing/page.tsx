@@ -229,6 +229,11 @@ export default function MerchantPricingPage() {
     return acc;
   }, {} as Record<string, { minQty: number; unitPriceMinor: number }[]>);
 
+  // Pricing health: count zero-priced and unpriced variants in the active list
+  const pricedVariantIds = new Set(Object.keys(tiersByVariant));
+  const zeroPricedVariants = Object.entries(tiersByVariant).filter(([, t]) => t.some((tier: { unitPriceMinor: number }) => tier.unitPriceMinor === 0));
+  const zeroPricedCount = zeroPricedVariants.length;
+
   if (noStore) {
     return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
@@ -265,6 +270,20 @@ export default function MerchantPricingPage() {
 
       {error && <ErrorBanner message={error} />}
 
+      {/* Pricing health banner */}
+      {!loading && selectedList && (
+        <div style={{ background: zeroPricedCount > 0 ? '#fef3c7' : '#d1fae5', border: `1px solid ${zeroPricedCount > 0 ? '#fcd34d' : '#6ee7b7'}`, borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 13, color: zeroPricedCount > 0 ? '#92400e' : '#065f46', fontWeight: 500 }}>
+            {zeroPricedCount > 0
+              ? `⚠ ${zeroPricedCount} variant(s) have zero-priced tiers — cart will reject these items`
+              : `✓ All ${pricedVariantIds.size} priced variant(s) have valid prices`}
+          </span>
+          <span style={{ fontSize: 12, color: zeroPricedCount > 0 ? '#b45309' : '#047857' }}>
+            {pricedVariantIds.size} variant(s) with tiers
+          </span>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>
         <select value={selectedList} onChange={e => { setSelectedList(e.target.value); loadTiers(e.target.value); }} style={select} disabled={priceLists.length === 0}>
           {priceLists.length === 0 && <option value="">No price lists</option>}
@@ -296,8 +315,10 @@ export default function MerchantPricingPage() {
                 </tr>
               </thead>
               <tbody>
-                {tiers.map(t => (
-                  <tr key={t.id} className="tbl-row" style={tbodyRow}>
+                {tiers.map(t => {
+                  const isZero = t.unitPriceMinor === 0;
+                  return (
+                  <tr key={t.id} className="tbl-row" style={{ ...tbodyRow, background: isZero ? '#fef2f2' : undefined }}>
                     <td style={td}>
                       {(() => { const vi = variantInfo[t.variantId]; return vi
                         ? <span style={{ fontSize: 12 }}><strong>{vi.sku}</strong>{vi.title ? ` · ${vi.title}` : ''}</span>
@@ -319,7 +340,10 @@ export default function MerchantPricingPage() {
                       <>
                         <td style={td}>≥ {t.minQty}</td>
                         <td style={td}>{t.maxQty ?? '—'}</td>
-                        <td style={td}><strong>{fmt(t.unitPriceMinor)}</strong></td>
+                        <td style={td}>
+                          <strong style={isZero ? { color: '#991b1b' } : undefined}>{fmt(t.unitPriceMinor)}</strong>
+                          {isZero && <span style={{ fontSize: 10, color: '#991b1b', marginLeft: 4, fontWeight: 600 }}>ZERO</span>}
+                        </td>
                         <td style={td}>
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button onClick={() => startEditTier(t)} style={editBtn}>Edit</button>
@@ -329,7 +353,8 @@ export default function MerchantPricingPage() {
                       </>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

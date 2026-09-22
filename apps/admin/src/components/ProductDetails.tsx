@@ -69,10 +69,20 @@ export default function ProductDetails({ id, fullPage = false, returnTo = '/prod
     </div>
     {!images.length && <p>No images.</p>}
     <h3>Variants ({value.variants.length})</h3>
-    {value.variants.map(variant => <section key={variant.id} className={styles['card']}>
-      <RecordFields record={variant} />
-      <div className={styles['gallery']}>{refs(variant.images).map(reference => <PreviewImage key={reference} reference={reference} url={previews.data?.previews[reference]} />)}</div>
-    </section>)}
+    {value.variants.map(variant => {
+      const stock = (variant as any).stock as { totalAvailable: number; totalOnHand: number; warehouseCount: number } | undefined;
+      return <section key={variant.id} className={styles['card']}>
+        <RecordFields record={variant} omit={['stock']} />
+        {stock && (
+          <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 13 }}>
+            <span><strong>On Hand:</strong> {stock.totalOnHand}</span>
+            <span><strong>Available:</strong> {stock.totalAvailable}</span>
+            <span><strong>Warehouses:</strong> {stock.warehouseCount}</span>
+          </div>
+        )}
+        <div className={styles['gallery']}>{refs(variant.images).map(reference => <PreviewImage key={reference} reference={reference} url={previews.data?.previews[reference]} />)}</div>
+      </section>;
+    })}
     {!value.variants.length && <p>No variants.</p>}
     <h3>Media records ({value.media.length})</h3>
     {value.media.map(item => <section key={item.id} className={styles['card']}><RecordFields record={item} /></section>)}

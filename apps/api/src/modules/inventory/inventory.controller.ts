@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch,
   Param, Body, Query, UseGuards,
 } from '@nestjs/common';
-import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryInput } from './inventory.service';
+import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryInput, CreateInventoryItemInput } from './inventory.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
@@ -11,6 +11,41 @@ import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
+
+  // ── Store-level inventory (literal paths before parameterized) ──
+
+  @Get('stores/:storeId/inventory/export')
+  @RequirePermission('merchant:inventory:read')
+  async exportInventory(@Param('storeId') storeId: string) {
+    return this.inventoryService.exportInventoryCsv(storeId);
+  }
+
+  @Get('stores/:storeId/inventory')
+  @RequirePermission('merchant:inventory:read')
+  async listByStore(@Param('storeId') storeId: string) {
+    return this.inventoryService.listByStore(storeId);
+  }
+
+  // ── Inventory items ────────────────────────────────────────────
+
+  @Post('inventory')
+  @RequirePermission('merchant:inventory:write')
+  async createItem(
+    @CurrentUser() user: JwtPayload,
+    @Body() input: CreateInventoryItemInput,
+  ) {
+    return this.inventoryService.createItem({ ...input, userId: user.sub }, user);
+  }
+
+  // Literal POST paths must precede PATCH/GET :id paths below
+  @Post('inventory/bulk-adjust')
+  @RequirePermission('merchant:inventory:write')
+  async bulkAdjustStock(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { items: Array<{ inventoryItemId: string; quantity: number; reason?: string }> },
+  ) {
+    return this.inventoryService.bulkAdjustStock(body.items, user.sub, user);
+  }
 
   @Get('inventory/warehouse/:warehouseId')
   @RequirePermission('merchant:inventory:read')
