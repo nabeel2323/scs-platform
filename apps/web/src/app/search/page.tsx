@@ -27,7 +27,9 @@ function SearchPageContent() {
 
   // URL-backed state
   const [query, setQuery] = useState(searchParams.get('q') || '');
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('cat') || '');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    searchParams.get('cat') ? searchParams.get('cat')!.split(',').filter(Boolean) : [],
+  );
   const [selectedBrand, setSelectedBrand] = useState(searchParams.get('brand') || '');
   const [sort, setSort] = useState<SortOption>((searchParams.get('sort') as SortOption) || 'featured');
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
@@ -60,7 +62,7 @@ function SearchPageContent() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
-    if (selectedCategory) params.set('cat', selectedCategory);
+    if (selectedCategories.length > 0) params.set('cat', selectedCategories.join(','));
     if (selectedBrand) params.set('brand', selectedBrand);
     if (sort !== 'featured') params.set('sort', sort);
     if (page > 1) params.set('page', String(page));
@@ -71,16 +73,19 @@ function SearchPageContent() {
     if (inStockOnly) params.set('instock', '1');
     const qs = params.toString();
     router.replace(`/search${qs ? `?${qs}` : ''}`, { scroll: false });
-  }, [query, selectedCategory, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, router]);
+  }, [query, selectedCategories, selectedBrand, sort, page, limit, priceMin, priceMax, verifiedOnly, inStockOnly, router]);
 
   const doSearch = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const offset = (page - 1) * limit;
+      // Send categoryId to API only when exactly one is selected (backward compatible);
+      // multi-category is handled client-side after the API returns results.
+      const categoryId = selectedCategories.length === 1 ? selectedCategories[0] : undefined;
       const res = await searchProducts({
         q: query || undefined,
-        categoryId: selectedCategory || undefined,
+        categoryId,
         brandId: selectedBrand || undefined,
         limit: limit + 20, // fetch extra for client-side filtering
         offset,
@@ -92,7 +97,7 @@ function SearchPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [query, selectedCategory, selectedBrand, page, limit]);
+  }, [query, selectedCategories, selectedBrand, page, limit]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -103,23 +108,71 @@ function SearchPageContent() {
   // Reset page when filters change
   const resetPage = () => setPage(1);
 
-  const handleCategoryChange = (id: string) => { setSelectedCategory(selectedCategory === id ? '' : id); resetPage(); };
+  const handleCategoryToggle = (id: string) => {
+    setSelectedCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+    resetPage();
+  };
+  // Header dropdown: quick single-select that replaces any multi-selection
+  const handleHeaderCategoryChange = (id: string) => {
+    setSelectedCategories(id ? [id] : []);
+    resetPage();
+  };
   const handleBrandChange = (id: string) => { setSelectedBrand(selectedBrand === id ? '' : id); resetPage(); };
   const handleSortChange = (s: SortOption) => { setSort(s); resetPage(); };
   const handleLimitChange = (l: number) => { setLimit(l); setPage(1); };
 
-  // Client-side filtering and sorting
-  const displayedResults = useMemo(() => {
+  // Price input sanitizers — strip non-numeric, prevent negatives
+  const handlePriceMinChange = (raw: string) => {
+    const cleaned = raw.replace(/[^0-9.]/g, '');
+    setPriceMin(cleaned);
+    resetPage();
+  };
+  const handlePriceMaxChange = (raw: string) => {
+    const cleaned = raw.replace(/[^0-9.]/g, '');
+    setPriceMax(cleaned);
+    resetPage();
+  };
+
+  // Active filter count for mobile badge
+  const activeFilterCount = [
+    selectedCategories.length > 0,
+    !!selectedBrand,
+    !!priceMin,
+    !!priceMax,
+    verifiedOnly,
+    inStockOnly,
+  ].filter(Boolean).length;
+
+  // Client-side filtering, validation, and sorting
+  const { displayedResults, filteredCount, priceErrorMsg } = useMemo(() => {
     let filtered = [...results];
+    let errorMsg = '';
+
+    // Validate price inputs
+    const minNum = priceMin ? parseFloat(priceMin) : NaN;
+    const maxNum = priceMax ? parseFloat(priceMax) : NaN;
+    if (priceMin && isNaN(minNum)) errorMsg = 'Invalid minimum price';
+    else if (priceMax && isNaN(maxNum)) errorMsg = 'Invalid maximum price';
+    else if (priceMin && minNum < 0) errorMsg = 'Price cannot be negative';
+    else if (priceMax && maxNum < 0) errorMsg = 'Price cannot be negative';
+    else if (priceMin && priceMax && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum) {
+      errorMsg = 'Minimum exceeds maximum';
+    }
 
     // Price filter (client-side since API doesn't support it)
-    if (priceMin) {
-      const minVal = Math.round(parseFloat(priceMin) * 100);
+    // Only filter when no validation error — prices are compared in minor units
+    if (!errorMsg && priceMin && !isNaN(minNum)) {
+      const minVal = Math.round(minNum * 100);
       filtered = filtered.filter(p => p.priceFromMinor != null && p.priceFromMinor >= minVal);
     }
-    if (priceMax) {
-      const maxVal = Math.round(parseFloat(priceMax) * 100);
+    if (!errorMsg && priceMax && !isNaN(maxNum)) {
+      const maxVal = Math.round(maxNum * 100);
       filtered = filtered.filter(p => p.priceFromMinor != null && p.priceFromMinor <= maxVal);
+    }
+
+    // Multi-category filter (client-side when >1 selected; API handles 0 or 1)
+    if (selectedCategories.length > 1) {
+      filtered = filtered.filter(p => p.categoryId && selectedCategories.includes(p.categoryId));
     }
 
     // Verified only
@@ -151,8 +204,8 @@ function SearchPageContent() {
         break;
     }
 
-    return filtered.slice(0, limit);
-  }, [results, priceMin, priceMax, verifiedOnly, inStockOnly, sort, limit]);
+    return { displayedResults: filtered.slice(0, limit), filteredCount: filtered.length, priceErrorMsg: errorMsg };
+  }, [results, priceMin, priceMax, selectedCategories, verifiedOnly, inStockOnly, sort, limit]);
 
   const handleAddToCart = async (product: Product) => {
     setCartError('');
@@ -173,15 +226,10 @@ function SearchPageContent() {
 
   const totalPages = Math.ceil(total / limit);
   const filteredBrands = brands.filter(b => b.name.toLowerCase().includes(brandSearch.toLowerCase()));
-  const selectedCatName = categories.find(c => c.id === selectedCategory)?.name;
+  const selectedCatNames = selectedCategories.map(id => categories.find(c => c.id === id)?.name).filter(Boolean);
   const selectedBrandName = brands.find(b => b.id === selectedBrand)?.name;
-
-  // Star rating component
-  const StarRating = ({ rating }: { rating: number }) => (
-    <span style={{ color: '#f59e0b', fontSize: 13, letterSpacing: 1 }}>
-      {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
-    </span>
-  );
+  // Currency label from first priced result (for price filter context)
+  const resultCurrency = results.find(r => r.priceCurrency)?.priceCurrency || '';
 
   return (
     <>
@@ -208,11 +256,11 @@ function SearchPageContent() {
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
             <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
               <select
-                value={selectedCategory}
-                onChange={e => { setSelectedCategory(e.target.value); resetPage(); }}
+                value={selectedCategories.length === 1 ? selectedCategories[0] : ''}
+                onChange={e => handleHeaderCategoryChange(e.target.value)}
                 style={{ padding: '12px 14px', fontSize: 13, border: 'none', background: '#f3f6f9', color: '#0f3340', fontWeight: 600, minWidth: 140, cursor: 'pointer', outline: 'none' }}
               >
-                <option value="">All Departments</option>
+                <option value="">{selectedCategories.length > 1 ? `${selectedCategories.length} selected` : 'All Departments'}</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <input
@@ -234,10 +282,11 @@ function SearchPageContent() {
         <div style={{ padding: '12px 0', fontSize: 12, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Link href="/search" style={{ color: '#1e6178', textDecoration: 'none' }}>Home</Link>
           <span>›</span>
-          {selectedCatName && <><Link href={`/search?cat=${selectedCategory}`} style={{ color: '#1e6178', textDecoration: 'none' }}>{selectedCatName}</Link><span>›</span></>}
+          {selectedCatNames.length === 1 && <><span style={{ color: '#1e6178' }}>{selectedCatNames[0]}</span><span>›</span></>}
+          {selectedCatNames.length > 1 && <><span style={{ color: '#1e6178' }}>{selectedCatNames.length} departments</span><span>›</span></>}
           {selectedBrandName && <><span>{selectedBrandName}</span><span>›</span></>}
           <span style={{ color: '#0f3340', fontWeight: 500 }}>
-            {query ? `Results for "${query}"` : selectedCatName ? 'Category' : 'All Products'}
+            {query ? `Results for "${query}"` : selectedCatNames.length > 0 ? 'Category' : 'All Products'}
           </span>
         </div>
 
@@ -248,6 +297,7 @@ function SearchPageContent() {
               <>
                 <span style={{ fontWeight: 600, color: '#0f3340' }}>{total.toLocaleString()}</span> result{total !== 1 ? 's' : ''}
                 {query && <> for "<strong style={{ color: '#0f3340' }}>{query}</strong>"</>}
+                {filteredCount < total && !loading && <span style={{ marginLeft: 8, color: '#1e6178', fontWeight: 500 }}>({filteredCount} shown after filters)</span>}
               </>
             ) : !loading && <span>No results found</span>}
           </div>
@@ -256,9 +306,9 @@ function SearchPageContent() {
             <button
               className="sr-filter-toggle"
               onClick={() => setMobileFiltersOpen(true)}
-              style={{ display: 'none', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer', color: '#0f3340' }}
+              style={{ display: 'none', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, background: activeFilterCount > 0 ? '#0f3340' : '#fff', border: '1px solid ' + (activeFilterCount > 0 ? '#0f3340' : '#d9e2e6'), borderRadius: 6, cursor: 'pointer', color: activeFilterCount > 0 ? '#fff' : '#0f3340' }}
             >
-              ☰ Filters
+              ☰ Filters{activeFilterCount > 0 && <span style={{ background: '#f59e0b', color: '#0f3340', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, marginLeft: 2 }}>{activeFilterCount}</span>}
             </button>
             <label style={{ fontSize: 13, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6 }}>
               Sort by:
@@ -297,7 +347,7 @@ function SearchPageContent() {
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                 {categories.map(c => (
                   <label key={c.id} className="sr-checkbox">
-                    <input type="checkbox" checked={selectedCategory === c.id} onChange={() => handleCategoryChange(c.id)} style={{ accentColor: '#0f3340' }} />
+                    <input type="checkbox" checked={selectedCategories.includes(c.id)} onChange={() => handleCategoryToggle(c.id)} style={{ accentColor: '#0f3340' }} />
                     <span>{c.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: '#a0aec0' }}>({c.productCount})</span>
                   </label>
@@ -328,23 +378,27 @@ function SearchPageContent() {
 
             {/* Price Range */}
             <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Price</h4>
+              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Price{resultCurrency && <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 6, fontSize: 11, color: '#5b6b74' }}>({resultCurrency})</span>}
+              </h4>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="number" placeholder="Min" value={priceMin} onChange={e => { setPriceMin(e.target.value); resetPage(); }} style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #d9e2e6', borderRadius: 4, boxSizing: 'border-box' }} min={0} step="0.01" />
+                <input
+                  type="text" inputMode="decimal" placeholder="Min" value={priceMin}
+                  onChange={e => handlePriceMinChange(e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMin ? '#fca5a5' : '#d9e2e6'), borderRadius: 4, boxSizing: 'border-box' }}
+                />
                 <span style={{ color: '#a0aec0' }}>–</span>
-                <input type="number" placeholder="Max" value={priceMax} onChange={e => { setPriceMax(e.target.value); resetPage(); }} style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid #d9e2e6', borderRadius: 4, boxSizing: 'border-box' }} min={0} step="0.01" />
+                <input
+                  type="text" inputMode="decimal" placeholder="Max" value={priceMax}
+                  onChange={e => handlePriceMaxChange(e.target.value)}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMax ? '#fca5a5' : '#d9e2e6'), borderRadius: 4, boxSizing: 'border-box' }}
+                />
               </div>
-            </div>
-
-            {/* Customer Rating */}
-            <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer Rating</h4>
-              {[4, 3, 2, 1].map(r => (
-                <label key={r} className="sr-checkbox">
-                  <StarRating rating={r} />
-                  <span style={{ fontSize: 12, color: '#5b6b74' }}>& Up</span>
-                </label>
-              ))}
+              {priceErrorMsg && (
+                <div role="alert" style={{ marginTop: 6, padding: '4px 8px', background: '#fef2f2', color: '#991b1b', fontSize: 11, borderRadius: 4, fontWeight: 500 }}>
+                  {priceErrorMsg}
+                </div>
+              )}
             </div>
 
             {/* Availability */}
@@ -361,10 +415,10 @@ function SearchPageContent() {
             </div>
 
             {/* Clear filters */}
-            {(selectedCategory || selectedBrand || priceMin || priceMax || verifiedOnly || inStockOnly) && (
-              <button onClick={() => { setSelectedCategory(''); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); resetPage(); }}
+            {activeFilterCount > 0 && (
+              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); resetPage(); }}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', marginTop: 12 }}>
-                Clear All Filters
+                Clear All Filters ({activeFilterCount})
               </button>
             )}
           </aside>
@@ -406,8 +460,8 @@ function SearchPageContent() {
                   : 'Try adjusting your filters or browse categories.'}
                 action={
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                    {(selectedCategory || selectedBrand || priceMin || priceMax) && (
-                      <button onClick={() => { setSelectedCategory(''); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); }}
+                    {(selectedCategories.length > 0 || selectedBrand || priceMin || priceMax) && (
+                      <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); }}
                         style={{ padding: '8px 20px', background: '#0f3340', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
                         Clear Filters
                       </button>
