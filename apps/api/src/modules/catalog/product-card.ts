@@ -1,9 +1,11 @@
 import { and, eq, inArray } from 'drizzle-orm';
-import { productVariants } from './catalog.schema';
+import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
 import { resolveVariantPrices, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
+import type { StorageService } from '../../common/storage/storage.service';
+import { imageReferences, isProductMediaKey } from './product-images';
 
 /**
  * Listing-card enrichment (A5-2).
@@ -51,11 +53,44 @@ export interface CardEnrichment {
    * available is between 1 and 10, 'OUT_OF_STOCK' otherwise.
    */
   stockStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+  /**
+   * Browser-renderable card image: the product's first image reference resolved
+   * through object storage (signed GET) or passed through when already a full
+   * URL. Null when the product has no renderable image — the client then shows
+   * its placeholder rather than a broken <img>.
+   */
+  imageUrl: string | null;
+}
+
+/**
+ * Turn a stored media reference into a URL a browser can render.
+ *
+ * Media columns hold either full URLs (already-hosted images) or object-storage
+ * keys like `products/{uuid}/{file}`. Only keys are signed; failures resolve to
+ * null so callers can fall back to a placeholder. Shared by card enrichment and
+ * the media endpoints so every surface agrees on what is renderable.
+ */
+export function createMediaRefResolver(storage: StorageService): (ref: string | null | undefined) => Promise<string | null> {
+  return async (ref: string | null | undefined): Promise<string | null> => {
+    const trimmed = (ref ?? '').trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (!isProductMediaKey(trimmed)) return null;
+    try {
+      return await storage.createPresignedGetUrl(
+        process.env['S3_MEDIA_BUCKET'] || 'scs-media',
+        trimmed,
+      );
+    } catch {
+      return null;
+    }
+  };
 }
 
 export async function enrichProductCards<T extends CardSource>(
   db: Db,
   items: T[],
+  opts?: { resolveImage?: (ref: string) => Promise<string | null> },
 ): Promise<Array<T & CardEnrichment>> {
   if (items.length === 0) return [];
 
@@ -172,6 +207,43 @@ export async function enrichProductCards<T extends CardSource>(
     // Stock tables may not be available in all environments
   }
 
+  // Card image: resolve the product's first renderable image reference
+  // (images JSONB + product_media) to a signed/absolute URL. Every caller
+  // projects `images` onto its rows, so only product_media needs its own read
+  // here — re-querying products would double-read the listing. Wrapped in
+  // try-catch so environments without the media tables degrade to null.
+  const imageByProduct = new Map<string, string | null>();
+  if (opts?.resolveImage) {
+    try {
+      const ids = items.map(item => item.id);
+      const mediaRows = await db.query.productMedia.findMany({
+        where: inArray(productMedia.productId, ids),
+        columns: { productId: true, mediaType: true, url: true, sortOrder: true },
+      });
+      const mediaByProduct = new Map<string, { mediaType: string; url: string; sortOrder: number }[]>();
+      for (const row of mediaRows) {
+        const pid = row['productId'];
+        const list = mediaByProduct.get(pid);
+        if (list) list.push({ mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] });
+        else mediaByProduct.set(pid, [{ mediaType: row['mediaType'], url: row['url'], sortOrder: row['sortOrder'] }]);
+      }
+      await Promise.all(items.map(async item => {
+        const refs = imageReferences(
+          (item as { images?: unknown }).images,
+          mediaByProduct.get(item.id) ?? [],
+        );
+        let resolved: string | null = null;
+        for (const ref of refs) {
+          resolved = await opts.resolveImage!(ref);
+          if (resolved) break;
+        }
+        imageByProduct.set(item.id, resolved);
+      }));
+    } catch {
+      // Media tables may not be available in all environments (e.g. test mocks)
+    }
+  }
+
   return items.map(item => {
     const prices = pricesByBatch.get(`${item.storeId}|${item.moq ?? 1}`);
     let cheapest: VariantPricing | undefined;
@@ -186,6 +258,7 @@ export async function enrichProductCards<T extends CardSource>(
       priceFromMinor: cheapest ? cheapest.unitPriceMinor : null,
       priceCurrency: cheapest ? cheapest.currency : null,
       stockStatus: stockByProduct.get(item.id) ?? 'UNKNOWN',
+      imageUrl: imageByProduct.get(item.id) ?? null,
     };
   });
 }

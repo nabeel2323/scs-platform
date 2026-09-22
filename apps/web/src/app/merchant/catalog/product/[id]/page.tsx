@@ -18,6 +18,35 @@ const CONDITIONS = ['NEW', 'USED', 'REFURBISHED'];
 
 type Brand = { id: string; name: string; slug: string; logoUrl: string | null };
 
+/**
+ * Thumbnail for one media row: prefers the server-resigned `displayUrl`, then
+ * the thumb, then a legacy absolute URL. Falls back to the icon when the object
+ * is missing so upload previews degrade gracefully instead of tearing.
+ */
+function MediaThumb({ item }: { item: MediaItem }) {
+  const [failed, setFailed] = useState(false);
+  const src =
+    item.displayUrl ?? item.thumbSrc ??
+    (item.url.startsWith('http') ? item.url : undefined);
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt=""
+        onError={() => setFailed(true)}
+        style={{ width: 48, height: 36, borderRadius: 4, border: '1px solid #d9e2e6', objectFit: 'cover', flexShrink: 0, background: '#f7f9fa' }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: 48, height: 36, borderRadius: 4, border: '1px solid #d9e2e6',
+      background: '#f7f9fa', flexShrink: 0,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, overflow: 'hidden',
+    }}>🖼</div>
+  );
+}
+
 export default function ProductEditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -521,14 +550,7 @@ export default function ProductEditorPage() {
                     borderBottom: '1px solid #e2e8f0',
                   }}>
                     <span style={{ fontSize: 11, color: '#5b6b74', width: 20, textAlign: 'center', fontWeight: 600 }}>{idx + 1}</span>
-                    <div style={{
-                      width: 48, height: 36, borderRadius: 4, border: '1px solid #d9e2e6',
-                      background: '#f7f9fa center/cover no-repeat', flexShrink: 0,
-                      backgroundImage: m.url.startsWith('http') ? `url(${m.url})` : undefined,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, overflow: 'hidden',
-                    }}>
-                      {!m.url.startsWith('http') && '🖼'}
-                    </div>
+                    <MediaThumb item={m} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 11, color: '#5b6b74', wordBreak: 'break-all' }}>{m.url.length > 60 ? `${m.url.slice(0, 60)}…` : m.url}</div>
                       <div style={{ fontSize: 10, color: '#a0aec0' }}>{m.mediaType}{m.mimeType ? ` · ${m.mimeType}` : ''}</div>

@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { products, productVariants, brands, categories } from './catalog.schema';
 import { searchQueries } from './search.schema';
 import { eq, and, isNull, or, sql, desc } from 'drizzle-orm';
-import { enrichProductCards } from './product-card';
+import { createMediaRefResolver, enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
 
 /**
@@ -20,7 +21,15 @@ import crypto from 'node:crypto';
  */
 @Injectable()
 export class SearchService {
-  constructor(private readonly db: DatabaseService) {}
+  /** Signed/absolute URL for the first renderable card image. */
+  private readonly resolveImage: (ref: string) => Promise<string | null>;
+
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly storage: StorageService,
+  ) {
+    this.resolveImage = createMediaRefResolver(storage);
+  }
 
   async search(query: string, options?: SearchOptions) {
     // Handle missing or empty query — return paginated active products
@@ -74,6 +83,7 @@ export class SearchService {
             updatedAt: row.updatedAt,
             score: null,
           })),
+          { resolveImage: this.resolveImage },
         ),
         total,
         matchType: 'all',
@@ -124,7 +134,7 @@ export class SearchService {
               updatedAt: product.updatedAt,
               score: null,
             },
-          ]),
+          ], { resolveImage: this.resolveImage }),
           total: 1,
           matchType: 'exact',
           query,
@@ -217,7 +227,7 @@ export class SearchService {
     await this.logSearchQuery(query, normalized, options?.storeId, options?.userId, items.length);
 
     return {
-      items: await enrichProductCards(this.db.db, items),
+      items: await enrichProductCards(this.db.db, items, { resolveImage: this.resolveImage }),
       total,
       matchType: items.length > 0 ? 'fuzzy' : 'none',
       query,
