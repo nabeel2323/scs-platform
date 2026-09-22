@@ -48,29 +48,34 @@ const STATUS_FILTER_OPTIONS: { value: string; label: string; statuses: string[] 
   { value: 'CANCELLED', label: 'Cancelled', statuses: ['CANCELLED'] },
 ];
 
-// Resolved buyer label for an order row. The orders list endpoint returns only
-// buyerId (A5-16), so names/phones come from the org-scoped customers
-// directory (GET /v1/merchant/customers, cached in buyer-api) and degrade to
-// the ID prefix for buyers the directory does not know (e.g. buyers whose
-// only orders were cancelled/rejected are excluded there).
-function buyerNameOf(
-  buyerMap: Record<string, { buyerName: string | null; buyerPhone: string | null }>,
-  buyerId: string,
-): string {
-  return buyerMap[buyerId]?.buyerName || `Buyer ${buyerId.slice(0, 8)}`;
+// Resolved buyer label for an order row. listOrders now returns authoritative
+// buyerName/buyerPhone/buyerEmail resolved server-side from the order's own
+// buyerId, so the row renders directly. The org-scoped customers directory
+// (GET /v1/merchant/customers) is kept as a legacy fallback only for cached
+// responses that predate the enrichment or for rows where the users lookup
+// returned null. Everything degrades to the ID prefix rather than a blank.
+function buyerLabel(
+  order: SubOrder,
+  buyers: Record<string, { buyerName: string | null; buyerPhone: string | null }>,
+): { name: string; phone: string | null } {
+  const fallback = buyers[order.buyerId];
+  return {
+    name: order.buyerName || fallback?.buyerName || `Buyer ${order.buyerId.slice(0, 8)}`,
+    phone: order.buyerPhone || fallback?.buyerPhone || null,
+  };
 }
 
-/** One-line buyer identity for an order row: name + phone, degrading to the ID prefix. */
-function BuyerLine({ buyers, buyerId }: {
+/** One-line buyer identity for an order row: authoritative first, cached fallback second. */
+function BuyerLine({ order, buyers }: {
+  order: SubOrder;
   buyers: Record<string, { buyerName: string | null; buyerPhone: string | null }>;
-  buyerId: string;
 }) {
-  const buyer = buyers[buyerId];
+  const { name, phone } = buyerLabel(order, buyers);
   return (
     <div style={{ fontSize: 12, marginTop: 2 }}>
       <span style={{ color: '#5b6b74' }}>Buyer: </span>
-      <span style={{ fontWeight: 600, color: '#0f3340' }}>{buyerNameOf(buyers, buyerId)}</span>
-      {buyer?.buyerPhone && <span style={{ color: '#5b6b74' }}> · {buyer.buyerPhone}</span>}
+      <span style={{ fontWeight: 600, color: '#0f3340' }}>{name}</span>
+      {phone && <span style={{ color: '#5b6b74' }}> · {phone}</span>}
     </div>
   );
 }
@@ -230,11 +235,13 @@ export default function MerchantOrdersPage() {
       if (dateTo && new Date(o.createdAt) > new Date(`${dateTo}T23:59:59.999`)) return false;
       if (q) {
         const items = (Array.isArray(o.items) ? o.items : []) as OrderItem[];
+        const { name, phone } = buyerLabel(o, buyers);
         const haystack = [
           o.id,
           o.buyerId,
-          buyerNameOf(buyers, o.buyerId),
-          buyers[o.buyerId]?.buyerPhone || '',
+          name,
+          phone || '',
+          o.buyerEmail || '',
           ...items.map((it) => it.title),
         ].join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -437,7 +444,7 @@ export default function MerchantOrdersPage() {
                 <div>
                   <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
                   <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDateCompact(order.createdAt)} · {order.itemCount ?? 0} {order.itemCount === 1 ? 'item' : 'items'} · {formatMinor(order.totalMinor, order.currency)}</div>
-                  <BuyerLine buyers={buyers} buyerId={order.buyerId} />
+                  <BuyerLine order={order} buyers={buyers} />
                 </div>
                 <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <StatusBadge status={order.status} />
@@ -479,7 +486,7 @@ export default function MerchantOrdersPage() {
                   <div>
                     <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
                     <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDateCompact(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}</div>
-                    <BuyerLine buyers={buyers} buyerId={order.buyerId} />
+                    <BuyerLine order={order} buyers={buyers} />
                   </div>
                   <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <StatusBadge status={order.status} />
@@ -520,7 +527,7 @@ export default function MerchantOrdersPage() {
                 <div style={{ fontSize: 12, color: '#5b6b74', marginTop: 2 }}>
                   {formatDateCompact(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}
                 </div>
-                <BuyerLine buyers={buyers} buyerId={order.buyerId} />
+                <BuyerLine order={order} buyers={buyers} />
               </div>
               <StatusBadge status={order.status} />
             </div>

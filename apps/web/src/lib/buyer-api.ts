@@ -177,6 +177,20 @@ export interface SubOrder {
    * undefined on a list response and used to render "0 items" for every order.
    */
   itemCount?: number;
+  /**
+   * Organization that owns the fulfilling store (from `attachOrderIdentity`).
+   * Lets a merchant view detect an activeOrg/order mismatch.
+   */
+  storeOrgId?: string | null;
+  /**
+   * Buyer contact resolved server-side by `attachBuyerContacts` from the
+   * order's own `buyerId`, so the merchant queue no longer depends on the
+   * cached org-scoped customers directory for labels. Null when the buyer
+   * row cannot be read (deleted user) or when a spec mock lacks `query.users`.
+   */
+  buyerName?: string | null;
+  buyerPhone?: string | null;
+  buyerEmail?: string | null;
 }
 
 export interface OrderItem {
