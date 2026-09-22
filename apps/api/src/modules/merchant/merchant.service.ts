@@ -220,7 +220,7 @@ export class MerchantService {
   }
 
   async updateStore(storeId: string, input: UpdateStoreInput) {
-    const store = await this.getStore(storeId);
+    await this.getStore(storeId);
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (input.displayName !== undefined) updates['displayName'] = input.displayName;

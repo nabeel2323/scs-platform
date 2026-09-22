@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet, jsonb, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, boolean, timestamp, text, inet, jsonb, integer } from 'drizzle-orm/pg-core';
 
 /**
  * Platform infrastructure schema (migration 0002_platform)

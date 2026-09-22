@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { eq, and, lt, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 /**
  * Outbox Dispatcher — polls outbox_events for PENDING events and dispatches them.

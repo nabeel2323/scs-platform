@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, smallint, boolean, integer, jsonb, timestamp, numeric, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, smallint, boolean, integer, jsonb, timestamp, numeric } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { orders } from '../orders/orders.schema';
 

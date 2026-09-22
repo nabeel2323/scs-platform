@@ -351,7 +351,7 @@ class TierLadder extends StatelessWidget {
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(7))),
           child: const Text('QUANTITY TIERS',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: TaifTokens.muted,

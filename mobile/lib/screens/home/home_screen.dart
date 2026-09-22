@@ -36,7 +36,7 @@ class HomeScreen extends ConsumerWidget {
               await ref.read(authStorageProvider).clearTokens();
               ref.read(apiClientProvider).clearAccessToken();
               ref.read(isAuthenticatedProvider.notifier).state = false;
-              context.go('/login');
+              if (context.mounted) context.go('/login');
             }),
       ]),
       body: ListView(padding: const EdgeInsets.all(16), children: [

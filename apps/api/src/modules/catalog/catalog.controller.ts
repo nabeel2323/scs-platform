@@ -21,7 +21,7 @@ import {
   AddMediaInput,
   CreateImportJobInput,
 } from './catalog.service';
-import { SearchService, SearchOptions } from './search.service';
+import { SearchService } from './search.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {

@@ -245,7 +245,7 @@ export class DisputesService {
     });
   }
 
-  async markMessagesRead(conversationId: string, userId: string) {
+  async markMessagesRead(conversationId: string, _userId: string) {
     await this.db.db
       .update(messages)
       .set({ isRead: true })

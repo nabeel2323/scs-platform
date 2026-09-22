@@ -10,7 +10,7 @@ import {
   assertWarehouseInOrg,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
-import { eq, and, lte, desc, inArray } from 'drizzle-orm';
+import { eq, and, lte, desc, inArray, count } from 'drizzle-orm';
 import { productVariants } from '../catalog/catalog.schema';
 import { products } from '../catalog/catalog.schema';
 import crypto from 'node:crypto';
@@ -120,15 +120,22 @@ export class InventoryService {
 
   // ── Store-level queries ──────────────────────────────────────
 
-  async listByStore(storeId: string) {
+  async listByStore(storeId: string, paging?: { limit: number; offset: number }) {
     const whs = await this.db.db.query.warehouses.findMany({
       where: eq(warehouses.storeId, storeId),
       columns: { id: true },
     });
-    if (whs.length === 0) return [];
-    return this.db.db.query.inventoryItems.findMany({
-      where: inArray(inventoryItems.warehouseId, whs.map(w => w.id)),
-    });
+    if (whs.length === 0) return { data: [], total: 0 };
+    const whIds = whs.map(w => w.id);
+    const [data, totalRows] = await Promise.all([
+      this.db.db.query.inventoryItems.findMany({
+        where: inArray(inventoryItems.warehouseId, whIds),
+        limit: paging?.limit ?? 50,
+        offset: paging?.offset ?? 0,
+      }),
+      this.db.db.select({ count: count() }).from(inventoryItems).where(inArray(inventoryItems.warehouseId, whIds)),
+    ]);
+    return { data, total: totalRows[0]?.count ?? 0 };
   }
 
   /**

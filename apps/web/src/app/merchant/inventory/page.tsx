@@ -75,6 +75,11 @@ function InventoryPageContent() {
   // Low-stock check
   const [lowStockChecking, setLowStockChecking] = useState(false);
 
+  // Pagination
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState(0);
+
   const loadInventory = useCallback(async (warehouseId: string) => {
     if (!warehouseId) return;
     setLoading(true);
@@ -87,14 +92,16 @@ function InventoryPageContent() {
     }
   }, []);
 
-  const loadVariantInventory = useCallback(async (variantId: string) => {
+  const loadVariantInventory = useCallback(async (variantId: string, p = 0) => {
     setLoading(true);
     try {
       // Fetch inventory across all warehouses for this variant
       // Use store-level inventory and filter client-side
       if (storeId) {
-        const all = await fetchStoreInventory(storeId);
-        setItems(all.filter(i => i.variantId === variantId));
+        const { data } = await fetchStoreInventory(storeId, { limit: 500, offset: 0 });
+        const filtered = data.filter(i => i.variantId === variantId);
+        setTotal(filtered.length);
+        setItems(filtered.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE));
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load variant inventory');
@@ -103,11 +110,13 @@ function InventoryPageContent() {
     }
   }, [storeId]);
 
-  const loadAllInventory = useCallback(async () => {
+  const loadAllInventory = useCallback(async (p = 0) => {
     if (!storeId) return;
     setLoading(true);
     try {
-      setItems(await fetchStoreInventory(storeId));
+      const { data, total: t } = await fetchStoreInventory(storeId, { limit: PAGE_SIZE, offset: p * PAGE_SIZE });
+      setItems(data);
+      setTotal(t);
     } catch (err: any) {
       setError(err.message || 'Failed to load inventory');
     } finally {
@@ -394,7 +403,7 @@ function InventoryPageContent() {
           <Link href="/merchant" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>&larr; Back to Dashboard</Link>
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: '8px 0 0', letterSpacing: '-0.3px' }}>Inventory</h1>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-            Stock levels{selectedWh ? ` — ${items.length} items` : ''}
+            Stock levels{viewMode === 'all' ? ` — ${total} items` : selectedWh ? ` — ${items.length} items` : ''}
             {items.filter(isLowStock).length > 0 && (
               <span style={{ color: '#fca5a5', fontWeight: 600 }}> ({items.filter(isLowStock).length} low stock)</span>
             )}
@@ -511,6 +520,26 @@ function InventoryPageContent() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {total > PAGE_SIZE && !loading && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={() => { const p = Math.max(0, page - 1); setPage(p); if (viewMode === 'all') loadAllInventory(p); else if (variantFilter) loadVariantInventory(variantFilter, p); }}
+                disabled={page === 0}
+                style={ghostBtn}
+              >&larr; Prev</button>
+              <span style={{ fontSize: 13, color: '#5b6b74' }}>
+                Page {page + 1} of {Math.ceil(total / PAGE_SIZE)}
+                <span style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8' }}>({total} items)</span>
+              </span>
+              <button
+                onClick={() => { const p = page + 1; setPage(p); if (viewMode === 'all') loadAllInventory(p); else if (variantFilter) loadVariantInventory(variantFilter, p); }}
+                disabled={(page + 1) * PAGE_SIZE >= total}
+                style={ghostBtn}
+              >Next &rarr;</button>
             </div>
           )}
         </>

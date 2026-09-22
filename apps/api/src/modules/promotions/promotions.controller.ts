@@ -7,8 +7,6 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
-  CurrentUser,
-  JwtPayload,
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 

@@ -24,7 +24,7 @@ class StoresListScreen extends ConsumerWidget {
                     return Card(
                         child: ListTile(
                             leading: const CircleAvatar(
-                                child: const Icon(Icons.storefront,
+                                child: Icon(Icons.storefront,
                                     color: TaifTokens.brandPrimary)),
                             title: Text(s.displayName,
                                 style: const TextStyle(

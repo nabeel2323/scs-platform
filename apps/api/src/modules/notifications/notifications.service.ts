@@ -290,7 +290,7 @@ export class NotificationsService implements OnModuleInit {
       .where(eq(notifications.id, notificationId));
   }
 
-  private async sendWhatsApp(notificationId: string, userId: string, body: string) {
+  private async sendWhatsApp(notificationId: string, _userId: string, _body: string) {
     // Placeholder — in production, integrate WhatsApp Business API
     await this.db.db
       .update(notifications)
@@ -300,18 +300,18 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Provider Stubs ───────────────────────────────────────────
 
-  private async smsProviderPrimary(phone: string, body: string): Promise<string> {
+  private async smsProviderPrimary(_phone: string, _body: string): Promise<string> {
     // In production: call primary SMS API (e.g., Unifonic, Twilio)
     // For now, simulate success
     return `primary-${crypto.randomUUID().slice(0, 8)}`;
   }
 
-  private async smsProviderFallback(phone: string, body: string): Promise<string> {
+  private async smsProviderFallback(_phone: string, _body: string): Promise<string> {
     // In production: call fallback SMS API
     return `fallback-${crypto.randomUUID().slice(0, 8)}`;
   }
 
-  private async fcmSend(tokens: string[], title: string, body: string): Promise<string> {
+  private async fcmSend(_tokens: string[], _title: string, _body: string): Promise<string> {
     // In production: use firebase-admin SDK
     // admin.messaging().sendEachForMulticast({ tokens, notification: { title, body } })
     return `fcm-${crypto.randomUUID().slice(0, 8)}`;
