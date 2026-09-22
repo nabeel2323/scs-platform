@@ -729,6 +729,28 @@ export async function fetchMerchantCustomers(): Promise<CustomerSummary[]> {
   return res.json();
 }
 
+/**
+ * Cached buyer-directory lookup for order rows.
+ *
+ * The orders list endpoint returns only `buyerId` (A5-16), so buyer names and
+ * phone numbers come from the org-scoped customers endpoint
+ * (GET /v1/merchant/customers), which joins the users table. Results are
+ * cached in-module for 60s so revisits and re-renders do not refetch. The
+ * cache is deliberately not invalidated on order transitions: names and
+ * phone numbers do not change when an order status does.
+ */
+let customersCache: { data: CustomerSummary[]; at: number } | null = null;
+const CUSTOMERS_CACHE_TTL_MS = 60_000;
+
+export async function fetchMerchantCustomersCached(): Promise<CustomerSummary[]> {
+  if (customersCache && Date.now() - customersCache.at < CUSTOMERS_CACHE_TTL_MS) {
+    return customersCache.data;
+  }
+  const data = await fetchMerchantCustomers();
+  customersCache = { data, at: Date.now() };
+  return data;
+}
+
 // ── Merchant Catalog Management ──────────────────────────────
 
 export interface MediaItem {

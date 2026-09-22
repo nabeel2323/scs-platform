@@ -334,29 +334,25 @@ export class IdentityService {
     // PermissionsGuard enforces for this token, including after switchOrg.
     const resolvedActiveOrgId = activeOrgId ?? memberships[0]?.orgId ?? null;
     const activeMembership = memberships.find((m) => m.orgId === resolvedActiveOrgId);
+
+    // Mirror buildClaims: a user with no active membership is still a BUYER,
+    // so fall back to the seeded BUYER role instead of leaving the permission
+    // keys empty — these keys drive client-side gating (RBAC audit GAP-6).
+    let roleId = activeMembership?.roleId ?? null;
     let role = 'BUYER';
-    if (activeMembership?.roleId) {
+    if (roleId) {
       const activeRole = await this.db.db.query.roles.findFirst({
-        where: eq(roles.id, activeMembership.roleId),
+        where: eq(roles.id, roleId),
       });
       if (activeRole) role = activeRole.key;
+    } else {
+      const buyerRole = await this.db.db.query.roles.findFirst({
+        where: eq(roles.key, 'BUYER'),
+      });
+      roleId = buyerRole?.id ?? null;
     }
 
-    // Resolve the user's permission keys for the active role so clients can
-    // perform client-side gating without decoding the JWT (RBAC audit GAP-6).
-    const perms: string[] = [];
-    if (activeMembership?.roleId) {
-      const rolePerms = await this.db.db.query.rolePermissions.findMany({
-        where: eq(rolePermissions.roleId, activeMembership.roleId),
-      });
-      const permIds = rolePerms.map((rp) => rp.permissionId);
-      if (permIds.length > 0) {
-        const permRows = await this.db.db.query.permissions.findMany({
-          where: inArray(permissions.id, permIds),
-        });
-        for (const p of permRows) perms.push(p.key);
-      }
-    }
+    const perms = await this.permissionsForRole(roleId);
 
     return {
       id: user.id,
@@ -1176,31 +1172,51 @@ export class IdentityService {
     const activeOrgId = preferredOrgId || memberships[0]?.orgId || null;
     const activeMembership = memberships.find((m) => m.orgId === activeOrgId);
 
-    // Resolve role
+    // Resolve the role and its permission set.
+    //
+    // A user with no organization membership (e.g. a freshly registered buyer
+    // who has not yet created or joined an org) still acts as a BUYER, so
+    // roleKey defaults to 'BUYER'. Their permissions MUST follow that role:
+    // leaving `perms` empty makes PermissionsGuard reject every buyer action —
+    // checkout included — with 403 "Missing required permissions: orders:write",
+    // because the guard reads this array straight from the JWT. So when no
+    // membership binds a roleId we fall back to the seeded BUYER role and load
+    // its permissions exactly as we would for any membership-bound role.
+    let roleId = activeMembership?.roleId ?? null;
     let roleKey = 'BUYER';
-    if (activeMembership?.roleId) {
+    if (roleId) {
       const role = await this.db.db.query.roles.findFirst({
-        where: eq(roles.id, activeMembership.roleId),
+        where: eq(roles.id, roleId),
       });
       if (role) roleKey = role.key;
-    }
-
-    // Resolve permissions in a single batched query (avoids N+1: was 1 query per role_permission).
-    const permissionList: string[] = [];
-    if (activeMembership?.roleId) {
-      const rolePerms = await this.db.db.query.rolePermissions.findMany({
-        where: eq(rolePermissions.roleId, activeMembership.roleId),
+    } else {
+      const buyerRole = await this.db.db.query.roles.findFirst({
+        where: eq(roles.key, 'BUYER'),
       });
-
-      const permIds = rolePerms.map((rp) => rp.permissionId);
-      if (permIds.length > 0) {
-        const perms = await this.db.db.query.permissions.findMany({
-          where: inArray(permissions.id, permIds),
-        });
-        for (const perm of perms) permissionList.push(perm.key);
-      }
+      roleId = buyerRole?.id ?? null;
     }
+
+    const permissionList = await this.permissionsForRole(roleId);
 
     return { activeOrgId, roleKey, permissions: permissionList };
+  }
+
+  /**
+   * Load a role's permission keys via role_permissions -> permissions in a
+   * single batched query (no N+1). Shared by buildClaims and getProfile so the
+   * JWT `perms` claim and the profile's client-side gating keys never diverge.
+   * Returns [] for a null/unknown role or a role with no grants.
+   */
+  private async permissionsForRole(roleId: string | null): Promise<string[]> {
+    if (!roleId) return [];
+    const rolePerms = await this.db.db.query.rolePermissions.findMany({
+      where: eq(rolePermissions.roleId, roleId),
+    });
+    const permIds = rolePerms.map((rp) => rp.permissionId);
+    if (permIds.length === 0) return [];
+    const perms = await this.db.db.query.permissions.findMany({
+      where: inArray(permissions.id, permIds),
+    });
+    return perms.map((p) => p.key);
   }
 }

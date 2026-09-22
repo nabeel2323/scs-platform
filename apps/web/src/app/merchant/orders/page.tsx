@@ -1,11 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { fetchOrders, acceptMerchantOrder, rejectMerchantOrder, transitionOrderStatus, SubOrder, OrderItem } from '../../../lib/buyer-api';
+import {
+  fetchOrders,
+  acceptMerchantOrder,
+  rejectMerchantOrder,
+  transitionOrderStatus,
+  fetchMerchantCustomersCached,
+  SubOrder,
+  OrderItem,
+} from '../../../lib/buyer-api';
 import { fetchMyStores, Store } from '../../../lib/api';
 import { pickStore, rememberStoreId } from '../../../lib/merchant-store';
-import { StatusBadge, formatMinor, formatDate, EmptyState, LoadingSpinner, ErrorBanner } from '../../../components/Shared';
+import {
+  StatusBadge,
+  formatMinor,
+  formatDateCompact,
+  EmptyState,
+  LoadingSpinner,
+  ErrorBanner,
+} from '../../../components/Shared';
 
 // Merchant cancellation is a transition to CANCELLED via merchant:orders:write —
 // the backend FSM allows it from PENDING_CONFIRMATION through READY
@@ -13,6 +28,50 @@ import { StatusBadge, formatMinor, formatDate, EmptyState, LoadingSpinner, Error
 // dedicated /orders/:id/cancel endpoint is not available to them.
 const MERCHANT_CANCELLABLE = ['PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY'];
 const isCancellable = (status: string) => MERCHANT_CANCELLABLE.includes(status);
+
+// Status dropdown for the filter bar. Each option maps to the concrete order
+// statuses it matches: "Pending Confirmation" also covers SUBMITTED (it
+// auto-advances seconds after checkout) and "Accepted" covers its
+// partially-accepted sibling; everything else is an exact match. REJECTED
+// orders stay reachable through "All statuses".
+const STATUS_FILTER_OPTIONS: { value: string; label: string; statuses: string[] }[] = [
+  { value: 'ALL', label: 'All statuses', statuses: [] },
+  { value: 'PENDING_CONFIRMATION', label: 'Pending Confirmation', statuses: ['SUBMITTED', 'PENDING_CONFIRMATION'] },
+  { value: 'ACCEPTED', label: 'Accepted', statuses: ['ACCEPTED', 'PARTIALLY_ACCEPTED'] },
+  { value: 'PREPARING', label: 'Preparing', statuses: ['PREPARING'] },
+  { value: 'READY', label: 'Ready', statuses: ['READY'] },
+  { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', statuses: ['OUT_FOR_DELIVERY'] },
+  { value: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
+  { value: 'COMPLETED', label: 'Completed', statuses: ['COMPLETED'] },
+  { value: 'CANCELLED', label: 'Cancelled', statuses: ['CANCELLED'] },
+];
+
+// Resolved buyer label for an order row. The orders list endpoint returns only
+// buyerId (A5-16), so names/phones come from the org-scoped customers
+// directory (GET /v1/merchant/customers, cached in buyer-api) and degrade to
+// the ID prefix for buyers the directory does not know (e.g. buyers whose
+// only orders were cancelled/rejected are excluded there).
+function buyerNameOf(
+  buyerMap: Record<string, { buyerName: string | null; buyerPhone: string | null }>,
+  buyerId: string,
+): string {
+  return buyerMap[buyerId]?.buyerName || `Buyer ${buyerId.slice(0, 8)}`;
+}
+
+/** One-line buyer identity for an order row: name + phone, degrading to the ID prefix. */
+function BuyerLine({ buyers, buyerId }: {
+  buyers: Record<string, { buyerName: string | null; buyerPhone: string | null }>;
+  buyerId: string;
+}) {
+  const buyer = buyers[buyerId];
+  return (
+    <div style={{ fontSize: 12, marginTop: 2 }}>
+      <span style={{ color: '#5b6b74' }}>Buyer: </span>
+      <span style={{ fontWeight: 600, color: '#0f3340' }}>{buyerNameOf(buyers, buyerId)}</span>
+      {buyer?.buyerPhone && <span style={{ color: '#5b6b74' }}> · {buyer.buyerPhone}</span>}
+    </div>
+  );
+}
 
 export default function MerchantOrdersPage() {
   const [orders, setOrders] = useState<SubOrder[]>([]);
@@ -26,6 +85,20 @@ export default function MerchantOrdersPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [cancelId, setCancelId] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+
+  // Buyer directory (buyerId → name/phone), loaded once per org; orders only
+  // carry buyerId, so the labels resolve from GET /v1/merchant/customers.
+  const [buyers, setBuyers] = useState<Record<string, { buyerName: string | null; buyerPhone: string | null }>>({});
+
+  // ── Filter state (client-side only; no query parameters reach the API) ──
+  // searchInput is the live field value, debouncedSearch feeds the predicate
+  // so typing does not re-filter on every keystroke. dateFrom/dateTo are
+  // yyyy-mm-dd strings from the native date inputs.
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const load = async (sid: string) => {
     try {
@@ -43,6 +116,17 @@ export default function MerchantOrdersPage() {
 
   useEffect(() => {
     (async () => {
+      // Buyer labels resolve best-effort: a directory failure only degrades
+      // rows to "Buyer {id}" — it must not break the orders load.
+      fetchMerchantCustomersCached()
+        .then((list) => {
+          const map: Record<string, { buyerName: string | null; buyerPhone: string | null }> = {};
+          for (const c of list) {
+            map[c.buyerId] = { buyerName: c.buyerName, buyerPhone: c.buyerPhone };
+          }
+          setBuyers(map);
+        })
+        .catch(() => { /* labels degrade to buyer IDs */ });
       try {
         const list = await fetchMyStores();
         setStores(list);
@@ -109,13 +193,69 @@ export default function MerchantOrdersPage() {
     } catch (err: any) { setError(err.message || 'Cancel failed'); }
   };
 
-  if (loading) return <LoadingSpinner />;
+  // 300ms debounce between the search field and the filter predicate.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Client-side filtering across every section. GET /v1/orders exposes only
+  // status/storeId params and returns rows without items (A5-16), so text
+  // matching covers order ID, buyer ID/name/phone, and product titles
+  // whenever a row happens to carry its items.
+  const filteredOrders = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    const statusOpt = STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter);
+    return orders.filter((o) => {
+      if (statusOpt && statusOpt.statuses.length > 0 && !statusOpt.statuses.includes(o.status)) return false;
+      if (dateFrom && new Date(o.createdAt) < new Date(`${dateFrom}T00:00:00`)) return false;
+      if (dateTo && new Date(o.createdAt) > new Date(`${dateTo}T23:59:59.999`)) return false;
+      if (q) {
+        const items = (Array.isArray(o.items) ? o.items : []) as OrderItem[];
+        const haystack = [
+          o.id,
+          o.buyerId,
+          buyerNameOf(buyers, o.buyerId),
+          buyers[o.buyerId]?.buyerPhone || '',
+          ...items.map((it) => it.title),
+        ].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [orders, statusFilter, dateFrom, dateTo, debouncedSearch, buyers]);
 
   // SUBMITTED auto-advances to PENDING_CONFIRMATION seconds after checkout, so
   // both statuses mean "waiting for the merchant to respond".
-  const pendingOrders = orders.filter(o => ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(o.status));
-  const activeOrders = orders.filter(o => !['SUBMITTED', 'PENDING_CONFIRMATION', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status));
-  const completedOrders = orders.filter(o => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status));
+  const pendingOrders = filteredOrders.filter(o => ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(o.status));
+  const activeOrders = filteredOrders.filter(o => !['SUBMITTED', 'PENDING_CONFIRMATION', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status));
+  const completedOrders = filteredOrders.filter(o => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(o.status));
+
+  // Active-filter chips with per-chip removal; "Clear All" sits beside them.
+  const activeFilters = useMemo(() => {
+    const chips: { key: string; label: string; clear: () => void }[] = [];
+    if (debouncedSearch) {
+      chips.push({ key: 'q', label: `Search: ${searchInput.trim()}`, clear: () => setSearchInput('') });
+    }
+    if (statusFilter !== 'ALL') {
+      const label = STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label || statusFilter;
+      chips.push({ key: 'status', label: `Status: ${label}`, clear: () => setStatusFilter('ALL') });
+    }
+    if (dateFrom) {
+      chips.push({ key: 'from', label: `From: ${formatDateCompact(`${dateFrom}T00:00:00`)}`, clear: () => setDateFrom('') });
+    }
+    if (dateTo) {
+      chips.push({ key: 'to', label: `To: ${formatDateCompact(`${dateTo}T00:00:00`)}`, clear: () => setDateTo('') });
+    }
+    return chips;
+  }, [debouncedSearch, searchInput, statusFilter, dateFrom, dateTo]);
+
+  const clearAllFilters = () => {
+    setSearchInput('');
+    setStatusFilter('ALL');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   // Mirrors the backend FSM matrix (orders.service TRANSITIONS); the legacy
   // CONFIRMED status no longer exists. CANCELLED renders through the dedicated
@@ -132,8 +272,18 @@ export default function MerchantOrdersPage() {
     return map[status] || [];
   };
 
+  const inputStyle: React.CSSProperties = { padding: '6px 10px', fontSize: 13, border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', color: '#0f3340' };
+
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .mo-filterbar { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
+          .mo-filterbar > * { flex: 0 0 auto; }
+          .mo-card-head { flex-direction: column !important; align-items: stretch !important; }
+          .mo-row-actions { justify-content: flex-start !important; }
+        }
+      `}</style>
       {/* Header Banner */}
       <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
         <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Merchant Orders</h1>
@@ -154,7 +304,7 @@ export default function MerchantOrdersPage() {
             id="store-switcher"
             value={storeId}
             onChange={(e) => handleSwitchStore(e.target.value)}
-            style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', color: '#0f3340' }}
+            style={inputStyle}
           >
             {stores.map((s) => (
               <option key={s.id} value={s.id}>
@@ -173,18 +323,106 @@ export default function MerchantOrdersPage() {
         />
       )}
 
+      {/* Search & Filter bar — client-side only: GET /v1/orders has no search
+          or date-range query params, so the API call shape is unchanged. */}
+      {!noStore && orders.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>Search &amp; Filter</span>
+            <span style={{ fontSize: 12, color: '#5b6b74' }}>
+              Showing {filteredOrders.length} of {orders.length} orders
+            </span>
+          </div>
+          <div className="mo-filterbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <input
+              type="search"
+              placeholder="Search by order ID, buyer, or product…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              aria-label="Search orders"
+              style={{ ...inputStyle, flex: '1 1 220px', minWidth: 200, padding: '8px 10px' }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
+              style={inputStyle}
+            >
+              {STATUS_FILTER_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b74' }}>
+              From
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => setDateFrom(e.target.value)}
+                aria-label="Created from"
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b74' }}>
+              To
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+                aria-label="Created to"
+                style={inputStyle}
+              />
+            </label>
+            <button
+              onClick={clearAllFilters}
+              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}
+            >
+              Clear Filters
+            </button>
+          </div>
+          {activeFilters.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e5ebee' }}>
+              {activeFilters.map((f) => (
+                <span
+                  key={f.key}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eef4f6', border: '1px solid #cfe0e7', borderRadius: 12, padding: '2px 10px', fontSize: 12, color: '#0f3340' }}
+                >
+                  {f.label}
+                  <button
+                    onClick={f.clear}
+                    aria-label={`Remove filter ${f.label}`}
+                    style={{ background: 'none', border: 'none', color: '#5b6b74', fontSize: 13, lineHeight: 1, padding: 0, cursor: 'pointer' }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={clearAllFilters}
+                style={{ background: 'none', border: 'none', color: '#1e6178', fontSize: 12, fontWeight: 600, textDecoration: 'underline', padding: 0, cursor: 'pointer' }}
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Pending orders */}
       {pendingOrders.length > 0 && (
         <div style={{ marginBottom: 32 }}>
           <h2 style={{ fontSize: 16, fontWeight: 600, color: '#92400e', marginBottom: 12 }}>Pending Acceptance ({pendingOrders.length})</h2>
           {pendingOrders.map(order => (
             <div key={order.id} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: 16, marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="mo-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
-                  <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDate(order.createdAt)} · {order.itemCount ?? 0} {order.itemCount === 1 ? 'item' : 'items'} · {formatMinor(order.totalMinor, order.currency)}</div>
+                  <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDateCompact(order.createdAt)} · {order.itemCount ?? 0} {order.itemCount === 1 ? 'item' : 'items'} · {formatMinor(order.totalMinor, order.currency)}</div>
+                  <BuyerLine buyers={buyers} buyerId={order.buyerId} />
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <StatusBadge status={order.status} />
                   <button onClick={() => handleAccept(order.id)} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Accept</button>
                   <button onClick={() => { setRejectId(order.id); setRejectReason(''); setCancelId(''); }} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>Reject</button>
                   {isCancellable(order.status) && (
@@ -219,12 +457,13 @@ export default function MerchantOrdersPage() {
             const nextStatuses = getNextStatuses(order.status);
             return (
               <div key={order.id} style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16, marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="mo-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   <div>
                     <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
-                    <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDate(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}</div>
+                    <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDateCompact(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}</div>
+                    <BuyerLine buyers={buyers} buyerId={order.buyerId} />
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <StatusBadge status={order.status} />
                     {nextStatuses.filter(ns => ns !== 'CANCELLED').map(ns => (
                       <button key={ns} onClick={() => handleTransition(order.id, ns)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
@@ -254,12 +493,17 @@ export default function MerchantOrdersPage() {
         <div>
           <h2 style={{ fontSize: 16, fontWeight: 600, color: '#5b6b74', marginBottom: 12 }}>Completed ({completedOrders.length})</h2>
           {completedOrders.map(order => (
-            <div key={order.id} style={{ background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 10, padding: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Link href={`/merchant/orders/${order.id}`} style={{ textDecoration: 'none' }}>
-                <span style={{ fontSize: 13, color: '#0f3340', fontWeight: 600 }}>Order #{order.id.slice(0, 8)}</span>
-                <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 8 }}>{formatDate(order.createdAt)}</span>
+            <div key={order.id} className="mo-card-head" style={{ background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 10, padding: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <Link href={`/merchant/orders/${order.id}`} style={{ textDecoration: 'none' }}>
+                  <span style={{ fontSize: 13, color: '#0f3340', fontWeight: 600 }}>Order #{order.id.slice(0, 8)}</span>
+                </Link>
                 <span style={{ fontSize: 11, color: '#1e6178', marginLeft: 8 }}>View details →</span>
-              </Link>
+                <div style={{ fontSize: 12, color: '#5b6b74', marginTop: 2 }}>
+                  {formatDateCompact(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}
+                </div>
+                <BuyerLine buyers={buyers} buyerId={order.buyerId} />
+              </div>
               <StatusBadge status={order.status} />
             </div>
           ))}
@@ -267,6 +511,20 @@ export default function MerchantOrdersPage() {
       )}
 
       {!noStore && orders.length === 0 && <EmptyState title="No orders yet" description="Orders from buyers will appear here." />}
+      {!noStore && orders.length > 0 && filteredOrders.length === 0 && (
+        <EmptyState
+          title="No orders match your filters"
+          description="Try a different search term or clear the filters."
+          action={(
+            <button
+              onClick={clearAllFilters}
+              style={{ display: 'inline-block', padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+            >
+              Clear Filters
+            </button>
+          )}
+        />
+      )}
       </div>
     </div>
   );

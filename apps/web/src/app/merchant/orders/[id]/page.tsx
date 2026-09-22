@@ -9,6 +9,7 @@ import {
   acceptMerchantOrder,
   rejectMerchantOrder,
   transitionOrderStatus,
+  fetchMerchantCustomersCached,
   OrderItem,
   StatusHistoryEntry,
 } from '../../../../lib/buyer-api';
@@ -72,6 +73,9 @@ export default function MerchantOrderDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
+  // Buyer identity resolved from the org customers directory (cached); the
+  // order payload itself only carries buyerId.
+  const [buyer, setBuyer] = useState<{ name: string | null; phone: string | null } | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -98,6 +102,22 @@ export default function MerchantOrderDetailPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, user, authLoading]);
+
+  // Resolve the buyer's name/phone once the order (and its buyerId) is known.
+  // Best-effort: a directory failure leaves the ID chip as the label.
+  useEffect(() => {
+    const buyerId = order?.buyerId;
+    if (!buyerId) return;
+    let cancelled = false;
+    fetchMerchantCustomersCached()
+      .then((list) => {
+        if (cancelled) return;
+        const b = list.find((c) => c.buyerId === buyerId);
+        if (b) setBuyer({ name: b.buyerName, phone: b.buyerPhone });
+      })
+      .catch(() => { /* degrade to the ID chip */ });
+    return () => { cancelled = true; };
+  }, [order?.buyerId]);
 
   const reload = async () => {
     try {
@@ -188,7 +208,10 @@ export default function MerchantOrderDetailPage() {
               {formatDate(order.createdAt)} &middot; {order.fulfillmentMethod.replace(/_/g, ' ')}
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
-              Buyer: <code style={{ fontSize: 12, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>{order.buyerId.slice(0, 8)}</code>
+              Buyer: {buyer?.name
+                ? <span style={{ fontWeight: 600 }}>{buyer.name}</span>
+                : <code style={{ fontSize: 12, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>{order.buyerId.slice(0, 8)}</code>}
+              {buyer?.phone && <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>{buyer.phone}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>

@@ -126,6 +126,7 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
 
   return (
     <div onKeyDown={handleKeyDown} tabIndex={0} role="region" aria-label="Product image gallery" style={{ outline: 'none' }}>
+      <div className="pd-gallery-layout">
       {/* Main image — mouse-follow zoom (Amazon-style magnification) */}
       <div
         ref={mainRef}
@@ -231,6 +232,7 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
           })}
         </div>
       )}
+      </div>
       {images.length > 0 && visible.length === 0 && (
         <div style={{ fontSize: 12, color: '#92400e', marginTop: 8 }}>Product images are temporarily unavailable.</div>
       )}
@@ -312,14 +314,21 @@ export default function ProductDetailPage() {
         display: flex; align-items: center; justify-content: center; overflow: hidden;
         position: relative; cursor: zoom-in;
       }
+      .pd-gallery-layout { display: block; }
       .pd-gallery-thumbs {
-        display: flex; gap: 8; margin-top: 10px; overflow-x: auto; padding-bottom: 4px;
+        display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px;
       }
       @media (max-width: 768px) {
         .pd-detail-grid { grid-template-columns: 1fr !important; }
         .pd-gallery-main { height: 320px; }
         .pd-gallery-placeholder { height: 320px; }
-        .pd-gallery-thumbs { gap: 6px; }
+        /* Amazon mobile pattern: vertical scrolling thumbnail rail beside the main image */
+        .pd-gallery-layout { display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 8px; }
+        .pd-gallery-layout .pd-gallery-main { flex: 1; min-width: 0; }
+        .pd-gallery-thumbs {
+          flex-direction: column; flex-wrap: nowrap; gap: 6px; margin-top: 0;
+          overflow-x: visible; overflow-y: auto; max-height: 320px; width: 62px; flex-shrink: 0; padding-right: 2px;
+        }
       }
     `}</style>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
