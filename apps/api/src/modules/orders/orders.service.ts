@@ -24,7 +24,7 @@ import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
-import { organizationMembers, users } from '../identity/identity.schema';
+import { organizationMembers } from '../identity/identity.schema';
 import {
   computeOrderFinancials,
   resolveDeliveryFeeMinor,
@@ -32,7 +32,7 @@ import {
   DEFAULT_COMMISSION_RATE,
   DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
 } from './order-pricing';
-import { attachItemCounts, attachOrderIdentity, totalsByCurrency } from './order-identity';
+import { attachBuyerContacts, attachItemCounts, attachOrderIdentity, totalsByCurrency } from './order-identity';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import {
@@ -718,28 +718,19 @@ export class OrdersService {
     });
     // Every amount on the response — the totals, the lines, the breakdown — is in
     // this currency, which is why it is resolved once here rather than per line.
-    const [identified] = await attachOrderIdentity(this.db.db, [order]);
+    const identified = (await attachOrderIdentity(this.db.db, [order]))[0]!;
     // Buyer contact resolved from the authoritative users row by the order's own
-    // buyerId, so the merchant order view renders the buyer directly instead of
-    // depending on the cached, org-scoped, status-filtered customers directory
-    // (which can miss a buyer when the viewing org differs from the fulfilling
-    // store's org). The caller already passed assertOrderAccessible above and the
-    // customers endpoint exposes the same fields, so this is not a new
-    // disclosure. The optional chaining keeps mock-DB specs (no `query.users`) green.
-    const buyer = order['buyerId']
-      ? await this.db.db.query.users?.findFirst?.({
-          where: eq(users.id, order['buyerId'] as string),
-          columns: { fullName: true, phone: true, email: true },
-        })
-      : null;
+    // buyerId via the shared helper, so the merchant order view renders the buyer
+    // directly instead of depending on the cached, org-scoped, status-filtered
+    // customers directory (which can miss a buyer when the viewing org differs
+    // from the fulfilling store's org). The caller already passed
+    // assertOrderAccessible above and the customers endpoint exposes the same
+    // fields, so this is not a new disclosure.
+    const enriched = (await attachBuyerContacts(this.db.db, [identified]))[0]!;
     return {
-      ...order,
-      ...identified,
+      ...enriched,
       items,
       financialBreakdown: breakdown,
-      buyerName: buyer?.fullName ?? null,
-      buyerPhone: buyer?.phone ?? null,
-      buyerEmail: buyer?.email ?? null,
     };
   }
 
@@ -763,7 +754,12 @@ export class OrdersService {
     const identified = await attachOrderIdentity(this.db.db, rows);
     // These rows carry no `items`, so the count is what the cards can honestly
     // show instead of `items?.length` (A5-16).
-    return attachItemCounts(this.db.db, identified);
+    const counted = await attachItemCounts(this.db.db, identified);
+    // Buyer contact resolution moved server-side so the merchant queue stops
+    // degrading to "Buyer <id>" when the org-scoped customers directory misses
+    // a first-time buyer, a mismatched activeOrg, or a cancelled-only history.
+    // One batched users read for the whole page.
+    return attachBuyerContacts(this.db.db, counted);
   }
 
   async getStatusHistory(orderId: string, caller?: CallerContext) {

@@ -1,5 +1,6 @@
 import { inArray, sql } from 'drizzle-orm';
 import { stores } from '../merchant/merchant.schema';
+import { users } from '../identity/identity.schema';
 import { orderItems } from './orders.schema';
 import type { DatabaseService } from '../../common/database/database.service';
 
@@ -82,6 +83,82 @@ export async function attachOrderIdentity<T extends OrderIdentitySource>(
       storeOrgId: store?.['orgId'] ?? null,
       currency: snapshot ?? store?.['currency'] ?? FALLBACK_ORDER_CURRENCY,
       currencyFromSnapshot: snapshot !== null,
+    };
+  });
+}
+
+/**
+ * Buyer contact batch resolver for list and detail order responses.
+ *
+ * Order rows carry only a `buyerId`, which forced the merchant list to
+ * reconstruct names/phones from `GET /v1/merchant/customers` — an org-scoped,
+ * status-filtered, 60-second-cached directory that misses (a) buyers whose
+ * first order arrived seconds ago, (b) buyers under a mismatched activeOrg,
+ * and (c) buyers whose only orders are CANCELLED/REJECTED. Resolving here
+ * makes the response authoritative for contact display: the order's own
+ * `buyerId` is the same value `assertOrderAccessible` already authorised for
+ * this caller, and the customers endpoint exposes the identical fields, so
+ * there is no new disclosure surface. One batched `users` read per page, not
+ * one per row.
+ *
+ * `db.query.users` is accessed through optional chaining because unit-spec
+ * fixtures commonly omit it — a mock `db` that only knows about `stores`
+ * returns `{}` for `db.query`, and the short-circuit preserves a graceful
+ * null-degrade path rather than crashing. Real `DatabaseService` always has
+ * `users` (it is a top-level `relations` target), so production callers get
+ * the full record.
+ */
+export interface BuyerContact {
+  buyerName: string | null;
+  buyerPhone: string | null;
+  buyerEmail: string | null;
+}
+
+export async function attachBuyerContacts<T extends { buyerId?: string | null }>(
+  db: Db,
+  rows: T[],
+): Promise<Array<T & BuyerContact>> {
+  if (rows.length === 0) return [];
+
+  const buyerIds = [
+    ...new Set(
+      rows
+        .map(row => row.buyerId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+  type UserContactRow = {
+    id: string;
+    fullName: string | null;
+    phone: string | null;
+    email: string | null;
+  };
+  let userRows: UserContactRow[] = [];
+  if (buyerIds.length > 0) {
+    try {
+      // Optional chaining short-circuits when the mock/spec db never defined
+      // `query.users`; try/catch additionally protects against a fake whose
+      // findMany is present but throws. Either way the response null-degrades
+      // the contact fields rather than failing the whole list.
+      const found = (await db.query.users?.findMany?.({
+        where: inArray(users.id, buyerIds),
+        columns: { id: true, fullName: true, phone: true, email: true },
+      })) as UserContactRow[] | undefined;
+      userRows = found ?? [];
+    } catch {
+      userRows = [];
+    }
+  }
+  const byId = new Map<string, UserContactRow>();
+  for (const u of userRows) byId.set(u['id'], u);
+
+  return rows.map(row => {
+    const u = row.buyerId ? byId.get(row.buyerId) : undefined;
+    return {
+      ...row,
+      buyerName: u?.['fullName'] ?? null,
+      buyerPhone: u?.['phone'] ?? null,
+      buyerEmail: u?.['email'] ?? null,
     };
   });
 }
