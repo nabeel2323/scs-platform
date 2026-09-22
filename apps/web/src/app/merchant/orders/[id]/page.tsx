@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -14,6 +14,7 @@ import {
   StatusHistoryEntry,
 } from '../../../../lib/buyer-api';
 import { useAuth } from '../../../../components/AuthProvider';
+import { isMerchantRole, switchOrg } from '../../../../lib/auth';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../../components/Shared';
 import { OrderTimeline } from '../../../../components/OrderTimeline';
 
@@ -23,6 +24,14 @@ interface OrderDetail {
   status: string;
   storeId: string;
   buyerId: string;
+  // Buyer contact resolved server-side from the users row by buyerId and
+  // attached to the order-detail response (authoritative, no directory needed).
+  buyerName?: string | null;
+  buyerPhone?: string | null;
+  buyerEmail?: string | null;
+  // Owning organization of the fulfilling store — lets a multi-org merchant
+  // detect an activeOrg mismatch and re-mint the JWT against the right org.
+  storeOrgId?: string | null;
   totalMinor: number;
   subtotalMinor: number;
   discountMinor: number;
@@ -76,6 +85,10 @@ export default function MerchantOrderDetailPage() {
   // Buyer identity resolved from the org customers directory (cached); the
   // order payload itself only carries buyerId.
   const [buyer, setBuyer] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
+  // Guards the cross-org auto-switch: flip to true once we've kicked off a
+  // switchOrg call for this page session so a persistent mismatch (e.g. the
+  // user has been removed from the target org) can never loop the effect.
+  const orgAligned = useRef(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -103,11 +116,48 @@ export default function MerchantOrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, user, authLoading]);
 
-  // Resolve the buyer's name/phone once the order (and its buyerId) is known.
-  // Best-effort: a directory failure leaves the ID chip as the label.
+  // Cross-org alignment: assertOrderAccessible lets a merchant open any order
+  // whose store they own via ANY membership, but org-scoped helpers (the
+  // customers directory, notification bell, store switcher on other pages)
+  // resolve against the caller's ACTIVE org. When the order response says the
+  // store lives in a different org, re-mint the JWT via switchOrg so those
+  // downstream views line up. switchOrg hydrates the fresh user, so useAuth()
+  // consumers (Navbar badge, org chip) reactively follow. Best-effort.
+  useEffect(() => {
+    if (orgAligned.current) return;
+    const activeOrgId = user?.activeOrgId;
+    const storeOrgId = order?.storeOrgId;
+    if (!activeOrgId || !storeOrgId || activeOrgId === storeOrgId) return;
+    if (!isMerchantRole(user?.role)) return;
+    orgAligned.current = true;
+    switchOrg(storeOrgId)
+      .then(() => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('unreadCountChanged'));
+        }
+      })
+      .catch(() => {
+        // Alignment failed — the order view still renders (buyer fields come from
+        // the order response), so don't retry indefinitely.
+      });
+  }, [user?.activeOrgId, user?.role, order?.storeOrgId]);
+
+  // Resolve the buyer's contact once the order is known. The order-detail
+  // response now carries buyerName/buyerPhone/buyerEmail directly (authoritative,
+  // from the users row by buyerId), so the header no longer depends on the cached,
+  // org-scoped customers directory — which can miss a buyer when the viewing org
+  // differs from the fulfilling store's org. The directory stays as a fallback.
   useEffect(() => {
     const buyerId = order?.buyerId;
     if (!buyerId) return;
+    if (order.buyerName || order.buyerPhone || order.buyerEmail) {
+      setBuyer({
+        name: order.buyerName ?? null,
+        phone: order.buyerPhone ?? null,
+        email: order.buyerEmail ?? null,
+      });
+      return;
+    }
     let cancelled = false;
     fetchMerchantCustomersCached()
       .then((list) => {
@@ -117,7 +167,7 @@ export default function MerchantOrderDetailPage() {
       })
       .catch(() => { /* degrade to the ID chip */ });
     return () => { cancelled = true; };
-  }, [order?.buyerId]);
+  }, [order?.buyerId, order?.buyerName, order?.buyerPhone, order?.buyerEmail]);
 
   const reload = async () => {
     try {

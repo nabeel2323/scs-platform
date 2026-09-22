@@ -24,7 +24,7 @@ import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
-import { organizationMembers } from '../identity/identity.schema';
+import { organizationMembers, users } from '../identity/identity.schema';
 import {
   computeOrderFinancials,
   resolveDeliveryFeeMinor,
@@ -719,7 +719,28 @@ export class OrdersService {
     // Every amount on the response — the totals, the lines, the breakdown — is in
     // this currency, which is why it is resolved once here rather than per line.
     const [identified] = await attachOrderIdentity(this.db.db, [order]);
-    return { ...order, ...identified, items, financialBreakdown: breakdown };
+    // Buyer contact resolved from the authoritative users row by the order's own
+    // buyerId, so the merchant order view renders the buyer directly instead of
+    // depending on the cached, org-scoped, status-filtered customers directory
+    // (which can miss a buyer when the viewing org differs from the fulfilling
+    // store's org). The caller already passed assertOrderAccessible above and the
+    // customers endpoint exposes the same fields, so this is not a new
+    // disclosure. The optional chaining keeps mock-DB specs (no `query.users`) green.
+    const buyer = order['buyerId']
+      ? await this.db.db.query.users?.findFirst?.({
+          where: eq(users.id, order['buyerId'] as string),
+          columns: { fullName: true, phone: true, email: true },
+        })
+      : null;
+    return {
+      ...order,
+      ...identified,
+      items,
+      financialBreakdown: breakdown,
+      buyerName: buyer?.fullName ?? null,
+      buyerPhone: buyer?.phone ?? null,
+      buyerEmail: buyer?.email ?? null,
+    };
   }
 
   async listOrders(buyerId?: string, storeId?: string, status?: string, caller?: CallerContext) {

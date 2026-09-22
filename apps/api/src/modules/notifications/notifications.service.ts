@@ -397,7 +397,16 @@ export class NotificationsService implements OnModuleInit {
 
   async listNotifications(userId: string, limit = 50, offset = 0) {
     return this.db.db.select().from(notifications)
-      .where(eq(notifications.userId, userId))
+      .where(and(
+        eq(notifications.userId, userId),
+        // The web bell and mobile in-app screen surface user-readable items only.
+        // Other channels (PUSH, SMS, WHATSAPP) exist as delivery-tracking rows
+        // for outbound dispatch and would otherwise duplicate a logical event
+        // whenever a template declares multiple channels (e.g. order.submitted
+        // fans to ['IN_APP', 'PUSH'] and would show "New Order Received" twice
+        // in the bell for a single checkout).
+        eq(notifications.channel, 'IN_APP'),
+      ))
       .orderBy(desc(notifications.createdAt))
       .limit(limit)
       .offset(offset);
@@ -407,7 +416,13 @@ export class NotificationsService implements OnModuleInit {
     const result = await this.db.db
       .select({ count: sql<number>`count(*)` })
       .from(notifications)
-      .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+      .where(and(
+        eq(notifications.userId, userId),
+        isNull(notifications.readAt),
+        // Same rationale as listNotifications: the badge counts visible bell
+        // items, not outbound delivery attempts.
+        eq(notifications.channel, 'IN_APP'),
+      ));
     return result[0]?.count || 0;
   }
 
@@ -441,7 +456,13 @@ export class NotificationsService implements OnModuleInit {
     await this.db.db
       .update(notifications)
       .set({ readAt: new Date(), status: 'READ' })
-      .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+      .where(and(
+        eq(notifications.userId, userId),
+        isNull(notifications.readAt),
+        // Only touch bell-visible rows. Marking a PUSH/SMS delivery-tracking
+        // row as "read" would corrupt its outbound-audit semantics.
+        eq(notifications.channel, 'IN_APP'),
+      ));
     return { success: true };
   }
 

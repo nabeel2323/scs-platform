@@ -35,6 +35,13 @@ export interface OrderIdentity {
   /** Null when the seller row cannot be found — the order is still shown. */
   storeName: string | null;
   storeSlug: string | null;
+  /**
+   * The organization that owns the fulfilling store. Lets a client detect an
+   * activeOrg/order mismatch (e.g. a merchant opening a linked order whose
+   * store lives in a different org) and re-issue a token scoped to that org.
+   * Non-PII — the same value is already exposed via the stores table.
+   */
+  storeOrgId: string | null;
   /** ISO 4217 code every minor-unit amount on this order is expressed in. */
   currency: string;
   /** False when the row predates the snapshot column and the store was used. */
@@ -59,7 +66,7 @@ export async function attachOrderIdentity<T extends OrderIdentitySource>(
     storeIds.length > 0
       ? await db.query.stores.findMany({
           where: inArray(stores.id, storeIds),
-          columns: { id: true, displayName: true, slug: true, currency: true },
+          columns: { id: true, displayName: true, slug: true, currency: true, orgId: true },
         })
       : [];
   const storeById = new Map<string, (typeof storeRows)[number]>();
@@ -72,6 +79,7 @@ export async function attachOrderIdentity<T extends OrderIdentitySource>(
       ...row,
       storeName: store ? store['displayName'] : null,
       storeSlug: store ? store['slug'] : null,
+      storeOrgId: store?.['orgId'] ?? null,
       currency: snapshot ?? store?.['currency'] ?? FALLBACK_ORDER_CURRENCY,
       currencyFromSnapshot: snapshot !== null,
     };
