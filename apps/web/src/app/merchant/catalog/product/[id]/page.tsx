@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   fetchProduct, createProduct, updateProduct,
-  listVariants, createVariant,
-  listMedia, addMedia, removeMedia, presignMedia,
+  listVariants, createVariant, bulkVariantOperations,
+  listMedia, addMedia, removeMedia, presignMedia, reorderProductMedia,
   fetchStoreCategories, fetchBrands,
   ProductVariant, Category, MediaItem,
 } from '../../../../../lib/buyer-api';
@@ -45,10 +45,16 @@ export default function ProductEditorPage() {
   const [resubmit, setResubmit] = useState(false);
   const [imagesText, setImagesText] = useState('');
 
+  // SEO fields (Phase 3A)
+  const [slug, setSlug] = useState('');
+  const [metaTitle, setMetaTitle] = useState('');
+  const [metaDescription, setMetaDescription] = useState('');
+  const [seoOpen, setSeoOpen] = useState(false);
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
 
-  // Variants (edit only)
+  // Variants
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [vSku, setVSku] = useState('');
   const [vTitle, setVTitle] = useState('');
@@ -56,12 +62,14 @@ export default function ProductEditorPage() {
   const [vBarcode, setVBarcode] = useState('');
   const [vWeight, setVWeight] = useState('');
   const [vSaving, setVSaving] = useState(false);
+  const [vActionLoading, setVActionLoading] = useState('');
 
-  // Media (edit only)
+  // Media
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaUrl, setMediaUrl] = useState('');
   const [mediaSaving, setMediaSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reorderLoading, setReorderLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -72,7 +80,7 @@ export default function ProductEditorPage() {
           const stores = await fetchMyStores();
           sid = pickStore(stores)?.id || '';
         } else {
-          const p = await fetchProduct(id);
+          const p = await fetchProduct(id) as any;
           sid = p.storeId;
           setTitle(p.title || '');
           setTitleAr(p.titleAr || '');
@@ -85,12 +93,17 @@ export default function ProductEditorPage() {
           setIsAvailable(!!p.isAvailable);
           setStatus(p.status || 'DRAFT');
           setResubmit((p.status || 'DRAFT') === 'REJECTED');
-          setImagesText((p.images || []).map(u => String(u)).join('\n'));
+          setImagesText((p.images || []).map((u: unknown) => String(u)).join('\n'));
+          // SEO fields
+          setSlug(p.slug || '');
+          const meta = (p.metadata || {}) as Record<string, unknown>;
+          setMetaTitle(String(meta['metaTitle'] || ''));
+          setMetaDescription(String(meta['metaDescription'] || ''));
         }
         setStoreId(sid);
 
         const [cats, brs] = await Promise.all([
-          sid ? fetchStoreCategories(sid).catch(() => []) : Promise.resolve([] as Category[]),
+          sid ? fetchStoreCategories(sid).catch(() => [] as Category[]) : Promise.resolve([] as Category[]),
           fetchBrands().catch(() => [] as Brand[]),
         ]);
         setCategories(cats);
@@ -111,6 +124,13 @@ export default function ProductEditorPage() {
       }
     })();
   }, [id, isNew]);
+
+  const buildMetadata = () => {
+    const meta: Record<string, unknown> = {};
+    if (metaTitle.trim()) meta['metaTitle'] = metaTitle.trim();
+    if (metaDescription.trim()) meta['metaDescription'] = metaDescription.trim();
+    return Object.keys(meta).length > 0 ? meta : undefined;
+  };
 
   const handleSave = async () => {
     if (!title.trim()) { setError('Title is required'); return; }
@@ -133,9 +153,7 @@ export default function ProductEditorPage() {
           moq: moq ? Number(moq) : undefined,
           images,
         });
-        // Products always start as DRAFT for platform review (A3-2); only
-        // isAvailable is applied via update.
-        await updateProduct(created.id, { isAvailable });
+        await updateProduct(created.id, { isAvailable, metadata: buildMetadata() });
         router.push(`/merchant/catalog/product/${created.id}`);
       } else {
         await updateProduct(id, {
@@ -150,6 +168,8 @@ export default function ProductEditorPage() {
           isAvailable,
           status: resubmit ? 'DRAFT' : undefined,
           images,
+          slug: slug.trim() || undefined,
+          metadata: buildMetadata(),
         });
         setSavedMsg('Product saved');
       }
@@ -181,6 +201,33 @@ export default function ProductEditorPage() {
     }
   };
 
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!window.confirm('Delete this variant?')) return;
+    setVActionLoading(variantId);
+    setError('');
+    try {
+      await bulkVariantOperations(id, { deleteIds: [variantId] });
+      setVariants(await listVariants(id));
+    } catch (err: any) {
+      setError(err.message || 'Delete variant failed');
+    } finally {
+      setVActionLoading('');
+    }
+  };
+
+  const handleToggleVariant = async (variant: ProductVariant) => {
+    setVActionLoading(variant.id);
+    setError('');
+    try {
+      await bulkVariantOperations(id, { toggleActive: [{ id: variant.id, isActive: !variant.isActive }] });
+      setVariants(await listVariants(id));
+    } catch (err: any) {
+      setError(err.message || 'Toggle variant failed');
+    } finally {
+      setVActionLoading('');
+    }
+  };
+
   const handleAddMediaUrl = async () => {
     if (!mediaUrl.trim()) return;
     setMediaSaving(true);
@@ -207,6 +254,23 @@ export default function ProductEditorPage() {
       setError(err.message || 'Remove media failed');
     } finally {
       setMediaSaving(false);
+    }
+  };
+
+  const handleMoveMedia = async (index: number, direction: -1 | 1) => {
+    const newMedia = [...media];
+    const target = index + direction;
+    if (target < 0 || target >= newMedia.length) return;
+    [newMedia[index], newMedia[target]] = [newMedia[target]!, newMedia[index]!];
+    setMedia(newMedia);
+    setReorderLoading(true);
+    try {
+      await reorderProductMedia(id, newMedia.map(m => m.id));
+    } catch (err: any) {
+      setError(err.message || 'Reorder failed');
+      setMedia(await listMedia(id));
+    } finally {
+      setReorderLoading(false);
     }
   };
 
@@ -261,7 +325,9 @@ export default function ProductEditorPage() {
           <label style={label}>Category
             <select value={categoryId} onChange={e => setCategoryId(e.target.value)} style={input}>
               <option value="">— None —</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {buildCategoryOptions(categories).map(({ cat, depth }) => (
+                <option key={cat.id} value={cat.id}>{'  '.repeat(depth)}{depth > 0 ? '└ ' : ''}{cat.name}</option>
+              ))}
             </select>
           </label>
           <label style={label}>Brand
@@ -299,7 +365,7 @@ export default function ProductEditorPage() {
         )}
         {!isNew && (
           <p style={{ fontSize: 12, color: '#5b6b74', margin: '8px 0' }}>
-            Products go live only after platform review — publishing is handled by moderators. Use "Available for purchase" to control whether an approved product can be ordered.
+            Products go live only after platform review — publishing is handled by moderators. Use &quot;Available for purchase&quot; to control whether an approved product can be ordered.
           </p>
         )}
 
@@ -322,9 +388,35 @@ export default function ProductEditorPage() {
         {isNew && <p style={{ fontSize: 12, color: '#5b6b74', marginTop: 10 }}>Variants and media can be added after the product is created.</p>}
       </div>
 
+      {/* SEO & URL Section (Phase 3A) */}
+      {!isNew && (
+        <div style={{ ...card, marginTop: 20 }}>
+          <button onClick={() => setSeoOpen(!seoOpen)} style={collapsibleHeader}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: '#0f3340' }}>SEO & URL</span>
+            <span style={{ fontSize: 12, color: '#5b6b74' }}>{seoOpen ? '▲ Collapse' : '▼ Expand'}</span>
+          </button>
+          {seoOpen && (
+            <div style={{ marginTop: 12 }}>
+              <label style={label}>Slug
+                <input type="text" value={slug} onChange={e => setSlug(e.target.value)} style={{ ...input, fontFamily: 'monospace', fontSize: 12 }} placeholder="product-url-slug" />
+              </label>
+              <label style={label}>Meta Title
+                <input type="text" value={metaTitle} onChange={e => setMetaTitle(e.target.value)} maxLength={60} style={input} placeholder="SEO page title" />
+                <span style={{ fontSize: 11, color: metaTitle.length > 60 ? '#991b1b' : '#5b6b74', textAlign: 'right' }}>{metaTitle.length}/60</span>
+              </label>
+              <label style={label}>Meta Description
+                <textarea value={metaDescription} onChange={e => setMetaDescription(e.target.value)} maxLength={160} rows={2} style={{ ...input, resize: 'vertical' }} placeholder="Brief description for search engines" />
+                <span style={{ fontSize: 11, color: metaDescription.length > 160 ? '#991b1b' : '#5b6b74', textAlign: 'right' }}>{metaDescription.length}/160</span>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Variants + Media (edit only) */}
       {!isNew && (
         <>
+          {/* Variants Section (Phase 3B — interactive) */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>Variants ({variants.length})</h2>
             {variants.length === 0 ? (
@@ -335,6 +427,7 @@ export default function ProductEditorPage() {
                   <thead><tr style={theadRow}>
                     <th style={th}>SKU</th><th style={th}>Title</th><th style={th}>Unit</th>
                     <th style={th}>Barcode</th><th style={th}>Weight (g)</th><th style={th}>Active</th>
+                    <th style={th}>Actions</th>
                   </tr></thead>
                   <tbody>
                     {variants.map(v => (
@@ -344,7 +437,24 @@ export default function ProductEditorPage() {
                         <td style={td}>{v.unit || '—'}</td>
                         <td style={td}>{v.barcode || '—'}</td>
                         <td style={td}>{v.weightGrams ?? '—'}</td>
-                        <td style={td}>{v.isActive ? '✓' : '—'}</td>
+                        <td style={td}>
+                          <button
+                            onClick={() => handleToggleVariant(v)}
+                            disabled={vActionLoading === v.id}
+                            style={{
+                              ...toggleBtn,
+                              background: v.isActive ? '#d1fae5' : '#fee2e2',
+                              color: v.isActive ? '#065f46' : '#991b1b',
+                            }}
+                          >
+                            {vActionLoading === v.id ? '…' : v.isActive ? '✓ Active' : '✗ Inactive'}
+                          </button>
+                        </td>
+                        <td style={td}>
+                          <button onClick={() => handleDeleteVariant(v.id)} disabled={vActionLoading === v.id} style={deleteBtn}>
+                            {vActionLoading === v.id ? '…' : 'Delete'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -363,17 +473,62 @@ export default function ProductEditorPage() {
             </div>
           </div>
 
+          {/* Stock Overview (Phase 3D) */}
+          {variants.length > 0 && (
+            <div style={{ ...card, marginTop: 20 }}>
+              <h2 style={sectionTitle}>Stock Overview</h2>
+              <div style={{ ...tableWrap }}>
+                <table style={table}>
+                  <thead><tr style={theadRow}>
+                    <th style={th}>SKU</th><th style={th}>Variant</th><th style={th}>Inventory</th>
+                  </tr></thead>
+                  <tbody>
+                    {variants.map(v => (
+                      <tr key={v.id} style={tbodyRow}>
+                        <td style={td}><code style={{ fontSize: 12 }}>{v.sku}</code></td>
+                        <td style={td}>{v.title || v.sku}</td>
+                        <td style={td}>
+                          <Link href={`/merchant/inventory?variant=${v.id}`} style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 600 }}>
+                            View stock →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Media Section (Phase 3C — reorderable) */}
           <div style={{ ...card, marginTop: 20 }}>
             <h2 style={sectionTitle}>Media ({media.length})</h2>
             {media.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-                {media.map(m => (
-                  <div key={m.id} style={{ width: 96, textAlign: 'center', position: 'relative' }}>
-                    <div style={{ width: 96, height: 72, borderRadius: 6, border: '1px solid #d9e2e6', background: '#f7f9fa center/cover no-repeat', backgroundImage: m.url.startsWith('http') ? `url(${m.url})` : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#a0aec0', overflow: 'hidden' }}>
+              <div style={{ marginBottom: 12 }}>
+                {media.map((m, idx) => (
+                  <div key={m.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    background: idx % 2 === 0 ? '#fff' : '#f7f9fa',
+                    borderBottom: '1px solid #e2e8f0',
+                  }}>
+                    <span style={{ fontSize: 11, color: '#5b6b74', width: 20, textAlign: 'center', fontWeight: 600 }}>{idx + 1}</span>
+                    <div style={{
+                      width: 48, height: 36, borderRadius: 4, border: '1px solid #d9e2e6',
+                      background: '#f7f9fa center/cover no-repeat', flexShrink: 0,
+                      backgroundImage: m.url.startsWith('http') ? `url(${m.url})` : undefined,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, overflow: 'hidden',
+                    }}>
                       {!m.url.startsWith('http') && '🖼'}
                     </div>
-                    <div style={{ fontSize: 10, color: '#5b6b74', marginTop: 4, wordBreak: 'break-all' }}>{m.mediaType}</div>
-                    <button onClick={() => handleRemoveMedia(m.id)} style={removeMediaBtn} title="Remove media">✕</button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: '#5b6b74', wordBreak: 'break-all' }}>{m.url.length > 60 ? `${m.url.slice(0, 60)}…` : m.url}</div>
+                      <div style={{ fontSize: 10, color: '#a0aec0' }}>{m.mediaType}{m.mimeType ? ` · ${m.mimeType}` : ''}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => handleMoveMedia(idx, -1)} disabled={idx === 0 || reorderLoading} style={moveBtn} title="Move up">↑</button>
+                      <button onClick={() => handleMoveMedia(idx, 1)} disabled={idx === media.length - 1 || reorderLoading} style={moveBtn} title="Move down">↓</button>
+                      <button onClick={() => handleRemoveMedia(m.id)} disabled={mediaSaving} style={removeMediaBtn} title="Remove">✕</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -405,10 +560,25 @@ const input: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d9
 const primaryBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };
 const ghostBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const ghostLink: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, textDecoration: 'none' };
+const collapsibleHeader: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 };
 const tableWrap: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(22,35,43,.06), 0 4px 14px rgba(22,35,43,.04)' };
 const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 };
 const theadRow: React.CSSProperties = { background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' };
 const tbodyRow: React.CSSProperties = { borderBottom: '1px solid #e2e8f0' };
 const th: React.CSSProperties = { textAlign: 'left', padding: '14px 18px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.6px' };
 const td: React.CSSProperties = { padding: '14px 18px', color: '#1e2d35', fontSize: 13 };
-const removeMediaBtn: React.CSSProperties = { position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', background: 'rgba(153,27,27,0.8)', color: '#fff', border: 'none', fontSize: 10, lineHeight: '18px', textAlign: 'center', cursor: 'pointer', padding: 0 };
+const toggleBtn: React.CSSProperties = { padding: '3px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #d9e2e6', borderRadius: 10, cursor: 'pointer' };
+const deleteBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' };
+const moveBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 12, fontWeight: 700, background: '#edf2f7', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
+const removeMediaBtn: React.CSSProperties = { width: 24, height: 24, fontSize: 11, fontWeight: 700, background: 'rgba(153,27,27,0.1)', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 };
+
+/** Build hierarchical category options sorted by path. */
+function buildCategoryOptions(cats: Category[]): Array<{ cat: Category; depth: number }> {
+  return [...cats]
+    .map(cat => {
+      const segments = (cat.path || '').split('/').filter(Boolean);
+      const depth = Math.max(0, segments.length - 1);
+      return { cat, depth };
+    })
+    .sort((a, b) => (a.cat.path || '').localeCompare(b.cat.path || ''));
+}
