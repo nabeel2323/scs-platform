@@ -29,9 +29,15 @@ export function Navbar() {
     const onReconnect = () => refresh();
     socket?.on('connect', onReconnect);
     const offNotification = onNotification(() => refresh());
+    // The notifications page dispatches this event after any individual or
+    // bulk mark-read / mark-unread so the badge updates without waiting for
+    // a realtime push or socket reconnect.
+    const onBadgeChange = () => refresh();
+    window.addEventListener('unreadCountChanged', onBadgeChange);
     return () => {
       offNotification();
       socket?.off('connect', onReconnect);
+      window.removeEventListener('unreadCountChanged', onBadgeChange);
     };
   }, [user]);
 

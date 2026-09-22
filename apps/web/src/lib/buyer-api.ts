@@ -468,6 +468,12 @@ export async function markNotificationRead(id: string): Promise<unknown> {
   return res.json();
 }
 
+export async function markNotificationUnread(id: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/notifications/${id}/unread`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(`Mark unread failed: ${res.status}`);
+  return res.json();
+}
+
 export async function markAllNotificationsRead(): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/notifications/read-all`, { method: 'PATCH' });
   if (!res.ok) throw new Error(`Mark all read failed: ${res.status}`);

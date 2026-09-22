@@ -39,6 +39,16 @@ export class NotificationsController {
     return { count };
   }
 
+  // ── Static routes MUST preced parameterised ones: NestJS matches in
+  //    definition order, so `read-all` before `:id/read` — otherwise the
+  //    literal "read-all" is captured as :id and the bulk endpoint
+  //    silently returns { success: false }.
+
+  @Patch('notifications/read-all')
+  async markAllAsRead(@CurrentUser() user: { sub: string }) {
+    return this.notificationsService.markAllAsRead(user.sub);
+  }
+
   @Patch('notifications/:id/read')
   async markAsRead(
     @Param('id') id: string,
@@ -47,9 +57,12 @@ export class NotificationsController {
     return this.notificationsService.markAsRead(id, user.sub);
   }
 
-  @Patch('notifications/read-all')
-  async markAllAsRead(@CurrentUser() user: { sub: string }) {
-    return this.notificationsService.markAllAsRead(user.sub);
+  @Patch('notifications/:id/unread')
+  async markAsUnread(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.notificationsService.markAsUnread(id, user.sub);
   }
 
   @Get('notification-preferences')
