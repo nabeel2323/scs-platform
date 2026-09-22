@@ -32,6 +32,16 @@ export interface NotificationEvent {
   body: string;
 }
 
+/** Low-sensitivity "new order" signal emitted into a selling store's room. */
+export interface NewOrderEvent {
+  masterOrderId: string;
+  orderId: string;
+  storeId: string;
+  totalMinor: number;
+  itemCount: number;
+  createdAt: string;
+}
+
 let socket: Socket | null = null;
 let authUnsub: (() => void) | null = null;
 
@@ -106,13 +116,48 @@ export function onOrderStatus(
   };
 }
 
-/** Subscribe to new in-app notifications for the current user. Returns an unsubscribe function. */
+/**
+ * Subscribe to new in-app notifications for the current user. Returns an unsubscribe function.
+ */
 export function onNotification(handler: (evt: NotificationEvent) => void): () => void {
   const s = connectRealtime();
   if (!s) return () => {};
   s.on('notification.new', handler);
   return () => {
     s.off('notification.new', handler);
+  };
+}
+
+/**
+ * Subscribe to "new order" signals. These are pushed into the `org:{storeId}`
+ * room, so the caller must first `watchStore` the relevant stores; this only
+ * registers the listener on the shared socket. Returns an unsubscribe function.
+ */
+export function onNewOrder(handler: (evt: NewOrderEvent) => void): () => void {
+  const s = connectRealtime();
+  if (!s) return () => {};
+  s.on('new_order', handler);
+  return () => {
+    s.off('new_order', handler);
+  };
+}
+
+/**
+ * Join a selling store's room (`org:{storeId}`) so its `new_order` broadcasts
+ * arrive, and leave it on teardown. Any authenticated socket may join an org
+ * room (they carry only low-sensitivity ids), mirroring the gateway contract.
+ * Returns an unsubscribe function.
+ */
+export function watchStore(storeId: string): () => void {
+  const s = connectRealtime();
+  if (!s || !storeId) return () => {};
+  const room = `org:${storeId}`;
+  const join = () => s.emit('join', { rooms: [room] });
+  if (s.connected) join();
+  else s.once('connect', join);
+  return () => {
+    if (s.connected) s.emit('leave', { rooms: [room] });
+    s.off('connect', join);
   };
 }
 

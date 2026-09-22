@@ -8,11 +8,13 @@ import {
   rejectMerchantOrder,
   transitionOrderStatus,
   fetchMerchantCustomersCached,
+  clearMerchantCustomersCache,
   SubOrder,
   OrderItem,
 } from '../../../lib/buyer-api';
 import { fetchMyStores, Store } from '../../../lib/api';
 import { pickStore, rememberStoreId } from '../../../lib/merchant-store';
+import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
 import {
   StatusBadge,
   formatMinor,
@@ -114,19 +116,26 @@ export default function MerchantOrdersPage() {
     }
   };
 
+  // Buyer labels resolve from the org customers directory (cached 60s).
+  // Extracted so a new order can refresh it: a first-time buyer only appears
+  // once they have an order, so callers must bust the cache before re-reading.
+  const loadBuyers = () => {
+    fetchMerchantCustomersCached()
+      .then((list) => {
+        const map: Record<string, { buyerName: string | null; buyerPhone: string | null }> = {};
+        for (const c of list) {
+          map[c.buyerId] = { buyerName: c.buyerName, buyerPhone: c.buyerPhone };
+        }
+        setBuyers(map);
+      })
+      .catch(() => { /* labels degrade to buyer IDs */ });
+  };
+
   useEffect(() => {
     (async () => {
       // Buyer labels resolve best-effort: a directory failure only degrades
       // rows to "Buyer {id}" — it must not break the orders load.
-      fetchMerchantCustomersCached()
-        .then((list) => {
-          const map: Record<string, { buyerName: string | null; buyerPhone: string | null }> = {};
-          for (const c of list) {
-            map[c.buyerId] = { buyerName: c.buyerName, buyerPhone: c.buyerPhone };
-          }
-          setBuyers(map);
-        })
-        .catch(() => { /* labels degrade to buyer IDs */ });
+      loadBuyers();
       try {
         const list = await fetchMyStores();
         setStores(list);
@@ -138,6 +147,15 @@ export default function MerchantOrdersPage() {
       } catch { setLoading(false); }
     })();
   }, []);
+
+  // Gap 2: reload the queue the instant a new order lands for any of this
+  // merchant's stores, and refresh the buyer directory (busting its 60s cache)
+  // so a first-time buyer's name resolves on the newly-arrived row.
+  useMerchantRealtime(() => {
+    clearMerchantCustomersCache();
+    loadBuyers();
+    load(storeId);
+  });
 
   // A2-1: a merchant can own several stores per organization, and
   // GET /v1/stores is already scoped to the active org, so the switcher can only

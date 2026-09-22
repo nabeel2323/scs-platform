@@ -201,4 +201,25 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
       body: notification.body,
     });
   }
+
+  /**
+   * Emit a low-sensitivity "new order" signal to the selling store's room so a
+   * merchant dashboard can raise a toast/banner. Carries no buyer PII — the org
+   * room is joinable by any authenticated socket (see handleJoin), so the
+   * dashboard fetches full detail through the guarded REST endpoints using the
+   * ids in this payload.
+   */
+  emitNewOrder(
+    storeId: string,
+    payload: {
+      masterOrderId: string;
+      orderId: string;
+      storeId: string;
+      totalMinor: number;
+      itemCount: number;
+      createdAt: string;
+    },
+  ) {
+    this.server.to(`org:${storeId}`).emit('new_order', payload);
+  }
 }

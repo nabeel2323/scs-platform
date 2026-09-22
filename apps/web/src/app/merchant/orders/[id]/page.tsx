@@ -75,7 +75,7 @@ export default function MerchantOrderDetailPage() {
   const [busy, setBusy] = useState(false);
   // Buyer identity resolved from the org customers directory (cached); the
   // order payload itself only carries buyerId.
-  const [buyer, setBuyer] = useState<{ name: string | null; phone: string | null } | null>(null);
+  const [buyer, setBuyer] = useState<{ name: string | null; phone: string | null; email: string | null } | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -113,7 +113,7 @@ export default function MerchantOrderDetailPage() {
       .then((list) => {
         if (cancelled) return;
         const b = list.find((c) => c.buyerId === buyerId);
-        if (b) setBuyer({ name: b.buyerName, phone: b.buyerPhone });
+        if (b) setBuyer({ name: b.buyerName, phone: b.buyerPhone, email: b.buyerEmail });
       })
       .catch(() => { /* degrade to the ID chip */ });
     return () => { cancelled = true; };
@@ -212,11 +212,21 @@ export default function MerchantOrderDetailPage() {
                 ? <span style={{ fontWeight: 600 }}>{buyer.name}</span>
                 : <code style={{ fontSize: 12, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>{order.buyerId.slice(0, 8)}</code>}
               {buyer?.phone && <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>{buyer.phone}</span>}
+              {buyer?.email && <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>{buyer.email}</span>}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <StatusBadge status={order.status} />
             <div style={{ fontSize: 18, fontWeight: 700 }}>{money(order.totalMinor)}</div>
+            {/* Contact Buyer: prefers email (mailto), falls back to phone (tel). */}
+            {(buyer?.email || buyer?.phone) && (
+              <a
+                href={buyer?.email ? `mailto:${buyer.email}` : `tel:${buyer.phone}`}
+                style={{ fontSize: 12, fontWeight: 600, textDecoration: 'none', padding: '6px 14px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', cursor: 'pointer' }}
+              >
+                &#9993; Contact Buyer
+              </a>
+            )}
           </div>
         </div>
       </div>

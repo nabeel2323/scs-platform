@@ -1,29 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchMerchantCustomers, CustomerSummary } from '../../../lib/buyer-api';
 import { formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
+import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
 
 export default function MerchantCustomersPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'total' | 'orders'>('recent');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
     try {
       const data = await fetchMerchantCustomers();
       setCustomers(data);
+      setLastUpdated(new Date());
     } catch {
       // Silent fail - show empty state
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  // A new order can introduce a first-time buyer, so reload the directory live
+  // instead of making the merchant refresh the page. The customers endpoint
+  // derives rows from orders JOIN users, so a buyer surfaces the moment their
+  // first order is placed — no separate customer record is required.
+  useMerchantRealtime(() => {
+    loadCustomers(true);
+  });
 
   const filtered = customers.filter((c) =>
     c.buyerName?.toLowerCase().includes(search.toLowerCase()) ||
@@ -85,6 +99,17 @@ export default function MerchantCustomersPage() {
           <option value="total">Highest Spent</option>
           <option value="orders">Most Orders</option>
         </select>
+        <button
+          onClick={() => loadCustomers(true)}
+          disabled={refreshing}
+          title="Reload customers"
+          style={{ padding: '8px 14px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, background: '#fff', color: '#0f3340', cursor: 'pointer', fontWeight: 600 }}
+        >
+          {refreshing ? 'Refreshing…' : '↻ Refresh'}
+        </button>
+        {lastUpdated && (
+          <span style={{ alignSelf: 'center', fontSize: 11, color: '#92400e' }}>Updated {lastUpdated.toLocaleTimeString()}</span>
+        )}
       </div>
 
       {sorted.length === 0 ? (
