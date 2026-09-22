@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
-import { stores } from '../merchant/merchant.schema';
+import { stores, warehouses, businessDocuments } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products, productMedia, productVariants } from '../catalog/catalog.schema';
 import { eq, and, isNull, sql, gte, lte, inArray, desc, getTableColumns } from 'drizzle-orm';
@@ -358,9 +358,54 @@ export class AdminService {
       id: organizations.id,
       name: organizations.name,
       type: organizations.type,
+      legalName: organizations.legalName,
+      taxId: organizations.taxId,
+      country: organizations.country,
       verificationStatus: organizations.verificationStatus,
       isActive: organizations.isActive,
+      inviteCode: organizations.inviteCode,
+      createdAt: organizations.createdAt,
+      updatedAt: organizations.updatedAt,
     }).from(organizations).orderBy(organizations.name);
+  }
+
+  /**
+   * Full organization detail for admin review — includes stores, warehouses,
+   * documents and members so the admin console can display all registration
+   * information in one view.
+   */
+  async getOrganizationDetail(orgId: string) {
+    const org = await this.db.db.query.organizations.findFirst({
+      where: eq(organizations.id, orgId),
+    });
+    if (!org) throw new NotFoundException('Organization not found');
+
+    const [orgStores, orgDocuments, orgMembers] = await Promise.all([
+      this.db.db.query.stores.findMany({
+        where: eq(stores.orgId, orgId),
+        orderBy: [stores.createdAt],
+      }),
+      this.db.db.query.businessDocuments.findMany({
+        where: eq(businessDocuments.orgId, orgId),
+        orderBy: [desc(businessDocuments.createdAt)],
+      }),
+      this.db.db.query.organizationMembers.findMany({
+        where: eq(organizationMembers.orgId, orgId),
+        with: { user: { columns: { id: true, fullName: true, phone: true, email: true } }, role: { columns: { id: true, name: true, key: true } } },
+        orderBy: [organizationMembers.createdAt],
+      }),
+    ]);
+
+    // Warehouses belong to stores, not directly to orgs — collect via store IDs
+    const storeIds = orgStores.map(s => s.id);
+    const orgWarehouses = storeIds.length > 0
+      ? await this.db.db.query.warehouses.findMany({
+          where: inArray(warehouses.storeId, storeIds),
+          orderBy: [warehouses.createdAt],
+        })
+      : [];
+
+    return { ...org, stores: orgStores, warehouses: orgWarehouses, documents: orgDocuments, members: orgMembers };
   }
 
   /**

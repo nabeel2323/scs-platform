@@ -405,8 +405,27 @@ export interface AdminOrg {
   id: string;
   name: string;
   type: string;
+  legalName: string | null;
+  taxId: string | null;
+  country: string;
   verificationStatus: string;
   isActive: boolean;
+  inviteCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminOrgDetail extends AdminOrg {
+  stores: { id: string; orgId: string; slug: string; displayName: string; description: string | null; currency: string; locale: string; verificationStatus: string; address: Record<string, unknown>; createdAt: string }[];
+  warehouses: { id: string; storeId: string; name: string; address: Record<string, unknown>; managerName: string | null; managerPhone: string | null; status: string; createdAt: string }[];
+  documents: { id: string; orgId: string; storeId: string | null; docType: string; fileName: string; mimeType: string | null; fileSize: number; verificationStatus: string; createdAt: string }[];
+  members: { id: string; orgId: string; userId: string; roleId: string; status: string; createdAt: string; user: { id: string; fullName: string; phone: string; email: string | null }; role: { id: string; name: string; key: string } }[];
+}
+
+export async function fetchAdminOrganizationDetail(orgId: string): Promise<AdminOrgDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations/${orgId}`);
+  if (!res.ok) throw new Error(`Failed to fetch organization detail: ${res.status}`);
+  return res.json();
 }
 
 export async function fetchAdminUsers(params?: {

@@ -9,7 +9,9 @@ import {
   deactivateAdminOrganization,
   fetchAdminOrgUpdateRequests,
   reviewOrgUpdateRequest,
+  fetchAdminOrganizationDetail,
   type AdminOrg,
+  type AdminOrgDetail,
   type AdminOrgUpdateRequest,
 } from '../../lib/api';
 
@@ -41,6 +43,10 @@ export default function OrganizationsPage() {
   const [reqFilter, setReqFilter] = useState<'PENDING' | 'ALL'>('PENDING');
   const [reviewTarget, setReviewTarget] = useState<{ req: AdminOrgUpdateRequest; decision: 'APPROVED' | 'REJECTED' } | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+
+  // Organization detail panel
+  const [detailOrg, setDetailOrg] = useState<AdminOrgDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => setReady(true), []);
 
@@ -164,10 +170,12 @@ export default function OrganizationsPage() {
               <thead>
                 <tr style={{ background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' }}>
                   <th style={th}>Organization</th>
+                  <th style={th}>Legal Name</th>
                   <th style={th}>Type</th>
+                  <th style={th}>Country</th>
                   <th style={th}>Verification</th>
                   <th style={th}>Status</th>
-                  {canManage && <th style={th}>Actions</th>}
+                  <th style={th}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,7 +185,9 @@ export default function OrganizationsPage() {
                       <div style={{ fontWeight: 600, color: '#0f3340' }}>{org.name}</div>
                       <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>{org.id}</div>
                     </td>
-                    <td style={td}><span style={chip}>{org.type}</span></td>
+                    <td style={{ ...td, fontSize: 12, color: '#5b6b74' }}>{org.legalName || '—'}</td>
+                    <td style={td}><span style={chip}>{ORG_TYPE_LABELS[org.type] || org.type}</span></td>
+                    <td style={td}>{org.country || '—'}</td>
                     <td style={td}>
                       <span style={{
                         padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
@@ -197,17 +207,32 @@ export default function OrganizationsPage() {
                         {org.isActive ? 'ACTIVE' : 'DEACTIVATED'}
                       </span>
                     </td>
-                    {canManage && (
-                      <td style={td}>
+                    <td style={td}>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         <button
-                          onClick={() => setConfirmTarget({ org, next: !org.isActive })}
-                          style={org.isActive ? dangerBtn : activateBtn}
-                          aria-label={`${org.isActive ? 'Deactivate' : 'Reactivate'} ${org.name}`}
+                          onClick={async () => {
+                            setDetailLoading(true);
+                            setDetailOrg(null);
+                            try { setDetailOrg(await fetchAdminOrganizationDetail(org.id)); }
+                            catch { /* handled by null check */ }
+                            finally { setDetailLoading(false); }
+                          }}
+                          style={viewBtn}
+                          aria-label={`View details for ${org.name}`}
                         >
-                          {org.isActive ? 'Deactivate' : 'Reactivate'}
+                          View Details
                         </button>
-                      </td>
-                    )}
+                        {canManage && (
+                          <button
+                            onClick={() => setConfirmTarget({ org, next: !org.isActive })}
+                            style={org.isActive ? dangerBtn : activateBtn}
+                            aria-label={`${org.isActive ? 'Deactivate' : 'Reactivate'} ${org.name}`}
+                          >
+                            {org.isActive ? 'Deactivate' : 'Reactivate'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -382,7 +407,133 @@ export default function OrganizationsPage() {
           </div>
         </div>
       )}
+
+      {/* Organization detail panel */}
+      {(detailOrg || detailLoading) && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 0, width: '100%', maxWidth: 780, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
+            {detailLoading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#5b6b74' }}>Loading organization details…</div>
+            ) : detailOrg ? (
+              <>
+                {/* Header */}
+                <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '20px 24px', color: '#fff', borderRadius: '12px 12px 0 0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{detailOrg.name}</h2>
+                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: '4px 0 0' }}>
+                        {detailOrg.legalName || detailOrg.name} · {detailOrg.country}
+                      </p>
+                    </div>
+                    <button onClick={() => setDetailOrg(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>✕</button>
+                  </div>
+                </div>
+
+                <div style={{ padding: '20px 24px 24px' }}>
+                  {/* Business Details */}
+                  <h3 style={detailSectionTitle}>Business Details</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 20 }}>
+                    <DetailField label="Organization Name" value={detailOrg.name} />
+                    <DetailField label="Legal Name" value={detailOrg.legalName || '—'} />
+                    <DetailField label="Tax ID" value={detailOrg.taxId || '—'} mono />
+                    <DetailField label="Business Type" value={ORG_TYPE_LABELS[detailOrg.type] || detailOrg.type} />
+                    <DetailField label="Country" value={detailOrg.country} />
+                    <DetailField label="Verification" value={detailOrg.verificationStatus} />
+                    <DetailField label="Status" value={detailOrg.isActive ? 'Active' : 'Deactivated'} />
+                    <DetailField label="Invite Code" value={detailOrg.inviteCode || '—'} mono />
+                    <DetailField label="Registered" value={new Date(detailOrg.createdAt).toLocaleDateString()} />
+                  </div>
+
+                  {/* Stores */}
+                  <h3 style={detailSectionTitle}>Stores ({detailOrg.stores.length})</h3>
+                  {detailOrg.stores.length === 0 ? <p style={noData}>No stores registered</p> : (
+                    <div style={{ marginBottom: 20 }}>
+                      {detailOrg.stores.map(s => {
+                        const addr = (s.address || {}) as Record<string, unknown>;
+                        return (
+                          <div key={s.id} style={{ background: '#f7f9fa', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                            <div style={{ fontWeight: 600, color: '#0f3340', fontSize: 13 }}>{s.displayName}</div>
+                            <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 4 }}>
+                              {s.currency} · {s.locale} · {s.verificationStatus}
+                              {String(addr['city'] ?? '') ? ` · ${String(addr['city'])}` : ''}
+                            </div>
+                            {s.description && <div style={{ fontSize: 11, color: '#8a9ba5', marginTop: 2 }}>{s.description}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Warehouses */}
+                  <h3 style={detailSectionTitle}>Warehouses ({detailOrg.warehouses.length})</h3>
+                  {detailOrg.warehouses.length === 0 ? <p style={noData}>No warehouses configured</p> : (
+                    <div style={{ marginBottom: 20 }}>
+                      {detailOrg.warehouses.map(w => {
+                        const addr = (w.address || {}) as Record<string, unknown>;
+                        return (
+                          <div key={w.id} style={{ background: '#f7f9fa', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 8 }}>
+                            <div style={{ fontWeight: 600, color: '#0f3340', fontSize: 13 }}>{w.name}{String(addr['city'] ?? '') ? ` — ${String(addr['city'])}` : ''}</div>
+                            <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 2 }}>
+                              {w.managerName || 'No manager'}{w.managerPhone ? ` · ${w.managerPhone}` : ''} · {w.status}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Documents */}
+                  <h3 style={detailSectionTitle}>Documents ({detailOrg.documents.length})</h3>
+                  {detailOrg.documents.length === 0 ? <p style={noData}>No documents uploaded</p> : (
+                    <div style={{ marginBottom: 20 }}>
+                      {detailOrg.documents.map(d => (
+                        <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f2f4' }}>
+                          <div>
+                            <div style={{ fontWeight: 500, color: '#0f3340', fontSize: 13 }}>{d.fileName}</div>
+                            <div style={{ fontSize: 11, color: '#8a9ba5' }}>{d.docType?.replace(/_/g, ' ') || '—'} · {(d.fileSize / 1024).toFixed(1)} KB</div>
+                          </div>
+                          <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, background: d.verificationStatus === 'VERIFIED' || d.verificationStatus === 'APPROVED' ? '#d1fae5' : '#fef3c7', color: d.verificationStatus === 'VERIFIED' || d.verificationStatus === 'APPROVED' ? '#065f46' : '#92400e' }}>
+                            {d.verificationStatus}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Members */}
+                  <h3 style={detailSectionTitle}>Members ({detailOrg.members.length})</h3>
+                  {detailOrg.members.length === 0 ? <p style={noData}>No members</p> : (
+                    <div>
+                      {detailOrg.members.map(m => (
+                        <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f2f4' }}>
+                          <div>
+                            <div style={{ fontWeight: 500, color: '#0f3340', fontSize: 13 }}>{m.user.fullName || 'Unknown'}</div>
+                            <div style={{ fontSize: 11, color: '#8a9ba5' }}>{m.user.phone}{m.user.email ? ` · ${m.user.email}` : ''}</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: '#4a5568' }}>{m.role.name}</div>
+                            <div style={{ fontSize: 10, color: '#9ca3af' }}>{m.status} · {new Date(m.createdAt).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function DetailField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 600, color: '#8a9ba5', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 13, color: '#0f3340', fontFamily: mono ? 'monospace' : undefined }}>{value}</div>
+    </div>
   );
 }
 
@@ -400,3 +551,7 @@ const chip: React.CSSProperties = { display: 'inline-block', padding: '2px 10px'
 const ghostBtn: React.CSSProperties = { padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' };
 const dangerBtn: React.CSSProperties = { padding: '5px 12px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 4, cursor: 'pointer' };
 const activateBtn: React.CSSProperties = { padding: '5px 12px', fontSize: 12, fontWeight: 600, background: '#fff', color: '#065f46', border: '1px solid #6ee7b7', borderRadius: 4, cursor: 'pointer' };
+const viewBtn: React.CSSProperties = { padding: '5px 12px', fontSize: 12, fontWeight: 600, background: '#eef4f6', color: '#0f3340', border: '1px solid #b8d4e3', borderRadius: 4, cursor: 'pointer' };
+const detailSectionTitle: React.CSSProperties = { fontSize: 15, fontWeight: 600, color: '#0f3340', marginBottom: 10, marginTop: 16, paddingBottom: 6, borderBottom: '1px solid #e2e8f0' };
+const noData: React.CSSProperties = { fontSize: 12, color: '#8a9ba5', fontStyle: 'italic', padding: '8px 0' };
+const ORG_TYPE_LABELS: Record<string, string> = { WHOLESALER: 'Wholesaler', RETAILER: 'Retailer', LOGISTICS: 'Logistics Provider' };

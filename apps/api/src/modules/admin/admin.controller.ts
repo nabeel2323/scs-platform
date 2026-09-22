@@ -148,6 +148,12 @@ export class AdminController {
     return this.adminService.listOrganizations();
   }
 
+  @Get('organizations/:id')
+  @RequirePermission('admin:users:read')
+  async getOrganizationDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getOrganizationDetail(id);
+  }
+
   @Patch('organizations/:id/deactivate')
   @RequirePermission('admin:users:write')
   async deactivateOrganization(
