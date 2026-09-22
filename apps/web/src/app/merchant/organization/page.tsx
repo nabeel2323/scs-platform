@@ -6,12 +6,25 @@ import {
   fetchProfile, fetchOrganization, updateOrganization,
   fetchOrgMembers, addOrgMember, removeOrgMember,
   lookupOrgMember, fetchRoles, fetchOrgDocuments, presignDocumentDownload,
+  presignDocumentUpload, registerDocument,
   fetchOrgVerifications, submitOrgUpdateRequest, fetchOrgUpdateRequests,
+  fetchMyStores, fetchStore, updateStore, fetchWarehouses,
   Organization, OrgMember, UserLookupResult, RoleInfo, BusinessDocument, VerificationRequestInfo, OrgUpdateRequest,
+  Store, Warehouse,
 } from '../../../lib/api';
 import { hasPerm } from '../../../lib/auth';
 import { DOCUMENT_STATUS_LABELS, UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
+
+const CURRENCIES = ['SAR', 'AED', 'KWD', 'BHD', 'OMR', 'QAR', 'JOD', 'EGP', 'USD', 'EUR', 'GBP', 'PKR', 'INR'];
+const LOCALES: [string, string][] = [['en', 'English'], ['ar', 'Arabic']];
+const ORG_TYPE_LABELS: Record<string, string> = { WHOLESALER: 'Wholesaler', RETAILER: 'Retailer', LOGISTICS: 'Logistics Provider' };
+const DOC_TYPES = [
+  { value: 'COMMERCIAL_REG', label: 'Commercial Registration' },
+  { value: 'TAX_CERT', label: 'Tax Certificate' },
+  { value: 'BANK_LETTER', label: 'Bank Letter' },
+  { value: 'NATIONAL_ID', label: 'National ID' },
+];
 
 export default function MerchantOrganizationPage() {
   const [org, setOrg] = useState<Organization | null>(null);
@@ -44,12 +57,34 @@ export default function MerchantOrganizationPage() {
   const [docsError, setDocsError] = useState('');
   const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
 
+  // Document upload
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadDocType, setUploadDocType] = useState('COMMERCIAL_REG');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   // Verification history (admin correction feedback)
   const [verifications, setVerifications] = useState<VerificationRequestInfo[]>([]);
   const [membersError, setMembersError] = useState('');
 
   // Update requests (admin approval workflow for verified orgs)
   const [updateRequests, setUpdateRequests] = useState<OrgUpdateRequest[]>([]);
+
+  // Store information (from registration)
+  const [stores, setStores] = useState<Store[]>([]);
+  const [activeStore, setActiveStore] = useState<Store | null>(null);
+  const [storeSaving, setStoreSaving] = useState(false);
+  const [storeDisplayName, setStoreDisplayName] = useState('');
+  const [storeDescription, setStoreDescription] = useState('');
+  const [storeCurrency, setStoreCurrency] = useState('SAR');
+  const [storeLocale, setStoreLocale] = useState('en');
+  const [storeCity, setStoreCity] = useState('');
+  const [storeStreet, setStoreStreet] = useState('');
+  const [storeZip, setStoreZip] = useState('');
+
+  // Warehouse summary
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
   // Remove member confirmation
   const [removeTarget, setRemoveTarget] = useState<OrgMember | null>(null);
@@ -85,6 +120,32 @@ export default function MerchantOrganizationPage() {
     try { setUpdateRequests(await fetchOrgUpdateRequests(orgId)); } catch { /* non-fatal */ }
   }, []);
 
+  const populateStore = useCallback((s: Store) => {
+    setActiveStore(s);
+    setStoreDisplayName(s.displayName || '');
+    setStoreDescription(s.description || '');
+    setStoreCurrency(s.currency || 'SAR');
+    setStoreLocale(s.locale || 'en');
+    const addr = (s.address || {}) as Record<string, unknown>;
+    setStoreCity(String(addr['city'] ?? ''));
+    setStoreStreet(String(addr['street'] ?? ''));
+    setStoreZip(String(addr['zip'] ?? ''));
+  }, []);
+
+  const loadStoreInfo = useCallback(async () => {
+    try {
+      const storeList = await fetchMyStores();
+      setStores(storeList);
+      const first = storeList[0];
+      if (first) {
+        const full = await fetchStore(first.id);
+        populateStore(full);
+        // Load warehouses for the first store
+        try { setWarehouses(await fetchWarehouses(first.id)); } catch { /* non-fatal */ }
+      }
+    } catch { /* non-fatal */ }
+  }, [populateStore]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -99,11 +160,12 @@ export default function MerchantOrganizationPage() {
         await loadDocuments(full.id);
         await loadVerifications(full.id);
         await loadUpdateRequests(full.id);
+        await loadStoreInfo();
       } catch (err: any) {
         setError(err.message || 'Failed to load organization');
       } finally { setLoading(false); }
     })();
-  }, [populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests]);
+  }, [populate, loadMembers, loadDocuments, loadVerifications, loadUpdateRequests, loadStoreInfo]);
 
   useEffect(() => {
     if (addOpen && roles.length === 0) {
@@ -151,6 +213,32 @@ export default function MerchantOrganizationPage() {
     } catch (err: any) {
       setError(err.message || 'Failed to submit update request');
     } finally { setSaving(false); }
+  };
+
+  const handleStoreSave = async () => {
+    if (!activeStore) return;
+    if (!storeDisplayName.trim()) { setError('Store name is required'); return; }
+    setStoreSaving(true);
+    setError('');
+    setSavedMsg('');
+    try {
+      const address: Record<string, string> = {};
+      if (storeCity.trim()) address['city'] = storeCity.trim();
+      if (storeStreet.trim()) address['street'] = storeStreet.trim();
+      if (storeZip.trim()) address['zip'] = storeZip.trim();
+      const updated = await updateStore(activeStore.id, {
+        displayName: storeDisplayName.trim(),
+        description: storeDescription.trim() || undefined,
+        currency: storeCurrency,
+        locale: storeLocale,
+        address: Object.keys(address).length > 0 ? address : undefined,
+      });
+      populateStore(updated);
+      setSavedMsg('Store information updated successfully');
+      setTimeout(() => setSavedMsg(''), 4000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save store information');
+    } finally { setStoreSaving(false); }
   };
 
   const handleAddMember = async () => {
@@ -216,6 +304,47 @@ export default function MerchantOrganizationPage() {
       setError(err.message || 'Failed to download document');
     } finally {
       setDownloadingDoc(null);
+    }
+  };
+
+  const handleUploadDocument = async () => {
+    if (!org || !uploadFile) return;
+    setUploading(true);
+    setError('');
+    setSavedMsg('');
+    try {
+      // 1. Get presigned URL for S3 upload
+      const { uploadUrl, storageKey } = await presignDocumentUpload({
+        fileName: uploadFile.name,
+        mimeType: uploadFile.type || 'application/octet-stream',
+      });
+      // 2. PUT file bytes directly to S3
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: uploadFile,
+        headers: { 'Content-Type': uploadFile.type || 'application/octet-stream' },
+      });
+      if (!putRes.ok) throw new Error('Failed to upload file to storage');
+      // 3. Register the document in the database
+      await registerDocument({
+        orgId: org.id,
+        docType: uploadDocType,
+        fileName: uploadFile.name,
+        mimeType: uploadFile.type || undefined,
+        fileSize: uploadFile.size,
+        storageKey,
+      });
+      // 4. Refresh document list
+      await loadDocuments(org.id);
+      setUploadFile(null);
+      setUploadOpen(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setSavedMsg('Document uploaded successfully');
+      setTimeout(() => setSavedMsg(''), 4000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload document');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -421,7 +550,7 @@ export default function MerchantOrganizationPage() {
 
             <div style={readOnlyRow}>
               <ReadOnlyField label="Country" value={org.country} />
-              <ReadOnlyField label="Business Type" value={org.type} />
+              <ReadOnlyField label="Business Type" value={ORG_TYPE_LABELS[org.type] || org.type} />
               <ReadOnlyField label="Member Since" value={org.createdAt ? new Date(org.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : '—'} />
             </div>
 
@@ -470,6 +599,96 @@ export default function MerchantOrganizationPage() {
                 <button onClick={() => { setName(org.name || ''); setLegalName(org.legalName || ''); setTaxId(org.taxId || ''); }} style={ghostBtn}>
                   Reset
                 </button>
+              </div>
+            )}
+          </div>
+
+          {/* Store Information */}
+          {activeStore && (
+            <div style={{ ...card, marginTop: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h2 style={sectionTitle}>Store Information</h2>
+                <Link href="/merchant/store" style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 500 }}>
+                  Full store settings →
+                </Link>
+              </div>
+              <div style={grid}>
+                <label style={label}>Store Name *
+                  <input type="text" value={storeDisplayName} onChange={e => setStoreDisplayName(e.target.value)} style={input} disabled={!canEdit} aria-label="Store name" />
+                </label>
+                <label style={label}>Currency
+                  <select value={storeCurrency} onChange={e => setStoreCurrency(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEdit} aria-label="Currency">
+                    {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+                <label style={label}>Locale
+                  <select value={storeLocale} onChange={e => setStoreLocale(e.target.value)} style={{ ...input, width: '100%' }} disabled={!canEdit} aria-label="Locale">
+                    {LOCALES.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label style={{ ...label, marginTop: 8 }}>Description
+                <textarea value={storeDescription} onChange={e => setStoreDescription(e.target.value)} style={{ ...input, minHeight: 60, resize: 'vertical' }} disabled={!canEdit} placeholder="Brief description of your store" aria-label="Store description" />
+              </label>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 8, marginTop: 12 }}>Store Address</div>
+              <div style={grid}>
+                <label style={label}>Street
+                  <input type="text" value={storeStreet} onChange={e => setStoreStreet(e.target.value)} style={input} disabled={!canEdit} placeholder="Street address" aria-label="Street" />
+                </label>
+                <label style={label}>City
+                  <input type="text" value={storeCity} onChange={e => setStoreCity(e.target.value)} style={input} disabled={!canEdit} placeholder="City" aria-label="City" />
+                </label>
+                <label style={label}>ZIP / Postal Code
+                  <input type="text" value={storeZip} onChange={e => setStoreZip(e.target.value)} style={input} disabled={!canEdit} placeholder="ZIP code" aria-label="ZIP code" />
+                </label>
+              </div>
+              {canEdit && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  <button onClick={handleStoreSave} disabled={storeSaving || !storeDisplayName.trim()} style={primaryBtn}>
+                    {storeSaving ? 'Saving…' : 'Save Store Info'}
+                  </button>
+                  <button onClick={() => activeStore && populateStore(activeStore)} style={ghostBtn}>Reset</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Warehouse Summary */}
+          <div style={{ ...card, marginTop: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={sectionTitle}>Warehouses ({warehouses.length})</h2>
+              <Link href="/merchant/warehouses" style={{ fontSize: 12, color: '#1e6178', textDecoration: 'none', fontWeight: 500 }}>
+                Manage warehouses →
+              </Link>
+            </div>
+            {warehouses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: '#5b6b74', fontSize: 13 }}>
+                No warehouses configured. <Link href="/merchant/warehouses" style={{ color: '#1e6178' }}>Add one</Link>
+              </div>
+            ) : (
+              <div style={tableWrap}>
+                <table style={table}>
+                  <thead><tr style={theadRow}>
+                    <th style={th}>Name</th>
+                    <th style={th}>Manager</th>
+                    <th style={th}>Phone</th>
+                    <th style={th}>Status</th>
+                  </tr></thead>
+                  <tbody>
+                    {warehouses.map(wh => {
+                      const addr = (wh.address || {}) as Record<string, unknown>;
+                      const city = String(addr['city'] ?? '');
+                      return (
+                        <tr key={wh.id} className="tbl-row" style={tbodyRow}>
+                          <td style={{ ...td, fontWeight: 600, color: '#0f3340' }}>{wh.name}{city ? ` — ${city}` : ''}</td>
+                          <td style={td}>{wh.managerName || '—'}</td>
+                          <td style={{ ...td, color: '#5b6b74', fontSize: 12 }}>{wh.managerPhone || '—'}</td>
+                          <td style={td}><StatusBadge status={wh.status} /></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -562,6 +781,47 @@ export default function MerchantOrganizationPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Upload new document */}
+            {canEdit && (
+              <div style={{ marginTop: 16, borderTop: '1px solid #eef2f5', paddingTop: 16 }}>
+                {!uploadOpen ? (
+                  <button onClick={() => setUploadOpen(true)} style={ghostBtn}>+ Upload Document</button>
+                ) : (
+                  <div style={{ background: '#f7f9fa', border: '1px solid #b8d4e3', borderRadius: 8, padding: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Upload New Document</div>
+                    <div style={grid}>
+                      <label style={label}>Document Type
+                        <select value={uploadDocType} onChange={e => setUploadDocType(e.target.value)} style={{ ...input, width: '100%' }} aria-label="Document type">
+                          {DOC_TYPES.map(dt => <option key={dt.value} value={dt.value}>{dt.label}</option>)}
+                        </select>
+                      </label>
+                      <label style={label}>File
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          onChange={e => { const f = e.target.files?.[0] ?? null; setUploadFile(f); }}
+                          style={{ ...input, padding: '6px 10px' }}
+                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                          aria-label="Select file"
+                        />
+                      </label>
+                    </div>
+                    {uploadFile && (
+                      <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 4 }}>
+                        {uploadFile.name} — {fmtSize(uploadFile.size)}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button onClick={handleUploadDocument} disabled={uploading || !uploadFile} style={primaryBtn}>
+                        {uploading ? 'Uploading…' : 'Upload'}
+                      </button>
+                      <button onClick={() => { setUploadOpen(false); setUploadFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} style={ghostBtn}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
