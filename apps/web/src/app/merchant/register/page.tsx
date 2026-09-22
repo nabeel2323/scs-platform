@@ -292,14 +292,15 @@ export default function MerchantRegistrationPage() {
               fileName: doc.fileName,
               mimeType: doc.mimeType,
             });
-            try {
-              await fetch(uploadUrl, {
-                method: 'PUT',
-                body: doc.file,
-                headers: { 'Content-Type': doc.mimeType },
-              });
-            } catch {
-              /* dev storage may be stubbed — still record the document */
+            // PUT bytes to object storage — fail early so we never register
+            // metadata pointing at a non-existent object (NoSuchKey on download).
+            const putRes = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: doc.file,
+              headers: { 'Content-Type': doc.mimeType },
+            });
+            if (!putRes.ok) {
+              throw new Error(`Upload of "${doc.fileName}" to storage failed (${putRes.status}). Check bucket CORS rules.`);
             }
             await registerDocument({
               orgId: createdOrgId,

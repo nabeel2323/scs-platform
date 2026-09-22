@@ -90,6 +90,11 @@ export interface ProductStore {
 export interface ProductDetail extends Product {
   store: ProductStore | null;
   variants: ProductVariant[];
+  /** Product photos (GET /v1/products/:id/media), URLs signed for display. */
+  media?: MediaItem[];
+  categoryName?: string | null;
+  brandName?: string | null;
+  imageCount?: number;
 }
 
 export interface Category {
@@ -738,6 +743,10 @@ export interface MediaItem {
   fileSize: number;
   mimeType: string | null;
   createdAt: string;
+  /** Browser-renderable URL (signed or absolute); null when the object is missing. */
+  displayUrl?: string | null;
+  /** Signed thumbnail URL, when a thumb exists and is renderable. */
+  thumbSrc?: string | null;
 }
 
 export interface CreateProductInput {

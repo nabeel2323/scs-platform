@@ -77,6 +77,7 @@ function harness(
     { db: dbWithCount } as never,
     { client: {} } as never,
     { publish: async () => undefined } as never,
+    { createPresignedGetUrl: async () => null } as never,
   );
 }
 
