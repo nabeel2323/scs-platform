@@ -1,21 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { fetchFavorites, removeFavorite, Favorite } from '../../lib/buyer-api';
+import { useAuth } from '../../components/AuthProvider';
 import Link from 'next/link';
 
 export default function FavoritesPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/auth/login?redirect=/favorites');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  const load = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try { setFavorites(await fetchFavorites()); }
     catch { /* ignore */ }
     finally { setLoading(false); }
-  };
+  }, [user]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: '#5b6b74' }}>Loading...</div>;
 
   const handleRemove = async (productId: string) => {
     try {

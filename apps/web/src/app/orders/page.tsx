@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { fetchOrders, SubOrder } from '../../lib/buyer-api';
+import { useAuth } from '../../components/AuthProvider';
 import { StatusBadge, formatMinor, formatDate, EmptyState, LoadingSpinner, ErrorBanner } from '../../components/Shared';
 
 export default function OrdersPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [orders, setOrders] = useState<SubOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,15 +17,24 @@ export default function OrdersPage() {
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/auth/login?redirect=/orders');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!user) return;
     fetchOrders(filter ? { status: filter } : undefined)
       .then(data => { setError(''); setOrders(data as SubOrder[]); })
       // A4-6: a failed fetch used to be swallowed, leaving an empty list that
       // reads exactly like "you have never ordered".
       .catch((err: any) => setError(err.message || 'Could not load your orders'))
       .finally(() => setLoading(false));
-  }, [filter, reload]);
+  }, [filter, reload, user]);
 
-  if (loading) return <LoadingSpinner />;
+  if (authLoading || !user) return <LoadingSpinner />;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>

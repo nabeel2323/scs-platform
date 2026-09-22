@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   fetchNotifications,
   markNotificationRead,
@@ -8,6 +9,7 @@ import {
   markAllNotificationsRead,
   type Notification,
 } from '../../lib/buyer-api';
+import { useAuth } from '../../components/AuthProvider';
 import { onNotification } from '../../lib/realtime';
 import { formatDate, EmptyState, LoadingSpinner } from '../../components/Shared';
 
@@ -24,6 +26,8 @@ function notifyBadgeChanged() {
 }
 
 export default function NotificationsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('ALL');
@@ -31,19 +35,33 @@ export default function NotificationsPage() {
   // repeated clicks are suppressed.
   const [working, setWorking] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/auth/login?redirect=/notifications');
+      return;
+    }
+  }, [user, authLoading, router]);
+
   const load = useCallback(async () => {
+    if (!user) return;
     try {
       const data = await fetchNotifications();
       setNotifications(data);
     } catch { /* silently swallow — the empty state covers it */ }
     finally { setLoading(false); }
-  }, []);
+  }, [user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (user) void load(); }, [load, user]);
 
   // Live in-app notifications over the realtime gateway (WEB-B6) — new items
   // appear without a manual refresh.
-  useEffect(() => onNotification(() => { void load(); }), [load]);
+  useEffect(() => {
+    if (!user) return;
+    return onNotification(() => { void load(); });
+  }, [load, user]);
+
+  if (authLoading || !user) return <LoadingSpinner />;
 
   const unreadCount = notifications.filter(n => !n.readAt).length;
 

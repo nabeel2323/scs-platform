@@ -181,7 +181,7 @@ export default function MerchantOrdersPage() {
             <div key={order.id} style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: 16, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340' }}>Order #{order.id.slice(0, 8)}</div>
+                  <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
                   <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDate(order.createdAt)} · {order.itemCount ?? 0} {order.itemCount === 1 ? 'item' : 'items'} · {formatMinor(order.totalMinor, order.currency)}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -221,7 +221,7 @@ export default function MerchantOrdersPage() {
               <div key={order.id} style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16, marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340' }}>Order #{order.id.slice(0, 8)}</div>
+                    <Link href={`/merchant/orders/${order.id}`} style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>Order #{order.id.slice(0, 8)} <span style={{ fontSize: 11, color: '#1e6178' }}>View details →</span></Link>
                     <div style={{ fontSize: 12, color: '#5b6b74' }}>{formatDate(order.createdAt)} · {formatMinor(order.totalMinor, order.currency)}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -255,10 +255,11 @@ export default function MerchantOrdersPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, color: '#5b6b74', marginBottom: 12 }}>Completed ({completedOrders.length})</h2>
           {completedOrders.map(order => (
             <div key={order.id} style={{ background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 10, padding: 12, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: 13, color: '#5b6b74' }}>Order #{order.id.slice(0, 8)}</span>
+              <Link href={`/merchant/orders/${order.id}`} style={{ textDecoration: 'none' }}>
+                <span style={{ fontSize: 13, color: '#0f3340', fontWeight: 600 }}>Order #{order.id.slice(0, 8)}</span>
                 <span style={{ fontSize: 12, color: '#a0aec0', marginLeft: 8 }}>{formatDate(order.createdAt)}</span>
-              </div>
+                <span style={{ fontSize: 11, color: '#1e6178', marginLeft: 8 }}>View details →</span>
+              </Link>
               <StatusBadge status={order.status} />
             </div>
           ))}

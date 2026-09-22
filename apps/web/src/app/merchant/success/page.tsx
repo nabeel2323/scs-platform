@@ -22,7 +22,7 @@ export default function OnboardingSuccessPage() {
       </p>
       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
         <Link
-          href="/"
+          href="/merchant"
           style={{
             padding: '10px 28px',
             borderRadius: 6,
@@ -33,7 +33,22 @@ export default function OnboardingSuccessPage() {
             fontWeight: 600,
           }}
         >
-          Go to Dashboard
+          Go to Merchant Dashboard
+        </Link>
+        <Link
+          href="/account"
+          style={{
+            padding: '10px 28px',
+            borderRadius: 6,
+            background: '#fff',
+            color: '#174a5b',
+            textDecoration: 'none',
+            fontSize: 14,
+            fontWeight: 600,
+            border: '1px solid #d9e2e6',
+          }}
+        >
+          My Account
         </Link>
       </div>
       </main>
