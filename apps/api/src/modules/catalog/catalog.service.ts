@@ -18,7 +18,7 @@ import {
   savedSuppliers,
 } from './catalog.schema';
 import { enrichProductCards } from './product-card';
-import { imageReferences } from './product-images';
+import { imageReferences, isProductMediaKey } from './product-images';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -26,6 +26,7 @@ import { resolveVariantPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
 import { eq, and, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import { StorageService } from '../../common/storage/storage.service';
 
 /**
  * Catalog service — products, variants, categories, brands, media, imports.
@@ -36,7 +37,40 @@ export class CatalogService {
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
     private readonly outbox: OutboxDispatcher,
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Convert a stored media reference to a URL a browser can render.
+   *
+   * `product_media.url` holds either a full URL (already-hosted image) or an
+   * object-storage key like `products/{uuid}/{file}`. Only keys are signed;
+   * failures resolve to null so the client can fall back to a placeholder.
+   */
+  private async resolveMediaRef(ref: string | null | undefined): Promise<string | null> {
+    if (!ref) return null;
+    const trimmed = ref.trim();
+    if (!trimmed) return null;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    if (!isProductMediaKey(trimmed)) return null;
+    try {
+      return await this.storage.createPresignedGetUrl(
+        process.env['S3_MEDIA_BUCKET'] || 'scs-media',
+        trimmed,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Resolve every image reference of one media row (url + thumbUrl). */
+  private async resolveMediaRow<T extends { url: string; thumbUrl: string | null }>(row: T): Promise<T & { displayUrl: string | null; thumbSrc: string | null }> {
+    const [displayUrl, thumbSrc] = await Promise.all([
+      this.resolveMediaRef(row.url),
+      this.resolveMediaRef(row.thumbUrl),
+    ]);
+    return { ...row, displayUrl, thumbSrc };
+  }
 
   // ── Categories ───────────────────────────────────────────────
 
@@ -301,7 +335,11 @@ export class CatalogService {
       stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
     }));
 
-    return { ...product, ...labels[0], store: storeRows[0] ?? null, media, variants: variantsWithStock,
+    // Resolve storage keys to signed URLs so the buyer page can render
+    // product photos directly; failures degrade to null (placeholder shown).
+    const resolvedMedia = await Promise.all(media.map(m => this.resolveMediaRow(m)));
+
+    return { ...product, ...labels[0], store: storeRows[0] ?? null, media: resolvedMedia, variants: variantsWithStock,
       imageCount: imageReferences(product.images, media).length };
   }
 

@@ -41,7 +41,12 @@ function createMocks() {
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
-  return new CatalogService(mocks.mockDb, mocks.mockRedis, mocks.mockOutbox);
+  return new CatalogService(
+    mocks.mockDb,
+    mocks.mockRedis,
+    mocks.mockOutbox,
+    { createPresignedGetUrl: async () => null } as never,
+  );
 }
 
 describe('CatalogService — Saved Suppliers (§21.3)', () => {

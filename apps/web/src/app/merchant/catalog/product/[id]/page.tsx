@@ -282,13 +282,16 @@ export default function ProductEditorPage() {
         fileName: file.name,
         mimeType: file.type || 'application/octet-stream',
       });
-      try {
-        await fetch(uploadUrl, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        });
-      } catch { /* dev storage is stubbed — ignore upload failure, still record media */ }
+      // PUT bytes directly to object storage — fail early if the upload
+      // doesn't succeed so we never register metadata for a missing object.
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      });
+      if (!putRes.ok) {
+        throw new Error(`Upload to storage failed (${putRes.status}). Check bucket CORS rules.`);
+      }
       await addMedia(id, { url: storageKey, mimeType: file.type || undefined, fileSize: file.size });
       setMedia(await listMedia(id));
     } catch (err: any) {
