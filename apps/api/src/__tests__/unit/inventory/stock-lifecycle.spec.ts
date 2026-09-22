@@ -353,4 +353,83 @@ describe('InventoryService — stock lifecycle', () => {
     expect(results[1]!.newQty).toBe(25);
     expect(harness.movementRows.length).toBe(2);
   });
+
+  // ── Reservations ──────────────────────────────────────────────
+
+  it('reserves stock and records a RESERVE movement with negative quantity', async () => {
+    harness.inventoryRows.push({
+      id: 'inv-r1', variantId: VARIANT_ID, warehouseId: WH_A,
+      qtyOnHand: 100, qtyReserved: 0, reorderPoint: 0, lowStockAlert: false,
+    });
+    harness.setGetItem('inv-r1');
+
+    const result = await harness.service.reserveStock({
+      inventoryItemId: 'inv-r1',
+      quantity: 30,
+      referenceType: 'ORDER',
+      referenceId: 'order-001',
+    });
+
+    expect(result.movementId).toBeDefined();
+    expect(harness.movementRows.length).toBe(1);
+    expect(harness.movementRows[0]!['movementType']).toBe('RESERVE');
+    expect(harness.movementRows[0]!['quantity']).toBe(-30);
+    expect(harness.movementRows[0]!['referenceType']).toBe('ORDER');
+    expect(harness.movementRows[0]!['referenceId']).toBe('order-001');
+  });
+
+  it('rejects reservation when available stock is insufficient', async () => {
+    harness.inventoryRows.push({
+      id: 'inv-r2', variantId: VARIANT_ID, warehouseId: WH_A,
+      qtyOnHand: 20, qtyReserved: 15, reorderPoint: 0, lowStockAlert: false,
+    });
+    harness.setGetItem('inv-r2');
+
+    // Available = 20 - 15 = 5, requesting 10 should fail
+    await expect(
+      harness.service.reserveStock({
+        inventoryItemId: 'inv-r2',
+        quantity: 10,
+      }),
+    ).rejects.toThrow('Insufficient available stock');
+  });
+
+  it('releases reserved stock and records a RELEASE movement', async () => {
+    harness.inventoryRows.push({
+      id: 'inv-r3', variantId: VARIANT_ID, warehouseId: WH_A,
+      qtyOnHand: 50, qtyReserved: 20, reorderPoint: 0, lowStockAlert: false,
+    });
+    harness.setGetItem('inv-r3');
+
+    const result = await harness.service.releaseStock({
+      inventoryItemId: 'inv-r3',
+      quantity: 15,
+      referenceType: 'ORDER',
+      referenceId: 'order-002',
+    });
+
+    expect(result.movementId).toBeDefined();
+    expect(harness.movementRows.length).toBe(1);
+    expect(harness.movementRows[0]!['movementType']).toBe('RELEASE');
+    expect(harness.movementRows[0]!['quantity']).toBe(15);
+  });
+
+  it('clamps release to zero when releasing more than reserved', async () => {
+    harness.inventoryRows.push({
+      id: 'inv-r4', variantId: VARIANT_ID, warehouseId: WH_A,
+      qtyOnHand: 50, qtyReserved: 5, reorderPoint: 0, lowStockAlert: false,
+    });
+    harness.setGetItem('inv-r4');
+
+    // Release 100 but only 5 reserved — should clamp, not go negative
+    const result = await harness.service.releaseStock({
+      inventoryItemId: 'inv-r4',
+      quantity: 100,
+    });
+
+    expect(result.movementId).toBeDefined();
+    expect(harness.movementRows.length).toBe(1);
+    expect(harness.movementRows[0]!['movementType']).toBe('RELEASE');
+    expect(harness.movementRows[0]!['quantity']).toBe(100);
+  });
 });

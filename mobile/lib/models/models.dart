@@ -791,6 +791,21 @@ class InventoryItem {
   bool get isLow => qtyOnHand <= reorderPoint;
 }
 
+/// Paginated envelope for store inventory listings.
+class PaginatedInventory {
+  final List<InventoryItem> data;
+  final int total;
+  PaginatedInventory({required this.data, required this.total});
+  factory PaginatedInventory.fromJson(Map<String, dynamic> j) =>
+      PaginatedInventory(
+        data: (j['data'] as List)
+            .map((e) =>
+                InventoryItem.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        total: j['total'] as int? ?? 0,
+      );
+}
+
 /// Price list row returned by GET /v1/stores/:id/price-lists.
 class PriceList {
   final String id, storeId, name, currency;

@@ -26,7 +26,6 @@ const pipe = new ValidationPipe({
   transformOptions: { enableImplicitConversion: true },
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const body = (metatype: unknown) => ({ type: 'body', metatype }) as any;
 
 describe('Auth DTO validation (forbidNonWhitelisted effective)', () => {

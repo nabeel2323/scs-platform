@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { analyticsEvents } from '../audit/audit.schema';
-import { eq, and, desc, sql, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, lte, gte } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**

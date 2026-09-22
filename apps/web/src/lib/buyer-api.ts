@@ -1088,8 +1088,15 @@ export async function bulkAdjustStock(items: Array<{
   return res.json();
 }
 
-export async function fetchStoreInventory(storeId: string): Promise<InventoryItem[]> {
-  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory`);
+export async function fetchStoreInventory(
+  storeId: string,
+  opts?: { limit?: number; offset?: number },
+): Promise<{ data: InventoryItem[]; total: number }> {
+  const params = new URLSearchParams();
+  if (opts?.limit != null) params.set('limit', String(opts.limit));
+  if (opts?.offset != null) params.set('offset', String(opts.offset));
+  const qs = params.toString();
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Store inventory failed: ${res.status}`);
   return res.json();
 }

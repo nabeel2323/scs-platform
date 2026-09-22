@@ -35,7 +35,7 @@ export class HealthController {
               status: 'up',
             },
           };
-        } catch (error) {
+        } catch (_error) {
           throw new HealthCheckError('Database check failed', {
             database: {
               status: 'down',
@@ -53,7 +53,7 @@ export class HealthController {
               status: 'up',
             },
           };
-        } catch (error) {
+        } catch (_error) {
           throw new HealthCheckError('Redis check failed', {
             redis: {
               status: 'down',

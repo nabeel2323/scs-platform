@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { priceLists, priceTiers } from './pricing.schema';
-import { eq, and, desc, lte, gte, isNull, or } from 'drizzle-orm';
+import { eq, and, desc, lte } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**

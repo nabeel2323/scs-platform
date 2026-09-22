@@ -3,7 +3,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { reviews, trustSnapshots } from './reviews.schema';
 import { orders } from '../orders/orders.schema';
-import { eq, and, desc, sql, avg, count } from 'drizzle-orm';
+import { eq, and, desc, avg, count } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**

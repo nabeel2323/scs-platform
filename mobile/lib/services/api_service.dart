@@ -822,12 +822,19 @@ class ApiService {
         .cast<Map<String, dynamic>>();
   }
 
-  /// Fetch all inventory items across a store's warehouses.
-  Future<List<InventoryItem>> fetchStoreInventory(String storeId) async =>
-      (await _dio.get('/v1/stores/$storeId/inventory'))
-          .data
-          .map<InventoryItem>((e) => InventoryItem.fromJson(e))
-          .toList();
+  /// Fetch inventory items across a store's warehouses with pagination.
+  Future<PaginatedInventory> fetchStoreInventory(
+    String storeId, {
+    int limit = 20,
+    int offset = 0,
+  }) async =>
+      PaginatedInventory.fromJson(
+        (await _dio.get(
+          '/v1/stores/$storeId/inventory',
+          queryParameters: {'limit': limit, 'offset': offset},
+        ))
+            .data as Map<String, dynamic>,
+      );
 
   /// Export stock movements as CSV text.
   Future<String> exportMovementsCsv(String storeId) async =>

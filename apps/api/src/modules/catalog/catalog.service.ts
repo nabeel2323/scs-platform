@@ -24,7 +24,7 @@ import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { resolveVariantPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { eq, and, or, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
+import { eq, and, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -181,7 +181,7 @@ export class CatalogService {
   }
 
   async updateBrand(id: string, input: Partial<CreateBrandInput> & { isActive?: boolean }) {
-    const brand = await this.getBrand(id);
+    await this.getBrand(id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (input.name !== undefined) {
       updates['name'] = input.name;
@@ -201,7 +201,7 @@ export class CatalogService {
 
   // ── Products ─────────────────────────────────────────────────
 
-  async createProduct(input: CreateProductInput, userId: string) {
+  async createProduct(input: CreateProductInput, _userId: string) {
     const id = crypto.randomUUID();
     const slug =
       input.slug ||

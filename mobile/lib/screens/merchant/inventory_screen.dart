@@ -10,11 +10,18 @@ import '../../widgets/common_widgets.dart';
 /// Shows all inventory items across the store's warehouses with actions for
 /// stock adjustment, warehouse transfer, CSV export, and low-stock checks.
 /// Mirrors the web /merchant/inventory page.
-class InventoryScreen extends ConsumerWidget {
+class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
+  int _page = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final storeAsync = ref.watch(activeStoreProvider);
     return Scaffold(
       appBar: AppBar(
@@ -26,7 +33,8 @@ class InventoryScreen extends ConsumerWidget {
                 storeAsync.maybeWhen(
                   data: (s) {
                     if (s != null) {
-                      ref.invalidate(storeInventoryProvider(s.id));
+                      ref.invalidate(
+                          storeInventoryProvider((storeId: s.id, page: _page)));
                       ref.invalidate(storeWarehousesProvider(s.id));
                     }
                   },
@@ -49,7 +57,10 @@ class InventoryScreen extends ConsumerWidget {
                     'Complete merchant registration to manage inventory.',
                 icon: Icons.inventory_2_outlined);
           }
-          return _InventoryBody(storeId: store.id);
+          return _InventoryBody(
+              storeId: store.id,
+              page: _page,
+              onPageChanged: (p) => setState(() => _page = p));
         },
       ),
     );
@@ -58,11 +69,15 @@ class InventoryScreen extends ConsumerWidget {
 
 class _InventoryBody extends ConsumerWidget {
   final String storeId;
-  const _InventoryBody({required this.storeId});
+  final int page;
+  final ValueChanged<int> onPageChanged;
+  const _InventoryBody(
+      {required this.storeId, required this.page, required this.onPageChanged});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final inventory = ref.watch(storeInventoryProvider(storeId));
+    final inventory =
+        ref.watch(storeInventoryProvider((storeId: storeId, page: page)));
 
     return Column(children: [
       _ActionBar(storeId: storeId),
@@ -73,26 +88,77 @@ class _InventoryBody extends ConsumerWidget {
           error: (e, _) => EmptyState(
               title: 'Error',
               description: '$e',
-              onAction: () => ref.invalidate(storeInventoryProvider(storeId))),
-          data: (items) => items.isEmpty
-              ? const EmptyState(
-                  title: 'No inventory',
-                  description:
-                      'Assign variants to warehouses to start tracking stock.',
-                  icon: Icons.inventory_2_outlined)
-              : RefreshIndicator(
-                  onRefresh: () async =>
-                      ref.invalidate(storeInventoryProvider(storeId)),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 4),
-                    itemBuilder: (_, i) => _InventoryTile(
-                      item: items[i],
-                      storeId: storeId,
+              onAction: () => ref.invalidate(
+                  storeInventoryProvider((storeId: storeId, page: page)))),
+          data: (pag) {
+            final items = pag.data;
+            final total = pag.total;
+            const pageSize = 20;
+            final totalPages = (total / pageSize).ceil();
+            return items.isEmpty
+                ? const EmptyState(
+                    title: 'No inventory',
+                    description:
+                        'Assign variants to warehouses to start tracking stock.',
+                    icon: Icons.inventory_2_outlined)
+                : Column(children: [
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: () async => ref.invalidate(
+                            storeInventoryProvider(
+                                (storeId: storeId, page: page))),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 4),
+                          itemBuilder: (_, i) => _InventoryTile(
+                            item: items[i],
+                            storeId: storeId,
+                            page: page,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                    if (totalPages > 1)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 8, horizontal: 12),
+                        decoration: const BoxDecoration(
+                          border:
+                              Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton.icon(
+                              icon: const Icon(Icons.chevron_left, size: 18),
+                              label: const Text('Prev'),
+                              onPressed: page > 0
+                                  ? () => onPageChanged(page - 1)
+                                  : null,
+                            ),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'Page ${page + 1} of $totalPages',
+                                style: const TextStyle(
+                                    fontSize: 13, color: Color(0xFF5B6B74)),
+                              ),
+                            ),
+                            TextButton.icon(
+                              icon: const Icon(Icons.chevron_right, size: 18),
+                              label: const Text('Next'),
+                              onPressed: (page + 1) < totalPages
+                                  ? () => onPageChanged(page + 1)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                  ]);
+          },
         ),
       ),
     ]);
@@ -186,7 +252,9 @@ class _ActionBar extends ConsumerWidget {
 class _InventoryTile extends ConsumerStatefulWidget {
   final InventoryItem item;
   final String storeId;
-  const _InventoryTile({required this.item, required this.storeId});
+  final int page;
+  const _InventoryTile(
+      {required this.item, required this.storeId, required this.page});
 
   @override
   ConsumerState<_InventoryTile> createState() => _InventoryTileState();
@@ -325,7 +393,8 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
             quantity: result['quantity'] as int,
             reason: result['reason'] as String?,
           );
-      ref.invalidate(storeInventoryProvider(storeId));
+      ref.invalidate(
+          storeInventoryProvider((storeId: storeId, page: widget.page)));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Stock adjusted'), backgroundColor: TaifTokens.ok));
@@ -407,7 +476,8 @@ class _InventoryTileState extends ConsumerState<_InventoryTile> {
             quantity: result['quantity'] as int,
             reason: result['reason'] as String?,
           );
-      ref.invalidate(storeInventoryProvider(storeId));
+      ref.invalidate(
+          storeInventoryProvider((storeId: storeId, page: widget.page)));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Stock transferred'),

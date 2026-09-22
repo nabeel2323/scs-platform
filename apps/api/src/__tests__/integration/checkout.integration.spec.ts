@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { BadRequestException, ConflictException } from '@nestjs/common';
 import { OrdersService } from '../../modules/orders/orders.service';
-import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
 /**
  * Checkout Integration Tests
@@ -215,7 +213,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({
+      await service.checkout({
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-002',

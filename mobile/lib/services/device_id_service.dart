@@ -52,6 +52,7 @@ class DeviceIdService {
       return deviceId;
     } catch (e) {
       // Fallback to timestamp-based ID
+      // ignore: avoid_print
       print('Warning: Failed to generate UUID: $e');
       return 'device-${DateTime.now().millisecondsSinceEpoch}';
     }

@@ -6,9 +6,7 @@ import {
   Delete,
   Param,
   Body,
-  Query,
   UseGuards,
-  Req,
   Headers,
 } from '@nestjs/common';
 import { IdentityService } from './identity.service';

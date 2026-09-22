@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Param, Body, Query, UseGuards,
+  Controller, Get, Post, Param, Body, UseGuards,
 } from '@nestjs/common';
 import { ReviewsService, CreateReviewInput } from './reviews.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';

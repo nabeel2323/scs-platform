@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { products, productVariants, brands, categories } from './catalog.schema';
 import { searchQueries } from './search.schema';
-import { eq, and, isNull, or, like, sql, desc } from 'drizzle-orm';
+import { eq, and, isNull, or, sql, desc } from 'drizzle-orm';
 import { enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
 

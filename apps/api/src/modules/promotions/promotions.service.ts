@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { promotions, promotionRedemptions } from './promotions.schema';
-import { eq, and, or, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**

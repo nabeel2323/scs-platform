@@ -1,7 +1,7 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query, UseGuards,
 } from '@nestjs/common';
-import { DisputesService, CreateDisputeInput } from './disputes.service';
+import { DisputesService } from './disputes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';

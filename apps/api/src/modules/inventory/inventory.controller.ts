@@ -34,8 +34,14 @@ export class InventoryController {
 
   @Get('stores/:storeId/inventory')
   @RequirePermission('merchant:inventory:read')
-  async listByStore(@Param('storeId') storeId: string) {
-    return this.inventoryService.listByStore(storeId);
+  async listByStore(
+    @Param('storeId') storeId: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const lim = limit ? parseInt(limit, 10) : 50;
+    const off = offset ? parseInt(offset, 10) : 0;
+    return this.inventoryService.listByStore(storeId, { limit: lim, offset: off });
   }
 
   // ── Inventory items ────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete,
-  Param, Body, Query, UseGuards,
+  Param, Body, UseGuards,
 } from '@nestjs/common';
 import { CartService, AddCartItemInput } from './cart.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';

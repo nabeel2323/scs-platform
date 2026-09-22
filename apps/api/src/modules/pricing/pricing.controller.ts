@@ -5,7 +5,7 @@ import {
 import { PricingService, CreatePriceListInput, UpdatePriceListInput, CreateTierInput, UpdateTierInput } from './pricing.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import { RequirePermission } from '../../common/guards/current-user.decorator';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
