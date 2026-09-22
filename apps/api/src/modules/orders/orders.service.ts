@@ -23,6 +23,8 @@ import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
+import { organizationMembers } from '../identity/identity.schema';
 import {
   computeOrderFinancials,
   resolveDeliveryFeeMinor,
@@ -70,6 +72,10 @@ export class OrdersService {
     // keep compiling — `reorder` refuses loudly rather than silently doing
     // nothing if the provider is ever missing.
     @Optional() private readonly cart?: CartService,
+    // Merchant "new order" alerts. Optional so the many specs that construct
+    // this service by hand keep compiling; supplied by the @Global
+    // NotificationsModule at runtime. Fan-out is skipped entirely when absent.
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
@@ -151,15 +157,19 @@ export class OrdersService {
     // into sub-orders priced in different currencies, so each records its own
     // (A2-4). One batch read instead of one per group.
     const currencyByStore = new Map<string, string>();
+    const orgIdByStore = new Map<string, string>();
     const storeRows = await this.db.db.query.stores.findMany({
       where: inArray(stores.id, [...grouped.keys()]),
-      columns: { id: true, currency: true },
+      columns: { id: true, currency: true, orgId: true },
     });
-    for (const store of storeRows) currencyByStore.set(store['id'], store['currency']);
+    for (const store of storeRows) {
+      currencyByStore.set(store['id'], store['currency']);
+      if (store['orgId']) orgIdByStore.set(store['id'], store['orgId']);
+    }
 
     // Create sub-orders per supplier
     const subOrderIds: string[] = [];
-    const subOrderData: { id: string; storeId: string }[] = [];
+    const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
     let grandTotalMinor = 0;
     for (const [storeId, storeItems] of grouped) {
       const subOrderId = crypto.randomUUID();
@@ -270,7 +280,7 @@ export class OrdersService {
       );
 
       subOrderIds.push(subOrderId);
-      subOrderData.push({ id: subOrderId, storeId });
+      subOrderData.push({ id: subOrderId, storeId, totalMinor: fin.totalMinor, itemCount: storeItems.length });
     }
 
     // Mark cart as CONVERTED
@@ -295,6 +305,29 @@ export class OrdersService {
     for (const sub of subOrderData) {
       await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
     }
+
+    // ── Merchant alerting (best-effort side effects of a committed order) ──
+    // Push a realtime "new order" banner into each selling store's room and
+    // persist an in-app notification per org member (the gateway also pushes
+    // those, refreshing the nav unread badge). The order, financials and outbox
+    // event are already committed above, so nothing here may fail the checkout:
+    // each call is guarded by the optional deps and swallows its own errors.
+    const orderAlertedAt = new Date().toISOString();
+    for (const s of subOrderData) {
+      try {
+        this.realtime?.emitNewOrder?.(s.storeId, {
+          masterOrderId: masterId,
+          orderId: s.id,
+          storeId: s.storeId,
+          totalMinor: s.totalMinor,
+          itemCount: s.itemCount,
+          createdAt: orderAlertedAt,
+        });
+      } catch {
+        /* realtime is best-effort — never fail a placed order */
+      }
+    }
+    await this.notifyStoreMerchants(masterId, subOrderData, orgIdByStore);
 
     return this.getMasterOrder(masterId);
   }
@@ -329,6 +362,54 @@ export class OrdersService {
       buyerId,
       slaDeadlineMinutes: 15, // 15-min SLA for merchant to respond
     });
+  }
+
+  /**
+   * Persist an in-app "new order" notification for every ACTIVE member of each
+   * selling org so merchants see it in the notifications bell and the nav unread
+   * badge refreshes over the realtime push. Members of one org are fetched once
+   * (cached per org) even when a cart spans several of that org's stores.
+   * Best-effort and dependency-guarded: a missing NotificationsService (isolated
+   * unit specs) or a delivery error must never fail a committed checkout.
+   */
+  private async notifyStoreMerchants(
+    masterOrderId: string,
+    subOrders: { id: string; storeId: string; itemCount: number }[],
+    orgIdByStore: Map<string, string>,
+  ) {
+    if (!this.notifications) return;
+    try {
+      const membersByOrg = new Map<string, string[]>();
+      for (const s of subOrders) {
+        const orgId = orgIdByStore.get(s.storeId);
+        if (!orgId) continue;
+        let userIds = membersByOrg.get(orgId);
+        if (!userIds) {
+          const members = await this.db.db.query.organizationMembers.findMany({
+            where: and(
+              eq(organizationMembers.orgId, orgId),
+              eq(organizationMembers.status, 'ACTIVE'),
+            ),
+            columns: { userId: true },
+          });
+          userIds = members.map((m) => m['userId']);
+          membersByOrg.set(orgId, userIds);
+        }
+        for (const userId of userIds) {
+          await this.notifications.send(userId, 'order.submitted', {
+            orderId: s.id,
+            storeId: s.storeId,
+            masterOrderId,
+            itemCount: s.itemCount,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[Orders] new-order merchant notification fan-out failed (non-fatal):',
+        (err as Error)?.message,
+      );
+    }
   }
 
   // ── Merchant Actions ─────────────────────────────────────────

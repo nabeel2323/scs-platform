@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchProfile, fetchMyStores, Store, UserProfile } from '../../lib/api';
 import { pickStore, rememberStoreId } from '../../lib/merchant-store';
-import { LoadingSpinner, StatusBadge } from '../../components/Shared';
+import { LoadingSpinner, StatusBadge, formatMinor } from '../../components/Shared';
+import { useMerchantRealtime } from '../../lib/useMerchantRealtime';
+import type { NewOrderEvent } from '../../lib/realtime';
 
 const CARDS = [
   { href: '/merchant/store', title: 'Store Profile', desc: 'Name, description, currency, address & warehouses', icon: '🏬' },
@@ -23,6 +25,7 @@ export default function MerchantDashboardPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [activeId, setActiveId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [newOrderAlert, setNewOrderAlert] = useState<NewOrderEvent | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +41,11 @@ export default function MerchantDashboardPage() {
       finally { setLoading(false); }
     })();
   }, []);
+
+  // Gap 2: surface incoming orders in real time. The shared hook joins each of
+  // this merchant's store rooms and fires whenever a `new_order` broadcast lands
+  // for any of them, so the dashboard announces it without a manual refresh.
+  useMerchantRealtime((evt) => setNewOrderAlert(evt));
 
   // A2-1: selecting a store persists the preference, so every merchant tool
   // (orders, catalog, inventory, pricing, store profile) opens on the same one.
@@ -62,6 +70,21 @@ export default function MerchantDashboardPage() {
         </p>
       </div>
       <div style={{ padding: '20px 24px 48px' }}>
+
+      {/* New order alert (Gap 2) — dismissible, links straight to the order. */}
+      {newOrderAlert && (
+        <div style={{ background: '#e6f0f3', border: '1px solid #1e6178', borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>🔔</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, color: '#0f3340', fontSize: 14 }}>New order received</div>
+            <div style={{ fontSize: 12, color: '#1e6178', marginTop: 2 }}>
+              {newOrderAlert.itemCount} item(s){newOrderAlert.totalMinor > 0 ? ` · ${formatMinor(newOrderAlert.totalMinor, stores.find((s) => s.id === newOrderAlert.storeId)?.currency)}` : ''} —{' '}
+              <Link href={`/merchant/orders/${newOrderAlert.orderId}`} style={{ color: '#0f3340', fontWeight: 600, textDecoration: 'underline' }}>View order</Link>
+            </div>
+          </div>
+          <button onClick={() => setNewOrderAlert(null)} aria-label="Dismiss new order alert" style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#5b6b74', padding: '2px 6px', lineHeight: 1 }}>×</button>
+        </div>
+      )}
 
       {/* Deactivation warning (G16) — mirrors the organization page banner */}
       {org && org.isActive === false && (

@@ -751,6 +751,16 @@ export async function fetchMerchantCustomersCached(): Promise<CustomerSummary[]>
   return data;
 }
 
+/**
+ * Drop the cached customers directory so the next fetch re-reads it. Called when
+ * a new order arrives (a first-time buyer only appears in the directory once
+ * they have an order), so a merchant sees the new customer immediately instead
+ * of waiting out the 60s TTL.
+ */
+export function clearMerchantCustomersCache(): void {
+  customersCache = null;
+}
+
 // ── Merchant Catalog Management ──────────────────────────────
 
 export interface MediaItem {

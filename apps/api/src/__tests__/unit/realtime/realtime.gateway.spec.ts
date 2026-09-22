@@ -186,4 +186,25 @@ describe('RealtimeGateway — emit helpers', () => {
       body: 'Your order has been accepted.',
     });
   });
+
+  it('emits a new_order signal scoped to the selling store room', () => {
+    const { gateway, to, roomEmit } = createGateway();
+    gateway.emitNewOrder('store-9', {
+      masterOrderId: 'm-1',
+      orderId: 'o-1',
+      storeId: 'store-9',
+      totalMinor: 12500,
+      itemCount: 3,
+      createdAt: '2026-09-23T10:00:00.000Z',
+    });
+    expect(to).toHaveBeenCalledWith('org:store-9');
+    expect(roomEmit).toHaveBeenCalledWith('new_order', {
+      masterOrderId: 'm-1',
+      orderId: 'o-1',
+      storeId: 'store-9',
+      totalMinor: 12500,
+      itemCount: 3,
+      createdAt: '2026-09-23T10:00:00.000Z',
+    });
+  });
 });
