@@ -9,7 +9,8 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { stores, warehouses, businessDocuments, verificationRequests } from './merchant.schema';
-import { organizations, organizationMembers } from '../identity/identity.schema';
+import { organizations, organizationMembers, users } from '../identity/identity.schema';
+import { orders } from '../orders/orders.schema';
 import { eq, and, or, desc, sql, isNull, inArray } from 'drizzle-orm';
 import { validateSync } from 'class-validator';
 import { ReviewVerificationDto } from './dto/review-verification.dto';
@@ -134,66 +135,82 @@ export class MerchantService {
 
     const storeIds = orgStores.map((s) => s.id);
 
-    // Query orders to find unique buyers with aggregated stats
-    // A2-4 residual: total_spent_minor sums across currencies when an org has
-    // stores in multiple currencies. The per-currency breakdown is returned as
-    // spentByCurrency so the client can label the mixed total honestly.
-    const orders = await this.db.db.execute(sql`
-      SELECT 
-        o.buyer_id,
-        u.full_name as buyer_name,
-        u.phone as buyer_phone,
-        u.email as buyer_email,
-        COUNT(*) as order_count,
-        SUM(o.total_minor) as total_spent_minor,
-        MAX(o.created_at) as last_order_at
-      FROM orders o
-      JOIN users u ON u.id = o.buyer_id
-      WHERE o.store_id = ANY(${storeIds})
-        AND o.status NOT IN ('CANCELLED', 'REJECTED')
-      GROUP BY o.buyer_id, u.full_name, u.phone, u.email
-      ORDER BY last_order_at DESC
-    `);
+    // Fetch individual orders + buyer contacts using Drizzle's query builder
+    // (inArray handles array parameter binding reliably, unlike raw sql`ANY()`).
+    // Aggregation is done in JS below — the data volume per merchant is small.
+    const orderRows = await this.db.db
+      .select({
+        buyerId: orders.buyerId,
+        buyerName: users.fullName,
+        buyerPhone: users.phone,
+        buyerEmail: users.email,
+        totalMinor: orders.totalMinor,
+        currency: orders.currency,
+        createdAt: orders.createdAt,
+      })
+      .from(orders)
+      .innerJoin(users, eq(orders.buyerId, users.id))
+      .where(
+        and(
+          inArray(orders.storeId, storeIds),
+          sql`${orders.status} NOT IN ('CANCELLED', 'REJECTED')`,
+        ),
+      )
+      .orderBy(desc(orders.createdAt));
 
-    // A2-4 residual: per-currency spending per buyer, so the client can show
-    // "500 SAR + 200 AED" instead of "700" (which is not an amount anyone pays).
-    const currencyBreakdown = await this.db.db.execute(sql`
-      SELECT
-        o.buyer_id,
-        COALESCE(o.currency, 'UNKNOWN') as currency,
-        SUM(o.total_minor) as total_minor
-      FROM orders o
-      WHERE o.store_id = ANY(${storeIds})
-        AND o.status NOT IN ('CANCELLED', 'REJECTED')
-      GROUP BY o.buyer_id, COALESCE(o.currency, 'UNKNOWN')
-    `);
+    // Aggregate per-buyer stats + per-currency spending breakdown.
+    const buyerMap = new Map<
+      string,
+      {
+        buyerId: string;
+        buyerName: string;
+        buyerPhone: string;
+        buyerEmail: string | null;
+        orderCount: number;
+        totalSpentMinor: number;
+        spentByCurrency: Map<string, number>;
+        lastOrderAt: Date;
+      }
+    >();
 
-    // A4-8: the raw SQL returns snake_case columns, but both clients (web and
-    // mobile) parse camelCase keys. Map here so the contract is stable.
-    const rows = (orders as any).rows ?? orders;
-    const currencyRows = (currencyBreakdown as any).rows ?? currencyBreakdown;
+    for (const row of orderRows) {
+      let entry = buyerMap.get(row.buyerId);
+      if (!entry) {
+        entry = {
+          buyerId: row.buyerId,
+          buyerName: row.buyerName,
+          buyerPhone: row.buyerPhone,
+          buyerEmail: row.buyerEmail,
+          orderCount: 0,
+          totalSpentMinor: 0,
+          spentByCurrency: new Map(),
+          lastOrderAt: new Date(0),
+        };
+        buyerMap.set(row.buyerId, entry);
+      }
+      entry.orderCount++;
+      entry.totalSpentMinor += Number(row.totalMinor);
+      if (row.createdAt > entry.lastOrderAt) entry.lastOrderAt = row.createdAt;
 
-    // Group the currency breakdown by buyer for easy lookup.
-    const currencyByBuyer = new Map<string, { currency: string; totalMinor: number }[]>();
-    for (const row of currencyRows as any[]) {
-      const buyerId = row.buyer_id;
-      if (!currencyByBuyer.has(buyerId)) currencyByBuyer.set(buyerId, []);
-      currencyByBuyer.get(buyerId)!.push({
-        currency: row.currency,
-        totalMinor: Number(row.total_minor),
-      });
+      const cur = row.currency ?? 'UNKNOWN';
+      entry.spentByCurrency.set(cur, (entry.spentByCurrency.get(cur) ?? 0) + Number(row.totalMinor));
     }
 
-    return (rows as any[]).map((row: any) => ({
-      buyerId: row.buyer_id,
-      buyerName: row.buyer_name,
-      buyerPhone: row.buyer_phone,
-      buyerEmail: row.buyer_email,
-      orderCount: Number(row.order_count),
-      totalSpentMinor: Number(row.total_spent_minor),
-      spentByCurrency: currencyByBuyer.get(row.buyer_id) || [],
-      lastOrderAt: row.last_order_at,
-    }));
+    return [...buyerMap.values()]
+      .sort((a, b) => b.lastOrderAt.getTime() - a.lastOrderAt.getTime())
+      .map((e) => ({
+        buyerId: e.buyerId,
+        buyerName: e.buyerName,
+        buyerPhone: e.buyerPhone,
+        buyerEmail: e.buyerEmail,
+        orderCount: e.orderCount,
+        totalSpentMinor: e.totalSpentMinor,
+        spentByCurrency: [...e.spentByCurrency.entries()].map(([currency, totalMinor]) => ({
+          currency,
+          totalMinor,
+        })),
+        lastOrderAt: e.lastOrderAt,
+      }));
   }
 
   async listStores(filters?: {
