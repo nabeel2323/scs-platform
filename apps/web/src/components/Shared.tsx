@@ -1,58 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import { statusColors, colors, radii, typeScale } from '@scs/ui-kit';
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  // Order statuses
-  DRAFT: { bg: '#edf2f7', text: '#4a5568' },
-  SUBMITTED: { bg: '#fef3c7', text: '#92400e' },
-  PENDING_CONFIRMATION: { bg: '#fef3c7', text: '#92400e' },
-  ACCEPTED: { bg: '#d1fae5', text: '#065f46' },
-  PARTIALLY_ACCEPTED: { bg: '#fef3c7', text: '#92400e' },
-  REJECTED: { bg: '#fee2e2', text: '#991b1b' },
-  CONFIRMED: { bg: '#dbeafe', text: '#1e40af' }, // legacy alias, kept for old history rows
-  PREPARING: { bg: '#e0e7ff', text: '#3730a3' },
-  READY: { bg: '#d1fae5', text: '#065f46' },
-  ASSIGNED: { bg: '#dbeafe', text: '#1e40af' },
-  PICKED_UP: { bg: '#dbeafe', text: '#1e40af' },
-  OUT_FOR_DELIVERY: { bg: '#dbeafe', text: '#1e40af' },
-  DELIVERED: { bg: '#d1fae5', text: '#065f46' },
-  COMPLETED: { bg: '#d1fae5', text: '#065f46' },
-  PAYMENT_PENDING: { bg: '#fef3c7', text: '#92400e' },
-  CANCELLED: { bg: '#fee2e2', text: '#991b1b' },
-  DISPUTED: { bg: '#fee2e2', text: '#991b1b' },
-  // Store statuses
-  VERIFIED: { bg: '#d1fae5', text: '#065f46' },
-  PENDING: { bg: '#fef3c7', text: '#92400e' },
-  ACTIVE: { bg: '#d1fae5', text: '#065f46' },
-  // Notification statuses
-  SENT: { bg: '#dbeafe', text: '#1e40af' },
-  READ: { bg: '#edf2f7', text: '#4a5568' },
-  FAILED: { bg: '#fee2e2', text: '#991b1b' },
-  // Dispute statuses
-  OPEN: { bg: '#fef3c7', text: '#92400e' },
-  EVIDENCE: { bg: '#fef3c7', text: '#92400e' },
-  RESPONSE: { bg: '#dbeafe', text: '#1e40af' },
-  REVIEW: { bg: '#e0e7ff', text: '#3730a3' },
-  RESOLVED: { bg: '#d1fae5', text: '#065f46' },
-  CLOSED: { bg: '#edf2f7', text: '#4a5568' },
-};
-
-const DEFAULT_COLOR = { bg: '#edf2f7', text: '#4a5568' };
+const DEFAULT_COLOR = { bg: '#eef1f3', fg: colors.muted };
 
 export function StatusBadge({ status }: { status: string }) {
-  const colors = STATUS_COLORS[status] || DEFAULT_COLOR;
+  const c = statusColors[status] || DEFAULT_COLOR;
   const label = status.replace(/_/g, ' ');
 
   return (
     <span style={{
       display: 'inline-block',
       padding: '2px 10px',
-      borderRadius: 12,
-      fontSize: 12,
+      borderRadius: radii.sm,
+      ...typeScale.caption,
       fontWeight: 600,
-      background: colors.bg,
-      color: colors.text,
+      background: c.bg,
+      color: c.fg,
       textTransform: 'capitalize',
     }}>
       {label}
@@ -154,8 +119,8 @@ export function EmptyState({ title, description, action }: {
   return (
     <div style={{ textAlign: 'center', padding: '64px 24px' }}>
       <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📦</div>
-      <h3 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 8 }}>{title}</h3>
-      {description && <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>{description}</p>}
+      <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 8 }}>{title}</h3>
+      {description && <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 16 }}>{description}</p>}
       {action}
     </div>
   );
@@ -167,8 +132,8 @@ export function LoadingSpinner() {
       <div style={{
         width: 32,
         height: 32,
-        border: '3px solid #d9e2e6',
-        borderTopColor: '#0f3340',
+        border: `3px solid ${colors.border}`,
+        borderTopColor: colors.brand[700],
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite',
       }} />
@@ -180,24 +145,24 @@ export function LoadingSpinner() {
 export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div role="alert" style={{
-      background: '#fee2e2',
-      border: '1px solid #fca5a5',
-      borderRadius: 8,
+      background: colors.errBg,
+      border: `1px solid ${colors.err}`,
+      borderRadius: radii.md,
       padding: '12px 16px',
       marginBottom: 16,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
     }}>
-      <span style={{ color: '#991b1b', fontSize: 14 }}>{message}</span>
+      <span style={{ color: colors.err, ...typeScale.body }}>{message}</span>
       {onRetry && (
         <button onClick={onRetry} style={{
-          background: '#991b1b',
+          background: colors.err,
           color: '#fff',
           border: 'none',
-          borderRadius: 4,
+          borderRadius: radii.sm,
           padding: '4px 12px',
-          fontSize: 12,
+          ...typeScale.button,
           cursor: 'pointer',
         }}>Retry</button>
       )}

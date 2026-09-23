@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { fetchSavedSuppliers, removeSavedSupplier, SavedSupplier } from '../../lib/buyer-api';
 import { useAuth } from '../../components/AuthProvider';
 import Link from 'next/link';
+import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 /**
  * Saved Suppliers (§21.3) — the store-level analog of Favorites.
@@ -38,7 +39,7 @@ export default function SavedSuppliersPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: '#5b6b74' }}>Loading...</div>;
+  if (authLoading || !user) return <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>Loading...</div>;
 
   const handleRemove = async (storeId: string) => {
     try {
@@ -54,22 +55,18 @@ export default function SavedSuppliersPage() {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Saved Suppliers</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>{saved.length} suppliers saved</p>
-      </div>
+      <PageHeader title="Saved Suppliers" subtitle={`${saved.length} suppliers saved`} />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#5b6b74' }}>
+        <div style={{ textAlign: 'center', padding: 40, color: colors.muted }}>
           Loading saved suppliers...
         </div>
       ) : saved.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: '#5b6b74' }}>
+        <div style={{ textAlign: 'center', padding: 60, color: colors.muted }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>☆</div>
           <p>No saved suppliers yet. Open a store and click “Save Supplier” to bookmark it.</p>
-          <Link href="/stores" style={{ color: '#0f3340', fontWeight: 600, fontSize: 14 }}>
+          <Link href="/stores" style={{ color: colors.brand[700], fontWeight: 600, fontSize: 14 }}>
             Browse Stores →
           </Link>
         </div>
@@ -86,7 +83,7 @@ export default function SavedSuppliersPage() {
               key={s.id}
               style={{
                 background: '#fff',
-                border: '1px solid #d9e2e6',
+                border: '1px solid ${colors.border}',
                 borderRadius: 10,
                 padding: 16,
               }}
@@ -95,11 +92,11 @@ export default function SavedSuppliersPage() {
                 href={`/stores/${(s.store?.['slug'] as string) || s.storeId}`}
                 style={{ textDecoration: 'none', color: 'inherit' }}
               >
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>
                   {nameOf(s)}
                 </div>
                 {Boolean(s.store?.['verificationStatus']) && (
-                  <div style={{ fontSize: 12, color: '#5b6b74' }}>
+                  <div style={{ fontSize: 12, color: colors.muted }}>
                     {String(s.store?.['verificationStatus'])}
                   </div>
                 )}
@@ -116,7 +113,7 @@ export default function SavedSuppliersPage() {
                   href={`/stores/${(s.store?.['slug'] as string) || s.storeId}`}
                   style={{
                     fontSize: 13,
-                    color: '#0f3340',
+                    color: colors.brand[700],
                     fontWeight: 600,
                     textDecoration: 'none',
                   }}
@@ -128,9 +125,9 @@ export default function SavedSuppliersPage() {
                   style={{
                     padding: '4px 10px',
                     fontSize: 11,
-                    background: '#fef2f2',
-                    color: '#991b1b',
-                    border: '1px solid #fecaca',
+                    background: colors.errBg,
+                    color: colors.err,
+                    border: `1px solid ${colors.errBorder}`,
                     borderRadius: 4,
                     cursor: 'pointer',
                   }}

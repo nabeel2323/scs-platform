@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createStore, createWarehouse, registerDocument, submitVerification, fetchProfile } from '../../../lib/api';
 import { getSession } from '../../../lib/auth';
+import { PageHeader } from '@scs/ui-kit';
 
 const STEPS = ['Store Info', 'Warehouse', 'Documents', 'Review & Submit'] as const;
 type Step = (typeof STEPS)[number];
@@ -167,10 +168,7 @@ export default function MerchantOnboardingPage() {
   return (
     <main style={{ maxWidth: 680, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Store Onboarding</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Set up your store, warehouse &amp; documents</p>
-      </div>
+      <PageHeader title="Store Onboarding" subtitle="Set up your store, warehouse & documents" />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {loadingOrg ? (

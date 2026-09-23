@@ -23,17 +23,27 @@ export const colors = {
   ink: '#16232b',
   muted: '#5b6b74',
   surface: '#ffffff',
+  surfaceElevated: '#ffffff',
   bg: '#f2f5f6',
+  bgSubtle: '#f7f9fa',
+  border: '#d9e2e6',
+  borderLight: '#e5ecf0',
   line: '#d9e2e6',
   ok: '#1b7a4b',
   okBg: '#eaf5ef',
+  okBorder: '#a7f3d0',
   warn: '#b45309',
   warnBg: '#fdf3e7',
   err: '#b3372f',
   errBg: '#fbeeec',
+  errBorder: '#fca5a5',
   info: '#1d5fa8',
   infoBg: '#e8f1f9',
   amber: '#c98a2d',
+  disabled: '#b0bec5',
+  disabledBg: '#f0f3f5',
+  overlay: 'rgba(7,30,50,0.45)',
+  focusRing: '0 0 0 3px rgba(30,97,120,0.35)',
 } as const;
 
 // ── Typography ───────────────────────────────────────────────
@@ -52,6 +62,21 @@ export const fontSizes = {
   '2xl': '23px',
   '3xl': '28px',
   '4xl': '44px',
+} as const;
+
+/** Semantic typography scale — maps roles to concrete size/weight/lineHeight. */
+export const typeScale = {
+  display:  { fontSize: '28px', fontWeight: 700, lineHeight: 1.2, letterSpacing: '-0.3px' },
+  h1:       { fontSize: '23px', fontWeight: 700, lineHeight: 1.25, letterSpacing: '-0.2px' },
+  h2:       { fontSize: '20px', fontWeight: 600, lineHeight: 1.3, letterSpacing: '-0.1px' },
+  h3:       { fontSize: '17px', fontWeight: 600, lineHeight: 1.35 },
+  h4:       { fontSize: '15px', fontWeight: 600, lineHeight: 1.4 },
+  bodyLg:   { fontSize: '15.5px', fontWeight: 400, lineHeight: 1.55 },
+  body:     { fontSize: '14px', fontWeight: 400, lineHeight: 1.5 },
+  bodySm:   { fontSize: '12.8px', fontWeight: 400, lineHeight: 1.45 },
+  caption:  { fontSize: '11.5px', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.2px' },
+  label:    { fontSize: '12px', fontWeight: 600, lineHeight: 1.4, letterSpacing: '0.3px' },
+  button:   { fontSize: '13px', fontWeight: 600, lineHeight: 1, letterSpacing: '0.1px' },
 } as const;
 
 // ── Spacing ──────────────────────────────────────────────────
@@ -80,6 +105,14 @@ export const shadows = {
   sm: '0 1px 2px rgba(22,35,43,.06)',
   md: '0 1px 2px rgba(22,35,43,.06),0 4px 14px rgba(22,35,43,.05)',
   lg: '0 4px 24px rgba(22,35,43,.10)',
+  xl: '0 8px 32px rgba(22,35,43,.12)',
+} as const;
+
+// ── Transitions ──────────────────────────────────────────────
+export const transitions = {
+  fast: '0.12s ease',
+  normal: '0.2s ease',
+  slow: '0.3s ease',
 } as const;
 
 // ── Breakpoints (responsive) ─────────────────────────────────
@@ -106,4 +139,27 @@ export const orderStatusColors: Record<string, { bg: string; fg: string }> = {
   CANCELLED: { bg: '#eef1f3', fg: colors.muted },
   REJECTED: { bg: '#eef1f3', fg: colors.muted },
   DISPUTED: { bg: colors.errBg, fg: colors.err },
+};
+
+// ── Extended status map (web Shared.tsx consolidation) ───────
+export const statusColors: Record<string, { bg: string; fg: string }> = {
+  ...orderStatusColors,
+  // Store / verification statuses
+  VERIFIED: { bg: colors.okBg, fg: colors.ok },
+  PENDING: { bg: colors.warnBg, fg: colors.warn },
+  ACTIVE: { bg: colors.okBg, fg: colors.ok },
+  // Notification statuses
+  SENT: { bg: colors.infoBg, fg: colors.info },
+  READ: { bg: '#eef1f3', fg: colors.muted },
+  FAILED: { bg: colors.errBg, fg: colors.err },
+  // Dispute statuses
+  OPEN: { bg: colors.warnBg, fg: colors.warn },
+  EVIDENCE: { bg: colors.warnBg, fg: colors.warn },
+  RESPONSE: { bg: colors.infoBg, fg: colors.info },
+  REVIEW: { bg: brand[100], fg: brand.DEFAULT },
+  RESOLVED: { bg: colors.okBg, fg: colors.ok },
+  CLOSED: { bg: '#eef1f3', fg: colors.muted },
+  // Legacy alias
+  CONFIRMED: { bg: colors.infoBg, fg: colors.info },
+  PAYMENT_PENDING: { bg: colors.warnBg, fg: colors.warn },
 };

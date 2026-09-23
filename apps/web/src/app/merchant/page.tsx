@@ -7,6 +7,10 @@ import { pickStore, rememberStoreId } from '../../lib/merchant-store';
 import { LoadingSpinner, StatusBadge, formatMinor } from '../../components/Shared';
 import { useMerchantRealtime } from '../../lib/useMerchantRealtime';
 import type { NewOrderEvent } from '../../lib/realtime';
+import {
+  PageHeader, Card,
+  colors, typeScale, radii, shadows, transitions,
+} from '@scs/ui-kit';
 
 const CARDS = [
   { href: '/merchant/store', title: 'Store Profile', desc: 'Name, description, currency, address & warehouses', icon: '🏬' },
@@ -63,63 +67,61 @@ export default function MerchantDashboardPage() {
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Merchant Dashboard</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          {org ? `${org.name}` : 'Your business'}{store ? ` · ${store.displayName}` : ''}
-        </p>
-      </div>
+      <PageHeader
+        title="Merchant Dashboard"
+        subtitle={`${org ? org.name : 'Your business'}${store ? ` · ${store.displayName}` : ''}`}
+      />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* New order alert (Gap 2) — dismissible, links straight to the order. */}
       {newOrderAlert && (
-        <div style={{ background: '#e6f0f3', border: '1px solid #1e6178', borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ background: colors.brand[50], border: `1px solid ${colors.brand[500]}`, borderRadius: radii.md, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔔</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600, color: '#0f3340', fontSize: 14 }}>New order received</div>
-            <div style={{ fontSize: 12, color: '#1e6178', marginTop: 2 }}>
+            <div style={{ fontSize: typeScale.body.fontSize, fontWeight: 600, lineHeight: typeScale.body.lineHeight, color: colors.brand[700] }}>New order received</div>
+            <div style={{ ...typeScale.bodySm, color: colors.brand[500], marginTop: 2 }}>
               {newOrderAlert.itemCount} item(s){newOrderAlert.totalMinor > 0 ? ` · ${formatMinor(newOrderAlert.totalMinor, stores.find((s) => s.id === newOrderAlert.storeId)?.currency)}` : ''} —{' '}
-              <Link href={`/merchant/orders/${newOrderAlert.orderId}`} style={{ color: '#0f3340', fontWeight: 600, textDecoration: 'underline' }}>View order</Link>
+              <Link href={`/merchant/orders/${newOrderAlert.orderId}`} style={{ color: colors.brand[700], fontWeight: 600, textDecoration: 'underline' }}>View order</Link>
             </div>
           </div>
-          <button onClick={() => setNewOrderAlert(null)} aria-label="Dismiss new order alert" style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: '#5b6b74', padding: '2px 6px', lineHeight: 1 }}>×</button>
+          <button onClick={() => setNewOrderAlert(null)} aria-label="Dismiss new order alert" style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, color: colors.muted, padding: '2px 6px', lineHeight: 1 }}>×</button>
         </div>
       )}
 
       {/* Deactivation warning (G16) — mirrors the organization page banner */}
       {org && org.isActive === false && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ background: colors.errBg, border: `1px solid ${colors.err}`, borderRadius: radii.md, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>⚠</span>
           <div>
-            <div style={{ fontWeight: 600, color: '#991b1b', fontSize: 14 }}>Organization Deactivated</div>
-            <div style={{ fontSize: 12, color: '#7f1d1d', marginTop: 2 }}>Your organization has been deactivated by an administrator. Merchant tools are read-only until it is reactivated. Contact support for assistance.</div>
+            <div style={{ fontSize: typeScale.body.fontSize, fontWeight: 600, lineHeight: typeScale.body.lineHeight, color: colors.err }}>Organization Deactivated</div>
+            <div style={{ ...typeScale.bodySm, color: colors.err, marginTop: 2 }}>Your organization has been deactivated by an administrator. Merchant tools are read-only until it is reactivated. Contact support for assistance.</div>
           </div>
         </div>
       )}
 
       {!hasOrg ? (
-        <div style={ctaCard}>
+        <Card style={ctaCard}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 8 }}>Register your business</h2>
-          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16, maxWidth: 420 }}>
+          <h2 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 8 }}>Register your business</h2>
+          <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 16, maxWidth: 420 }}>
             Create an organization to unlock store, catalog, order and customer management.
           </p>
           <Link href="/merchant/register" style={primaryLink}>Get Started</Link>
-        </div>
+        </Card>
       ) : !store ? (
-        <div style={ctaCard}>
+        <Card style={ctaCard}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏬</div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 8 }}>Onboard your store</h2>
-          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16, maxWidth: 420 }}>
+          <h2 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 8 }}>Onboard your store</h2>
+          <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 16, maxWidth: 420 }}>
             Your organization <strong>{org?.name}</strong> is ready. Create a store to start managing your catalog and orders.
           </p>
           <Link href="/merchant/onboard" style={primaryLink}>Onboard a Store</Link>
-        </div>
+        </Card>
       ) : (
         <>
           {stores.length > 1 && (
-            <div style={{ marginBottom: 20, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 12, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#5b6b74', marginBottom: 10 }}>
+            <Card style={{ marginBottom: 20, padding: 16 }}>
+              <div style={{ ...typeScale.bodySm, fontWeight: 600, color: colors.muted, marginBottom: 10 }}>
                 Your stores ({stores.length}) — the tools below open on the selected store
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -132,12 +134,13 @@ export default function MerchantDashboardPage() {
                       aria-pressed={active}
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 8,
-                        padding: '6px 12px', fontSize: 13, cursor: 'pointer',
-                        background: active ? '#e6f0f3' : '#fff',
-                        color: '#0f3340',
-                        border: `1px solid ${active ? '#0f3340' : '#d9e2e6'}`,
-                        borderRadius: 8,
+                        padding: '6px 12px', ...typeScale.bodySm, cursor: 'pointer',
+                        background: active ? colors.brand[50] : colors.surface,
+                        color: colors.brand[700],
+                        border: `1px solid ${active ? colors.brand[700] : colors.border}`,
+                        borderRadius: radii.md,
                         fontWeight: active ? 600 : 400,
+                        transition: `background ${transitions.fast}`,
                       }}
                     >
                       {s.displayName}
@@ -146,18 +149,18 @@ export default function MerchantDashboardPage() {
                   );
                 })}
               </div>
-            </div>
+            </Card>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <span style={{ fontSize: 14, color: '#0f3340', fontWeight: 600 }}>{store.displayName}</span>
+            <span style={{ ...typeScale.body, fontWeight: 600, color: colors.brand[700] }}>{store.displayName}</span>
             <StatusBadge status={store.verificationStatus} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 16 }}>
             {CARDS.map(c => (
               <Link key={c.href} href={c.href} style={card}>
                 <div style={{ fontSize: 28, marginBottom: 10 }}>{c.icon}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>{c.title}</div>
-                <div style={{ fontSize: 13, color: '#5b6b74', lineHeight: 1.4 }}>{c.desc}</div>
+                <div style={{ ...typeScale.h4, color: colors.brand[700], marginBottom: 4 }}>{c.title}</div>
+                <div style={{ ...typeScale.bodySm, color: colors.muted, lineHeight: 1.4 }}>{c.desc}</div>
               </Link>
             ))}
           </div>
@@ -169,9 +172,9 @@ export default function MerchantDashboardPage() {
 }
 
 const ctaCard: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #d9e2e6',
-  borderRadius: 12,
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.lg,
   padding: 32,
   textAlign: 'center',
   display: 'flex',
@@ -182,19 +185,18 @@ const ctaCard: React.CSSProperties = {
 const primaryLink: React.CSSProperties = {
   display: 'inline-block',
   padding: '10px 20px',
-  fontSize: 14,
-  fontWeight: 600,
-  background: '#0f3340',
+  ...typeScale.button,
+  background: colors.brand[700],
   color: '#fff',
-  borderRadius: 8,
+  borderRadius: radii.md,
   textDecoration: 'none',
 };
 
 const card: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #d9e2e6',
-  borderRadius: 12,
+  background: colors.surface,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.lg,
   padding: 20,
   textDecoration: 'none',
-  transition: 'box-shadow 0.15s ease',
+  transition: `box-shadow ${transitions.fast}`,
 };

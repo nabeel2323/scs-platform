@@ -14,6 +14,10 @@ import {
   type AdminOrgDetail,
   type AdminOrgUpdateRequest,
 } from '../../lib/api';
+import {
+  PageHeader, Button, Modal, StatusPill,
+  colors, typeScale, radii, shadows, transitions,
+} from '@scs/ui-kit';
 
 /**
  * Organizations management page (G13).
@@ -131,22 +135,18 @@ export default function OrganizationsPage() {
   return (
     <>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '32px 40px 28px', color: '#fff' }}>
-        <div style={{ maxWidth: 1320 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Organizations</h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-            {orgs.length} organizations · {deactivatedCount} deactivated
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Organizations"
+        subtitle={`${orgs.length} organizations · ${deactivatedCount} deactivated`}
+      />
 
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {error && (
-          <div style={{ padding: '10px 16px', background: '#ffebee', color: '#c62828', borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16, fontSize: typeScale.body.fontSize }}>
             {error}
           </div>
         )}
-        {success && <p role="status" style={{ padding: 16, background: '#e8f5e9', color: '#256029', borderRadius: 8 }}>{success}</p>}
+        {success && <p role="status" style={{ padding: 16, background: colors.okBg, color: colors.ok, borderRadius: radii.sm, fontSize: typeScale.body.fontSize }}>{success}</p>}
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input
@@ -155,17 +155,17 @@ export default function OrganizationsPage() {
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or type…"
             aria-label="Search organizations"
-            style={{ flex: 1, maxWidth: 360, padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13 }}
+            style={{ flex: 1, maxWidth: 360, padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: typeScale.body.fontSize, fontFamily: 'inherit' }}
           />
-          <button onClick={() => void load()} style={ghostBtn}>Refresh</button>
+          <Button variant="secondary" onClick={() => void load()}>Refresh</Button>
         </div>
 
         {loading ? (
-          <p style={{ color: '#5b6b74' }}>Loading organizations…</p>
+          <p style={{ color: colors.muted }}>Loading organizations…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ color: '#8a9ba5', fontSize: 14 }}>No organizations found.</p>
+          <p style={{ color: colors.muted, fontSize: typeScale.body.fontSize }}>No organizations found.</p>
         ) : (
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'linear-gradient(135deg, #0f3340 0%, #1a4a5c 100%)' }}>
@@ -344,68 +344,70 @@ export default function OrganizationsPage() {
 
       {/* Confirmation modal */}
       {confirmTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 8px' }}>
-              {confirmTarget.next ? 'Reactivate Organization' : 'Deactivate Organization'}
-            </h3>
-            <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 20, lineHeight: 1.5 }}>
-              {confirmTarget.next
-                ? <>Reactivate <strong style={{ color: '#0f3340' }}>{confirmTarget.org.name}</strong>? The merchant will regain full platform write access.</>
-                : <>Deactivate <strong style={{ color: '#0f3340' }}>{confirmTarget.org.name}</strong>? The merchant will immediately lose write access to stores, catalog, documents and verification. Data is preserved and can be restored by reactivating.</>}
-            </p>
+        <Modal
+          open
+          title={confirmTarget.next ? 'Reactivate Organization' : 'Deactivate Organization'}
+          onClose={() => setConfirmTarget(null)}
+          footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setConfirmTarget(null)} disabled={working} style={ghostBtn}>Cancel</button>
-              <button
+              <Button variant="secondary" onClick={() => setConfirmTarget(null)} disabled={working}>Cancel</Button>
+              <Button
+                variant={confirmTarget.next ? 'primary' : 'danger'}
                 onClick={() => void confirmToggle()}
                 disabled={working}
-                style={confirmTarget.next ? activateBtn : dangerBtn}
               >
                 {working ? 'Working…' : confirmTarget.next ? 'Reactivate' : 'Deactivate'}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 0, lineHeight: 1.5 }}>
+            {confirmTarget.next
+              ? <>Reactivate <strong style={{ color: colors.brand[700] }}>{confirmTarget.org.name}</strong>? The merchant will regain full platform write access.</>
+              : <>Deactivate <strong style={{ color: colors.brand[700] }}>{confirmTarget.org.name}</strong>? The merchant will immediately lose write access to stores, catalog, documents and verification. Data is preserved and can be restored by reactivating.</>}
+          </p>
+        </Modal>
       )}
 
       {/* Update request review modal */}
       {reviewTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 8px' }}>
-              {reviewTarget.decision === 'APPROVED' ? 'Approve' : 'Reject'} Update Request
-            </h3>
-            <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 12, lineHeight: 1.5 }}>
-              {reviewTarget.decision === 'APPROVED'
-                ? <>Apply these changes to <strong style={{ color: '#0f3340' }}>{reviewTarget.req.orgName ?? 'the organization'}</strong>? The organization record is updated immediately.</>
-                : <>Reject this request from <strong style={{ color: '#0f3340' }}>{reviewTarget.req.orgName ?? 'the organization'}</strong>? The proposed changes are discarded and the merchant can submit a new request.</>}
-            </p>
-            <div style={{ background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1e2d35', marginBottom: 12 }}>
-              {summarizePayload(reviewTarget.req.payload)}
-            </div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#5b6b74', marginBottom: 12 }}>
-              Notes for the merchant (optional)
-              <textarea
-                value={reviewNotes}
-                onChange={e => setReviewNotes(e.target.value)}
-                rows={3}
-                maxLength={2000}
-                placeholder={reviewTarget.decision === 'REJECTED' ? 'Explain why the request was rejected…' : 'Optional notes…'}
-                style={{ marginTop: 4, width: '100%', padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}
-              />
-            </label>
+        <Modal
+          open
+          title={reviewTarget.decision === 'APPROVED' ? 'Approve' : 'Reject'}
+          onClose={() => { setReviewTarget(null); setReviewNotes(''); }}
+          footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setReviewTarget(null); setReviewNotes(''); }} disabled={working} style={ghostBtn}>Cancel</button>
-              <button
+              <Button variant="secondary" onClick={() => { setReviewTarget(null); setReviewNotes(''); }} disabled={working}>Cancel</Button>
+              <Button
+                variant={reviewTarget.decision === 'APPROVED' ? 'primary' : 'danger'}
                 onClick={() => void confirmReview()}
                 disabled={working}
-                style={reviewTarget.decision === 'APPROVED' ? { ...activateBtn, padding: '8px 16px' } : { ...dangerBtn, padding: '8px 16px' }}
               >
                 {working ? 'Working…' : reviewTarget.decision === 'APPROVED' ? 'Approve & Apply' : 'Reject Request'}
-              </button>
+              </Button>
             </div>
+          }
+        >
+          <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 12, lineHeight: 1.5 }}>
+            {reviewTarget.decision === 'APPROVED'
+              ? <>Apply these changes to <strong style={{ color: colors.brand[700] }}>{reviewTarget.req.orgName ?? 'the organization'}</strong>? The organization record is updated immediately.</>
+              : <>Reject this request from <strong style={{ color: colors.brand[700] }}>{reviewTarget.req.orgName ?? 'the organization'}</strong>? The proposed changes are discarded and the merchant can submit a new request.</>}
+          </p>
+          <div style={{ background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm, padding: '10px 14px', ...typeScale.bodySm, color: colors.ink, marginBottom: 12 }}>
+            {summarizePayload(reviewTarget.req.payload)}
           </div>
-        </div>
+          <label style={{ display: 'block', ...typeScale.label, color: colors.muted, marginBottom: 12 }}>
+            Notes for the merchant (optional)
+            <textarea
+              value={reviewNotes}
+              onChange={e => setReviewNotes(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder={reviewTarget.decision === 'REJECTED' ? 'Explain why the request was rejected…' : 'Optional notes…'}
+              style={{ marginTop: 4, width: '100%', padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: typeScale.body.fontSize, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+          </label>
+        </Modal>
       )}
 
       {/* Organization detail panel */}

@@ -16,6 +16,7 @@ import { useAuth } from '../../../components/AuthProvider';
 import { onOrderStatus, watchOrder } from '../../../lib/realtime';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
 import { OrderTimeline } from '../../../components/OrderTimeline';
+import { PageHeader, Breadcrumb, colors, radii } from '@scs/ui-kit';
 
 interface OrderDetail {
   id: string;
@@ -164,28 +165,21 @@ export default function OrderDetailPage() {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Order #{order.id.slice(0, 8)}</h1>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>{formatDate(order.createdAt)} · {order.fulfillmentMethod}</div>
-            {/* A4-6: name the seller and keep the storefront one click away. */}
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
-              {order.storeName ? (
-                order.storeSlug ? (
-                  <Link href={`/stores/${order.storeSlug}`} style={{ color: '#fff', textDecoration: 'underline' }}>Sold by {order.storeName}</Link>
-                ) : (
-                  <span>Sold by {order.storeName}</span>
-                )
-              ) : (
-                <span>Seller no longer available</span>
-              )}
-            </div>
+      <PageHeader
+        title={`Order #${order.id.slice(0, 8)}`}
+        subtitle={`${formatDate(order.createdAt)} · ${order.fulfillmentMethod}`}
+        breadcrumbs={<Breadcrumb items={[{ label: 'Orders', href: '/orders' }, { label: `#${order.id.slice(0, 8)}` }]} />}
+        actions={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <StatusBadge status={order.status} />
+            {order.storeName && (
+              order.storeSlug
+                ? <Link href={`/stores/${order.storeSlug}`} style={{ fontSize: 13, color: '#fff', textDecoration: 'underline' }}>Sold by {order.storeName}</Link>
+                : <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>Sold by {order.storeName}</span>
+            )}
           </div>
-          <StatusBadge status={order.status} />
-        </div>
-      </div>
+        }
+      />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* A4-5: post-checkout success feedback — the outbox emits
@@ -195,8 +189,8 @@ export default function OrderDetailPage() {
       {(order.status === 'SUBMITTED' || order.status === 'PENDING_CONFIRMATION') && (
         <div
           style={{
-            background: '#ecfdf5',
-            border: '1px solid #a7f3d0',
+            background: colors.okBg,
+            border: `1px solid ${colors.okBorder}`,
             borderRadius: 10,
             padding: '12px 16px',
             marginBottom: 16,
@@ -207,10 +201,10 @@ export default function OrderDetailPage() {
         >
           <span style={{ fontSize: 20 }}>✓</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.ok }}>
               Order placed successfully
             </div>
-            <div style={{ fontSize: 13, color: '#065f46', marginTop: 2 }}>
+            <div style={{ fontSize: 13, color: colors.ok, marginTop: 2 }}>
               {order.storeName || 'The merchant'} will review your order and confirm within 15 minutes.
               You can cancel anytime before confirmation.
             </div>
@@ -222,35 +216,35 @@ export default function OrderDetailPage() {
         {/* Left column */}
         <div>
           {/* Items */}
-          <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, marginBottom: 16 }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid #d9e2e6', fontSize: 14, fontWeight: 600, color: '#0f3340' }}>Items</div>
+          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${colors.border}`, fontSize: 14, fontWeight: 600, color: colors.brand[700] }}>Items</div>
             {order.items.map(item => (
               <div key={item.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f0f4f6', display: 'flex', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 14, color: '#0f3340' }}>{item.title}</div>
-                  <div style={{ fontSize: 12, color: '#5b6b74' }}>SKU: {item.sku} · Qty: {item.quantity}{item.qtyConfirmed != null ? ` (Confirmed: ${item.qtyConfirmed})` : ''}</div>
+                  <div style={{ fontSize: 14, color: colors.brand[700] }}>{item.title}</div>
+                  <div style={{ fontSize: 12, color: colors.muted }}>SKU: {item.sku} · Qty: {item.quantity}{item.qtyConfirmed != null ? ` (Confirmed: ${item.qtyConfirmed})` : ''}</div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340' }}>{money(item.lineTotalMinor)}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700] }}>{money(item.lineTotalMinor)}</div>
               </div>
             ))}
           </div>
 
           {/* Financial breakdown */}
           {order.financialBreakdown && (
-            <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Financial Breakdown</div>
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Financial Breakdown</div>
               {[
                 ['Subtotal', order.subtotalMinor],
                 ['Discount', -order.discountMinor],
                 ['Delivery', order.deliveryFeeMinor],
                 ['Tax', order.taxMinor],
               ].filter(([, v]) => v !== 0).map(([label, val]) => (
-                <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#5b6b74', marginBottom: 4 }}>
+                <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: colors.muted, marginBottom: 4 }}>
                   <span>{label}</span>
                   <span>{money(val as number)}</span>
                 </div>
               ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: '#0f3340', borderTop: '1px solid #d9e2e6', paddingTop: 8, marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: colors.brand[700], borderTop: `1px solid ${colors.border}`, paddingTop: 8, marginTop: 8 }}>
                 <span>Total</span>
                 <span>{money(order.totalMinor)}</span>
               </div>
@@ -271,7 +265,7 @@ export default function OrderDetailPage() {
               </button>
             )}
             {canReorder && (
-              <button onClick={handleReorder} disabled={reordering} style={{ padding: '8px 16px', fontSize: 13, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: reordering ? 0.6 : 1 }}>
+              <button onClick={handleReorder} disabled={reordering} style={{ padding: '8px 16px', fontSize: 13, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: reordering ? 0.6 : 1 }}>
                 {reordering ? 'Reordering…' : 'Reorder'}
               </button>
             )}
@@ -279,7 +273,7 @@ export default function OrderDetailPage() {
           {/* A4-7: reorder is per-line — some items may no longer be purchasable,
               so say what happened instead of dropping the buyer on an empty cart. */}
           {reorderError && (
-            <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#991b1b' }}>
+            <div role="alert" style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: colors.err }}>
               {reorderError}
             </div>
           )}
@@ -299,13 +293,13 @@ export default function OrderDetailPage() {
             </div>
           )}
           {showCancel && (
-            <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: 8, padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 8 }}>Reason for cancellation</div>
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.err, marginBottom: 8 }}>Reason for cancellation</div>
               {cancelError && <div style={{ fontSize: 12, color: '#991b1b', marginBottom: 8 }}>{cancelError}</div>}
-              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: `1px solid ${colors.border}`, borderRadius: 4, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>
-                <button onClick={() => setShowCancel(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer' }}>Back</button>
+                <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: colors.err, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>
+                <button onClick={() => setShowCancel(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 4, cursor: 'pointer' }}>Back</button>
               </div>
             </div>
           )}
@@ -313,8 +307,8 @@ export default function OrderDetailPage() {
 
         {/* Right column — Timeline */}
         <div>
-          <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Order Timeline</div>
+          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Order Timeline</div>
             <OrderTimeline history={history} />
           </div>
         </div>

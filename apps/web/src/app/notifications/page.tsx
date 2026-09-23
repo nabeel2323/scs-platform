@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../components/AuthProvider';
 import { onNotification } from '../../lib/realtime';
 import { formatDate, EmptyState, LoadingSpinner } from '../../components/Shared';
+import { PageHeader, colors, radii, shadows, transitions } from '@scs/ui-kit';
 
 type Filter = 'ALL' | 'UNREAD' | 'READ';
 
@@ -126,39 +127,32 @@ export default function NotificationsPage() {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Notifications</h1>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-              {unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
-                : "You're all caught up!"}
-            </p>
-          </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={() => void handleMarkAllRead()}
-              disabled={isAllWorking}
-              style={{
-                padding: '8px 18px', fontSize: 12, fontWeight: 600,
-                background: isAllWorking ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
-                color: '#fff',
-                border: '1px solid rgba(255,255,255,0.25)',
-                borderRadius: 6, cursor: isAllWorking ? 'wait' : 'pointer',
-                opacity: isAllWorking ? 0.7 : 1,
-              }}
-            >
-              {isAllWorking ? 'Marking…' : `Mark All Read (${unreadCount})`}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title="Notifications"
+        subtitle={unreadCount > 0
+          ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
+          : "You're all caught up!"}
+        actions={unreadCount > 0 ? (
+          <button
+            onClick={() => void handleMarkAllRead()}
+            disabled={isAllWorking}
+            style={{
+              padding: '8px 18px', fontSize: 12, fontWeight: 600,
+              background: isAllWorking ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: radii.md, cursor: isAllWorking ? 'wait' : 'pointer',
+              opacity: isAllWorking ? 0.7 : 1,
+            }}
+          >
+            {isAllWorking ? 'Marking…' : `Mark All Read (${unreadCount})`}
+          </button>
+        ) : undefined}
+      />
 
       <div style={{ padding: '20px 24px 48px' }}>
         {/* Filter tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f0f4f7', borderRadius: 8, padding: 4, width: 'fit-content' }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: colors.bgSubtle, borderRadius: radii.lg, padding: 4, width: 'fit-content' }}>
           {([['ALL', 'All'], ['UNREAD', 'Unread'], ['READ', 'Read']] as const).map(([key, label]) => {
             const count = key === 'ALL' ? notifications.length : key === 'UNREAD' ? unreadCount : notifications.length - unreadCount;
             const active = filter === key;
@@ -169,9 +163,9 @@ export default function NotificationsPage() {
                 style={{
                   padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
                   background: active ? '#fff' : 'transparent',
-                  color: active ? '#0f3340' : '#5b6b74',
-                  border: active ? '1px solid #d9e2e6' : '1px solid transparent',
-                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                  color: active ? colors.brand[700] : colors.muted,
+                  border: active ? `1px solid ${colors.border}` : '1px solid transparent',
+                  boxShadow: active ? shadows.sm : 'none',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -196,7 +190,7 @@ export default function NotificationsPage() {
                   key={n.id}
                   style={{
                     background: isRead ? '#fff' : '#f0f7ff',
-                    border: `1px solid ${isRead ? '#e2e8f0' : '#93c5fd'}`,
+                    border: `1px solid ${isRead ? colors.border : '#93c5fd'}`,
                     borderRadius: 10,
                     padding: '14px 16px',
                     transition: 'background 0.2s ease, border-color 0.2s ease',
@@ -209,7 +203,7 @@ export default function NotificationsPage() {
                       <div style={{
                         width: 10, height: 10, borderRadius: '50%',
                         background: isRead ? 'transparent' : '#3b82f6',
-                        border: isRead ? '2px solid #d9e2e6' : '2px solid #3b82f6',
+                        border: isRead ? `2px solid ${colors.border}` : '2px solid #3b82f6',
                         transition: 'all 0.2s ease',
                       }} />
                     </div>
@@ -220,7 +214,7 @@ export default function NotificationsPage() {
                         <span style={{
                           fontSize: 13,
                           fontWeight: isRead ? 500 : 700,
-                          color: isRead ? '#5b6b74' : '#0f3340',
+                          color: isRead ? colors.muted : colors.brand[700],
                         }}>
                           {n.title || n.template}
                         </span>
@@ -228,7 +222,7 @@ export default function NotificationsPage() {
                           {formatDate(n.createdAt)}
                         </span>
                       </div>
-                      <div style={{ fontSize: 13, color: isRead ? '#8a9ba5' : '#5b6b74', lineHeight: 1.5 }}>{n.body}</div>
+                      <div style={{ fontSize: 13, color: isRead ? '#8a9ba5' : colors.muted, lineHeight: 1.5 }}>{n.body}</div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.channel}</span>
                         <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.type}</span>
@@ -246,9 +240,9 @@ export default function NotificationsPage() {
                       style={{
                         padding: '6px 14px', fontSize: 11, fontWeight: 600,
                         borderRadius: 6, cursor: isBusy ? 'wait' : 'pointer',
-                        border: isRead ? '1px solid #d9e2e6' : '1px solid #93c5fd',
+                        border: isRead ? `1px solid ${colors.border}` : '1px solid #93c5fd',
                         background: isRead ? '#fff' : '#dbeafe',
-                        color: isRead ? '#5b6b74' : '#1e40af',
+                        color: isRead ? colors.muted : '#1e40af',
                         whiteSpace: 'nowrap', flexShrink: 0,
                         opacity: isBusy ? 0.6 : 1,
                         transition: 'all 0.15s ease',

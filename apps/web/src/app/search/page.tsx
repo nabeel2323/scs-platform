@@ -8,6 +8,9 @@ import {
   Product, Category,
 } from '../../lib/buyer-api';
 import { formatMinor, EmptyState, ErrorBanner, ProductCardImage } from '../../components/Shared';
+import {
+  colors, typeScale, radii, shadows, transitions,
+} from '@scs/ui-kit';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -234,31 +237,32 @@ function SearchPageContent() {
   return (
     <>
       <style>{`
-        .sr-skeleton { animation: sr-pulse 1.5s ease-in-out infinite; background: #e2e8f0; border-radius: 6px; }
+        .sr-skeleton { animation: sr-pulse 1.5s ease-in-out infinite; background: ${colors.border}; border-radius: ${radii.sm}; }
         @keyframes sr-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .sr-card { transition: box-shadow 0.2s ease, transform 0.15s ease; }
-        .sr-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(-2px); }
-        .sr-filter-section { border-bottom: 1px solid #e2e8f0; padding: 16px 0; }
+        .sr-card { transition: box-shadow ${transitions.normal}, transform ${transitions.fast}; }
+        .sr-card:hover { box-shadow: ${shadows.lg}; transform: translateY(-2px); }
+        .sr-filter-section { border-bottom: 1px solid ${colors.border}; padding: 16px 0; }
         .sr-filter-section:last-child { border-bottom: none; }
-        .sr-checkbox { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; font-size: 13px; color: #1e2d35; }
-        .sr-page-btn { min-width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid #d9e2e6; border-radius: 6px; background: #fff; color: #5b6b74; font-size: 13; cursor: pointer; }
-        .sr-page-btn-active { background: #0f3340; color: #fff; border-color: #0f3340; }
+        .sr-checkbox { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; font-size: 13px; color: ${colors.brand[700]}; }
+        .sr-page-btn { min-width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 1px solid ${colors.border}; border-radius: ${radii.sm}; background: ${colors.surface}; color: ${colors.muted}; font-size: 13px; cursor: pointer; transition: background ${transitions.fast}; }
+        .sr-page-btn:hover { background: ${colors.bgSubtle}; }
+        .sr-page-btn-active { background: ${colors.brand[700]}; color: #fff; border-color: ${colors.brand[700]}; }
         @media (max-width: 768px) {
           .sr-sidebar { display: none; }
-          .sr-sidebar-open { display: block !important; position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200; background: #fff; overflow-y: auto; padding: 20px; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
+          .sr-sidebar-open { display: block !important; position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200; background: ${colors.surface}; overflow-y: auto; padding: 20px; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
           .sr-filter-toggle { display: flex !important; }
         }
       `}</style>
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 16px' }}>
 
         {/* ── Amazon-style Search Header ── */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '20px 24px', margin: '0 -16px' }}>
+        <div style={{ background: `linear-gradient(135deg, ${colors.brand[900]} 0%, ${colors.brand[500]} 100%)`, padding: '20px 24px', margin: '0 -16px' }}>
           <div style={{ maxWidth: 900, margin: '0 auto' }}>
-            <div style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+            <div style={{ display: 'flex', gap: 0, borderRadius: radii.md, overflow: 'hidden', boxShadow: shadows.md }}>
               <select
                 value={selectedCategories.length === 1 ? selectedCategories[0] : ''}
                 onChange={e => handleHeaderCategoryChange(e.target.value)}
-                style={{ padding: '12px 14px', fontSize: 13, border: 'none', background: '#f3f6f9', color: '#0f3340', fontWeight: 600, minWidth: 140, cursor: 'pointer', outline: 'none' }}
+                style={{ padding: '12px 14px', fontSize: 13, border: 'none', background: colors.bgSubtle, color: colors.brand[700], fontWeight: 600, minWidth: 140, cursor: 'pointer', outline: 'none' }}
               >
                 <option value="">{selectedCategories.length > 1 ? `${selectedCategories.length} selected` : 'All Departments'}</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -271,7 +275,7 @@ function SearchPageContent() {
                 onKeyDown={e => e.key === 'Enter' && doSearch()}
                 style={{ flex: 1, padding: '12px 18px', fontSize: 15, border: 'none', outline: 'none', minWidth: 0 }}
               />
-              <button onClick={doSearch} style={{ padding: '12px 28px', fontSize: 15, fontWeight: 600, background: '#f59e0b', color: '#0f3340', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={doSearch} style={{ padding: '12px 28px', fontSize: 15, fontWeight: 600, background: colors.amber, color: colors.brand[700], border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 18 }}>⌕</span> Search
               </button>
             </div>
@@ -279,25 +283,25 @@ function SearchPageContent() {
         </div>
 
         {/* ── Breadcrumb ── */}
-        <div style={{ padding: '12px 0', fontSize: 12, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <Link href="/search" style={{ color: '#1e6178', textDecoration: 'none' }}>Home</Link>
+        <div style={{ padding: '12px 0', fontSize: 12, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Link href="/search" style={{ color: colors.brand[500], textDecoration: 'none' }}>Home</Link>
           <span>›</span>
-          {selectedCatNames.length === 1 && <><span style={{ color: '#1e6178' }}>{selectedCatNames[0]}</span><span>›</span></>}
-          {selectedCatNames.length > 1 && <><span style={{ color: '#1e6178' }}>{selectedCatNames.length} departments</span><span>›</span></>}
+          {selectedCatNames.length === 1 && <><span style={{ color: colors.brand[500] }}>{selectedCatNames[0]}</span><span>›</span></>}
+          {selectedCatNames.length > 1 && <><span style={{ color: colors.brand[500] }}>{selectedCatNames.length} departments</span><span>›</span></>}
           {selectedBrandName && <><span>{selectedBrandName}</span><span>›</span></>}
-          <span style={{ color: '#0f3340', fontWeight: 500 }}>
+          <span style={{ color: colors.brand[700], fontWeight: 500 }}>
             {query ? `Results for "${query}"` : selectedCatNames.length > 0 ? 'Category' : 'All Products'}
           </span>
         </div>
 
         {/* ── Results count + sort bar ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ fontSize: 13, color: '#5b6b74' }}>
+          <div style={{ ...typeScale.bodySm, color: colors.muted }}>
             {total > 0 ? (
               <>
-                <span style={{ fontWeight: 600, color: '#0f3340' }}>{total.toLocaleString()}</span> result{total !== 1 ? 's' : ''}
-                {query && <> for "<strong style={{ color: '#0f3340' }}>{query}</strong>"</>}
-                {filteredCount < total && !loading && <span style={{ marginLeft: 8, color: '#1e6178', fontWeight: 500 }}>({filteredCount} shown after filters)</span>}
+                <span style={{ fontWeight: 600, color: colors.brand[700] }}>{total.toLocaleString()}</span> result{total !== 1 ? 's' : ''}
+                {query && <> for "<strong style={{ color: colors.brand[700] }}>{query}</strong>"</>}
+                {filteredCount < total && !loading && <span style={{ marginLeft: 8, color: colors.brand[500], fontWeight: 500 }}>({filteredCount} shown after filters)</span>}
               </>
             ) : !loading && <span>No results found</span>}
           </div>
@@ -306,13 +310,13 @@ function SearchPageContent() {
             <button
               className="sr-filter-toggle"
               onClick={() => setMobileFiltersOpen(true)}
-              style={{ display: 'none', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, background: activeFilterCount > 0 ? '#0f3340' : '#fff', border: '1px solid ' + (activeFilterCount > 0 ? '#0f3340' : '#d9e2e6'), borderRadius: 6, cursor: 'pointer', color: activeFilterCount > 0 ? '#fff' : '#0f3340' }}
+              style={{ display: 'none', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 13, fontWeight: 600, background: activeFilterCount > 0 ? colors.brand[700] : colors.surface, border: '1px solid ' + (activeFilterCount > 0 ? colors.brand[700] : colors.border), borderRadius: radii.sm, cursor: 'pointer', color: activeFilterCount > 0 ? '#fff' : colors.brand[700] }}
             >
-              ☰ Filters{activeFilterCount > 0 && <span style={{ background: '#f59e0b', color: '#0f3340', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, marginLeft: 2 }}>{activeFilterCount}</span>}
+              ☰ Filters{activeFilterCount > 0 && <span style={{ background: colors.amber, color: colors.brand[700], fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: radii.full, marginLeft: 2 }}>{activeFilterCount}</span>}
             </button>
-            <label style={{ fontSize: 13, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ ...typeScale.bodySm, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
               Sort by:
-              <select value={sort} onChange={e => handleSortChange(e.target.value as SortOption)} style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', color: '#0f3340', fontWeight: 500, cursor: 'pointer' }}>
+              <select value={sort} onChange={e => handleSortChange(e.target.value as SortOption)} style={{ padding: '6px 10px', fontSize: 13, border: `1px solid ${colors.border}`, borderRadius: radii.sm, background: colors.surface, color: colors.brand[700], fontWeight: 500, cursor: 'pointer' }}>
                 <option value="featured">Featured</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
@@ -320,9 +324,9 @@ function SearchPageContent() {
                 <option value="title-asc">Name: A to Z</option>
               </select>
             </label>
-            <label style={{ fontSize: 13, color: '#5b6b74', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ ...typeScale.bodySm, color: colors.muted, display: 'flex', alignItems: 'center', gap: 6 }}>
               Show:
-              <select value={limit} onChange={e => handleLimitChange(Number(e.target.value))} style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff', color: '#0f3340', cursor: 'pointer' }}>
+              <select value={limit} onChange={e => handleLimitChange(Number(e.target.value))} style={{ padding: '6px 10px', fontSize: 13, border: `1px solid ${colors.border}`, borderRadius: radii.sm, background: colors.surface, color: colors.brand[700], cursor: 'pointer' }}>
                 {LIMIT_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
@@ -336,20 +340,20 @@ function SearchPageContent() {
           <aside className={`sr-sidebar${mobileFiltersOpen ? ' sr-sidebar-open' : ''}`} style={{ width: 240, flexShrink: 0 }}>
             {mobileFiltersOpen && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f3340', margin: 0 }}>Filters</h3>
-                <button onClick={() => setMobileFiltersOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#5b6b74' }}>✕</button>
+                <h3 style={{ ...typeScale.h2, color: colors.brand[700], margin: 0 }}>Filters</h3>
+                <button onClick={() => setMobileFiltersOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: colors.muted }}>✕</button>
               </div>
             )}
 
             {/* Department */}
             <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Department</h4>
+              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Department</h4>
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                 {categories.map(c => (
                   <label key={c.id} className="sr-checkbox">
-                    <input type="checkbox" checked={selectedCategories.includes(c.id)} onChange={() => handleCategoryToggle(c.id)} style={{ accentColor: '#0f3340' }} />
+                    <input type="checkbox" checked={selectedCategories.includes(c.id)} onChange={() => handleCategoryToggle(c.id)} style={{ accentColor: colors.brand[700] }} />
                     <span>{c.name}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 11, color: '#a0aec0' }}>({c.productCount})</span>
+                    <span style={{ marginLeft: 'auto', ...typeScale.caption, color: colors.disabled }}>({c.productCount})</span>
                   </label>
                 ))}
               </div>
@@ -357,45 +361,45 @@ function SearchPageContent() {
 
             {/* Brand */}
             <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Brand</h4>
+              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Brand</h4>
               <input
                 type="text"
                 placeholder="Search brands..."
                 value={brandSearch}
                 onChange={e => setBrandSearch(e.target.value)}
-                style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: '1px solid #d9e2e6', borderRadius: 4, marginBottom: 8, boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '6px 10px', fontSize: 12, border: `1px solid ${colors.border}`, borderRadius: radii.sm, marginBottom: 8, boxSizing: 'border-box' as const }}
               />
               <div style={{ maxHeight: 180, overflowY: 'auto' }}>
                 {filteredBrands.slice(0, 20).map(b => (
                   <label key={b.id} className="sr-checkbox">
-                    <input type="checkbox" checked={selectedBrand === b.id} onChange={() => handleBrandChange(b.id)} style={{ accentColor: '#0f3340' }} />
+                    <input type="checkbox" checked={selectedBrand === b.id} onChange={() => handleBrandChange(b.id)} style={{ accentColor: colors.brand[700] }} />
                     <span>{b.name}</span>
                   </label>
                 ))}
-                {filteredBrands.length > 20 && <div style={{ fontSize: 11, color: '#1e6178', padding: '4px 0', cursor: 'pointer' }}>See more...</div>}
+                {filteredBrands.length > 20 && <div style={{ ...typeScale.caption, color: colors.brand[500], padding: '4px 0', cursor: 'pointer' }}>See more...</div>}
               </div>
             </div>
 
             {/* Price Range */}
             <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Price{resultCurrency && <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 6, fontSize: 11, color: '#5b6b74' }}>({resultCurrency})</span>}
+              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Price{resultCurrency && <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 6, fontSize: 11, color: colors.muted }}>({resultCurrency})</span>}
               </h4>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
                   type="text" inputMode="decimal" placeholder="Min" value={priceMin}
                   onChange={e => handlePriceMinChange(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMin ? '#fca5a5' : '#d9e2e6'), borderRadius: 4, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMin ? colors.err : colors.border), borderRadius: radii.sm, boxSizing: 'border-box' as const }}
                 />
-                <span style={{ color: '#a0aec0' }}>–</span>
+                <span style={{ color: colors.disabled }}>–</span>
                 <input
                   type="text" inputMode="decimal" placeholder="Max" value={priceMax}
                   onChange={e => handlePriceMaxChange(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMax ? '#fca5a5' : '#d9e2e6'), borderRadius: 4, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid ' + (priceErrorMsg && priceMax ? colors.err : colors.border), borderRadius: radii.sm, boxSizing: 'border-box' as const }}
                 />
               </div>
               {priceErrorMsg && (
-                <div role="alert" style={{ marginTop: 6, padding: '4px 8px', background: '#fef2f2', color: '#991b1b', fontSize: 11, borderRadius: 4, fontWeight: 500 }}>
+                <div role="alert" style={{ marginTop: 6, padding: '4px 8px', background: colors.errBg, color: colors.err, fontSize: 11, borderRadius: radii.sm, fontWeight: 500 }}>
                   {priceErrorMsg}
                 </div>
               )}
@@ -403,21 +407,21 @@ function SearchPageContent() {
 
             {/* Availability */}
             <div className="sr-filter-section">
-              <h4 style={{ fontSize: 13, fontWeight: 700, color: '#0f3340', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Availability</h4>
+              <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Availability</h4>
               <label className="sr-checkbox">
-                <input type="checkbox" checked={inStockOnly} onChange={e => { setInStockOnly(e.target.checked); resetPage(); }} style={{ accentColor: '#0f3340' }} />
+                <input type="checkbox" checked={inStockOnly} onChange={e => { setInStockOnly(e.target.checked); resetPage(); }} style={{ accentColor: colors.brand[700] }} />
                 <span>In Stock Only</span>
               </label>
               <label className="sr-checkbox" style={{ marginTop: 4 }}>
-                <input type="checkbox" checked={verifiedOnly} onChange={e => { setVerifiedOnly(e.target.checked); resetPage(); }} style={{ accentColor: '#0f3340' }} />
-                <span style={{ color: '#065f46', fontWeight: 500 }}>Verified Sellers Only</span>
+                <input type="checkbox" checked={verifiedOnly} onChange={e => { setVerifiedOnly(e.target.checked); resetPage(); }} style={{ accentColor: colors.brand[700] }} />
+                <span style={{ color: colors.ok, fontWeight: 500 }}>Verified Sellers Only</span>
               </label>
             </div>
 
             {/* Clear filters */}
             {activeFilterCount > 0 && (
               <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); resetPage(); }}
-                style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', marginTop: 12 }}>
+                style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: colors.errBg, color: colors.err, border: `1px solid ${colors.err}`, borderRadius: radii.sm, cursor: 'pointer', marginTop: 12 }}>
                 Clear All Filters ({activeFilterCount})
               </button>
             )}
@@ -430,7 +434,7 @@ function SearchPageContent() {
           <div style={{ flex: 1, minWidth: 0 }}>
             {error && <ErrorBanner message={error} onRetry={doSearch} />}
             {cartError && (
-              <div role="alert" style={{ marginBottom: 16, padding: '10px 14px', background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 8, fontSize: 13, color: '#9b2c2c' }}>
+              <div role="alert" style={{ marginBottom: 16, padding: '10px 14px', background: colors.errBg, border: `1px solid ${colors.err}`, borderRadius: radii.md, ...typeScale.bodySm, color: colors.err }}>
                 {cartError}
               </div>
             )}
@@ -439,7 +443,7 @@ function SearchPageContent() {
             {loading && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
                 {Array.from({ length: 8 }).map((_, i) => (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                  <div key={i} style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden' }}>
                     <div className="sr-skeleton" style={{ height: 180 }} />
                     <div style={{ padding: 14 }}>
                       <div className="sr-skeleton" style={{ height: 14, marginBottom: 8, width: '80%' }} />
@@ -462,11 +466,11 @@ function SearchPageContent() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                     {(selectedCategories.length > 0 || selectedBrand || priceMin || priceMax) && (
                       <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); }}
-                        style={{ padding: '8px 20px', background: '#0f3340', color: '#fff', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                        style={{ padding: '8px 20px', background: colors.brand[700], color: '#fff', borderRadius: radii.sm, textDecoration: 'none', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
                         Clear Filters
                       </button>
                     )}
-                    <Link href="/stores" style={{ display: 'inline-block', padding: '8px 20px', background: '#fff', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+                    <Link href="/stores" style={{ display: 'inline-block', padding: '8px 20px', background: colors.surface, color: colors.brand[700], border: `1px solid ${colors.border}`, borderRadius: radii.sm, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
                       Browse Stores
                     </Link>
                   </div>
@@ -481,61 +485,61 @@ function SearchPageContent() {
                   {displayedResults.map(product => {
                     const isVerified = product.store?.verificationStatus === 'VERIFIED';
                     return (
-                      <div key={product.id} className="sr-card" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                      <div key={product.id} className="sr-card" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                          <div style={{ height: 180, background: '#f7f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                          <div style={{ height: 180, background: colors.bgSubtle, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
                             <ProductCardImage
                               product={product}
                               alt={product.title}
                               imgStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              placeholderStyle={{ color: '#a0aec0', fontSize: 40 }}
+                              placeholderStyle={{ color: colors.disabled, fontSize: 40 }}
                             />
                             {isVerified && (
-                              <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: '#0f3340', color: '#fff', letterSpacing: '0.5px' }}>
+                              <span style={{ position: 'absolute', top: 8, left: 8, padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 700, background: colors.brand[700], color: '#fff', letterSpacing: '0.5px' }}>
                                 ✓ VERIFIED
                               </span>
                             )}
                             {product.condition && product.condition !== 'NEW' && (
-                              <span style={{ position: 'absolute', top: 8, right: 8, padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>
+                              <span style={{ position: 'absolute', top: 8, right: 8, padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.warnBg, color: colors.warn }}>
                                 {product.condition}
                               </span>
                             )}
                           </div>
                           <div style={{ padding: '12px 14px 8px' }}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: '#0f3340', lineHeight: 1.4, marginBottom: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
+                            <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700], lineHeight: 1.4, marginBottom: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>
                               {product.title}
                             </div>
                             <div style={{ marginBottom: 6 }}>
                               {product.priceFromMinor != null ? (
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                                  <span style={{ fontSize: 11, color: '#5b6b74', fontWeight: 500 }}>{product.priceCurrency || 'SAR'}</span>
-                                  <span style={{ fontSize: 18, fontWeight: 700, color: '#0f3340' }}>
+                                  <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{product.priceCurrency || 'SAR'}</span>
+                                  <span style={{ fontSize: 18, fontWeight: 700, color: colors.brand[700] }}>
                                     {(product.priceFromMinor / 100).toFixed(2)}
                                   </span>
                                 </div>
                               ) : (
-                                <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>Price on request</span>
+                                <span style={{ ...typeScale.bodySm, color: colors.warn, fontWeight: 500 }}>Price on request</span>
                               )}
                             </div>
                             {/* Stock status badge */}
                             {(product as any).stockStatus && (product as any).stockStatus !== 'UNKNOWN' && (
                               <div style={{ marginBottom: 6 }}>
                                 {(product as any).stockStatus === 'IN_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#d1fae5', color: '#065f46' }}>In Stock</span>
+                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.okBg, color: colors.ok }}>In Stock</span>
                                 )}
                                 {(product as any).stockStatus === 'LOW_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#fef3c7', color: '#92400e' }}>Low Stock</span>
+                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.warnBg, color: colors.warn }}>Low Stock</span>
                                 )}
                                 {(product as any).stockStatus === 'OUT_OF_STOCK' && (
-                                  <span style={{ padding: '1px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, background: '#fee2e2', color: '#991b1b' }}>Out of Stock</span>
+                                  <span style={{ padding: '1px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 600, background: colors.errBg, color: colors.err }}>Out of Stock</span>
                                 )}
                               </div>
                             )}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#5b6b74' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...typeScale.caption, color: colors.muted }}>
                               <span>MOQ: {product.moq}</span>
                               {product.store && (
                                 <>
-                                  <span style={{ color: '#d9e2e6' }}>|</span>
+                                  <span style={{ color: colors.border }}>|</span>
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{product.store.name}</span>
                                 </>
                               )}
@@ -548,14 +552,13 @@ function SearchPageContent() {
                             style={{
                               width: '100%',
                               padding: '8px 14px',
-                              fontSize: 12,
-                              fontWeight: 600,
+                              ...typeScale.button,
                               color: '#fff',
                               border: 'none',
-                              borderRadius: 20,
+                              borderRadius: radii.full,
                               cursor: 'pointer',
-                              background: addedItems.has(product.id) ? '#065f46' : '#f59e0b',
-                              transition: 'background 0.2s ease',
+                              background: addedItems.has(product.id) ? colors.ok : colors.amber,
+                              transition: `background ${transitions.normal}`,
                             }}
                           >
                             {addedItems.has(product.id) ? '✓ Added to Cart' : 'Add to Cart'}
@@ -606,7 +609,7 @@ function SearchPageContent() {
                     >
                       Next ›
                     </button>
-                    <span style={{ fontSize: 12, color: '#5b6b74', marginLeft: 12 }}>
+                    <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 12 }}>
                       Page {page} of {totalPages}
                     </span>
                   </div>

@@ -11,6 +11,7 @@ import {
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
+import { PageHeader } from '@scs/ui-kit';
 import { TierLadder } from '../../../components/QuantityStepper';
 
 export default function MerchantPricingPage() {
@@ -254,18 +255,16 @@ export default function MerchantPricingPage() {
       `}</style>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* Header Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Pricing</h1>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Price lists and volume tiers</p>
-            </div>
+        <PageHeader
+          title="Pricing"
+          subtitle="Price lists and volume tiers"
+          actions={
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setShowCreateList(true)} style={headerBtn}>+ New List</button>
               <button onClick={() => storeId && loadLists(storeId)} style={headerBtn}>Refresh</button>
             </div>
-          </div>
-        </div>
+          }
+        />
         <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}

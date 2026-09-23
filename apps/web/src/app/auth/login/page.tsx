@@ -11,6 +11,7 @@ import {
 } from '@/lib/auth';
 import { getDeviceId } from '@/lib/device-id';
 import { fetchProfile } from '@/lib/api';
+import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 type LoginMode = 'password' | 'otp';
 type OtpStage = 'request' | 'verify';
@@ -141,15 +142,11 @@ export default function LoginPage() {
 
   return (
     <main style={{ maxWidth: 420, margin: '80px auto 0' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff', borderRadius: '12px 12px 0 0' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>
-          {verified ? 'Welcome!' : 'Sign In'}
-        </h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          {verified ? 'Your account is verified' : 'Access your Smart Commerce account'}
-        </p>
-      </div>
+      <PageHeader
+        title={verified ? 'Welcome!' : 'Sign In'}
+        subtitle={verified ? 'Your account is verified' : 'Access your Smart Commerce account'}
+        background={`linear-gradient(135deg, ${colors.brand[900]} 0%, ${colors.brand[500]} 100%)`}
+      />
       <div style={{ padding: '20px 24px 32px', background: '#fff', borderRadius: '0 0 12px 12px', border: '1px solid #e2e8f0', borderTop: 'none' }}>
 
       {!verified && (
@@ -180,8 +177,8 @@ export default function LoginPage() {
       {error && (
         <div
           style={{
-            background: '#fbeeec',
-            color: '#b3372f',
+            background: colors.errBg,
+            color: colors.err,
             padding: '10px 14px',
             borderRadius: 8,
             marginBottom: 16,
@@ -195,9 +192,9 @@ export default function LoginPage() {
       {rateLimit && (
         <div
           style={{
-            background: '#fffbeb',
-            color: '#92400e',
-            border: '1px solid #fcd34d',
+            background: colors.warnBg,
+            color: colors.warn,
+            border: `1px solid ${colors.amber}`,
             padding: '10px 14px',
             borderRadius: 8,
             marginBottom: 16,
@@ -215,8 +212,8 @@ export default function LoginPage() {
 
       {verified ? (
         <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>&#10003;</div>
-          <p style={{ color: '#174a5b', fontSize: 16, fontWeight: 500 }}>
+          <div style={{ fontSize: 40, marginBottom: 12, color: colors.ok }}>&#10003;</div>
+          <p style={{ color: colors.brand[900], fontSize: 16, fontWeight: 500 }}>
             Signed in successfully. Redirecting…
           </p>
         </div>
@@ -294,8 +291,8 @@ export default function LoginPage() {
             style={{
               ...buttonStyle,
               background: 'transparent',
-              color: '#1e6178',
-              border: '1px solid #d9e2e6',
+              color: colors.brand[500],
+              border: `1px solid ${colors.border}`,
             }}
           >
             Change number
@@ -330,8 +327,8 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: 600,
   background: 'transparent',
   border: 'none',
-  borderBottom: active ? '2px solid #174a5b' : '2px solid transparent',
-  color: active ? '#174a5b' : '#5b6b74',
+  borderBottom: active ? `2px solid ${colors.brand[900]}` : '2px solid transparent',
+  color: active ? colors.brand[900] : colors.muted,
   cursor: 'pointer',
   marginBottom: -1,
 });
@@ -340,14 +337,14 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 13,
   fontWeight: 600,
-  color: '#0f3340',
+  color: colors.brand[700],
   marginBottom: 6,
 };
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
   fontSize: 15,
-  border: '1px solid #d9e2e6',
+  border: `1px solid ${colors.border}`,
   borderRadius: 8,
   marginBottom: 16,
   outline: 'none',
@@ -359,7 +356,7 @@ const buttonStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
   color: '#fff',
-  background: '#174a5b',
+  background: colors.brand[900],
   border: 'none',
   borderRadius: 8,
   cursor: 'pointer',
@@ -367,14 +364,14 @@ const buttonStyle: React.CSSProperties = {
 };
 const hintStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#5b6b74',
+  color: colors.muted,
   textAlign: 'center',
   marginTop: 12,
 };
 const linkBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#1e6178',
+  color: colors.brand[500],
   fontWeight: 600,
   cursor: 'pointer',
   fontSize: 13,

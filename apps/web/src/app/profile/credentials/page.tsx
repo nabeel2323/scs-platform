@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setupCredentials, changePassword } from '@/lib/auth';
 import { validatePasswordStrength, calculatePasswordEntropy, getPasswordStrengthLabel } from '@/lib/utils/password-validation';
+import { PageHeader, colors } from '@scs/ui-kit';
 
 type Mode = 'setup' | 'change';
 
@@ -93,11 +94,7 @@ export default function CredentialsPage() {
   
   return (
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Credential Management</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Set up or change your email &amp; password</p>
-      </div>
+      <PageHeader title="Credential Management" subtitle="Set up or change your email &amp; password" />
       <div style={{ padding: '20px 24px 48px' }}>
       <div className="max-w-2xl mx-auto p-6">
       

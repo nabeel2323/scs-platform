@@ -6,6 +6,7 @@ import { fetchMyStores, fetchWarehouses, createWarehouse, updateWarehouse, Store
 import { hasPerm } from '../../../lib/auth';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
+import { PageHeader } from '@scs/ui-kit';
 
 export default function WarehousesPage() {
   const [store, setStore] = useState<Store | null>(null);
@@ -161,18 +162,11 @@ export default function WarehousesPage() {
           <span style={{ color: '#0f3340', fontWeight: 500 }}>Warehouses</span>
         </nav>
 
-        {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 28px 24px', color: '#fff', borderRadius: '12px 12px 0 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Warehouses</h1>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-                {store.displayName} · {warehouses.length} warehouse{warehouses.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <StatusBadge status={store.verificationStatus} />
-          </div>
-        </div>
+        <PageHeader
+          title="Warehouses"
+          subtitle={`${store.displayName} · ${warehouses.length} warehouse${warehouses.length !== 1 ? 's' : ''}`}
+          actions={<StatusBadge status={store.verificationStatus} />}
+        />
 
         <div style={{ padding: '0 28px 48px', background: '#f5f7f9', minHeight: 400 }}>
           {error && <div style={{ marginTop: 20 }}><ErrorBanner message={error} /></div>}
