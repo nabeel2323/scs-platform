@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Modal — animated dialog overlay.
  *
