@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
-import { stores, warehouses, businessDocuments } from '../merchant/merchant.schema';
+import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products, productMedia, productVariants } from '../catalog/catalog.schema';
 import { eq, and, isNull, sql, gte, lte, inArray, desc, getTableColumns } from 'drizzle-orm';
@@ -366,6 +366,9 @@ export class AdminService {
       inviteCode: organizations.inviteCode,
       createdAt: organizations.createdAt,
       updatedAt: organizations.updatedAt,
+      memberCount: sql<number>`(select count(*)::integer from ${organizationMembers} where ${organizationMembers.orgId} = ${organizations.id})`,
+      storeCount: sql<number>`(select count(*)::integer from ${stores} where ${stores.orgId} = ${organizations.id})`,
+      pendingVerificationCount: sql<number>`(select count(*)::integer from ${verificationRequests} where ${verificationRequests.orgId} = ${organizations.id} and ${verificationRequests.status} = 'SUBMITTED')`,
     }).from(organizations).orderBy(organizations.name);
   }
 

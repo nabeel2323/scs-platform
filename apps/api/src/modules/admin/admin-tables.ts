@@ -59,9 +59,12 @@ export const adminTables: Record<AdminTable, TableConfig> = {
   },
   merchants: {
     table: stores, fields: { ...getTableColumns(stores), orgName: organizations.name, orgType: organizations.type,
-      verificationRequestId: sql`(select id from verification_requests where store_id = ${stores.id} order by submitted_at desc, id asc limit 1)` },
+      verificationRequestId: sql`(select id from verification_requests where store_id = ${stores.id} order by submitted_at desc, id asc limit 1)`,
+      storeCount: sql`1`,
+      orderCount: sql`(select count(*)::integer from ${orders} where ${orders.storeId} = ${stores.id})`,
+      totalVolumeMinor: sql`coalesce((select sum(total_minor) from ${orders} where ${orders.storeId} = ${stores.id}), 0)` },
     joins: sql`left join ${organizations} on ${stores.orgId} = ${organizations.id}`,
-    search: ['id', 'displayName', 'slug', 'orgName'], sorts: ['displayName', 'slug', 'orgName', 'status', 'verificationStatus', 'currency'],
+    search: ['id', 'displayName', 'slug', 'orgName'], sorts: ['displayName', 'slug', 'orgName', 'status', 'verificationStatus', 'currency', 'orderCount', 'totalVolumeMinor'],
     dates: ['createdAt', 'updatedAt'], filters: { status: f('text'), verificationStatus: f('text'), orgId: f('uuid'), currency: f('text') },
   },
   orders: {
@@ -200,7 +203,7 @@ export async function listAdminTable(db: DatabaseService['db'], name: AdminTable
     const data = rows.rows.map(row => {
       const result: Record<string, unknown> = { ...row };
       for (const [key, value] of Object.entries(result)) {
-        if (typeof value === 'string' && (key.endsWith('Minor') || ['imageCount', 'productCount', 'moq', 'sortOrder'].includes(key))) result[key] = Number(value);
+        if (typeof value === 'string' && (key.endsWith('Minor') || ['imageCount', 'productCount', 'moq', 'sortOrder', 'storeCount', 'orderCount'].includes(key))) result[key] = Number(value);
       }
       return result;
     });
