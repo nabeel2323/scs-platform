@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Tooltip — hover tooltip for collapsed sidebar and other contexts.
  */
