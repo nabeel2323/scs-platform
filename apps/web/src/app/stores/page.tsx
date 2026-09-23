@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchPublicStores } from '../../lib/buyer-api';
 import { EmptyState, LoadingSpinner } from '../../components/Shared';
+import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 interface StoreItem {
   id: string;
@@ -31,11 +32,7 @@ export default function StoresPage() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Stores</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Browse verified wholesalers and suppliers</p>
-      </div>
+      <PageHeader title="Stores" subtitle="Browse verified wholesalers and suppliers" />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {stores.length === 0 ? (
@@ -55,11 +52,11 @@ export default function StoresPage() {
                   )}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>
                     {store.displayName}
                   </div>
                   {store.description && (
-                    <div style={{ fontSize: 13, color: '#5b6b74', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 13, color: colors.muted, marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {store.description}
                     </div>
                   )}
@@ -69,8 +66,8 @@ export default function StoresPage() {
                     borderRadius: 10,
                     fontSize: 11,
                     fontWeight: 600,
-                    background: store.verificationStatus === 'VERIFIED' ? '#d1fae5' : '#fef3c7',
-                    color: store.verificationStatus === 'VERIFIED' ? '#065f46' : '#92400e',
+                    background: store.verificationStatus === 'VERIFIED' ? colors.okBg : colors.warnBg,
+                    color: store.verificationStatus === 'VERIFIED' ? colors.ok : colors.warn,
                   }}>
                     {store.verificationStatus}
                   </span>
@@ -90,7 +87,7 @@ const storeCardStyle: React.CSSProperties = {
   gap: 16,
   padding: 20,
   background: '#fff',
-  border: '1px solid #d9e2e6',
+  border: `1px solid ${colors.border}`,
   borderRadius: 10,
   alignItems: 'flex-start',
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { colors, radii, transitions, typeScale } from '@scs/ui-kit';
 
 interface TablePaginationProps {
   page: number;
@@ -38,28 +39,30 @@ export default function TablePagination({
 
   const pgBtn = (active: boolean, disabled: boolean): React.CSSProperties => ({
     padding: '5px 10px',
-    fontSize: 12,
+    fontSize: typeScale.bodySm.fontSize,
     fontWeight: active ? 700 : 400,
-    background: active ? '#0f3340' : disabled ? '#f5f7f9' : '#fff',
-    color: active ? '#fff' : disabled ? '#b0bec5' : '#374151',
-    border: `1px solid ${active ? '#0f3340' : '#d9e2e6'}`,
-    borderRadius: 4,
+    background: active ? colors.brand[700] : disabled ? colors.bgSubtle : colors.surface,
+    color: active ? '#fff' : disabled ? colors.disabled : colors.ink,
+    border: `1px solid ${active ? colors.brand[700] : colors.border}`,
+    borderRadius: radii.sm,
     cursor: disabled ? 'default' : 'pointer',
     minWidth: 32,
     textAlign: 'center' as const,
-    transition: 'all 0.15s ease',
+    transition: `all ${transitions.fast}`,
+    fontFamily: 'inherit',
   });
 
   const navBtn = (disabled: boolean): React.CSSProperties => ({
     padding: '5px 12px',
-    fontSize: 12,
+    fontSize: typeScale.bodySm.fontSize,
     fontWeight: 500,
-    background: disabled ? '#f5f7f9' : '#fff',
-    color: disabled ? '#b0bec5' : '#374151',
-    border: '1px solid #d9e2e6',
-    borderRadius: 4,
+    background: disabled ? colors.bgSubtle : colors.surface,
+    color: disabled ? colors.disabled : colors.ink,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.sm,
     cursor: disabled ? 'default' : 'pointer',
-    transition: 'all 0.15s ease',
+    transition: `all ${transitions.fast}`,
+    fontFamily: 'inherit',
   });
 
   return (
@@ -72,8 +75,8 @@ export default function TablePagination({
       gap: 12,
     }}>
       {/* Left: showing range */}
-      <div style={{ fontSize: 12, color: '#5b6b74' }}>
-        Showing <strong style={{ color: '#374151' }}>{start}</strong>–<strong style={{ color: '#374151' }}>{end}</strong> of <strong style={{ color: '#374151' }}>{total}</strong>
+      <div style={{ fontSize: typeScale.bodySm.fontSize, color: colors.muted }}>
+        Showing <strong style={{ color: colors.ink }}>{start}</strong>–<strong style={{ color: colors.ink }}>{end}</strong> of <strong style={{ color: colors.ink }}>{total}</strong>
       </div>
 
       {/* Center: page buttons */}
@@ -83,7 +86,7 @@ export default function TablePagination({
         </button>
         {getVisiblePages().map((p, i) =>
           p === 'dots' ? (
-            <span key={`d${i}`} style={{ padding: '0 4px', color: '#a0aec0', fontSize: 12 }}>…</span>
+            <span key={`d${i}`} style={{ padding: '0 4px', color: colors.disabled, fontSize: typeScale.bodySm.fontSize }}>…</span>
           ) : (
             <button
               key={p}
@@ -102,19 +105,20 @@ export default function TablePagination({
 
       {/* Right: page size selector */}
       {onLimitChange && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#5b6b74' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: typeScale.bodySm.fontSize, color: colors.muted }}>
           <span>Rows:</span>
           <select
             value={limit}
             onChange={e => onLimitChange(Number(e.target.value))}
             style={{
               padding: '4px 8px',
-              border: '1px solid #d9e2e6',
-              borderRadius: 4,
-              fontSize: 12,
-              background: '#fff',
+              border: `1px solid ${colors.border}`,
+              borderRadius: radii.sm,
+              fontSize: typeScale.bodySm.fontSize,
+              background: colors.surface,
               cursor: 'pointer',
-              color: '#374151',
+              color: colors.ink,
+              fontFamily: 'inherit',
             }}
           >
             {[10, 25, 50, 100].map(n => (

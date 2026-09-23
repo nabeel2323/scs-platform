@@ -14,6 +14,7 @@ import {
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
+import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 
 function InventoryPageContent() {
   const searchParams = useSearchParams();
@@ -399,16 +400,11 @@ function InventoryPageContent() {
       `}</style>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* Header Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-          <Link href="/merchant" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>&larr; Back to Dashboard</Link>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: '8px 0 0', letterSpacing: '-0.3px' }}>Inventory</h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-            Stock levels{viewMode === 'all' ? ` — ${total} items` : selectedWh ? ` — ${items.length} items` : ''}
-            {items.filter(isLowStock).length > 0 && (
-              <span style={{ color: '#fca5a5', fontWeight: 600 }}> ({items.filter(isLowStock).length} low stock)</span>
-            )}
-          </p>
-        </div>
+        <PageHeader
+          title="Inventory"
+          subtitle={`Stock levels${viewMode === 'all' ? ` — ${total} items` : selectedWh ? ` — ${items.length} items` : ''}`}
+          breadcrumbs={<Breadcrumb items={[{ label: 'Dashboard', href: '/merchant' }, { label: 'Inventory' }]} />}
+        />
         <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}

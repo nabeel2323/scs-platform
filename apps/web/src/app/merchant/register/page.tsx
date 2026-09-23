@@ -16,6 +16,7 @@ import {
   type UserProfile,
 } from '../../../lib/api';
 import { getUser, switchOrg } from '../../../lib/auth';
+import { PageHeader } from '@scs/ui-kit';
 
 const STEPS = [
   'Your Profile',
@@ -356,10 +357,7 @@ export default function MerchantRegistrationPage() {
   return (
     <main style={{ maxWidth: 720, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Become a Seller</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Register your business to start trading on the platform</p>
-      </div>
+      <PageHeader title="Become a Seller" subtitle="Register your business to start trading on the platform" />
       <div style={{ padding: '20px 24px 48px' }}>
 
       <p style={{ color: '#5b6b74', marginBottom: 24 }}>

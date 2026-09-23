@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { authFetch } from '../../../lib/auth';
 import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
+import { PageHeader } from '@scs/ui-kit';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
@@ -387,12 +388,7 @@ export default function ImportWizardPage() {
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Import Catalog</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          Bulk import products from a CSV or Excel file
-        </p>
-      </div>
+      <PageHeader title="Import Catalog" subtitle="Bulk import products from a CSV or Excel file" />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Step indicator */}

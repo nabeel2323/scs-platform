@@ -10,6 +10,10 @@ import {
 } from '../../../lib/buyer-api';
 import { formatMinor, LoadingSpinner, EmptyState, productImageSrc } from '../../../components/Shared';
 import Link from 'next/link';
+import {
+  PageHeader, BreadcrumbDark,
+  colors, typeScale, radii, shadows, transitions,
+} from '@scs/ui-kit';
 
 /**
  * Mirror of the API's `priceForQty` rule (tiers are minQty <= qty < maxQty, upper
@@ -146,7 +150,7 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
             maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
             transform: zoom ? 'scale(1.8)' : 'scale(1)',
             transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
-            transition: zoom ? 'none' : 'transform 0.3s ease',
+            transition: zoom ? 'none' : `transform ${transitions.slow}`,
             userSelect: 'none',
           }}
         />
@@ -173,10 +177,10 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
               aria-label="Previous image"
               style={{
                 position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                width: 36, height: 36, borderRadius: '50%', border: '1px solid #d9e2e6',
+                width: 36, height: 36, borderRadius: '50%', border: `1px solid ${colors.border}`,
                 background: 'rgba(255,255,255,0.92)', fontSize: 18, cursor: 'pointer',
                 opacity: selected === 0 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+                boxShadow: shadows.sm,
               }}
             >‹</button>
             <button
@@ -185,10 +189,10 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
               aria-label="Next image"
               style={{
                 position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                width: 36, height: 36, borderRadius: '50%', border: '1px solid #d9e2e6',
+                width: 36, height: 36, borderRadius: '50%', border: `1px solid ${colors.border}`,
                 background: 'rgba(255,255,255,0.92)', fontSize: 18, cursor: 'pointer',
                 opacity: selected === total - 1 ? 0.35 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+                boxShadow: shadows.sm,
               }}
             >›</button>
           </>
@@ -211,10 +215,10 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
                 aria-current={isSelected}
                 style={{
                   width: 60, height: 60, flexShrink: 0, borderRadius: 8, overflow: 'hidden',
-                  border: isSelected ? '2px solid #0f3340' : isHovered ? '2px solid #1e6178' : '1px solid #d9e2e6',
-                  background: '#fff', cursor: 'pointer', padding: 2,
-                  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-                  boxShadow: isSelected ? '0 0 0 1px #0f3340' : isHovered ? '0 0 0 1px #1e6178' : 'none',
+                  border: isSelected ? `2px solid ${colors.brand[700]}` : isHovered ? `2px solid ${colors.brand[500]}` : `1px solid ${colors.border}`,
+                  background: colors.surface, cursor: 'pointer', padding: 2,
+                  transition: `border-color ${transitions.fast}, box-shadow ${transitions.fast}`,
+                  boxShadow: isSelected ? `0 0 0 1px ${colors.brand[700]}` : isHovered ? `0 0 0 1px ${colors.brand[500]}` : 'none',
                 }}
               >
                 <img
@@ -223,7 +227,7 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
                   style={{
                     width: '100%', height: '100%', objectFit: 'cover',
                     opacity: isSelected ? 1 : isHovered ? 0.9 : 0.75,
-                    transition: 'opacity 0.15s ease',
+                    transition: `opacity ${transitions.fast}`,
                   }}
                   loading="lazy"
                 />
@@ -234,7 +238,7 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
       )}
       </div>
       {images.length > 0 && visible.length === 0 && (
-        <div style={{ fontSize: 12, color: '#92400e', marginTop: 8 }}>Product images are temporarily unavailable.</div>
+        <div style={{ ...typeScale.bodySm, color: colors.warn, marginTop: 8 }}>Product images are temporarily unavailable.</div>
       )}
     </div>
   );
@@ -245,12 +249,12 @@ function ProductGallery({ images, title }: { images: { src: string; alt: string;
 function StockBadge({ stock }: { stock?: { totalAvailable: number } | null }) {
   const available = stock?.totalAvailable ?? 0;
   if (available > 10) {
-    return <span style={{ fontSize: 11, fontWeight: 700, color: '#067d62' }}>In Stock</span>;
+    return <span style={{ fontSize: 11, fontWeight: 700, color: colors.ok }}>In Stock</span>;
   }
   if (available > 0) {
-    return <span style={{ fontSize: 11, fontWeight: 700, color: '#b12704' }}>Only {available} left</span>;
+    return <span style={{ fontSize: 11, fontWeight: 700, color: colors.err }}>Only {available} left</span>;
   }
-  return <span style={{ fontSize: 11, fontWeight: 700, color: '#5b6b74' }}>Out of stock</span>;
+  return <span style={{ fontSize: 11, fontWeight: 700, color: colors.muted }}>Out of stock</span>;
 }
 
 // ── Page ─────────────────────────────────────────────────────────
@@ -306,11 +310,11 @@ export default function ProductDetailPage() {
     <>
     <style>{`
       .pd-gallery-placeholder {
-        background: #fff; border: 1px solid #d9e2e6; border-radius: 12px; height: 460px;
+        background: ${colors.surface}; border: 1px solid ${colors.border}; border-radius: ${radii.lg}; height: 460px;
         display: flex; align-items: center; justify-content: center;
       }
       .pd-gallery-main {
-        background: #fff; border: 1px solid #d9e2e6; border-radius: 12px; height: 460px;
+        background: ${colors.surface}; border: 1px solid ${colors.border}; border-radius: ${radii.lg}; height: 460px;
         display: flex; align-items: center; justify-content: center; overflow: hidden;
         position: relative; cursor: zoom-in;
       }
@@ -333,12 +337,17 @@ export default function ProductDetailPage() {
     `}</style>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>{product.title}</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          {product.isAvailable ? 'Available' : 'Unavailable'} · MOQ: {product.moq}
-        </p>
-      </div>
+      <PageHeader
+        title={product.title}
+        subtitle={`${product.isAvailable ? 'Available' : 'Unavailable'} · MOQ: ${product.moq}`}
+        breadcrumbs={
+          <BreadcrumbDark items={[
+            { label: 'Home', href: '/' },
+            { label: 'Search', href: '/search' },
+            { label: product.title },
+          ]} />
+        }
+      />
       <div style={{ padding: '20px 24px 48px' }}>
       <div className="pd-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 420px) 1fr', gap: 32, alignItems: 'start' }}>
         {/* Gallery */}
@@ -346,12 +355,12 @@ export default function ProductDetailPage() {
 
         {/* Details */}
         <div>
-          {product.titleAr && <div style={{ fontSize: 18, color: '#5b6b74', marginBottom: 8, direction: 'rtl' }}>{product.titleAr}</div>}
+          {product.titleAr && <div style={{ ...typeScale.h2, color: colors.muted, marginBottom: 8, direction: 'rtl' }}>{product.titleAr}</div>}
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-            <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: product.isAvailable ? '#d1fae5' : '#fee2e2', color: product.isAvailable ? '#065f46' : '#991b1b' }}>
+            <span style={{ padding: '2px 10px', borderRadius: radii.sm, ...typeScale.caption, fontWeight: 600, background: product.isAvailable ? colors.okBg : colors.errBg, color: product.isAvailable ? colors.ok : colors.err }}>
               {product.isAvailable ? 'Available' : 'Unavailable'}
             </span>
-            <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#edf2f7', color: '#4a5568' }}>
+            <span style={{ padding: '2px 10px', borderRadius: radii.sm, ...typeScale.caption, fontWeight: 600, background: colors.bgSubtle, color: colors.muted }}>
               MOQ: {product.moq}
             </span>
           </div>
@@ -359,61 +368,61 @@ export default function ProductDetailPage() {
           {/* Amazon-style "from" price headline */}
           {cheapestPrice !== undefined && (
             <div style={{ marginBottom: 16 }}>
-              <span style={{ fontSize: 12, color: '#5b6b74' }}>Price from </span>
-              <span style={{ fontSize: 28, fontWeight: 700, color: '#0f3340' }}>
+              <span style={{ fontSize: 12, color: colors.muted }}>Price from </span>
+              <span style={{ fontSize: 28, fontWeight: 700, color: colors.brand[700] }}>
                 {formatMinor(cheapestPrice, baseCurrency).replace(/ [A-Z]+$/, '')}
               </span>
-              <span style={{ fontSize: 13, color: '#5b6b74', marginLeft: 4 }}>{baseCurrency}</span>
+              <span style={{ fontSize: 13, color: colors.muted, marginLeft: 4 }}>{baseCurrency}</span>
             </div>
           )}
 
           {/* Real stock status from warehouse inventory */}
           {product.isAvailable && (
-            <div style={{ fontSize: 12, color: '#5b6b74', marginBottom: 16, padding: '8px 12px', background: '#f7f9fa', border: '1px solid #d9e2e6', borderRadius: 6 }}>
+            <div style={{ ...typeScale.bodySm, color: colors.muted, marginBottom: 16, padding: '8px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm }}>
               {(() => {
                 const totalStock = activeVariants.reduce((sum, v) => sum + ((v.stock?.totalAvailable ?? 0)), 0);
                 const hasAnyStock = activeVariants.some(v => (v.stock?.totalAvailable ?? 0) > 0);
                 if (hasAnyStock) {
-                  return <><strong style={{ color: '#065f46' }}>In Stock:</strong> {totalStock} units available across {activeVariants.filter(v => (v.stock?.totalAvailable ?? 0) > 0).length} variant(s). Large orders may require lead time.</>;
+                  return <><strong style={{ color: colors.ok }}>In Stock:</strong> {totalStock} units available across {activeVariants.filter(v => (v.stock?.totalAvailable ?? 0) > 0).length} variant(s). Large orders may require lead time.</>;
                 }
                 return <><strong>Stock:</strong> Available from supplier warehouse. Contact supplier for exact stock levels and lead times on large orders.</>;
               })()}
             </div>
           )}
-          {product.description && <p style={{ color: '#5b6b74', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>{product.description}</p>}
+          {product.description && <p style={{ ...typeScale.body, color: colors.muted, lineHeight: 1.6, marginBottom: 24 }}>{product.description}</p>}
 
           {/* Seller */}
-          <div style={{ marginBottom: 24, padding: '12px 14px', background: '#f7fafa', border: '1px solid #d9e2e6', borderRadius: 8 }}>
+          <div style={{ marginBottom: 24, padding: '12px 14px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.md }}>
             {store ? (
               <>
-                <div style={{ fontSize: 11, color: '#5b6b74', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sold by</div>
+                <div style={{ ...typeScale.caption, color: colors.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sold by</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                  <Link href={`/stores/${store.slug || store.id}`} style={{ fontSize: 15, fontWeight: 600, color: '#0f3340', textDecoration: 'none' }}>
+                  <Link href={`/stores/${store.slug || store.id}`} style={{ ...typeScale.body, fontWeight: 600, color: colors.brand[700], textDecoration: 'none' }}>
                     {store.name}
                   </Link>
-                  <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: store.verificationStatus === 'VERIFIED' ? '#d1fae5' : '#fef3c7', color: store.verificationStatus === 'VERIFIED' ? '#065f46' : '#92400e' }}>
+                  <span style={{ padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 700, background: store.verificationStatus === 'VERIFIED' ? colors.okBg : colors.warnBg, color: store.verificationStatus === 'VERIFIED' ? colors.ok : colors.warn }}>
                     {store.verificationStatus}
                   </span>
                   {/* A suspended store still resolves, but the buyer must see why
                       an order may not proceed. */}
                   {store.status !== 'ACTIVE' && (
-                    <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: '#fee2e2', color: '#991b1b' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: radii.sm, fontSize: 10, fontWeight: 700, background: colors.errBg, color: colors.err }}>
                       Store {store.status}
                     </span>
                   )}
                 </div>
               </>
             ) : (
-              <div style={{ fontSize: 12, color: '#92400e' }}>Seller information is unavailable for this listing.</div>
+              <div style={{ ...typeScale.bodySm, color: colors.warn }}>Seller information is unavailable for this listing.</div>
             )}
           </div>
 
           {/* Variants */}
-          <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
-            Variants <span style={{ fontSize: 12, fontWeight: 400, color: '#5b6b74' }}>({activeVariants.length})</span>
+          <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 12 }}>
+            Variants <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>({activeVariants.length})</span>
           </h3>
           {activeVariants.length === 0 ? (
-            <p style={{ color: '#a0aec0', fontSize: 13 }}>No variants available</p>
+            <p style={{ color: colors.disabled, ...typeScale.bodySm }}>No variants available</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {activeVariants.map(v => {
@@ -422,13 +431,13 @@ export default function ProductDetailPage() {
                 const tiers = v.pricing?.tiers ?? [];
                 const outOfStock = (v.stock?.totalAvailable ?? 0) <= 0;
                 return (
-                  <div key={v.id} style={{ padding: '12px 16px', background: '#fff', border: '1px solid #d9e2e6', borderRadius: 8, opacity: outOfStock ? 0.75 : 1 }}>
+                  <div key={v.id} style={{ padding: '12px 16px', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, opacity: outOfStock ? 0.75 : 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: '#0f3340' }}>
+                        <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700] }}>
                           {v.title || v.sku} <span style={{ marginLeft: 8 }}><StockBadge stock={v.stock} /></span>
                         </div>
-                        <div style={{ fontSize: 12, color: '#5b6b74', fontFamily: 'monospace' }}>
+                        <div style={{ ...typeScale.bodySm, color: colors.muted, fontFamily: 'monospace' }}>
                           SKU: {v.sku} {v.barcode ? `| ${v.barcode}` : ''}
                         </div>
                       </div>
@@ -439,16 +448,16 @@ export default function ProductDetailPage() {
                           value={qty}
                           onChange={e => setQty(Math.max(product.moq, parseInt(e.target.value) || product.moq))}
                           aria-label={`Quantity for ${v.title || v.sku}`}
-                          style={{ width: 60, padding: '4px 8px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13, textAlign: 'center' }}
+                          style={{ width: 60, padding: '4px 8px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 13, textAlign: 'center' }}
                         />
                         <button
                           onClick={() => handleAdd(v.id, product.storeId)}
                           disabled={outOfStock}
                           style={{
-                            padding: '6px 16px', fontSize: 12, fontWeight: 600, color: '#fff',
-                            background: addedId === v.id ? '#065f46' : outOfStock ? '#a0aec0' : '#f0c14b',
-                            border: '1px solid ' + (addedId === v.id ? '#065f46' : outOfStock ? '#a0aec0' : '#a88734'),
-                            borderRadius: 6, cursor: outOfStock ? 'not-allowed' : 'pointer',
+                            padding: '6px 16px', ...typeScale.button, color: '#fff',
+                            background: addedId === v.id ? colors.ok : outOfStock ? colors.disabled : colors.amber,
+                            border: '1px solid ' + (addedId === v.id ? colors.ok : outOfStock ? colors.disabled : '#a88734'),
+                            borderRadius: radii.sm, cursor: outOfStock ? 'not-allowed' : 'pointer',
                           }}
                         >
                           {outOfStock ? 'Out of Stock' : addedId === v.id ? '✓ Added' : 'Add to Cart'}
@@ -458,16 +467,16 @@ export default function ProductDetailPage() {
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                       {unit !== undefined ? (
                         <>
-                          <span style={{ fontSize: 15, fontWeight: 700, color: '#0f3340' }}>
-                            {formatMinor(unit, currency)} <span style={{ fontSize: 11, fontWeight: 400, color: '#5b6b74' }}>/ {v.unit || 'unit'}</span>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: colors.brand[700] }}>
+                            {formatMinor(unit, currency)} <span style={{ fontSize: 11, fontWeight: 400, color: colors.muted }}>/ {v.unit || 'unit'}</span>
                           </span>
-                          <span style={{ fontSize: 11, color: '#5b6b74' }}>at qty {qty}</span>
+                          <span style={{ ...typeScale.caption, color: colors.muted }}>at qty {qty}</span>
                         </>
                       ) : (
-                        <span style={{ fontSize: 12, color: '#92400e' }}>No active price for this item — the cart will reject it until the seller publishes one</span>
+                        <span style={{ ...typeScale.bodySm, color: colors.warn }}>No active price for this item — the cart will reject it until the seller publishes one</span>
                       )}
                       {tiers.length > 1 && (
-                        <span style={{ fontSize: 11, color: '#5b6b74' }}>
+                        <span style={{ ...typeScale.caption, color: colors.muted }}>
                           · volume: {tiers.map(t => `${t.minQty}+ ${formatMinor(t.unitPriceMinor, currency)}`).join(' · ')}
                         </span>
                       )}
@@ -480,19 +489,19 @@ export default function ProductDetailPage() {
 
           {/* Inactive variants shown greyed so buyers understand the listing fully */}
           {inactiveVariants.length > 0 && (
-            <div style={{ marginTop: 12, fontSize: 12, color: '#a0aec0' }}>
+            <div style={{ marginTop: 12, ...typeScale.bodySm, color: colors.disabled }}>
               {inactiveVariants.length} variant(s) currently inactive.
             </div>
           )}
 
           {addError && (
-            <div role="alert" style={{ marginTop: 16, padding: 14, background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: 8 }}>
-              <span style={{ color: '#9b2c2c', fontWeight: 600, fontSize: 13 }}>{addError}</span>
+            <div role="alert" style={{ marginTop: 16, padding: 14, background: colors.errBg, border: `1px solid ${colors.err}`, borderRadius: radii.md }}>
+              <span style={{ color: colors.err, fontSize: typeScale.body.fontSize, fontWeight: 600, lineHeight: typeScale.body.lineHeight }}>{addError}</span>
             </div>
           )}
 
           <div style={{ marginTop: 24 }}>
-            <Link href="/cart" style={{ display: 'inline-block', padding: '10px 24px', background: '#0f3340', color: '#fff', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+            <Link href="/cart" style={{ display: 'inline-block', padding: '10px 24px', background: colors.brand[700], color: '#fff', borderRadius: radii.md, textDecoration: 'none', ...typeScale.button }}>
               Go to Cart
             </Link>
           </div>

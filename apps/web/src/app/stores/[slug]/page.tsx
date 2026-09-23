@@ -16,6 +16,7 @@ import {
   TrustSnapshot,
 } from '../../../lib/buyer-api';
 import { formatMinor, LoadingSpinner, EmptyState, ErrorBanner, ProductCardImage } from '../../../components/Shared';
+import { PageHeader, BreadcrumbDark, colors, radii } from '@scs/ui-kit';
 
 interface StoreDetail {
   id: string;
@@ -146,19 +147,17 @@ export default function StoreDetailPage() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>{store.displayName}</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          {store.verificationStatus}{store.description ? ` · ${store.description.slice(0, 80)}` : ''}
-        </p>
-      </div>
+      <PageHeader
+        title={store.displayName}
+        subtitle={`${store.verificationStatus}${store.description ? ` · ${store.description.slice(0, 80)}` : ''}`}
+        breadcrumbs={<BreadcrumbDark items={[{ label: 'Stores', href: '/stores' }, { label: store.displayName }]} />}
+      />
       <div style={{ padding: '20px 24px 48px' }}>
       {/* Store header */}
       <div
         style={{
           background: '#fff',
-          border: '1px solid #d9e2e6',
+          border: `1px solid ${colors.border}`,
           borderRadius: 12,
           padding: 24,
           marginBottom: 24,
@@ -189,11 +188,11 @@ export default function StoreDetailPage() {
             )}
           </div>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f3340', marginBottom: 4 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: colors.brand[700], marginBottom: 4 }}>
               {store.displayName}
             </h1>
             {store.description && (
-              <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 8 }}>{store.description}</p>
+              <p style={{ color: colors.muted, fontSize: 14, marginBottom: 8 }}>{store.description}</p>
             )}
             <span
               style={{
@@ -201,8 +200,8 @@ export default function StoreDetailPage() {
                 borderRadius: 10,
                 fontSize: 11,
                 fontWeight: 600,
-                background: store.verificationStatus === 'VERIFIED' ? '#d1fae5' : '#fef3c7',
-                color: store.verificationStatus === 'VERIFIED' ? '#065f46' : '#92400e',
+                background: store.verificationStatus === 'VERIFIED' ? colors.okBg : colors.warnBg,
+                color: store.verificationStatus === 'VERIFIED' ? colors.ok : colors.warn,
               }}
             >
               {store.verificationStatus}
@@ -210,11 +209,11 @@ export default function StoreDetailPage() {
             {/* A5-5: show the store's rating and review count next to the verification badge. */}
             {trust && trust.totalReviews > 0 && (
               <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 13, color: '#f59e0b' }}>★</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>
+                <span style={{ fontSize: 13, color: colors.amber }}>★</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: colors.brand[700] }}>
                   {Number(trust.avgRating).toFixed(1)}
                 </span>
-                <span style={{ fontSize: 12, color: '#5b6b74' }}>
+                <span style={{ fontSize: 12, color: colors.muted }}>
                   ({trust.totalReviews} {trust.totalReviews === 1 ? 'review' : 'reviews'})
                 </span>
                 {trust.badges.length > 0 && trust.badges[0] && (
@@ -251,9 +250,9 @@ export default function StoreDetailPage() {
               fontWeight: 600,
               borderRadius: 8,
               cursor: saving ? 'default' : 'pointer',
-              border: `1px solid ${isSaved ? '#f59e0b' : '#d9e2e6'}`,
-              background: isSaved ? '#fffbeb' : '#fff',
-              color: isSaved ? '#92400e' : '#0f3340',
+              border: `1px solid ${isSaved ? colors.amber : colors.border}`,
+              background: isSaved ? colors.warnBg : '#fff',
+              color: isSaved ? colors.warn : colors.brand[700],
             }}
           >
             {isSaved ? '★ Saved' : '☆ Save Supplier'}
@@ -264,7 +263,7 @@ export default function StoreDetailPage() {
       {/* Products */}
       {loadError && <ErrorBanner message={loadError} />}
       {cartError && <ErrorBanner message={cartError} />}
-      <h2 style={{ fontSize: 18, fontWeight: 600, color: '#0f3340', marginBottom: 16 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 600, color: colors.brand[700], marginBottom: 16 }}>
         Products
       </h2>
       {products.length === 0 ? (
@@ -282,7 +281,7 @@ export default function StoreDetailPage() {
               key={product.id}
               style={{
                 background: '#fff',
-                border: '1px solid #d9e2e6',
+                border: `1px solid ${colors.border}`,
                 borderRadius: 10,
                 overflow: 'hidden',
               }}
@@ -294,7 +293,7 @@ export default function StoreDetailPage() {
                 <div
                   style={{
                     height: 140,
-                    background: '#f0f4f6',
+                    background: colors.bgSubtle,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -313,7 +312,7 @@ export default function StoreDetailPage() {
                     style={{
                       fontSize: 14,
                       fontWeight: 600,
-                      color: '#0f3340',
+                      color: colors.brand[700],
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -323,21 +322,21 @@ export default function StoreDetailPage() {
                   </div>
                   {/* The same product is priced in search now, so the grid has to
                       agree with it or the two listings contradict each other. */}
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#0f3340', marginTop: 6 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: colors.brand[700], marginTop: 6 }}>
                     {product.priceFromMinor != null ? (
                       <>
                         {formatMinor(product.priceFromMinor, product.priceCurrency ?? undefined)}
-                        <span style={{ fontSize: 11, fontWeight: 500, color: '#5b6b74' }}>
+                        <span style={{ fontSize: 11, fontWeight: 500, color: colors.muted }}>
                           {' '}from
                         </span>
                       </>
                     ) : (
-                      <span style={{ fontSize: 12, fontWeight: 500, color: '#92400e' }}>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: colors.warn }}>
                         Price on request
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#5b6b74', marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: colors.muted, marginTop: 4 }}>
                     MOQ: {product.moq}
                   </div>
                 </div>
@@ -354,7 +353,7 @@ export default function StoreDetailPage() {
                     border: 'none',
                     borderRadius: 6,
                     cursor: 'pointer',
-                    background: addedItems.has(product.id) ? '#065f46' : '#0f3340',
+                    background: addedItems.has(product.id) ? colors.ok : colors.brand[700],
                   }}
                 >
                   {addedItems.has(product.id) ? '✓ Added to Cart' : 'Add to Cart'}

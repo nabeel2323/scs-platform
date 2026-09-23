@@ -15,6 +15,7 @@ import {
 import { hasPerm } from '../../../lib/auth';
 import { DOCUMENT_STATUS_LABELS, UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge, formatDate } from '../../../components/Shared';
+import { PageHeader } from '@scs/ui-kit';
 
 const CURRENCIES = ['SAR', 'AED', 'KWD', 'BHD', 'OMR', 'QAR', 'JOD', 'EGP', 'USD', 'EUR', 'GBP', 'PKR', 'INR'];
 const LOCALES: [string, string][] = [['en', 'English'], ['ar', 'Arabic']];
@@ -441,18 +442,11 @@ export default function MerchantOrganizationPage() {
           <span style={{ color: '#0f3340', fontWeight: 500 }}>Organization</span>
         </nav>
 
-        {/* Header Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 28px 24px', color: '#fff', borderRadius: '12px 12px 0 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>{org.name}</h1>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-                {org.legalName || org.name} · {org.country}
-              </p>
-            </div>
-            <StatusBadge status={org.verificationStatus} />
-          </div>
-        </div>
+        <PageHeader
+          title={org.name}
+          subtitle={`${org.legalName || org.name} · ${org.country}`}
+          actions={<StatusBadge status={org.verificationStatus} />}
+        />
 
         <div style={{ padding: '0 28px 48px', background: '#f5f7f9', minHeight: 400 }}>
 

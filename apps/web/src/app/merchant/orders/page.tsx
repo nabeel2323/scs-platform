@@ -23,6 +23,7 @@ import {
   LoadingSpinner,
   ErrorBanner,
 } from '../../../components/Shared';
+import { PageHeader } from '@scs/ui-kit';
 
 // Merchant cancellation is a transition to CANCELLED via merchant:orders:write —
 // the backend FSM allows it from PENDING_CONFIRMATION through READY
@@ -310,12 +311,10 @@ export default function MerchantOrdersPage() {
         }
       `}</style>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Merchant Orders</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-          {storeName ? `Incoming orders for ${storeName}` : 'Manage incoming orders'}
-        </p>
-      </div>
+      <PageHeader
+        title="Merchant Orders"
+        subtitle={storeName ? `Incoming orders for ${storeName}` : 'Manage incoming orders'}
+      />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}

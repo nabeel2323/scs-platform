@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
 import { isAuthenticated, switchOrg, hasMerchantAccess } from '../../lib/auth';
 import { ErrorBanner } from '../../components/Shared';
+import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -87,25 +88,21 @@ export default function AccountPage() {
     return '📱';
   };
 
-  if (loading) return <div style={{ padding: 32, color: '#5b6b74' }}>Loading account...</div>;
-  if (!profile) return <div style={{ padding: 32, color: '#991b1b' }}>Failed to load account.</div>;
+  if (loading) return <div style={{ padding: 32, color: colors.muted }}>Loading account...</div>;
+  if (!profile) return <div style={{ padding: 32, color: colors.err }}>Failed to load account.</div>;
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>My Account</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>{profile.fullName} · {profile.email || 'No email'}</p>
-      </div>
+      <PageHeader title="My Account" subtitle={`${profile.fullName} · ${profile.email || 'No email'}`} />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Profile section */}
-      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
+      <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: 0 }}>Profile</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], margin: 0 }}>Profile</h2>
           {!editing && (
             <button onClick={() => { setEditing(true); setForm({ fullName: profile.fullName, email: profile.email || '', locale: profile.locale }); }}
-              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
               Edit
             </button>
           )}
@@ -138,31 +135,31 @@ export default function AccountPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Full Name</span><br />{profile.fullName}</div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Phone</span><br /><code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone}</code></div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Email</span><br />{profile.email || '—'}</div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Locale</span><br />{profile.locale === 'ar' ? 'العربية' : 'English'}</div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>Status</span><br />
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Full Name</span><br />{profile.fullName}</div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Phone</span><br /><code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone}</code></div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Email</span><br />{profile.email || '—'}</div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Locale</span><br />{profile.locale === 'ar' ? 'العربية' : 'English'}</div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Status</span><br />
               <span style={{
                 fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
-                background: profile.status === 'ACTIVE' ? '#d1fae5' : '#fef3c7',
-                color: profile.status === 'ACTIVE' ? '#065f46' : '#92400e',
+                background: profile.status === 'ACTIVE' ? colors.okBg : colors.warnBg,
+                color: profile.status === 'ACTIVE' ? colors.ok : colors.warn,
               }}>{profile.status}</span>
             </div>
-            <div><span style={{ color: '#5b6b74', fontSize: 12 }}>User ID</span><br /><code style={{ fontSize: 11, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.id.slice(0, 8)}...</code></div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>User ID</span><br /><code style={{ fontSize: 11, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.id.slice(0, 8)}...</code></div>
           </div>
         )}
       </div>
 
       {/* Organizations */}
-      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>Organizations</h2>
-        <p style={{ color: '#5b6b74', fontSize: 13, margin: '0 0 12px' }}>
+      <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24, marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Organizations</h2>
+        <p style={{ color: colors.muted, fontSize: 13, margin: '0 0 12px' }}>
           Merchant tools operate on the active organization{profile.role ? ` — your current role is ${profile.role}` : ''}.
         </p>
         {orgError && <ErrorBanner message={orgError} />}
         {orgs.length === 0 ? (
-          <p style={{ color: '#5b6b74', fontSize: 13 }}>No organization memberships.</p>
+          <p style={{ color: colors.muted, fontSize: 13 }}>No organization memberships.</p>
         ) : (
           orgs.map((org: any, i: number) => {
             // GET /v1/me/organizations spreads the organizations row, so the id
@@ -177,27 +174,27 @@ export default function AccountPage() {
                       <strong>{org.name || orgId}</strong> — {org.type || 'ORG'} ·{' '}
                       {org.verificationStatus || org.membershipStatus || 'PENDING'}
                       {org.isActive === false && (
-                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }}>
+                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: colors.errBg, color: colors.err, border: `1px solid ${colors.errBorder}` }}>
                           DEACTIVATED
                         </span>
                       )}
                     </div>
                     {org.inviteCode && (
                       <div style={{ marginTop: 4 }}>
-                        <span style={{ fontSize: 11, color: '#5b6b74' }}>Invite code: </span>
+                        <span style={{ fontSize: 11, color: colors.muted }}>Invite code: </span>
                         <code style={{ fontSize: 12, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.5px' }}>{org.inviteCode}</code>
                       </div>
                     )}
                   </div>
                   {isActive ? (
-                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: '#d1fae5', color: '#065f46', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: colors.okBg, color: colors.ok, whiteSpace: 'nowrap' }}>
                       Active
                     </span>
                   ) : (
                     <button
                       onClick={() => orgId && handleSwitchOrg(orgId)}
                       disabled={!orgId || !!switchingOrg}
-                      style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', opacity: switchingOrg && switchingOrg !== orgId ? 0.5 : 1 }}
+                      style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', opacity: switchingOrg && switchingOrg !== orgId ? 0.5 : 1 }}
                     >
                       {switchingOrg === orgId ? 'Switching…' : 'Switch to'}
                     </button>
@@ -257,7 +254,7 @@ export default function AccountPage() {
               <Link href="/merchant/register" style={{
                 display: 'inline-block',
                 padding: '10px 24px', fontSize: 14, fontWeight: 600,
-                background: '#fff', color: '#065f46',
+                background: '#fff', color: colors.ok,
                 borderRadius: 6, textDecoration: 'none',
               }}>
                 Start Registration &rarr;
@@ -270,19 +267,19 @@ export default function AccountPage() {
       {/* Merchant Dashboard link — shown when user already has merchant access */}
       {orgs.length > 0 && hasMerchantAccess() && (
         <div style={{
-          background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10,
+          background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10,
           padding: '16px 24px', marginBottom: 20,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 2px' }}>Merchant Dashboard</h2>
-            <p style={{ fontSize: 13, color: '#5b6b74', margin: 0 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], margin: '0 0 2px' }}>Merchant Dashboard</h2>
+            <p style={{ fontSize: 13, color: colors.muted, margin: 0 }}>
               Manage your store, catalog, orders, and organization settings.
             </p>
           </div>
           <Link href="/merchant" style={{
             padding: '8px 20px', fontSize: 13, fontWeight: 600,
-            background: '#0f3340', color: '#fff', borderRadius: 6,
+            background: colors.brand[700], color: '#fff', borderRadius: 6,
             textDecoration: 'none', whiteSpace: 'nowrap',
           }}>
             Go to Dashboard &rarr;
@@ -291,31 +288,31 @@ export default function AccountPage() {
       )}
 
       {/* Security */}
-      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24, marginBottom: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 4 }}>Security</h2>
-        <p style={{ color: '#5b6b74', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24, marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Security</h2>
+        <p style={{ color: colors.muted, fontSize: 13, marginTop: 0, marginBottom: 16 }}>
           Set up email/password login and review your active sessions.
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button onClick={() => router.push('/profile/credentials')}
-            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
             Email &amp; Password
           </button>
           <button onClick={() => router.push('/profile/sessions')}
-            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#0f3340', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}>
+            style={{ padding: '9px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: colors.brand[700], border: `1px solid ${colors.border}`, borderRadius: 6, cursor: 'pointer' }}>
             Active Sessions
           </button>
         </div>
       </div>
 
       {/* Devices */}
-      <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Device Management</h2>
-        <p style={{ color: '#5b6b74', fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+      <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Device Management</h2>
+        <p style={{ color: colors.muted, fontSize: 13, marginTop: 0, marginBottom: 16 }}>
           Manage devices registered for push notifications. Unregister devices you no longer use.
         </p>
         {devices.length === 0 ? (
-          <div style={{ padding: '20px 0', textAlign: 'center', color: '#5b6b74', fontSize: 13 }}>
+          <div style={{ padding: '20px 0', textAlign: 'center', color: colors.muted, fontSize: 13 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📱</div>
             <div>No devices registered for push notifications.</div>
             <div style={{ fontSize: 12, marginTop: 4, color: '#8a9ba5' }}>Use the mobile app to register your device.</div>
@@ -340,11 +337,11 @@ export default function AccountPage() {
                   {getPlatformIcon(device.platform)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.brand[700], marginBottom: 2 }}>
                     {device.platform.charAt(0).toUpperCase() + device.platform.slice(1)}
-                    {device.appVersion && <span style={{ fontWeight: 400, color: '#5b6b74', marginLeft: 6 }}>v{device.appVersion}</span>}
+                    {device.appVersion && <span style={{ fontWeight: 400, color: colors.muted, marginLeft: 6 }}>v{device.appVersion}</span>}
                   </div>
-                  <div style={{ fontSize: 11, color: '#5b6b74' }}>
+                  <div style={{ fontSize: 11, color: colors.muted }}>
                     Last active: {new Date(device.lastSeenAt).toLocaleDateString()}
                   </div>
                 </div>
@@ -357,7 +354,7 @@ export default function AccountPage() {
                     fontWeight: 600,
                     background: '#fff',
                     color: deviceAction === device.token ? '#8a9ba5' : '#991b1b',
-                    border: '1px solid #fca5a5',
+                    border: `1px solid ${colors.errBorder}`,
                     borderRadius: 6,
                     cursor: deviceAction === device.token ? 'not-allowed' : 'pointer',
                     flexShrink: 0,
@@ -375,5 +372,5 @@ export default function AccountPage() {
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: 12, color: '#5b6b74', display: 'flex', flexDirection: 'column', gap: 4 };
-const inputStyle: React.CSSProperties = { padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 13, background: '#fff' };
+const labelStyle: React.CSSProperties = { fontSize: 12, color: colors.muted, display: 'flex', flexDirection: 'column', gap: 4 };
+const inputStyle: React.CSSProperties = { padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 13, background: '#fff' };

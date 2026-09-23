@@ -13,6 +13,7 @@ import {
 import { fetchMyStores } from '../../../../../lib/api';
 import { pickStore } from '../../../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner } from '../../../../../components/Shared';
+import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 
 const CONDITIONS = ['NEW', 'USED', 'REFURBISHED'];
 
@@ -390,11 +391,10 @@ export default function ProductEditorPage() {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>
-          {isNew ? 'New Product' : 'Edit Product'}
-        </h1>
-      </div>
+      <PageHeader
+        title={isNew ? 'New Product' : 'Edit Product'}
+        breadcrumbs={<Breadcrumb items={[{ label: 'Catalog', href: '/merchant/catalog' }, { label: isNew ? 'New Product' : 'Edit' }]} />}
+      />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}

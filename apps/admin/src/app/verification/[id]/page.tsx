@@ -16,6 +16,10 @@ import {
   type Store,
   type BusinessDocument,
 } from '../../../lib/api';
+import {
+  PageHeader, Button, Card, Modal, BreadcrumbDark,
+  colors, typeScale, radii, shadows, transitions,
+} from '@scs/ui-kit';
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   COMMERCIAL_REG: 'Commercial Registration',
@@ -157,18 +161,13 @@ export default function VerificationReviewPage() {
   if (!ready || loading) {
     return (
       <>
-        {/* Header Banner */}
-        <div style={{
-          background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
-          padding: '32px 40px 28px', color: '#fff',
-        }}>
-          <div style={{ maxWidth: 1320 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Loading...</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Verification Review"
+          subtitle="Loading..."
+          breadcrumbs={<BreadcrumbDark items={[{ label: 'Verification', href: '/verification' }, { label: 'Loading...' }]} />}
+        />
         <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
-          <p style={{ color: '#5b6b74' }}>Loading verification details...</p>
+          <p style={{ color: colors.muted }}>Loading verification details...</p>
         </div>
       </>
     );
@@ -177,20 +176,15 @@ export default function VerificationReviewPage() {
   if (error && !request) {
     return (
       <>
-        {/* Header Banner */}
-        <div style={{
-          background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
-          padding: '32px 40px 28px', color: '#fff',
-        }}>
-          <div style={{ maxWidth: 1320 }}>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Error</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Verification Review"
+          subtitle="Error"
+          breadcrumbs={<BreadcrumbDark items={[{ label: 'Verification', href: '/verification' }, { label: 'Error' }]} />}
+        />
         <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
-          <p style={{ color: '#c62828' }}>{error}</p>
-          <button onClick={() => setRevision(value => value + 1)}>Retry</button>
-          <Link href="/verification" style={{ color: '#174a5b' }}>&larr; Back to Queue</Link>
+          <p style={{ color: colors.err }}>{error}</p>
+          <Button onClick={() => setRevision(value => value + 1)}>Retry</Button>
+          <Link href="/verification" style={{ color: colors.brand.DEFAULT, marginLeft: 12 }}>&larr; Back to Queue</Link>
         </div>
       </>
     );
@@ -201,32 +195,26 @@ export default function VerificationReviewPage() {
   return (
     <>
       {/* Header Banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)',
-        padding: '32px 40px 28px', color: '#fff',
-      }}>
-        <div style={{ maxWidth: 1320, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Verification Review</h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-              Request {requestId.substring(0, 8)}...
-            </p>
-          </div>
-          <Link href="/verification" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>
+      <PageHeader
+        title="Verification Review"
+        subtitle={`Request ${requestId.substring(0, 8)}...`}
+        breadcrumbs={<BreadcrumbDark items={[{ label: 'Verification', href: '/verification' }, { label: `Request ${requestId.substring(0, 8)}...` }]} />}
+        actions={
+          <Link href="/verification" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none', ...typeScale.body, fontWeight: 500 }}>
             &larr; Back to Queue
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       {/* Content */}
       <div style={{ padding: '28px 40px 48px', maxWidth: 1320 }}>
         {error && (
-          <div style={{ padding: '10px 16px', background: '#ffebee', color: '#c62828', borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ padding: '10px 16px', background: colors.errBg, color: colors.err, borderRadius: radii.sm, marginBottom: 16, ...typeScale.body }}>
             {error}
           </div>
         )}
 
-        {success && <p role="status" style={{ padding: 16, background: '#e8f5e9', color: '#256029' }}>{success}</p>}
+        {success && <p role="status" style={{ padding: 16, background: colors.okBg, color: colors.ok, borderRadius: radii.sm, ...typeScale.body }}>{success}</p>}
 
         {/* Store Info */}
         {store && (
@@ -495,32 +483,29 @@ export default function VerificationReviewPage() {
 
       {/* Deactivation confirmation modal (G15) */}
       {confirmAction && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,51,64,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 10px 40px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', margin: '0 0 8px' }}>
-              {confirmAction === 'deactivate' ? 'Deactivate Merchant Organization' : 'Reactivate Merchant Organization'}
-            </h3>
-            <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 20, lineHeight: 1.5 }}>
-              {confirmAction === 'deactivate'
-                ? <>Are you sure you want to deactivate <strong style={{ color: '#0f3340' }}>{request?.org?.name || 'this organization'}</strong>? The merchant will immediately lose write access to stores, catalog, documents and verification. Data is preserved and can be restored by reactivating.</>
-                : <>Reactivate <strong style={{ color: '#0f3340' }}>{request?.org?.name || 'this organization'}</strong>? The merchant will regain full platform access.</>}
-            </p>
+        <Modal
+          open
+          title={confirmAction === 'deactivate' ? 'Deactivate Merchant Organization' : 'Reactivate Merchant Organization'}
+          onClose={() => setConfirmAction(null)}
+          footer={
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setConfirmAction(null)}
-                disabled={deactivating}
-                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#5b6b74', border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer' }}
-              >Cancel</button>
-              <button
+              <Button variant="secondary" onClick={() => setConfirmAction(null)} disabled={deactivating}>Cancel</Button>
+              <Button
+                variant={confirmAction === 'deactivate' ? 'danger' : 'primary'}
                 onClick={confirmAction === 'deactivate' ? handleDeactivateOrg : handleReactivateOrg}
                 disabled={deactivating}
-                style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: confirmAction === 'deactivate' ? '#dc2626' : '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: deactivating ? 'not-allowed' : 'pointer' }}
               >
                 {deactivating ? 'Working…' : confirmAction === 'deactivate' ? 'Deactivate' : 'Reactivate'}
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p style={{ ...typeScale.body, color: colors.muted, marginBottom: 0, lineHeight: 1.5 }}>
+            {confirmAction === 'deactivate'
+              ? <>Are you sure you want to deactivate <strong style={{ color: colors.brand[700] }}>{request?.org?.name || 'this organization'}</strong>? The merchant will immediately lose write access to stores, catalog, documents and verification. Data is preserved and can be restored by reactivating.</>
+              : <>Reactivate <strong style={{ color: colors.brand[700] }}>{request?.org?.name || 'this organization'}</strong>? The merchant will regain full platform access.</>}
+          </p>
+        </Modal>
       )}
     </>
   );

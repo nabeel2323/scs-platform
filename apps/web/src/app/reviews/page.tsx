@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createReview, createDispute } from '../../lib/buyer-api';
 import { ErrorBanner } from '../../components/Shared';
+import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 export default function ReviewDisputePage() {
   const [tab, setTab] = useState<'review' | 'dispute'>('review');
@@ -41,24 +42,20 @@ export default function ReviewDisputePage() {
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Reviews & Disputes</h1>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>Write reviews or open disputes</p>
-      </div>
+      <PageHeader title="Reviews & Disputes" subtitle="Write reviews or open disputes" />
       <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
-        <button onClick={() => setTab('review')} style={{ ...tabStyle, background: tab === 'review' ? '#0f3340' : '#fff', color: tab === 'review' ? '#fff' : '#5b6b74', borderRadius: '8px 0 0 8px' }}>Write a Review</button>
-        <button onClick={() => setTab('dispute')} style={{ ...tabStyle, background: tab === 'dispute' ? '#0f3340' : '#fff', color: tab === 'dispute' ? '#fff' : '#5b6b74', borderRadius: '0 8px 8px 0' }}>Open a Dispute</button>
+        <button onClick={() => setTab('review')} style={{ ...tabStyle, background: tab === 'review' ? colors.brand[700] : '#fff', color: tab === 'review' ? '#fff' : colors.muted, borderRadius: '8px 0 0 8px' }}>Write a Review</button>
+        <button onClick={() => setTab('dispute')} style={{ ...tabStyle, background: tab === 'dispute' ? colors.brand[700] : '#fff', color: tab === 'dispute' ? '#fff' : colors.muted, borderRadius: '0 8px 8px 0' }}>Open a Dispute</button>
       </div>
 
       {error && <ErrorBanner message={error} />}
-      {success && <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#065f46', fontSize: 13 }}>{success}</div>}
+      {success && <div style={{ background: colors.okBg, border: `1px solid ${colors.okBorder}`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: colors.ok, fontSize: 13 }}>{success}</div>}
 
       {tab === 'review' ? (
-        <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24 }}>
+        <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Order ID *</label>
             <input type="text" value={orderId} onChange={e => setOrderId(e.target.value)} placeholder="Order UUID" style={inputStyle} />
@@ -87,12 +84,12 @@ export default function ReviewDisputePage() {
             <label style={labelStyle}>Comment</label>
             <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="Write your review..." style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
-          <button onClick={handleReview} disabled={submitting} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: submitting ? '#5b6b74' : '#0f3340', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button onClick={handleReview} disabled={submitting} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: submitting ? colors.muted : colors.brand[700], color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
             {submitting ? 'Submitting...' : 'Submit Review'}
           </button>
         </div>
       ) : (
-        <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 24 }}>
+        <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>Order ID *</label>
             <input type="text" value={orderId} onChange={e => setOrderId(e.target.value)} placeholder="Order UUID" style={inputStyle} />
@@ -105,7 +102,7 @@ export default function ReviewDisputePage() {
             <label style={labelStyle}>Description</label>
             <textarea value={disputeDesc} onChange={e => setDisputeDesc(e.target.value)} rows={4} placeholder="Describe the issue in detail..." style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
-          <button onClick={handleDispute} disabled={submitting} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: submitting ? '#5b6b74' : '#991b1b', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button onClick={handleDispute} disabled={submitting} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: submitting ? colors.muted : colors.err, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
             {submitting ? 'Opening...' : 'Open Dispute'}
           </button>
         </div>
@@ -115,6 +112,6 @@ export default function ReviewDisputePage() {
   );
 }
 
-const tabStyle: React.CSSProperties = { flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 600, border: '1px solid #d9e2e6', cursor: 'pointer' };
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: '#0f3340', marginBottom: 6 };
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid #d9e2e6', borderRadius: 6, fontSize: 14, boxSizing: 'border-box' as const };
+const tabStyle: React.CSSProperties = { flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 600, border: `1px solid ${colors.border}`, cursor: 'pointer' };
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: colors.brand[700], marginBottom: 6 };
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: `1px solid ${colors.border}`, borderRadius: 6, fontSize: 14, boxSizing: 'border-box' as const };

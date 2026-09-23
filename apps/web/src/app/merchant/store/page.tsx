@@ -7,6 +7,7 @@ import { hasPerm } from '../../../lib/auth';
 import { pickStore } from '../../../lib/merchant-store';
 import { fetchStoreWarehouses, WarehouseSummary } from '../../../lib/buyer-api';
 import { LoadingSpinner, ErrorBanner, EmptyState, StatusBadge } from '../../../components/Shared';
+import { PageHeader } from '@scs/ui-kit';
 
 const CURRENCIES = ['SAR', 'USD', 'AED', 'EUR', 'GBP'];
 const LOCALES = [['en', 'English'], ['ar', 'Arabic']] as const;
@@ -154,16 +155,10 @@ export default function StoreProfilePage() {
       `}</style>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         {/* Header Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-            <div>
-              <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Store Profile</h1>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>
-                {store.displayName} · {store.verificationStatus}
-              </p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          title="Store Profile"
+          subtitle={`${store.displayName} · ${store.verificationStatus}`}
+        />
         <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}

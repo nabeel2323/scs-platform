@@ -17,6 +17,7 @@ import { useAuth } from '../../../../components/AuthProvider';
 import { isMerchantRole, switchOrg } from '../../../../lib/auth';
 import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../../components/Shared';
 import { OrderTimeline } from '../../../../components/OrderTimeline';
+import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 
 interface OrderDetail {
   id: string;
@@ -246,29 +247,14 @@ export default function MerchantOrderDetailPage() {
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>
-              <Link href="/merchant/orders" style={{ color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>&larr; All Orders</Link>
-            </div>
-            <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>Order #{order.id.slice(0, 8)}</h1>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
-              {formatDate(order.createdAt)} &middot; {order.fulfillmentMethod.replace(/_/g, ' ')}
-            </div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6 }}>
-              Buyer: {buyer?.name
-                ? <span style={{ fontWeight: 600 }}>{buyer.name}</span>
-                : <code style={{ fontSize: 12, background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>{order.buyerId.slice(0, 8)}</code>}
-              {buyer?.phone && <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>{buyer.phone}</span>}
-              {buyer?.email && <span style={{ color: 'rgba(255,255,255,0.6)', marginLeft: 8 }}>{buyer.email}</span>}
-            </div>
-          </div>
+      <PageHeader
+        title={`Order #${order.id.slice(0, 8)}`}
+        subtitle={`${formatDate(order.createdAt)} · ${order.fulfillmentMethod.replace(/_/g, ' ')}`}
+        breadcrumbs={<Breadcrumb items={[{ label: 'Orders', href: '/merchant/orders' }, { label: `#${order.id.slice(0, 8)}` }]} />}
+        actions={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
             <StatusBadge status={order.status} />
             <div style={{ fontSize: 18, fontWeight: 700 }}>{money(order.totalMinor)}</div>
-            {/* Contact Buyer: prefers email (mailto), falls back to phone (tel). */}
             {(buyer?.email || buyer?.phone) && (
               <a
                 href={buyer?.email ? `mailto:${buyer.email}` : `tel:${buyer.phone}`}
@@ -278,8 +264,8 @@ export default function MerchantOrderDetailPage() {
               </a>
             )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div style={{ padding: '20px 24px 48px' }}>
         {actionError && (

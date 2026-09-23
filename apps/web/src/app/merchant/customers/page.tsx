@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchMerchantCustomers, CustomerSummary } from '../../../lib/buyer-api';
 import { formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
 import { useMerchantRealtime } from '../../../lib/useMerchantRealtime';
+import { PageHeader, colors, typeScale } from '@scs/ui-kit';
 
 export default function MerchantCustomersPage() {
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
@@ -62,10 +63,7 @@ export default function MerchantCustomersPage() {
       `}</style>
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         {/* Header Banner */}
-        <div style={{ background: 'linear-gradient(135deg, #0c2831 0%, #1e6178 100%)', padding: '28px 24px 24px', color: '#fff' }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' }}>My Customers</h1>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', margin: '6px 0 0' }}>View buyers who have ordered from your store</p>
-        </div>
+        <PageHeader title="My Customers" subtitle="View buyers who have ordered from your store" />
         <div style={{ padding: '20px 24px 48px' }}>
 
       {/* Filters */}

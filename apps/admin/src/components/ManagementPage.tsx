@@ -6,6 +6,7 @@ import { AdminRecord, PaginatedResult } from '../lib/api';
 import { fieldLabel, FilterDefinition, managementTables, ManagementEntity } from '../lib/management-tables';
 import { useRequirePerms, AccessDenied } from '../hooks/useRequirePerms';
 import { useAdminResource, useAdminTableQuery } from '../hooks/useAdminTable';
+import { SkeletonTable } from '@scs/ui-kit';
 import TablePagination from './TablePagination';
 import DetailDialog from './DetailDialog';
 import ProductDetails, { ProductModerationActions } from './ProductDetails';
@@ -14,7 +15,7 @@ import { CategoryEditor, BrandEditor, DisputeActions, useAdminMutation, UserMemb
 import styles from './management.module.css';
 
 export default function ManagementPage({ entity }: { entity: ManagementEntity }) {
-  return <Suspense fallback={<p>Loading management table…</p>}><ManagementTable entity={entity} /></Suspense>;
+  return <Suspense fallback={<div style={{ padding: 32 }}><SkeletonTable rows={6} cols={5} /></div>}><ManagementTable entity={entity} /></Suspense>;
 }
 
 export function rowClickOpensDetail(target: EventTarget | null): boolean {
@@ -124,7 +125,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
       </details>
       <p className={styles['muted']}>Click a row or View for details. {entity === 'products' && 'Shortcuts: j/k select, a approve, x reject, / search.'}</p>
       <ErrorNotice message={list.error} retry={list.reload} /><ErrorNotice message={deletion.error} />
-      {list.loading ? <p role="status">Loading records…</p> : !list.error && <div className={styles['tableWrap']}>
+      {list.loading ? <SkeletonTable rows={6} cols={config.columns.length} /> : !list.error && <div className={styles['tableWrap']}>
         <table><caption style={{ textAlign: 'left', padding: 12 }}>{config.title} — {total} results</caption><thead><tr>
           {config.columns.map(field => <th key={field} scope="col" aria-sort={state.sortBy === field ? state.sortDir === 'asc' ? 'ascending' : 'descending' : undefined}>
             {sortKeys.includes(field) ? <button type="button" onClick={() => sort(field)} disabled={entity === 'orders' && field === 'totalMinor' && !state.applied['currency']}>
