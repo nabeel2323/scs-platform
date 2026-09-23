@@ -25,6 +25,8 @@ export function Navbar() {
   const [switching, setSwitching] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const orgDropdownRef = useRef<HTMLDivElement>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const isMerchant = isMerchantRole(user?.role);
   const activeOrg = orgs.find(o => o.id === user?.activeOrgId);
 
@@ -33,6 +35,18 @@ export function Navbar() {
     if (!user) { setOrgs([]); return; }
     fetchMyOrganizations().then(setOrgs).catch(() => {});
   }, [user]);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [userMenuOpen]);
 
   // Close org dropdown on outside click
   useEffect(() => {
@@ -111,6 +125,10 @@ export function Navbar() {
         }
         .nav-link { color: #5b6b74; text-decoration: none; font-size: 13px; font-weight: 500; padding: 4px 0; transition: color 0.15s ease; display: flex; align-items: center; gap: 4px; }
         .nav-link:hover { color: #0f3340; }
+        .nav-menu-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; color: #0f3340; text-decoration: none; transition: background 0.15s ease; }
+        .nav-menu-item:hover { background: #f7f9fa; }
+        .nav-menu-logout { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; font-size: 13px; color: #991b1b; background: none; border: none; cursor: pointer; text-align: left; transition: background 0.15s ease; }
+        .nav-menu-logout:hover { background: #fef2f2; }
         .nav-icon-link { position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; color: #5b6b74; text-decoration: none; transition: background 0.15s ease, color 0.15s ease; }
         .nav-icon-link:hover { background: #f2f5f6; color: #0f3340; }
         .nav-badge { position: absolute; top: 2px; right: 2px; background: #e53e3e; color: #fff; font-size: 9px; font-weight: 700; border-radius: 10px; padding: 1px 4px; min-width: 15px; text-align: center; line-height: 1.3; }
@@ -236,10 +254,49 @@ export function Navbar() {
 
             {/* User menu */}
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
-                <Link href="/account" className="nav-icon-link" title="Account">
-                  <IconUser size={18} />
-                </Link>
+              <div style={{ position: 'relative', marginLeft: 4 }} ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 8px', background: userMenuOpen ? '#f2f5f6' : 'transparent',
+                    border: '1px solid #d9e2e6', borderRadius: 8,
+                    cursor: 'pointer', transition: 'background 0.15s ease',
+                  }}
+                  aria-label="User menu"
+                  aria-expanded={userMenuOpen}
+                >
+                  <IconUser size={18} color="#5b6b74" />
+                  <IconChevronDown size={12} color="#94a3b8" />
+                </button>
+                {userMenuOpen && (
+                  <div style={{
+                    position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                    background: '#fff', border: '1px solid #d9e2e6',
+                    borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    minWidth: 180, zIndex: 200, overflow: 'hidden',
+                  }}>
+                    <div style={{ padding: '10px 14px', borderBottom: '1px solid #f0f4f6' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>{user.fullName || user.phone || 'Account'}</div>
+                    </div>
+                    <Link
+                      href="/account"
+                      className="nav-menu-item"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <IconUser size={14} color="#5b6b74" />
+                      Account
+                    </Link>
+                    <div style={{ borderTop: '1px solid #f0f4f6' }} />
+                    <button
+                      onClick={() => { setUserMenuOpen(false); handleLogout(); }}
+                      className="nav-menu-logout"
+                    >
+                      <IconLogOut size={14} color="#991b1b" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <Link href="/auth/login" style={{

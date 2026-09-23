@@ -97,9 +97,9 @@ export default function MerchantPricingPage() {
     })();
   }, [loadLists]);
 
-  // Load all store variants for the searchable dropdown
+  // Load all store variants for the searchable dropdown and tier table display
   useEffect(() => {
-    if (!storeId || !showAddTier) return;
+    if (!storeId) return;
     (async () => {
       try {
         const products: any[] = [];
@@ -116,7 +116,7 @@ export default function MerchantPricingPage() {
         setAllVariants(variantArrays.flat());
       } catch { /* silent */ }
     })();
-  }, [storeId, showAddTier]);
+  }, [storeId]);
 
   // Close variant dropdown on outside click
   useEffect(() => {
