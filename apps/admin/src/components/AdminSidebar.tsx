@@ -8,6 +8,7 @@ import {
   IconHome, IconUsers, IconPackage, IconStore, IconBuilding,
   IconShield, IconFolder, IconTag, IconScale, IconBox,
   IconBarChart, IconClipboard, IconLock, IconLogOut, IconMenu, IconX,
+  IconSettings, IconFilter, IconStar,
 } from '@scs/ui-kit';
 
 /** Navigation items with SVG icons and permission requirements. */
@@ -20,6 +21,9 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/verification', label: 'Verification', icon: <IconShield size={18} />, perms: ['merchant:verification:review'] },
   { href: '/categories', label: 'Categories', icon: <IconFolder size={18} />, perms: ['catalog:categories:write'] },
   { href: '/brands', label: 'Brands', icon: <IconTag size={18} />, perms: ['catalog:brands:manage'] },
+  { href: '/attributes', label: 'Attributes', icon: <IconSettings size={18} />, perms: ['catalog:attributes:manage'] },
+  { href: '/attribute-groups', label: 'Attr. Groups', icon: <IconFilter size={18} />, perms: ['catalog:attributes:manage'] },
+  { href: '/product-types', label: 'Product Types', icon: <IconStar size={18} />, perms: ['catalog:product-types:manage'] },
   { href: '/disputes', label: 'Disputes', icon: <IconScale size={18} />, perms: ['support:disputes:resolve'] },
   { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
     { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },

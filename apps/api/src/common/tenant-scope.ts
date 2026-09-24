@@ -71,6 +71,7 @@ export async function assertVariantInOrg(
     columns: { storeId: true },
   });
   if (!product) throw new ForbiddenException('You do not have access to this variant');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this variant');
   await assertStoreInOrg(db, caller, product.storeId);
 }
 

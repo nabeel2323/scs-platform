@@ -787,3 +787,171 @@ export async function deactivateAdminBrand(id: string): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/brands/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`Failed to deactivate brand: ${res.status}`);
 }
+
+// ── Catalog Taxonomy — Attributes ─────────────────────────────
+
+export type AttributeScope = 'PRODUCT' | 'VARIANT' | 'OFFER';
+export type AttributeType =
+  | 'TEXT' | 'LONG_TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME'
+  | 'SELECT' | 'MULTI_SELECT' | 'COLOR' | 'URL' | 'FILE' | 'MEASUREMENT' | 'CURRENCY';
+
+export interface AttributeOption {
+  id: string;
+  attributeId: string;
+  value: string;
+  valueAr: string | null;
+  label: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface AttributeDefinition {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  type: AttributeType;
+  unit: string | null;
+  scope: AttributeScope;
+  status: 'ACTIVE' | 'DEPRECATED';
+  validation: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  options?: AttributeOption[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttributeGroup {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  kind: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAttributes(params?: {
+  scope?: string; type?: string; includeDeprecated?: boolean;
+}): Promise<AttributeDefinition[]> {
+  const sp = new URLSearchParams();
+  if (params?.scope) sp.set('scope', params.scope);
+  if (params?.type) sp.set('type', params.type);
+  if (params?.includeDeprecated) sp.set('includeDeprecated', 'true');
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/attributes${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch attributes: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAttribute(id: string): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/attributes/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch attribute: ${res.status}`);
+  return res.json();
+}
+
+export async function createAttribute(data: {
+  code: string; name: string; nameAr?: string; description?: string;
+  type?: AttributeType; unit?: string; scope?: AttributeScope;
+  validation?: Record<string, unknown>;
+  options?: Array<{ value: string; valueAr?: string; label?: string; sortOrder?: number }>;
+}): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to create attribute: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateAttribute(id: string, data: {
+  name?: string; nameAr?: string; description?: string;
+  unit?: string; status?: 'ACTIVE' | 'DEPRECATED';
+  validation?: Record<string, unknown>;
+}): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update attribute: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAttribute(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to deactivate attribute: ${res.status}`);
+}
+
+export async function addAttributeOption(id: string, data: {
+  value: string; valueAr?: string; label?: string; sortOrder?: number;
+}): Promise<AttributeOption> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}/options`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to add option: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Taxonomy — Attribute Groups ───────────────────────
+
+export async function fetchAttributeGroups(): Promise<AttributeGroup[]> {
+  const res = await authFetch(`${API_URL}/v1/attribute-groups`);
+  if (!res.ok) throw new Error(`Failed to fetch attribute groups: ${res.status}`);
+  return res.json();
+}
+
+export async function createAttributeGroup(data: {
+  name: string; nameAr?: string; kind?: string;
+}): Promise<AttributeGroup> {
+  const res = await authFetch(`${API_URL}/v1/admin/attribute-groups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create attribute group: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Taxonomy — Product Types ──────────────────────────
+
+export interface ProductType {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  categoryId: string | null;
+  version: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'DEPRECATED';
+  variantDimensions: string[];
+  metadata: Record<string, unknown>;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchProductTypes(params?: {
+  categoryId?: string; status?: string;
+}): Promise<ProductType[]> {
+  const sp = new URLSearchParams();
+  if (params?.categoryId) sp.set('categoryId', params.categoryId);
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/product-types${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch product types: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProductType(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/product-types/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch product type: ${res.status}`);
+  return res.json();
+}

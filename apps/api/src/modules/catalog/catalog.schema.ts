@@ -55,13 +55,10 @@ export const brands = pgTable('brands', {
 
 export const products = pgTable('products', {
   id: uuid('id').primaryKey(),
-  // Migration 0025 relaxes this column at the DB level (NOT NULL → NULL) so a
-  // platform-shared canonical product can exist with no single owning store.
-  // The ORM type stays required here because every current write/read flow still
-  // supplies a store; it is relaxed in PHASE 4 when merchant offers (which carry
-  // the concrete store) become the path that creates/attaches canonical rows.
+  // PHASE 1 / migration 0025: store_id is nullable at both DB and ORM level so
+  // a platform-shared canonical product can exist with no single owning store.
+  // Merchant ownership is represented through MerchantOffer.storeId.
   storeId: uuid('store_id')
-    .notNull()
     .references(() => stores.id, { onDelete: 'cascade' }),
   categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
   brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'set null' }),

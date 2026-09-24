@@ -78,7 +78,7 @@ export class CartService {
       where: eq(products.id, variant['productId']),
     });
     if (!product) throw new NotFoundException('Product not found');
-    let storeId = product['storeId'];
+    let storeId: string | null = product['storeId'];
 
     // PHASE 13: If the buyer picked a specific merchant offer, validate it and
     // route the line through that offer's store/price-list instead of the
@@ -101,6 +101,12 @@ export class CartService {
       }
       storeId = offer.storeId;
       selectedOfferId = offer.id;
+    }
+
+    // Canonical products without an owning store require an explicit offer
+    // selection so the cart can resolve pricing through the offer's store.
+    if (!storeId) {
+      throw new BadRequestException('This product requires a seller selection');
     }
 
     const cart = await this.getOrCreateCart(userId);
@@ -210,7 +216,7 @@ export class CartService {
           skipped.push({ variantId: input.variantId, reason: 'Product not found' });
           continue;
         }
-        let storeId = product['storeId'];
+        let storeId: string | null = product['storeId'];
         // PHASE 13: honour per-line explicit offer selection.
         let selectedOfferId: string | null = null;
         if (input.offerId) {
@@ -229,6 +235,11 @@ export class CartService {
           }
           storeId = offer.storeId;
           selectedOfferId = offer.id;
+        }
+        // Canonical products without an owning store require offer selection.
+        if (!storeId) {
+          skipped.push({ variantId: input.variantId, reason: 'Product requires a seller selection' });
+          continue;
         }
         const existingConditions = [
           eq(cartItems.cartId, cart['id']),
@@ -484,6 +495,10 @@ export class CartService {
           continue;
         }
         // Re-resolve pricing (will use fallback or a different offer)
+        if (!product['storeId']) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'Product has no seller' });
+          continue;
+        }
         const pricing = await resolveOfferPrices(
           this.db.db, product['storeId'], [variant['id']], item['quantity'], { ladder: false },
         );

@@ -24,7 +24,7 @@ type Db = DatabaseService['db'];
 /** The minimum an item must carry to be enrichable. */
 export interface CardSource {
   id: string;
-  storeId: string;
+  storeId: string | null;
   moq: number | null;
 }
 
@@ -94,7 +94,7 @@ export async function enrichProductCards<T extends CardSource>(
 ): Promise<Array<T & CardEnrichment>> {
   if (items.length === 0) return [];
 
-  const storeIds = [...new Set(items.map(item => item.storeId).filter(Boolean))];
+  const storeIds = [...new Set(items.map(item => item.storeId).filter((s): s is string => !!s))];
   const storeRows =
     storeIds.length > 0
       ? await db.query.stores.findMany({
@@ -144,6 +144,7 @@ export async function enrichProductCards<T extends CardSource>(
   // with the cart is a trust bug, not an optimisation.
   const variantIdsByBatch = new Map<string, string[]>();
   for (const item of items) {
+    if (!item.storeId) continue; // canonical products without a store have no pricing
     const variantIds = variantsByProduct.get(item.id);
     if (!variantIds || variantIds.length === 0) continue;
     const key = `${item.storeId}|${item.moq ?? 1}`;
@@ -166,7 +167,7 @@ export async function enrichProductCards<T extends CardSource>(
   // Batch-fetch stock data for all products' variants across their store warehouses
   const stockByProduct = new Map<string, 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN'>();
   try {
-    const storeIdsForStock = [...new Set(items.map(i => i.storeId))];
+    const storeIdsForStock = [...new Set(items.map(i => i.storeId).filter((s): s is string => !!s))];
     const allWhs = storeIdsForStock.length > 0
       ? await db.query.warehouses.findMany({
           where: inArray(warehouses.storeId, storeIdsForStock),
@@ -254,7 +255,7 @@ export async function enrichProductCards<T extends CardSource>(
     }
     return {
       ...item,
-      store: storeById.get(item.storeId) ?? null,
+      store: item.storeId ? (storeById.get(item.storeId) ?? null) : null,
       priceFromMinor: cheapest ? cheapest.unitPriceMinor : null,
       priceCurrency: cheapest ? cheapest.currency : null,
       stockStatus: stockByProduct.get(item.id) ?? 'UNKNOWN',
