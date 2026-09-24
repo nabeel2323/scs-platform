@@ -71,6 +71,10 @@ final storesProvider = FutureProvider<List<Store>>(
 final cartProvider = FutureProvider.autoDispose<Cart>(
     (ref) => ref.watch(apiServiceProvider).fetchCart());
 
+/// PHASE 11/12: Validate offers in cart (re-prices stale items server-side).
+final cartValidationProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
+    (ref) => ref.watch(apiServiceProvider).validateCart());
+
 // ── Orders ──────────────────────────────────────────────────
 
 final ordersProvider = FutureProvider<List<SubOrder>>(

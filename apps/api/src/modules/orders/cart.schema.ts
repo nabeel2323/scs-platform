@@ -3,6 +3,7 @@ import { users } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { productVariants } from '../catalog/catalog.schema';
 import { promotions } from '../promotions/promotions.schema';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
 
 /**
  * Cart schema (migration 0009_cart)
@@ -32,6 +33,8 @@ export const cartItems = pgTable('cart_items', {
   quantity: integer('quantity').notNull().default(1),
   priceMinor: bigint('price_minor', { mode: 'number' }).notNull(),
   tierMinQty: integer('tier_min_qty').notNull().default(1),
+  /** PHASE 10: The offer that produced this price (nullable for legacy). */
+  offerId: uuid('offer_id').references(() => merchantOffers.id),
   promoSnapshot: jsonb('promo_snapshot').default({}),
   lineTotalMinor: bigint('line_total_minor', { mode: 'number' }).notNull(),
   metadata: jsonb('metadata').notNull().default({}),

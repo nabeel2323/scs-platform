@@ -31,6 +31,9 @@ export default function StoreProfilePage() {
   const [city, setCity] = useState('');
   const [street, setStreet] = useState('');
   const [zip, setZip] = useState('');
+  // PHASE 23: buyer-facing disclosure opt-out. Rendered as a separate Privacy
+  // card so it's discoverable without scrolling through profile fields.
+  const [hidePopularityBadge, setHidePopularityBadge] = useState(false);
 
   // Warehouses
   const [warehouses, setWarehouses] = useState<WarehouseSummary[]>([]);
@@ -59,6 +62,8 @@ export default function StoreProfilePage() {
     setCity(String(addr['city'] ?? ''));
     setStreet(String(addr['street'] ?? ''));
     setZip(String(addr['zip'] ?? ''));
+    // Server returns `false` by default (NOT NULL column added in 0030).
+    setHidePopularityBadge(s.hidePopularityBadge === true);
   }, []);
 
   useEffect(() => {
@@ -98,6 +103,9 @@ export default function StoreProfilePage() {
         logoUrl: logoUrl.trim(),
         coverUrl: coverUrl.trim(),
         address,
+        // PHASE 23: always sent (explicit boolean) so the merchant can flip it
+        // back to false in the same Save action that unchecks the box.
+        hidePopularityBadge,
       });
       populate(updated);
       setSavedMsg('Store profile saved');
@@ -221,6 +229,33 @@ export default function StoreProfilePage() {
             Read-only view — you do not have permission to edit store settings.
           </p>
         )}
+      </div>
+
+      {/* PHASE 23: Buyer-facing disclosure preference. Kept in its own card so
+          the intent is unmistakable — the toggle only affects how this store's
+          sales counts appear on canonical product pages; it does NOT hide the
+          store, its offers, or affect admin/merchant analytics. */}
+      <div style={{ ...card, marginTop: 20 }}>
+        <h2 style={sectionTitle}>Buyer-Facing Privacy</h2>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: '#1f2937', cursor: canEdit ? 'pointer' : 'not-allowed' }}>
+          <input
+            type="checkbox"
+            checked={hidePopularityBadge}
+            disabled={!canEdit}
+            onChange={e => setHidePopularityBadge(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <strong>Hide "Most Popular Seller" badge and units sold</strong>
+            <br />
+            <span style={{ fontSize: 12, color: '#5b6b74' }}>
+              When enabled, canonical product pages will not display this store&rsquo;s order count,
+              units sold, rank, or &ldquo;★ Most Popular&rdquo; badge. Offers remain fully visible
+              and purchasable — only the sales-count overlay is suppressed. Your own analytics
+              dashboard and admin reports are unaffected.
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* Warehouses */}

@@ -51,6 +51,59 @@ export class AdminController {
     return this.adminService.getKpis(from, to);
   }
 
+  /**
+   * PHASE 17: platform-wide per-offer revenue KPIs. Governance view that
+   * surfaces which merchant offers are actually pulling GMV across the
+   * platform, sourced from `order_items.offer_id` + `offer_snapshot`.
+   */
+  @Get('offers/kpis')
+  @RequirePermission('admin:kpis:read')
+  async getOfferRevenueKpis(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('storeId') storeId?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminService.getOfferRevenueKpis({
+      from,
+      to,
+      storeId,
+      status,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  /**
+   * PHASE 19: platform-wide offer sales trend bucketed by day/week. Governance
+   * counterpart of the Phase 18 merchant trend; supports the same filters as
+   * `offers/kpis` plus `granularity`, `days` and `topStores` (which returns a
+   * top-N store leaderboard inside the same window).
+   */
+  @Get('offers/trend')
+  @RequirePermission('admin:kpis:read')
+  async getOfferTrend(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('days') days?: string,
+    @Query('storeId') storeId?: string,
+    @Query('offerId') offerId?: string,
+    @Query('status') status?: string,
+    @Query('granularity') granularity?: string,
+    @Query('topStores') topStores?: string,
+  ) {
+    return this.adminService.getOfferTrend({
+      from,
+      to,
+      days: days ? Number(days) : undefined,
+      storeId,
+      offerId,
+      status,
+      granularity: granularity === 'week' ? 'week' : 'day',
+      topStores: topStores ? Number(topStores) : undefined,
+    });
+  }
+
   @Get('audit-logs')
   @RequirePermission('admin:audit:read')
   async getAuditLogs(@Query() query: AdminListInput) {
@@ -81,6 +134,12 @@ export class AdminController {
   @RequirePermission('catalog:brands:manage')
   async listBrands(@Query() query: AdminListInput) {
     return this.adminService.listBrands(query);
+  }
+
+  @Get('offers')
+  @RequirePermission('catalog:offers:govern')
+  async listOffers(@Query() query: AdminListInput) {
+    return this.adminService.listOffers(query);
   }
 
   @Get('disputes')

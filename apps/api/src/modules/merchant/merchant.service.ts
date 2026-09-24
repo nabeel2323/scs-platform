@@ -250,6 +250,9 @@ export class MerchantService {
     if (input.status !== undefined) updates['status'] = input.status;
     if (input.address !== undefined) updates['address'] = input.address;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
+    // PHASE 23: `hidePopularityBadge` is boolean, so `!== undefined` correctly
+    // distinguishes "leave unchanged" from "set to false".
+    if (input.hidePopularityBadge !== undefined) updates['hidePopularityBadge'] = input.hidePopularityBadge;
 
     await this.db.db.update(stores).set(updates).where(eq(stores.id, storeId));
     return this.getStore(storeId);
@@ -629,6 +632,12 @@ export interface UpdateStoreInput {
   status?: string;
   address?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
+  /**
+   * PHASE 23: buyer-facing privacy toggle. When true, `listOffersForProductRanked`
+   * nulls out this store's `rank`/`ordersCount`/`unitsSold`/`isMostPopular` for
+   * every offer of theirs the buyer sees, without hiding the offer itself.
+   */
+  hidePopularityBadge?: boolean;
 }
 
 export interface CreateWarehouseInput {

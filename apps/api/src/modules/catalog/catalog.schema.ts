@@ -55,11 +55,25 @@ export const brands = pgTable('brands', {
 
 export const products = pgTable('products', {
   id: uuid('id').primaryKey(),
+  // Migration 0025 relaxes this column at the DB level (NOT NULL → NULL) so a
+  // platform-shared canonical product can exist with no single owning store.
+  // The ORM type stays required here because every current write/read flow still
+  // supplies a store; it is relaxed in PHASE 4 when merchant offers (which carry
+  // the concrete store) become the path that creates/attaches canonical rows.
   storeId: uuid('store_id')
     .notNull()
     .references(() => stores.id, { onDelete: 'cascade' }),
   categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
   brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'set null' }),
+  // Governed template binding (PHASE 3). The DB FK to product_types(id) is
+  // declared in migration 0025; kept as a plain column here so this base schema
+  // does not import the taxonomy schema (dependency stays taxonomy → catalog).
+  productTypeId: uuid('product_type_id'),
+  // Canonical manufacturer identifiers (§30) used to recognise an existing
+  // product when a merchant proposes it instead of creating a duplicate.
+  gtin: varchar('gtin', { length: 20 }),
+  ean: varchar('ean', { length: 20 }),
+  mpn: varchar('mpn', { length: 100 }),
   slug: varchar('slug', { length: 200 }).notNull(),
   title: varchar('title', { length: 300 }).notNull(),
   titleAr: varchar('title_ar', { length: 300 }),
@@ -93,6 +107,11 @@ export const productVariants = pgTable('product_variants', {
   attributes: jsonb('attributes').notNull().default({}),
   images: jsonb('images').notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),
+  // Normalized digest of this variant's VARIANT-scope attribute values (PHASE 3,
+  // migration 0025). Two variants of a product may not share a combination; the
+  // partial unique index (product_id, combination_key) enforces it. NULL until a
+  // variant has typed values, so existing rows and the JSONB transition are safe.
+  combinationKey: varchar('combination_key', { length: 255 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

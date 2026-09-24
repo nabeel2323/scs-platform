@@ -7,6 +7,10 @@ import {
   addToCart,
   ProductDetail,
   ProductVariant,
+  fetchProductOffers,
+  Offer,
+  fetchProductOffersRanked,
+  RankedProductOffer,
 } from '../../../lib/buyer-api';
 import { formatMinor, LoadingSpinner, EmptyState, productImageSrc } from '../../../components/Shared';
 import Link from 'next/link';
@@ -268,6 +272,12 @@ export default function ProductDetailPage() {
   // Per-variant add feedback: one flag would light every row at once.
   const [addedId, setAddedId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [productOffers, setProductOffers] = useState<Offer[]>([]);
+  // PHASE 22: `offerId -> ranked row` map so the "Other Sellers" list can badge
+  // the top-ranked seller and hint units sold without re-sorting. Kept separate
+  // from `productOffers` so a failure of the analytics endpoint degrades to the
+  // pre-Phase-22 rendering rather than hiding the whole section.
+  const [rankedByOffer, setRankedByOffer] = useState<Map<string, RankedProductOffer>>(new Map());
 
   useEffect(() => {
     // Variants, pricing, media and stock arrive with the product in one request.
@@ -278,15 +288,22 @@ export default function ProductDetailPage() {
       })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
+    fetchProductOffers(productId).then(setProductOffers).catch(() => {});
+    fetchProductOffersRanked(productId)
+      .then(list => setRankedByOffer(new Map(list.map(r => [r.offerId, r]))))
+      .catch(() => { /* ranked overlay is best-effort */ });
   }, [productId]);
 
   const images = useMemo(() => (product ? galleryImages(product) : []), [product]);
 
-  const handleAdd = async (variantId: string, storeId: string) => {
+  const handleAdd = async (variantId: string, storeId: string, offerId?: string) => {
     setAddError(null);
     try {
-      await addToCart({ variantId, storeId, quantity: qty });
-      setAddedId(variantId);
+      await addToCart({ variantId, storeId, quantity: qty, ...(offerId ? { offerId } : {}) });
+      // PHASE 13: distinguish per-offer added state so two "Added ✓" badges
+      // don't light up simultaneously when the same variant is offered by
+      // multiple sellers.
+      setAddedId(offerId ?? variantId);
       setTimeout(() => setAddedId(null), 2000);
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Could not add this item to your cart');
@@ -390,6 +407,23 @@ export default function ProductDetailPage() {
             </div>
           )}
           {product.description && <p style={{ ...typeScale.body, color: colors.muted, lineHeight: 1.6, marginBottom: 24 }}>{product.description}</p>}
+
+          {/* Specifications (PHASE 5e: structured attribute values) */}
+          {product.attributeValues && product.attributeValues.length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 8 }}>Specifications</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <tbody>
+                  {product.attributeValues.map(av => (
+                    <tr key={av.code} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                      <td style={{ padding: '6px 12px', fontWeight: 500, color: colors.muted, width: '40%' }}>{av.label}</td>
+                      <td style={{ padding: '6px 12px' }}>{av.value != null ? String(av.value) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Seller */}
           <div style={{ marginBottom: 24, padding: '12px 14px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.md }}>
@@ -497,6 +531,63 @@ export default function ProductDetailPage() {
           {addError && (
             <div role="alert" style={{ marginTop: 16, padding: 14, background: colors.errBg, border: `1px solid ${colors.err}`, borderRadius: radii.md }}>
               <span style={{ color: colors.err, fontSize: typeScale.body.fontSize, fontWeight: 600, lineHeight: typeScale.body.lineHeight }}>{addError}</span>
+            </div>
+          )}
+
+          {/* Other sellers offering this product (PHASE 5, add-to-cart per offer in PHASE 13) */}
+          {productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 12 }}>
+                Other Sellers <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>({productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).length})</span>
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).map(o => {
+                  // For variant-scoped offers use their pinned variant; for
+                  // product-scoped offers fall back to the first active variant
+                  // of the canonical product.
+                  const targetVariantId = o.variantId ?? (variants.find(v => v.isActive)?.id);
+                  const canAdd = Boolean(targetVariantId);
+                  const addedKey = `offer:${o.id}`;
+                  // PHASE 22: popularity overlay keyed off offer id. Only shown
+                  // when the ranked endpoint returned a row for this offer and
+                  // the row has at least one attributed order (rank>0).
+                  const rank = rankedByOffer.get(o.id);
+                  const hasSales = rank ? rank.ordersCount > 0 : false;
+                  return (
+                    <div key={o.id} style={{ padding: '10px 14px', background: colors.surface, border: `1px solid ${rank?.isMostPopular ? colors.amber : colors.border}`, borderRadius: radii.md, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                      <div>
+                        <span style={{ ...typeScale.bodySm, fontWeight: 500 }}>{o.storeId.slice(0, 8)}…</span>
+                        {rank?.isMostPopular && (
+                          <span style={{ ...typeScale.caption, marginLeft: 8, padding: '2px 8px', background: colors.amber, color: '#fff', borderRadius: radii.sm, fontWeight: 600 }} title={`Ranked #1 for this product (${rank.unitsSold} units across ${rank.ordersCount} orders)`}>
+                            ★ Most Popular
+                          </span>
+                        )}
+                        {hasSales && !rank?.isMostPopular && (
+                          <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }} title={`${rank?.ordersCount ?? 0} orders`}>#{rank?.rank} · {rank?.unitsSold ?? 0} sold</span>
+                        )}
+                        {rank?.storeVerified && <span style={{ ...typeScale.caption, color: colors.ok, marginLeft: 8 }} title="Verified store">✓ Verified</span>}
+                        {o.leadTimeDays != null && <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }}>Lead: {o.leadTimeDays}d</span>}
+                        {o.moq > 1 && <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }}>MOQ: {o.moq}</span>}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontWeight: 700, color: colors.brand[700] }}>{formatMinor(o.basePriceMinor, o.currency)}</span>
+                        <button
+                          onClick={() => targetVariantId && handleAdd(targetVariantId, o.storeId, o.id)}
+                          disabled={!canAdd}
+                          style={{
+                            padding: '6px 14px', ...typeScale.button, color: '#fff',
+                            background: addedId === addedKey ? colors.ok : canAdd ? colors.amber : colors.disabled,
+                            border: '1px solid ' + (addedId === addedKey ? colors.ok : canAdd ? '#a88734' : colors.disabled),
+                            borderRadius: radii.sm, cursor: canAdd ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          {addedId === addedKey ? '✓ Added' : 'Add to Cart'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

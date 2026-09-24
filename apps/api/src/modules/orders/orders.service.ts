@@ -18,6 +18,7 @@ import {
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { priceTiers, priceLists } from '../pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
@@ -117,6 +118,60 @@ export class OrdersService {
         throw new BadRequestException(
           `Minimum order quantity for ${product['title']} is ${product['moq']}, but only ${item['quantity']} in cart`,
         );
+      }
+    }
+
+    // ── PHASE 11: Offer Re-Validation ────────────────────────────────────
+    // Verify every referenced merchant offer is still ACTIVE; a suspended or
+    // withdrawn offer means the cart's price snapshot is stale.
+    // PHASE 15 upgrade: also build an immutable per-offer snapshot to persist
+    // on order_items.offer_snapshot so historical orders survive later edits.
+    const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
+    const offerSnapshotById = new Map<string, {
+      id: string;
+      storeId: string;
+      priceListId: string | null;
+      warehouseId: string | null;
+      basePriceMinor: number | null;
+      compareAtPriceMinor: number | null;
+      currency: string;
+      moq: number;
+      orderIncrement: number | null;
+      leadTimeDays: number | null;
+      snapshotStatus: string;
+      capturedAt: string;
+    }>();
+    if (offerIds.length > 0) {
+      const fullOffers = await this.db.db.query.merchantOffers.findMany({
+        where: inArray(merchantOffers.id, offerIds),
+      });
+      const activeSet = new Set(fullOffers.filter(o => o.status === 'ACTIVE').map(o => o.id));
+      for (const item of items) {
+        const oid = item['offerId'] as string | null;
+        if (oid && !activeSet.has(oid)) {
+          throw new BadRequestException(
+            'A seller\'s offer for one of your items is no longer active. Please review your cart.',
+          );
+        }
+      }
+      // Build the snapshot for every referenced ACTIVE offer. `capturedAt` is
+      // taken once per checkout so all lines share a logical commit timestamp.
+      const capturedAt = new Date().toISOString();
+      for (const o of fullOffers) {
+        offerSnapshotById.set(o.id, {
+          id: o.id,
+          storeId: o.storeId,
+          priceListId: o.priceListId ?? null,
+          warehouseId: o.warehouseId ?? null,
+          basePriceMinor: o.basePriceMinor ?? null,
+          compareAtPriceMinor: o.compareAtPriceMinor ?? null,
+          currency: o.currency,
+          moq: o.moq,
+          orderIncrement: o.orderIncrement ?? null,
+          leadTimeDays: o.leadTimeDays ?? null,
+          snapshotStatus: o.status,
+          capturedAt,
+        });
       }
     }
 
@@ -230,6 +285,10 @@ export class OrdersService {
         if (!variant) continue;
 
         const itemId = crypto.randomUUID();
+        // PHASE 15: pull the pre-loaded immutable offer snapshot (or null for
+        // legacy lines that were priced without an offer).
+        const itemOfferId = (item['offerId'] as string | null) ?? null;
+        const offerSnapshot = itemOfferId ? offerSnapshotById.get(itemOfferId) ?? null : null;
         await this.db.db.insert(orderItems).values({
           id: itemId,
           orderId: subOrderId,
@@ -239,6 +298,8 @@ export class OrdersService {
           quantity: item['quantity'],
           unitPriceMinor: item['priceMinor'],
           tierMinQty: item['tierMinQty'],
+          offerId: itemOfferId, // PHASE 10
+          offerSnapshot, // PHASE 15
           promoSnapshot: item['promoSnapshot'] || {},
           lineTotalMinor: item['lineTotalMinor'],
         });
@@ -713,23 +774,51 @@ export class OrdersService {
     const items = await this.db.db.query.orderItems.findMany({
       where: eq(orderItems.orderId, id),
     });
+
+    // PHASE 12: Enrich items with offer attribution (seller lead-time, MOQ, status)
+    // PHASE 15 upgrade: prefer the immutable `offer_snapshot` persisted at
+    // checkout; the live `merchant_offers` row is only consulted as a fallback
+    // so historical orders remain truthful even after the offer is edited,
+    // suspended, or deleted (FK `ON DELETE SET NULL` clears `offer_id` but the
+    // snapshot lives on the line forever).
+    const itemOfferIds = items.map(i => i['offerId']).filter(Boolean) as string[];
+    let offerMap: Map<string, { leadTimeDays: number | null; moq: number; status: string; storeId: string }> | null = null;
+    if (itemOfferIds.length > 0) {
+      const offers = await this.db.db.query.merchantOffers.findMany({
+        where: inArray(merchantOffers.id, itemOfferIds),
+        columns: { id: true, leadTimeDays: true, moq: true, status: true, storeId: true },
+      });
+      offerMap = new Map(offers.map(o => [o.id, { leadTimeDays: o.leadTimeDays, moq: o.moq, status: o.status, storeId: o.storeId }]));
+    }
+    const enrichedItems = items.map(item => {
+      const oid = item['offerId'] as string | null;
+      // Snapshot wins: it reflects what the buyer agreed to at checkout time.
+      const snap = item['offerSnapshot'] as
+        | { leadTimeDays: number | null; moq: number; snapshotStatus: string; storeId: string }
+        | null
+        | undefined;
+      const offer = snap
+        ? {
+            leadTimeDays: snap.leadTimeDays,
+            moq: snap.moq,
+            status: snap.snapshotStatus,
+            storeId: snap.storeId,
+            source: 'snapshot' as const,
+          }
+        : oid && offerMap
+          ? { ...offerMap.get(oid)!, source: 'live' as const }
+          : null;
+      return { ...item, offer };
+    });
+
     const breakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
       where: eq(orderFinancialBreakdown.orderId, id),
     });
-    // Every amount on the response — the totals, the lines, the breakdown — is in
-    // this currency, which is why it is resolved once here rather than per line.
     const identified = (await attachOrderIdentity(this.db.db, [order]))[0]!;
-    // Buyer contact resolved from the authoritative users row by the order's own
-    // buyerId via the shared helper, so the merchant order view renders the buyer
-    // directly instead of depending on the cached, org-scoped, status-filtered
-    // customers directory (which can miss a buyer when the viewing org differs
-    // from the fulfilling store's org). The caller already passed
-    // assertOrderAccessible above and the customers endpoint exposes the same
-    // fields, so this is not a new disclosure.
     const enriched = (await attachBuyerContacts(this.db.db, [identified]))[0]!;
     return {
       ...enriched,
-      items,
+      items: enrichedItems,
       financialBreakdown: breakdown,
     };
   }

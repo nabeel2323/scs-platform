@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { resolveVariantPrices, type VariantPricing } from '../pricing/price-resolution';
+import { resolveOfferPrices, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from './product-images';
@@ -159,7 +159,7 @@ export async function enrichProductCards<T extends CardSource>(
     const quantity = Number(key.slice(separator + 1));
     pricesByBatch.set(
       key,
-      await resolveVariantPrices(db, storeId, variantIds, quantity, { ladder: false }),
+      await resolveOfferPrices(db, storeId, variantIds, quantity, { ladder: false }),
     );
   }
 

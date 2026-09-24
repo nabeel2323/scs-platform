@@ -11,6 +11,8 @@ class CartScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cart = ref.watch(cartProvider);
+    // PHASE 11/12: trigger validation on screen load (non-blocking).
+    final validation = ref.watch(cartValidationProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Cart'), actions: [
           TextButton(
@@ -46,6 +48,33 @@ class CartScreen extends ConsumerWidget {
                 currencies.length == 1 ? currencies.first : null;
             final isMixedCurrency = currencies.length > 1;
             return Column(children: [
+              // PHASE 11/12: show stale/repriced banner
+              if (validation.hasValue &&
+                  (validation.value!['stale'] as List?)?.isNotEmpty == true)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  color: const Color(0xFFFFF2F2),
+                  child: Text(
+                    '${(validation.value!['stale'] as List).length} item(s) are no longer available. Please remove them.',
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFF991B1B)),
+                  ),
+                ),
+              if (validation.hasValue &&
+                  (validation.value!['repriced'] as List?)?.isNotEmpty == true)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  color: const Color(0xFFFFFBEB),
+                  child: Text(
+                    '${(validation.value!['repriced'] as List).length} item(s) were re-priced due to seller changes.',
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFF92400E)),
+                  ),
+                ),
               Expanded(
                   child: ListView(
                       children: grouped.entries
@@ -70,8 +99,12 @@ class CartScreen extends ConsumerWidget {
                                             title: Text(item.title ??
                                                 item.sku ??
                                                 item.variantId.substring(0, 8)),
+                                            // PHASE 14: seller + offer attribution per line
                                             subtitle: Text(
-                                                '${item.quantity} × ${formatMinor(item.priceMinor, item.currency)}'),
+                                                '${item.quantity} × ${formatMinor(item.priceMinor, item.currency)}'
+                                                '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
+                                                '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
+                                                '${(item.offer?.moq ?? 0) > 1 ? '  ·  MOQ ${item.offer!.moq}' : ''}'),
                                             trailing: Row(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [

@@ -3,6 +3,7 @@ import { users } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { productVariants } from '../catalog/catalog.schema';
 import { promotions } from '../promotions/promotions.schema';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
 
 /**
  * Orders schema (migration 0010_orders)
@@ -65,6 +66,17 @@ export const orderItems = pgTable('order_items', {
   qtyConfirmed: integer('qty_confirmed'),
   unitPriceMinor: bigint('unit_price_minor', { mode: 'number' }).notNull(),
   tierMinQty: integer('tier_min_qty').notNull().default(1),
+  /** PHASE 10: Which merchant offer priced this line (nullable for legacy). */
+  offerId: uuid('offer_id').references(() => merchantOffers.id),
+  /**
+   * PHASE 15: Immutable capture of the offer's terms at checkout time
+   * (currency, moq, leadTimeDays, basePriceMinor, priceListId, storeId,
+   * snapshotStatus). Null for lines not backed by an offer. Historical order
+   * reads prefer this over the mutable `merchant_offers` row so a later
+   * suspension, price change or offer deletion cannot silently rewrite what
+   * the buyer agreed to. Written once by the checkout insert; never updated.
+   */
+  offerSnapshot: jsonb('offer_snapshot'),
   promoSnapshot: jsonb('promo_snapshot').default({}),
   lineTotalMinor: bigint('line_total_minor', { mode: 'number' }).notNull(),
   metadata: jsonb('metadata').notNull().default({}),

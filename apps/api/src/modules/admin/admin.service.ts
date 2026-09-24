@@ -5,7 +5,8 @@ import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema'
 import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
 import { products, productMedia, productVariants } from '../catalog/catalog.schema';
-import { eq, and, isNull, sql, gte, lte, inArray, desc, getTableColumns } from 'drizzle-orm';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
+import { eq, and, isNull, sql, gte, lte, inArray, desc, asc, count, getTableColumns } from 'drizzle-orm';
 import { disputes, disputeEvents } from '../reviews/support.schema';
 import { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from '../catalog/product-images';
@@ -215,6 +216,251 @@ export class AdminService {
     };
   }
 
+  // ── Offer Revenue KPIs (PHASE 17) ─────────────────────────
+
+  /**
+   * Platform-wide per-offer sales aggregates sourced from `order_items.offer_id`
+   * (Phase 10) and `order_items.offer_snapshot` (Phase 15). The snapshot currency
+   * is preferred; the offer's live currency is the fallback for pre-Phase-15 rows.
+   *
+   * Only lines with a non-null `offer_id` are considered, so legacy price-list-
+   * only sales stay out of this governance view. Filters:
+   *   - from / to   → bounded by `orders.created_at` (defaults to last 30 days)
+   *   - storeId     → optional narrowing to one seller
+   *   - status      → optional filter on the offer's live status
+   *   - limit       → top-N by revenue (defaults to 100)
+   */
+  async getOfferRevenueKpis(
+    filters: { from?: string; to?: string; storeId?: string; status?: string; limit?: number } = {},
+  ) {
+    const dateFrom = filters.from
+      ? new Date(filters.from)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const dateTo = filters.to ? new Date(filters.to) : new Date();
+    const limit = Math.max(1, Math.min(500, filters.limit ?? 100));
+
+    const conditions = [
+      sql`${orderItems.offerId} IS NOT NULL`,
+      gte(orders.createdAt, dateFrom),
+      lte(orders.createdAt, dateTo),
+    ];
+    if (filters.storeId) conditions.push(eq(merchantOffers.storeId, filters.storeId));
+    if (filters.status) conditions.push(eq(merchantOffers.status, filters.status));
+
+    // Currency precedence: snapshot -> offer.currency -> 'UNKNOWN'. Extracted via
+    // the ->> operator so jsonb null and SQL null collapse to the same branch.
+    const currencyExpr = sql<string>`COALESCE(
+      ${orderItems.offerSnapshot} ->> 'currency',
+      ${merchantOffers.currency},
+      'UNKNOWN')`;
+
+    const rows = await this.db.db
+      .select({
+        offerId: orderItems.offerId,
+        storeId: merchantOffers.storeId,
+        storeName: stores.displayName,
+        productId: merchantOffers.productId,
+        productTitle: products.title,
+        variantId: merchantOffers.variantId,
+        offerStatus: merchantOffers.status,
+        currency: currencyExpr,
+        ordersCount: sql<string>`COUNT(DISTINCT ${orderItems.orderId})::text`,
+        unitsSold: sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)::text`,
+        revenueMinor: sql<string>`COALESCE(SUM(${orderItems.lineTotalMinor}), 0)::text`,
+      })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .innerJoin(merchantOffers, eq(orderItems.offerId, merchantOffers.id))
+      .leftJoin(stores, eq(merchantOffers.storeId, stores.id))
+      .leftJoin(products, eq(merchantOffers.productId, products.id))
+      .where(and(...conditions))
+      .groupBy(
+        orderItems.offerId,
+        merchantOffers.storeId,
+        stores.displayName,
+        merchantOffers.productId,
+        products.title,
+        merchantOffers.variantId,
+        merchantOffers.status,
+        currencyExpr,
+      )
+      .orderBy(desc(sql`SUM(${orderItems.lineTotalMinor})`))
+      .limit(limit);
+
+    const perOffer = rows.map(r => ({
+      offerId: r.offerId as string,
+      storeId: r.storeId,
+      storeName: r.storeName ?? null,
+      productId: r.productId,
+      productTitle: r.productTitle ?? null,
+      variantId: r.variantId ?? null,
+      offerStatus: r.offerStatus,
+      currency: r.currency,
+      ordersCount: Number(r.ordersCount),
+      unitsSold: Number(r.unitsSold),
+      revenueMinor: Number(r.revenueMinor),
+    }));
+
+    // Cross-cutting totals for the KPI header cards. Group by currency so a
+    // mixed-currency platform total is never presented as a single number
+    // (mirrors the A2-4 residual policy already used in `getKpis`).
+    const totalsByCurrency = new Map<string, { revenueMinor: number; unitsSold: number; ordersCountSet: Set<string> }>();
+    // Recompute ordersCount from the aggregate; a single order can hit multiple
+    // offers so summing perOffer.ordersCount would over-count. Fall back to the
+    // per-offer figures for the label — this is acceptable for the KPI tile
+    // because it is showing engagement (offer-touches) not unique-order count.
+    for (const r of perOffer) {
+      const bucket = totalsByCurrency.get(r.currency) ?? { revenueMinor: 0, unitsSold: 0, ordersCountSet: new Set<string>() };
+      bucket.revenueMinor += r.revenueMinor;
+      bucket.unitsSold += r.unitsSold;
+      totalsByCurrency.set(r.currency, bucket);
+    }
+
+    return {
+      from: dateFrom.toISOString(),
+      to: dateTo.toISOString(),
+      filters: {
+        storeId: filters.storeId ?? null,
+        status: filters.status ?? null,
+        limit,
+      },
+      totals: {
+        offersTouched: perOffer.length,
+        byCurrency: Array.from(totalsByCurrency.entries())
+          .map(([currency, v]) => ({
+            currency,
+            revenueMinor: v.revenueMinor,
+            unitsSold: v.unitsSold,
+          }))
+          .sort((a, b) => b.revenueMinor - a.revenueMinor),
+      },
+      offers: perOffer,
+    };
+  }
+
+  // ── Offer Trend (PHASE 19) ────────────────────────────
+
+  /**
+   * PHASE 19: platform-wide (or per-store) offer sales trend bucketed by day
+   * or week. This is the governance-side counterpart of the Phase 18 merchant
+   * trend — same `date_trunc` shape, but the row set is joined against
+   * `stores` so the admin UI can attribute each bucket to a seller, and the
+   * scope is platform-wide unless `storeId` is supplied.
+   *
+   * Filters:
+   *   - granularity  → 'day' | 'week' (defaults to 'day')
+   *   - from / to     → bounded by `order_items.created_at` (defaults to last
+   *                     `days` which itself defaults to 90, capped 365)
+   *   - storeId       → optional narrowing to one seller
+   *   - offerId       → optional narrowing to a single offer (must belong to
+   *                     the store when both are given)
+   *   - status        → optional filter on the offer's live status
+   *   - topStores     → when > 0, additionally return the top-N stores by
+   *                     revenue in the same window so the admin page can
+   *                     render a comparison table under the trend chart.
+   *
+   * Additive: does not touch `getOfferRevenueKpis` (Phase 17) so the existing
+   * admin KPI dashboard is unaffected.
+   */
+  async getOfferTrend(
+    filters: {
+      granularity?: 'day' | 'week';
+      from?: string;
+      to?: string;
+      days?: number;
+      storeId?: string;
+      offerId?: string;
+      status?: string;
+      topStores?: number;
+    } = {},
+  ) {
+    const gran: 'day' | 'week' = filters.granularity === 'week' ? 'week' : 'day';
+    const now = new Date();
+    const dateTo = filters.to ? new Date(filters.to) : now;
+    let dateFrom: Date;
+    if (filters.from) {
+      dateFrom = new Date(filters.from);
+    } else {
+      const raw = filters.days ?? 90;
+      const span = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), 365) : 90;
+      dateFrom = new Date(dateTo.getTime() - span * 24 * 60 * 60 * 1000);
+    }
+
+    const conditions = [
+      sql`${orderItems.offerId} IS NOT NULL`,
+      gte(orderItems.createdAt, dateFrom),
+      lte(orderItems.createdAt, dateTo),
+    ];
+    if (filters.storeId) conditions.push(eq(merchantOffers.storeId, filters.storeId));
+    if (filters.offerId) conditions.push(eq(orderItems.offerId, filters.offerId));
+    if (filters.status) conditions.push(eq(merchantOffers.status, filters.status));
+
+    const bucketExpr = sql<string>`to_char(date_trunc(${sql.raw(`'${gran}'`)}, ${orderItems.createdAt}), 'YYYY-MM-DD')`;
+
+    const [buckets, topStoreRows] = await Promise.all([
+      this.db.db
+        .select({
+          bucket: bucketExpr,
+          ordersCount: count(sql`DISTINCT ${orderItems.orderId}`),
+          unitsSold: sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)::text`,
+          revenueMinor: sql<string>`COALESCE(SUM(${orderItems.lineTotalMinor}), 0)::text`,
+        })
+        .from(orderItems)
+        .innerJoin(merchantOffers, eq(orderItems.offerId, merchantOffers.id))
+        .where(and(...conditions))
+        .groupBy(bucketExpr)
+        .orderBy(asc(bucketExpr)),
+      (filters.topStores ?? 0) > 0
+        ? this.db.db
+            .select({
+              storeId: merchantOffers.storeId,
+              storeName: stores.displayName,
+              ordersCount: count(sql`DISTINCT ${orderItems.orderId}`),
+              unitsSold: sql<string>`COALESCE(SUM(${orderItems.quantity}), 0)::text`,
+              revenueMinor: sql<string>`COALESCE(SUM(${orderItems.lineTotalMinor}), 0)::text`,
+            })
+            .from(orderItems)
+            .innerJoin(merchantOffers, eq(orderItems.offerId, merchantOffers.id))
+            .leftJoin(stores, eq(merchantOffers.storeId, stores.id))
+            .where(and(...conditions))
+            .groupBy(merchantOffers.storeId, stores.displayName)
+            .orderBy(desc(sql`SUM(${orderItems.lineTotalMinor})`))
+            .limit(Math.min(20, Math.max(1, filters.topStores ?? 5)))
+        : Promise.resolve([] as Array<{
+            storeId: string;
+            storeName: string | null;
+            ordersCount: number;
+            unitsSold: string;
+            revenueMinor: string;
+          }>),
+    ]);
+
+    return {
+      granularity: gran,
+      from: dateFrom.toISOString(),
+      to: dateTo.toISOString(),
+      filters: {
+        storeId: filters.storeId ?? null,
+        offerId: filters.offerId ?? null,
+        status: filters.status ?? null,
+        topStores: filters.topStores ?? 0,
+      },
+      buckets: buckets.map(b => ({
+        bucket: b.bucket,
+        ordersCount: Number(b.ordersCount ?? 0),
+        unitsSold: Number(b.unitsSold ?? 0),
+        revenueMinor: Number(b.revenueMinor ?? 0),
+      })),
+      topStores: topStoreRows.map(t => ({
+        storeId: t.storeId,
+        storeName: t.storeName ?? null,
+        ordersCount: Number(t.ordersCount ?? 0),
+        unitsSold: Number(t.unitsSold ?? 0),
+        revenueMinor: Number(t.revenueMinor ?? 0),
+      })),
+    };
+  }
+
   // ── Audit Logs ───────────────────────────────────────────────
 
   async getAuditLogs(filters: AdminListInput) {
@@ -239,6 +485,10 @@ export class AdminService {
 
   async listBrands(filters: AdminListInput) {
     return listAdminTable(this.db.db, 'brands', filters);
+  }
+
+  async listOffers(filters: AdminListInput) {
+    return listAdminTable(this.db.db, 'offers', filters);
   }
 
   async listDisputes(filters: AdminListInput) {

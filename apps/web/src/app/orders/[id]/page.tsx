@@ -223,6 +223,13 @@ export default function OrderDetailPage() {
                 <div>
                   <div style={{ fontSize: 14, color: colors.brand[700] }}>{item.title}</div>
                   <div style={{ fontSize: 12, color: colors.muted }}>SKU: {item.sku} · Qty: {item.quantity}{item.qtyConfirmed != null ? ` (Confirmed: ${item.qtyConfirmed})` : ''}</div>
+                  {(item as any).offer && (
+                    <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                      Offer status: {(item as any).offer.status}
+                      {(item as any).offer.leadTimeDays != null && ` · Lead: ${(item as any).offer.leadTimeDays}d`}
+                      {(item as any).offer.moq > 1 && ` · MOQ: ${(item as any).offer.moq}`}
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700] }}>{money(item.lineTotalMinor)}</div>
               </div>

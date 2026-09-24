@@ -78,6 +78,7 @@ function harness(
     { client: {} } as never,
     { publish: async () => undefined } as never,
     { createPresignedGetUrl: async () => null } as never,
+    { record: async () => {} } as never,
   );
 }
 

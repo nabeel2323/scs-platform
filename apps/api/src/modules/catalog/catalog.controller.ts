@@ -319,13 +319,19 @@ export class CatalogController {
     @Query('brandId') brandId?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('attrFilters') attrFiltersRaw?: string,
   ) {
+    let attributeFilters: Record<string, string[]> | undefined;
+    if (attrFiltersRaw) {
+      try { attributeFilters = JSON.parse(attrFiltersRaw); } catch { /* ignore malformed */ }
+    }
     return this.searchService.search(q, {
       storeId,
       categoryId,
       brandId,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
+      attributeFilters,
     });
   }
 
@@ -337,5 +343,35 @@ export class CatalogController {
   @Get('search/brands')
   async getPopularBrands() {
     return this.searchService.getPopularBrands();
+  }
+
+  @Get('search/facets')
+  async getSearchFacets(@Query('categoryId') categoryId?: string) {
+    return this.searchService.getFacetsCached(categoryId);
+  }
+
+  // ── PHASE 7: Data Quality / Deduplication ──────────────────────
+
+  /**
+   * Check if a canonical product already exists with the given identifiers.
+   * Used by merchants during product creation to avoid duplicates.
+   */
+  @Get('canonical/match')
+  async findByIdentifiers(
+    @Query('gtin') gtin?: string,
+    @Query('ean') ean?: string,
+    @Query('mpn') mpn?: string,
+  ) {
+    return this.catalogService.findProductByIdentifiers({ gtin, ean, mpn });
+  }
+
+  /**
+   * Admin: scan for potential duplicate products (same title + category).
+   */
+  @Get('canonical/duplicates')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  async findDuplicates(@Query('categoryId') categoryId?: string) {
+    return this.catalogService.findPotentialDuplicates(categoryId);
   }
 }

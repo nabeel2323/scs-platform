@@ -45,7 +45,7 @@ describe('admin moderation on PostgreSQL', () => {
     const database = { db } as DatabaseService;
     merchant = new MerchantService(database, { publish: vi.fn() } as any, storage as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any);
-    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any);
+    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any);
     await db.insert(organizations).values({ id: orgId, name: 'Fixture organization', type: 'WHOLESALER', country: 'SA' });
     await db.insert(users).values({ id: actorId, fullName: 'Reviewer', phone: '+19999999999' });
     await db.insert(roles).values({ id: roleId, key: 'TEST_MEMBER', name: 'Test member' });
