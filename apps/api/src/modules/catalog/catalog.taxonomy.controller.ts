@@ -19,6 +19,7 @@ import {
   CreateProductTypeInput,
   TypeAttributeConfig,
 } from './catalog.taxonomy.service';
+import { ConditionalRulesService, ConditionalRule, AttributeValueMap } from './conditional-rules.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermission } from '../../common/guards/current-user.decorator';
@@ -34,7 +35,10 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class CatalogTaxonomyController {
-  constructor(private readonly taxonomy: CatalogTaxonomyService) {}
+  constructor(
+    private readonly taxonomy: CatalogTaxonomyService,
+    private readonly rules: ConditionalRulesService,
+  ) {}
 
   // ── Attributes ───────────────────────────────────────────────
 
@@ -157,5 +161,62 @@ export class CatalogTaxonomyController {
     @Body() body: { attributeIds: string[] },
   ) {
     return this.taxonomy.setVariantDimensions(id, body.attributeIds ?? []);
+  }
+
+  /**
+   * Preview how a product type renders for merchants (form), buyers (spec),
+   * and search (facets) — with conditional rules evaluated against sample values.
+   */
+  @Post('admin/product-types/:id/preview')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  async preview(@Param('id', ParseUUIDPipe) id: string, @Body() body: { values?: Record<string, unknown> }) {
+    const schema = await this.taxonomy.getProductTypeSchema(id);
+
+    // Build attribute value map from body
+    const valueMap: AttributeValueMap = new Map();
+    if (body.values) {
+      for (const [key, val] of Object.entries(body.values)) {
+        valueMap.set(key, val);
+      }
+    }
+
+    // Collect all conditional rules from the schema's attributes
+    const allRules: ConditionalRule[] = [];
+    for (const attr of schema.attributes) {
+      const rules = (attr as any).conditionalRules;
+      if (Array.isArray(rules)) {
+        allRules.push(...rules);
+      }
+    }
+
+    // Evaluate rules
+    const attrIds = schema.attributes.map(a => a.attributeDefinitionId);
+    const result = this.rules.evaluate(allRules, valueMap, attrIds);
+
+    // Build preview response
+    const attributes = schema.attributes.map(attr => {
+      const effect = result.effects.get(attr.attributeDefinitionId);
+      return {
+        ...attr,
+        effectiveRequired: attr.required || (effect?.required ?? false),
+        effectiveHidden: effect?.hidden ?? false,
+        appliedActions: effect?.appliedActions ?? [],
+      };
+    });
+
+    // Categorize for different views
+    const formFields = attributes.filter(a => !a.effectiveHidden);
+    const facets = attributes.filter(a => a.filterable && !a.effectiveHidden);
+    const specFields = attributes.filter(a => a.visibleInDetail && !a.effectiveHidden);
+
+    return {
+      productType: schema,
+      attributes,
+      formFields,
+      facets,
+      specFields,
+      validationErrors: result.errors,
+    };
   }
 }
