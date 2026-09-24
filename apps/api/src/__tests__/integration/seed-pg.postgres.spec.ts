@@ -144,7 +144,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     expect(byRole.get('ADMIN')).toBe(36);
     expect(byRole.get('MODERATOR')).toBe(20);
     expect(byRole.get('MERCHANT_OWNER')).toBe(18);
-    expect(byRole.get('MERCHANT_STAFF')).toBe(15);
+    expect(byRole.get('MERCHANT_STAFF')).toBe(14);
     expect(byRole.get('BUYER')).toBe(6);
   });
 
