@@ -444,11 +444,14 @@ class ApiService {
   Future<void> addToCart(
           {required String variantId,
           required String storeId,
-          required int quantity}) async =>
+          required int quantity,
+          String? offerId}) async =>
       _dio.post('/v1/cart/items', data: {
         'variantId': variantId,
         'storeId': storeId,
-        'quantity': quantity
+        'quantity': quantity,
+        // PHASE 13: optional explicit offer selection for multi-seller add.
+        if (offerId != null) 'offerId': offerId,
       });
 
   /// Add a *product* to the cart, resolving which variant to buy.
@@ -458,7 +461,10 @@ class ApiService {
   /// not a variant, in hand. The lookup lives here so no screen can forget it
   /// again (A5-12). Detail responses embed variants with their prices, so only a
   /// listing card pays the extra request.
-  Future<void> addProductToCart(Product product, {String? variantId}) async {
+  ///
+  /// PHASE 13: `offerId` routes the line through a specific seller's offer.
+  Future<void> addProductToCart(Product product,
+      {String? variantId, String? offerId}) async {
     String? chosen = variantId ?? product.orderableVariant?.id;
     if (chosen == null) {
       for (final v in await fetchVariants(product.id)) {
@@ -479,7 +485,8 @@ class ApiService {
     return addToCart(
         variantId: chosen,
         storeId: product.storeId,
-        quantity: product.moq > 0 ? product.moq : 1);
+        quantity: product.moq > 0 ? product.moq : 1,
+        offerId: offerId);
   }
 
   Future<void> updateCartItem(String itemId, int quantity) async =>
@@ -487,6 +494,12 @@ class ApiService {
   Future<void> removeCartItem(String itemId) async =>
       _dio.delete('/v1/cart/items/$itemId');
   Future<void> clearCart() async => _dio.delete('/v1/cart');
+
+  /// PHASE 11/12: Validate cart offers, re-price stale items.
+  /// Returns a report with valid/repriced/stale lists + fresh cart data.
+  Future<Map<String, dynamic>> validateCart() async =>
+      (await _dio.post('/v1/cart/validate')).data as Map<String, dynamic>;
+
   Future<void> applyPromo(String code) async =>
       _dio.post('/v1/cart/promo', data: {'code': code});
 

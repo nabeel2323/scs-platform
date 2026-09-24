@@ -20,14 +20,17 @@ import {
 import { enrichProductCards } from './product-card';
 import { imageReferences } from './product-images';
 import { createMediaRefResolver } from './product-card';
+import { productAttributeValues, attributeDefinitions } from './catalog.taxonomy.schema';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
-import { resolveVariantPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
 import { eq, and, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
+import { AuditService } from '../audit/index';
+import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-metrics';
 
 /**
  * Catalog service — products, variants, categories, brands, media, imports.
@@ -39,6 +42,7 @@ export class CatalogService {
     private readonly redis: RedisService,
     private readonly outbox: OutboxDispatcher,
     private readonly storage: StorageService,
+    private readonly audit: AuditService,
   ) {
     // Shared with card enrichment so every surface renders media the same way.
     this.resolveMediaRef = createMediaRefResolver(storage);
@@ -220,6 +224,17 @@ export class CatalogService {
   // ── Products ─────────────────────────────────────────────────
 
   async createProduct(input: CreateProductInput, _userId: string) {
+    // PHASE 7: Check for existing canonical product with same identifiers
+    if (input.gtin || input.ean || input.mpn) {
+      const existing = await this.findProductByIdentifiers({
+        gtin: input.gtin, ean: input.ean, mpn: input.mpn,
+      });
+      if (existing) {
+        // Return the match so the caller can attach an offer to it
+        return { ...existing, _dedup: true } as any;
+      }
+    }
+
     const id = crypto.randomUUID();
     const slug =
       input.slug ||
@@ -243,9 +258,100 @@ export class CatalogService {
       moq: input.moq || 1,
       images: input.images || [],
       attributes: input.attributes || {},
+      gtin: input.gtin || null,
+      ean: input.ean || null,
+      mpn: input.mpn || null,
+    });
+
+    // PHASE 9: Audit — product created
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      actorId: _userId,
+      action: 'product.created',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: input.storeId, title: input.title },
     });
 
     return this.getProduct(id);
+  }
+
+  /**
+   * PHASE 7: Find an existing canonical product by its identifiers.
+   * Returns the first match by GTIN, EAN, or MPN (in that priority order).
+   * Callers use this during product creation or offer linking to avoid
+   * duplicates and to suggest linking to the existing canonical row.
+   */
+  async findProductByIdentifiers(ids: {
+    gtin?: string | null;
+    ean?: string | null;
+    mpn?: string | null;
+  }): Promise<{ id: string; title: string; slug: string; matched: 'gtin' | 'ean' | 'mpn' } | null> {
+    const { gtin, ean, mpn } = ids;
+    if (!gtin && !ean && !mpn) return null;
+
+    const conditions = [isNull(products.deletedAt)];
+    if (gtin) conditions.push(eq(products.gtin, gtin));
+    else if (ean) conditions.push(eq(products.ean, ean));
+    else if (mpn) conditions.push(eq(products.mpn, mpn));
+
+    const match = await this.db.db.query.products.findFirst({
+      where: and(...conditions),
+      columns: { id: true, title: true, slug: true, gtin: true, ean: true, mpn: true },
+    });
+    if (!match) {
+      // Fallback: try remaining identifiers individually
+      if (gtin && !ean && !mpn) return null;
+      const remaining: Array<{ col: typeof products.gtin | typeof products.ean | typeof products.mpn; val: string; label: 'gtin' | 'ean' | 'mpn' }> = [];
+      if (gtin) remaining.push({ col: products.gtin, val: gtin, label: 'gtin' });
+      if (ean) remaining.push({ col: products.ean, val: ean, label: 'ean' });
+      if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
+      for (const r of remaining) {
+        const found = await this.db.db.query.products.findFirst({
+          where: and(isNull(products.deletedAt), eq(r.col, r.val)),
+          columns: { id: true, title: true, slug: true },
+        });
+        if (found) return { ...found, matched: r.label };
+      }
+      return null;
+    }
+    const matched = gtin ? 'gtin' as const : ean ? 'ean' as const : 'mpn' as const;
+    return { id: match.id, title: match.title, slug: match.slug, matched };
+  }
+
+  /**
+   * PHASE 7: Find potential duplicate products by matching title + category.
+   * Returns groups of products that likely represent the same canonical item.
+   */
+  async findPotentialDuplicates(categoryId?: string, limit = 50) {
+    const conditions = [isNull(products.deletedAt), eq(products.status, 'ACTIVE')];
+    if (categoryId) conditions.push(eq(products.categoryId, categoryId));
+
+    // Group by normalized title + categoryId to find potential dupes
+    const result = await this.db.db.execute(sql`
+      SELECT
+        category_id,
+        lower(trim(title)) as norm_title,
+        count(*)::int as dup_count,
+        array_agg(id) as product_ids,
+        array_agg(distinct store_id) as store_ids
+      FROM products
+      WHERE deleted_at IS NULL
+        AND status = 'ACTIVE'
+        ${categoryId ? sql`AND category_id = ${categoryId}` : sql``}
+      GROUP BY category_id, lower(trim(title))
+      HAVING count(*) > 1
+      ORDER BY dup_count DESC
+      LIMIT ${limit}
+    `);
+    const rows = (result as any).rows ?? result;
+    return (Array.isArray(rows) ? rows : []).map((r: any) => ({
+      categoryId: r.category_id,
+      normalizedTitle: r.norm_title,
+      duplicateCount: Number(r.dup_count),
+      productIds: r.product_ids as string[],
+      storeIds: (r.store_ids ?? []).filter(Boolean) as string[],
+    }));
   }
 
   async getProduct(id: string) {
@@ -256,7 +362,37 @@ export class CatalogService {
     return product;
   }
 
+  /** PHASE 8: Read-through Redis cache for product detail (TTL 5 min). */
+  private static readonly PRODUCT_DETAIL_CACHE_PREFIX = 'product:detail:';
+  private static readonly PRODUCT_DETAIL_TTL_S = 300;
+
   async getProductDetail(id: string) {
+    // Attempt cache hit
+    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id;
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
+      recordCacheMiss('product_detail');
+    } catch { recordCacheMiss('product_detail'); }
+
+    const result = await timeQuery(`getProductDetail:${id}`, () => this._getProductDetailUncached(id));
+
+    // Fire-and-forget cache write
+    try {
+      await this.redis.client.set(cacheKey, JSON.stringify(result), 'EX', CatalogService.PRODUCT_DETAIL_TTL_S);
+    } catch { /* non-blocking */ }
+
+    return result;
+  }
+
+  /** Invalidate product detail cache (call on update/delete). */
+  async invalidateProductCache(id: string) {
+    try {
+      await this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id);
+    } catch { /* non-blocking */ }
+  }
+
+  private async _getProductDetailUncached(id: string) {
     const product = await this.getProduct(id);
     const [storeRows, media, variants, labels] = await Promise.all([
       this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
@@ -274,7 +410,7 @@ export class CatalogService {
     const activeVariants = variants.filter(v => v['isActive']);
     const variantIds = activeVariants.map(v => v['id']);
     const pricingMap = variantIds.length > 0
-      ? await resolveVariantPrices(this.db.db, product['storeId'], variantIds, product['moq'] || 1, { ladder: true })
+      ? await resolveOfferPrices(this.db.db, product['storeId'], variantIds, product['moq'] || 1, { ladder: true })
       : new Map();
     const variantsWithPricing = variants.map(v => ({
       ...v,
@@ -323,7 +459,31 @@ export class CatalogService {
     // product photos directly; failures degrade to null (placeholder shown).
     const resolvedMedia = await Promise.all(media.map(m => this.resolveMediaRow(m)));
 
+    // PHASE 5e: structured attribute values for specs display
+    let attributeValues: Array<{ code: string; label: string; value: unknown }> = [];
+    try {
+      const rows = await this.db.db
+        .select({
+          code: attributeDefinitions.code,
+          label: attributeDefinitions.name,
+          valueText: productAttributeValues.valueText,
+          valueNumber: productAttributeValues.valueNumber,
+          valueBoolean: productAttributeValues.valueBoolean,
+          optionValue: productAttributeValues.optionValue,
+          valueJson: productAttributeValues.valueJson,
+        })
+        .from(productAttributeValues)
+        .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .where(eq(productAttributeValues.productId, id));
+      attributeValues = rows.map(r => ({
+        code: r.code,
+        label: r.label,
+        value: r.valueText ?? r.valueNumber ?? r.valueBoolean ?? r.optionValue ?? r.valueJson ?? null,
+      }));
+    } catch { /* taxonomy tables may not be available in all envs */ }
+
     return { ...product, ...labels[0], store: storeRows[0] ?? null, media: resolvedMedia, variants: variantsWithStock,
+      attributeValues,
       imageCount: imageReferences(product.images, media).length };
   }
 
@@ -418,6 +578,7 @@ export class CatalogService {
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
 
     await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    await this.invalidateProductCache(id); // PHASE 8
 
     // Emit event on publish
     if (input.status === 'ACTIVE') {
@@ -425,13 +586,21 @@ export class CatalogService {
         productId: id,
         storeId: product['storeId'],
       });
+      // PHASE 9: Audit — product published
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.published',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+      });
     }
 
     return this.getProduct(id);
   }
 
   async deleteProduct(id: string) {
-    await this.getProduct(id);
+    const product = await this.getProduct(id);
     await this.db.db
       .update(products)
       .set({
@@ -440,6 +609,17 @@ export class CatalogService {
         updatedAt: new Date(),
       })
       .where(eq(products.id, id));
+    await this.invalidateProductCache(id); // PHASE 8
+
+    // PHASE 9: Audit — product soft-deleted
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'product.deleted',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: product['storeId'], title: product['title'] },
+    });
+
     return { success: true };
   }
 
@@ -1376,6 +1556,11 @@ export interface CreateProductInput {
   moq?: number;
   images?: string[];
   attributes?: Record<string, unknown>;
+  /** PHASE 7: Canonical identifiers for deduplication. */
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+  productTypeId?: string;
 }
 
 export interface UpdateProductInput {

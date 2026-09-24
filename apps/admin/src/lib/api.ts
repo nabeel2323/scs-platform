@@ -366,6 +366,103 @@ export async function fetchKpis(from?: string, to?: string): Promise<KpiResponse
   return res.json();
 }
 
+/**
+ * PHASE 17: platform-wide per-offer revenue analytics response.
+ * Mirrors AdminService.getOfferRevenueKpis return shape.
+ */
+export interface OfferRevenueRow {
+  offerId: string;
+  storeId: string;
+  storeName: string | null;
+  productId: string;
+  productTitle: string | null;
+  variantId: string | null;
+  offerStatus: string;
+  currency: string;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferRevenueKpiResponse {
+  from: string;
+  to: string;
+  filters: { storeId: string | null; status: string | null; limit: number };
+  totals: {
+    offersTouched: number;
+    byCurrency: Array<{ currency: string; revenueMinor: number; unitsSold: number }>;
+  };
+  offers: OfferRevenueRow[];
+}
+
+export async function fetchOfferRevenueKpis(params: {
+  from?: string; to?: string; storeId?: string; status?: string; limit?: number;
+} = {}): Promise<OfferRevenueKpiResponse> {
+  const sp = new URLSearchParams();
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  if (params.storeId) sp.set('storeId', params.storeId);
+  if (params.status) sp.set('status', params.status);
+  if (params.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/offers/kpis${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch offer KPIs: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 19: platform-wide offer sales trend bucketed by day/week. Mirrors
+ * AdminService.getOfferTrend so the admin governance page can render a
+ * time-series chart plus a top-N store leaderboard inside one request.
+ */
+export interface OfferTrendBucket {
+  bucket: string;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferTrendTopStore {
+  storeId: string;
+  storeName: string | null;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferTrendResponse {
+  granularity: 'day' | 'week';
+  from: string;
+  to: string;
+  filters: {
+    storeId: string | null;
+    offerId: string | null;
+    status: string | null;
+    topStores: number;
+  };
+  buckets: OfferTrendBucket[];
+  topStores: OfferTrendTopStore[];
+}
+
+export async function fetchAdminOfferTrend(params: {
+  from?: string; to?: string; days?: number;
+  storeId?: string; offerId?: string; status?: string;
+  granularity?: 'day' | 'week'; topStores?: number;
+} = {}): Promise<OfferTrendResponse> {
+  const sp = new URLSearchParams();
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  if (params.days != null) sp.set('days', String(params.days));
+  if (params.storeId) sp.set('storeId', params.storeId);
+  if (params.offerId) sp.set('offerId', params.offerId);
+  if (params.status) sp.set('status', params.status);
+  sp.set('granularity', params.granularity === 'week' ? 'week' : 'day');
+  if (params.topStores != null) sp.set('topStores', String(params.topStores));
+  const res = await authFetch(`${API_URL}/v1/admin/offers/trend?${sp.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch offer trend: ${res.status}`);
+  return res.json();
+}
+
 // ── User Management ───────────────────────────────────────────
 
 export interface AdminUser {

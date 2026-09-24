@@ -3,7 +3,8 @@ import { eq, getTableColumns, inArray, sql, SQL } from 'drizzle-orm';
 import { alias, AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { DatabaseService } from '../../common/database/database.service';
 import { isUuid, isUuidPrefix } from '../../common/utils/uuid';
-import { products, categories, brands } from '../catalog/catalog.schema';
+import { products, categories, brands, productVariants } from '../catalog/catalog.schema';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { productImageCount } from '../catalog/product-images';
 import { users, organizations, organizationMembers, roles } from '../identity/identity.schema';
 import { stores, verificationRequests } from '../merchant/merchant.schema';
@@ -26,7 +27,7 @@ interface TableConfig {
   defaultSort?: string;
   defaultDirection?: 'asc' | 'desc';
 }
-export type AdminTable = 'products' | 'users' | 'merchants' | 'orders' | 'verifications' | 'disputes' | 'audit' | 'categories' | 'brands';
+export type AdminTable = 'products' | 'users' | 'merchants' | 'orders' | 'verifications' | 'disputes' | 'audit' | 'categories' | 'brands' | 'offers';
 
 export const safeUserFields = {
   id: users.id, phone: users.phone, email: users.email, fullName: users.fullName,
@@ -111,6 +112,26 @@ export const adminTables: Record<AdminTable, TableConfig> = {
     sorts: ['name', 'slug', 'isActive'], dates: ['createdAt', 'updatedAt'],
     defaultSort: 'name', defaultDirection: 'asc',
     filters: { isActive: f('boolean') },
+  },
+  offers: {
+    table: merchantOffers,
+    fields: {
+      ...getTableColumns(merchantOffers),
+      storeName: stores.displayName,
+      productTitle: products.title,
+      variantSku: productVariants.sku,
+    },
+    joins: sql`left join ${stores} on ${merchantOffers.storeId} = ${stores.id}
+      left join ${products} on ${merchantOffers.productId} = ${products.id}
+      left join ${productVariants} on ${merchantOffers.variantId} = ${productVariants.id}`,
+    search: ['id', 'storeName', 'status', 'productTitle', 'externalRef'],
+    sorts: ['status', 'storeName', 'basePriceMinor', 'moq', 'leadTimeDays', 'isAvailable'],
+    dates: ['createdAt', 'updatedAt', 'activatedAt', 'reviewedAt'],
+    defaultSort: 'createdAt', defaultDirection: 'desc',
+    filters: {
+      status: f('text'), storeId: f('uuid'), productId: f('uuid'),
+      isAvailable: f('boolean'), currency: f('text'),
+    },
   },
 };
 

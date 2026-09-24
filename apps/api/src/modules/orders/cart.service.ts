@@ -3,9 +3,10 @@ import { DatabaseService } from '../../common/database/database.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
+import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
-import { resolveVariantPrices } from '../pricing/price-resolution';
-import { eq, and } from 'drizzle-orm';
+import { resolveOfferPrices } from '../pricing/price-resolution';
+import { eq, and, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -77,11 +78,43 @@ export class CartService {
       where: eq(products.id, variant['productId']),
     });
     if (!product) throw new NotFoundException('Product not found');
-    const storeId = product['storeId'];
+    let storeId = product['storeId'];
+
+    // PHASE 13: If the buyer picked a specific merchant offer, validate it and
+    // route the line through that offer's store/price-list instead of the
+    // product-owner's default.
+    let selectedOfferId: string | null = null;
+    if (input.offerId) {
+      const offer = await this.db.db.query.merchantOffers.findFirst({
+        where: eq(merchantOffers.id, input.offerId),
+      });
+      if (!offer) throw new NotFoundException('Offer not found');
+      if (offer.status !== 'ACTIVE') {
+        throw new BadRequestException('This offer is no longer active');
+      }
+      // Match scope: variant-scoped offers pin to the exact variant, product-
+      // scoped offers (variant_id IS NULL) can back any variant of that product.
+      const matchesVariant = offer.variantId != null && offer.variantId === variant['id'];
+      const matchesProduct = offer.variantId == null && offer.productId === variant['productId'];
+      if (!matchesVariant && !matchesProduct) {
+        throw new BadRequestException('The selected offer does not apply to this item');
+      }
+      storeId = offer.storeId;
+      selectedOfferId = offer.id;
+    }
 
     const cart = await this.getOrCreateCart(userId);
+    // PHASE 13: lines are keyed by (variantId, offerId) so switching sellers
+    // creates a new line rather than overwriting an existing seller's line.
+    const existingConditions = [
+      eq(cartItems.cartId, cart['id']),
+      eq(cartItems.variantId, variant['id']),
+      selectedOfferId
+        ? eq(cartItems.offerId, selectedOfferId)
+        : undefined,
+    ].filter(Boolean) as ReturnType<typeof eq>[];
     const existing = await this.db.db.query.cartItems.findFirst({
-      where: and(eq(cartItems.cartId, cart['id']), eq(cartItems.variantId, variant['id'])),
+      where: and(...existingConditions),
     });
     const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
 
@@ -90,7 +123,7 @@ export class CartService {
     // SNAPSHOT here and is NEVER taken from the client — a client-supplied
     // price would be a tampering vector. A5-1: the same shared resolver backs the
     // product detail page, so what a buyer is shown is what they are charged.
-    const pricing = await resolveVariantPrices(
+    const pricing = await resolveOfferPrices(
       this.db.db,
       storeId,
       [variant['id']],
@@ -107,6 +140,9 @@ export class CartService {
     }
     const priceMinor = tier.unitPriceMinor;
     const lineTotalMinor = finalQty * priceMinor;
+    // Prefer the buyer's chosen offer; the resolver otherwise picks the store's
+    // best-matching offer (legacy behaviour preserved when none is provided).
+    const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
 
     if (existing) {
       // Re-snapshot the price: the applicable tier can change with quantity.
@@ -116,6 +152,7 @@ export class CartService {
           quantity: finalQty,
           priceMinor,
           tierMinQty: tier.minQty,
+          offerId,
           lineTotalMinor,
           updatedAt: new Date(),
         })
@@ -129,6 +166,7 @@ export class CartService {
         quantity: finalQty,
         priceMinor,
         tierMinQty: tier.minQty,
+        offerId,
         lineTotalMinor,
       });
     }
@@ -172,12 +210,36 @@ export class CartService {
           skipped.push({ variantId: input.variantId, reason: 'Product not found' });
           continue;
         }
-        const storeId = product['storeId'];
+        let storeId = product['storeId'];
+        // PHASE 13: honour per-line explicit offer selection.
+        let selectedOfferId: string | null = null;
+        if (input.offerId) {
+          const offer = await this.db.db.query.merchantOffers.findFirst({
+            where: eq(merchantOffers.id, input.offerId),
+          });
+          if (!offer || offer.status !== 'ACTIVE') {
+            skipped.push({ variantId: input.variantId, reason: 'Selected offer is not active' });
+            continue;
+          }
+          const matchesVariant = offer.variantId != null && offer.variantId === variant['id'];
+          const matchesProduct = offer.variantId == null && offer.productId === variant['productId'];
+          if (!matchesVariant && !matchesProduct) {
+            skipped.push({ variantId: input.variantId, reason: 'Selected offer does not apply to this item' });
+            continue;
+          }
+          storeId = offer.storeId;
+          selectedOfferId = offer.id;
+        }
+        const existingConditions = [
+          eq(cartItems.cartId, cart['id']),
+          eq(cartItems.variantId, variant['id']),
+          selectedOfferId ? eq(cartItems.offerId, selectedOfferId) : undefined,
+        ].filter(Boolean) as ReturnType<typeof eq>[];
         const existing = await this.db.db.query.cartItems.findFirst({
-          where: and(eq(cartItems.cartId, cart['id']), eq(cartItems.variantId, variant['id'])),
+          where: and(...existingConditions),
         });
         const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
-        const pricing = await resolveVariantPrices(
+        const pricing = await resolveOfferPrices(
           this.db.db,
           storeId,
           [variant['id']],
@@ -191,10 +253,11 @@ export class CartService {
         }
         const priceMinor = tier.unitPriceMinor;
         const lineTotalMinor = finalQty * priceMinor;
+        const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
         if (existing) {
           await this.db.db
             .update(cartItems)
-            .set({ quantity: finalQty, priceMinor, tierMinQty: tier.minQty, lineTotalMinor, updatedAt: new Date() })
+            .set({ quantity: finalQty, priceMinor, tierMinQty: tier.minQty, offerId, lineTotalMinor, updatedAt: new Date() })
             .where(eq(cartItems.id, existing['id']));
         } else {
           await this.db.db.insert(cartItems).values({
@@ -205,6 +268,7 @@ export class CartService {
             quantity: finalQty,
             priceMinor,
             tierMinQty: tier.minQty,
+            offerId,
             lineTotalMinor,
           });
         }
@@ -325,24 +389,39 @@ export class CartService {
         storeName: stores.displayName,
         storeSlug: stores.slug,
         storeCurrency: stores.currency,
+        // PHASE 14: expose per-line offer metadata so the cart UI can label
+        // which seller's offer backs each row (lead time, MOQ, status).
+        offerLeadTimeDays: merchantOffers.leadTimeDays,
+        offerMoq: merchantOffers.moq,
+        offerStatus: merchantOffers.status,
       })
       .from(cartItems)
       .leftJoin(productVariants, eq(cartItems.variantId, productVariants.id))
       .leftJoin(products, eq(productVariants.productId, products.id))
       .leftJoin(stores, eq(cartItems.storeId, stores.id))
+      .leftJoin(merchantOffers, eq(cartItems.offerId, merchantOffers.id))
       // Scope to this cart: without the WHERE the join would return every cart
       // line on the platform.
       .where(eq(cartItems.cartId, cartId))
       .orderBy(cartItems.createdAt);
 
     return rows.map(
-      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency }) => ({
+      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, offerLeadTimeDays, offerMoq, offerStatus }) => ({
         ...item,
         title: variantTitle || productTitle || undefined,
         sku: sku || undefined,
         storeName: storeName || undefined,
         storeSlug: storeSlug || undefined,
         currency: storeCurrency || undefined,
+        // PHASE 14: only populated when the line is backed by a merchant offer.
+        offer: item.offerId
+          ? {
+              id: item.offerId,
+              leadTimeDays: offerLeadTimeDays,
+              moq: offerMoq,
+              status: offerStatus,
+            }
+          : null,
       }),
     );
   }
@@ -354,6 +433,90 @@ export class CartService {
       .update(carts)
       .set({ totalMinor: total, updatedAt: new Date() })
       .where(eq(carts.id, cartId));
+  }
+
+  /**
+   * PHASE 11: Validate cart offers and re-price stale items.
+   * Returns a report indicating which items are still valid and which
+   * have been re-priced or are no longer purchasable.
+   */
+  async validateCart(userId: string) {
+    const cart = await this.getOrCreateCart(userId);
+    const items = await this.listCartItems(cart['id']);
+
+    const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
+    let activeSet: Set<string> | null = null;
+    if (offerIds.length > 0) {
+      const validOffers = await this.db.db.query.merchantOffers.findMany({
+        where: and(inArray(merchantOffers.id, offerIds), eq(merchantOffers.status, 'ACTIVE')),
+        columns: { id: true },
+      });
+      activeSet = new Set(validOffers.map(o => o.id));
+    }
+
+    const report: {
+      valid: string[];
+      repriced: Array<{ itemId: string; oldPriceMinor: number; newPriceMinor: number }>;
+      stale: Array<{ itemId: string; reason: string }>;
+    } = { valid: [], repriced: [], stale: [] };
+
+    for (const item of items) {
+      const oid = item['offerId'] as string | null;
+      if (!oid) {
+        // Legacy item (no offer) — still valid if product/variant are active
+        report.valid.push(item['id'] as string);
+        continue;
+      }
+      if (activeSet && !activeSet.has(oid)) {
+        // Offer was suspended/withdrawn — try to re-price via fallback
+        const variant = await this.db.db.query.productVariants.findFirst({
+          where: eq(productVariants.id, item['variantId']),
+        });
+        if (!variant || !variant['isActive']) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'Variant no longer available' });
+          continue;
+        }
+        const product = await this.db.db.query.products.findFirst({
+          where: eq(products.id, variant['productId']),
+        });
+        if (!product) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'Product not found' });
+          continue;
+        }
+        // Re-resolve pricing (will use fallback or a different offer)
+        const pricing = await resolveOfferPrices(
+          this.db.db, product['storeId'], [variant['id']], item['quantity'], { ladder: false },
+        );
+        const tier = pricing.get(variant['id']);
+        if (!tier) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'No price available' });
+          continue;
+        }
+        // Update the cart line
+        const newLineTotal = item['quantity'] * tier.unitPriceMinor;
+        await this.db.db.update(cartItems).set({
+          priceMinor: tier.unitPriceMinor,
+          tierMinQty: tier.minQty,
+          offerId: tier.offerId ?? null,
+          lineTotalMinor: newLineTotal,
+          updatedAt: new Date(),
+        }).where(eq(cartItems.id, item['id'] as string));
+        report.repriced.push({
+          itemId: item['id'] as string,
+          oldPriceMinor: item['priceMinor'] as number,
+          newPriceMinor: tier.unitPriceMinor,
+        });
+        continue;
+      }
+      report.valid.push(item['id'] as string);
+    }
+
+    if (report.repriced.length > 0) {
+      await this.recalculateTotal(cart['id']);
+    }
+
+    const freshCart = await this.getActiveCartWithItems(userId);
+    return { ...report, cart: freshCart };
   }
 }
 
@@ -367,4 +530,14 @@ export interface AddCartItemInput {
    * derived from the variant's product. Accepted for backward compatibility.
    */
   storeId?: string;
+  /**
+   * PHASE 13: Optional explicit merchant offer to buy under. When provided:
+   * - The offer must be ACTIVE and reference this variant (or its product as
+   *   a product-level fallback).
+   * - The cart line is stamped with `offerId`, and the effective store is the
+   *   offer's store (allowing multi-seller offers on a canonical variant).
+   * - Existing lines only merge when their `offerId` matches, so switching
+   *   sellers creates a new line rather than mutating another seller's line.
+   */
+  offerId?: string;
 }

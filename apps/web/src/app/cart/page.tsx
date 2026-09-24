@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { fetchCart, updateCartItem, removeCartItem, clearCart, applyPromoCode, Cart, CartItem } from '../../lib/buyer-api';
+import { fetchCart, updateCartItem, removeCartItem, clearCart, applyPromoCode, validateCart, CartValidationReport, Cart, CartItem } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
 import {
   PageHeader, Card, Button, EmptyState,
@@ -16,12 +16,22 @@ export default function CartPage() {
   const [promoCode, setPromoCode] = useState('');
   const [applyingPromo, setApplyingPromo] = useState(false);
 
+  const [validationReport, setValidationReport] = useState<CartValidationReport | null>(null);
+
   const loadCart = async () => {
     try {
-      const c = await fetchCart();
-      setCart(c);
+      // PHASE 11: Validate offers and re-price stale items
+      const report = await validateCart();
+      setCart(report.cart as Cart);
+      setValidationReport(report);
     } catch {
-      setCart(null);
+      // If validation fails, fall back to plain cart fetch
+      try {
+        const c = await fetchCart();
+        setCart(c);
+      } catch {
+        setCart(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -88,6 +98,22 @@ export default function CartPage() {
 
       {error && <ErrorBanner message={error} />}
 
+      {/* PHASE 11: Cart validation warnings */}
+      {validationReport && (validationReport.stale.length > 0 || validationReport.repriced.length > 0) && (
+        <div style={{ padding: '12px 16px', marginBottom: 16, background: validationReport.stale.length > 0 ? '#fef2f2' : '#fffbeb', border: `1px solid ${validationReport.stale.length > 0 ? '#fecaca' : '#fde68a'}`, borderRadius: radii.sm, ...typeScale.body }}>
+          {validationReport.repriced.length > 0 && (
+            <p style={{ margin: '0 0 4px', color: '#92400e' }}>
+              {validationReport.repriced.length} item(s) were re-priced due to seller changes.
+            </p>
+          )}
+          {validationReport.stale.length > 0 && (
+            <p style={{ margin: 0, color: '#991b1b' }}>
+              {validationReport.stale.length} item(s) are no longer available for purchase. Please remove them.
+            </p>
+          )}
+        </div>
+      )}
+
       {isEmpty ? (
         <EmptyState
           title="Your cart is empty"
@@ -115,6 +141,20 @@ export default function CartPage() {
                     <div style={{ ...typeScale.bodySm, color: colors.muted, marginTop: 2 }}>
                       {formatMinor(item.priceMinor, item.currency)} × {item.quantity}
                     </div>
+                    {/* PHASE 14: seller + offer attribution per line */}
+                    {(item.storeName || item.offer) && (
+                      <div style={{ ...typeScale.caption, color: colors.muted, marginTop: 4 }}>
+                        {item.storeName && <>Sold by <strong>{item.storeName}</strong></>}
+                        {item.offer && (
+                          <>
+                            {item.storeName ? ' · ' : ''}
+                            Offer {item.offer.status === 'ACTIVE' ? 'active' : item.offer.status.toLowerCase()}
+                            {item.offer.leadTimeDays != null && ` · Lead ${item.offer.leadTimeDays}d`}
+                            {item.offer.moq > 1 && ` · MOQ ${item.offer.moq}`}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button onClick={() => handleUpdateQty(item.id, item.quantity - 1)} style={qtyBtnStyle}>−</button>

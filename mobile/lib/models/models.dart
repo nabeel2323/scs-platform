@@ -343,6 +343,10 @@ class CartItem {
   final String? title, sku, storeName;
   // A5-3: the supplier's currency for this line, so a cart is not assumed SAR.
   final String? currency;
+  // PHASE 10: the merchant offer that priced this line (null for legacy).
+  final String? offerId;
+  // PHASE 14: enriched offer metadata joined from merchant_offers.
+  final CartItemOffer? offer;
   CartItem(
       {required this.id,
       required this.cartId,
@@ -355,7 +359,9 @@ class CartItem {
       this.title,
       this.sku,
       this.storeName,
-      this.currency});
+      this.currency,
+      this.offerId,
+      this.offer});
   factory CartItem.fromJson(Map<String, dynamic> j) => CartItem(
       id: j['id'],
       cartId: j['cartId'] ?? '',
@@ -368,7 +374,25 @@ class CartItem {
       title: j['title'],
       sku: j['sku'],
       storeName: j['storeName'],
-      currency: j['currency']);
+      currency: j['currency'],
+      offerId: j['offerId'] as String?,
+      offer: j['offer'] == null
+          ? null
+          : CartItemOffer.fromJson(j['offer'] as Map<String, dynamic>));
+}
+
+/// PHASE 14: read-only projection of the merchant offer backing a cart line.
+class CartItemOffer {
+  final String id, status;
+  final int? leadTimeDays;
+  final int? moq;
+  CartItemOffer(
+      {required this.id, required this.status, this.leadTimeDays, this.moq});
+  factory CartItemOffer.fromJson(Map<String, dynamic> j) => CartItemOffer(
+      id: j['id'] as String,
+      status: (j['status'] as String?) ?? 'UNKNOWN',
+      leadTimeDays: j['leadTimeDays'] as int?,
+      moq: j['moq'] as int?);
 }
 
 class MasterOrder {

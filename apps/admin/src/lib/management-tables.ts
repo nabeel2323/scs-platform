@@ -1,4 +1,4 @@
-export type ManagementEntity = 'products' | 'users' | 'merchants' | 'orders' | 'verification' | 'disputes' | 'audit' | 'categories' | 'brands';
+export type ManagementEntity = 'products' | 'users' | 'merchants' | 'orders' | 'verification' | 'disputes' | 'audit' | 'categories' | 'brands' | 'offers';
 export type FilterDefinition = { key: string; label: string; options?: string[]; type?: 'number' | 'date' };
 export interface ManagementConfig {
   title: string;
@@ -78,5 +78,14 @@ export const managementTables: Record<ManagementEntity, ManagementConfig> = {
     columns: ['name', 'nameAr', 'slug', 'logoUrl', 'isActive', ...dates], sorts: brandSorts, dates,
     defaultSort: 'name', defaultDirection: 'asc',
     filters: [boolean('isActive')],
+  },
+  offers: {
+    title: 'Offer Governance', endpoint: 'offers', permission: 'catalog:offers:govern',
+    columns: ['storeName', 'productTitle', 'variantSku', 'status', 'basePriceMinor', 'moq', 'leadTimeDays', 'isAvailable', 'activatedAt', ...dates],
+    sorts: ['status', 'storeName', 'basePriceMinor', 'moq', 'leadTimeDays', 'isAvailable'],
+    dates: ['createdAt', 'updatedAt', 'activatedAt', 'reviewedAt'],
+    defaultSort: 'createdAt', defaultDirection: 'desc',
+    filters: [select('status', ['DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN']),
+      ...text('storeId', 'productId', 'currency'), boolean('isAvailable')],
   },
 };

@@ -46,6 +46,12 @@ export class CartController {
     return this.cartService.clearCart(user.sub);
   }
 
+  /** PHASE 11: Validate offers in cart; re-price stale items. */
+  @Post('validate')
+  async validateCart(@CurrentUser() user: JwtPayload) {
+    return this.cartService.validateCart(user.sub);
+  }
+
   @Post('promo')
   async applyPromo(
     @CurrentUser() user: JwtPayload,

@@ -23,6 +23,10 @@ export const stores = pgTable('stores', {
   locale: varchar('locale', { length: 10 }).notNull().default('ar'),
   status: varchar('status', { length: 16 }).notNull().default('DRAFT'),
   verificationStatus: varchar('verification_status', { length: 16 }).notNull().default('PENDING'),
+  // PHASE 23: privacy toggle for the buyer-facing "Most Popular Seller" badge.
+  // Default `false` keeps Phase 22 behaviour for every existing store; the
+  // buyer projection (`listOffersForProductRanked`) is the only consumer.
+  hidePopularityBadge: boolean('hide_popularity_badge').notNull().default(false),
   address: jsonb('address').notNull().default({}),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

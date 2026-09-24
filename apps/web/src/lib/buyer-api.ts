@@ -7,10 +7,18 @@ const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
 // ── Types ────────────────────────────────────────────────────
 
+export interface FacetEntry {
+  code: string;
+  label: string;
+  type: string;
+  values: Array<{ value: string; count: number }>;
+}
+
 export interface SearchResult {
   items: Product[];
   total: number;
   query: string;
+  facets?: FacetEntry[];
 }
 
 export interface Product {
@@ -97,6 +105,8 @@ export interface ProductDetail extends Product {
   categoryName?: string | null;
   brandName?: string | null;
   imageCount?: number;
+  /** Structured attribute values (PHASE 5e). */
+  attributeValues?: Array<{ code: string; label: string; value: unknown }>;
 }
 
 export interface Category {
@@ -128,12 +138,21 @@ export interface CartItem {
   tierMinQty: number;
   lineTotalMinor: number;
   promoSnapshot: Record<string, unknown>;
+  // PHASE 10: the offer that priced this line (null for legacy/price-list-only).
+  offerId?: string | null;
   // projected by CartService.listCartItems (A5-3)
   title?: string;
   sku?: string;
   storeName?: string;
   storeSlug?: string;
   currency?: string;
+  // PHASE 14: enriched offer metadata joined from merchant_offers.
+  offer?: {
+    id: string;
+    leadTimeDays: number | null;
+    moq: number;
+    status: string;
+  } | null;
 }
 
 export interface MasterOrder {
@@ -250,6 +269,7 @@ export async function searchProducts(params: {
   storeId?: string;
   limit?: number;
   offset?: number;
+  attrFilters?: Record<string, string[]>;
 }): Promise<SearchResult> {
   const qs = new URLSearchParams();
   if (params.q) qs.set('q', params.q);
@@ -258,6 +278,7 @@ export async function searchProducts(params: {
   if (params.storeId) qs.set('storeId', params.storeId);
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.offset) qs.set('offset', String(params.offset));
+  if (params.attrFilters && Object.keys(params.attrFilters).length > 0) qs.set('attrFilters', JSON.stringify(params.attrFilters));
   const res = await authFetch(`${API_URL}/v1/search?${qs}`);
   if (!res.ok) throw new Error(`Search failed: ${res.status}`);
   return res.json();
@@ -352,6 +373,8 @@ export async function addToCart(input: {
   variantId: string;
   storeId: string;
   quantity: number;
+  /** PHASE 13: Optional explicit merchant offer to buy under. */
+  offerId?: string;
 }): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/cart/items`, {
     method: 'POST',
@@ -381,6 +404,20 @@ export async function removeCartItem(itemId: string): Promise<unknown> {
 export async function clearCart(): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/cart`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`Clear cart failed: ${res.status}`);
+  return res.json();
+}
+
+/** PHASE 11: Validate offers in cart; re-price stale items. */
+export interface CartValidationReport {
+  valid: string[];
+  repriced: Array<{ itemId: string; oldPriceMinor: number; newPriceMinor: number }>;
+  stale: Array<{ itemId: string; reason: string }>;
+  cart: unknown;
+}
+
+export async function validateCart(): Promise<CartValidationReport> {
+  const res = await authFetch(`${API_URL}/v1/cart/validate`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Cart validation failed: ${res.status}`);
   return res.json();
 }
 
@@ -1380,5 +1417,186 @@ export async function exportProductsCsv(storeId: string): Promise<string> {
 export async function fetchStoreVariants(storeId: string): Promise<ProductVariant[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/variants`);
   if (!res.ok) throw new Error(`Store variants failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Merchant Offers (PHASE 5) ─────────────────────────────────
+
+export interface Offer {
+  id: string;
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  status: 'DRAFT' | 'PROPOSED' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'WITHDRAWN';
+  currency: string;
+  basePriceMinor: number;
+  compareAtPriceMinor: number | null;
+  moq: number;
+  orderIncrement: number | null;
+  leadTimeDays: number | null;
+  isAvailable: boolean;
+  priceListId: string | null;
+  warehouseId: string | null;
+  externalRef: string | null;
+  proposedBy: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  activatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOfferInput {
+  storeId: string;
+  productId: string;
+  variantId?: string;
+  currency?: string;
+  basePriceMinor: number;
+  compareAtPriceMinor?: number;
+  moq?: number;
+  orderIncrement?: number;
+  leadTimeDays?: number;
+  priceListId?: string;
+  warehouseId?: string;
+  externalRef?: string;
+}
+
+export async function fetchProductOffers(productId: string): Promise<Offer[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/offers`);
+  if (!res.ok) throw new Error(`Product offers failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 22: Buyer-facing "most popular seller" row returned by
+ * GET /v1/products/:productId/offers/ranked. Fields mirror the service response
+ * exactly (see CatalogOfferService.listOffersForProductRanked) so a shape drift
+ * shows up as a compile error rather than an undefined property at render.
+ */
+export interface RankedProductOffer {
+  offerId: string;
+  storeId: string;
+  storeName: string | null;
+  storeSlug: string | null;
+  storeVerified: boolean;
+  variantId: string | null;
+  currency: string;
+  basePriceMinor: number | null;
+  moq: number;
+  leadTimeDays: number | null;
+  priceListId: string | null;
+  ordersCount: number;
+  unitsSold: number;
+  /**
+   * PHASE 23: `null` when the seller opted out of disclosure (their store has
+   * `hidePopularityBadge = true`). The server also zeroes `ordersCount` and
+   * `unitsSold` in that case, so a consumer must not rely on rank > 0 alone.
+   */
+  rank: number | null;
+  isMostPopular: boolean;
+  /**
+   * PHASE 23: explicit opt-out marker so the UI can render a discreet "sales
+   * not disclosed" affordance instead of a false "0 sold" for opted-out rows.
+   */
+  disclosureHidden: boolean;
+}
+
+export async function fetchProductOffersRanked(productId: string): Promise<RankedProductOffer[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/offers/ranked`);
+  if (!res.ok) throw new Error(`Ranked product offers failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchMerchantOffers(storeId: string, status?: string): Promise<Offer[]> {
+  const params = status ? `?status=${status}` : '';
+  const res = await authFetch(`${API_URL}/v1/merchant/offers?storeId=${storeId}${status ? `&status=${status}` : ''}`);
+  if (!res.ok) throw new Error(`Merchant offers failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 16: Per-offer sales performance for a store.
+ * Returned by GET /v1/merchant/offers/analytics?storeId=...
+ */
+export interface OfferAnalyticsRow {
+  offerId: string;
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  status: Offer['status'];
+  currency: string;
+  basePriceMinor: number | null;
+  moq: number;
+  leadTimeDays: number | null;
+  createdAt: string;
+  productTitle: string | null;
+  variantSku: string | null;
+  variantTitle: string | null;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export async function fetchMerchantOfferAnalytics(storeId: string): Promise<OfferAnalyticsRow[]> {
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/analytics?storeId=${storeId}`);
+  if (!res.ok) throw new Error(`Offer analytics failed: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 18: Time-series bucket of sales trend returned by
+ * GET /v1/merchant/offers/analytics/trend. `bucket` is a UTC YYYY-MM-DD string
+ * for daily rows and the ISO date of the week's Monday for weekly rows.
+ */
+export interface OfferTrendPoint {
+  bucket: string;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export async function fetchMerchantOfferTrend(opts: {
+  storeId: string;
+  offerId?: string;
+  granularity?: 'day' | 'week';
+  days?: number;
+  from?: string;
+}): Promise<OfferTrendPoint[]> {
+  const params = new URLSearchParams({ storeId: opts.storeId });
+  if (opts.offerId) params.set('offerId', opts.offerId);
+  params.set('granularity', opts.granularity === 'week' ? 'week' : 'day');
+  if (opts.from) params.set('from', opts.from);
+  else if (opts.days != null) params.set('days', String(opts.days));
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/analytics/trend?${params.toString()}`);
+  if (!res.ok) throw new Error(`Offer trend failed: ${res.status}`);
+  return res.json();
+}
+
+export async function createMerchantOffer(input: CreateOfferInput): Promise<Offer> {
+  const res = await authFetch(`${API_URL}/v1/merchant/offers`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.message || `Create failed (${res.status})`); }
+  return res.json();
+}
+
+export async function proposeOffer(offerId: string): Promise<Offer> {
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/propose`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Propose failed: ${res.status}`);
+  return res.json();
+}
+
+export async function withdrawOffer(offerId: string): Promise<Offer> {
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/withdraw`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Withdraw failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateOfferPricing(offerId: string, patch: { basePriceMinor?: number; moq?: number; leadTimeDays?: number; isAvailable?: boolean }): Promise<Offer> {
+  const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/pricing`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`Pricing update failed: ${res.status}`);
   return res.json();
 }

@@ -48,6 +48,12 @@ export interface Store {
   locale: string;
   status: string;
   verificationStatus: string;
+  /**
+   * PHASE 23: buyer-facing privacy toggle consumed by
+   * `listOffersForProductRanked`. Default false — server column is NOT NULL so
+   * the field is always present on any read after migration 0030.
+   */
+  hidePopularityBadge: boolean;
   address: Record<string, unknown>;
   metadata: Record<string, unknown>;
   createdAt: string;

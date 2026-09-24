@@ -50,6 +50,12 @@ const PERMISSIONS = [
   'catalog:categories:read',
   'catalog:categories:write',
   'catalog:brands:manage',
+  // Catalog governance (PHASE 2 — attributes & product types)
+  'catalog:attributes:manage',
+  'catalog:product-types:manage',
+  // Catalog governance (PHASE 4 — merchant offers)
+  'catalog:offers:write',
+  'catalog:offers:govern',
   // Orders
   'orders:read',
   'orders:write',
@@ -121,6 +127,12 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:pricing:read',
       'merchant:pricing:write',
       'identity:organizations:write',
+      // Catalog governance (attributes & product types)
+      'catalog:attributes:manage',
+      'catalog:product-types:manage',
+      // Catalog governance (merchant offers)
+      'catalog:offers:write',
+      'catalog:offers:govern',
       // Admin platform operations
       'admin:orders:read',
       'admin:merchants:read',
@@ -139,6 +151,12 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'catalog:products:delete',
       'catalog:categories:read',
       'catalog:categories:write',
+      // Moderators curate the platform catalog taxonomy (attributes & types).
+      'catalog:attributes:manage',
+      'catalog:product-types:manage',
+      // Moderators curate merchant offers on canonical products.
+      'catalog:offers:write',
+      'catalog:offers:govern',
       // Moderators curate the platform catalog, so they retain product writes
       // now that product endpoints require merchant:products:write (API-B6).
       'merchant:products:write',

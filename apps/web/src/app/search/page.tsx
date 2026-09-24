@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   searchProducts, fetchCategories, fetchBrands, fetchProductVariants, addToCart,
-  Product, Category,
+  Product, Category, FacetEntry,
 } from '../../lib/buyer-api';
 import { formatMinor, EmptyState, ErrorBanner, ProductCardImage } from '../../components/Shared';
 import {
@@ -45,6 +45,8 @@ function SearchPageContent() {
   const [results, setResults] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [facets, setFacets] = useState<FacetEntry[]>([]);
+  const [selectedAttrFilters, setSelectedAttrFilters] = useState<Record<string, string[]>>({});
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -92,15 +94,17 @@ function SearchPageContent() {
         brandId: selectedBrand || undefined,
         limit: limit + 20, // fetch extra for client-side filtering
         offset,
+        attrFilters: Object.keys(selectedAttrFilters).length > 0 ? selectedAttrFilters : undefined,
       });
       setResults(res.items || []);
       setTotal(res.total || 0);
+      if (res.facets) setFacets(res.facets);
     } catch (err: any) {
       setError(err.message || 'Search failed');
     } finally {
       setLoading(false);
     }
-  }, [query, selectedCategories, selectedBrand, page, limit]);
+  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -418,9 +422,39 @@ function SearchPageContent() {
               </label>
             </div>
 
+            {/* Dynamic attribute facets (PHASE 6) */}
+            {facets.length > 0 && facets.map(facet => (
+              <div key={facet.code} style={{ marginBottom: 16 }}>
+                <h4 style={{ ...typeScale.caption, fontWeight: 700, color: colors.brand[700], textTransform: 'uppercase', marginBottom: 6 }}>{facet.label}</h4>
+                {facet.values.slice(0, 8).map(fv => {
+                  const checked = (selectedAttrFilters[facet.code] ?? []).includes(fv.value);
+                  return (
+                    <label key={fv.value} className="sr-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          setSelectedAttrFilters(prev => {
+                            const cur = prev[facet.code] ?? [];
+                            const next = checked ? cur.filter(v => v !== fv.value) : [...cur, fv.value];
+                            const copy = { ...prev };
+                            if (next.length === 0) delete copy[facet.code]; else copy[facet.code] = next;
+                            return copy;
+                          });
+                          resetPage();
+                        }}
+                        style={{ accentColor: colors.brand[700] }}
+                      />
+                      <span>{fv.value} <small style={{ color: colors.muted }}>({fv.count})</small></span>
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+
             {/* Clear filters */}
-            {activeFilterCount > 0 && (
-              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); resetPage(); }}
+            {(activeFilterCount > 0 || Object.keys(selectedAttrFilters).length > 0) && (
+              <button onClick={() => { setSelectedCategories([]); setSelectedBrand(''); setPriceMin(''); setPriceMax(''); setVerifiedOnly(false); setInStockOnly(false); setSelectedAttrFilters({}); resetPage(); }}
                 style={{ width: '100%', padding: '8px 12px', fontSize: 12, fontWeight: 600, background: colors.errBg, color: colors.err, border: `1px solid ${colors.err}`, borderRadius: radii.sm, cursor: 'pointer', marginTop: 12 }}>
                 Clear All Filters ({activeFilterCount})
               </button>
