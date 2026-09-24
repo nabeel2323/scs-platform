@@ -13,6 +13,7 @@ import { AdminService } from '../../modules/admin/admin.service';
 import { CatalogService } from '../../modules/catalog/catalog.service';
 import { MerchantService } from '../../modules/merchant/merchant.service';
 import { products, productMedia, productVariants, categories, brands } from '../../modules/catalog/catalog.schema';
+import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
 import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { masterOrders, orders } from '../../modules/orders/orders.schema';
@@ -35,7 +36,7 @@ describe('admin moderation on PostgreSQL', () => {
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
-    db = drizzle(pool, { schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes } }) as unknown as DatabaseService['db'];
+    db = drizzle(pool, { schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers } }) as unknown as DatabaseService['db'];
     const migrations = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     // Analytics partition maintenance needs pg_partman; it is unrelated to these tables.
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
@@ -60,6 +61,7 @@ describe('admin moderation on PostgreSQL', () => {
       await db.insert(orders).values({ id, masterOrderId: id, buyerId: id, storeId: id, currency: 'SAR', totalMinor: index * 100, createdAt: date });
       await db.insert(verificationRequests).values({ id, orgId, storeId: id, submittedBy: actorId, submittedAt: date });
       await db.insert(disputes).values({ id, orderId: id, raisedBy: id, againstId: actorId, reason: label, createdAt: date });
+      await db.insert(merchantOffers).values({ id, storeId: id, productId: id, externalRef: label, createdAt: date });
       await db.insert(auditLogs).values({ id, actorType: 'ADMIN', action: label, resource: 'product', actorId, createdAt: date });
     }
   }, 180_000);

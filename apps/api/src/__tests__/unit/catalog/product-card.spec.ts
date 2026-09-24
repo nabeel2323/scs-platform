@@ -34,6 +34,9 @@ function fakeDb(options: { stores?: Row[]; variants?: Row[]; priceBatches?: Row[
           return options.variants ?? [];
         },
       },
+      merchantOffers: {
+        findMany: async () => [],
+      },
     },
     select: () => {
       const builder: Record<string, unknown> = {
