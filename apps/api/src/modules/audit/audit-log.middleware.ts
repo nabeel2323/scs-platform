@@ -1,5 +1,5 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
-import { NextFunction, Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { AuditService } from './audit.service';
 import { JwtPayload } from '../../common/guards/current-user.decorator';
 
