@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
 import { attributeDefinitions, attributeOptions, productTypes } from '../catalog/catalog.taxonomy.schema';
-import { isNull, eq } from 'drizzle-orm';
 import type { ParsedWorkbook } from './excel-parser.service';
 
 /**

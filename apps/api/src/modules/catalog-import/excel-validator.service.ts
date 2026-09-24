@@ -43,8 +43,8 @@ const REQUIRED_HEADERS: Record<string, string[]> = {
   sources: ['product_slug', 'source_type', 'source_url'],
 };
 
-/** Headers that are valid but optional. */
-const OPTIONAL_HEADERS: Record<string, string[]> = {
+/** Headers that are valid but optional (reference — not enforced). */
+const _OPTIONAL_HEADERS: Record<string, string[]> = {
   categories: ['name_ar', 'description', 'parent_slug', 'sort_order'],
   brands: ['name_ar', 'description'],
   attribute_groups: ['name_ar', 'kind'],

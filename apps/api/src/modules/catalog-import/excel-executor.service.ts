@@ -4,14 +4,13 @@ import { brands, categories, products, productVariants } from '../catalog/catalo
 import {
   attributeDefinitions,
   attributeOptions,
-  attributeGroups,
   productTypes,
   productTypeAttributes,
   productAttributeValues,
   variantAttributeValues,
 } from '../catalog/catalog.taxonomy.schema';
-import { eq, isNull, and, sql } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import { randomUUID, createHash } from 'node:crypto';
 import type { ImportPlan, PlanEntry } from './excel-planner.service';
 import type { ResolvedReferences } from './excel-resolver.service';
 
@@ -122,7 +121,7 @@ export class ExcelExecutorService {
           try {
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
             if (!attrId) throw new Error(`Attribute "${entry.data['attributeCode']}" not resolved`);
-            const id = await this.insertAttributeOption(tx, entry, attrId);
+            await this.insertAttributeOption(tx, entry, attrId);
             result.created++;
           } catch (err) {
             result.rejected++;
@@ -497,7 +496,7 @@ export class ExcelExecutorService {
       // Sort by attrId and compute SHA-256
       pairs.sort((a, b) => a.attrId.localeCompare(b.attrId));
       const digest = pairs.map(p => `${p.attrId}=${p.value}`).join('|');
-      const combinationKey = require('crypto').createHash('sha256').update(digest).digest('hex').slice(0, 64);
+      const combinationKey = createHash('sha256').update(digest).digest('hex').slice(0, 64);
 
       try {
         await this.db.db.update(productVariants)

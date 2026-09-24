@@ -5,7 +5,8 @@ import { AuditService } from '../audit/audit.service';
 import { catalogImports, catalogImportErrors } from './catalog-import.schema';
 import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
 import { attributeDefinitions, attributeOptions, productTypes } from '../catalog/catalog.taxonomy.schema';
-import { eq, isNull, desc, sql } from 'drizzle-orm';
+import ExcelJS from 'exceljs';
+import { eq, isNull, desc } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { ExcelParserService, type ParsedWorkbook } from './excel-parser.service';
 import { ExcelValidatorService, type ExistingDataSnapshot, type ImportError } from './excel-validator.service';
@@ -242,7 +243,6 @@ export class CatalogImportService {
   async downloadReport(importId: string): Promise<Buffer> {
     // Generate an error report XLSX for the import
     const errors = await this.getErrors(importId);
-    const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Import Errors');
     sheet.columns = [
@@ -310,7 +310,7 @@ export class CatalogImportService {
   }
 
   private async loadExistingDataSnapshot(): Promise<ExistingDataSnapshot> {
-    const [brandRows, catRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
+    const [brandRows, catRows, attrRows, _optRows, ptRows, prodRows, varRows] = await Promise.all([
       this.db.db.select({ slug: brands.slug }).from(brands),
       this.db.db.select({ slug: categories.slug, storeId: categories.storeId }).from(categories),
       this.db.db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type }).from(attributeDefinitions),
@@ -321,20 +321,9 @@ export class CatalogImportService {
     ]);
 
     // Build attribute map with options
-    const attrIdToCode = new Map<string, string>();
     const attributeMap = new Map<string, { type: string; options: Set<string> }>();
     for (const r of attrRows) {
       attributeMap.set(r.code, { type: r.type, options: new Set() });
-      attrIdToCode.set(r.code, r.code);
-    }
-
-    // Map options by attribute code
-    const attrCodeById = new Map(attrRows.map(r => [r.code, r.code] as const));
-    for (const r of optRows) {
-      // Find the attribute code for this option
-      const attrCode = attrRows.find(a => a.code === r.attributeId)?.code;
-      // Actually we need to look up by attributeId, but attrRows only has code
-      // Let's use a different approach
     }
 
     return {

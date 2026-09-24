@@ -4,7 +4,6 @@ import {
   Post,
   Param,
   Query,
-  Body,
   Res,
   UploadedFile,
   UseInterceptors,

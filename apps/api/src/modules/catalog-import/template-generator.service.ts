@@ -5,11 +5,9 @@ import { brands, categories, products, productVariants } from '../catalog/catalo
 import {
   attributeDefinitions,
   attributeOptions,
-  attributeGroups,
   productTypes,
-  productTypeAttributes,
 } from '../catalog/catalog.taxonomy.schema';
-import { isNull, eq } from 'drizzle-orm';
+import { isNull } from 'drizzle-orm';
 import { CatalogValidationService } from '../catalog/catalog.validation-service';
 
 /**
