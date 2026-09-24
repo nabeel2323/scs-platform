@@ -80,6 +80,21 @@ function createHarness() {
         where: vi.fn().mockResolvedValue(undefined),
       })),
     })),
+    // Mock transaction: simply executes the callback with the same mock db
+    // (unit tests don't need real transaction semantics)
+    transaction: vi.fn(async (cb: any) => cb(innerDb)),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          for: vi.fn(() => ({
+            then: vi.fn(async (resolve: any) => {
+              const rows = inventoryRows;
+              return resolve(rows.length > 0 ? [rows[0]] : []);
+            }),
+          })),
+        })),
+      })),
+    })),
   };
 
   // DatabaseService exposes the Drizzle client as `.db`

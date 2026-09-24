@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OrdersService } from '../../modules/orders/orders.service';
+import { outboxEvents } from '../../modules/audit/audit.schema';
 
 /**
  * Checkout Integration Tests
@@ -85,6 +86,8 @@ function createMocks() {
         }),
       }),
     }),
+    // Mock transaction: executes callback with same mock db (no real tx needed in unit tests)
+    transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
       carts: { findFirst: vi.fn(), findMany: vi.fn() },
       cartItems: { findMany: vi.fn() },
@@ -279,11 +282,9 @@ describe('Checkout Integration', () => {
 
       await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
-      expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
-        'order.submitted',
-        expect.any(String),
-        expect.objectContaining({ buyerId: BUYER_ID }),
-      );
+      // Checkout now writes the outbox event inside the DB transaction
+      // (transactional outbox pattern) rather than calling outbox.publish().
+      expect(mocks.db.insert).toHaveBeenCalledWith(outboxEvents);
     });
   });
 
