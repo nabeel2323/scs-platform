@@ -41,6 +41,16 @@ async function bootstrap() {
         process.env['NODE_ENV'] === 'development'
           ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:standard' } }
           : undefined,
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'req.headers["set-cookie"]',
+          'err.response.headers.authorization',
+          'err.response.headers["set-cookie"]',
+        ],
+        censor: '[REDACTED]',
+      },
     }),
   );
 
