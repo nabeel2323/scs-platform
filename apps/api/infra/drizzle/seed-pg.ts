@@ -208,6 +208,8 @@ const ROLES: RoleDef[] = [
       'merchant:products:write',
       'merchant:orders:write',
       'merchant:promotions:write',
+      // Catalog requests — merchants submit new categories/brands/attributes.
+      'catalog:offers:write',
       // RBAC audit: inventory + pricing management
       'merchant:inventory:read',
       'merchant:inventory:write',
@@ -232,6 +234,8 @@ const ROLES: RoleDef[] = [
       'merchant:products:write',
       'merchant:orders:write',
       'merchant:promotions:write',
+      // Catalog requests — staff submit new categories/brands/attributes.
+      'catalog:offers:write',
       // RBAC audit: inventory + pricing management
       'merchant:inventory:read',
       'merchant:inventory:write',

@@ -134,9 +134,9 @@ async function main() {
       [role.id],
     );
 
-    if (permissionResult.rows[0].permission_count !== 13) {
+    if (permissionResult.rows[0].permission_count !== 15) {
       throw new Error(
-        `MERCHANT_STAFF has ${permissionResult.rows[0].permission_count} permissions; expected 13.`,
+        `MERCHANT_STAFF has ${permissionResult.rows[0].permission_count} permissions; expected 15.`,
       );
     }
 

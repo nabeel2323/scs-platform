@@ -390,7 +390,7 @@ export default function ProductDetailClient() {
         price: (cheapestPrice / 100).toFixed(2),
         priceCurrency: baseCurrency,
         availability: product.isAvailable ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-        url: typeof window !== 'undefined' ? `${window.location.origin}/products/${product.id}` : undefined,
+        url: `/products/${product.id}`,
       },
     } : {}),
   };
