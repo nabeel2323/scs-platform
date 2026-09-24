@@ -26,6 +26,7 @@ import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
+import { merchantOffers } from './catalog.offer.schema';
 import { eq, and, isNull, asc, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
@@ -215,6 +216,43 @@ export class CatalogService {
       where: includeInactive ? undefined : eq(brands.isActive, true),
       orderBy: [brands.name],
     });
+  }
+
+  /**
+   * PHASE 11: enriched brand list with product count and merchant count
+   * (distinct stores offering products of each brand).
+   */
+  async listBrandsEnriched(includeInactive = false) {
+    const brandRows = await this.db.db.query.brands.findMany({
+      where: includeInactive ? undefined : eq(brands.isActive, true),
+      orderBy: [brands.name],
+    });
+
+    // Correlated counts via raw SQL — avoids N+1 while keeping the query simple.
+    const productCounts = await this.db.db.execute<{
+      brand_id: string;
+      product_count: string;
+    }>(sql`SELECT brand_id, COUNT(*)::text AS product_count FROM products WHERE brand_id IS NOT NULL GROUP BY brand_id`);
+
+    const merchantCounts = await this.db.db.execute<{
+      brand_id: string;
+      merchant_count: string;
+    }>(sql`
+      SELECT p.brand_id, COUNT(DISTINCT mo.store_id)::text AS merchant_count
+      FROM merchant_offers mo
+      JOIN products p ON mo.product_id = p.id
+      WHERE p.brand_id IS NOT NULL
+      GROUP BY p.brand_id
+    `);
+
+    const pcMap = new Map(productCounts.rows.map(r => [r.brand_id, Number(r.product_count)]));
+    const mcMap = new Map(merchantCounts.rows.map(r => [r.brand_id, Number(r.merchant_count)]));
+
+    return brandRows.map(b => ({
+      ...b,
+      productCount: pcMap.get(b.id) ?? 0,
+      merchantCount: mcMap.get(b.id) ?? 0,
+    }));
   }
 
   async updateBrand(id: string, input: Partial<CreateBrandInput> & { isActive?: boolean }) {

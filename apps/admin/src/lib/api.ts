@@ -782,10 +782,25 @@ export interface AdminBrand {
   updatedAt: string;
 }
 
+export interface EnrichedBrand extends AdminBrand {
+  productCount: number;
+  merchantCount: number;
+}
+
 export async function fetchAdminBrands(includeInactive = false): Promise<AdminBrand[]> {
   const qs = includeInactive ? '?includeInactive=true' : '';
   const res = await authFetch(`${API_URL}/v1/brands${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch brands: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 11: enriched brand list with product count + merchant count.
+ */
+export async function fetchAdminBrandsEnriched(includeInactive = false): Promise<EnrichedBrand[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  const res = await authFetch(`${API_URL}/v1/admin/brands${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch enriched brands: ${res.status}`);
   return res.json();
 }
 

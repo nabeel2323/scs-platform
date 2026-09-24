@@ -103,6 +103,17 @@ export class CatalogController {
     return this.catalogService.createBrand(input);
   }
 
+  /**
+   * PHASE 11: enriched brand list with product count + merchant count.
+   * Gated by catalog:brands:manage so only admins see the analytics.
+   */
+  @Get('admin/brands')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:brands:manage')
+  async listBrandsEnriched(@Query('includeInactive') includeInactive?: string) {
+    return this.catalogService.listBrandsEnriched(includeInactive === 'true');
+  }
+
   @Get('brands')
   async listBrands(@Query('includeInactive') includeInactive?: string) {
     return this.catalogService.listBrands(includeInactive === 'true');
