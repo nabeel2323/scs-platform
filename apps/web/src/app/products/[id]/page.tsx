@@ -312,32 +312,45 @@ export default function ProductDetailPage() {
 
   const images = useMemo(() => (product ? galleryImages(product) : []), [product]);
 
-  const handleAdd = async (variantId: string, storeId: string, offerId?: string) => {
-    setAddError(null);
-    try {
-      await addToCart({ variantId, storeId, quantity: qty, ...(offerId ? { offerId } : {}) });
-      // PHASE 13: distinguish per-offer added state so two "Added ✓" badges
-      // don't light up simultaneously when the same variant is offered by
-      // multiple sellers.
-      setAddedId(offerId ?? variantId);
-      setTimeout(() => setAddedId(null), 2000);
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Could not add this item to your cart');
-    }
-  };
+  const handleAdd = useCallback(
+    async (variantId: string, storeId: string, offerId?: string) => {
+      setAddError(null);
+      try {
+        await addToCart({ variantId, storeId, quantity: qty, ...(offerId ? { offerId } : {}) });
+        // PHASE 13: distinguish per-offer added state so two "Added ✓" badges
+        // don't light up simultaneously when the same variant is offered by
+        // multiple sellers.
+        setAddedId(offerId ?? variantId);
+        setTimeout(() => setAddedId(null), 2000);
+      } catch (err) {
+        setAddError(err instanceof Error ? err.message : 'Could not add this item to your cart');
+      }
+    },
+    [qty],
+  );
+
+  const variants = useMemo(
+    () => product?.variants ?? [],
+    [product],
+  );
+
+  // PHASE 8: offer add-to-cart resolves the variant for product-scoped offers.
+  // This hook must execute on every render, before any early return.
+  const handleOfferAddToCart = useCallback(
+    (offerId: string, variantId: string | null, storeId: string) => {
+      const targetVariantId = variantId ?? variants.find(v => v.isActive)?.id;
+      if (targetVariantId) {
+        void handleAdd(targetVariantId, storeId, offerId);
+      }
+    },
+    [variants, handleAdd],
+  );
 
   if (loading) return <LoadingSpinner />;
   if (!product) return <EmptyState title="Product not found" />;
 
-  const variants = product.variants ?? [];
   const activeVariants = variants.filter(v => v.isActive);
   const inactiveVariants = variants.filter(v => !v.isActive);
-
-  // PHASE 8: offer add-to-cart resolves the variant for product-scoped offers
-  const handleOfferAddToCart = useCallback((offerId: string, variantId: string | null, storeId: string) => {
-    const targetVariantId = variantId ?? (variants.find(v => v.isActive)?.id);
-    if (targetVariantId) handleAdd(targetVariantId, storeId, offerId);
-  }, [variants, handleAdd]);
   const store = product.store ?? null;
   const cheapestPrice = activeVariants
     .map(v => v.pricing?.unitPriceMinor)
