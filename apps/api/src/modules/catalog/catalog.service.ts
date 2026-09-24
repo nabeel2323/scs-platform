@@ -245,7 +245,7 @@ export class CatalogService {
 
     await this.db.db.insert(products).values({
       id,
-      storeId: input.storeId,
+      storeId: input.storeId ?? null,
       categoryId: input.categoryId || null,
       brandId: input.brandId || null,
       slug,
@@ -270,7 +270,7 @@ export class CatalogService {
       action: 'product.created',
       resource: 'product',
       resourceId: id,
-      metadata: { storeId: input.storeId, title: input.title },
+      metadata: { storeId: input.storeId ?? null, title: input.title },
     });
 
     return this.getProduct(id);
@@ -394,11 +394,14 @@ export class CatalogService {
 
   private async _getProductDetailUncached(id: string) {
     const product = await this.getProduct(id);
+    const productStoreId = product.storeId;
     const [storeRows, media, variants, labels] = await Promise.all([
-      this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
-        slug: stores.slug, currency: stores.currency, status: stores.status,
-        verificationStatus: stores.verificationStatus, orgId: stores.orgId, orgName: organizations.name,
-      }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, product.storeId)),
+      productStoreId
+        ? this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
+            slug: stores.slug, currency: stores.currency, status: stores.status,
+            verificationStatus: stores.verificationStatus, orgId: stores.orgId, orgName: organizations.name,
+          }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, productStoreId))
+        : Promise.resolve([] as any[]),
       this.listMediaByProduct(id),
       this.listVariantsByProduct(id),
       this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
@@ -409,8 +412,8 @@ export class CatalogService {
     // detail page and the cart agree on what a unit costs.
     const activeVariants = variants.filter(v => v['isActive']);
     const variantIds = activeVariants.map(v => v['id']);
-    const pricingMap = variantIds.length > 0
-      ? await resolveOfferPrices(this.db.db, product['storeId'], variantIds, product['moq'] || 1, { ladder: true })
+    const pricingMap = variantIds.length > 0 && productStoreId
+      ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, product['moq'] || 1, { ladder: true })
       : new Map();
     const variantsWithPricing = variants.map(v => ({
       ...v,
@@ -422,7 +425,7 @@ export class CatalogService {
     const allVariantIds = variants.map(v => v['id']);
     const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
     try {
-      if (allVariantIds.length > 0) {
+      if (allVariantIds.length > 0 && product['storeId']) {
         const storeWarehouses = await this.db.db.query.warehouses.findMany({
           where: eq(warehouses.storeId, product['storeId']),
           columns: { id: true },
@@ -660,8 +663,9 @@ export class CatalogService {
         created.push(id);
       }
       // Ensure each newly created variant has at least a base price tier
+      const bulkStoreId = product['storeId'];
       for (const variantId of created) {
-        await this.ensureVariantPricing(product['storeId'], variantId);
+        if (bulkStoreId) await this.ensureVariantPricing(bulkStoreId, variantId);
       }
     }
 
@@ -835,7 +839,8 @@ export class CatalogService {
     // Ensure the new variant has at least a base price tier so the cart
     // can resolve a price. Without this, variants created via the catalog
     // UI are orphaned from the pricing system.
-    await this.ensureVariantPricing(product['storeId'], id);
+    const cvStoreId = product['storeId'];
+    if (cvStoreId) await this.ensureVariantPricing(cvStoreId, id);
 
     return this.getVariant(id);
   }
@@ -880,6 +885,7 @@ export class CatalogService {
     try {
       const product = await this.getProduct(productId).catch(() => null);
       if (!product || variants.length === 0) return variants;
+      if (!product['storeId']) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
       const storeWarehouses = await this.db.db.query.warehouses.findMany({
         where: eq(warehouses.storeId, product['storeId']),
         columns: { id: true },
@@ -1544,7 +1550,7 @@ export interface CreateBrandInput {
 }
 
 export interface CreateProductInput {
-  storeId: string;
+  storeId?: string | null;
   title: string;
   titleAr?: string;
   slug?: string;
