@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVariantSelection } from '../../../../hooks/useVariantSelection';
 import { formatMinor } from '../../../../components/Shared';
+import { analytics } from '../../../../lib/analytics';
 import {
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
@@ -56,6 +57,15 @@ export function VariantSelector({
     }
   }, [loading, matrix, onHasDimensions]);
 
+  // PHASE COS-14: fire variant_selected when a resolved variant appears
+  const prevVariantRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (resolvedVariant && resolvedVariant.variantId !== prevVariantRef.current) {
+      prevVariantRef.current = resolvedVariant.variantId;
+      analytics.variantSelected(productId, resolvedVariant.variantId, selectedValues);
+    }
+  }, [resolvedVariant?.variantId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // No product type or no variant dimensions → render nothing so parent can fallback
   if (!loading && matrix && matrix.dimensions.length === 0) {
     return null;
@@ -86,7 +96,10 @@ export function VariantSelector({
       {matrix.dimensions.map(dim => {
         return (
           <div key={dim.attributeDefinitionId} style={{ marginBottom: 16 }}>
-            <div style={{ ...typeScale.bodySm, fontWeight: 600, color: colors.ink, marginBottom: 6 }}>
+            <div
+              id={`vs-dim-${dim.attributeDefinitionId}`}
+              style={{ ...typeScale.bodySm, fontWeight: 600, color: colors.ink, marginBottom: 6 }}
+            >
               {dim.name}
               {selectedValues[dim.attributeDefinitionId] && (
                 <span style={{ fontWeight: 400, color: colors.muted, marginLeft: 6 }}>
@@ -95,7 +108,7 @@ export function VariantSelector({
                 </span>
               )}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} role="radiogroup" aria-labelledby={`vs-dim-${dim.attributeDefinitionId}`}>
               {dim.options.map(opt => {
                 const isSelected = selectedValues[dim.attributeDefinitionId] === opt;
                 const isAvail = isOptionAvailable(dim.attributeDefinitionId, opt);
@@ -104,8 +117,10 @@ export function VariantSelector({
                     key={opt}
                     onClick={() => selectValue(dim.attributeDefinitionId, opt)}
                     disabled={!isAvail}
-                    aria-pressed={isSelected}
+                    role="radio"
+                    aria-checked={isSelected}
                     aria-label={`${dim.name}: ${opt}${!isAvail ? ' (unavailable)' : ''}`}
+                    tabIndex={isSelected ? 0 : -1}
                     style={{
                       padding: '6px 14px',
                       fontSize: 13,

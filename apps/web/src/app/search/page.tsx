@@ -12,6 +12,8 @@ import {
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
 import { useCompareList } from '../../hooks/useProductComparison';
+import { analytics } from '../../lib/analytics';
+import type { Metadata } from 'next';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -23,6 +25,19 @@ export default function SearchPage() {
       <SearchPageContent />
     </Suspense>
   );
+}
+
+// ── PHASE COS-14: Dynamic SEO metadata for search ─────────────
+
+export async function generateMetadata({ searchParams }: { searchParams: Record<string, string | undefined> }): Promise<Metadata> {
+  const q = searchParams['q'] || '';
+  const desc = q
+    ? `Search results for "${q}" on Smart Commerce Platform — B2B marketplace`
+    : 'Browse products from verified suppliers on Smart Commerce Platform';
+  return {
+    title: q ? `Search: ${q} | Smart Commerce Platform` : 'Search Products | Smart Commerce Platform',
+    description: desc,
+  };
 }
 
 function SearchPageContent() {
@@ -103,6 +118,8 @@ function SearchPageContent() {
       setResults(res.items || []);
       setTotal(res.total || 0);
       if (res.facets) setFacets(res.facets);
+      // PHASE COS-14: track search
+      analytics.searchPerformed(query || '', res.total || 0, selectedCategories.length === 1 ? selectedCategories[0] : undefined);
     } catch (err: any) {
       setError(err.message || 'Search failed');
     } finally {
@@ -121,6 +138,7 @@ function SearchPageContent() {
 
   const handleCategoryToggle = (id: string) => {
     setSelectedCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+    analytics.filterUsed('category', id);
     resetPage();
   };
   // Header dropdown: quick single-select that replaces any multi-selection
@@ -128,8 +146,8 @@ function SearchPageContent() {
     setSelectedCategories(id ? [id] : []);
     resetPage();
   };
-  const handleBrandChange = (id: string) => { setSelectedBrand(selectedBrand === id ? '' : id); resetPage(); };
-  const handleSortChange = (s: SortOption) => { setSort(s); resetPage(); };
+  const handleBrandChange = (id: string) => { setSelectedBrand(selectedBrand === id ? '' : id); analytics.filterUsed('brand', id); resetPage(); };
+  const handleSortChange = (s: SortOption) => { setSort(s); analytics.filterUsed('sort', s); resetPage(); };
   const handleLimitChange = (l: number) => { setLimit(l); setPage(1); };
 
   // Price input sanitizers — strip non-numeric, prevent negatives

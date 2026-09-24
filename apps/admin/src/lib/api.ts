@@ -1123,3 +1123,21 @@ export async function rejectCatalogRequest(id: string, reviewerId: string, reaso
   if (!res.ok) throw new Error(`Failed to reject request: ${res.status}`);
   return res.json();
 }
+
+// ── PHASE COS-14: Data Quality Dashboard ──────────────────────────
+
+export interface DataQualityMetrics {
+  totalProducts: number;
+  missingImages: number;
+  missingDescription: number;
+  missingCategory: number;
+  missingBrand: number;
+  orphanedVariants: number;
+  incompleteOffers: number;
+}
+
+export async function fetchDataQualityMetrics(): Promise<DataQualityMetrics> {
+  const res = await authFetch(`${API_URL}/v1/admin/data-quality`);
+  if (!res.ok) throw new Error(`Failed to fetch data quality metrics: ${res.status}`);
+  return res.json();
+}

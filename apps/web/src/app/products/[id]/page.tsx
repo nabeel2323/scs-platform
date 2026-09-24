@@ -22,6 +22,37 @@ import { useCompareList } from '../../../hooks/useProductComparison';
 import { VariantSelector } from './components/VariantSelector';
 import { OfferComparisonTable } from './components/OfferComparisonTable';
 import { useOfferComparison } from '../../../hooks/useOfferComparison';
+import { analytics } from '../../../lib/analytics';
+import type { Metadata } from 'next';
+
+// ── PHASE COS-14: Dynamic SEO metadata ──────────────────────────
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  try {
+    const apiBase = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+    const res = await fetch(`${apiBase}/v1/products/${params.id}`, { next: { revalidate: 300 } } as RequestInit);
+    if (!res.ok) return { title: 'Product Not Found' };
+    const p = await res.json();
+    const desc = p.description
+      ? (p.description.length > 155 ? p.description.slice(0, 152) + '…' : p.description)
+      : 'B2B marketplace product listing';
+    const imgUrl = Array.isArray(p.media) && p.media.length > 0
+      ? (p.media[0].displayUrl || p.media[0].thumbSrc || '')
+      : '';
+    return {
+      title: `${p.title} | Smart Commerce Platform`,
+      description: desc,
+      openGraph: {
+        title: p.title,
+        description: desc,
+        type: 'og:product',
+        ...(imgUrl ? { images: [{ url: imgUrl, alt: p.title }] } : {}),
+      },
+    };
+  } catch {
+    return { title: 'Product | Smart Commerce Platform' };
+  }
+}
 
 /**
  * Mirror of the API's `priceForQty` rule (tiers are minQty <= qty < maxQty, upper
@@ -296,6 +327,19 @@ export default function ProductDetailPage() {
     sortKey: offerSortKey, sortDir: offerSortDir, toggleSort: toggleOfferSort,
   } = useOfferComparison(productOffers, rankedArray, product?.storeId ?? null);
 
+  // PHASE COS-14: fire product_viewed + offer_viewed analytics
+  useEffect(() => {
+    if (product) {
+      analytics.productViewed(product.id, product.storeId, product.title);
+    }
+  }, [product?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (productOffers.length > 0 && product) {
+      analytics.offerViewed(product.id, productOffers.length);
+    }
+  }, [productOffers.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     // Variants, pricing, media and stock arrive with the product in one request.
     fetchProduct(productId)
@@ -323,11 +367,13 @@ export default function ProductDetailPage() {
         // multiple sellers.
         setAddedId(offerId ?? variantId);
         setTimeout(() => setAddedId(null), 2000);
+        // PHASE COS-14: track offer selection
+        if (offerId) analytics.offerSelected(offerId, productId, storeId);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : 'Could not add this item to your cart');
       }
     },
-    [qty],
+    [qty, productId],
   );
 
   const variants = useMemo(
@@ -359,8 +405,28 @@ export default function ProductDetailPage() {
     .sort((a, b) => a - b)[0];
   const baseCurrency = activeVariants[0]?.pricing?.currency ?? store?.currency ?? 'SAR';
 
+  // PHASE COS-14: JSON-LD structured data for search engines
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    description: product.description || product.title,
+    sku: activeVariants[0]?.sku || product.id,
+    ...(store ? { seller: { '@type': 'Organization', name: store.name } } : {}),
+    ...(cheapestPrice !== undefined ? {
+      offers: {
+        '@type': 'Offer',
+        price: (cheapestPrice / 100).toFixed(2),
+        priceCurrency: baseCurrency,
+        availability: product.isAvailable ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        url: typeof window !== 'undefined' ? `${window.location.origin}/products/${product.id}` : undefined,
+      },
+    } : {}),
+  };
+
   return (
     <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
     <style>{`
       .pd-gallery-placeholder {
         background: ${colors.surface}; border: 1px solid ${colors.border}; border-radius: ${radii.lg}; height: 460px;
