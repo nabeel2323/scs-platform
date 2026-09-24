@@ -21,6 +21,7 @@ import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { OutboxModule } from './common/outbox/outbox.module';
 import { StorageModule } from './common/storage/storage.module';
+import { CatalogImportModule } from './modules/catalog-import/catalog-import.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { StorageModule } from './common/storage/storage.module';
     AnalyticsModule,
     AuditModule,
     AdminModule,
+    CatalogImportModule,
   ],
   controllers: [HealthController],
 })

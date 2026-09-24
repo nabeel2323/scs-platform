@@ -8,7 +8,7 @@ import {
   IconHome, IconUsers, IconPackage, IconStore, IconBuilding,
   IconShield, IconFolder, IconTag, IconScale, IconBox,
   IconBarChart, IconClipboard, IconLock, IconLogOut, IconMenu, IconX,
-  IconSettings, IconFilter, IconStar, IconActivity,
+  IconSettings, IconFilter, IconStar, IconActivity, IconUpload,
 } from '@scs/ui-kit';
 
 /** Navigation items with SVG icons and permission requirements. */
@@ -29,6 +29,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
   { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:categories:write'] },
   { href: '/data-quality', label: 'Data Quality', icon: <IconActivity size={18} />, perms: ['catalog:product-types:manage'] },
+  { href: '/catalog-import', label: 'Import Center', icon: <IconUpload size={18} />, perms: ['catalog:imports:manage'] },
   { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
