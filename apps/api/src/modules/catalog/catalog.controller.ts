@@ -160,6 +160,12 @@ export class CatalogController {
 
   // ── Variants ─────────────────────────────────────────────────
 
+  // PHASE 7: literal path declared before parameterized :variantId siblings
+  @Get('products/:productId/variant-matrix')
+  async getVariantMatrix(@Param('productId') productId: string) {
+    return this.catalogService.getVariantMatrix(productId);
+  }
+
   @Post('products/:productId/variants')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')

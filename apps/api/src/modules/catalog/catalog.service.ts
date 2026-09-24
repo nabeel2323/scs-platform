@@ -20,7 +20,7 @@ import {
 import { enrichProductCards } from './product-card';
 import { imageReferences } from './product-images';
 import { createMediaRefResolver } from './product-card';
-import { productAttributeValues, attributeDefinitions } from './catalog.taxonomy.schema';
+import { productAttributeValues, attributeDefinitions, productTypeAttributes, productTypes, attributeOptions } from './catalog.taxonomy.schema';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -916,6 +916,106 @@ export class CatalogService {
     } catch {
       return variants;
     }
+  }
+
+  // ── Variant Matrix ────────────────────────────────────────────
+
+  /**
+   * PHASE 7: Build a dimension-based variant matrix for the buyer selector.
+   * Loads the product type's VARIANT-scope dimensions, extracts distinct options
+   * from existing variants' attributes JSONB, and maps each combination to its
+   * variant row with pricing and stock.
+   */
+  async getVariantMatrix(productId: string) {
+    const product = await this.getProduct(productId);
+    const productTypeId = product['productTypeId'] as string | null;
+    if (!productTypeId) {
+      return { productTypeId: null, dimensions: [], combinations: [] };
+    }
+
+    // 1. Load VARIANT-scope attribute configs for this product type
+    const ptAttrs = await this.db.db.query.productTypeAttributes.findMany({
+      where: and(
+        eq(productTypeAttributes.productTypeId, productTypeId),
+      ),
+    });
+
+    // 2. Load definitions to determine scope
+    const attrDefIds = ptAttrs.map(c => c['attributeDefinitionId']);
+    const defs = attrDefIds.length > 0
+      ? await this.db.db.query.attributeDefinitions.findMany({
+          where: inArray(attributeDefinitions.id, attrDefIds),
+        })
+      : [];
+    const defById = new Map(defs.map(d => [d['id'], d]));
+
+    const variantDims = ptAttrs
+      .filter(c => {
+        const def = defById.get(c['attributeDefinitionId']);
+        return def && def['scope'] === 'VARIANT';
+      })
+      .sort((a, b) => (a['displayOrder'] ?? 0) - (b['displayOrder'] ?? 0));
+
+    if (variantDims.length === 0) {
+      return { productTypeId, dimensions: [], combinations: [] };
+    }
+
+    // 3. Load attribute options for each dimension
+    const allOptionAttrIds = variantDims.map(c => c['attributeDefinitionId']);
+    const allOptions = allOptionAttrIds.length > 0
+      ? await this.db.db.query.attributeOptions.findMany({
+          where: inArray(attributeOptions.attributeId, allOptionAttrIds),
+        })
+      : [];
+    const optionsByAttr = new Map<string, typeof allOptions>();
+    for (const opt of allOptions) {
+      const key = opt['attributeId'];
+      if (!optionsByAttr.has(key)) optionsByAttr.set(key, []);
+      optionsByAttr.get(key)!.push(opt);
+    }
+
+    // 4. Build dimension descriptors
+    const dimensions = variantDims.map(c => {
+      const def = defById.get(c['attributeDefinitionId']);
+      const opts = (optionsByAttr.get(c['attributeDefinitionId']) ?? [])
+        .sort((a, b) => (a['sortOrder'] ?? 0) - (b['sortOrder'] ?? 0));
+      return {
+        attributeDefinitionId: c['attributeDefinitionId'],
+        code: def?.['code'] ?? '',
+        name: def?.['name'] ?? '',
+        nameAr: def?.['nameAr'] ?? null,
+        unit: def?.['unit'] ?? null,
+        displayOrder: c['displayOrder'] ?? 0,
+        options: opts.map(o => o['value']),
+      };
+    });
+
+    // 5. Load variants with stock enrichment (reuse listVariantsByProduct)
+    const enrichedVariants = await this.listVariantsByProduct(productId);
+
+    // 6. Map each variant to a combination entry
+    const combinations = enrichedVariants
+      .filter((v: any) => v['isActive'])
+      .map((v: any) => {
+        const attrs = (v['attributes'] ?? {}) as Record<string, unknown>;
+        const values: Record<string, string> = {};
+        for (const dim of variantDims) {
+          const attrId = dim['attributeDefinitionId'];
+          const raw = attrs[attrId];
+          values[attrId] = raw != null ? String(raw) : '';
+        }
+        return {
+          variantId: v['id'],
+          sku: v['sku'],
+          title: v['title'] ?? null,
+          isActive: v['isActive'] ?? true,
+          values,
+          pricing: v['pricing'] ?? null,
+          stock: v['stock'] ?? null,
+        };
+      });
+
+    return { productTypeId, dimensions, combinations };
   }
 
   // ── Media ────────────────────────────────────────────────────

@@ -31,7 +31,7 @@ export default function StepIdentity({
     setSearching(false);
   };
 
-  const useExisting = (product: Product) => {
+  const handleUseExisting = (product: Product) => {
     setState(prev => ({
       ...prev,
       useExistingProductId: product.id,
@@ -94,7 +94,7 @@ export default function StepIdentity({
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#16232b' }}>{p.title}</div>
                   <div style={{ fontSize: 11, color: '#5b6b74' }}>{p.id.substring(0, 8)}…</div>
                 </div>
-                <button type="button" onClick={() => useExisting(p)}
+                <button type="button" onClick={() => handleUseExisting(p)}
                   style={{ padding: '5px 12px', fontSize: 12, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 }}>
                   Use This Product
                 </button>
