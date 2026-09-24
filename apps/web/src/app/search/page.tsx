@@ -11,6 +11,7 @@ import { formatMinor, EmptyState, ErrorBanner, ProductCardImage } from '../../co
 import {
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
+import { useCompareList } from '../../hooks/useProductComparison';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -41,6 +42,9 @@ function SearchPageContent() {
   const [priceMax, setPriceMax] = useState(searchParams.get('pmax') || '');
   const [verifiedOnly, setVerifiedOnly] = useState(searchParams.get('verified') === '1');
   const [inStockOnly, setInStockOnly] = useState(searchParams.get('instock') === '1');
+
+  // PHASE COS-13: compare list
+  const compareList = useCompareList();
 
   const [results, setResults] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -581,6 +585,17 @@ function SearchPageContent() {
                           </div>
                         </Link>
                         <div style={{ padding: '8px 14px 14px', marginTop: 'auto' }}>
+                          {/* PHASE COS-13: Compare checkbox */}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 12, color: colors.muted, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={compareList.ids.includes(product.id)}
+                              disabled={!compareList.ids.includes(product.id) && compareList.isFull}
+                              onChange={() => compareList.ids.includes(product.id) ? compareList.remove(product.id) : compareList.add(product.id)}
+                              style={{ accentColor: colors.brand[700] }}
+                            />
+                            Compare
+                          </label>
                           <button
                             onClick={() => handleAddToCart(product)}
                             style={{
@@ -653,6 +668,35 @@ function SearchPageContent() {
           </div>
         </div>
       </div>
+
+      {/* PHASE COS-13: Floating compare bar */}
+      {compareList.ids.length >= 2 && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: colors.brand[700], color: '#fff',
+          padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.15)', zIndex: 100,
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>
+            {compareList.ids.length} product{compareList.ids.length !== 1 ? 's' : ''} selected
+          </span>
+          <Link
+            href={`/compare?ids=${compareList.ids.join(',')}`}
+            style={{
+              padding: '6px 18px', background: '#fff', color: colors.brand[700],
+              borderRadius: radii.sm, textDecoration: 'none', fontWeight: 600, fontSize: 13,
+            }}
+          >
+            Compare Now
+          </Link>
+          <button
+            onClick={() => compareList.clear()}
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.4)', color: '#fff', padding: '5px 12px', borderRadius: radii.sm, cursor: 'pointer', fontSize: 12 }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
     </>
   );
 }
