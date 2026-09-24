@@ -51,6 +51,23 @@ export default function OffersTrendPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // PHASE 19 (CI fix): `useMemo` hooks MUST be called before the early-return
+  // below so React's Rules-of-Hooks are satisfied on every render. The
+  // `inputStyle` const and CSV helpers are plain values and stay after the
+  // guard where they were.
+  const bucketValues: number[] = useMemo(() =>
+    (data?.buckets ?? []).map(b =>
+      metric === 'units' ? b.unitsSold : metric === 'orders' ? b.ordersCount : b.revenueMinor,
+    ),
+    [data, metric]);
+
+  const peak = useMemo(() => {
+    const buckets = data?.buckets ?? [];
+    let idx = -1; let max = 0;
+    bucketValues.forEach((v, i) => { if (v > max) { max = v; idx = i; } });
+    return idx >= 0 && buckets[idx] ? { bucket: buckets[idx]!.bucket, value: max } : null;
+  }, [data, bucketValues]);
+
   if (!hasAccess) return <AccessDenied requiredPerms={['admin:kpis:read']} missingPerms={missingPerms} />;
 
   const inputStyle: React.CSSProperties = {
@@ -59,22 +76,9 @@ export default function OffersTrendPage() {
     background: colors.surface, color: colors.brand[700],
   };
 
-  const bucketValues: number[] = useMemo(() =>
-    (data?.buckets ?? []).map(b =>
-      metric === 'units' ? b.unitsSold : metric === 'orders' ? b.ordersCount : b.revenueMinor,
-    ),
-    [data, metric]);
-
   const periodLabel = data
     ? `${new Date(data.from).toLocaleDateString()} — ${new Date(data.to).toLocaleDateString()} · ${data.granularity}`
     : 'Loading period…';
-
-  const peak = useMemo(() => {
-    const buckets = data?.buckets ?? [];
-    let idx = -1; let max = 0;
-    bucketValues.forEach((v, i) => { if (v > max) { max = v; idx = i; } });
-    return idx >= 0 && buckets[idx] ? { bucket: buckets[idx]!.bucket, value: max } : null;
-  }, [data, bucketValues]);
 
   // PHASE 20: client-side CSV export of the currently-visible trend series and
   // store leaderboard. Two files rather than one so a spreadsheet can open
