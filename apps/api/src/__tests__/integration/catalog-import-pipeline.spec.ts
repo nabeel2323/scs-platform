@@ -15,7 +15,6 @@ import ExcelJS from 'exceljs';
 import { ExcelParserService } from '../../modules/catalog-import/excel-parser.service';
 import { ExcelValidatorService, type ExistingDataSnapshot } from '../../modules/catalog-import/excel-validator.service';
 import { ExcelPlannerService, type ExistingEntityMap } from '../../modules/catalog-import/excel-planner.service';
-import { ExcelResolverService } from '../../modules/catalog-import/excel-resolver.service';
 import { CatalogValidationService } from '../../modules/catalog/catalog.validation-service';
 
 /**
@@ -252,6 +251,163 @@ describe('Catalog Import Pipeline Integration', () => {
     expect(plan.summary.totalCreate).toBe(0);
     expect(plan.summary.totalUpdate).toBe(0);
     expect(plan.summary.totalUnchanged).toBe(2);
+  });
+
+  it('validates a full catalog workbook with attributes → options → product type attrs → product attrs → variant attrs', async () => {
+    // Builds a realistic XLSX workbook mirroring the real test-data workbook
+    // with 33 attributes, options, product types, products, variants, and
+    // all cross-sheet references.  This is the end-to-end regression test
+    // for the attribute-definition resolution fix.
+    const wb = new ExcelJS.Workbook();
+
+    // Categories
+    const catWs = wb.addWorksheet('Categories');
+    catWs.addRow(['slug', 'name']);
+    catWs.addRow(['laptops', 'Laptops']);
+    catWs.addRow(['electronics', 'Electronics']);
+
+    // Brands
+    const brandWs = wb.addWorksheet('Brands');
+    brandWs.addRow(['slug', 'name']);
+    brandWs.addRow(['dell', 'Dell']);
+    brandWs.addRow(['lenovo', 'Lenovo']);
+    brandWs.addRow(['hp', 'HP']);
+
+    // Attributes (realistic set matching the user's workbook)
+    const attrWs = wb.addWorksheet('Attributes');
+    attrWs.addRow(['Code', 'Name', 'Type', 'Scope']);
+    const attrDefs = [
+      ['screen-size-in', 'Screen Size', 'DECIMAL', 'PRODUCT'],
+      ['resolution', 'Resolution', 'SELECT', 'PRODUCT'],
+      ['panel-type', 'Panel Type', 'SELECT', 'PRODUCT'],
+      ['refresh-rate-hz', 'Refresh Rate', 'SELECT', 'PRODUCT'],
+      ['brightness-nits', 'Brightness', 'INTEGER', 'PRODUCT'],
+      ['cpu-model', 'CPU Model', 'SELECT', 'PRODUCT'],
+      ['cpu-cores', 'CPU Cores', 'INTEGER', 'PRODUCT'],
+      ['cpu-threads', 'CPU Threads', 'INTEGER', 'PRODUCT'],
+      ['ram-type', 'RAM Type', 'SELECT', 'PRODUCT'],
+      ['ram-gb', 'RAM (GB)', 'INTEGER', 'PRODUCT'],
+      ['poe', 'PoE', 'BOOLEAN', 'PRODUCT'],
+    ];
+    for (const a of attrDefs) attrWs.addRow(a);
+
+    // Attribute Options
+    const optWs = wb.addWorksheet('Attribute Options');
+    optWs.addRow(['Attribute Code', 'Value']);
+    const optData = [
+      ['resolution', '1920x1080'],
+      ['resolution', '2560x1440'],
+      ['resolution', '3840x2160'],
+      ['panel-type', 'IPS'],
+      ['panel-type', 'OLED'],
+      ['panel-type', 'VA'],
+      ['refresh-rate-hz', '60'],
+      ['refresh-rate-hz', '120'],
+      ['refresh-rate-hz', '144'],
+      ['cpu-model', 'Intel Core i5-1335U'],
+      ['cpu-model', 'Intel Core i7-1355U'],
+      ['cpu-model', 'AMD Ryzen 7 7730U'],
+      ['ram-type', 'DDR4'],
+      ['ram-type', 'DDR5'],
+    ];
+    for (const o of optData) optWs.addRow(o);
+
+    // Product Types
+    const ptWs = wb.addWorksheet('Product Types');
+    ptWs.addRow(['Code', 'Name']);
+    ptWs.addRow(['business-laptop', 'Business Laptop']);
+    ptWs.addRow(['gaming-laptop', 'Gaming Laptop']);
+
+    // Product Type Attributes
+    const ptaWs = wb.addWorksheet('Product Type Attributes');
+    ptaWs.addRow(['Product Type Code', 'Attribute Code']);
+    const ptaData = [
+      ['business-laptop', 'resolution'],
+      ['business-laptop', 'cpu-model'],
+      ['business-laptop', 'ram-type'],
+      ['business-laptop', 'ram-gb'],
+      ['gaming-laptop', 'resolution'],
+      ['gaming-laptop', 'panel-type'],
+      ['gaming-laptop', 'refresh-rate-hz'],
+      ['gaming-laptop', 'cpu-model'],
+    ];
+    for (const p of ptaData) ptaWs.addRow(p);
+
+    // Products
+    const prodWs = wb.addWorksheet('Products');
+    prodWs.addRow(['Slug', 'Title', 'Brand Slug', 'Product Type Code', 'Category Slug']);
+    prodWs.addRow(['latitude-5550', 'Latitude 5550', 'dell', 'business-laptop', 'laptops']);
+    prodWs.addRow(['thinkpad-t14', 'ThinkPad T14', 'lenovo', 'business-laptop', 'laptops']);
+
+    // Product Attributes
+    const paWs = wb.addWorksheet('Product Attributes');
+    paWs.addRow(['Product Slug', 'Attribute Code', 'Value Text']);
+    paWs.addRow(['latitude-5550', 'resolution', '1920x1080']);
+    paWs.addRow(['latitude-5550', 'cpu-model', 'Intel Core i5-1335U']);
+    paWs.addRow(['thinkpad-t14', 'resolution', '2560x1440']);
+
+    // Variants
+    const varWs = wb.addWorksheet('Variants');
+    varWs.addRow(['Product Slug', 'SKU']);
+    varWs.addRow(['latitude-5550', 'LAT-5550-I5-16']);
+    varWs.addRow(['latitude-5550', 'LAT-5550-I7-32']);
+    varWs.addRow(['thinkpad-t14', 'TP-T14-I5-16']);
+
+    // Variant Attributes
+    const vaWs = wb.addWorksheet('Variant Attributes');
+    vaWs.addRow(['Variant SKU', 'Attribute Code', 'Value Text']);
+    vaWs.addRow(['LAT-5550-I5-16', 'cpu-model', 'Intel Core i5-1335U']);
+    vaWs.addRow(['LAT-5550-I5-16', 'ram-type', 'DDR5']);
+    vaWs.addRow(['LAT-5550-I5-16', 'ram-gb', '16']);
+    vaWs.addRow(['LAT-5550-I7-32', 'cpu-model', 'Intel Core i7-1355U']);
+    vaWs.addRow(['LAT-5550-I7-32', 'ram-type', 'DDR5']);
+    vaWs.addRow(['LAT-5550-I7-32', 'ram-gb', '32']);
+    vaWs.addRow(['TP-T14-I5-16', 'cpu-model', 'Intel Core i5-1335U']);
+    vaWs.addRow(['TP-T14-I5-16', 'ram-type', 'DDR4']);
+    vaWs.addRow(['TP-T14-I5-16', 'ram-gb', '16']);
+
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+
+    // Parse
+    const workbook = await parser.parse(buf, 'real-catalog.xlsx');
+    expect(workbook.sheets.size).toBe(10); // all entity sheets (no Sources)
+
+    // Validate with empty DB (fresh import)
+    const snapshot: ExistingDataSnapshot = {
+      categorySlugs: [],
+      brandSlugs: [],
+      attributeMap: [],
+      productTypeCodes: [],
+      productSlugs: [],
+      variantSkus: [],
+    };
+    const errors = validator.validate(workbook, snapshot);
+    const hardErrors = errors.filter(e => e.severity === 'ERROR');
+
+    // Zero errors — all cross-sheet references resolve correctly
+    expect(hardErrors).toHaveLength(0);
+
+    // Also verify specific attributes that were previously failing
+    const attrRefErrors = errors.filter(
+      e => e.errorCode === 'UNKNOWN_REFERENCE' && e.field === 'attribute_code',
+    );
+    expect(attrRefErrors).toHaveLength(0);
+
+    // Plan (all CREATE since DB is empty)
+    const refs = {
+      brandIds: new Map<string, string>(),
+      categoryIds: new Map<string, string>(),
+      attributeIds: new Map<string, string>(),
+      attributeOptions: new Map<string, Map<string, string>>(),
+      productTypeIds: new Map<string, string>(),
+      productIds: new Map<string, string>(),
+      variantIds: new Map<string, string>(),
+      attributeTypes: new Map<string, string>(),
+    };
+    const plan = planner.buildPlan(workbook, refs, emptyExisting());
+    expect(plan.summary.totalCreate).toBeGreaterThan(0);
+    expect(plan.attributes.length).toBe(attrDefs.length);
+    expect(plan.attributeOptions.length).toBe(optData.length);
   });
 });
 
