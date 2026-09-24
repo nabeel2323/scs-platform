@@ -58,6 +58,8 @@ const PERMISSIONS: string[] = [
   // Catalog governance — merchant offers (Phase 4)
   'catalog:offers:write',
   'catalog:offers:govern',
+  // Catalog governance — merchant catalog requests (P1 remediation)
+  'catalog:requests:manage',
   // Orders
   'orders:read',
   'orders:write',
@@ -104,7 +106,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 51
+    permissions: PERMISSIONS, // all 52
   },
   {
     key: 'ADMIN',
@@ -143,6 +145,8 @@ const ROLES: RoleDef[] = [
       // Catalog governance (merchant offers)
       'catalog:offers:write',
       'catalog:offers:govern',
+      // Catalog governance (merchant requests)
+      'catalog:requests:manage',
       // Admin platform operations
       'admin:orders:read',
       'admin:merchants:read',
@@ -167,6 +171,8 @@ const ROLES: RoleDef[] = [
       // Moderators curate merchant offers on canonical products.
       'catalog:offers:write',
       'catalog:offers:govern',
+      // Moderators manage merchant catalog requests.
+      'catalog:requests:manage',
       // Moderators curate the platform catalog, so they retain product writes
       // now that product endpoints require merchant:products:write (API-B6).
       'merchant:products:write',

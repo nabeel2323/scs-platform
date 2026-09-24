@@ -1,8 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { ProductTypeSchemaDetail, ProductTypeSchemaAttribute } from '../../../../lib/buyer-api';
 import { type StudioState } from '../../../../hooks/useProductStudio';
 import { StepCard, Field } from './StepIdentity';
+import { evaluateConditionalRules, type ConditionalRule, type AttributeEffect } from '../../../../lib/conditionalRules';
 
 interface StepSpecificationsProps {
   state: StudioState;
@@ -25,6 +27,34 @@ export default function StepSpecifications({ state, setState }: StepSpecificatio
     .filter((a: ProductTypeSchemaAttribute) => a.definition?.scope === 'PRODUCT')
     .sort((a: ProductTypeSchemaAttribute, b: ProductTypeSchemaAttribute) => a.displayOrder - b.displayOrder);
 
+  // Collect all conditional rules from the product type attributes
+  const allRules: ConditionalRule[] = useMemo(() => {
+    const rules: ConditionalRule[] = [];
+    for (const attr of schema.attributes) {
+      if (Array.isArray(attr.conditionalRules)) {
+        rules.push(...(attr.conditionalRules as ConditionalRule[]));
+      }
+    }
+    return rules;
+  }, [schema.attributes]);
+
+  const allAttrIds = useMemo(() => schema.attributes.map(a => a.attributeDefinitionId), [schema.attributes]);
+
+  // Evaluate conditional rules against current attribute values
+  const conditionalEffects: Map<string, AttributeEffect> = useMemo(
+    () => evaluateConditionalRules(allRules, state.attributeValues, allAttrIds),
+    [allRules, state.attributeValues, allAttrIds],
+  );
+
+  // Determine effective required/hidden state per attribute
+  const isEffectivelyRequired = (attr: ProductTypeSchemaAttribute): boolean => {
+    if (attr.required) return true;
+    return conditionalEffects.get(attr.attributeDefinitionId)?.required ?? false;
+  };
+  const isHidden = (attr: ProductTypeSchemaAttribute): boolean => {
+    return conditionalEffects.get(attr.attributeDefinitionId)?.hidden ?? false;
+  };
+
   // Group by group name (use definition grouping or fallback)
   const grouped = new Map<string, typeof productAttrs>();
   const ungrouped: typeof productAttrs = [];
@@ -45,9 +75,10 @@ export default function StepSpecifications({ state, setState }: StepSpecificatio
     }));
   };
 
-  const filledCount = productAttrs.filter((a: ProductTypeSchemaAttribute) => state.attributeValues[a.attributeDefinitionId]).length;
-  const requiredCount = productAttrs.filter((a: ProductTypeSchemaAttribute) => a.required).length;
-  const filledRequired = productAttrs.filter((a: ProductTypeSchemaAttribute) => a.required && state.attributeValues[a.attributeDefinitionId]).length;
+  const visibleAttrs = productAttrs.filter((a: ProductTypeSchemaAttribute) => !isHidden(a));
+  const filledCount = visibleAttrs.filter((a: ProductTypeSchemaAttribute) => state.attributeValues[a.attributeDefinitionId]).length;
+  const requiredCount = visibleAttrs.filter((a: ProductTypeSchemaAttribute) => isEffectivelyRequired(a)).length;
+  const filledRequired = visibleAttrs.filter((a: ProductTypeSchemaAttribute) => isEffectivelyRequired(a) && state.attributeValues[a.attributeDefinitionId]).length;
 
   return (
     <StepCard title="Specifications" subtitle={`Fill in the attributes defined by "${schema.name}". ${filledCount}/${productAttrs.length} filled, ${filledRequired}/${requiredCount} required.`}>
@@ -67,7 +98,16 @@ export default function StepSpecifications({ state, setState }: StepSpecificatio
             {groupName}
           </div>
           <div style={{ display: 'grid', gap: 14 }}>
-            {attrs.map((attr: ProductTypeSchemaAttribute) => renderAttributeField(attr, state.attributeValues[attr.attributeDefinitionId] ?? '', (value) => updateAttrValue(attr.attributeDefinitionId, value)))}
+            {attrs.map((attr: ProductTypeSchemaAttribute) => {
+              if (isHidden(attr)) return null;
+              const conditionallyRequired = !attr.required && isEffectivelyRequired(attr);
+              return renderAttributeField(
+                attr,
+                state.attributeValues[attr.attributeDefinitionId] ?? '',
+                (value) => updateAttrValue(attr.attributeDefinitionId, value),
+                conditionallyRequired,
+              );
+            })}
           </div>
         </div>
       ))}
@@ -79,17 +119,22 @@ function renderAttributeField(
   attr: ProductTypeSchemaDetail['attributes'][number],
   value: string,
   onChange: (value: string) => void,
+  conditionallyRequired?: boolean,
 ) {
   const def = attr.definition;
   if (!def) return null;
 
-  const label = `${def.name}${attr.required ? ' *' : ''}${def.unit ? ` (${def.unit})` : ''}`;
+  const isRequired = attr.required || conditionallyRequired;
+  const label = `${def.name}${isRequired ? ' *' : ''}${def.unit ? ` (${def.unit})` : ''}`;
   const helpText = def.description ?? '';
+  const requiredBadge = conditionallyRequired && !attr.required
+    ? <span style={{ fontSize: 10, color: '#d97706', fontWeight: 600, marginLeft: 6 }}>(conditionally required)</span>
+    : null;
 
   // SELECT / MULTI_SELECT → dropdown from options
   if (attr.options.length > 0) {
     return (
-      <Field key={attr.attributeDefinitionId} label={label}>
+      <Field key={attr.attributeDefinitionId} label={<>{label}{requiredBadge}</>}>
         <select value={value} onChange={e => onChange(e.target.value)}>
           <option value="">Select…</option>
           {attr.options.map(o => <option key={o.id} value={o.value}>{o.label || o.value}</option>)}
@@ -102,7 +147,7 @@ function renderAttributeField(
   // BOOLEAN → yes/no dropdown
   if (def.type === 'BOOLEAN') {
     return (
-      <Field key={attr.attributeDefinitionId} label={label}>
+      <Field key={attr.attributeDefinitionId} label={<>{label}{requiredBadge}</>}>
         <select value={value} onChange={e => onChange(e.target.value)}>
           <option value="">Select…</option>
           <option value="true">Yes</option>
@@ -116,7 +161,7 @@ function renderAttributeField(
   // INTEGER / DECIMAL → number input
   if (def.type === 'INTEGER' || def.type === 'DECIMAL') {
     return (
-      <Field key={attr.attributeDefinitionId} label={label}>
+      <Field key={attr.attributeDefinitionId} label={<>{label}{requiredBadge}</>}>
         <input
           type="number"
           value={value}
@@ -132,7 +177,7 @@ function renderAttributeField(
   // DATE → date input
   if (def.type === 'DATE') {
     return (
-      <Field key={attr.attributeDefinitionId} label={label}>
+      <Field key={attr.attributeDefinitionId} label={<>{label}{requiredBadge}</>}>
         <input type="date" value={value} onChange={e => onChange(e.target.value)} />
         {helpText && <span style={{ fontSize: 11, color: '#5b6b74' }}>{helpText}</span>}
       </Field>
@@ -141,7 +186,7 @@ function renderAttributeField(
 
   // Default: text input (TEXT, RICH_TEXT, etc.)
   return (
-    <Field key={attr.attributeDefinitionId} label={label}>
+    <Field key={attr.attributeDefinitionId} label={<>{label}{requiredBadge}</>}>
       {def.type === 'RICH_TEXT' ? (
         <textarea value={value} onChange={e => onChange(e.target.value)} rows={3} placeholder={helpText || `Enter ${def.name}`} />
       ) : (

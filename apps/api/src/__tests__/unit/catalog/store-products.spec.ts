@@ -80,6 +80,7 @@ function harness(
     { publish: async () => undefined } as never,
     { createPresignedGetUrl: async () => null } as never,
     { record: async () => {} } as never,
+    { evaluate: () => ({ effects: new Map(), errors: [] }) } as never,
   );
 }
 

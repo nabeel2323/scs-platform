@@ -136,6 +136,13 @@ export class CatalogTaxonomyController {
     return this.taxonomy.publishProductType(id);
   }
 
+  @Post('admin/product-types/:id/duplicate')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  duplicate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.taxonomy.duplicateProductType(id);
+  }
+
   @Post('admin/product-types/:id/versions')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')

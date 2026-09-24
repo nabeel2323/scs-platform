@@ -32,6 +32,11 @@ import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/index';
 import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-metrics';
+import {
+  ConditionalRulesService,
+  type ConditionalRule,
+  type AttributeValueMap,
+} from './conditional-rules.service';
 
 /**
  * Catalog service — products, variants, categories, brands, media, imports.
@@ -44,6 +49,7 @@ export class CatalogService {
     private readonly outbox: OutboxDispatcher,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly conditionalRules: ConditionalRulesService,
   ) {
     // Shared with card enrichment so every surface renders media the same way.
     this.resolveMediaRef = createMediaRefResolver(storage);
@@ -686,6 +692,76 @@ export class CatalogService {
     };
   }
 
+  /**
+   * Validate that a product's attributes satisfy all statically-required and
+   * conditionally-required rules before publication. Throws BadRequestException
+   * with structured error details if validation fails.
+   */
+  async validatePublish(productId: string): Promise<{ valid: true }> {
+    const product = await this.getProduct(productId);
+    const productTypeId = product['productTypeId'] as string | null;
+    if (!productTypeId) return { valid: true };
+
+    // 1. Load the product type's attributes with their rules + required flags
+    const ptaRows = await this.db.db.query.productTypeAttributes.findMany({
+      where: eq(productTypeAttributes.productTypeId, productTypeId),
+    });
+    if (ptaRows.length === 0) return { valid: true };
+
+    // 2. Load current product attribute values
+    const valRows = await this.db.db.query.productAttributeValues.findMany({
+      where: eq(productAttributeValues.productId, productId),
+    });
+    const valuesByAttrId = new Map<string, unknown>();
+    for (const v of valRows) {
+      const val = v.valueText ?? v.valueNumber ?? v.valueBoolean ?? v.optionValue ?? v.valueJson ?? null;
+      valuesByAttrId.set(v.attributeDefinitionId, val);
+    }
+
+    // 3. Collect all conditional rules from the product type attributes
+    const allRules: ConditionalRule[] = [];
+    const allAttrIds: string[] = [];
+    for (const pta of ptaRows) {
+      allAttrIds.push(pta.attributeDefinitionId);
+      const rules = pta.conditionalRules as ConditionalRule[] | null;
+      if (Array.isArray(rules)) allRules.push(...rules);
+    }
+
+    // 4. Evaluate conditional rules
+    const attrValues: AttributeValueMap = valuesByAttrId;
+    const evaluation = this.conditionalRules.evaluate(allRules, attrValues, allAttrIds);
+
+    // 5. Check statically-required attributes have values
+    const errors: Array<{ attributeId: string; message: string }> = [];
+    for (const pta of ptaRows) {
+      if (pta.required) {
+        const val = valuesByAttrId.get(pta.attributeDefinitionId);
+        if (val === null || val === undefined || val === '') {
+          // Only report if not already reported by conditional evaluation
+          const alreadyReported = evaluation.errors.some(e => e.attributeId === pta.attributeDefinitionId);
+          if (!alreadyReported) {
+            errors.push({
+              attributeId: pta.attributeDefinitionId,
+              message: `Required attribute ${pta.attributeDefinitionId} has no value`,
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Merge conditionally-required errors
+    errors.push(...evaluation.errors);
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Product validation failed: missing required attributes',
+        errors,
+      });
+    }
+
+    return { valid: true };
+  }
+
   async updateProduct(id: string, input: UpdateProductInput) {
     const product = await this.getProduct(id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -707,6 +783,11 @@ export class CatalogService {
     if (input.brandId !== undefined) updates['brandId'] = input.brandId;
     if (input.slug !== undefined) updates['slug'] = input.slug;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
+
+    // Validate attribute completeness before publishing
+    if (input.status === 'ACTIVE') {
+      await this.validatePublish(id);
+    }
 
     await this.db.db.update(products).set(updates).where(eq(products.id, id));
     await this.invalidateProductCache(id); // PHASE 8

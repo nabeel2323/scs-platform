@@ -150,7 +150,7 @@ export function StepCard({ title, subtitle, children }: { title: string; subtitl
   );
 }
 
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: '#16232b' }}>
       {label}
