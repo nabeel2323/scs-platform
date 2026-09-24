@@ -26,6 +26,13 @@ export const masterOrders = pgTable('master_orders', {
   deliveryAddress: jsonb('delivery_address').notNull().default({}),
   notes: text('notes'),
   idempotencyKey: varchar('idempotency_key', { length: 64 }).unique(),
+  /**
+   * PHASE 1.1: Server-computed SHA-256 fingerprint of the logical checkout
+   * request (cart items, fulfillment method, delivery address). Used to detect
+   * idempotency key reuse with a different logical operation (409 Conflict).
+   * Nullable for backward compatibility with orders created before this column.
+   */
+  requestFingerprint: varchar('request_fingerprint', { length: 64 }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

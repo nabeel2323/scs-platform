@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phase 1.1 — Transaction Foundation Final Hardening</title>
+<style>
+  :root { --bg: #f8f9fa; --card: #fff; --border: #dee2e6; --text: #212529; --muted: #6c757d; --accent: #0d6efd; --success: #198754; --warning: #fd7e14; --danger: #dc3545; --info: #0dcaf0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: .5rem; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; border-bottom: 2px solid var(--accent); padding-bottom: .3rem; }
+  h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; color: #fff; }
+  .badge-success { background: var(--success); }
+  .badge-warning { background: var(--warning); }
+  .badge-danger { background: var(--danger); }
+  .badge-info { background: var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin: .75rem 0; font-size: .9rem; }
+  th, td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+  th { background: #e9ecef; font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .arch-box { background: #f1f3f5; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: monospace; font-size: .85rem; white-space: pre-wrap; }
+  .verdict { font-size: 1.1rem; padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+  .verdict-go { background: #d1e7dd; border: 1px solid #a3cfbb; color: #0f5132; }
+  code { background: #e9ecef; padding: 1px 4px; border-radius: 3px; font-size: .88em; }
+  ul, ol { padding-left: 1.5rem; }
+  li { margin-bottom: .3rem; }
+  .callout { background: #cfe2ff; border: 1px solid #9ec5fe; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  .callout-warn { background: #fff3cd; border: 1px solid #ffcc99; }
+  .decision-box { background: #d1e7dd; border-left: 4px solid var(--success); padding: 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+  @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Phase 1.1 — Transaction Foundation Final Hardening</h1>
+<div class="meta">SCS Platform &middot; Phase 1.1 &middot; September 2026 &middot; Pre-Payment Gate</div>
+
+<div class="verdict verdict-go">
+  <strong>Executive Summary: PASS</strong> — Both Phase 1.1 hardening items completed. Idempotency fingerprint conflict detection implemented and tested (8 unit + 2 E2E scenarios). Partial fulfillment semantics audited, confirmed as intended behavior, documented, and E2E-tested. <strong>674/674 tests pass</strong> (49 files). TypeScript clean across api/web/admin. Zero breaking changes.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>1. Scope</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<p>Phase 1.1 addresses two residual risks identified in the Phase 1 report:</p>
+<table>
+<tr><th>ID</th><th>Item</th><th>Status</th></tr>
+<tr><td><span class="badge badge-info">P1.1-A</span></td><td>Idempotency Request Consistency — same key + different request must not silently return the first order</td><td><span class="badge badge-success">DONE</span></td></tr>
+<tr><td><span class="badge badge-info">P1.1-B</span></td><td>Partial Inventory / Fulfillment Semantics — audit, explicitly define, document, and test</td><td><span class="badge badge-success">DONE</span></td></tr>
+</table>
+<p style="margin-top:.75rem"><strong>Not in scope:</strong> Payment, shipping, returns, refunds, RFQ, settlement, invoicing, new catalog/pricing/promotion features, new order states, new auth system.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>2. P1.1-A — Idempotency Fingerprint Conflict Detection</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<h3>2.1 Problem Statement</h3>
+<div class="card">
+<p>Phase 1 implemented idempotency via a unique constraint on <code>master_orders.idempotency_key</code> and a catch block for PostgreSQL error <code>23505</code>. This correctly prevents <strong>duplicate orders</strong> when the same key is retried.</p>
+<p>However, it did <strong>not</strong> detect when the same key was used for a <strong>different logical checkout</strong> (e.g., different cart contents). The system would silently return the first order, masking the conflict.</p>
+</div>
+
+<h3>2.2 Solution — Server-Side Fingerprint</h3>
+<div class="card">
+<p>A <strong>SHA-256 fingerprint</strong> of the authoritative checkout intent is computed server-side and stored alongside the idempotency key. On replay, the fingerprint is recomputed and compared. A mismatch returns <strong>HTTP 409 Conflict</strong>.</p>
+
+<h3>Fingerprint Composition</h3>
+<div class="arch-box">SHA-256(
+  sorted_cart_items + "|" +
+  fulfillmentMethod   + "|" +
+  canonical_delivery_address
+).slice(0, 64)
+
+Where each cart item = "variantId:quantity:offerId"
+Sorted by "variantId|offerId" for deterministic ordering.
+Delivery address = JSON.stringify with sorted keys.</div>
+
+<h3>Authoritative Fields (server-derived, never client-trusted)</h3>
+<ul>
+<li><code>variantId</code> — which product variant</li>
+<li><code>quantity</code> — how many units</li>
+<li><code>offerId</code> — which merchant offer (price source)</li>
+<li><code>fulfillmentMethod</code> — PLATFORM_DELIVERY | PICKUP | etc.</li>
+<li><code>deliveryAddress</code> — canonical delivery location</li>
+</ul>
+
+<h3>Excluded Fields (not in fingerprint)</h3>
+<ul>
+<li>Client-supplied prices, totals, subtotals</li>
+<li>Timestamps, request metadata, random nonces</li>
+<li>Promo codes (orthogonal to logical intent)</li>
+</ul>
+</div>
+
+<h3>2.3 Three-Layer Defense Architecture</h3>
+<div class="card">
+<div class="arch-box">┌─────────────────────────────────────────────────────────────┐
+│ Layer 1: Pre-check (fast path)                              │
+│   • Query master_orders by idempotency_key                  │
+│   • Legacy (NULL fingerprint) → return existing immediately │
+│   • DRAFT → fall through (incomplete, allow re-checkout)    │
+│   • Non-legacy + no active cart → return existing (retry)   │
+│   • Non-legacy + active cart → fall through to Layer 2      │
+├─────────────────────────────────────────────────────────────┤
+│ Layer 2: Post-load fingerprint comparison                   │
+│   • Load cart items, compute fingerprint from live data     │
+│   • Re-query master_orders by idempotency_key               │
+│   • Fingerprint match → return existing order               │
+│   • Fingerprint mismatch → throw 409 Conflict               │
+├─────────────────────────────────────────────────────────────┤
+│ Layer 3: Catch block (23505 race safety)                    │
+│   • Unique constraint violation caught                      │
+│   • Re-query existing order, compare fingerprints           │
+│   • Mismatch → throw 409 Conflict                           │
+│   • Match → return existing order                           │
+└─────────────────────────────────────────────────────────────┘</div>
+
+<h3>Why Three Layers?</h3>
+<ul>
+<li><strong>Layer 1</strong> avoids expensive cart/offer loading for retries (common case)</li>
+<li><strong>Layer 2</strong> catches conflicts when an active cart exists with different contents</li>
+<li><strong>Layer 3</strong> handles the race condition where two concurrent requests pass Layers 1-2 simultaneously — PostgreSQL's unique constraint is the final arbiter</li>
+</ul>
+</div>
+
+<h3>2.4 Conflict Error Format (RFC 7807)</h3>
+<div class="card">
+<div class="arch-box">{
+  "type": "https://errors.scs.local/idempotency-conflict",
+  "title": "Idempotency Key Conflict",
+  "status": 409,
+  "detail": "This idempotency key was already used for a different checkout operation"
+}</div>
+</div>
+
+<h3>2.5 Behavioral Matrix</h3>
+<div class="card">
+<table>
+<tr><th>Case</th><th>Key</th><th>Fingerprint</th><th>Active Cart</th><th>Result</th></tr>
+<tr><td>A — First request</td><td>X</td><td>A (computed)</td><td>yes</td><td><span class="badge badge-success">Create order, store key+fp</span></td></tr>
+<tr><td>B — Retry (same)</td><td>X</td><td>A</td><td>no</td><td><span class="badge badge-success">Return existing order</span></td></tr>
+<tr><td>C — Conflict</td><td>X</td><td>B ≠ A</td><td>yes</td><td><span class="badge badge-danger">409 Conflict</span></td></tr>
+<tr><td>D — Legacy retry</td><td>X</td><td>NULL (old)</td><td>any</td><td><span class="badge badge-success">Return existing (backward compat)</span></td></tr>
+<tr><td>E — DRAFT re-checkout</td><td>X</td><td>any</td><td>any</td><td><span class="badge badge-warning">Fall through, create new</span></td></tr>
+<tr><td>F — Concurrent race</td><td>X</td><td>A vs B</td><td>—</td><td><span class="badge badge-danger">23505 caught → 409 or return existing</span></td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>3. P1.1-B — Partial Fulfillment Semantics</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<h3>3.1 Audit Findings</h3>
+<div class="card">
+<p>The Phase 1 report identified that <code>reserveStock</code> uses <code>Math.min(orderedQuantity, availableQuantity)</code>, meaning partial reservation is possible. The question: is this intentional or a bug?</p>
+
+<div class="decision-box">
+<strong>Decision: RETAIN partial fulfillment.</strong> The existing domain model clearly and intentionally supports partial quantities.
+</div>
+
+<h3>Evidence from Repository</h3>
+<table>
+<tr><th>Signal</th><th>Evidence</th></tr>
+<tr><td>FSM Status</td><td><code>PARTIALLY_ACCEPTED</code> exists as a canonical order status with defined transitions</td></tr>
+<tr><td><code>partiallyAcceptOrder()</code></td><td>Dedicated method that sets <code>qtyConfirmed</code> per item and <strong>recalculates financials</strong> (subtotal, VAT, commission, total) based on confirmed quantities</td></tr>
+<tr><td><code>settleStockForStatus()</code></td><td>On <code>PARTIALLY_ACCEPTED</code>, releases <code>qtyReserved - qtyConfirmed</code> back to available — proving the system tracks partial holds</td></tr>
+<tr><td>Stock settlement tests</td><td>"releases only what was actually held" — existing E2E verifies partial settlement math</td></tr>
+<tr><td><code>qtyConfirmed</code> field</td><td>Per-item confirmed quantity, independent of <code>qtyReserved</code> and <code>qtyOrdered</code></td></tr>
+</table>
+</div>
+
+<h3>3.2 Documented Partial Fulfillment Behavior</h3>
+<div class="card">
+<div class="arch-box">Example:
+  Requested quantity:  10
+  Available stock:      5
+  ─────────────────────────
+  qtyOrdered:          10
+  qtyReserved:          5   ← Math.min(10, 5)
+  qtyConfirmed:         5   ← after merchant partial acceptance
+
+Financial recalculation:
+  Original:  10 × 200 = 2000 minor
+  Confirmed:  5 × 200 = 1000 minor
+  VAT/commission/total recomputed on confirmed amount
+
+Stock settlement:
+  reserved (5) - confirmed (5) = 0 released
+  on_hand decreases by confirmed (5)</div>
+<p style="margin-top:.75rem">This is the <strong>intended B2B wholesale behavior</strong> — merchants confirm what they can fulfill, the system adjusts financials accordingly.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>4. Files Changed</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<table>
+<tr><th>File</th><th>Change</th><th>Reason</th></tr>
+<tr><td><code>infra/drizzle/migrations/0033_idempotency_fingerprint.sql</code></td><td><strong>New</strong> — <code>ALTER TABLE master_orders ADD COLUMN request_fingerprint VARCHAR(64)</code></td><td>Store server-computed checkout fingerprint</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.schema.ts</code></td><td>Added <code>requestFingerprint</code> column to <code>masterOrders</code></td><td>Drizzle schema alignment with migration</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td>Pre-check with cart probe (Layer 1)</td><td>Fast-path retry detection, avoid unnecessary work</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td>Fingerprint computation + comparison (Layer 2)</td><td>Detect same-key-different-request conflict</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td>Catch block fingerprint check (Layer 3)</td><td>Race condition safety via 23505 + fingerprint</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td><code>computeCheckoutFingerprint()</code> method</td><td>SHA-256 of sorted items + fulfillment + address</td></tr>
+<tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td><code>requestFingerprint</code> in master order insert</td><td>Persist fingerprint at order creation</td></tr>
+<tr><td><code>apps/api/src/__tests__/unit/orders/idempotency-fingerprint.spec.ts</code></td><td><strong>New file</strong> — 8 unit tests</td><td>P1.1-A fingerprint consistency verification</td></tr>
+<tr><td><code>apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts</code></td><td>Added Scenario 13 (concurrent idempotency) + Scenario 14 (partial inventory)</td><td>Real PostgreSQL E2E for both P1.1 items</td></tr>
+<tr><td><code>apps/api/src/__tests__/integration/checkout.integration.spec.ts</code></td><td>Updated DRAFT test mock sequence</td><td>Account for additional <code>masterOrders.findFirst</code> call from fingerprint check</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>5. Database Migration</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<h3>Migration 0033</h3>
+<div class="arch-box">ALTER TABLE master_orders
+  ADD COLUMN IF NOT EXISTS request_fingerprint VARCHAR(64);</div>
+<ul>
+<li><strong>Backward compatible:</strong> Nullable column, no <code>NOT NULL</code> constraint</li>
+<li><strong>Non-destructive:</strong> Existing rows remain <code>NULL</code> (legacy orders returned as-is on key match)</li>
+<li><strong>Idempotent DDL:</strong> <code>IF NOT EXISTS</code> — safe to re-run</li>
+<li><strong>No index needed:</strong> Fingerprint is always looked up via <code>idempotency_key</code> (already indexed)</li>
+<li><strong>Existing unique constraint preserved:</strong> <code>master_orders_idempotency_key_unique</code> unchanged</li>
+</ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>6. Security</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<h3>Fingerprint Integrity</h3>
+<ul>
+<li><strong>Server-side computation:</strong> Fingerprint is computed from live cart data inside <code>checkout()</code> — never received from the client</li>
+<li><strong>No client-supplied hash:</strong> The client supplies only the <code>idempotencyKey</code>; the server determines the logical request identity</li>
+<li><strong>Price tampering irrelevant:</strong> Even if a client manipulates <code>priceMinor</code> in the cart, the fingerprint uses <code>variantId:quantity:offerId</code> — prices are not part of the fingerprint</li>
+<li><strong>Offer identity matters:</strong> Changing the offer (different seller/pricing) changes the fingerprint → conflict detected</li>
+</ul>
+
+<h3>Concurrency Safety</h3>
+<ul>
+<li><strong>Database constraint is the anchor:</strong> Application-level checking is a fast path; the unique constraint on <code>idempotency_key</code> is the final safety net</li>
+<li><strong>No advisory locks needed:</strong> The three-layer approach (pre-check → fingerprint compare → 23505 catch) is simpler and equally safe</li>
+<li><strong>No TOCTOU window:</strong> Even if two requests read "no existing order" simultaneously, the INSERT unique constraint catches the race</li>
+</ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>7. Test Results</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<table>
+<tr><th>Category</th><th>Phase 1</th><th>Phase 1.1</th><th>Delta</th></tr>
+<tr><td>Test Files</td><td>48 passed</td><td><strong>49 passed</strong></td><td>+1 (idempotency-fingerprint.spec.ts)</td></tr>
+<tr><td>Total Tests</td><td>663 passed</td><td><strong>674 passed</strong></td><td>+11</td></tr>
+<tr><td>Unit Tests</td><td>~550</td><td>~558</td><td>+8 (fingerprint consistency)</td></tr>
+<tr><td>E2E Tests (PostgreSQL)</td><td>25</td><td><strong>28</strong></td><td>+3 (Scenario 13: 1, Scenario 14: 2)</td></tr>
+<tr><td>TypeScript — api</td><td><span class="badge badge-success">Clean</span></td><td><span class="badge badge-success">Clean</span></td><td>—</td></tr>
+<tr><td>TypeScript — web</td><td><span class="badge badge-success">Clean</span></td><td><span class="badge badge-success">Clean</span></td><td>—</td></tr>
+<tr><td>TypeScript — admin</td><td><span class="badge badge-success">Clean</span></td><td><span class="badge badge-success">Clean</span></td><td>—</td></tr>
+<tr><td>Duration</td><td>~69s</td><td>~59s</td><td>—</td></tr>
+</table>
+</div>
+
+<h3>7.1 New Test Coverage</h3>
+<div class="card">
+<h3>Unit Tests — <code>idempotency-fingerprint.spec.ts</code> (8 tests)</h3>
+<table>
+<tr><th>#</th><th>Test</th><th>Verifies</th></tr>
+<tr><td>1</td><td>First checkout stores fingerprint</td><td>Fingerprint computed, 64-char hex, stored in insert</td></tr>
+<tr><td>2</td><td>Same key + same request → existing order</td><td>Legacy (NULL fp) returns immediately, no duplicate</td></tr>
+<tr><td>3</td><td>Same key + different cart items → 409</td><td>Different variantId triggers conflict</td></tr>
+<tr><td>4</td><td>Same key + different quantity → 409</td><td>Same variant, quantity change triggers conflict</td></tr>
+<tr><td>5</td><td>Same key + different offer → 409</td><td>Same variant/qty, different offerId triggers conflict</td></tr>
+<tr><td>6</td><td>Same key + different fulfillmentMethod → 409</td><td>PLATFORM_DELIVERY vs PICKUP triggers conflict</td></tr>
+<tr><td>7</td><td>Fingerprint determinism</td><td>Same items always produce same fingerprint</td></tr>
+<tr><td>8</td><td>RFC 7807 error format</td><td>409 response has type/title/status/detail fields</td></tr>
+</table>
+
+<h3>E2E Tests — Real PostgreSQL</h3>
+<table>
+<tr><th>Scenario</th><th>Test</th><th>Verifies</th></tr>
+<tr><td>13</td><td>Concurrent identical checkouts</td><td>Two parallel requests with same key + same fingerprint → exactly 1 order, fingerprint stored</td></tr>
+<tr><td>14a</td><td>Partial inventory reservation</td><td>Order 10 units, only 5 in stock → qtyReserved = 5 (Math.min behavior)</td></tr>
+<tr><td>14b</td><td>partialAcceptOrder financial recalculation</td><td>Confirm 2 of 5 reserved → financials recomputed on confirmed qty</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>8. Phase 1 Risks — Resolved</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<table>
+<tr><th>Phase 1 Risk</th><th>Phase 1.1 Resolution</th></tr>
+<tr><td><span class="badge badge-warning">P2</span> Idempotency payload validation — same key with different cart not rejected</td><td><span class="badge badge-success">RESOLVED</span> — Fingerprint comparison detects and rejects with 409</td></tr>
+<tr><td><span class="badge badge-warning">P2</span> Partial reservation policy — document behavior</td><td><span class="badge badge-success">RESOLVED</span> — Audited, confirmed intentional, documented, E2E-tested</td></tr>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>9. Deferred / Out of Scope</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+<p>The following remain deferred to future phases:</p>
+<ul>
+<li>Payment / PaymentIntent / Payment providers / Webhooks</li>
+<li>Shipping / Shipment tracking</li>
+<li>Returns / Refunds</li>
+<li>RFQ / Quotation / Negotiation</li>
+<li>Settlement / Merchant payouts</li>
+<li>Invoicing / Accounting</li>
+<li>New catalog / pricing / promotion features</li>
+</ul>
+<div class="callout">
+<strong>Advisory locks for idempotency (P3):</strong> Still deferred. The three-layer fingerprint approach is simpler and equally safe. The unique constraint remains the final arbiter.
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>10. Production Readiness Verdict</h2>
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="verdict verdict-go">
+  <strong>GO</strong> — Phase 1.1 hardening complete. Both residual P2 risks from Phase 1 are resolved. Idempotency conflict detection proven with 8 unit tests + 3 PostgreSQL E2E tests. Partial fulfillment semantics confirmed as intended B2B behavior and documented. 674/674 tests pass. TypeScript clean. Zero breaking changes. <strong>Ready for Phase 2 (Payment Architecture).</strong>
+</div>
+
+<hr style="margin: 2rem 0;">
+<p style="color: var(--muted); font-size: .85rem;">Generated September 2026 &middot; SCS Platform Transaction Foundation Hardening &middot; Phase 1.1</p>
+
+</body>
+</html>

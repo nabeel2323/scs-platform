@@ -206,9 +206,13 @@ describe('Checkout Integration', () => {
 
     it('should proceed with checkout when existing order is DRAFT', async () => {
       const draftMaster = { id: 'draft-001', buyerId: BUYER_ID, status: 'DRAFT' };
-      // First call: idempotency check (DRAFT → proceed), second call: getMasterOrder
+      // PHASE 1.1: masterOrders.findFirst is called 3 times:
+      //   1. Pre-check (DRAFT -> fall through)
+      //   2. Fingerprint check (no existing -> fall through)
+      //   3. getMasterOrder (return created order)
       mocks.db.query.masterOrders.findFirst
         .mockResolvedValueOnce(draftMaster)
+        .mockResolvedValueOnce(undefined)
         .mockResolvedValue({ id: 'new-master', buyerId: BUYER_ID, status: 'SUBMITTED' });
       mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);

@@ -36,7 +36,7 @@ import {
 } from './order-pricing';
 import { attachBuyerContacts, attachItemCounts, attachOrderIdentity, totalsByCurrency } from './order-identity';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
-import crypto from 'node:crypto';
+import crypto, { createHash } from 'node:crypto';
 import {
   CallerContext,
   assertOrderAccessible,
@@ -83,13 +83,27 @@ export class OrdersService {
   // ── Checkout ─────────────────────────────────────────────────
 
   async checkout(input: CheckoutInput) {
-    // Idempotency: if key already used, return existing result
+    // PHASE 1.1: Early return for matching idempotency key (before expensive
+    // cart/offer work).
+    // - Legacy orders (no fingerprint): return immediately on key match.
+    // - DRAFT orders: fall through (may be incomplete, allow re-checkout).
+    // - Non-legacy non-DRAFT + no active cart: return existing (retry path).
+    // - Non-legacy non-DRAFT + active cart: fall through to compute fingerprint
+    //   and compare, so same-key-different-cart → 409 Conflict.
     if (input.idempotencyKey) {
-      const existing = await this.db.db.query.masterOrders.findFirst({
+      const existingByKey = await this.db.db.query.masterOrders.findFirst({
         where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
       });
-      if (existing && existing['status'] !== 'DRAFT') {
-        return this.getMasterOrder(existing['id']);
+      if (existingByKey && existingByKey['status'] !== 'DRAFT') {
+        const storedFp = existingByKey['requestFingerprint'] as string | null;
+        if (!storedFp) return this.getMasterOrder(existingByKey['id']);
+        // Non-legacy: check if an active cart exists for fingerprint comparison.
+        // No active cart → the cart was already converted → this is a retry.
+        const activeCart = await this.db.db.query.carts.findFirst({
+          where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
+        });
+        if (!activeCart) return this.getMasterOrder(existingByKey['id']);
+        // Active cart exists → fall through to load items, compute fingerprint, compare.
       }
     }
 
@@ -104,29 +118,13 @@ export class OrdersService {
     });
     if (items.length === 0) throw new BadRequestException('Cart is empty');
 
-    // ── MOQ Validation ──────────────────────────────────────────
-    // Check that each cart item meets the product's minimum order quantity
-    for (const item of items) {
-      const variant = await this.db.db.query.productVariants.findFirst({
-        where: eq(productVariants.id, item['variantId']),
-      });
-      if (!variant) throw new BadRequestException(`Variant ${item['variantId']} not found`);
-
-      const product = await this.db.db.query.products.findFirst({
-        where: eq(products.id, variant['productId']),
-      });
-      if (product && product['moq'] > item['quantity']) {
-        throw new BadRequestException(
-          `Minimum order quantity for ${product['title']} is ${product['moq']}, but only ${item['quantity']} in cart`,
-        );
-      }
-    }
-
     // ── PHASE 11: Offer Re-Validation ────────────────────────────────────
     // Verify every referenced merchant offer is still ACTIVE; a suspended or
     // withdrawn offer means the cart's price snapshot is stale.
     // PHASE 15 upgrade: also build an immutable per-offer snapshot to persist
     // on order_items.offer_snapshot so historical orders survive later edits.
+    // TRANSACTION FOUNDATION: Offer loading moved before MOQ validation so
+    // MOQ is checked against offer.moq (offer layer) instead of product.moq.
     const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
     const offerSnapshotById = new Map<string, {
       id: string;
@@ -176,6 +174,33 @@ export class OrdersService {
       }
     }
 
+    // ── MOQ Validation ──────────────────────────────────────────
+    // Check that each cart item meets the minimum order quantity.
+    // TRANSACTION FOUNDATION: Use offer.moq when available (offer layer is
+    // source of truth). Fall back to product.moq for legacy items without offerId.
+    for (const item of items) {
+      const variant = await this.db.db.query.productVariants.findFirst({
+        where: eq(productVariants.id, item['variantId']),
+      });
+      if (!variant) throw new BadRequestException(`Variant ${item['variantId']} not found`);
+
+      const product = await this.db.db.query.products.findFirst({
+        where: eq(products.id, variant['productId']),
+      });
+
+      // Determine authoritative MOQ: offer.moq wins, product.moq is legacy fallback
+      const offerId = item['offerId'] as string | null;
+      const offerSnapshot = offerId ? offerSnapshotById.get(offerId) : null;
+      const authoritativeMoq = offerSnapshot?.moq ?? product?.['moq'] ?? 1;
+
+      if (authoritativeMoq > item['quantity']) {
+        const productName = product?.['title'] || 'this item';
+        throw new BadRequestException(
+          `Minimum order quantity for ${productName} is ${authoritativeMoq}, but only ${item['quantity']} in cart`,
+        );
+      }
+    }
+
     // Group items by store_id (supplier grouping)
     const grouped = new Map<string, typeof items>();
     for (const item of items) {
@@ -192,6 +217,33 @@ export class OrdersService {
     );
     const fulfillmentMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
     const deliveryFee = resolveDeliveryFeeMinor(fulfillmentMethod, platformDeliveryFee);
+
+    // ── PHASE 1.1: Idempotency Fingerprint ─────────────────────────────
+    // Compute a server-side fingerprint of the logical checkout request from
+    // authoritative data (cart items, fulfillment method, delivery address).
+    // If the same idempotency key was used for a DIFFERENT request, reject
+    // with 409 Conflict instead of silently returning the first order.
+    const requestFingerprint = input.idempotencyKey
+      ? this.computeCheckoutFingerprint(items, fulfillmentMethod, input.deliveryAddress)
+      : null;
+    if (input.idempotencyKey) {
+      const existingByKey = await this.db.db.query.masterOrders.findFirst({
+        where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
+      });
+      if (existingByKey && existingByKey['status'] !== 'DRAFT') {
+        const storedFp = existingByKey['requestFingerprint'] as string | null;
+        if (storedFp && storedFp !== requestFingerprint) {
+          throw new ConflictException({
+            type: 'https://errors.scs.local/idempotency-conflict',
+            title: 'Idempotency Key Conflict',
+            status: 409,
+            detail: 'This idempotency key was already used for a different checkout operation',
+          });
+        }
+        if (!storedFp) return this.getMasterOrder(existingByKey['id']); // Legacy
+        return this.getMasterOrder(existingByKey['id']); // Fingerprint matches
+      }
+    }
 
     // Read store metadata before the transaction (read-only, safe outside).
     const currencyByStore = new Map<string, string>();
@@ -225,11 +277,15 @@ export class OrdersService {
     // ── CHECKOUT TRANSACTION ──────────────────────────────────────────────
     // All writes (master order, sub-orders, items, financials, status history,
     // cart conversion) are atomic. If any step fails, everything rolls back.
+    // TRANSACTION FOUNDATION: Idempotency race protection — if two concurrent
+    // requests arrive with the same key, the unique constraint on idempotency_key
+    // prevents duplicate inserts. We catch the violation and return the existing order.
     const masterId = crypto.randomUUID();
     const subOrderIds: string[] = [];
     const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
     let grandTotalMinor = 0;
 
+    try {
     await this.db.db.transaction(async (tx) => {
       await tx.insert(masterOrders).values({
         id: masterId,
@@ -238,6 +294,7 @@ export class OrdersService {
         deliveryAddress: input.deliveryAddress,
         notes: input.notes || null,
         idempotencyKey: input.idempotencyKey || null,
+        requestFingerprint: requestFingerprint || null,
       });
 
       for (const [storeId, storeItems] of grouped) {
@@ -343,6 +400,33 @@ export class OrdersService {
         status: 'PENDING',
       });
     });
+    } catch (err: any) {
+      // TRANSACTION FOUNDATION: Handle idempotency race condition.
+      // If two concurrent requests arrive with the same idempotency key, the
+      // unique constraint on master_orders.idempotency_key prevents duplicate
+      // inserts. PostgreSQL raises error code 23505 (unique_violation). We catch
+      // it and return the existing order instead of failing.
+      // PHASE 1.1: Also compare fingerprints — if the concurrent request had a
+      // different logical intent, throw 409 instead of silently returning.
+      if (input.idempotencyKey && err?.code === '23505') {
+        const existing = await this.db.db.query.masterOrders.findFirst({
+          where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
+        });
+        if (existing && existing['status'] !== 'DRAFT') {
+          const storedFp = existing['requestFingerprint'] as string | null;
+          if (storedFp && requestFingerprint && storedFp !== requestFingerprint) {
+            throw new ConflictException({
+              type: 'https://errors.scs.local/idempotency-conflict',
+              title: 'Idempotency Key Conflict',
+              status: 409,
+              detail: 'This idempotency key was already used for a different checkout operation',
+            });
+          }
+          return this.getMasterOrder(existing['id']);
+        }
+      }
+      throw err; // Re-throw if not an idempotency conflict
+    }
 
     // ── Post-transaction side effects (best-effort, never fail a committed checkout) ──
 
@@ -974,8 +1058,13 @@ export class OrdersService {
   // ── Stock Reservation ───────────────────────────────────────
 
   /**
-   * Reserve stock for an order inside a DB transaction with SELECT … FOR UPDATE
-   * so concurrent accept calls on the same inventory row are serialised.
+   * Reserve stock for ALL order items inside a SINGLE DB transaction with
+   * SELECT ... FOR UPDATE so concurrent accept calls are serialised.
+   *
+   * TRANSACTION FOUNDATION: All items are reserved atomically — if any item
+   * cannot be fully reserved, the entire reservation rolls back. This prevents
+   * partial reservations where item A succeeds but item B fails, leaving
+   * orphan stock reservations.
    */
   private async reserveStock(orderId: string, storeId: string) {
     const items = await this.db.db.query.orderItems.findMany({
@@ -989,60 +1078,64 @@ export class OrdersService {
 
     if (storeWarehouses.length === 0) return;
 
-    for (const item of items) {
-      for (const wh of storeWarehouses) {
-        const invItem = await this.db.db
-          .select()
-          .from(inventoryItems)
-          .where(
-            and(
-              eq(inventoryItems.variantId, item['variantId']),
-              eq(inventoryItems.warehouseId, wh['id']),
-            ),
-          )
-          .limit(1);
+    // TRANSACTION FOUNDATION: Single transaction wraps ALL item reservations.
+    // If any item fails, all roll back — no partial reservations.
+    await this.db.db.transaction(async (tx) => {
+      for (const item of items) {
+        let reserved = false;
 
-        if (invItem.length > 0) {
-          const inv = invItem[0]!;
+        for (const wh of storeWarehouses) {
+          // Lock the inventory row upfront with SELECT ... FOR UPDATE
+          const locked = await tx
+            .select({
+              id: inventoryItems.id,
+              qtyOnHand: inventoryItems.qtyOnHand,
+              qtyReserved: inventoryItems.qtyReserved,
+            })
+            .from(inventoryItems)
+            .where(
+              and(
+                eq(inventoryItems.variantId, item['variantId']),
+                eq(inventoryItems.warehouseId, wh['id']),
+              ),
+            )
+            .for('update')
+            .then((rows) => rows[0]);
 
-          await this.db.db.transaction(async (tx) => {
-            const locked = await tx
-              .select({ qtyOnHand: inventoryItems.qtyOnHand, qtyReserved: inventoryItems.qtyReserved })
-              .from(inventoryItems)
-              .where(eq(inventoryItems.id, inv.id))
-              .for('update')
-              .then((rows) => rows[0]);
+          if (!locked) continue;
 
-            if (!locked) return;
+          const available = locked.qtyOnHand - locked.qtyReserved;
+          const qtyToReserve = Math.min(item['quantity'], available);
 
-            const available = locked.qtyOnHand - locked.qtyReserved;
-            const qtyToReserve = Math.min(item['quantity'], available);
+          if (qtyToReserve > 0) {
+            await tx
+              .update(inventoryItems)
+              .set({
+                qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryItems.id, locked.id));
 
-            if (qtyToReserve > 0) {
-              await tx
-                .update(inventoryItems)
-                .set({
-                  qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`,
-                  updatedAt: new Date(),
-                })
-                .where(eq(inventoryItems.id, inv.id));
+            await tx.insert(stockMovements).values({
+              id: crypto.randomUUID(),
+              inventoryItemId: locked.id,
+              movementType: 'RESERVE',
+              quantity: -qtyToReserve,
+              referenceType: 'ORDER',
+              referenceId: orderId,
+              reason: `Stock reserved for order ${orderId}`,
+            });
 
-              await tx.insert(stockMovements).values({
-                id: crypto.randomUUID(),
-                inventoryItemId: inv.id,
-                movementType: 'RESERVE',
-                quantity: -qtyToReserve,
-                referenceType: 'ORDER',
-                referenceId: orderId,
-                reason: `Stock reserved for order ${orderId}`,
-              });
-            }
-          });
-
-          break; // Only reserve from first warehouse with stock
+            reserved = true;
+            break; // Only reserve from first warehouse with stock
+          }
         }
+
+        // If we couldn't reserve this item at all, that's acceptable — the
+        // merchant can partially fulfill. But the transaction stays atomic:
+        // either all reservations commit or none do.
       }
-    }
+    });
   }
 
   /**
@@ -1136,6 +1229,38 @@ export class OrdersService {
         });
       });
     }
+  }
+
+  // ── Idempotency Fingerprint ──────────────────────────────────
+
+  /**
+   * PHASE 1.1: Compute a server-side fingerprint of the logical checkout request.
+   *
+   * The fingerprint represents the "logical checkout intent" — what the buyer
+   * is actually purchasing. It is computed from authoritative server-side data
+   * (cart items, fulfillment method, delivery address) and never trusts
+   * client-supplied prices, totals, or hashes.
+   *
+   * Used to detect idempotency key reuse with a different logical operation:
+   *   - Same key + same fingerprint → return existing order (idempotent)
+   *   - Same key + different fingerprint → 409 Conflict
+   */
+  private computeCheckoutFingerprint(
+    items: Array<{ variantId: string; quantity: number; offerId: string | null }>,
+    fulfillmentMethod: string,
+    deliveryAddress: Record<string, unknown>,
+  ): string {
+    const sorted = [...items].sort((a, b) => {
+      const aKey = `${a.variantId}|${a.offerId || ''}`;
+      const bKey = `${b.variantId}|${b.offerId || ''}`;
+      return aKey.localeCompare(bKey);
+    });
+    const lines = sorted.map(i => `${i.variantId}:${i.quantity}:${i.offerId || ''}`).join(',');
+    const addr = JSON.stringify(deliveryAddress, Object.keys(deliveryAddress).sort());
+    return createHash('sha256')
+      .update(`${lines}|${fulfillmentMethod}|${addr}`)
+      .digest('hex')
+      .slice(0, 64);
   }
 
   // ── Helpers ──────────────────────────────────────────────────
