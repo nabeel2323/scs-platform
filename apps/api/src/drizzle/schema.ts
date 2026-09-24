@@ -11,6 +11,7 @@ export * from '../modules/merchant/merchant.schema';
 export * from '../modules/catalog/catalog.schema';
 export * from '../modules/catalog/catalog.taxonomy.schema';
 export * from '../modules/catalog/catalog.offer.schema';
+export * from '../modules/catalog/catalog.requests.schema';
 export * from '../modules/catalog/search.schema';
 export * from '../modules/inventory/inventory.schema';
 export * from '../modules/pricing/pricing.schema';

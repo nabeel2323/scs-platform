@@ -413,3 +413,40 @@ export async function updateWarehouse(
   if (!res.ok) throw new Error(`Failed to update warehouse: ${res.status}`);
   return res.json();
 }
+
+// ── Catalog Requests (PHASE COS-12) ──────────────────────────
+
+export interface CatalogRequest {
+  id: string;
+  storeId: string;
+  requestedBy: string | null;
+  type: 'CATEGORY' | 'BRAND' | 'ATTRIBUTE' | 'OPTION';
+  payload: Record<string, unknown>;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedBy: string | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchMerchantRequests(storeId: string): Promise<CatalogRequest[]> {
+  const res = await authFetch(`${API_URL}/v1/merchant/requests?storeId=${encodeURIComponent(storeId)}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog requests: ${res.status}`);
+  return res.json();
+}
+
+export async function createCatalogRequest(data: {
+  storeId: string;
+  requestedBy?: string;
+  type: 'CATEGORY' | 'BRAND' | 'ATTRIBUTE' | 'OPTION';
+  payload: Record<string, unknown>;
+}): Promise<CatalogRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/requests`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create catalog request: ${res.status}`);
+  return res.json();
+}

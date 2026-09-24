@@ -1077,3 +1077,49 @@ export async function createNewVersion(id: string): Promise<ProductType> {
   if (!res.ok) throw new Error(`Failed to create new version: ${res.status}`);
   return res.json();
 }
+
+// ── Catalog Requests (PHASE COS-12) ──────────────────────────
+
+export interface AdminCatalogRequest {
+  id: string;
+  storeId: string;
+  requestedBy: string | null;
+  type: 'CATEGORY' | 'BRAND' | 'ATTRIBUTE' | 'OPTION';
+  payload: Record<string, unknown>;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedBy: string | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAdminCatalogRequests(filters?: { type?: string; status?: string }): Promise<AdminCatalogRequest[]> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.set('type', filters.type);
+  if (filters?.status) params.set('status', filters.status);
+  const qs = params.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/requests${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog requests: ${res.status}`);
+  return res.json();
+}
+
+export async function approveCatalogRequest(id: string, reviewerId: string): Promise<AdminCatalogRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewerId }),
+  });
+  if (!res.ok) throw new Error(`Failed to approve request: ${res.status}`);
+  return res.json();
+}
+
+export async function rejectCatalogRequest(id: string, reviewerId: string, reason: string): Promise<AdminCatalogRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewerId, reason }),
+  });
+  if (!res.ok) throw new Error(`Failed to reject request: ${res.status}`);
+  return res.json();
+}

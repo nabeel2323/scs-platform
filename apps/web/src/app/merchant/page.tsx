@@ -21,6 +21,7 @@ const CARDS = [
   { href: '/merchant/inventory', title: 'Inventory', desc: 'Stock levels per warehouse & adjustments', icon: '📊' },
   { href: '/merchant/pricing', title: 'Pricing', desc: 'Price lists & volume tiers', icon: '🏷️' },
   { href: '/merchant/import', title: 'Import', desc: 'Bulk product import jobs', icon: '⬆️' },
+  { href: '/merchant/requests', title: 'Catalog Requests', desc: 'Request new categories, brands or attributes', icon: '📋' },
   { href: '/merchant/organization', title: 'Organization', desc: 'Business details & members', icon: '🏢' },
 ];
 
