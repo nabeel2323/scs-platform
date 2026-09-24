@@ -19,6 +19,8 @@ import {
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
 import { VariantSelector } from './components/VariantSelector';
+import { OfferComparisonTable } from './components/OfferComparisonTable';
+import { useOfferComparison } from '../../../hooks/useOfferComparison';
 
 /**
  * Mirror of the API's `priceForQty` rule (tiers are minQty <= qty < maxQty, upper
@@ -285,6 +287,14 @@ export default function ProductDetailPage() {
   const [hasVariantDims, setHasVariantDims] = useState<boolean | null>(null);
   const handleHasDimensions = useCallback((has: boolean) => setHasVariantDims(has), []);
 
+  // PHASE 8: offer comparison table — merges base offers + ranked analytics
+  // into a sortable comparison view replacing the old flat "Other Sellers" list.
+  const rankedArray = useMemo(() => Array.from(rankedByOffer.values()), [rankedByOffer]);
+  const {
+    rows: offerRows, currentSellerRow, competingCount,
+    sortKey: offerSortKey, sortDir: offerSortDir, toggleSort: toggleOfferSort,
+  } = useOfferComparison(productOffers, rankedArray, product?.storeId ?? null);
+
   useEffect(() => {
     // Variants, pricing, media and stock arrive with the product in one request.
     fetchProduct(productId)
@@ -322,6 +332,12 @@ export default function ProductDetailPage() {
   const variants = product.variants ?? [];
   const activeVariants = variants.filter(v => v.isActive);
   const inactiveVariants = variants.filter(v => !v.isActive);
+
+  // PHASE 8: offer add-to-cart resolves the variant for product-scoped offers
+  const handleOfferAddToCart = useCallback((offerId: string, variantId: string | null, storeId: string) => {
+    const targetVariantId = variantId ?? (variants.find(v => v.isActive)?.id);
+    if (targetVariantId) handleAdd(targetVariantId, storeId, offerId);
+  }, [variants, handleAdd]);
   const store = product.store ?? null;
   const cheapestPrice = activeVariants
     .map(v => v.pricing?.unitPriceMinor)
@@ -356,6 +372,9 @@ export default function ProductDetailPage() {
           flex-direction: column; flex-wrap: nowrap; gap: 6px; margin-top: 0;
           overflow-x: visible; overflow-y: auto; max-height: 320px; width: 62px; flex-shrink: 0; padding-right: 2px;
         }
+        /* PHASE 8: offer comparison — swap table for cards on mobile */
+        .oct-desktop { display: none !important; }
+        .oct-mobile { display: block !important; }
       }
     `}</style>
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -557,62 +576,17 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* Other sellers offering this product (PHASE 5, add-to-cart per offer in PHASE 13) */}
-          {productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).length > 0 && (
-            <div style={{ marginTop: 32 }}>
-              <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 12 }}>
-                Other Sellers <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>({productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).length})</span>
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {productOffers.filter(o => o.status === 'ACTIVE' && o.storeId !== product.storeId).map(o => {
-                  // For variant-scoped offers use their pinned variant; for
-                  // product-scoped offers fall back to the first active variant
-                  // of the canonical product.
-                  const targetVariantId = o.variantId ?? (variants.find(v => v.isActive)?.id);
-                  const canAdd = Boolean(targetVariantId);
-                  const addedKey = `offer:${o.id}`;
-                  // PHASE 22: popularity overlay keyed off offer id. Only shown
-                  // when the ranked endpoint returned a row for this offer and
-                  // the row has at least one attributed order (rank>0).
-                  const rank = rankedByOffer.get(o.id);
-                  const hasSales = rank ? rank.ordersCount > 0 : false;
-                  return (
-                    <div key={o.id} style={{ padding: '10px 14px', background: colors.surface, border: `1px solid ${rank?.isMostPopular ? colors.amber : colors.border}`, borderRadius: radii.md, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                      <div>
-                        <span style={{ ...typeScale.bodySm, fontWeight: 500 }}>{o.storeId.slice(0, 8)}…</span>
-                        {rank?.isMostPopular && (
-                          <span style={{ ...typeScale.caption, marginLeft: 8, padding: '2px 8px', background: colors.amber, color: '#fff', borderRadius: radii.sm, fontWeight: 600 }} title={`Ranked #1 for this product (${rank.unitsSold} units across ${rank.ordersCount} orders)`}>
-                            ★ Most Popular
-                          </span>
-                        )}
-                        {hasSales && !rank?.isMostPopular && (
-                          <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }} title={`${rank?.ordersCount ?? 0} orders`}>#{rank?.rank} · {rank?.unitsSold ?? 0} sold</span>
-                        )}
-                        {rank?.storeVerified && <span style={{ ...typeScale.caption, color: colors.ok, marginLeft: 8 }} title="Verified store">✓ Verified</span>}
-                        {o.leadTimeDays != null && <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }}>Lead: {o.leadTimeDays}d</span>}
-                        {o.moq > 1 && <span style={{ ...typeScale.caption, color: colors.muted, marginLeft: 8 }}>MOQ: {o.moq}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <span style={{ fontWeight: 700, color: colors.brand[700] }}>{formatMinor(o.basePriceMinor, o.currency)}</span>
-                        <button
-                          onClick={() => targetVariantId && handleAdd(targetVariantId, o.storeId, o.id)}
-                          disabled={!canAdd}
-                          style={{
-                            padding: '6px 14px', ...typeScale.button, color: '#fff',
-                            background: addedId === addedKey ? colors.ok : canAdd ? colors.amber : colors.disabled,
-                            border: '1px solid ' + (addedId === addedKey ? colors.ok : canAdd ? '#a88734' : colors.disabled),
-                            borderRadius: radii.sm, cursor: canAdd ? 'pointer' : 'not-allowed',
-                          }}
-                        >
-                          {addedId === addedKey ? '✓ Added' : 'Add to Cart'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          {/* PHASE 8: Offer comparison table — replaces flat "Other Sellers" list */}
+          <OfferComparisonTable
+            rows={offerRows}
+            competingCount={competingCount}
+            sortKey={offerSortKey}
+            sortDir={offerSortDir}
+            toggleSort={toggleOfferSort}
+            onAddToCart={handleOfferAddToCart}
+            addedKey={addedId}
+            currentSellerRow={currentSellerRow}
+          />
 
           <div style={{ marginTop: 24 }}>
             <Link href="/cart" style={{ display: 'inline-block', padding: '10px 24px', background: colors.brand[700], color: '#fff', borderRadius: radii.md, textDecoration: 'none', ...typeScale.button }}>
