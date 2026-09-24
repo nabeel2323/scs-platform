@@ -5,6 +5,7 @@ import { AdminOrg, AdminRecord, adminRequest, PaginatedResult, RoleInfo } from '
 import { useRequirePerms } from '../hooks/useRequirePerms';
 import { useAdminResource } from '../hooks/useAdminTable';
 import { ErrorNotice, RecordFields, textValue } from './RecordFields';
+import { getUser } from '../lib/auth';
 import styles from './management.module.css';
 
 export function useAdminMutation(onDone: () => void) {
@@ -151,4 +152,74 @@ export function BrandEditor({ record, onDone, onCancel }: { record?: AdminRecord
     <ErrorNotice message={action.error} />
     <div className={styles['actions']}><button disabled={action.busy || !name.trim()}>Save brand</button><button type="button" onClick={onCancel}>Cancel</button></div>
   </form>;
+}
+
+// ── PHASE 9: Offer governance row actions ──────────────────────
+
+/**
+ * Governance actions for merchant offers. Renders context-sensitive buttons
+ * based on the offer's current status:
+ * - PROPOSED → Approve / Reject
+ * - ACTIVE   → Suspend
+ * - SUSPENDED → Activate
+ */
+export function OfferGovernanceActions({ record, onDone }: { record: AdminRecord; onDone: () => void }) {
+  const { hasAccess } = useRequirePerms(['catalog:offers:govern']);
+  const action = useAdminMutation(onDone);
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+  const status = String(record['status'] || '');
+
+  if (!hasAccess) return null;
+
+  const reviewerId = getUser()?.id || '';
+
+  const approve = () => {
+    if (!window.confirm('Approve this offer? It will become ACTIVE and visible to buyers.')) return;
+    action.run(`admin/offers/${record.id}/approve`, 'POST', { reviewerId });
+  };
+
+  const submitReject = () => {
+    if (!reason.trim()) return;
+    action.run(`admin/offers/${record.id}/reject`, 'POST', { reviewerId, reason: reason.trim() });
+    setRejecting(false);
+    setReason('');
+  };
+
+  const suspend = () => {
+    if (!window.confirm('Suspend this offer? It will no longer be visible to buyers.')) return;
+    action.run(`admin/offers/${record.id}/suspend`, 'POST');
+  };
+
+  const activate = () => {
+    if (!window.confirm('Reactivate this offer? It will become visible to buyers again.')) return;
+    action.run(`admin/offers/${record.id}/activate`, 'POST');
+  };
+
+  return <div>
+    <div className={styles['actions']}>
+      {status === 'PROPOSED' && <>
+        <button type="button" disabled={action.busy} onClick={approve}>Approve</button>
+        <button type="button" disabled={action.busy} onClick={() => setRejecting(true)}>Reject</button>
+      </>}
+      {status === 'ACTIVE' && (
+        <button type="button" disabled={action.busy} onClick={suspend}>Suspend</button>
+      )}
+      {status === 'SUSPENDED' && (
+        <button type="button" disabled={action.busy} onClick={activate}>Activate</button>
+      )}
+    </div>
+    {rejecting && (
+      <form className={styles['card']} onSubmit={e => { e.preventDefault(); submitReject(); }}>
+        <h3>Reject offer</h3>
+        <label>Reason<textarea required maxLength={2000} value={reason} onChange={e => setReason(e.target.value)} placeholder="Explain why this offer is rejected…" /></label>
+        <ErrorNotice message={action.error} />
+        <div className={styles['actions']}>
+          <button type="submit" disabled={action.busy || !reason.trim()}>Confirm rejection</button>
+          <button type="button" onClick={() => { setRejecting(false); setReason(''); }}>Cancel</button>
+        </div>
+      </form>
+    )}
+    <ErrorNotice message={action.error} />
+  </div>;
 }

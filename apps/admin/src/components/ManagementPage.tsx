@@ -11,7 +11,7 @@ import TablePagination from './TablePagination';
 import DetailDialog from './DetailDialog';
 import ProductDetails, { ProductModerationActions } from './ProductDetails';
 import { ErrorNotice, PreviewImage, RecordFields, textValue } from './RecordFields';
-import { CategoryEditor, BrandEditor, DisputeActions, useAdminMutation, UserMemberships, UserStatusActions, userDetailKeys } from './EntityActions';
+import { CategoryEditor, BrandEditor, DisputeActions, useAdminMutation, UserMemberships, UserStatusActions, userDetailKeys, OfferGovernanceActions } from './EntityActions';
 import styles from './management.module.css';
 
 export default function ManagementPage({ entity }: { entity: ManagementEntity }) {
@@ -139,6 +139,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
             <td><div className={styles['actions']}>
               <button type="button" data-view onClick={() => open(row)} aria-label={`View ${row['title'] || row['fullName'] || row['displayName'] || row['name'] || row.id}`}>View</button>
               {entity === 'products' && <ProductModerationActions id={row.id} status={String(row['status'])} onDone={list.reload} />}
+              {entity === 'offers' && <OfferGovernanceActions record={row} onDone={list.reload} />}
               {entity === 'users' && <UserStatusActions record={row} onDone={list.reload} />}
               <VerificationLink entity={entity} row={row} />
               {entity === 'categories' && <><button type="button" onClick={() => open(row, true)}>Edit</button><button type="button" disabled={deletion.busy} onClick={() => remove(row)}>Delete</button></>}
