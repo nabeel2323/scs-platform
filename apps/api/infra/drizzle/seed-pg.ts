@@ -60,6 +60,8 @@ const PERMISSIONS: string[] = [
   'catalog:offers:govern',
   // Catalog governance — merchant catalog requests (P1 remediation)
   'catalog:requests:manage',
+  // Catalog import center (admin Excel imports)
+  'catalog:imports:manage',
   // Orders
   'orders:read',
   'orders:write',
@@ -147,6 +149,8 @@ const ROLES: RoleDef[] = [
       'catalog:offers:govern',
       // Catalog governance (merchant requests)
       'catalog:requests:manage',
+      // Catalog import center
+      'catalog:imports:manage',
       // Admin platform operations
       'admin:orders:read',
       'admin:merchants:read',

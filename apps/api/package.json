@@ -19,6 +19,12 @@
     "db:migrate": "tsx infra/drizzle/migrate-pg.ts",
     "db:migrate:ci": "tsx infra/drizzle/migrate-pg.ts",
     "db:seed": "tsx infra/drizzle/seed-pg.ts",
+    "db:seed:catalog": "tsx infra/drizzle/seed-catalog.ts",
+    "db:seed:catalog:demo": "cross-env CATALOG_SEED_PROFILE=demo tsx infra/drizzle/seed-catalog.ts",
+    "catalog:validate": "tsx infra/seed-data/validate.ts",
+    "catalog:report": "tsx infra/seed-data/report.ts",
+    "catalog:import:validate": "tsx infra/catalog-import-cli.ts --validate",
+    "catalog:template": "tsx infra/catalog-import-cli.ts --template",
     "db:bootstrap:staging": "tsx infra/drizzle/seed-pg.ts && tsx bootstrap-staging-platform.ts && tsx bootstrap-staging-merchant.ts && tsx bootstrap-staging-store.ts && tsx bootstrap-staging-staff.ts",
     "db:demo": "tsx src/scripts/demo-data.ts",
     "db:reset": "tsx infra/drizzle/reset.ts",
@@ -59,6 +65,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "uuid": "^10.0.0",
+    "exceljs": "^4.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

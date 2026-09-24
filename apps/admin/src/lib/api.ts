@@ -1141,3 +1141,151 @@ export async function fetchDataQualityMetrics(): Promise<DataQualityMetrics> {
   if (!res.ok) throw new Error(`Failed to fetch data quality metrics: ${res.status}`);
   return res.json();
 }
+
+// ── Catalog Import Center ─────────────────────────────────────
+
+export interface CatalogImport {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  storageKey: string;
+  importType: string;
+  status: string;
+  totalRows: number;
+  processedRows: number;
+  createdRows: number;
+  updatedRows: number;
+  unchangedRows: number;
+  rejectedRows: number;
+  errorCount: number;
+  warningCount: number;
+  stats: Record<string, unknown>;
+  uploadedBy: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogImportError {
+  id: string;
+  importId: string;
+  sheet: string | null;
+  rowNumber: number | null;
+  entityType: string | null;
+  externalKey: string | null;
+  field: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  rawValue: string | null;
+  suggestedFix: string | null;
+  severity: string;
+  createdAt: string;
+}
+
+export interface CatalogImportPreview {
+  plan: {
+    summary: {
+      totalCreate: number;
+      totalUpdate: number;
+      totalUnchanged: number;
+      byEntity: Record<string, { create: number; update: number; unchanged: number }>;
+    };
+  };
+  errors: CatalogImportError[];
+}
+
+export async function uploadCatalogImport(file: File): Promise<CatalogImport> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to upload catalog import: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCatalogImports(params?: {
+  limit?: number; offset?: number; status?: string;
+}): Promise<CatalogImport[]> {
+  const sp = new URLSearchParams();
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog imports: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCatalogImport(id: string): Promise<CatalogImport> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog import: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCatalogImportPreview(id: string): Promise<CatalogImportPreview> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/preview`);
+  if (!res.ok) throw new Error(`Failed to fetch import preview: ${res.status}`);
+  return res.json();
+}
+
+export async function executeCatalogImport(id: string): Promise<{
+  created: number; updated: number; unchanged: number; rejected: number; errors: string[];
+}> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/execute`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to execute catalog import: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCatalogImportErrors(id: string): Promise<CatalogImportError[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/errors`);
+  if (!res.ok) throw new Error(`Failed to fetch import errors: ${res.status}`);
+  return res.json();
+}
+
+export async function downloadCatalogImportReport(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/report`);
+  if (!res.ok) throw new Error(`Failed to download report: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `import-report-${id}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadCatalogTemplate(type: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/template/${type}`);
+  if (!res.ok) throw new Error(`Failed to download template: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `catalog-template-${type}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportCatalog(): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/export`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to export catalog: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `catalog-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

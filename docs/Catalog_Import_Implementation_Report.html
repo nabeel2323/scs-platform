@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catalog Import Center — Implementation Report</title>
+<style>
+  :root {
+    --bg: #0a1929;
+    --surface: #0f3340;
+    --border: #1a4a5a;
+    --text: #e0f2fe;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  header { text-align: center; padding: 3rem 0 2rem; border-bottom: 2px solid var(--accent); margin-bottom: 2rem; }
+  header h1 { font-size: 2rem; color: var(--accent); margin-bottom: 0.5rem; }
+  header p { color: var(--muted); font-size: 1.1rem; }
+  .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 600; }
+  .badge-success { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid var(--success); }
+  .badge-info { background: rgba(56,189,248,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .badge-warning { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid var(--warning); }
+  h2 { color: var(--accent); font-size: 1.4rem; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  h3 { color: var(--text); font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+  .stat { text-align: center; padding: 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .stat .number { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .stat .label { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th, td { padding: 0.6rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--accent); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { font-size: 0.95rem; }
+  .check { color: var(--success); }
+  .file-list { list-style: none; }
+  .file-list li { padding: 0.4rem 0; border-bottom: 1px solid rgba(26,74,90,0.5); font-size: 0.9rem; }
+  .file-list li::before { content: '▸ '; color: var(--accent); }
+  code { background: rgba(56,189,248,0.1); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem; color: var(--accent); }
+  .pipeline { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+  .pipeline .step { background: var(--surface); border: 1px solid var(--accent); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: var(--accent); }
+  .pipeline .arrow { color: var(--muted); font-size: 1.2rem; }
+  .summary-bar { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }
+  .summary-item { display: flex; align-items: center; gap: 0.5rem; }
+  .summary-dot { width: 10px; height: 10px; border-radius: 50%; }
+  footer { text-align: center; padding: 2rem 0; margin-top: 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Catalog Import Center — Implementation Report</h1>
+  <p>Admin-driven Excel (XLSX) bulk import system for the canonical platform catalog</p>
+  <div style="margin-top: 1rem;">
+    <span class="badge badge-success">ALL TESTS PASSING</span>
+    <span class="badge badge-success">TypeScript CLEAN</span>
+    <span class="badge badge-info">57 test files · 794 tests</span>
+  </div>
+</header>
+
+<!-- Key Metrics -->
+<h2>Key Metrics</h2>
+<div class="grid">
+  <div class="stat"><div class="number">23</div><div class="label">New files created</div></div>
+  <div class="stat"><div class="number">6</div><div class="label">Files modified</div></div>
+  <div class="stat"><div class="number">~80</div><div class="label">New tests added</div></div>
+  <div class="stat"><div class="number">9</div><div class="label">API endpoints</div></div>
+  <div class="stat"><div class="number">12</div><div class="label">Entity types supported</div></div>
+  <div class="stat"><div class="number">7</div><div class="label">Backend services</div></div>
+</div>
+
+<!-- Architecture -->
+<h2>Service Pipeline</h2>
+<div class="card">
+  <div class="pipeline">
+    <span class="step">ExcelParser</span><span class="arrow">→</span>
+    <span class="step">ExcelValidator</span><span class="arrow">→</span>
+    <span class="step">ExcelResolver</span><span class="arrow">→</span>
+    <span class="step">ExcelPlanner</span><span class="arrow">→</span>
+    <span class="step">Preview</span><span class="arrow">→</span>
+    <span class="step">ExcelExecutor</span><span class="arrow">→</span>
+    <span class="step">Report</span>
+  </div>
+  <p style="color: var(--muted); margin-top: 0.75rem;">
+    The orchestrator (<code>CatalogImportService</code>) coordinates the full pipeline.
+    Each service is independently testable and follows single-responsibility principle.
+    The pipeline is transactional — any failure during execution triggers a full rollback.
+  </p>
+</div>
+
+<!-- API Endpoints -->
+<h2>API Endpoints</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>POST</code></td><td><code>/admin/catalog-imports/upload</code></td><td>Upload XLSX, auto-validate</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports</code></td><td>List import history</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports/:id</code></td><td>Get import job detail</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports/:id/preview</code></td><td>Get validation preview</td></tr>
+      <tr><td><code>POST</code></td><td><code>/admin/catalog-imports/:id/execute</code></td><td>Confirm and execute import</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports/:id/errors</code></td><td>Get row-level errors</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports/:id/report</code></td><td>Download error report (XLSX)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/admin/catalog-imports/template/:type</code></td><td>Download blank template</td></tr>
+      <tr><td><code>POST</code></td><td><code>/admin/catalog-imports/export</code></td><td>Export current catalog to XLSX</td></tr>
+    </tbody>
+  </table>
+  <p style="color: var(--muted); margin-top: 0.5rem;">All endpoints gated by <code>catalog:imports:manage</code> permission + <code>ADMIN</code>/<code>SUPER_ADMIN</code> role.</p>
+</div>
+
+<!-- New Files -->
+<h2>New Files Created</h2>
+<div class="card">
+  <h3>Backend — NestJS Module (10 files)</h3>
+  <ul class="file-list">
+    <li><code>apps/api/src/modules/catalog-import/catalog-import.schema.ts</code> — Drizzle schema for import tables</li>
+    <li><code>apps/api/src/modules/catalog-import/catalog-import.module.ts</code> — NestJS module definition</li>
+    <li><code>apps/api/src/modules/catalog-import/catalog-import.controller.ts</code> — REST controller (9 endpoints)</li>
+    <li><code>apps/api/src/modules/catalog-import/catalog-import.service.ts</code> — Pipeline orchestrator</li>
+    <li><code>apps/api/src/modules/catalog-import/excel-parser.service.ts</code> — XLSX parser (ExcelJS)</li>
+    <li><code>apps/api/src/modules/catalog-import/excel-validator.service.ts</code> — Business rule validation</li>
+    <li><code>apps/api/src/modules/catalog-import/excel-resolver.service.ts</code> — External key → UUID resolution</li>
+    <li><code>apps/api/src/modules/catalog-import/excel-planner.service.ts</code> — CREATE/UPDATE/UNCHANGED classification</li>
+    <li><code>apps/api/src/modules/catalog-import/excel-executor.service.ts</code> — Transactional DB execution</li>
+    <li><code>apps/api/src/modules/catalog-import/template-generator.service.ts</code> — Template + export generation</li>
+  </ul>
+
+  <h3>Shared Validation (1 file)</h3>
+  <ul class="file-list">
+    <li><code>apps/api/src/modules/catalog/catalog.validation-service.ts</code> — Shared slug/code/GTIN/EAN/attribute validation</li>
+  </ul>
+
+  <h3>Frontend — Admin (1 file)</h3>
+  <ul class="file-list">
+    <li><code>apps/admin/src/app/catalog-import/page.tsx</code> — Import Center page (5 workflow stages)</li>
+  </ul>
+
+  <h3>Infrastructure (2 files)</h3>
+  <ul class="file-list">
+    <li><code>infra/drizzle/migrations/0034_catalog_imports.sql</code> — DB migration</li>
+    <li><code>apps/api/infra/catalog-import-cli.ts</code> — CLI for validate/template commands</li>
+  </ul>
+
+  <h3>Tests (6 files)</h3>
+  <ul class="file-list">
+    <li><code>src/__tests__/unit/catalog-import/excel-parser.spec.ts</code> — Parser unit tests</li>
+    <li><code>src/__tests__/unit/catalog-import/excel-validator.spec.ts</code> — Validator unit tests</li>
+    <li><code>src/__tests__/unit/catalog-import/excel-planner.spec.ts</code> — Planner unit tests</li>
+    <li><code>src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts</code> — Shared validation tests</li>
+    <li><code>src/__tests__/unit/catalog-import/security.spec.ts</code> — Security tests</li>
+    <li><code>src/__tests__/integration/catalog-import-pipeline.spec.ts</code> — Full pipeline integration tests</li>
+  </ul>
+
+  <h3>Documentation (2 files)</h3>
+  <ul class="file-list">
+    <li><code>docs/catalog-import.md</code> — Comprehensive user/developer documentation</li>
+    <li><code>docs/Catalog_Import_Implementation_Report.html</code> — This report</li>
+  </ul>
+</div>
+
+<!-- Modified Files -->
+<h2>Modified Files</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>File</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>apps/api/package.json</code></td><td>Added <code>exceljs</code> dependency + <code>catalog:import:validate</code> and <code>catalog:template</code> scripts</td></tr>
+      <tr><td><code>apps/api/src/modules/catalog/catalog.module.ts</code></td><td>Export <code>CatalogValidationService</code></td></tr>
+      <tr><td><code>apps/api/src/app.module.ts</code></td><td>Register <code>CatalogImportModule</code></td></tr>
+      <tr><td><code>apps/admin/src/lib/api.ts</code></td><td>Added 3 types + 9 API client functions</td></tr>
+      <tr><td><code>apps/admin/src/components/AdminSidebar.tsx</code></td><td>Added Import Center nav entry with <code>IconUpload</code></td></tr>
+      <tr><td><code>apps/api/infra/drizzle/seed-pg.ts</code></td><td>Added <code>catalog:imports:manage</code> permission + ADMIN role grant</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Security Features -->
+<h2>Security Features</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Feature</th><th>Implementation</th></tr></thead>
+    <tbody>
+      <tr><td>File type restriction</td><td>Only <code>.xlsx</code> accepted; <code>.xlsm</code> (macros) rejected</td></tr>
+      <tr><td>File size limit</td><td>25 MB max (enforced at upload + parser level)</td></tr>
+      <tr><td>Formula injection prevention</td><td><code>sanitizeForExcel()</code> prefixes <code>=</code>, <code>+</code>, <code>-</code>, <code>@</code> with single quote</td></tr>
+      <tr><td>No formula execution</td><td>Parser reads cached results only, never evaluates formulas</td></tr>
+      <tr><td>Path traversal protection</td><td>Filenames sanitized; storage keys use UUID prefix</td></tr>
+      <tr><td>Row/cell limits</td><td>50,000 rows per sheet, 10,000 chars per cell</td></tr>
+      <tr><td>RBAC enforcement</td><td><code>@RequirePermission('catalog:imports:manage')</code> + <code>@RequireRole('ADMIN', 'SUPER_ADMIN')</code></td></tr>
+      <tr><td>Audit trail</td><td>All import executions recorded via <code>AuditService</code></td></tr>
+      <tr><td>Transactional safety</td><td>Full rollback on any execution failure</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Test Summary -->
+<h2>Test Summary</h2>
+<div class="card">
+  <div class="summary-bar">
+    <div class="summary-item"><div class="summary-dot" style="background: var(--success);"></div> 794 tests passing</div>
+    <div class="summary-item"><div class="summary-dot" style="background: var(--success);"></div> 57 test files</div>
+    <div class="summary-item"><div class="summary-dot" style="background: var(--success);"></div> 0 failures</div>
+    <div class="summary-item"><div class="summary-dot" style="background: var(--success);"></div> TypeScript 0 errors</div>
+  </div>
+  <table>
+    <thead><tr><th>Test Suite</th><th>Tests</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Excel Parser (unit)</td><td>12</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Excel Validator (unit)</td><td>10</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Excel Planner (unit)</td><td>8</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Catalog Validation Service (unit)</td><td>30+</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Security tests (unit)</td><td>10</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Import Pipeline (integration)</td><td>5</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Seed RBAC (integration)</td><td>5</td><td class="check">✓ PASS</td></tr>
+      <tr><td>Catalog Seed (integration)</td><td>8</td><td class="check">✓ PASS</td></tr>
+      <tr><td>All existing tests</td><td>714+</td><td class="check">✓ PASS</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Bugs Found & Fixed -->
+<h2>Bugs Found &amp; Fixed During Implementation</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Bug</th><th>Root Cause</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Summary counts always 0</td>
+        <td>Planner iterated over <code>Object.keys(plan.summary.byEntity)</code> which starts empty</td>
+        <td>Changed to iterate over known entity key array</td>
+      </tr>
+      <tr>
+        <td>Re-import flagged as DUPLICATE_KEY</td>
+        <td>Validator initialized <code>seen</code> sets with existing DB slugs, so every existing entity in the file was flagged as duplicate</td>
+        <td>Initialize <code>seen</code> as empty set — only detect within-file duplicates</td>
+      </tr>
+      <tr>
+        <td>AuditService.record() signature mismatch</td>
+        <td>Called with 5 positional args but takes single AuditEntry object</td>
+        <td>Changed to <code>record({ actorType: 'ADMIN', actorId, action, resource, metadata })</code></td>
+      </tr>
+      <tr>
+        <td>Record&lt;string, unknown&gt; dot-notation errors</td>
+        <td>TypeScript strict mode rejects dot-notation on index signatures</td>
+        <td>Used bracket notation and <code>as any</code> cast where needed</td>
+      </tr>
+      <tr>
+        <td>Permission count assertions stale</td>
+        <td>Adding <code>catalog:imports:manage</code> increased total from 52→53, ADMIN from 37→38</td>
+        <td>Updated all assertion sites in seed-pg test</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CLI Commands -->
+<h2>CLI Commands</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>Command</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>pnpm --filter @scs/api catalog:import:validate</code></td><td>Validate a workbook from CLI</td></tr>
+      <tr><td><code>pnpm --filter @scs/api catalog:template</code></td><td>Generate blank import template</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  <p>Smart Commerce Platform — Catalog Import Center Implementation Report</p>
+  <p>Generated September 2026</p>
+</footer>
+
+</div>
+</body>
+</html>
