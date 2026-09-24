@@ -94,6 +94,8 @@ function createHarness(options: { failFor?: string; asSubOrder?: boolean } = {})
   const db = {
     insert: vi.fn(() => ({ values: vi.fn(async () => undefined) })),
     update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(async () => undefined) })) })),
+    // Mock transaction: executes callback with same mock db (no real tx needed in unit tests)
+    transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
       masterOrders: { findFirst: masterFindFirst },
       orders: {

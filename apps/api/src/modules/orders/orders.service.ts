@@ -19,8 +19,9 @@ import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { priceTiers, priceLists } from '../pricing/pricing.schema';
+import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
+import { outboxEvents } from '../audit/audit.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
@@ -183,34 +184,16 @@ export class OrdersService {
       grouped.get(storeId)!.push(item);
     }
 
-    // Create master order
-    const masterId = crypto.randomUUID();
-    await this.db.db.insert(masterOrders).values({
-      id: masterId,
-      buyerId: input.buyerId,
-      status: 'SUBMITTED',
-      deliveryAddress: input.deliveryAddress,
-      notes: input.notes || null,
-      idempotencyKey: input.idempotencyKey || null,
-    });
-
-    // Pricing policy (env-overridable; see order-pricing.ts for Phase 1 defaults).
-    // Read at call time so tests can override via process.env.
+    // ── Pricing policy (env-overridable; see order-pricing.ts for Phase 1 defaults)
     const vatRate = Number(process.env['VAT_RATE'] ?? DEFAULT_VAT_RATE);
     const commissionRate = Number(process.env['COMMISSION_RATE'] ?? DEFAULT_COMMISSION_RATE);
     const platformDeliveryFee = Number(
       process.env['PLATFORM_DELIVERY_FEE_MINOR'] ?? DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
     );
     const fulfillmentMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
-    // A platform-flat fee in minor units: it is charged in whichever currency the
-    // supplier's sub-order uses, so 500 means 5.00 SAR at a SAR store and 5.00 AED
-    // at an AED one. Per-currency fee policy is an open decision (audit §9), not
-    // something this call may invent.
     const deliveryFee = resolveDeliveryFeeMinor(fulfillmentMethod, platformDeliveryFee);
 
-    // Currency belongs to the supplier, not to the cart: one checkout can split
-    // into sub-orders priced in different currencies, so each records its own
-    // (A2-4). One batch read instead of one per group.
+    // Read store metadata before the transaction (read-only, safe outside).
     const currencyByStore = new Map<string, string>();
     const orgIdByStore = new Map<string, string>();
     const storeRows = await this.db.db.query.stores.findMany({
@@ -222,20 +205,11 @@ export class OrdersService {
       if (store['orgId']) orgIdByStore.set(store['id'], store['orgId']);
     }
 
-    // Create sub-orders per supplier
-    const subOrderIds: string[] = [];
-    const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
-    let grandTotalMinor = 0;
+    // Pre-compute per-store promotions outside the transaction (the promotion
+    // service manages its own DB connection).
+    const promoDataByStore = new Map<string, { promo: any; discount: number }>();
     for (const [storeId, storeItems] of grouped) {
-      const subOrderId = crypto.randomUUID();
-
-      // Calculate totals
       const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
-
-      // Resolve the promotion applicable to THIS store. A cart holds a single
-      // promo code, but promotions are store-scoped and checkout splits the cart
-      // into per-store sub-orders, so the discount is applied only to the
-      // matching supplier's sub-order (never across unrelated stores).
       const hasPromo = Boolean(cart['promotionId'] || cart['promoCode']);
       const promo = hasPromo
         ? await this.promotions.resolveApplicable(storeId, {
@@ -245,122 +219,145 @@ export class OrdersService {
           })
         : null;
       const discount = promo ? this.promotions.calculateDiscount(promo, subtotal) : 0;
-
-      // Compute discount + 15% VAT + delivery fee + commission in one pure step.
-      const fin = computeOrderFinancials({
-        subtotalMinor: subtotal,
-        discountMinor: discount,
-        deliveryFeeMinor: deliveryFee,
-        vatRate,
-        commissionRate,
-      });
-      grandTotalMinor += fin.totalMinor;
-
-      await this.db.db.insert(orders).values({
-        id: subOrderId,
-        masterOrderId: masterId,
-        storeId,
-        buyerId: input.buyerId,
-        status: 'SUBMITTED',
-        fulfillmentMethod,
-        promoCode: promo ? cart['promoCode'] || promo['code'] : null,
-        promotionId: promo ? promo['id'] : null,
-        subtotalMinor: fin.productsMinor,
-        discountMinor: fin.discountMinor,
-        deliveryFeeMinor: fin.deliveryFeeMinor,
-        taxMinor: fin.taxMinor,
-        totalMinor: fin.totalMinor,
-        // Null only when the seller's row cannot be read; the snapshot is never
-        // guessed, because a wrong code on an invoice is worse than none.
-        currency: currencyByStore.get(storeId) ?? null,
-        slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000), // 12h SLA
-      });
-
-      // Create order items with SNAPSHOT data
-      for (const item of storeItems) {
-        // Fetch variant for SKU/title snapshot
-        const variant = await this.db.db.query.productVariants.findFirst({
-          where: eq(productVariants.id, item['variantId']),
-        });
-        if (!variant) continue;
-
-        const itemId = crypto.randomUUID();
-        // PHASE 15: pull the pre-loaded immutable offer snapshot (or null for
-        // legacy lines that were priced without an offer).
-        const itemOfferId = (item['offerId'] as string | null) ?? null;
-        const offerSnapshot = itemOfferId ? offerSnapshotById.get(itemOfferId) ?? null : null;
-        await this.db.db.insert(orderItems).values({
-          id: itemId,
-          orderId: subOrderId,
-          variantId: item['variantId'],
-          sku: variant['sku'],
-          title: variant['title'] || variant['sku'],
-          quantity: item['quantity'],
-          unitPriceMinor: item['priceMinor'],
-          tierMinQty: item['tierMinQty'],
-          offerId: itemOfferId, // PHASE 10
-          offerSnapshot, // PHASE 15
-          promoSnapshot: item['promoSnapshot'] || {},
-          lineTotalMinor: item['lineTotalMinor'],
-        });
-      }
-
-      // Write financial breakdown — now populated with real discount/VAT/fee
-      // (previously all-zero). commission/merchantNet use the net-goods basis.
-      await this.db.db.insert(orderFinancialBreakdown).values({
-        id: crypto.randomUUID(),
-        orderId: subOrderId,
-        productsMinor: fin.productsMinor,
-        discountMinor: fin.discountMinor,
-        deliveryFeeMinor: fin.deliveryFeeMinor,
-        taxMinor: fin.taxMinor,
-        commissionMinor: fin.commissionMinor,
-        merchantNetMinor: fin.merchantNetMinor,
-      });
-
-      // Record the redemption against this sub-order (only when a discount was
-      // actually applied). Eligibility was pre-checked in resolveApplicable, so
-      // this should not reject under normal flow.
-      if (promo && fin.discountMinor > 0) {
-        await this.promotions.redeemPromotion(
-          promo['id'],
-          input.buyerId,
-          subOrderId,
-          fin.discountMinor,
-        );
-      }
-
-      // Record status history
-      await this.recordStatusChange(
-        subOrderId,
-        null,
-        'SUBMITTED',
-        input.buyerId,
-        'BUYER',
-        'Checkout',
-      );
-
-      subOrderIds.push(subOrderId);
-      subOrderData.push({ id: subOrderId, storeId, totalMinor: fin.totalMinor, itemCount: storeItems.length });
+      promoDataByStore.set(storeId, { promo, discount });
     }
 
-    // Mark cart as CONVERTED
-    await this.db.db
-      .update(carts)
-      .set({ status: 'CONVERTED', updatedAt: new Date() })
-      .where(eq(carts.id, cart['id']));
+    // ── CHECKOUT TRANSACTION ──────────────────────────────────────────────
+    // All writes (master order, sub-orders, items, financials, status history,
+    // cart conversion) are atomic. If any step fails, everything rolls back.
+    const masterId = crypto.randomUUID();
+    const subOrderIds: string[] = [];
+    const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
+    let grandTotalMinor = 0;
 
-    // Emit domain event
-    // grandTotalMinor adds every sub-order total together, which is only
-    // meaningful while all suppliers share a currency; the event has no field for
-    // a per-currency figure. Consumers that care must read the master order, whose
-    // response breaks the same total down by currency.
-    await this.outbox.publish('order.submitted', masterId, {
-      masterOrderId: masterId,
-      buyerId: input.buyerId,
-      subOrderIds,
-      totalMinor: grandTotalMinor,
+    await this.db.db.transaction(async (tx) => {
+      await tx.insert(masterOrders).values({
+        id: masterId,
+        buyerId: input.buyerId,
+        status: 'SUBMITTED',
+        deliveryAddress: input.deliveryAddress,
+        notes: input.notes || null,
+        idempotencyKey: input.idempotencyKey || null,
+      });
+
+      for (const [storeId, storeItems] of grouped) {
+        const subOrderId = crypto.randomUUID();
+        const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
+        const { promo, discount } = promoDataByStore.get(storeId)!;
+
+        const fin = computeOrderFinancials({
+          subtotalMinor: subtotal,
+          discountMinor: discount,
+          deliveryFeeMinor: deliveryFee,
+          vatRate,
+          commissionRate,
+        });
+        grandTotalMinor += fin.totalMinor;
+
+        await tx.insert(orders).values({
+          id: subOrderId,
+          masterOrderId: masterId,
+          storeId,
+          buyerId: input.buyerId,
+          status: 'SUBMITTED',
+          fulfillmentMethod,
+          promoCode: promo ? cart['promoCode'] || promo['code'] : null,
+          promotionId: promo ? promo['id'] : null,
+          subtotalMinor: fin.productsMinor,
+          discountMinor: fin.discountMinor,
+          deliveryFeeMinor: fin.deliveryFeeMinor,
+          taxMinor: fin.taxMinor,
+          totalMinor: fin.totalMinor,
+          currency: currencyByStore.get(storeId) ?? null,
+          slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+        });
+
+        for (const item of storeItems) {
+          const variant = await tx.query.productVariants.findFirst({
+            where: eq(productVariants.id, item['variantId']),
+          });
+          if (!variant) continue;
+
+          const itemOfferId = (item['offerId'] as string | null) ?? null;
+          const offerSnapshot = itemOfferId ? offerSnapshotById.get(itemOfferId) ?? null : null;
+          await tx.insert(orderItems).values({
+            id: crypto.randomUUID(),
+            orderId: subOrderId,
+            variantId: item['variantId'],
+            sku: variant['sku'],
+            title: variant['title'] || variant['sku'],
+            quantity: item['quantity'],
+            unitPriceMinor: item['priceMinor'],
+            tierMinQty: item['tierMinQty'],
+            offerId: itemOfferId,
+            offerSnapshot,
+            promoSnapshot: item['promoSnapshot'] || {},
+            lineTotalMinor: item['lineTotalMinor'],
+          });
+        }
+
+        await tx.insert(orderFinancialBreakdown).values({
+          id: crypto.randomUUID(),
+          orderId: subOrderId,
+          productsMinor: fin.productsMinor,
+          discountMinor: fin.discountMinor,
+          deliveryFeeMinor: fin.deliveryFeeMinor,
+          taxMinor: fin.taxMinor,
+          commissionMinor: fin.commissionMinor,
+          merchantNetMinor: fin.merchantNetMinor,
+        });
+
+        // Inline status history write (uses tx, not this.db.db)
+        await tx.insert(orderStatusHistory).values({
+          id: crypto.randomUUID(),
+          orderId: subOrderId,
+          fromStatus: null,
+          toStatus: 'SUBMITTED',
+          changedBy: input.buyerId,
+          actorType: 'BUYER',
+          reason: 'Checkout',
+        });
+
+        subOrderIds.push(subOrderId);
+        subOrderData.push({ id: subOrderId, storeId, totalMinor: fin.totalMinor, itemCount: storeItems.length });
+      }
+
+      // Mark cart as CONVERTED
+      await tx
+        .update(carts)
+        .set({ status: 'CONVERTED', updatedAt: new Date() })
+        .where(eq(carts.id, cart['id']));
+
+      // Write outbox event inside the transaction (transactional outbox pattern)
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'order.submitted',
+        aggregateId: masterId,
+        payload: {
+          masterOrderId: masterId,
+          buyerId: input.buyerId,
+          subOrderIds,
+          totalMinor: grandTotalMinor,
+        },
+        metadata: {},
+        status: 'PENDING',
+      });
     });
+
+    // ── Post-transaction side effects (best-effort, never fail a committed checkout) ──
+
+    // Promotion redemption (promotion service manages its own DB connection)
+    for (const [storeId, storeItems] of grouped) {
+      const { promo, discount } = promoDataByStore.get(storeId)!;
+      const sub = subOrderData.find(s => s.storeId === storeId);
+      if (promo && discount > 0 && sub) {
+        try {
+          await this.promotions.redeemPromotion(promo['id'], input.buyerId, sub.id, discount);
+        } catch {
+          /* best-effort — order is already committed */
+        }
+      }
+    }
 
     // Auto-advance all sub-orders: SUBMITTED → PENDING_CONFIRMATION
     for (const sub of subOrderData) {
@@ -942,40 +939,33 @@ export class OrdersService {
 
     const deltas: PriceDelta[] = [];
 
+    // Use the same shared resolver that the cart uses (A5-1) so the re-price
+    // guard compares apples-to-apples against the checkout snapshot.
+    const variantIds = [...new Set(items.map(i => i['variantId']))];
+    if (variantIds.length === 0) return deltas;
+
+    // Resolve each item's quantity separately since quantities may differ.
     for (const item of items) {
-      // Find the current price tier for this variant at the ordered quantity
-      const currentTier = await this.db.db
-        .select()
-        .from(priceTiers)
-        .innerJoin(priceLists, eq(priceTiers.priceListId, priceLists.id))
-        .where(
-          and(
-            eq(priceLists.storeId, storeId),
-            eq(priceLists.isActive, true),
-            eq(priceTiers.variantId, item['variantId']),
-            sql`${priceTiers.minQty} <= ${item['quantity']}`,
-          ),
-        )
-        .orderBy(priceTiers.minQty)
-        .limit(1);
+      const pricing = await resolveOfferPrices(
+        this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
+      );
+      const tier = pricing.get(item['variantId']);
+      if (!tier) continue;
 
-      if (currentTier.length > 0) {
-        const tier = currentTier[0]!;
-        const currentPrice = tier['price_tiers']['unitPriceMinor'];
-        const snapshotPrice = item['unitPriceMinor'];
-        const delta = currentPrice - snapshotPrice;
-        const deltaPercent = snapshotPrice > 0 ? (delta / snapshotPrice) * 100 : 0;
+      const currentPrice = tier.unitPriceMinor;
+      const snapshotPrice = item['unitPriceMinor'];
+      const delta = currentPrice - snapshotPrice;
+      const deltaPercent = snapshotPrice > 0 ? (delta / snapshotPrice) * 100 : 0;
 
-        deltas.push({
-          itemId: item['id'],
-          variantId: item['variantId'],
-          sku: item['sku'],
-          snapshotPrice,
-          currentPrice,
-          delta,
-          deltaPercent: Math.round(deltaPercent * 100) / 100,
-        });
-      }
+      deltas.push({
+        itemId: item['id'],
+        variantId: item['variantId'],
+        sku: item['sku'],
+        snapshotPrice,
+        currentPrice,
+        delta,
+        deltaPercent: Math.round(deltaPercent * 100) / 100,
+      });
     }
 
     return deltas;
@@ -983,21 +973,23 @@ export class OrdersService {
 
   // ── Stock Reservation ───────────────────────────────────────
 
+  /**
+   * Reserve stock for an order inside a DB transaction with SELECT … FOR UPDATE
+   * so concurrent accept calls on the same inventory row are serialised.
+   */
   private async reserveStock(orderId: string, storeId: string) {
     const items = await this.db.db.query.orderItems.findMany({
       where: eq(orderItems.orderId, orderId),
     });
 
-    // Find the store's warehouse(s)
     const storeWarehouses = await this.db.db
       .select()
       .from(warehouses)
       .where(eq(warehouses.storeId, storeId));
 
-    if (storeWarehouses.length === 0) return; // No warehouse configured
+    if (storeWarehouses.length === 0) return;
 
     for (const item of items) {
-      // Find inventory item in any of the store's warehouses
       for (const wh of storeWarehouses) {
         const invItem = await this.db.db
           .select()
@@ -1012,33 +1004,41 @@ export class OrdersService {
 
         if (invItem.length > 0) {
           const inv = invItem[0]!;
-          const available = inv['qtyOnHand'] - inv['qtyReserved'];
-          const qtyToReserve = Math.min(item['quantity'], available);
 
-          if (qtyToReserve > 0) {
-            // Increment reserved quantity
-            await this.db.db
-              .update(inventoryItems)
-              .set({
-                qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(inventoryItems.id, inv['id']));
+          await this.db.db.transaction(async (tx) => {
+            const locked = await tx
+              .select({ qtyOnHand: inventoryItems.qtyOnHand, qtyReserved: inventoryItems.qtyReserved })
+              .from(inventoryItems)
+              .where(eq(inventoryItems.id, inv.id))
+              .for('update')
+              .then((rows) => rows[0]);
 
-            // Record stock movement — `quantity` is signed "positive = in,
-            // negative = out" per 0005_inventory.sql, and a reservation takes
-            // stock out of what is available (inventory.service.reserveStock
-            // already writes it this way).
-            await this.db.db.insert(stockMovements).values({
-              id: crypto.randomUUID(),
-              inventoryItemId: inv['id'],
-              movementType: 'RESERVE',
-              quantity: -qtyToReserve,
-              referenceType: 'ORDER',
-              referenceId: orderId,
-              reason: `Stock reserved for order ${orderId}`,
-            });
-          }
+            if (!locked) return;
+
+            const available = locked.qtyOnHand - locked.qtyReserved;
+            const qtyToReserve = Math.min(item['quantity'], available);
+
+            if (qtyToReserve > 0) {
+              await tx
+                .update(inventoryItems)
+                .set({
+                  qtyReserved: sql`${inventoryItems.qtyReserved} + ${qtyToReserve}`,
+                  updatedAt: new Date(),
+                })
+                .where(eq(inventoryItems.id, inv.id));
+
+              await tx.insert(stockMovements).values({
+                id: crypto.randomUUID(),
+                inventoryItemId: inv.id,
+                movementType: 'RESERVE',
+                quantity: -qtyToReserve,
+                referenceType: 'ORDER',
+                referenceId: orderId,
+                reason: `Stock reserved for order ${orderId}`,
+              });
+            }
+          });
+
           break; // Only reserve from first warehouse with stock
         }
       }
@@ -1094,38 +1094,46 @@ export class OrdersService {
     for (const [itemId, quantity] of outstanding) {
       if (quantity <= 0) continue; // Already settled
 
-      if (releasesStock) {
-        await this.db.db
-          .update(inventoryItems)
-          .set({
-            qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
-            updatedAt: new Date(),
-          })
-          .where(eq(inventoryItems.id, itemId));
-      } else {
-        // Delivered: the goods leave the warehouse, so on-hand drops along with
-        // the reservation that was holding them.
-        await this.db.db
-          .update(inventoryItems)
-          .set({
-            qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${quantity}, 0)`,
-            qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
-            updatedAt: new Date(),
-          })
-          .where(eq(inventoryItems.id, itemId));
-      }
+      // Lock the inventory row before mutating so concurrent settlements
+      // cannot double-release or double-consume the same stock.
+      await this.db.db.transaction(async (tx) => {
+        await tx
+          .select()
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, itemId))
+          .for('update');
 
-      await this.db.db.insert(stockMovements).values({
-        id: crypto.randomUUID(),
-        inventoryItemId: itemId,
-        movementType: releasesStock ? 'RELEASE' : 'SALE',
-        quantity: releasesStock ? quantity : -quantity,
-        referenceType: 'ORDER',
-        referenceId: orderId,
-        performedBy: performedBy || null,
-        reason: releasesStock
-          ? `Reservation released for ${toStatus.toLowerCase()} order ${orderId}`
-          : `Stock deducted on delivery of order ${orderId}`,
+        if (releasesStock) {
+          await tx
+            .update(inventoryItems)
+            .set({
+              qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, itemId));
+        } else {
+          await tx
+            .update(inventoryItems)
+            .set({
+              qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${quantity}, 0)`,
+              qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, itemId));
+        }
+
+        await tx.insert(stockMovements).values({
+          id: crypto.randomUUID(),
+          inventoryItemId: itemId,
+          movementType: releasesStock ? 'RELEASE' : 'SALE',
+          quantity: releasesStock ? quantity : -quantity,
+          referenceType: 'ORDER',
+          referenceId: orderId,
+          performedBy: performedBy || null,
+          reason: releasesStock
+            ? `Reservation released for ${toStatus.toLowerCase()} order ${orderId}`
+            : `Stock deducted on delivery of order ${orderId}`,
+        });
       });
     }
   }

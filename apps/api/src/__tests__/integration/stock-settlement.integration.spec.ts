@@ -63,9 +63,12 @@ function createHarness(initialStatus: string, ledger: LedgerRow[]) {
       from: vi.fn(() => ({
         where: vi.fn(() => ({
           orderBy: vi.fn(() => ({ limit: vi.fn(async () => []) })),
+          for: vi.fn(() => ({ then: vi.fn(async (resolve: any) => resolve([])) })),
         })),
       })),
     })),
+    // Mock transaction: executes callback with same mock db
+    transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
       orders: { findFirst: vi.fn(async () => ({ ...order })) },
       orderItems: { findMany: vi.fn(async () => []) },

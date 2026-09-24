@@ -10,7 +10,7 @@ import {
   assertWarehouseInOrg,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
-import { eq, and, lte, desc, inArray, count } from 'drizzle-orm';
+import { eq, and, lte, desc, inArray, count, sql } from 'drizzle-orm';
 import { productVariants } from '../catalog/catalog.schema';
 import { products } from '../catalog/catalog.schema';
 import crypto from 'node:crypto';
@@ -298,56 +298,87 @@ export class InventoryService {
 
   // ── Reservations ─────────────────────────────────────────────
 
+  /**
+   * Reserve stock inside a DB transaction with SELECT … FOR UPDATE so that
+   * two concurrent reservations on the same inventory row are serialised.
+   * Without the row lock the read-check-update sequence is a classic TOCTOU
+   * race: both callers see available = 1, both succeed, reserved ends up = 2.
+   */
   async reserveStock(input: ReserveStockInput, caller?: CallerContext) {
-    const item = await this.getItem(input.inventoryItemId);
     if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
-    const available = item['qtyOnHand'] - item['qtyReserved'];
 
-    if (available < input.quantity) {
-      throw new BadRequestException(`Insufficient available stock: ${available} < ${input.quantity}`);
-    }
+    return this.db.db.transaction(async (tx) => {
+      const locked = await tx
+        .select({ qtyOnHand: inventoryItems.qtyOnHand, qtyReserved: inventoryItems.qtyReserved })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, input.inventoryItemId))
+        .for('update')
+        .then((rows) => rows[0]);
 
-    await this.db.db
-      .update(inventoryItems)
-      .set({ qtyReserved: item['qtyReserved'] + input.quantity, updatedAt: new Date() })
-      .where(eq(inventoryItems.id, input.inventoryItemId));
+      if (!locked) throw new NotFoundException('Inventory item not found');
 
-    const movementId = crypto.randomUUID();
-    await this.db.db.insert(stockMovements).values({
-      id: movementId,
-      inventoryItemId: input.inventoryItemId,
-      movementType: 'RESERVE',
-      quantity: -input.quantity,
-      referenceType: input.referenceType || null,
-      referenceId: input.referenceId || null,
-      performedBy: input.userId || null,
+      const available = locked.qtyOnHand - locked.qtyReserved;
+      if (available < input.quantity) {
+        throw new BadRequestException(`Insufficient available stock: ${available} < ${input.quantity}`);
+      }
+
+      await tx
+        .update(inventoryItems)
+        .set({ qtyReserved: sql`${inventoryItems.qtyReserved} + ${input.quantity}`, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, input.inventoryItemId));
+
+      const movementId = crypto.randomUUID();
+      await tx.insert(stockMovements).values({
+        id: movementId,
+        inventoryItemId: input.inventoryItemId,
+        movementType: 'RESERVE',
+        quantity: -input.quantity,
+        referenceType: input.referenceType || null,
+        referenceId: input.referenceId || null,
+        performedBy: input.userId || null,
+      });
+
+      return { movementId };
     });
-
-    return { movementId };
   }
 
+  /**
+   * Release stock inside a DB transaction with SELECT … FOR UPDATE.
+   * Clamps qty_reserved to zero so a duplicate release is a safe no-op
+   * rather than producing a negative reservation.
+   */
   async releaseStock(input: ReserveStockInput, caller?: CallerContext) {
-    const item = await this.getItem(input.inventoryItemId);
     if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
 
-    const newReserved = Math.max(0, item['qtyReserved'] - input.quantity);
-    await this.db.db
-      .update(inventoryItems)
-      .set({ qtyReserved: newReserved, updatedAt: new Date() })
-      .where(eq(inventoryItems.id, input.inventoryItemId));
+    return this.db.db.transaction(async (tx) => {
+      const locked = await tx
+        .select({ qtyReserved: inventoryItems.qtyReserved })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, input.inventoryItemId))
+        .for('update')
+        .then((rows) => rows[0]);
 
-    const movementId = crypto.randomUUID();
-    await this.db.db.insert(stockMovements).values({
-      id: movementId,
-      inventoryItemId: input.inventoryItemId,
-      movementType: 'RELEASE',
-      quantity: input.quantity,
-      referenceType: input.referenceType || null,
-      referenceId: input.referenceId || null,
-      performedBy: input.userId || null,
+      if (!locked) throw new NotFoundException('Inventory item not found');
+
+      const newReserved = Math.max(0, locked.qtyReserved - input.quantity);
+      await tx
+        .update(inventoryItems)
+        .set({ qtyReserved: newReserved, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, input.inventoryItemId));
+
+      const movementId = crypto.randomUUID();
+      await tx.insert(stockMovements).values({
+        id: movementId,
+        inventoryItemId: input.inventoryItemId,
+        movementType: 'RELEASE',
+        quantity: input.quantity,
+        referenceType: input.referenceType || null,
+        referenceId: input.referenceId || null,
+        performedBy: input.userId || null,
+      });
+
+      return { movementId };
     });
-
-    return { movementId };
   }
 
   // ── Stock Movements ──────────────────────────────────────────

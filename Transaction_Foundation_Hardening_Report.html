@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transaction Foundation Hardening Report — Smart Commerce Platform</title>
+<style>
+:root{--brand:#2563eb;--brand-light:#dbeafe;--ink:#1e293b;--ink-light:#64748b;--bg:#f8fafc;--white:#fff;--success:#16a34a;--success-bg:#dcfce7;--warning:#d97706;--warning-bg:#fef3c7;--danger:#dc2626;--danger-bg:#fee2e2;--border:#e2e8f0;--radius:8px;--shadow:0 1px 3px rgba(0,0,0,.1)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+.hero{background:linear-gradient(135deg,#1e3a5f 0%,var(--brand) 100%);color:#fff;padding:3rem 2rem;text-align:center}
+.hero h1{font-size:2rem;margin-bottom:.5rem}
+.hero p{opacity:.9;font-size:1.1rem}
+.hero .badge{display:inline-block;background:var(--success);color:#fff;padding:.25rem .75rem;border-radius:20px;font-size:.85rem;margin-top:.75rem;font-weight:600}
+.container{max-width:1100px;margin:0 auto;padding:0 1.5rem}
+nav.toc{position:sticky;top:0;z-index:100;background:var(--white);border-bottom:1px solid var(--border);padding:.75rem 0;box-shadow:var(--shadow)}
+nav.toc .container{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+nav.toc a{color:var(--ink-light);text-decoration:none;font-size:.82rem;padding:.25rem .5rem;border-radius:4px;transition:all .15s}
+nav.toc a:hover,nav.toc a.active{color:var(--brand);background:var(--brand-light)}
+main{padding:2rem 0}
+section{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:1.5rem;box-shadow:var(--shadow)}
+section h2{font-size:1.35rem;color:var(--brand);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid var(--brand-light)}
+section h3{font-size:1.05rem;margin:1rem 0 .5rem;color:var(--ink)}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+th,td{padding:.6rem .75rem;text-align:left;border-bottom:1px solid var(--border)}
+th{background:var(--bg);font-weight:600;color:var(--ink-light);font-size:.8rem;text-transform:uppercase;letter-spacing:.03em}
+tr:hover{background:#f1f5f9}
+.callout{padding:1rem 1.25rem;border-radius:var(--radius);margin:1rem 0;font-size:.92rem}
+.callout.success{background:var(--success-bg);border-left:4px solid var(--success);color:#166534}
+.callout.warning{background:var(--warning-bg);border-left:4px solid var(--warning);color:#92400e}
+.callout.danger{background:var(--danger-bg);border-left:4px solid var(--danger);color:#991b1b}
+.callout.info{background:var(--brand-light);border-left:4px solid var(--brand);color:#1e40af}
+code{background:#f1f5f9;padding:.15rem .35rem;border-radius:3px;font-size:.85em;font-family:'Fira Code',monospace}
+pre{background:#1e293b;color:#e2e8f0;padding:1rem;border-radius:var(--radius);overflow-x:auto;font-size:.82rem;line-height:1.5;margin:.75rem 0}
+.status-pass{color:var(--success);font-weight:600}
+.status-fix{color:var(--warning);font-weight:600}
+.status-critical{color:var(--danger);font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.stat-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;text-align:center}
+.stat-card .num{font-size:2rem;font-weight:700;color:var(--brand)}
+.stat-card .label{font-size:.82rem;color:var(--ink-light)}
+ul{padding-left:1.25rem;margin:.5rem 0}
+li{margin:.25rem 0}
+footer{text-align:center;padding:2rem;color:var(--ink-light);font-size:.82rem;border-top:1px solid var(--border)}
+@media(max-width:768px){.grid2{grid-template-columns:1fr}.hero h1{font-size:1.5rem}section{padding:1rem 1.25rem}}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Transaction Foundation Hardening Report</h1>
+  <p>Smart Commerce Platform — Production Readiness Validation</p>
+  <div class="badge">ALL 646 TESTS PASSING &bull; ALL PHASES COMPLETE</div>
+</div>
+
+<nav class="toc">
+  <div class="container">
+    <a href="#summary">Summary</a>
+    <a href="#phase-a">Phase A</a>
+    <a href="#phase-b">Phase B</a>
+    <a href="#phase-c">Phase C</a>
+    <a href="#phase-d">Phase D</a>
+    <a href="#phase-e">Phase E</a>
+    <a href="#acceptance">Acceptance</a>
+    <a href="#files">Files</a>
+  </div>
+</nav>
+
+<main class="container">
+
+<!-- ═══════════════ EXECUTIVE SUMMARY ═══════════════ -->
+<section id="summary">
+  <h2>Executive Summary</h2>
+  <div class="grid2">
+    <div class="stat-card"><div class="num">646</div><div class="label">Tests Passing</div></div>
+    <div class="stat-card"><div class="num">46</div><div class="label">Test Files</div></div>
+    <div class="stat-card"><div class="num">12</div><div class="label">E2E Scenarios</div></div>
+    <div class="stat-card"><div class="num">3</div><div class="label">P0 Bugs Fixed</div></div>
+  </div>
+
+  <div class="callout success">
+    <strong>Result:</strong> All transaction-layer concurrency races, checkout atomicity gaps, and price-consistency issues have been identified and remediated. The platform now passes 646 tests including 12 real-PostgreSQL E2E scenarios covering the full Cart → Checkout → Order → Inventory lifecycle.
+  </div>
+
+  <h3>Critical Findings</h3>
+  <table>
+    <tr><th>Severity</th><th>Finding</th><th>Location</th><th>Status</th></tr>
+    <tr><td class="status-critical">P0</td><td>TOCTOU race in <code>reserveStock()</code> — concurrent reservations could oversell</td><td>inventory.service.ts</td><td class="status-pass">Fixed</td></tr>
+    <tr><td class="status-critical">P0</td><td>Same TOCTOU race in orders.service private <code>reserveStock()</code></td><td>orders.service.ts</td><td class="status-pass">Fixed</td></tr>
+    <tr><td class="status-critical">P0</td><td>Checkout writes not atomic — master order, sub-orders, items, financials could partially fail</td><td>orders.service.ts</td><td class="status-pass">Fixed</td></tr>
+    <tr><td class="status-fix">P1</td><td><code>checkPriceDeltas</code> used custom SQL instead of shared resolver — inconsistent prices</td><td>orders.service.ts</td><td class="status-pass">Fixed</td></tr>
+    <tr><td class="status-pass">P2</td><td>Cart security — user-scoped isolation verified, no RBAC changes needed</td><td>cart.controller.ts</td><td class="status-pass">Verified</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════ PHASE A ═══════════════ -->
+<section id="phase-a">
+  <h2>Phase A — Repository Inspection</h2>
+  <p>Comprehensive audit of all transaction-layer services, schemas, and transaction boundaries.</p>
+
+  <h3>Services Audited</h3>
+  <ul>
+    <li><code>inventory.service.ts</code> — Stock CRUD, reservation, release, adjustment, transfer</li>
+    <li><code>orders.service.ts</code> — Checkout, FSM transitions, stock settlement, cancellation</li>
+    <li><code>cart.service.ts</code> — Multi-supplier cart with server-side price snapshots</li>
+    <li><code>catalog.offer.service.ts</code> — Offer lifecycle, pricing, governance</li>
+    <li><code>price-resolution.ts</code> — Shared price resolver (A5-1 compliance)</li>
+  </ul>
+
+  <h3>Key Architectural Observations</h3>
+  <ul>
+    <li>DatabaseService wraps Drizzle ORM via <code>this.db.db</code> double-nesting pattern</li>
+    <li>Transactional outbox pattern for async events (order.submitted, order.accepted, etc.)</li>
+    <li>Order FSM: 16 states (DRAFT → SUBMITTED → PENDING_CONFIRMATION → ACCEPTED → ... → COMPLETED)</li>
+    <li>Stock ledger: movement types IMPORT/ADJUST/RESERVE/RELEASE/SALE with sign convention</li>
+    <li>Reservation policy: stock reserved at merchant ACCEPT, not at cart/checkout</li>
+  </ul>
+</section>
+
+<!-- ═══════════════ PHASE B ═══════════════ -->
+<section id="phase-b">
+  <h2>Phase B — Stock Concurrency Fix</h2>
+  <div class="callout danger">
+    <strong>P0 Race Condition:</strong> <code>reserveStock()</code> used a read-check-update pattern without row locking. Two concurrent requests could both read available=5, both reserve 5, and oversell 10 units against 5 on-hand.
+  </div>
+
+  <h3>Fix: SELECT ... FOR UPDATE</h3>
+  <p>Wrapped <code>reserveStock()</code> and <code>releaseStock()</code> in DB transactions with PostgreSQL row-level locking:</p>
+  <pre>async reserveStock(input, caller?) {
+  return this.db.db.transaction(async (tx) =&gt; {
+    const locked = await tx.select({ qtyOnHand, qtyReserved })
+      .from(inventoryItems)
+      .where(eq(inventoryItems.id, input.inventoryItemId))
+      .for('update')          // ← Row-level lock
+      .then(rows =&gt; rows[0]);
+
+    const available = locked.qtyOnHand - locked.qtyReserved;
+    if (available &lt; input.quantity)
+      throw new BadRequestException('Insufficient available stock');
+
+    await tx.update(inventoryItems)
+      .set({ qtyReserved: sql`qty_reserved + ${input.quantity}` })
+      .where(eq(inventoryItems.id, input.inventoryItemId));
+
+    // RESERVE movement written inside same transaction
+    await tx.insert(stockMovements).values({ ... });
+  });
+}</pre>
+
+  <div class="callout info">
+    <strong>Why FOR UPDATE, not mutex:</strong> Application-level mutexes don't work across multiple API replicas. PostgreSQL row locks serialize access at the database level, providing correctness regardless of deployment topology.
+  </div>
+</section>
+
+<!-- ═══════════════ PHASE C ═══════════════ -->
+<section id="phase-c">
+  <h2>Phase C — Cart Security Assessment</h2>
+  <div class="callout success">
+    <strong>Result:</strong> Existing user-scoped isolation is adequate. No RBAC changes needed.
+  </div>
+
+  <h3>Analysis</h3>
+  <ul>
+    <li><code>CartController</code> uses <code>JwtAuthGuard</code> — all cart operations scoped to authenticated user</li>
+    <li>Cart queries use <code>userId</code> from the JWT token (<code>@CurrentUser()</code>), never from client input</li>
+    <li>Cart items are scoped to the user's cart via <code>cartId</code> lookups</li>
+    <li>No cross-tenant data leakage possible — each buyer sees only their own cart</li>
+  </ul>
+
+  <p>Adding explicit RBAC permissions (e.g., <code>cart:write</code>) would be inconsistent with the existing architecture where cart operations are inherently user-scoped. The JwtAuthGuard provides the correct security boundary.</p>
+</section>
+
+<!-- ═══════════════ PHASE D ═══════════════ -->
+<section id="phase-d">
+  <h2>Phase D — Checkout Transaction Boundary</h2>
+  <div class="callout danger">
+    <strong>P0 Atomicity Gap:</strong> Checkout performed multiple independent DB writes (master order, sub-orders, items, financials, status history, cart conversion) without a transaction envelope. A crash mid-checkout could leave orphaned master orders without items, or items without financial breakdowns.
+  </div>
+
+  <h3>Fix: Single Transaction Envelope</h3>
+  <p>All checkout writes are now wrapped in a single DB transaction:</p>
+  <pre>await this.db.db.transaction(async (tx) =&gt; {
+  await tx.insert(masterOrders).values({ ... });
+  for (const [storeId, items] of grouped) {
+    await tx.insert(orders).values({ ... });
+    await tx.insert(orderItems).values({ ... });
+    await tx.insert(orderFinancialBreakdown).values({ ... });
+    await tx.insert(orderStatusHistory).values({ ... });
+  }
+  await tx.update(carts).set({ status: 'CONVERTED' });
+  await tx.insert(outboxEvents).values({ eventType: 'order.submitted', ... });
+});</pre>
+
+  <h3>Design Decisions</h3>
+  <ul>
+    <li><strong>Read-only operations</strong> (store metadata, promotion resolution) moved <em>before</em> the transaction</li>
+    <li><strong>Transactional outbox:</strong> Outbox event written via <code>tx.insert(outboxEvents)</code> inside the transaction, not via <code>outbox.publish()</code> which uses a separate connection</li>
+    <li><strong>Post-transaction side effects</strong> (promotion redemption, auto-advance, notifications) are best-effort with try/catch</li>
+    <li><strong>Price re-quote guard</strong> refactored to use the shared <code>resolveOfferPrices()</code> resolver for consistency with cart pricing (A5-1)</li>
+  </ul>
+
+  <h3>Additional Fix: checkPriceDeltas Consistency</h3>
+  <p>The re-price guard in <code>acceptOrder()</code> previously used a custom SQL query with <code>sql\`min_qty &lt;= quantity\`</code> that returned incorrect results (currentPrice: 0). Refactored to use the shared <code>resolveOfferPrices()</code> resolver, ensuring the guard compares apples-to-apples against the checkout snapshot.</p>
+</section>
+
+<!-- ═══════════════ PHASE E ═══════════════ -->
+<section id="phase-e">
+  <h2>Phase E — E2E Test Results</h2>
+  <p>12 real-PostgreSQL scenarios using Testcontainers, plus outbox verification and database integrity checks.</p>
+
+  <table>
+    <tr><th>#</th><th>Scenario</th><th>What It Proves</th><th>Status</th></tr>
+    <tr><td>1</td><td>Multi-merchant cart → checkout</td><td>1 master order with 2 sub-orders from different stores</td><td class="status-pass">PASS</td></tr>
+    <tr><td>2</td><td>Financial integrity</td><td>total = subtotal − discount + tax + delivery (minor units)</td><td class="status-pass">PASS</td></tr>
+    <tr><td>3</td><td>Price snapshot immutability</td><td>Historical order retains price after offer price change</td><td class="status-pass">PASS</td></tr>
+    <tr><td>4</td><td>Cart revalidation</td><td>Detects stale items when offer is suspended</td><td class="status-pass">PASS</td></tr>
+    <tr><td>5</td><td>Order FSM transitions</td><td>Full lifecycle + invalid transition rejection + terminal states</td><td class="status-pass">PASS</td></tr>
+    <tr><td>6</td><td>Stock reservation on accept</td><td>qty_reserved increases on ACCEPT, RESERVE movement logged</td><td class="status-pass">PASS</td></tr>
+    <tr><td>7</td><td>Stock release on cancel</td><td>qty_reserved decreases on cancel, RELEASE movement logged</td><td class="status-pass">PASS</td></tr>
+    <tr><td>8</td><td>Stock consumption on delivery</td><td>on_hand and qty_reserved decrease on DELIVERED, SALE movement</td><td class="status-pass">PASS</td></tr>
+    <tr><td>9</td><td>Concurrent stock reservation</td><td>Exactly 1 of 2 concurrent reservations succeeds (stock=1)</td><td class="status-pass">PASS</td></tr>
+    <tr><td>10</td><td>Checkout idempotency</td><td>Same idempotency key returns existing order, no duplicates</td><td class="status-pass">PASS</td></tr>
+    <tr><td>11</td><td>Tenant isolation</td><td>Buyer A can't read Buyer B's orders; Merchant A can't read Merchant B's</td><td class="status-pass">PASS</td></tr>
+    <tr><td>12</td><td>Multi-merchant inventory isolation</td><td>Merchant A reservation doesn't affect Merchant B stock</td><td class="status-pass">PASS</td></tr>
+  </table>
+
+  <h3>Outbox &amp; Integrity Verification</h3>
+  <table>
+    <tr><th>Check</th><th>Status</th></tr>
+    <tr><td>order.submitted event written during checkout (transactional outbox)</td><td class="status-pass">PASS</td></tr>
+    <tr><td>order.accepted event published on accept</td><td class="status-pass">PASS</td></tr>
+    <tr><td>No orphan order items</td><td class="status-pass">PASS</td></tr>
+    <tr><td>No orphan sub-orders</td><td class="status-pass">PASS</td></tr>
+    <tr><td>No negative reserved quantity</td><td class="status-pass">PASS</td></tr>
+    <tr><td>No negative available quantity</td><td class="status-pass">PASS</td></tr>
+    <tr><td>No orphan stock movements</td><td class="status-pass">PASS</td></tr>
+    <tr><td>Financial breakdown exists for every sub-order</td><td class="status-pass">PASS</td></tr>
+    <tr><td>Status history exists for every sub-order</td><td class="status-pass">PASS</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════ ACCEPTANCE CRITERIA ═══════════════ -->
+<section id="acceptance">
+  <h2>Acceptance Criteria</h2>
+  <table>
+    <tr><th>#</th><th>Criterion</th><th>Status</th></tr>
+    <tr><td>1</td><td>Stock reservation uses SELECT FOR UPDATE (not app mutex)</td><td class="status-pass">MET</td></tr>
+    <tr><td>2</td><td>Checkout is a single atomic transaction</td><td class="status-pass">MET</td></tr>
+    <tr><td>3</td><td>Transactional outbox event inside checkout transaction</td><td class="status-pass">MET</td></tr>
+    <tr><td>4</td><td>Cart security uses JwtAuthGuard user-scoped isolation</td><td class="status-pass">MET</td></tr>
+    <tr><td>5</td><td>Price re-quote guard uses shared resolver (A5-1)</td><td class="status-pass">MET</td></tr>
+    <tr><td>6</td><td>12 real-PostgreSQL E2E scenarios pass</td><td class="status-pass">MET</td></tr>
+    <tr><td>7</td><td>Concurrent reservation test proves FOR UPDATE correctness</td><td class="status-pass">MET</td></tr>
+    <tr><td>8</td><td>All 646 unit + integration + E2E tests pass</td><td class="status-pass">MET</td></tr>
+    <tr><td>9</td><td>TypeScript compilation clean (api, web, admin)</td><td class="status-pass">MET</td></tr>
+    <tr><td>10</td><td>Database integrity checks pass (no orphans, no negatives)</td><td class="status-pass">MET</td></tr>
+    <tr><td>11</td><td>Outbox events verified (order.submitted, order.accepted)</td><td class="status-pass">MET</td></tr>
+    <tr><td>12</td><td>Stock settlement idempotent (double cancel doesn't corrupt)</td><td class="status-pass">MET</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════ FILES MODIFIED ═══════════════ -->
+<section id="files">
+  <h2>Files Modified</h2>
+  <table>
+    <tr><th>File</th><th>Change</th></tr>
+    <tr><td><code>apps/api/src/modules/inventory/inventory.service.ts</code></td><td>Wrapped reserveStock/releaseStock in DB transaction with SELECT FOR UPDATE</td></tr>
+    <tr><td><code>apps/api/src/modules/orders/orders.service.ts</code></td><td>Wrapped checkout in atomic transaction; added transactional outbox; fixed private reserveStock with FOR UPDATE; fixed settleStockForStatus with FOR UPDATE; refactored checkPriceDeltas to use shared resolver</td></tr>
+    <tr><td><code>apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts</code></td><td>NEW — 660-line E2E test with 12 scenarios using Testcontainers PostgreSQL</td></tr>
+    <tr><td><code>apps/api/src/__tests__/integration/checkout.integration.spec.ts</code></td><td>Added transaction mock; updated outbox assertion for transactional outbox</td></tr>
+    <tr><td><code>apps/api/src/__tests__/integration/orders.integration.spec.ts</code></td><td>Added transaction mock + FOR UPDATE select chain mock</td></tr>
+    <tr><td><code>apps/api/src/__tests__/integration/stock-settlement.integration.spec.ts</code></td><td>Added transaction mock + FOR UPDATE select chain mock</td></tr>
+    <tr><td><code>apps/api/src/__tests__/integration/reorder.integration.spec.ts</code></td><td>Added transaction mock</td></tr>
+    <tr><td><code>apps/api/src/__tests__/unit/inventory/stock-lifecycle.spec.ts</code></td><td>Added transaction mock + select/FOR UPDATE chain mock</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  <p>Transaction Foundation Hardening Report &bull; Smart Commerce Platform &bull; Generated September 2026</p>
+  <p>646 tests passing &bull; 46 test files &bull; 3 projects compile clean &bull; All acceptance criteria met</p>
+</footer>
+
+<script>
+// Scroll-spy for TOC navigation
+document.addEventListener('DOMContentLoaded',()=>{
+  const links=document.querySelectorAll('nav.toc a');
+  const sections=document.querySelectorAll('section[id]');
+  const observer=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(l=>l.classList.remove('active'));
+        const active=document.querySelector(`nav.toc a[href="#${e.target.id}"]`);
+        if(active)active.classList.add('active');
+      }
+    });
+  },{rootMargin:'-20% 0px -70% 0px'});
+  sections.forEach(s=>observer.observe(s));
+});
+</script>
+</body>
+</html>

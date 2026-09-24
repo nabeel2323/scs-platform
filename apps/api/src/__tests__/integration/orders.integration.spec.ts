@@ -55,9 +55,12 @@ function createStatefulMocks(initialStatus: string) {
           orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
           // A5-16: grouped line counts for the list endpoint.
           groupBy: vi.fn().mockResolvedValue([]),
+          for: vi.fn(() => ({ then: vi.fn(async (resolve: any) => resolve([])) })),
         }),
       }),
     }),
+    // Mock transaction: executes callback with same mock db
+    transaction: vi.fn(async (cb: any) => cb(db)),
     query: {
       orders: {
         findFirst: vi
