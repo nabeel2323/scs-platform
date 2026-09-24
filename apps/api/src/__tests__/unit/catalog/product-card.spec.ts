@@ -17,8 +17,9 @@ interface Row {
  * ignored — the batch boundaries and the rendered SQL are asserted instead.
  */
 function fakeDb(options: { stores?: Row[]; variants?: Row[]; priceBatches?: Row[][] }) {
-  const counts = { stores: 0, variants: 0, prices: 0 };
+  const counts = { stores: 0, variants: 0, resolveVariants: 0, prices: 0 };
   const whereSql: string[] = [];
+  let variantReadResolved = false;
 
   const db = {
     query: {
@@ -30,9 +31,19 @@ function fakeDb(options: { stores?: Row[]; variants?: Row[]; priceBatches?: Row[
       },
       productVariants: {
         findMany: async () => {
-          counts.variants += 1;
+          // First caller (enrichProductCards) counts as the card-level read;
+          // subsequent calls come from resolveOfferPrices.
+          if (!variantReadResolved) {
+            variantReadResolved = true;
+            counts.variants += 1;
+          } else {
+            counts.resolveVariants += 1;
+          }
           return options.variants ?? [];
         },
+      },
+      merchantOffers: {
+        findMany: async () => [],
       },
     },
     select: () => {
@@ -108,7 +119,7 @@ describe('enrichProductCards', () => {
     });
     // Seller and variants are batch reads, not per-row ones.
     expect(h.counts.stores).toBe(1);
-    expect(h.counts.variants).toBe(1);
+    expect(h.counts.variants).toBe(1); // enrichProductCards reads variants once
   });
 
   it('prices each product at its own MOQ, in one batch per (store, MOQ) pair', async () => {
@@ -163,6 +174,6 @@ describe('enrichProductCards', () => {
     const h = fakeDb({});
 
     expect(await enrichProductCards(h.db, [])).toEqual([]);
-    expect(h.counts).toEqual({ stores: 0, variants: 0, prices: 0 });
+    expect(h.counts).toEqual({ stores: 0, variants: 0, resolveVariants: 0, prices: 0 });
   });
 });

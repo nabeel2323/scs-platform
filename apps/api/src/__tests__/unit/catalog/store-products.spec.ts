@@ -57,6 +57,7 @@ function harness(
       },
       stores: { findMany: async () => options.stores ?? [] },
       productVariants: { findMany: async () => options.variants ?? [] },
+      merchantOffers: { findMany: async () => [] },
     },
     select: () => priceChain,
   };
