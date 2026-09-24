@@ -75,6 +75,22 @@ export async function assertVariantInOrg(
   await assertStoreInOrg(db, caller, product.storeId);
 }
 
+/** product → store → org (canonical products with no storeId are denied). */
+export async function assertProductInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this product');
+  await assertStoreInOrg(db, caller, product.storeId);
+}
+
 /** warehouse → store → org */
 export async function assertWarehouseInOrg(
   db: DatabaseService,

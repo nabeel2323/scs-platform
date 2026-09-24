@@ -71,7 +71,7 @@ function makeHarness(
 
   // RedisService, OutboxDispatcher, StorageService, AuditService are irrelevant — cast
   // @ts-expect-error — partial mock sufficient
-  const svc = new CatalogService(db, {}, {}, {}, { record: async () => {} });
+  const svc = new CatalogService(db, {}, {}, {}, { record: async () => {} }, { evaluate: () => ({ effects: new Map(), errors: [] }) });
   return { svc, inserted, executeCalls };
 }
 

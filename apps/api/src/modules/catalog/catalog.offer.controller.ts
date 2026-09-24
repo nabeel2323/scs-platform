@@ -16,7 +16,13 @@ import {
 } from './catalog.offer.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
+import { DatabaseService } from '../../common/database/database.service';
+import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant Offer API — canonical-product multi-seller offers (§ Merchant Offer).
@@ -35,7 +41,10 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class CatalogOfferController {
-  constructor(private readonly offerService: CatalogOfferService) {}
+  constructor(
+    private readonly offerService: CatalogOfferService,
+    private readonly db: DatabaseService,
+  ) {}
 
   // ── Read routes ───────────────────────────────────────────────
 
@@ -121,35 +130,45 @@ export class CatalogOfferController {
   @Post('merchant/offers')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  createOffer(@Body() input: CreateOfferInput) {
+  async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, input.storeId);
     return this.offerService.createOffer(input);
   }
 
   @Post('merchant/offers/:id/propose')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  proposeOffer(
+  async proposeOffer(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { proposedBy?: string },
   ) {
-    return this.offerService.proposeOffer(id, body.proposedBy);
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.offerService.proposeOffer(id, body.proposedBy, caller);
   }
 
   @Patch('merchant/offers/:id/pricing')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  updateOfferPricing(
+  async updateOfferPricing(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateOfferPricingInput,
   ) {
-    return this.offerService.updateOfferPricing(id, input);
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.offerService.updateOfferPricing(id, input, caller);
   }
 
   @Post('merchant/offers/:id/withdraw')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  withdrawOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.withdrawOffer(id);
+  async withdrawOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.offerService.withdrawOffer(id, caller);
   }
 
   // ── Admin governance routes ───────────────────────────────────

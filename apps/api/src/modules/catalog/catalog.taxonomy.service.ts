@@ -417,6 +417,61 @@ export class CatalogTaxonomyService {
     return pt;
   }
 
+  /**
+   * Duplicate a product type with all its attribute configurations.
+   * The copy starts as DRAFT with a new ID and name suffixed " (Copy)".
+   */
+  async duplicateProductType(id: string) {
+    const source = await this.getProductType(id);
+    const sourceAttrs = await this.db.db.query.productTypeAttributes.findMany({
+      where: eq(productTypeAttributes.productTypeId, id),
+    });
+
+    const newId = crypto.randomUUID();
+    const now = new Date();
+    const dupCode = `${source.code}_copy_${now.getTime()}`;
+    await this.db.db.insert(productTypes).values({
+      id: newId,
+      code: dupCode,
+      version: 1,
+      name: `${source.name} (Copy)`,
+      nameAr: source.nameAr,
+      description: source.description,
+      categoryId: source.categoryId,
+      status: 'DRAFT',
+      variantDimensions: source.variantDimensions,
+      metadata: source.metadata,
+      publishedAt: null,
+      effectiveFrom: null,
+    });
+
+    // Copy all product_type_attributes rows (attribute config, conditional
+    // rules, validation, display order)
+    for (const pta of sourceAttrs) {
+      await this.db.db.insert(productTypeAttributes).values({
+        id: crypto.randomUUID(),
+        productTypeId: newId,
+        attributeDefinitionId: pta.attributeDefinitionId,
+        groupId: pta.groupId,
+        required: pta.required,
+        scope: pta.scope,
+        displayOrder: pta.displayOrder,
+        filterable: pta.filterable,
+        searchable: pta.searchable,
+        sortable: pta.sortable,
+        comparable: pta.comparable,
+        visibleInListing: pta.visibleInListing,
+        visibleInDetail: pta.visibleInDetail,
+        allowedValues: pta.allowedValues,
+        validationRules: pta.validationRules,
+        conditionalRules: pta.conditionalRules,
+        metadata: pta.metadata,
+      });
+    }
+
+    return this.getProductType(newId);
+  }
+
   async listProductTypes(opts?: { categoryId?: string; status?: string }) {
     const conditions = [];
     if (opts?.categoryId) conditions.push(eq(productTypes.categoryId, opts.categoryId));

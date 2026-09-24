@@ -50,7 +50,7 @@ export class CatalogRequestsController {
 
   @Get('admin/requests')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('catalog:categories:write')
+  @RequirePermission('catalog:requests:manage')
   async listAdminRequests(
     @Query('type') type?: string,
     @Query('status') status?: string,
@@ -63,7 +63,7 @@ export class CatalogRequestsController {
 
   @Post('admin/requests/:id/approve')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('catalog:categories:write')
+  @RequirePermission('catalog:requests:manage')
   async approveRequest(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { reviewerId: string },
@@ -73,7 +73,7 @@ export class CatalogRequestsController {
 
   @Post('admin/requests/:id/reject')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('catalog:categories:write')
+  @RequirePermission('catalog:requests:manage')
   async rejectRequest(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { reviewerId: string; reason: string },

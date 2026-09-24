@@ -72,6 +72,7 @@ function makeHarness(): Harness {
     outbox as any,
     storage as any,
     audit as any,
+    { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
   );
 
   return { svc, inserted };

@@ -30,6 +30,8 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
+import { DatabaseService } from '../../common/database/database.service';
+import { assertProductInOrg } from '../../common/tenant-scope';
 /**
  * Catalog API — categories, brands, products, variants, media, imports.
  */
@@ -40,6 +42,7 @@ export class CatalogController {
     private readonly catalogService: CatalogService,
     private readonly searchService: SearchService,
     private readonly storageService: StorageService,
+    private readonly db: DatabaseService,
   ) {}
 
   // ── Categories ───────────────────────────────────────────────
@@ -173,14 +176,20 @@ export class CatalogController {
   @Patch('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async updateProduct(@Param('id') id: string, @Body() input: UpdateProductInput) {
+  async updateProduct(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: UpdateProductInput,
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.updateProduct(id, input);
   }
 
   @Delete('products/:id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async deleteProduct(@Param('id') id: string) {
+  async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.deleteProduct(id);
   }
 
@@ -195,7 +204,12 @@ export class CatalogController {
   @Post('products/:productId/variants')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async createVariant(@Param('productId') productId: string, @Body() input: CreateVariantInput) {
+  async createVariant(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+    @Body() input: CreateVariantInput,
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.createVariant(productId, input);
   }
 
@@ -208,10 +222,12 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async updateVariant(
+    @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
     @Body() input: Partial<CreateVariantInput>,
   ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.updateVariant(productId, variantId, input);
   }
 
@@ -219,6 +235,7 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async bulkVariantOperations(
+    @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Body() body: {
       create?: CreateVariantInput[];
@@ -226,6 +243,7 @@ export class CatalogController {
       toggleActive?: Array<{ id: string; isActive: boolean }>;
     },
   ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.bulkVariantOperations(productId, body);
   }
 
@@ -255,9 +273,11 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async reorderMedia(
+    @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Body() body: { order: string[] },
   ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.reorderMedia(productId, body.order);
   }
 
@@ -266,7 +286,12 @@ export class CatalogController {
   @Post('products/:productId/media')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async addMedia(@Param('productId') productId: string, @Body() input: AddMediaInput) {
+  async addMedia(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+    @Body() input: AddMediaInput,
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.addMedia(productId, input);
   }
 
@@ -278,7 +303,12 @@ export class CatalogController {
   @Delete('products/:productId/media/:mediaId')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async removeMedia(@Param('productId') productId: string, @Param('mediaId') mediaId: string) {
+  async removeMedia(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+    @Param('mediaId') mediaId: string,
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.removeMedia(productId, mediaId);
   }
 

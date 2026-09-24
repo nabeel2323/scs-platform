@@ -47,6 +47,7 @@ function createService(mocks: ReturnType<typeof createMocks>) {
     mocks.mockOutbox,
     { createPresignedGetUrl: async () => null } as never,
     { record: async () => {} } as never,
+    { evaluate: () => ({ effects: new Map(), errors: [] }) } as never,
   );
 }
 
