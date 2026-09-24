@@ -52,17 +52,32 @@ export class CatalogController {
   }
 
   @Get('categories')
-  async listCategories(@Query('storeId') storeId?: string, @Query('parentId') parentId?: string) {
+  async listCategories(
+    @Query('storeId') storeId?: string,
+    @Query('parentId') parentId?: string,
+    @Query('all') all?: string,
+    @Query('includeInactive') includeInactive?: string,
+  ) {
     return this.catalogService.listCategories({
       storeId,
       parentId,
-      isActive: true,
+      all: all === 'true',
+      isActive: includeInactive === 'true' ? undefined : true,
     });
   }
 
   @Get('categories/:id')
   async getCategory(@Param('id') id: string) {
     return this.catalogService.getCategory(id);
+  }
+
+  /**
+   * PHASE 10: product types associated with a category, so the admin taxonomy
+   * manager can show which templates reference a given node.
+   */
+  @Get('categories/:id/product-types')
+  async listCategoryProductTypes(@Param('id') id: string) {
+    return this.catalogService.listCategoryProductTypes(id);
   }
 
   @Patch('categories/:id')

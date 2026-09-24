@@ -26,7 +26,7 @@ import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { eq, and, isNull, desc, sql, inArray, ilike } from 'drizzle-orm';
+import { eq, and, isNull, asc, desc, sql, inArray, ilike } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/index';
@@ -104,11 +104,15 @@ export class CatalogService {
     return cat;
   }
 
-  async listCategories(filters?: { storeId?: string; parentId?: string; isActive?: boolean }) {
+  async listCategories(filters?: { storeId?: string; parentId?: string; isActive?: boolean; all?: boolean }) {
     const conditions = [];
     if (filters?.storeId) conditions.push(eq(categories.storeId, filters.storeId));
-    if (filters?.parentId) conditions.push(eq(categories.parentId, filters.parentId));
-    if (!filters?.parentId) conditions.push(isNull(categories.parentId)); // root categories by default
+    // When `all` is true, skip the parentId filter so the client gets the full
+    // tree in one request. Without `all`, root categories are returned by default.
+    if (!filters?.all) {
+      if (filters?.parentId) conditions.push(eq(categories.parentId, filters.parentId));
+      else conditions.push(isNull(categories.parentId));
+    }
     if (filters?.isActive !== undefined) conditions.push(eq(categories.isActive, filters.isActive));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -162,6 +166,17 @@ export class CatalogService {
     // FK set-null: children become top-level, products lose their category
     await this.db.db.delete(categories).where(eq(categories.id, id));
     return { success: true };
+  }
+
+  /**
+   * PHASE 10: product types associated with a category, so the admin taxonomy
+   * manager can show which templates reference a given node.
+   */
+  async listCategoryProductTypes(categoryId: string) {
+    return this.db.db.query.productTypes.findMany({
+      where: and(eq(productTypes.categoryId, categoryId), eq(productTypes.status, 'PUBLISHED')),
+      orderBy: [asc(productTypes.name)],
+    });
   }
 
   // ── Brands ───────────────────────────────────────────────────

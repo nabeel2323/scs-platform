@@ -694,11 +694,28 @@ export interface AdminCategory {
   parentId: string | null;
   isActive: boolean;
   productCount?: number;
+  sortOrder?: number;
+  description?: string | null;
+  imageUrl?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
-export async function fetchAdminCategories(): Promise<AdminCategory[]> {
-  const res = await authFetch(`${API_URL}/v1/categories`);
+export interface AdminProductTypeSummary {
+  id: string;
+  code: string;
+  name: string;
+  version: number;
+  status: string;
+  categoryId: string | null;
+}
+
+export async function fetchAdminCategories(opts?: { all?: boolean; includeInactive?: boolean }): Promise<AdminCategory[]> {
+  const sp = new URLSearchParams();
+  if (opts?.all) sp.set('all', 'true');
+  if (opts?.includeInactive) sp.set('includeInactive', 'true');
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/categories${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Failed to fetch categories: ${res.status}`);
   return res.json();
 }
@@ -740,6 +757,15 @@ export async function deleteAdminCategory(id: string): Promise<void> {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Failed to delete category: ${res.status}`);
+}
+
+/**
+ * PHASE 10: fetch published product types associated with a category.
+ */
+export async function fetchCategoryProductTypes(categoryId: string): Promise<AdminProductTypeSummary[]> {
+  const res = await authFetch(`${API_URL}/v1/categories/${categoryId}/product-types`);
+  if (!res.ok) throw new Error(`Failed to fetch category product types: ${res.status}`);
+  return res.json();
 }
 
 // ── Brands ─────────────────────────────────────────────────────
