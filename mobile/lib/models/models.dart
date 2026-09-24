@@ -5,18 +5,22 @@ class SearchResult {
   final List<Product> products;
   final int total;
   final String query;
+  final List<FacetEntry> facets;
   SearchResult(
-      {required this.products, required this.total, required this.query});
+      {required this.products,
+      required this.total,
+      required this.query,
+      this.facets = const []});
   factory SearchResult.fromJson(Map<String, dynamic> j) => SearchResult(
-        // A5-7: every path of GET /v1/search returns its hits under `items`. This
-        // read `products`, and because the cast below defaults to an empty list,
-        // the response parsed "successfully" into zero results — mobile search
-        // showed nothing for queries that had matches, with no error anywhere.
         products: (j['items'] as List? ?? [])
             .map((e) => Product.fromJson(e))
             .toList(),
         total: j['total'] as int? ?? 0,
         query: j['query'] as String? ?? '',
+        facets: (j['facets'] as List? ?? [])
+            .map(
+                (e) => FacetEntry.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
       );
 }
 
@@ -114,6 +118,8 @@ class Product {
   final int moq;
   final List<dynamic> images;
   final Map<String, dynamic> attributes;
+  final String? productTypeId;
+  final List<AttributeValue>? attributeValues;
 
   /// A5-2: the listing-card enrichment. Null on endpoints that do not enrich
   /// (a merchant's own product list), so every reader must treat it as optional.
@@ -141,6 +147,8 @@ class Product {
       required this.moq,
       this.images = const [],
       this.attributes = const {},
+      this.productTypeId,
+      this.attributeValues,
       this.store,
       this.priceFromMinor,
       this.priceCurrency,
@@ -160,6 +168,11 @@ class Product {
       moq: j['moq'] as int? ?? 1,
       images: j['images'] as List<dynamic>? ?? [],
       attributes: Map<String, dynamic>.from(j['attributes'] as Map? ?? {}),
+      productTypeId: j['productTypeId'] as String?,
+      attributeValues: (j['attributeValues'] as List?)
+          ?.map((e) =>
+              AttributeValue.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
       store: j['store'] is Map
           ? ListingStore.fromJson(Map<String, dynamic>.from(j['store'] as Map))
           : null,
@@ -968,5 +981,142 @@ class SessionInfo {
         ip: j['ip'] as String?,
         isCurrent: j['isCurrent'] as bool? ?? false,
         isRevoked: j['isRevoked'] as bool? ?? false,
+      );
+}
+
+// ── PHASE COS-15: Catalog Operating System mobile models ────────
+
+/// Dynamic search facet returned by GET /v1/search.
+class FacetEntry {
+  final String code, label, type;
+  final List<FacetValue> values;
+  FacetEntry(
+      {required this.code,
+      required this.label,
+      required this.type,
+      this.values = const []});
+  factory FacetEntry.fromJson(Map<String, dynamic> j) => FacetEntry(
+        code: j['code'] ?? '',
+        label: j['label'] ?? '',
+        type: j['type'] ?? 'string',
+        values: (j['values'] as List? ?? [])
+            .map(
+                (e) => FacetValue.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+class FacetValue {
+  final String value;
+  final int count;
+  FacetValue({required this.value, this.count = 0});
+  factory FacetValue.fromJson(Map<String, dynamic> j) => FacetValue(
+        value: j['value'] ?? '',
+        count: j['count'] as int? ?? 0,
+      );
+}
+
+/// Structured attribute value on a product detail response.
+class AttributeValue {
+  final String code, label;
+  final dynamic value;
+  AttributeValue({required this.code, required this.label, this.value});
+  factory AttributeValue.fromJson(Map<String, dynamic> j) => AttributeValue(
+        code: j['code'] ?? '',
+        label: j['label'] ?? '',
+        value: j['value'],
+      );
+}
+
+/// Variant matrix dimension returned by GET /v1/products/:id/variant-matrix.
+class VariantMatrix {
+  final List<VariantDimension> dimensions;
+  VariantMatrix({this.dimensions = const []});
+  factory VariantMatrix.fromJson(Map<String, dynamic> j) => VariantMatrix(
+        dimensions: (j['dimensions'] as List? ?? [])
+            .map((e) =>
+                VariantDimension.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+class VariantDimension {
+  final String attributeDefinitionId, name;
+  final String? unit;
+  final List<String> options;
+  VariantDimension(
+      {required this.attributeDefinitionId,
+      required this.name,
+      this.unit,
+      this.options = const []});
+  factory VariantDimension.fromJson(Map<String, dynamic> j) => VariantDimension(
+        attributeDefinitionId: j['attributeDefinitionId'] ?? '',
+        name: j['name'] ?? '',
+        unit: j['unit'] as String?,
+        options:
+            (j['options'] as List? ?? []).map((e) => e.toString()).toList(),
+      );
+}
+
+/// Merchant offer for a product (GET /v1/products/:id/offers).
+class Offer {
+  final String id, productId, storeId, storeName;
+  final int basePriceMinor;
+  final String currency;
+  final int moq;
+  final int? leadTimeDays;
+  final bool isActive;
+  final String? variantId;
+  final bool storeVerified;
+  Offer(
+      {required this.id,
+      required this.productId,
+      required this.storeId,
+      required this.storeName,
+      required this.basePriceMinor,
+      required this.currency,
+      this.moq = 1,
+      this.leadTimeDays,
+      required this.isActive,
+      this.variantId,
+      this.storeVerified = false});
+  factory Offer.fromJson(Map<String, dynamic> j) => Offer(
+        id: j['id'] ?? '',
+        productId: j['productId'] ?? '',
+        storeId: j['storeId'] ?? '',
+        storeName: j['storeName'] ?? '',
+        basePriceMinor: j['basePriceMinor'] as int? ?? 0,
+        currency: j['currency'] ?? 'SAR',
+        moq: j['moq'] as int? ?? 1,
+        leadTimeDays: j['leadTimeDays'] as int?,
+        isActive: j['isActive'] ?? true,
+        variantId: j['variantId'] as String?,
+        storeVerified: j['storeVerified'] as bool? ?? false,
+      );
+}
+
+/// Ranked offer with popularity data (GET /v1/products/:id/offers/ranked).
+class RankedProductOffer {
+  final String offerId;
+  final int? rank;
+  final int ordersCount;
+  final int unitsSold;
+  final bool isMostPopular;
+  final bool disclosureHidden;
+  RankedProductOffer(
+      {required this.offerId,
+      this.rank,
+      this.ordersCount = 0,
+      this.unitsSold = 0,
+      this.isMostPopular = false,
+      this.disclosureHidden = false});
+  factory RankedProductOffer.fromJson(Map<String, dynamic> j) =>
+      RankedProductOffer(
+        offerId: j['offerId'] ?? '',
+        rank: j['rank'] as int?,
+        ordersCount: j['ordersCount'] as int? ?? 0,
+        unitsSold: j['unitsSold'] as int? ?? 0,
+        isMostPopular: j['isMostPopular'] as bool? ?? false,
+        disclosureHidden: j['disclosureHidden'] as bool? ?? false,
       );
 }
