@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
 import {
+  attributeGroups,
   attributeDefinitions,
   attributeOptions,
   productTypes,
@@ -94,8 +95,23 @@ export class ExcelExecutorService {
           }
         }
 
-        // 3. Attribute Groups (from attributes sheet context — create if referenced)
-        // Attribute groups are handled implicitly; skip for now as they're optional
+        // 3. Attribute Groups
+        for (const entry of plan.attributeGroups) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
+          try {
+            const id = await this.upsertAttributeGroup(tx, entry);
+            if (entry.action === 'CREATE') {
+              realIds.set(`pending:ag:${entry.externalKey}`, id);
+              refs.attributeGroupIds.set(entry.externalKey, id);
+              result.created++;
+            } else {
+              result.updated++;
+            }
+          } catch (err) {
+            result.rejected++;
+            result.errors.push(`AttributeGroup ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
 
         // 4. Attributes
         for (const entry of plan.attributes) {
@@ -262,6 +278,18 @@ export class ExcelExecutorService {
   }
 
   // ── Entity upsert helpers ────────────────────────────────────────
+
+  private async upsertAttributeGroup(tx: any, entry: PlanEntry): Promise<string> {
+    const d = entry.data as any;
+    const id = randomUUID();
+    await tx.insert(attributeGroups).values({
+      id,
+      name: d.name as string,
+      nameAr: (d.nameAr as string) ?? null,
+      kind: (d.kind as string) ?? null,
+    });
+    return id;
+  }
 
   private async upsertCategory(tx: any, entry: PlanEntry, refs: ResolvedReferences, realIds: Map<string, string>): Promise<string> {
     const d = entry.data as any;

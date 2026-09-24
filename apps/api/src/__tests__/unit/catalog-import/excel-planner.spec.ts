@@ -18,6 +18,7 @@ function emptyRefs(): ResolvedReferences {
   return {
     brandIds: new Map(),
     categoryIds: new Map(),
+    attributeGroupIds: new Map(),
     attributeIds: new Map(),
     attributeOptions: new Map(),
     productTypeIds: new Map(),
