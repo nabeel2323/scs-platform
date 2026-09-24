@@ -18,6 +18,7 @@ import {
   PageHeader, BreadcrumbDark,
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
+import { VariantSelector } from './components/VariantSelector';
 
 /**
  * Mirror of the API's `priceForQty` rule (tiers are minQty <= qty < maxQty, upper
@@ -278,6 +279,11 @@ export default function ProductDetailPage() {
   // from `productOffers` so a failure of the analytics endpoint degrades to the
   // pre-Phase-22 rendering rather than hiding the whole section.
   const [rankedByOffer, setRankedByOffer] = useState<Map<string, RankedProductOffer>>(new Map());
+  // PHASE 7: dynamic variant selector — the VariantSelector reports whether
+  // the product's type has VARIANT-scope dimensions; if not, we fall back to
+  // the flat variant list.
+  const [hasVariantDims, setHasVariantDims] = useState<boolean | null>(null);
+  const handleHasDimensions = useCallback((has: boolean) => setHasVariantDims(has), []);
 
   useEffect(() => {
     // Variants, pricing, media and stock arrive with the product in one request.
@@ -451,81 +457,98 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Variants */}
+          {/* Variants — PHASE 7: dynamic selector when product type has dimensions */}
           <h3 style={{ ...typeScale.h2, color: colors.brand[700], marginBottom: 12 }}>
             Variants <span style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted }}>({activeVariants.length})</span>
           </h3>
-          {activeVariants.length === 0 ? (
-            <p style={{ color: colors.disabled, ...typeScale.bodySm }}>No variants available</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {activeVariants.map(v => {
-                const currency = v.pricing?.currency ?? store?.currency ?? 'SAR';
-                const unit = unitPriceFor(v, qty);
-                const tiers = v.pricing?.tiers ?? [];
-                const outOfStock = (v.stock?.totalAvailable ?? 0) <= 0;
-                return (
-                  <div key={v.id} style={{ padding: '12px 16px', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, opacity: outOfStock ? 0.75 : 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700] }}>
-                          {v.title || v.sku} <span style={{ marginLeft: 8 }}><StockBadge stock={v.stock} /></span>
-                        </div>
-                        <div style={{ ...typeScale.bodySm, color: colors.muted, fontFamily: 'monospace' }}>
-                          SKU: {v.sku} {v.barcode ? `| ${v.barcode}` : ''}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <input
-                          type="number"
-                          min={product.moq}
-                          value={qty}
-                          onChange={e => setQty(Math.max(product.moq, parseInt(e.target.value) || product.moq))}
-                          aria-label={`Quantity for ${v.title || v.sku}`}
-                          style={{ width: 60, padding: '4px 8px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 13, textAlign: 'center' }}
-                        />
-                        <button
-                          onClick={() => handleAdd(v.id, product.storeId)}
-                          disabled={outOfStock}
-                          style={{
-                            padding: '6px 16px', ...typeScale.button, color: '#fff',
-                            background: addedId === v.id ? colors.ok : outOfStock ? colors.disabled : colors.amber,
-                            border: '1px solid ' + (addedId === v.id ? colors.ok : outOfStock ? colors.disabled : '#a88734'),
-                            borderRadius: radii.sm, cursor: outOfStock ? 'not-allowed' : 'pointer',
-                          }}
-                        >
-                          {outOfStock ? 'Out of Stock' : addedId === v.id ? '✓ Added' : 'Add to Cart'}
-                        </button>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                      {unit !== undefined ? (
-                        <>
-                          <span style={{ fontSize: 15, fontWeight: 700, color: colors.brand[700] }}>
-                            {formatMinor(unit, currency)} <span style={{ fontSize: 11, fontWeight: 400, color: colors.muted }}>/ {v.unit || 'unit'}</span>
-                          </span>
-                          <span style={{ ...typeScale.caption, color: colors.muted }}>at qty {qty}</span>
-                        </>
-                      ) : (
-                        <span style={{ ...typeScale.bodySm, color: colors.warn }}>No active price for this item — the cart will reject it until the seller publishes one</span>
-                      )}
-                      {tiers.length > 1 && (
-                        <span style={{ ...typeScale.caption, color: colors.muted }}>
-                          · volume: {tiers.map(t => `${t.minQty}+ ${formatMinor(t.unitPriceMinor, currency)}`).join(' · ')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+
+          {product.productTypeId && (
+            <VariantSelector
+              productId={productId}
+              moq={product.moq}
+              currency={baseCurrency}
+              onAddToCart={(variantId, q) => handleAdd(variantId, product.storeId)}
+              addedFeedback={addedId !== null}
+              onHasDimensions={handleHasDimensions}
+            />
           )}
 
-          {/* Inactive variants shown greyed so buyers understand the listing fully */}
-          {inactiveVariants.length > 0 && (
-            <div style={{ marginTop: 12, ...typeScale.bodySm, color: colors.disabled }}>
-              {inactiveVariants.length} variant(s) currently inactive.
-            </div>
+          {/* Flat variant list — shown when no product type or type has no variant dimensions */}
+          {(!product.productTypeId || hasVariantDims === false) && (
+            <>
+              {activeVariants.length === 0 ? (
+                <p style={{ color: colors.disabled, ...typeScale.bodySm }}>No variants available</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {activeVariants.map(v => {
+                    const currency = v.pricing?.currency ?? store?.currency ?? 'SAR';
+                    const unit = unitPriceFor(v, qty);
+                    const tiers = v.pricing?.tiers ?? [];
+                    const outOfStock = (v.stock?.totalAvailable ?? 0) <= 0;
+                    return (
+                      <div key={v.id} style={{ padding: '12px 16px', background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, opacity: outOfStock ? 0.75 : 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <div>
+                            <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700] }}>
+                              {v.title || v.sku} <span style={{ marginLeft: 8 }}><StockBadge stock={v.stock} /></span>
+                            </div>
+                            <div style={{ ...typeScale.bodySm, color: colors.muted, fontFamily: 'monospace' }}>
+                              SKU: {v.sku} {v.barcode ? `| ${v.barcode}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <input
+                              type="number"
+                              min={product.moq}
+                              value={qty}
+                              onChange={e => setQty(Math.max(product.moq, parseInt(e.target.value) || product.moq))}
+                              aria-label={`Quantity for ${v.title || v.sku}`}
+                              style={{ width: 60, padding: '4px 8px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 13, textAlign: 'center' }}
+                            />
+                            <button
+                              onClick={() => handleAdd(v.id, product.storeId)}
+                              disabled={outOfStock}
+                              style={{
+                                padding: '6px 16px', ...typeScale.button, color: '#fff',
+                                background: addedId === v.id ? colors.ok : outOfStock ? colors.disabled : colors.amber,
+                                border: '1px solid ' + (addedId === v.id ? colors.ok : outOfStock ? colors.disabled : '#a88734'),
+                                borderRadius: radii.sm, cursor: outOfStock ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {outOfStock ? 'Out of Stock' : addedId === v.id ? '✓ Added' : 'Add to Cart'}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                          {unit !== undefined ? (
+                            <>
+                              <span style={{ fontSize: 15, fontWeight: 700, color: colors.brand[700] }}>
+                                {formatMinor(unit, currency)} <span style={{ fontSize: 11, fontWeight: 400, color: colors.muted }}>/ {v.unit || 'unit'}</span>
+                              </span>
+                              <span style={{ ...typeScale.caption, color: colors.muted }}>at qty {qty}</span>
+                            </>
+                          ) : (
+                            <span style={{ ...typeScale.bodySm, color: colors.warn }}>No active price for this item — the cart will reject it until the seller publishes one</span>
+                          )}
+                          {tiers.length > 1 && (
+                            <span style={{ ...typeScale.caption, color: colors.muted }}>
+                              · volume: {tiers.map(t => `${t.minQty}+ ${formatMinor(t.unitPriceMinor, currency)}`).join(' · ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Inactive variants shown greyed so buyers understand the listing fully */}
+              {inactiveVariants.length > 0 && (
+                <div style={{ marginTop: 12, ...typeScale.bodySm, color: colors.disabled }}>
+                  {inactiveVariants.length} variant(s) currently inactive.
+                </div>
+              )}
+            </>
           )}
 
           {addError && (

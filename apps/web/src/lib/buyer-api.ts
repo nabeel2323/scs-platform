@@ -37,6 +37,7 @@ export interface Product {
   moq: number;
   images: unknown[];
   attributes: Record<string, unknown>;
+  productTypeId?: string | null;
   createdAt: string;
   /**
    * Listing-card enrichment (A5-2), present on search results and on a store's
@@ -1666,6 +1667,40 @@ export async function searchCanonicalProducts(params: {
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/canonical/match${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Canonical search failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Variant Matrix — dimension-based variant selector ──────────────
+
+export interface VariantMatrixDimension {
+  attributeDefinitionId: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  unit: string | null;
+  displayOrder: number;
+  options: string[];
+}
+
+export interface VariantMatrixCombination {
+  variantId: string;
+  sku: string;
+  title: string | null;
+  isActive: boolean;
+  values: Record<string, string>;
+  pricing: VariantPricing | null;
+  stock: { totalAvailable: number; totalOnHand: number; warehouseCount: number } | null;
+}
+
+export interface VariantMatrix {
+  productTypeId: string;
+  dimensions: VariantMatrixDimension[];
+  combinations: VariantMatrixCombination[];
+}
+
+export async function fetchVariantMatrix(productId: string): Promise<VariantMatrix> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variant-matrix`);
+  if (!res.ok) throw new Error(`Variant matrix failed: ${res.status}`);
   return res.json();
 }
 
