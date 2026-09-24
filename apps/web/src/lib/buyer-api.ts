@@ -1600,3 +1600,84 @@ export async function updateOfferPricing(offerId: string, patch: { basePriceMino
   if (!res.ok) throw new Error(`Pricing update failed: ${res.status}`);
   return res.json();
 }
+
+// ── Product Studio — Taxonomy + Attribute Values ─────────────
+
+export interface ProductTypeSummary {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  categoryId: string | null;
+  version: number;
+  status: string;
+  variantDimensions: string[];
+}
+
+export async function fetchProductTypes(params?: {
+  categoryId?: string; status?: string;
+}): Promise<ProductTypeSummary[]> {
+  const sp = new URLSearchParams();
+  if (params?.categoryId) sp.set('categoryId', params.categoryId);
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/product-types${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Product types failed: ${res.status}`);
+  return res.json();
+}
+
+export interface ProductTypeSchemaAttribute {
+  attributeDefinitionId: string;
+  displayOrder: number;
+  required: boolean;
+  filterable: boolean;
+  searchable: boolean;
+  comparable: boolean;
+  visibleInListing: boolean;
+  visibleInDetail: boolean;
+  conditionalRules: unknown[];
+  definition: {
+    id: string; code: string; name: string; nameAr: string | null;
+    type: string; scope: string; unit: string | null; description: string | null;
+  } | null;
+  options: Array<{ id: string; value: string; valueAr: string | null; label: string | null; sortOrder: number }>;
+}
+
+export interface ProductTypeSchemaDetail extends ProductTypeSummary {
+  description: string | null;
+  groups: Array<{ id: string; name: string; nameAr: string | null; kind: string | null }>;
+  attributes: ProductTypeSchemaAttribute[];
+}
+
+export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSchemaDetail> {
+  const res = await authFetch(`${API_URL}/v1/product-types/${id}/schema`);
+  if (!res.ok) throw new Error(`Product type schema failed: ${res.status}`);
+  return res.json();
+}
+
+export async function searchCanonicalProducts(params: {
+  gtin?: string; ean?: string; mpn?: string; title?: string;
+}): Promise<Product[]> {
+  const sp = new URLSearchParams();
+  if (params.gtin) sp.set('gtin', params.gtin);
+  if (params.ean) sp.set('ean', params.ean);
+  if (params.mpn) sp.set('mpn', params.mpn);
+  if (params.title) sp.set('title', params.title);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/canonical/match${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Canonical search failed: ${res.status}`);
+  return res.json();
+}
+
+export async function upsertProductAttributeValues(
+  productId: string,
+  values: Array<{ attributeDefinitionId: string; valueText?: string; valueNumber?: number; valueBoolean?: boolean; optionValue?: string }>,
+): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/attribute-values`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+  if (!res.ok) throw new Error(`Upsert attribute values failed: ${res.status}`);
+  return res.json();
+}

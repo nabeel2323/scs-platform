@@ -955,3 +955,84 @@ export async function fetchProductType(id: string): Promise<ProductType> {
   if (!res.ok) throw new Error(`Failed to fetch product type: ${res.status}`);
   return res.json();
 }
+
+export async function createProductType(data: {
+  code: string; name: string; nameAr?: string; description?: string;
+  categoryId?: string | null;
+}): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to create product type: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function publishProductType(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/publish`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to publish product type: ${res.status}`);
+  return res.json();
+}
+
+export interface ProductTypeSchema extends ProductType {
+  groups: AttributeGroup[];
+  attributes: Array<{
+    attributeDefinitionId: string;
+    displayOrder: number;
+    isRequired: boolean;
+    isFilterable: boolean;
+    isSearchable: boolean;
+    isComparable: boolean;
+    visibleInListing: boolean;
+    visibleInDetail: boolean;
+    conditionalRules: Record<string, unknown> | null;
+    validationOverride: Record<string, unknown> | null;
+    definition: AttributeDefinition | null;
+    options: AttributeOption[];
+  }>;
+}
+
+export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSchema> {
+  const res = await authFetch(`${API_URL}/v1/product-types/${id}/schema`);
+  if (!res.ok) throw new Error(`Failed to fetch product type schema: ${res.status}`);
+  return res.json();
+}
+
+export async function setProductTypeAttributes(id: string, attributes: Array<{
+  attributeDefinitionId: string;
+  displayOrder?: number;
+  isRequired?: boolean;
+  isFilterable?: boolean;
+  isSearchable?: boolean;
+  isComparable?: boolean;
+  visibleInListing?: boolean;
+  visibleInDetail?: boolean;
+  conditionalRules?: Record<string, unknown> | null;
+  validationOverride?: Record<string, unknown> | null;
+}>): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/attributes`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attributes }),
+  });
+  if (!res.ok) throw new Error(`Failed to set attributes: ${res.status}`);
+}
+
+export async function setVariantDimensions(id: string, attributeIds: string[]): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/variant-dimensions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attributeIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to set variant dimensions: ${res.status}`);
+}
+
+export async function createNewVersion(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/versions`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to create new version: ${res.status}`);
+  return res.json();
+}
