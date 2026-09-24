@@ -59,6 +59,23 @@ const _OPTIONAL_HEADERS: Record<string, string[]> = {
   sources: ['verified_at'],
 };
 
+/**
+ * Database column length limits per entity/field. Used to produce clear
+ * "VALUE_TOO_LONG" errors at validation time (upload/preview) instead of
+ * letting PostgreSQL reject the import with an opaque "value too long" error.
+ */
+const COLUMN_LENGTH_LIMITS: Record<string, Record<string, number>> = {
+  categories: { slug: 120, name: 200, name_ar: 200 },
+  brands: { slug: 120, name: 200, name_ar: 200 },
+  attribute_groups: { name: 120, name_ar: 120, kind: 40 },
+  attributes: { code: 80, name: 200, name_ar: 200, type: 40, unit: 40, scope: 16 },
+  attribute_options: { value: 200, value_ar: 200, label: 200 },
+  product_types: { code: 80, name: 200, name_ar: 200 },
+  product_type_attributes: { scope: 16 },
+  products: { slug: 200, title: 300, title_ar: 300, mpn: 100, gtin: 20, ean: 20, status: 16, condition: 16 },
+  variants: { sku: 100, title: 300, title_ar: 300, barcode: 60 },
+};
+
 @Injectable()
 export class ExcelValidatorService {
   private readonly logger = new Logger(ExcelValidatorService.name);
@@ -188,6 +205,10 @@ export class ExcelValidatorService {
     if (srcSheet) {
       this.validateSources(srcSheet, prodSlugs, errors);
     }
+
+    // Validate column length limits — catches varchar overflow BEFORE the
+    // executor enters the DB transaction (which would abort the whole tx).
+    this.validateColumnLengths(workbook, errors);
 
     return errors;
   }
@@ -533,6 +554,34 @@ export class ExcelValidatorService {
     if (!result.valid) {
       const rawVal = row['value_text'] ?? row['value_number'] ?? row['value_boolean'] ?? row['option_key'] ?? null;
       errors.push(this.err(sheetName, rn, entityType, key, attrCode, 'INVALID_ATTRIBUTE_VALUE', result.error!, rawVal, null));
+    }
+  }
+
+  /**
+   * Validates that all string cell values fit within their database column
+   * length limits.  Runs as the last step of `validate()` so that users see
+   * clear "VALUE_TOO_LONG" errors in the preview instead of an opaque
+   * PostgreSQL "value too long for type character varying(N)" at execute time.
+   */
+  private validateColumnLengths(workbook: ParsedWorkbook, errors: ImportError[]): void {
+    for (const [entityType, limits] of Object.entries(COLUMN_LENGTH_LIMITS)) {
+      const sheet = workbook.sheets.get(entityType);
+      if (!sheet) continue;
+      for (const row of sheet.rows) {
+        const rn = Number(row['__row_number'] ?? 0);
+        for (const [field, maxLen] of Object.entries(limits)) {
+          const value = row[field];
+          if (typeof value === 'string' && value.length > maxLen) {
+            const key = row['slug'] ?? row['code'] ?? row['name'] ?? row['sku'] ?? row['title'] ?? null;
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'VALUE_TOO_LONG',
+              `Value is ${value.length} characters, maximum allowed is ${maxLen}`,
+              value.length > 100 ? value.slice(0, 100) + '…' : value,
+              `Shorten the "${field}" value to ${maxLen} characters or fewer`,
+            ));
+          }
+        }
+      }
     }
   }
 

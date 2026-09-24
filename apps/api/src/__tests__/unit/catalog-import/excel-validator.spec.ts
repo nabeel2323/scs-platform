@@ -287,4 +287,62 @@ describe('ExcelValidatorService', () => {
       expect(hardErrors).toHaveLength(0);
     });
   });
+
+  describe('column length validation', () => {
+    it('reports VALUE_TOO_LONG when a field exceeds the database column limit', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'x'.repeat(81), name: 'Valid Name', type: 'TEXT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const tooLong = errors.filter(e => e.errorCode === 'VALUE_TOO_LONG');
+      expect(tooLong.length).toBeGreaterThanOrEqual(1);
+      const first = tooLong[0]!;
+      expect(first.field).toBe('code');
+      expect(first.errorMessage).toContain('81');
+      expect(first.errorMessage).toContain('80');
+      expect(first.suggestedFix).toContain('80');
+    });
+
+    it('reports VALUE_TOO_LONG for attribute type exceeding 40 chars', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'my-attr', name: 'My Attribute', type: 'A'.repeat(41), scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const tooLong = errors.filter(e => e.errorCode === 'VALUE_TOO_LONG' && e.field === 'type');
+      expect(tooLong).toHaveLength(1);
+      expect(tooLong[0]!.errorMessage).toContain('41');
+      expect(tooLong[0]!.errorMessage).toContain('40');
+    });
+
+    it('reports VALUE_TOO_LONG for product gtin exceeding 20 chars', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug', 'gtin'], [
+        { slug: 'test-product', title: 'Test', brand_slug: 'b', product_type_code: 'pt', category_slug: 'c', gtin: '1'.repeat(21), __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const tooLong = errors.filter(e => e.errorCode === 'VALUE_TOO_LONG' && e.field === 'gtin');
+      expect(tooLong).toHaveLength(1);
+      expect(tooLong[0]!.errorMessage).toContain('21');
+      expect(tooLong[0]!.errorMessage).toContain('20');
+    });
+
+    it('does not report VALUE_TOO_LONG when all fields are within limits', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'resolution', name: 'Resolution', type: 'SELECT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug'], [
+        { slug: 'test-product', title: 'Test Product', brand_slug: 'test-brand', product_type_code: 'laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const tooLong = errors.filter(e => e.errorCode === 'VALUE_TOO_LONG');
+      expect(tooLong).toHaveLength(0);
+    });
+  });
 });

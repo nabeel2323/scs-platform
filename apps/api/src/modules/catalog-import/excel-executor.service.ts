@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
 import {
@@ -33,6 +33,23 @@ export interface ExecutionResult {
   errors: string[];
 }
 
+/**
+ * Maximum VARCHAR lengths per entity field, mirroring the Drizzle schema.
+ * Used for pre-flight validation before entering the DB transaction so that
+ * PostgreSQL error 22001 never poisons the transaction.
+ */
+const VARCHAR_LIMITS: Record<string, Record<string, number>> = {
+  attribute_groups: { name: 120, nameAr: 120, kind: 40 },
+  categories: { slug: 120, name: 200, nameAr: 200 },
+  brands: { slug: 120, name: 200, nameAr: 200 },
+  attributes: { code: 80, name: 200, nameAr: 200, type: 40, unit: 40, scope: 16 },
+  attribute_options: { value: 200, valueAr: 200, label: 200 },
+  product_types: { code: 80, name: 200, nameAr: 200 },
+  productTypeAttributes: { scope: 16 },
+  products: { slug: 200, title: 300, titleAr: 300, mpn: 100, gtin: 20, ean: 20, status: 16, condition: 16 },
+  variants: { sku: 100, title: 300, titleAr: 300, barcode: 60 },
+};
+
 @Injectable()
 export class ExcelExecutorService {
   private readonly logger = new Logger(ExcelExecutorService.name);
@@ -44,6 +61,16 @@ export class ExcelExecutorService {
    */
   async execute(plan: ImportPlan, refs: ResolvedReferences): Promise<ExecutionResult> {
     const result: ExecutionResult = { created: 0, updated: 0, unchanged: 0, rejected: 0, errors: [] };
+
+    // Pre-flight: validate all string lengths BEFORE entering the transaction.
+    // A varchar overflow inside a PG transaction aborts the entire transaction,
+    // making all subsequent operations fail with "current transaction is aborted".
+    const lengthErrors = this.validateStringLengths(plan);
+    if (lengthErrors.length > 0) {
+      throw new BadRequestException(
+        `Import data has ${lengthErrors.length} field-length violation(s): ${lengthErrors.join('; ')}`,
+      );
+    }
 
     // Track real UUIDs for entities created during this execution
     const realIds: Map<string, string> = new Map();
@@ -271,10 +298,57 @@ export class ExcelExecutorService {
 
     } catch (err) {
       this.logger.error(`Import execution failed: ${err instanceof Error ? err.message : String(err)}`);
+      // If a PG string-truncation error escaped pre-flight validation, provide
+      // an actionable message instead of the raw PostgreSQL error.
+      if (err instanceof Error && (err as any).code === '22001') {
+        throw new BadRequestException(
+          'A text field in the workbook exceeds the database column limit. ' +
+          'Check field lengths in your Excel file and re-upload. ' +
+          `Detail: ${err.message}`,
+        );
+      }
       throw err;
     }
 
     return result;
+  }
+
+  /**
+   * Pre-flight check: validates all plan entry string fields against their
+   * database column length constraints.  Runs BEFORE the transaction so that
+   * violations produce clear, field-level error messages instead of aborting
+   * the entire PostgreSQL transaction with an opaque "value too long" error.
+   */
+  private validateStringLengths(plan: ImportPlan): string[] {
+    const errors: string[] = [];
+    const sections: Array<{ key: keyof ImportPlan; label: string }> = [
+      { key: 'attributeGroups', label: 'AttributeGroup' },
+      { key: 'categories', label: 'Category' },
+      { key: 'brands', label: 'Brand' },
+      { key: 'attributes', label: 'Attribute' },
+      { key: 'attributeOptions', label: 'AttributeOption' },
+      { key: 'productTypes', label: 'ProductType' },
+      { key: 'productTypeAttributes', label: 'ProductTypeAttribute' },
+      { key: 'products', label: 'Product' },
+      { key: 'variants', label: 'Variant' },
+    ];
+
+    for (const { key, label } of sections) {
+      const constraints = VARCHAR_LIMITS[key];
+      if (!constraints) continue;
+      for (const entry of plan[key] as PlanEntry[]) {
+        if (entry.action === 'UNCHANGED') continue;
+        for (const [field, maxLen] of Object.entries(constraints)) {
+          const value = entry.data[field];
+          if (typeof value === 'string' && value.length > maxLen) {
+            errors.push(
+              `${label} "${entry.externalKey}": field "${field}" is ${value.length} chars (max ${maxLen})`,
+            );
+          }
+        }
+      }
+    }
+    return errors;
   }
 
   // ── Entity upsert helpers ────────────────────────────────────────
