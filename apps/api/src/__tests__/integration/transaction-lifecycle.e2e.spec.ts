@@ -662,4 +662,134 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(res.rows[0].cnt).toBe(0);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SCENARIO 13 — Phase 1.1: Concurrent Idempotency (real PostgreSQL)
+  // ═══════════════════════════════════════════════════════════════════
+  describe('Scenario 13 — Concurrent idempotency (Phase 1.1)', () => {
+    it('two concurrent identical checkouts create exactly one order', async () => {
+      // Fresh cart for buyerB
+      await cartService.addItem(buyerB, { variantId, quantity: 1, offerId: offerA });
+      const idemKey = `concurrent-${randomUUID()}`;
+
+      // Two concurrent checkouts with the same key and same cart
+      const results = await Promise.allSettled([
+        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+        ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey }),
+      ]);
+
+      // Both succeed (one creates, the other returns existing)
+      const successes = results.filter(r => r.status === 'fulfilled');
+      expect(successes.length).toBe(2);
+
+      // Exactly one master order with this key
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM master_orders WHERE idempotency_key = $1`,
+        [idemKey],
+      );
+      expect(countRes.rows[0].cnt).toBe(1);
+
+      // The fingerprint is stored
+      const fpRes = await pool.query(
+        `SELECT request_fingerprint FROM master_orders WHERE idempotency_key = $1`,
+        [idemKey],
+      );
+      expect(fpRes.rows[0].request_fingerprint).toBeTruthy();
+      expect(fpRes.rows[0].request_fingerprint.length).toBe(64);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // SCENARIO 14 — Phase 1.1: Partial Inventory Reservation
+  // ═══════════════════════════════════════════════════════════════════
+  describe('Scenario 14 — Partial inventory reservation (Phase 1.1)', () => {
+    it('reserves only available quantity when ordered quantity exceeds stock', async () => {
+      // Create a variant with limited stock (5 units)
+      const limitedVariant = await catalog.createVariant(productId, {
+        sku: `LTD-${Date.now()}`, title: 'Limited Stock Item',
+      });
+
+      // Create offer and price for the limited variant
+      const limitedOffer = await offerService.createOffer({
+        storeId: storeA, productId, variantId: limitedVariant.id,
+        currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA,
+      });
+      await offerService.proposeOffer(limitedOffer.id, merchantA);
+      await offerService.approveOffer(limitedOffer.id, adminUser);
+
+      const plId = (await pool.query(
+        `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+      )).rows[0].id;
+      // createVariant auto-creates a base tier, so update it rather than inserting a duplicate
+      await db.update(priceTiers)
+        .set({ unitPriceMinor: 5000, updatedAt: new Date() })
+        .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, limitedVariant.id)));
+
+      // Create inventory with only 5 units
+      const limitedInv = await inventoryService.createItem({
+        variantId: limitedVariant.id, warehouseId: warehouseA,
+        initialQty: 5, userId: merchantA,
+      });
+
+      // Buyer orders 10 units (more than available)
+      await cartService.addItem(buyerA, {
+        variantId: limitedVariant.id, quantity: 10, offerId: limitedOffer.id,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA, deliveryAddress: {},
+        idempotencyKey: `partial-inv-${randomUUID()}`,
+      });
+      const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
+      expect(subId).toBeTruthy();
+
+      // Accept the order — triggers stock reservation
+      await ordersService.acceptOrder(subId!, merchantA);
+
+      // Only 5 units reserved (available), not 10 (ordered)
+      const after = await inventoryService.getItem(limitedInv.id);
+      expect(after.qtyReserved).toBe(5);
+      expect(after.qtyOnHand).toBe(5);
+      expect(after.qtyOnHand - after.qtyReserved).toBe(0);
+
+      // Verify RESERVE movement records 5 (actual), not 10 (ordered)
+      const moveRes = await pool.query(
+        `SELECT quantity FROM stock_movements WHERE inventory_item_id = $1 AND movement_type = 'RESERVE' AND reference_id = $2`,
+        [limitedInv.id, subId],
+      );
+      expect(moveRes.rows.length).toBeGreaterThanOrEqual(1);
+      const totalReserved = moveRes.rows.reduce((sum: number, r: any) => sum + Math.abs(r.quantity), 0);
+      expect(totalReserved).toBe(5);
+    });
+
+    it('partiallyAcceptOrder correctly represents partial quantities', async () => {
+      // Create a fresh order for partial acceptance testing
+      await cartService.addItem(buyerA, { variantId, quantity: 5, offerId: offerA });
+      const co = await ordersService.checkout({
+        buyerId: buyerA, deliveryAddress: {},
+        idempotencyKey: `partial-accept-${randomUUID()}`,
+      });
+      const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
+      expect(subId).toBeTruthy();
+
+      // Order is auto-advanced to PENDING_CONFIRMATION
+      const order = await ordersService.getOrder(subId!);
+      expect(order.status).toBe('PENDING_CONFIRMATION');
+
+      // Get items and partially accept (confirm only 2 of 5)
+      const items = await ordersService.getOrderWithItems(subId!);
+      expect(items.items.length).toBeGreaterThan(0);
+      const itemId = items.items[0]!.id;
+
+      const result = await ordersService.partiallyAcceptOrder(subId!, merchantA, [
+        { itemId, qtyConfirmed: 2 },
+      ]);
+      expect(result.status).toBe('PARTIALLY_ACCEPTED');
+
+      // Financial recalculation: 2 * unitPriceMinor
+      const updatedOrder = await ordersService.getOrderWithItems(subId!);
+      expect(updatedOrder.items.length).toBeGreaterThan(0);
+      const unitPrice = updatedOrder.items[0]!.unitPriceMinor;
+      expect(Number(updatedOrder.subtotalMinor)).toBe(2 * unitPrice);
+    });
+  });
 });
