@@ -268,7 +268,8 @@ export default function MerchantCatalogPage() {
               {tab === 'products' && storeId && (
                 <>
                   <button onClick={handleExport} style={headerBtn}>Export CSV</button>
-                  <Link href={`/merchant/catalog/product/new?storeId=${storeId}`} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ New Product</Link>
+                  <Link href={`/merchant/product-studio`} style={{ padding: '8px 16px', background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ Product Studio</Link>
+                  <Link href={`/merchant/catalog/product/new?storeId=${storeId}`} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ Quick Add</Link>
                 </>
               )}
               {tab === 'categories' && (

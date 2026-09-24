@@ -18,7 +18,7 @@ import styles from '../../../components/management.module.css';
 export default function ProductTypeBuilderPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['catalog:product-types:manage']);
   const params = useParams();
-  const id = params?.id as string;
+  const id = params?.['id'] as string;
 
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
