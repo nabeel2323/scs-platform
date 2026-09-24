@@ -8,7 +8,7 @@ import {
   IconHome, IconUsers, IconPackage, IconStore, IconBuilding,
   IconShield, IconFolder, IconTag, IconScale, IconBox,
   IconBarChart, IconClipboard, IconLock, IconLogOut, IconMenu, IconX,
-  IconSettings, IconFilter, IconStar,
+  IconSettings, IconFilter, IconStar, IconActivity,
 } from '@scs/ui-kit';
 
 /** Navigation items with SVG icons and permission requirements. */
@@ -28,6 +28,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
   { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
   { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:categories:write'] },
+  { href: '/data-quality', label: 'Data Quality', icon: <IconActivity size={18} />, perms: ['catalog:product-types:manage'] },
   { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
@@ -106,7 +107,7 @@ export function AdminSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="admin-sidebar-nav" style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+      <nav className="admin-sidebar-nav" aria-label="Main navigation" style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
         {navItems
           .filter((item) => {
             if (item.perms.length === 0) return true;
@@ -142,7 +143,7 @@ export function AdminSidebar() {
       </nav>
 
       {/* Footer */}
-      <div style={{ padding: collapsed && !isMobile ? '12px 8px' : '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+      <div role="contentinfo" style={{ padding: collapsed && !isMobile ? '12px 8px' : '12px 20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         {(!collapsed || isMobile) && user && (
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

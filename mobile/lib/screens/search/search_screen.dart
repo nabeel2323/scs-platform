@@ -21,6 +21,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   String? _selectedBrand;
   String? _searchError;
 
+  /// PHASE COS-15: dynamic attribute facet filters
+  final Map<String, String> _attrFilters = {};
+
   void _onChanged(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
@@ -38,8 +41,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       setState(() => _searchError = null);
       ref.read(searchResultsProvider.notifier).state = result;
     } catch (e) {
-      // Was `catch (_) {}`: on a failed request the previous query's results
-      // stayed on screen looking like an answer to the new one.
       if (!mounted) return;
       setState(() => _searchError = 'Search failed: $e');
     }
@@ -120,6 +121,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ])),
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink()),
+          // PHASE COS-15: Dynamic attribute facets
+          if (results != null && results.facets.isNotEmpty)
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: results.facets
+                    .expand((facet) => [
+                          for (final v in facet.values)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: FilterChip(
+                                label: Text('${facet.label}: ${v.value}'),
+                                selected: _attrFilters[facet.code] == v.value,
+                                onSelected: (sel) {
+                                  setState(() {
+                                    if (sel) {
+                                      _attrFilters[facet.code] = v.value;
+                                    } else {
+                                      _attrFilters.remove(facet.code);
+                                    }
+                                  });
+                                  _search(_ctrl.text);
+                                },
+                                selectedColor:
+                                    TaifTokens.brandPrimary.withAlpha(30),
+                              ),
+                            ),
+                        ])
+                    .toList(),
+              ),
+            ),
           const SizedBox(height: 8),
           if (_searchError != null)
             ErrorBanner(

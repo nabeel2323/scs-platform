@@ -85,7 +85,7 @@ export function OfferComparisonTable({
               <SortHeader label="MOQ" sortKey="moq" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
               <SortHeader label="Lead Time" sortKey="leadTime" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
               <SortHeader label="Popularity" sortKey="rank" active={sortKey} dir={sortDir} onClick={toggleSort} />
-              <th style={{ padding: '8px 12px', textAlign: 'right', ...typeScale.caption, fontWeight: 600, color: colors.muted }}>Action</th>
+              <th scope="col" style={{ padding: '8px 12px', textAlign: 'right', ...typeScale.caption, fontWeight: 600, color: colors.muted }}>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -254,6 +254,7 @@ function SortHeader({
   return (
     <th
       onClick={() => onClick(sortKey)}
+      scope="col"
       style={{
         padding: '8px 12px',
         textAlign: align ?? 'left',

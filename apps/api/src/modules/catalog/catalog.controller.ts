@@ -406,4 +406,14 @@ export class CatalogController {
   async findDuplicates(@Query('categoryId') categoryId?: string) {
     return this.catalogService.findPotentialDuplicates(categoryId);
   }
+
+  /**
+   * PHASE COS-14: Admin data-quality dashboard metrics.
+   */
+  @Get('admin/data-quality')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  getDataQuality() {
+    return this.catalogService.getDataQualityMetrics();
+  }
 }

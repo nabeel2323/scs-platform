@@ -376,6 +376,81 @@ export class CatalogService {
    * PHASE 7: Find potential duplicate products by matching title + category.
    * Returns groups of products that likely represent the same canonical item.
    */
+  /**
+   * PHASE COS-14: Aggregate data-quality metrics for the admin dashboard.
+   * Returns counts of products with common completeness issues.
+   */
+  async getDataQualityMetrics() {
+    const [
+      totalProducts,
+      missingImages,
+      missingDescription,
+      missingCategory,
+      missingBrand,
+      orphanedVariants,
+      incompleteOffers,
+    ] = await Promise.all([
+      // Total active products
+      this.db.db.execute(sql`SELECT COUNT(*)::int AS count FROM products WHERE deleted_at IS NULL AND status = 'ACTIVE'`),
+      // Products with no media entries
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products p
+        WHERE p.deleted_at IS NULL AND p.status = 'ACTIVE'
+        AND NOT EXISTS (SELECT 1 FROM product_media pm WHERE pm.product_id = p.id)
+      `),
+      // Products with null or empty description
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE'
+        AND (description IS NULL OR trim(description) = '')
+      `),
+      // Products without a category
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE' AND category_id IS NULL
+      `),
+      // Products without a brand
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE' AND brand_id IS NULL
+      `),
+      // Orphaned variants (product deleted or inactive)
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM product_variants pv
+        LEFT JOIN products p ON pv.product_id = p.id
+        WHERE p.id IS NULL OR p.deleted_at IS NOT NULL
+      `),
+      // Merchant offers with no active price (base price = 0 or missing)
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM merchant_offers mo
+        LEFT JOIN LATERAL (
+          SELECT 1 FROM price_tiers pt
+          JOIN price_lists pl ON pt.price_list_id = pl.id
+          WHERE pl.variant_id IN (SELECT id FROM product_variants WHERE product_id = mo.product_id)
+          AND pt.unit_price_minor > 0
+          LIMIT 1
+        ) has_price ON true
+        WHERE has_price.1 IS NULL
+      `),
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extract = (r: any) => {
+      const row = r.rows?.[0];
+      return row ? Number(row['count']) : 0;
+    };
+
+    return {
+      totalProducts: extract(totalProducts),
+      missingImages: extract(missingImages),
+      missingDescription: extract(missingDescription),
+      missingCategory: extract(missingCategory),
+      missingBrand: extract(missingBrand),
+      orphanedVariants: extract(orphanedVariants),
+      incompleteOffers: extract(incompleteOffers),
+    };
+  }
+
   async findPotentialDuplicates(categoryId?: string, limit = 50) {
     const conditions = [isNull(products.deletedAt), eq(products.status, 'ACTIVE')];
     if (categoryId) conditions.push(eq(products.categoryId, categoryId));

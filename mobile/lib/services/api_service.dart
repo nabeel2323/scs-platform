@@ -218,6 +218,25 @@ class ApiService {
           .map<ProductVariant>((e) => ProductVariant.fromJson(e))
           .toList();
 
+  // PHASE COS-15: variant matrix, offers, ranked offers
+  Future<VariantMatrix> fetchVariantMatrix(String productId) async =>
+      VariantMatrix.fromJson(
+          (await _dio.get('/v1/products/$productId/variant-matrix')).data);
+
+  Future<List<Offer>> fetchProductOffers(String productId) async => (await _dio
+          .get('/v1/products/$productId/offers'))
+      .data
+      .map<Offer>((e) => Offer.fromJson(Map<String, dynamic>.from(e as Map)))
+      .toList();
+
+  Future<List<RankedProductOffer>> fetchProductOffersRanked(
+          String productId) async =>
+      (await _dio.get('/v1/products/$productId/offers/ranked'))
+          .data
+          .map<RankedProductOffer>((e) =>
+              RankedProductOffer.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
   Future<Product> createProduct({
     required String storeId,
     required String title,
