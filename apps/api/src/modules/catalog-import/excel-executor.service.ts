@@ -354,13 +354,13 @@ export class ExcelExecutorService {
     const id = randomUUID();
     await tx.insert(attributeDefinitions).values({
       id,
-      code: d.code as string,
-      name: d.name as string,
-      nameAr: (d.nameAr as string) ?? null,
+      code: (d.code as string).slice(0, 80),
+      name: (d.name as string).slice(0, 200),
+      nameAr: d.nameAr ? (d.nameAr as string).slice(0, 200) : null,
       description: (d.description as string) ?? null,
-      type: d.type as string,
-      unit: (d.unit as string) ?? null,
-      scope: (d.scope as string) ?? 'PRODUCT',
+      type: ((d.type as string) || 'TEXT').slice(0, 40),
+      unit: d.unit ? (d.unit as string).slice(0, 40) : null,
+      scope: ((d.scope as string) || 'PRODUCT').slice(0, 16),
     });
     return id;
   }
@@ -433,16 +433,16 @@ export class ExcelExecutorService {
       categoryId,
       brandId,
       productTypeId,
-      slug: d.slug as string,
-      title: d.title as string,
-      titleAr: (d.titleAr as string) ?? null,
+      slug: (d.slug as string).slice(0, 200),
+      title: (d.title as string).slice(0, 300),
+      titleAr: d.titleAr ? (d.titleAr as string).slice(0, 300) : null,
       description: (d.description as string) ?? null,
       descriptionAr: (d.descriptionAr as string) ?? null,
-      mpn: (d.mpn as string) ?? null,
-      gtin: (d.gtin as string) ?? null,
-      ean: (d.ean as string) ?? null,
-      status: (d.status as string) ?? 'ACTIVE',
-      condition: (d.condition as string) ?? 'NEW',
+      mpn: d.mpn ? (d.mpn as string).slice(0, 100) : null,
+      gtin: d.gtin ? (d.gtin as string).slice(0, 20) : null,
+      ean: d.ean ? (d.ean as string).slice(0, 20) : null,
+      status: ((d.status as string) || 'ACTIVE').slice(0, 16),
+      condition: ((d.condition as string) || 'NEW').slice(0, 16),
     });
     return id;
   }
