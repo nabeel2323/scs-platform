@@ -13,6 +13,25 @@ interface StepSpecificationsProps {
 
 export default function StepSpecifications({ state, setState }: StepSpecificationsProps) {
   const schema = state.productTypeSchema;
+  const attributes = useMemo(() => schema?.attributes ?? [], [schema]);
+
+  // Hooks must run unconditionally on every render to preserve hook order.
+  const allRules: ConditionalRule[] = useMemo(() => {
+    const rules: ConditionalRule[] = [];
+    for (const attr of attributes) {
+      if (Array.isArray(attr.conditionalRules)) {
+        rules.push(...(attr.conditionalRules as ConditionalRule[]));
+      }
+    }
+    return rules;
+  }, [attributes]);
+
+  const allAttrIds = useMemo(() => attributes.map(a => a.attributeDefinitionId), [attributes]);
+
+  const conditionalEffects: Map<string, AttributeEffect> = useMemo(
+    () => evaluateConditionalRules(allRules, state.attributeValues, allAttrIds),
+    [allRules, state.attributeValues, allAttrIds],
+  );
 
   if (!schema) {
     return (
@@ -26,25 +45,6 @@ export default function StepSpecifications({ state, setState }: StepSpecificatio
   const productAttrs = schema.attributes
     .filter((a: ProductTypeSchemaAttribute) => a.definition?.scope === 'PRODUCT')
     .sort((a: ProductTypeSchemaAttribute, b: ProductTypeSchemaAttribute) => a.displayOrder - b.displayOrder);
-
-  // Collect all conditional rules from the product type attributes
-  const allRules: ConditionalRule[] = useMemo(() => {
-    const rules: ConditionalRule[] = [];
-    for (const attr of schema.attributes) {
-      if (Array.isArray(attr.conditionalRules)) {
-        rules.push(...(attr.conditionalRules as ConditionalRule[]));
-      }
-    }
-    return rules;
-  }, [schema.attributes]);
-
-  const allAttrIds = useMemo(() => schema.attributes.map(a => a.attributeDefinitionId), [schema.attributes]);
-
-  // Evaluate conditional rules against current attribute values
-  const conditionalEffects: Map<string, AttributeEffect> = useMemo(
-    () => evaluateConditionalRules(allRules, state.attributeValues, allAttrIds),
-    [allRules, state.attributeValues, allAttrIds],
-  );
 
   // Determine effective required/hidden state per attribute
   const isEffectivelyRequired = (attr: ProductTypeSchemaAttribute): boolean => {
