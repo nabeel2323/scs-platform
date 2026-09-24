@@ -18,6 +18,7 @@ import {
   PageHeader, BreadcrumbDark,
   colors, typeScale, radii, shadows, transitions,
 } from '@scs/ui-kit';
+import { useCompareList } from '../../../hooks/useProductComparison';
 import { VariantSelector } from './components/VariantSelector';
 import { OfferComparisonTable } from './components/OfferComparisonTable';
 import { useOfferComparison } from '../../../hooks/useOfferComparison';
@@ -411,13 +412,14 @@ export default function ProductDetailPage() {
         {/* Details */}
         <div>
           {product.titleAr && <div style={{ ...typeScale.h2, color: colors.muted, marginBottom: 8, direction: 'rtl' }}>{product.titleAr}</div>}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ padding: '2px 10px', borderRadius: radii.sm, ...typeScale.caption, fontWeight: 600, background: product.isAvailable ? colors.okBg : colors.errBg, color: product.isAvailable ? colors.ok : colors.err }}>
               {product.isAvailable ? 'Available' : 'Unavailable'}
             </span>
             <span style={{ padding: '2px 10px', borderRadius: radii.sm, ...typeScale.caption, fontWeight: 600, background: colors.bgSubtle, color: colors.muted }}>
               MOQ: {product.moq}
             </span>
+            <CompareButton productId={productId} />
           </div>
 
           {/* Amazon-style "from" price headline */}
@@ -611,5 +613,29 @@ export default function ProductDetailPage() {
       </div>
     </div>
     </>
+  );
+}
+
+/* ── PHASE COS-13: Add to Compare button ────────────────────── */
+function CompareButton({ productId }: { productId: string }) {
+  const { ids, add, remove, isFull } = useCompareList();
+  const inList = ids.includes(productId);
+
+  return (
+    <button
+      onClick={() => inList ? remove(productId) : add(productId)}
+      disabled={!inList && isFull}
+      style={{
+        padding: '2px 10px', borderRadius: radii.sm, ...typeScale.caption, fontWeight: 600,
+        background: inList ? colors.brand[700] : colors.bgSubtle,
+        color: inList ? '#fff' : colors.muted,
+        border: `1px solid ${inList ? colors.brand[700] : colors.border}`,
+        cursor: !inList && isFull ? 'not-allowed' : 'pointer',
+        opacity: !inList && isFull ? 0.5 : 1,
+      }}
+      title={inList ? 'Remove from comparison' : isFull ? 'Comparison list full (max 4)' : 'Add to comparison'}
+    >
+      {inList ? '✓ Comparing' : isFull ? 'Compare Full' : '+ Compare'}
+    </button>
   );
 }
