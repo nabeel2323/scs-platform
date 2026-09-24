@@ -77,38 +77,70 @@ export class ExcelValidatorService {
       this.validateHeaders(sheet, entityType, errors);
     }
 
-    // Validate categories
+    // Validate categories — workbook categories become available for
+    // downstream cross-references (product category_slug, etc.)
     const catSheet = workbook.sheets.get('categories');
     const catSlugs = new Set<string>(existingData.categorySlugs);
     if (catSheet) {
       this.validateCategories(catSheet, catSlugs, errors);
+      for (const row of catSheet.rows) {
+        const slug = row['slug'];
+        if (slug) catSlugs.add(slug);
+      }
     }
 
-    // Validate brands
+    // Validate brands — workbook brands become available for products
     const brandSheet = workbook.sheets.get('brands');
     const brandSlugs = new Set<string>(existingData.brandSlugs);
     if (brandSheet) {
       this.validateBrands(brandSheet, brandSlugs, errors);
+      for (const row of brandSheet.rows) {
+        const slug = row['slug'];
+        if (slug) brandSlugs.add(slug);
+      }
     }
 
-    // Validate attributes
+    // Validate attributes — workbook attributes become available for
+    // attribute options, product type attributes, product/variant attributes
     const attrSheet = workbook.sheets.get('attributes');
     const attrCodes = new Map<string, { type: string; options: Set<string> }>(existingData.attributeMap);
     if (attrSheet) {
       this.validateAttributes(attrSheet, attrCodes, errors);
+      // Register validated workbook attributes for downstream lookups
+      for (const row of attrSheet.rows) {
+        const code = row['code'];
+        const type = row['type'] ?? 'TEXT';
+        if (code && !attrCodes.has(code)) {
+          attrCodes.set(code, { type, options: new Set() });
+        }
+      }
     }
 
-    // Validate attribute options
+    // Validate attribute options (needs attrCodes from above)
     const optSheet = workbook.sheets.get('attribute_options');
     if (optSheet) {
       this.validateAttributeOptions(optSheet, attrCodes, errors);
+      // Register option values so typed-value validation can check them
+      for (const row of optSheet.rows) {
+        const ac = row['attribute_code'];
+        const val = row['value'];
+        if (ac && val) {
+          const entry = attrCodes.get(ac);
+          if (entry) entry.options.add(val);
+        }
+      }
     }
 
-    // Validate product types
+    // Validate product types — workbook product types become available
+    // for product type attributes and products
     const ptSheet = workbook.sheets.get('product_types');
     const ptCodes = new Set<string>(existingData.productTypeCodes);
     if (ptSheet) {
       this.validateProductTypes(ptSheet, ptCodes, catSlugs, errors);
+      for (const row of ptSheet.rows) {
+        const code = row['code'];
+        if (code) ptCodes.add(code);
+      }
     }
 
     // Validate product type attributes
@@ -117,11 +149,15 @@ export class ExcelValidatorService {
       this.validateProductTypeAttributes(ptaSheet, ptCodes, attrCodes, errors);
     }
 
-    // Validate products
+    // Validate products (needs brandSlugs, catSlugs, ptCodes — all populated)
     const prodSheet = workbook.sheets.get('products');
     const prodSlugs = new Set<string>(existingData.productSlugs);
     if (prodSheet) {
       this.validateProducts(prodSheet, prodSlugs, brandSlugs, catSlugs, ptCodes, errors);
+      for (const row of prodSheet.rows) {
+        const slug = row['slug'];
+        if (slug) prodSlugs.add(slug);
+      }
     }
 
     // Validate product attributes
@@ -130,11 +166,15 @@ export class ExcelValidatorService {
       this.validateProductAttributes(paSheet, prodSlugs, attrCodes, errors);
     }
 
-    // Validate variants
+    // Validate variants (needs prodSlugs)
     const varSheet = workbook.sheets.get('variants');
     const variantSkus = new Set<string>(existingData.variantSkus);
     if (varSheet) {
       this.validateVariants(varSheet, prodSlugs, variantSkus, errors);
+      for (const row of varSheet.rows) {
+        const sku = row['sku'];
+        if (sku) variantSkus.add(sku);
+      }
     }
 
     // Validate variant attributes

@@ -181,4 +181,110 @@ describe('ExcelValidatorService', () => {
       expect(errors.some(e => e.errorCode === 'INVALID_VALUE' && e.field === 'source_type')).toBe(true);
     });
   });
+
+  describe('cross-sheet attribute resolution', () => {
+    it('should resolve Attribute Options against Attributes by Attribute Code', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'resolution', name: 'Resolution', type: 'SELECT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('attribute_options', makeSheet('Attribute Options', 'attribute_options', ['attribute_code', 'value'], [
+        { attribute_code: 'resolution', value: '1920x1080', __row_number: '2' },
+        { attribute_code: 'resolution', value: '2560x1440', __row_number: '3' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      // No UNKNOWN_REFERENCE errors — "resolution" is defined in the Attributes sheet
+      const refErrors = errors.filter(e => e.errorCode === 'UNKNOWN_REFERENCE' && e.field === 'attribute_code');
+      expect(refErrors).toHaveLength(0);
+    });
+
+    it('still catches genuinely invalid attribute references', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'resolution', name: 'Resolution', type: 'SELECT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('attribute_options', makeSheet('Attribute Options', 'attribute_options', ['attribute_code', 'value'], [
+        { attribute_code: 'does-not-exist', value: 'some-value', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      expect(errors.some(e =>
+        e.errorCode === 'UNKNOWN_REFERENCE' &&
+        e.field === 'attribute_code' &&
+        e.errorMessage?.includes('does-not-exist'),
+      )).toBe(true);
+    });
+  });
+
+  describe('full cross-sheet workbook validation', () => {
+    it('validates a complete workbook with all entity types referencing each other', () => {
+      const sheets = new Map<string, ParsedSheet>();
+
+      // Categories
+      sheets.set('categories', makeSheet('Categories', 'categories', ['slug', 'name'], [
+        { slug: 'laptops', name: 'Laptops', __row_number: '2' },
+      ]));
+
+      // Brands
+      sheets.set('brands', makeSheet('Brands', 'brands', ['slug', 'name'], [
+        { slug: 'test-brand', name: 'Test Brand', __row_number: '2' },
+      ]));
+
+      // Attributes
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'resolution', name: 'Resolution', type: 'SELECT', scope: 'PRODUCT', __row_number: '2' },
+        { code: 'cpu-model', name: 'CPU Model', type: 'SELECT', scope: 'PRODUCT', __row_number: '3' },
+        { code: 'ram-type', name: 'RAM Type', type: 'SELECT', scope: 'PRODUCT', __row_number: '4' },
+      ]));
+
+      // Attribute Options
+      sheets.set('attribute_options', makeSheet('Attribute Options', 'attribute_options', ['attribute_code', 'value'], [
+        { attribute_code: 'resolution', value: '1920x1080', __row_number: '2' },
+        { attribute_code: 'resolution', value: '2560x1440', __row_number: '3' },
+        { attribute_code: 'cpu-model', value: 'Intel Core i5-1335U', __row_number: '4' },
+        { attribute_code: 'ram-type', value: 'DDR5', __row_number: '5' },
+      ]));
+
+      // Product Types
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name'], [
+        { code: 'business-laptop', name: 'Business Laptop', __row_number: '2' },
+      ]));
+
+      // Product Type Attributes
+      sheets.set('product_type_attributes', makeSheet('Product Type Attributes', 'product_type_attributes', ['product_type_code', 'attribute_code'], [
+        { product_type_code: 'business-laptop', attribute_code: 'resolution', __row_number: '2' },
+        { product_type_code: 'business-laptop', attribute_code: 'cpu-model', __row_number: '3' },
+        { product_type_code: 'business-laptop', attribute_code: 'ram-type', __row_number: '4' },
+      ]));
+
+      // Products
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug'], [
+        { slug: 'test-laptop', title: 'Test Laptop', brand_slug: 'test-brand', product_type_code: 'business-laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+
+      // Product Attributes
+      sheets.set('product_attributes', makeSheet('Product Attributes', 'product_attributes', ['product_slug', 'attribute_code', 'value_text'], [
+        { product_slug: 'test-laptop', attribute_code: 'resolution', value_text: '1920x1080', __row_number: '2' },
+      ]));
+
+      // Variants
+      sheets.set('variants', makeSheet('Variants', 'variants', ['product_slug', 'sku'], [
+        { product_slug: 'test-laptop', sku: 'TEST-LAPTOP-I5', __row_number: '2' },
+      ]));
+
+      // Variant Attributes
+      sheets.set('variant_attributes', makeSheet('Variant Attributes', 'variant_attributes', ['variant_sku', 'attribute_code', 'value_text'], [
+        { variant_sku: 'TEST-LAPTOP-I5', attribute_code: 'cpu-model', value_text: 'Intel Core i5-1335U', __row_number: '2' },
+        { variant_sku: 'TEST-LAPTOP-I5', attribute_code: 'ram-type', value_text: 'DDR5', __row_number: '3' },
+      ]));
+
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const hardErrors = errors.filter(e => e.severity === 'ERROR');
+
+      // Zero validation errors — all cross-sheet references resolve
+      expect(hardErrors).toHaveLength(0);
+    });
+  });
 });
