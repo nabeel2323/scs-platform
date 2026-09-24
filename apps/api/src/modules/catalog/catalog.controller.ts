@@ -24,10 +24,12 @@ import {
 import { SearchService } from './search.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import {
   CurrentUser,
   JwtPayload,
   RequirePermission,
+  RequireRole,
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
@@ -48,8 +50,9 @@ export class CatalogController {
   // ── Categories ───────────────────────────────────────────────
 
   @Post('categories')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
+  @RequireRole('ADMIN', 'MODERATOR')
   async createCategory(@Body() input: CreateCategoryInput) {
     return this.catalogService.createCategory(input);
   }
@@ -84,15 +87,17 @@ export class CatalogController {
   }
 
   @Patch('categories/:id')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
+  @RequireRole('ADMIN', 'MODERATOR')
   async updateCategory(@Param('id') id: string, @Body() input: UpdateCategoryInput) {
     return this.catalogService.updateCategory(id, input);
   }
 
   @Delete('categories/:id')
-  @UseGuards(PermissionsGuard)
+  @UseGuards(PermissionsGuard, RolesGuard)
   @RequirePermission('catalog:categories:write')
+  @RequireRole('ADMIN', 'MODERATOR')
   async deleteCategory(@Param('id') id: string) {
     return this.catalogService.deleteCategory(id);
   }

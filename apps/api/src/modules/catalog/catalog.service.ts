@@ -315,9 +315,9 @@ export class CatalogService {
       descriptionAr: input.descriptionAr || null,
       status: 'DRAFT',
       condition: input.condition || 'NEW',
-      moq: input.moq || 1,
+      moq: 1, // Deprecated: MOQ is now offer-owned (merchantOffers.moq). Always use default for new products.
       images: input.images || [],
-      attributes: input.attributes || {},
+      attributes: {}, // Deprecated: attributes JSONB is superseded by typed productAttributeValues. Always empty for new products.
       gtin: input.gtin || null,
       ean: input.ean || null,
       mpn: input.mpn || null,
@@ -544,11 +544,12 @@ export class CatalogService {
         .where(eq(products.id, id)),
     ]);
     // A5-1: attach per-variant pricing via the shared resolver so the buyer
-    // detail page and the cart agree on what a unit costs.
+    // detail page and the cart agree on what a unit costs. MOQ is offer-owned;
+    // resolve at quantity=1 for display (cart uses actual offer MOQ).
     const activeVariants = variants.filter(v => v['isActive']);
     const variantIds = activeVariants.map(v => v['id']);
     const pricingMap = variantIds.length > 0 && productStoreId
-      ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, product['moq'] || 1, { ladder: true })
+      ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
       : new Map();
     const variantsWithPricing = variants.map(v => ({
       ...v,
@@ -786,10 +787,10 @@ export class CatalogService {
       if (input.status === 'ACTIVE') updates['publishedAt'] = new Date();
     }
     if (input.condition !== undefined) updates['condition'] = input.condition;
-    if (input.isAvailable !== undefined) updates['isAvailable'] = input.isAvailable;
-    if (input.moq !== undefined) updates['moq'] = input.moq;
+    // REMOVED: isAvailable, moq, attributes — these are now offer-owned fields.
+    // Merchants must use the Merchant Offer workflow (merchantOffers) for pricing,
+    // MOQ, availability, and typed attributes (productAttributeValues).
     if (input.images !== undefined) updates['images'] = input.images;
-    if (input.attributes !== undefined) updates['attributes'] = input.attributes;
     if (input.categoryId !== undefined) updates['categoryId'] = input.categoryId;
     if (input.brandId !== undefined) updates['brandId'] = input.brandId;
     if (input.slug !== undefined) updates['slug'] = input.slug;
@@ -947,7 +948,7 @@ export class CatalogService {
 
   /**
    * Export products for a store as CSV rows.
-   * Columns: title, titleAr, sku, priceMinor, category, brand, status, moq, description
+   * Columns: title, titleAr, sku, priceMinor, category, brand, status, description
    */
   async exportProductsCsv(storeId: string) {
     const prods = await this.db.db.query.products.findMany({
@@ -955,7 +956,7 @@ export class CatalogService {
       orderBy: [desc(products.createdAt)],
     });
 
-    const header = 'title,titleAr,sku,priceMinor,category,brand,status,moq,description';
+    const header = 'title,titleAr,sku,priceMinor,category,brand,status,description';
     const rows: string[] = [header];
 
     for (const p of prods) {
@@ -994,7 +995,6 @@ export class CatalogService {
           esc(cat),
           esc(brand),
           p['status'],
-          String(p['moq']),
           esc(p['description'] ?? ''),
         ].join(','),
       );
@@ -1528,9 +1528,10 @@ export class CatalogService {
       );
     }
 
+    // MOQ column in CSV is deprecated (offer-owned field). Parse but do not write to products.
     const moqRaw = get('moq');
-    const moq = moqRaw ? parseInt(moqRaw, 10) : 1;
-    if (isNaN(moq) || moq < 1) {
+    const _importMoq = moqRaw ? parseInt(moqRaw, 10) : 1;
+    if (isNaN(_importMoq) || _importMoq < 1) {
       throw new ImportRowError('moq', `Row ${rowNum}: invalid MOQ "${moqRaw}"`);
     }
 
@@ -1564,7 +1565,7 @@ export class CatalogService {
       await this.db.db
         .update(products)
         .set({
-          moq,
+          // MOQ is offer-owned — no longer written to products table
           ...(description ? { description } : {}),
           ...(categoryId ? { categoryId } : {}),
           ...(brandId ? { brandId } : {}),
@@ -1593,7 +1594,7 @@ export class CatalogService {
       titleAr: nameAr,
       description,
       status: 'DRAFT',
-      moq,
+      // MOQ is offer-owned — use column default (1)
     });
 
     const variantId = crypto.randomUUID();
@@ -1879,9 +1880,7 @@ export interface CreateProductInput {
   categoryId?: string;
   brandId?: string;
   condition?: string;
-  moq?: number;
   images?: string[];
-  attributes?: Record<string, unknown>;
   /** PHASE 7: Canonical identifiers for deduplication. */
   gtin?: string;
   ean?: string;
@@ -1896,10 +1895,7 @@ export interface UpdateProductInput {
   descriptionAr?: string;
   status?: string;
   condition?: string;
-  isAvailable?: boolean;
-  moq?: number;
   images?: string[];
-  attributes?: Record<string, unknown>;
   categoryId?: string;
   brandId?: string;
   slug?: string;
