@@ -75,6 +75,7 @@ export class ExcelPlannerService {
     // Process each entity type in dependency order
     this.planCategories(workbook, refs, existingEntities, plan);
     this.planBrands(workbook, refs, existingEntities, plan);
+    this.planAttributeGroups(workbook, refs, plan);
     this.planAttributes(workbook, refs, existingEntities, plan);
     this.planAttributeOptions(workbook, refs, existingEntities, plan);
     this.planProductTypes(workbook, refs, existingEntities, plan);
@@ -175,6 +176,38 @@ export class ExcelPlannerService {
           externalKey: slug,
           action: changed ? 'UPDATE' : 'UNCHANGED',
           data: { slug, name: row['name']!, nameAr: row['name_ar'], description: row['description'] },
+          existingId,
+        });
+      }
+    }
+  }
+
+  private planAttributeGroups(workbook: ParsedWorkbook, refs: ResolvedReferences, plan: ImportPlan): void {
+    const sheet = workbook.sheets.get('attribute_groups');
+    if (!sheet) return;
+
+    for (const row of sheet.rows) {
+      const name = row['name']!;
+      const existingId = refs.attributeGroupIds?.get(name);
+      const isPending = existingId?.startsWith('pending:');
+
+      if (!existingId || isPending) {
+        plan.attributeGroups.push({
+          entityType: 'attribute_groups',
+          externalKey: name,
+          action: 'CREATE',
+          data: {
+            name,
+            nameAr: row['name_ar'],
+            kind: row['kind'],
+          },
+        });
+      } else {
+        plan.attributeGroups.push({
+          entityType: 'attribute_groups',
+          externalKey: name,
+          action: 'UNCHANGED',
+          data: { name },
           existingId,
         });
       }

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
-import { attributeDefinitions, attributeOptions, productTypes } from '../catalog/catalog.taxonomy.schema';
+import { attributeGroups, attributeDefinitions, attributeOptions, productTypes } from '../catalog/catalog.taxonomy.schema';
 import type { ParsedWorkbook } from './excel-parser.service';
 
 /**
@@ -15,6 +15,7 @@ import type { ParsedWorkbook } from './excel-parser.service';
 export interface ResolvedReferences {
   brandIds: Map<string, string>;          // slug -> UUID
   categoryIds: Map<string, string>;       // slug -> UUID
+  attributeGroupIds: Map<string, string>; // name -> UUID
   attributeIds: Map<string, string>;      // code -> UUID
   attributeOptions: Map<string, Map<string, string>>; // attrCode -> (value -> UUID)
   productTypeIds: Map<string, string>;    // code -> UUID
@@ -36,6 +37,7 @@ export class ExcelResolverService {
     const refs: ResolvedReferences = {
       brandIds: new Map(),
       categoryIds: new Map(),
+      attributeGroupIds: new Map(),
       attributeIds: new Map(),
       attributeOptions: new Map(),
       productTypeIds: new Map(),
@@ -45,9 +47,10 @@ export class ExcelResolverService {
     };
 
     // Batch load all existing entities
-    const [brandRows, categoryRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
+    const [brandRows, categoryRows, agRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
       this.db.db.select({ id: brands.id, slug: brands.slug }).from(brands),
       this.db.db.select({ id: categories.id, slug: categories.slug, storeId: categories.storeId }).from(categories),
+      this.db.db.select({ id: attributeGroups.id, name: attributeGroups.name }).from(attributeGroups),
       this.db.db.select({ id: attributeDefinitions.id, code: attributeDefinitions.code, type: attributeDefinitions.type }).from(attributeDefinitions),
       this.db.db.select({ id: attributeOptions.id, attributeId: attributeOptions.attributeId, value: attributeOptions.value }).from(attributeOptions),
       this.db.db.select({ id: productTypes.id, code: productTypes.code }).from(productTypes),
@@ -61,6 +64,7 @@ export class ExcelResolverService {
       // Only platform-level categories (store_id IS NULL)
       if (!r.storeId) refs.categoryIds.set(r.slug, r.id);
     }
+    for (const r of agRows) refs.attributeGroupIds.set(r.name, r.id);
     for (const r of attrRows) {
       refs.attributeIds.set(r.code, r.id);
       refs.attributeTypes.set(r.code, r.type);
@@ -90,8 +94,9 @@ export class ExcelResolverService {
 
     this.logger.log(
       `Resolved references: ${refs.brandIds.size} brands, ${refs.categoryIds.size} categories, ` +
-      `${refs.attributeIds.size} attributes, ${refs.productTypeIds.size} product types, ` +
-      `${refs.productIds.size} products, ${refs.variantIds.size} variants`,
+      `${refs.attributeGroupIds.size} attribute groups, ${refs.attributeIds.size} attributes, ` +
+      `${refs.productTypeIds.size} product types, ${refs.productIds.size} products, ` +
+      `${refs.variantIds.size} variants`,
     );
 
     return refs;
@@ -121,6 +126,17 @@ export class ExcelResolverService {
         const slug = row['slug'];
         if (slug && !refs.brandIds.has(slug)) {
           refs.brandIds.set(slug, `pending:brand:${slug}`);
+        }
+      }
+    }
+
+    // Attribute groups from the import
+    const agSheet = workbook.sheets.get('attribute_groups');
+    if (agSheet) {
+      for (const row of agSheet.rows) {
+        const name = row['name'];
+        if (name && !refs.attributeGroupIds.has(name)) {
+          refs.attributeGroupIds.set(name, `pending:ag:${name}`);
         }
       }
     }

@@ -98,6 +98,7 @@ describe('Catalog Import Pipeline Integration', () => {
     const refs = {
       brandIds: new Map<string, string>(),
       categoryIds: new Map<string, string>(),
+      attributeGroupIds: new Map<string, string>(),
       attributeIds: new Map<string, string>(),
       attributeOptions: new Map<string, Map<string, string>>(),
       productTypeIds: new Map<string, string>(),
@@ -140,6 +141,7 @@ describe('Catalog Import Pipeline Integration', () => {
     const refs = {
       brandIds: new Map([['dell', 'existing-uuid']]),
       categoryIds: new Map<string, string>(),
+      attributeGroupIds: new Map<string, string>(),
       attributeIds: new Map<string, string>(),
       attributeOptions: new Map<string, Map<string, string>>(),
       productTypeIds: new Map<string, string>(),
@@ -209,6 +211,7 @@ describe('Catalog Import Pipeline Integration', () => {
     const refs = {
       brandIds: new Map<string, string>(),
       categoryIds: new Map<string, string>(),
+      attributeGroupIds: new Map<string, string>(),
       attributeIds: new Map<string, string>(),
       attributeOptions: new Map<string, Map<string, string>>(),
       productTypeIds: new Map<string, string>(),
@@ -234,6 +237,7 @@ describe('Catalog Import Pipeline Integration', () => {
     const refs = {
       brandIds: new Map([['dell', 'uuid-brand']]),
       categoryIds: new Map([['laptops', 'uuid-cat']]),
+      attributeGroupIds: new Map<string, string>(),
       attributeIds: new Map<string, string>(),
       attributeOptions: new Map<string, Map<string, string>>(),
       productTypeIds: new Map<string, string>(),
@@ -397,6 +401,7 @@ describe('Catalog Import Pipeline Integration', () => {
     const refs = {
       brandIds: new Map<string, string>(),
       categoryIds: new Map<string, string>(),
+      attributeGroupIds: new Map<string, string>(),
       attributeIds: new Map<string, string>(),
       attributeOptions: new Map<string, Map<string, string>>(),
       productTypeIds: new Map<string, string>(),
