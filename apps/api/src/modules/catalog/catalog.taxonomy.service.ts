@@ -429,9 +429,10 @@ export class CatalogTaxonomyService {
 
     const newId = crypto.randomUUID();
     const now = new Date();
+    const dupCode = `${source.code}_copy_${now.getTime()}`;
     await this.db.db.insert(productTypes).values({
       id: newId,
-      code: source.code,
+      code: dupCode,
       version: 1,
       name: `${source.name} (Copy)`,
       nameAr: source.nameAr,

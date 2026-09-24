@@ -307,6 +307,7 @@ export class CatalogService {
       storeId: input.storeId ?? null,
       categoryId: input.categoryId || null,
       brandId: input.brandId || null,
+      productTypeId: input.productTypeId || null,
       slug,
       title: input.title,
       titleAr: input.titleAr || null,
@@ -731,10 +732,13 @@ export class CatalogService {
     const attrValues: AttributeValueMap = valuesByAttrId;
     const evaluation = this.conditionalRules.evaluate(allRules, attrValues, allAttrIds);
 
-    // 5. Check statically-required attributes have values
+    // 5. Check statically-required PRODUCT-scope attributes have values.
+    // VARIANT-scope and OFFER-scope attributes are validated at their own
+    // layer (variant attribute values, offer attribute values) — they must
+    // not block product publication.
     const errors: Array<{ attributeId: string; message: string }> = [];
     for (const pta of ptaRows) {
-      if (pta.required) {
+      if (pta.required && pta.scope === 'PRODUCT') {
         const val = valuesByAttrId.get(pta.attributeDefinitionId);
         if (val === null || val === undefined || val === '') {
           // Only report if not already reported by conditional evaluation
@@ -749,8 +753,15 @@ export class CatalogService {
       }
     }
 
-    // 6. Merge conditionally-required errors
-    errors.push(...evaluation.errors);
+    // 6. Merge conditionally-required errors (only PRODUCT-scope targets)
+    const productScopeAttrIds = new Set(
+      ptaRows.filter(pta => pta.scope === 'PRODUCT').map(pta => pta.attributeDefinitionId),
+    );
+    for (const err of evaluation.errors) {
+      if (productScopeAttrIds.has(err.attributeId)) {
+        errors.push(err);
+      }
+    }
 
     if (errors.length > 0) {
       throw new BadRequestException({
