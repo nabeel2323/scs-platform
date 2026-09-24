@@ -51,7 +51,7 @@ export const attributeDefinitions = pgTable('attribute_definitions', {
   name: varchar('name', { length: 200 }).notNull(),
   nameAr: varchar('name_ar', { length: 200 }),
   description: text('description'),
-  type: varchar('type', { length: 20 }).notNull().default('TEXT'),
+  type: varchar('type', { length: 40 }).notNull().default('TEXT'),
   unit: varchar('unit', { length: 40 }),
   scope: varchar('scope', { length: 16 }).notNull().default('PRODUCT'),
   status: varchar('status', { length: 16 }).notNull().default('ACTIVE'),
