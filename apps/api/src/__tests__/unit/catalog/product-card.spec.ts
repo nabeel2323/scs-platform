@@ -98,9 +98,9 @@ describe('enrichProductCards', () => {
         { id: 'v-rice-50kg', productId: 'p-rice' },
         { id: 'v-oil', productId: 'p-oil' },
       ],
+      // MOQ is offer-owned; all products in the same store share one batch at qty=1
       priceBatches: [
-        [tier('v-rice-25kg', 900), tier('v-rice-50kg', 850)],
-        [tier('v-oil', 1200)],
+        [tier('v-rice-25kg', 900), tier('v-rice-50kg', 850), tier('v-oil', 1200)],
       ],
     });
 
@@ -122,23 +122,21 @@ describe('enrichProductCards', () => {
     expect(h.counts.variants).toBe(1); // enrichProductCards reads variants once
   });
 
-  it('prices each product at its own MOQ, in one batch per (store, MOQ) pair', async () => {
+  it('batches all products per store at qty=1 (MOQ is offer-owned)', async () => {
     const h = fakeDb({
       stores: [AL_NOOR],
       variants: [
         { id: 'v-rice', productId: 'p-rice' },
         { id: 'v-oil', productId: 'p-oil' },
       ],
-      priceBatches: [[tier('v-rice', 900)], [tier('v-oil', 1200)]],
+      // Both products share a single batch because MOQ is no longer product-level
+      priceBatches: [[tier('v-rice', 900), tier('v-oil', 1200)]],
     });
 
     await enrichProductCards(h.db, LIST);
 
-    // Two different MOQs cannot share a tier query: the quantity decides which
-    // volume tier wins, so collapsing them would quote the wrong price.
-    expect(h.counts.prices).toBe(2);
-    expect(h.whereSql[0]).toContain('10');
-    expect(h.whereSql[1]).toContain('25');
+    // All products in the same store are resolved in one batch at qty=1
+    expect(h.counts.prices).toBe(1);
   });
 
   it('keeps a product whose seller row is missing instead of dropping it', async () => {

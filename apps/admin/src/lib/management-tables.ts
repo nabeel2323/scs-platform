@@ -21,7 +21,8 @@ const select = (key: string, options: string[]): FilterDefinition => ({ key, lab
 const boolean = (key: string) => select(key, ['true', 'false']);
 const number = (key: string): FilterDefinition => ({ key, label: fieldLabel(key), type: 'number' });
 const dates = ['createdAt', 'updatedAt'];
-const productSorts = ['title', 'slug', 'storeName', 'condition', 'moq', 'imageCount', 'status', 'isAvailable'];
+// Removed moq and isAvailable — these are offer-owned fields (merchantOffers).
+const productSorts = ['title', 'slug', 'storeName', 'condition', 'imageCount', 'status'];
 const merchantSorts = ['displayName', 'slug', 'orgName', 'status', 'verificationStatus', 'currency'];
 const userSorts = ['fullName', 'email', 'phone', 'status', 'locale'];
 const orderSorts = ['status', 'storeName', 'buyerName', 'totalMinor', 'currency', 'fulfillmentMethod'];
@@ -33,7 +34,7 @@ export const managementTables: Record<ManagementEntity, ManagementConfig> = {
     title: 'Product Moderation', endpoint: 'products', permission: 'admin:merchants:read',
     columns: [...productSorts, 'publishedAt', ...dates], sorts: productSorts, dates: [...dates, 'publishedAt'],
     filters: [select('status', ['DRAFT', 'ACTIVE', 'REJECTED']), ...text('storeId', 'categoryId'),
-      select('condition', ['NEW', 'USED', 'REFURBISHED']), boolean('isAvailable'), boolean('hasImages'), number('moqMin'), number('moqMax')],
+      select('condition', ['NEW', 'USED', 'REFURBISHED']), boolean('hasImages')],
   },
   users: {
     title: 'User Management', endpoint: 'users', permission: 'admin:users:read', columns: [...userSorts, 'emailVerifiedAt', ...dates],

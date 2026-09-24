@@ -845,9 +845,7 @@ export interface CreateProductInput {
   categoryId?: string;
   brandId?: string;
   condition?: string;
-  moq?: number;
   images?: string[];
-  attributes?: Record<string, unknown>;
 }
 
 export interface UpdateProductInput {
@@ -857,10 +855,7 @@ export interface UpdateProductInput {
   descriptionAr?: string;
   status?: string;
   condition?: string;
-  isAvailable?: boolean;
-  moq?: number;
   images?: string[];
-  attributes?: Record<string, unknown>;
   categoryId?: string;
   brandId?: string;
   slug?: string;

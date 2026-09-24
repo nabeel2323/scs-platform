@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   fetchStoreProducts, deleteProduct, bulkProductAction, exportProductsCsv,
-  fetchStoreCategories, createCategory, updateCategory, deleteCategory,
+  fetchStoreCategories,
   Product, Category,
 } from '../../../lib/buyer-api';
 import { fetchMyStores } from '../../../lib/api';
@@ -38,15 +38,9 @@ export default function MerchantCatalogPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
 
-  // Categories
+  // Categories (read-only — platform taxonomy)
   const [categories, setCategories] = useState<Category[]>([]);
   const [cLoading, setCLoading] = useState(true);
-  const [catFormOpen, setCatFormOpen] = useState(false);
-  const [catEditId, setCatEditId] = useState('');
-  const [catName, setCatName] = useState('');
-  const [catNameAr, setCatNameAr] = useState('');
-  const [catDescription, setCatDescription] = useState('');
-  const [catSaving, setCatSaving] = useState(false);
 
   const loadProducts = useCallback(async (sid: string, off = 0, append = false) => {
     setPLoading(true);
@@ -174,69 +168,6 @@ export default function MerchantCatalogPage() {
     if (storeId) loadProducts(storeId, offset, true);
   };
 
-  const openNewCategory = () => {
-    setCatEditId('');
-    setCatName('');
-    setCatNameAr('');
-    setCatDescription('');
-    setCatFormOpen(true);
-  };
-
-  const openEditCategory = (c: Category) => {
-    setCatEditId(c.id);
-    setCatName(c.name);
-    setCatNameAr(c.nameAr || '');
-    setCatDescription('');
-    setCatFormOpen(true);
-  };
-
-  const resetCatForm = () => {
-    setCatFormOpen(false);
-    setCatEditId('');
-    setCatName('');
-    setCatNameAr('');
-    setCatDescription('');
-  };
-
-  const saveCategory = async () => {
-    if (!catName.trim()) return;
-    setCatSaving(true);
-    setError('');
-    try {
-      if (catEditId) {
-        await updateCategory(catEditId, {
-          name: catName.trim(),
-          nameAr: catNameAr.trim() || undefined,
-          description: catDescription.trim() || undefined,
-        });
-      } else {
-        await createCategory({
-          storeId,
-          name: catName.trim(),
-          nameAr: catNameAr.trim() || undefined,
-          description: catDescription.trim() || undefined,
-        });
-      }
-      resetCatForm();
-      await loadCategories(storeId);
-    } catch (err: any) {
-      setError(err.message || 'Save category failed');
-    } finally {
-      setCatSaving(false);
-    }
-  };
-
-  const handleDeleteCategory = async (c: Category) => {
-    if (!window.confirm(`Delete category "${c.name}"?`)) return;
-    setError('');
-    try {
-      await deleteCategory(c.id);
-      await loadCategories(storeId);
-    } catch (err: any) {
-      setError(err.message || 'Delete category failed');
-    }
-  };
-
   if (noStore) {
     return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
@@ -269,11 +200,10 @@ export default function MerchantCatalogPage() {
                 <>
                   <button onClick={handleExport} style={headerBtn}>Export CSV</button>
                   <Link href={`/merchant/product-studio`} style={{ padding: '8px 16px', background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ Product Studio</Link>
-                  <Link href={`/merchant/catalog/product/new?storeId=${storeId}`} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>+ Quick Add</Link>
                 </>
               )}
               {tab === 'categories' && (
-                <button onClick={openNewCategory} style={headerBtn}>+ New Category</button>
+                <Link href="/merchant/requests" style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>Request New Category</Link>
               )}
             </div>
           }
@@ -342,8 +272,6 @@ export default function MerchantCatalogPage() {
                       </th>
                       <th style={th}>Product</th>
                       <th style={th}>Status</th>
-                      <th style={th}>Available</th>
-                      <th style={th}>MOQ</th>
                       <th style={th}>Created</th>
                       <th style={th}>Actions</th>
                     </tr>
@@ -374,12 +302,9 @@ export default function MerchantCatalogPage() {
                               {p.status}
                             </span>
                           </td>
-                          <td style={td}>{p.isAvailable ? '✓' : '—'}</td>
-                          <td style={td}>{p.moq}</td>
                           <td style={td}>{new Date(p.createdAt).toLocaleDateString()}</td>
                           <td style={td}>
                             <div style={{ display: 'flex', gap: 6 }}>
-                              <Link href={`/merchant/catalog/product/${p.id}`} style={editBtn}>Edit</Link>
                               <button onClick={() => handleDeleteProduct(p.id, p.title)} style={deleteBtn}>Delete</button>
                             </div>
                           </td>
@@ -401,27 +326,12 @@ export default function MerchantCatalogPage() {
         </>
       ) : (
         <>
-          {catFormOpen && (
-            <div style={{ background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>
-                {catEditId ? 'Edit Category' : 'New Category'}
-              </h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
-                <input type="text" placeholder="Name (English) *" value={catName} onChange={e => setCatName(e.target.value)} style={input} />
-                <input type="text" placeholder="Name (Arabic)" value={catNameAr} onChange={e => setCatNameAr(e.target.value)} style={input} dir="rtl" />
-                <input type="text" placeholder="Description" value={catDescription} onChange={e => setCatDescription(e.target.value)} style={input} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={saveCategory} disabled={catSaving || !catName.trim()} style={primaryBtn}>
-                  {catSaving ? 'Saving…' : catEditId ? 'Save Changes' : 'Create Category'}
-                </button>
-                <button onClick={resetCatForm} style={ghostBtn}>Cancel</button>
-              </div>
-            </div>
-          )}
+          <div style={{ padding: '12px 16px', marginBottom: 16, background: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: 8, fontSize: 13, color: '#16232b' }}>
+            <strong>Platform Categories</strong> — Categories are managed centrally by the platform. You can select these when creating products. If you need a category that doesn&apos;t exist, use the <Link href="/merchant/requests" style={{ color: '#0369a1', fontWeight: 600 }}>Request New Category</Link> form.
+          </div>
 
           {cLoading ? <LoadingSpinner /> : categories.length === 0 ? (
-            <EmptyState title="No categories yet" description="Create categories to organize your catalog." />
+            <EmptyState title="No platform categories yet" description="Platform categories will appear here once created by the admin." />
           ) : (
             <div style={tableWrap}>
               <table style={table}>
@@ -432,7 +342,6 @@ export default function MerchantCatalogPage() {
                     <th style={th}>Slug</th>
                     <th style={th}>Products</th>
                     <th style={th}>Active</th>
-                    <th style={th}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -453,12 +362,6 @@ export default function MerchantCatalogPage() {
                       <td style={td}><code style={{ fontSize: 12, color: '#5b6b74' }}>{cat.slug}</code></td>
                       <td style={td}>{cat.productCount}</td>
                       <td style={td}>{cat.isActive ? '✓' : '—'}</td>
-                      <td style={td}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => openEditCategory(cat)} style={editBtn}>Edit</button>
-                          <button onClick={() => handleDeleteCategory(cat)} style={deleteBtn}>Delete</button>
-                        </div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

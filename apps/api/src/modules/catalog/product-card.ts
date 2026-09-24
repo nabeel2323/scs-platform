@@ -137,17 +137,15 @@ export async function enrichProductCards<T extends CardSource>(
     else variantsByProduct.set(productId, [row['id']]);
   }
 
-  // Price is a function of (store, quantity), and the quantity a buyer pays is
-  // the product's MOQ — so one batch per distinct pair. A store whose products
-  // all share an MOQ costs a single query; the resolver's rule is not duplicated
-  // here to save a few indexed reads, because a displayed price that disagrees
-  // with the cart is a trust bug, not an optimisation.
+  // Price is resolved per (store, quantity). MOQ is now offer-owned, so we
+  // resolve at quantity=1 (base tier) for display cards. The cart uses the
+  // actual offer MOQ during checkout. One batch per store keeps queries minimal.
   const variantIdsByBatch = new Map<string, string[]>();
   for (const item of items) {
     if (!item.storeId) continue; // canonical products without a store have no pricing
     const variantIds = variantsByProduct.get(item.id);
     if (!variantIds || variantIds.length === 0) continue;
-    const key = `${item.storeId}|${item.moq ?? 1}`;
+    const key = `${item.storeId}|1`;
     const batch = variantIdsByBatch.get(key);
     if (batch) variantIdsByBatch.set(key, [...batch, ...variantIds]);
     else variantIdsByBatch.set(key, [...variantIds]);
@@ -246,7 +244,7 @@ export async function enrichProductCards<T extends CardSource>(
   }
 
   return items.map(item => {
-    const prices = pricesByBatch.get(`${item.storeId}|${item.moq ?? 1}`);
+    const prices = pricesByBatch.get(`${item.storeId}|1`);
     let cheapest: VariantPricing | undefined;
     for (const variantId of variantsByProduct.get(item.id) ?? []) {
       const pricing = prices?.get(variantId);

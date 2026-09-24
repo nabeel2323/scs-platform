@@ -13,6 +13,18 @@ export const RequirePermission = (...permissions: string[]) =>
   SetMetadata(PERMISSIONS_KEY, permissions);
 
 /**
+ * Role guard decorator.
+ *
+ * Usage:
+ *   @RequireRole('ADMIN', 'MODERATOR', 'SUPER_ADMIN')
+ *   @UseGuards(JwtAuthGuard, RolesGuard)
+ *   async createCategory(...) { ... }
+ */
+export const ROLES_KEY = 'roles';
+export const RequireRole = (...roles: string[]) =>
+  SetMetadata(ROLES_KEY, roles);
+
+/**
  * Extracts the authenticated user from the request.
  *
  * Usage:
