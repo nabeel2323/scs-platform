@@ -475,8 +475,9 @@ export class CatalogTaxonomyService {
   async listProductTypes(opts?: { categoryId?: string; status?: string }) {
     const conditions = [];
     if (opts?.categoryId) conditions.push(eq(productTypes.categoryId, opts.categoryId));
-    if (opts?.status) conditions.push(eq(productTypes.status, opts.status));
-    else conditions.push(eq(productTypes.status, 'PUBLISHED'));
+    if (opts?.status && opts.status !== 'ALL') conditions.push(eq(productTypes.status, opts.status));
+    else if (!opts?.status) conditions.push(eq(productTypes.status, 'PUBLISHED'));
+    // status === 'ALL' → no status filter (admin sees every status)
     return this.db.db.query.productTypes.findMany({
       where: conditions.length ? and(...conditions) : undefined,
       orderBy: [asc(productTypes.code), asc(productTypes.version)],

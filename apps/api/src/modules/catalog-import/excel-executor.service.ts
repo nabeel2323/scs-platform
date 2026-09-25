@@ -179,6 +179,12 @@ export class ExcelExecutorService {
             const catId = entry.data['categorySlug']
               ? resolveId(entry.data['categorySlug'] as string, refs.categoryIds)
               : null;
+            // Resolve variant dimension attribute codes → UUIDs
+            const dimCodes = (entry.data['variantDimensions'] as string[]) ?? [];
+            const dimIds = dimCodes
+              .map(code => resolveId(code, refs.attributeIds))
+              .filter((id): id is string => !!id);
+            entry.data['resolvedVariantDimensionIds'] = dimIds;
             const id = await this.upsertProductType(tx, entry, catId);
             if (entry.action === 'CREATE') {
               realIds.set(`pending:pt:${entry.externalKey}`, id);
@@ -477,6 +483,8 @@ export class ExcelExecutorService {
   private async upsertProductType(tx: any, entry: PlanEntry, categoryId: string | null | undefined): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
+    // Use resolved attribute UUIDs for variant dimensions (not codes)
+    const variantDimIds = (d.resolvedVariantDimensionIds as string[]) ?? [];
     await tx.insert(productTypes).values({
       id,
       code: d.code as string,
@@ -484,8 +492,8 @@ export class ExcelExecutorService {
       nameAr: (d.nameAr as string) ?? null,
       description: (d.description as string) ?? null,
       categoryId: categoryId ?? null,
-      status: 'DRAFT',
-      variantDimensions: (d.variantDimensions as string[]) ?? [],
+      status: (d.status as string) || 'DRAFT',
+      variantDimensions: variantDimIds,
     });
     return id;
   }

@@ -984,7 +984,8 @@ export async function fetchProductTypes(params?: {
 }): Promise<ProductType[]> {
   const sp = new URLSearchParams();
   if (params?.categoryId) sp.set('categoryId', params.categoryId);
-  if (params?.status) sp.set('status', params.status);
+  // Admin always sends status: explicit filter or 'ALL' to see every status
+  sp.set('status', params?.status || 'ALL');
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/product-types${qs ? `?${qs}` : ''}`);
   if (!res.ok) throw new Error(`Failed to fetch product types: ${res.status}`);
