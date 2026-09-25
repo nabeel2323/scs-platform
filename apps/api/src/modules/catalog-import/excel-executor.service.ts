@@ -10,7 +10,7 @@ import {
   productAttributeValues,
   variantAttributeValues,
 } from '../catalog/catalog.taxonomy.schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { randomUUID, createHash } from 'node:crypto';
 import type { ImportPlan, PlanEntry } from './excel-planner.service';
 import type { ResolvedReferences } from './excel-resolver.service';
@@ -413,12 +413,21 @@ export class ExcelExecutorService {
     }
 
     const id = randomUUID();
+    // Upsert on unique(slug) to prevent duplicate-key violation from poisoning the transaction
     await tx.insert(brands).values({
       id,
       slug: d.slug as string,
       name: d.name as string,
       nameAr: (d.nameAr as string) ?? null,
       description: (d.description as string) ?? null,
+    }).onConflictDoUpdate({
+      target: brands.slug,
+      set: {
+        name: sql`excluded.name`,
+        nameAr: sql`excluded.name_ar`,
+        description: sql`excluded.description`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
@@ -426,6 +435,7 @@ export class ExcelExecutorService {
   private async upsertAttribute(tx: any, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
+    // Upsert on unique(code) to prevent duplicate-key violation from poisoning the transaction
     await tx.insert(attributeDefinitions).values({
       id,
       code: (d.code as string).slice(0, 80),
@@ -435,6 +445,17 @@ export class ExcelExecutorService {
       type: ((d.type as string) || 'TEXT').slice(0, 40),
       unit: d.unit ? (d.unit as string).slice(0, 40) : null,
       scope: ((d.scope as string) || 'PRODUCT').slice(0, 16),
+    }).onConflictDoUpdate({
+      target: attributeDefinitions.code,
+      set: {
+        name: sql`excluded.name`,
+        nameAr: sql`excluded.name_ar`,
+        description: sql`excluded.description`,
+        type: sql`excluded.type`,
+        unit: sql`excluded.unit`,
+        scope: sql`excluded.scope`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
@@ -472,6 +493,8 @@ export class ExcelExecutorService {
   private async insertProductTypeAttribute(tx: any, entry: PlanEntry, ptId: string, attrId: string): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
+    // Upsert: if (product_type_id, attribute_definition_id) already exists, update in place
+    // to avoid duplicate-key violation that would poison the entire transaction.
     await tx.insert(productTypeAttributes).values({
       id,
       productTypeId: ptId,
@@ -483,6 +506,18 @@ export class ExcelExecutorService {
       searchable: (d.searchable as boolean) ?? false,
       visibleInListing: (d.visibleInListing as boolean) ?? true,
       visibleInDetail: (d.visibleInDetail as boolean) ?? true,
+    }).onConflictDoUpdate({
+      target: [productTypeAttributes.productTypeId, productTypeAttributes.attributeDefinitionId],
+      set: {
+        required: sql`excluded.required`,
+        scope: sql`excluded.scope`,
+        displayOrder: sql`excluded.display_order`,
+        filterable: sql`excluded.filterable`,
+        searchable: sql`excluded.searchable`,
+        visibleInListing: sql`excluded.visible_in_listing`,
+        visibleInDetail: sql`excluded.visible_in_detail`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
@@ -501,6 +536,7 @@ export class ExcelExecutorService {
     }
 
     const id = randomUUID();
+    // Upsert on unique(slug) to prevent duplicate-key violation from poisoning the transaction
     await tx.insert(products).values({
       id,
       storeId: null, // Canonical product
@@ -517,6 +553,20 @@ export class ExcelExecutorService {
       ean: d.ean ? (d.ean as string).slice(0, 20) : null,
       status: ((d.status as string) || 'ACTIVE').slice(0, 16),
       condition: ((d.condition as string) || 'NEW').slice(0, 16),
+    }).onConflictDoUpdate({
+      target: products.slug,
+      set: {
+        title: sql`excluded.title`,
+        titleAr: sql`excluded.title_ar`,
+        description: sql`excluded.description`,
+        descriptionAr: sql`excluded.description_ar`,
+        mpn: sql`excluded.mpn`,
+        gtin: sql`excluded.gtin`,
+        ean: sql`excluded.ean`,
+        status: sql`excluded.status`,
+        condition: sql`excluded.condition`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
