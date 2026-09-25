@@ -33,6 +33,7 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/offers-kpis', label: 'Offer KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/offers-trend', label: 'Offer Trend', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
   { href: '/kpis', label: 'KPIs', icon: <IconBarChart size={18} />, perms: ['admin:kpis:read'] },
+  { href: '/analytics', label: 'Analytics', icon: <IconActivity size={18} />, perms: ['analytics:read'] },
   { href: '/audit', label: 'Audit Log', icon: <IconClipboard size={18} />, perms: ['admin:audit:read'] },
   { href: '/account', label: 'Account Security', icon: <IconLock size={18} />, perms: [] },
 ];

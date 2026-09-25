@@ -31,6 +31,8 @@ function CategoryDetailContent({ id }: { id: string }) {
   const [ready, setReady] = useState(false);
   const [category, setCategory] = useState<AdminRecord | null>(null);
   const [children, setChildren] = useState<AdminRecord[]>([]);
+  const [productTypes, setProductTypes] = useState<AdminRecord[]>([]);
+  const [ptLoading, setPtLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
@@ -52,6 +54,15 @@ function CategoryDetailContent({ id }: { id: string }) {
       .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load category'); setLoading(false); });
   }, [id, ready, hasAccess]);
 
+  // Load product types when the tab is activated
+  useEffect(() => {
+    if (activeTab !== 'productTypes' || !id) return;
+    setPtLoading(true);
+    adminRequest<{ data: AdminRecord[]; total: number }>(`product-types?categoryId=${encodeURIComponent(id)}&limit=50`)
+      .then(res => { setProductTypes(res?.data || []); setPtLoading(false); })
+      .catch(() => { setPtLoading(false); });
+  }, [activeTab, id]);
+
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:categories:write</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
@@ -62,6 +73,7 @@ function CategoryDetailContent({ id }: { id: string }) {
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'hierarchy', label: 'Hierarchy', count: children.length },
+    { key: 'productTypes', label: 'Product Types' },
   ];
 
   const overviewItems: KVItem[] = [
@@ -146,6 +158,39 @@ function CategoryDetailContent({ id }: { id: string }) {
               )}
             </AdminDetailSection>
           </>
+        )}
+
+        {activeTab === 'productTypes' && (
+          <AdminDetailSection title="Product Types">
+            {ptLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading product types…</div>}
+            {!ptLoading && productTypes.length === 0 && (
+              <AdminEmptyState title="No product types" description="No product types are configured for this category." />
+            )}
+            {productTypes.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {productTypes.map(pt => (
+                  <Link
+                    key={pt.id}
+                    href={`/product-types/${pt.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', border: '1px solid #d9e2e6', borderRadius: 8,
+                      textDecoration: 'none', color: '#16232b', transition: 'background 0.12s',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 500 }}>{String(pt['name'] || pt['nameEn'] || 'Unnamed')}</span>
+                      {pt['slug'] ? <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74', fontFamily: 'monospace' }}>{String(pt['slug'])}</span> : null}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <AdminStatusBadge status={pt['isPublished'] ? 'PUBLISHED' : 'DRAFT'} />
+                      {pt['productCount'] != null && <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(pt['productCount'])} products</span>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </AdminDetailSection>
         )}
       </div>
     </div>

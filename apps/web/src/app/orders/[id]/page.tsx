@@ -8,9 +8,14 @@ import {
   fetchOrderHistory,
   cancelOrder,
   reorder,
+  createDispute,
+  fetchDisputeEvents,
+  submitDisputeEvidence,
   ReorderResult,
   StatusHistoryEntry,
   OrderItem,
+  Dispute,
+  DisputeEvent,
 } from '../../../lib/buyer-api';
 import { useAuth } from '../../../components/AuthProvider';
 import { onOrderStatus, watchOrder } from '../../../lib/realtime';
@@ -58,6 +63,17 @@ export default function OrderDetailPage() {
   const [reorderResult, setReorderResult] = useState<ReorderResult | null>(null);
   const [reorderError, setReorderError] = useState('');
   const [loadError, setLoadError] = useState('');
+
+  // Dispute state
+  const [showDispute, setShowDispute] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeAgainst, setDisputeAgainst] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState('');
+  const [disputeResult, setDisputeResult] = useState<Dispute | null>(null);
+  const [disputeEvents, setDisputeEvents] = useState<DisputeEvent[]>([]);
+  const [evidenceBody, setEvidenceBody] = useState('');
+  const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -162,6 +178,7 @@ export default function OrderDetailPage() {
   // longer exists in the FSM.
   const canCancel = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'].includes(order.status);
   const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
+  const canDispute = ['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status) && !disputeResult;
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -276,6 +293,11 @@ export default function OrderDetailPage() {
                 {reordering ? 'Reordering…' : 'Reorder'}
               </button>
             )}
+            {canDispute && !showDispute && !disputeResult && (
+              <button onClick={() => { setShowDispute(true); setDisputeAgainst(order.storeId || ''); }} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, cursor: 'pointer' }}>
+                Raise Dispute
+              </button>
+            )}
           </div>
           {/* A4-7: reorder is per-line — some items may no longer be purchasable,
               so say what happened instead of dropping the buyer on an empty cart. */}
@@ -308,6 +330,105 @@ export default function OrderDetailPage() {
                 <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: colors.err, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>
                 <button onClick={() => setShowCancel(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 4, cursor: 'pointer' }}>Back</button>
               </div>
+            </div>
+          )}
+
+          {/* Dispute creation form */}
+          {showDispute && !disputeResult && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>Raise a Dispute</div>
+              {disputeError && <div style={{ fontSize: 12, color: '#991b1b', marginBottom: 8, background: '#fef2f2', padding: '6px 10px', borderRadius: 4 }}>{disputeError}</div>}
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Reason *</label>
+                <select value={disputeReason} onChange={e => setDisputeReason(e.target.value)} style={{ width: '100%', padding: 8, border: '1px solid #e5e7eb', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}>
+                  <option value="">Select a reason…</option>
+                  <option value="ITEM_NOT_RECEIVED">Item not received</option>
+                  <option value="ITEM_DEFECTIVE">Item defective or damaged</option>
+                  <option value="WRONG_ITEM">Wrong item delivered</option>
+                  <option value="QUALITY_ISSUE">Quality not as described</option>
+                  <option value="LATE_DELIVERY">Delivery significantly late</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    if (!disputeReason) return;
+                    setDisputeSubmitting(true);
+                    setDisputeError('');
+                    try {
+                      const result = await createDispute(orderId, { againstId: disputeAgainst, reason: disputeReason });
+                      setDisputeResult(result);
+                      setShowDispute(false);
+                    } catch (err: any) {
+                      setDisputeError(err.message || 'Failed to raise dispute');
+                    } finally {
+                      setDisputeSubmitting(false);
+                    }
+                  }}
+                  disabled={disputeSubmitting || !disputeReason}
+                  style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#92400e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: disputeSubmitting ? 0.6 : 1 }}
+                >
+                  {disputeSubmitting ? 'Submitting…' : 'Submit Dispute'}
+                </button>
+                <button onClick={() => { setShowDispute(false); setDisputeError(''); }} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Dispute result + evidence */}
+          {disputeResult && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>
+                Dispute Raised — #{disputeResult.id.slice(0, 8)}
+              </div>
+              <div style={{ fontSize: 12, color: colors.muted, marginBottom: 12 }}>
+                Status: <strong style={{ color: disputeResult.status === 'OPEN' ? '#92400e' : colors.muted }}>{disputeResult.status}</strong> · Reason: {disputeResult.reason} · Opened: {new Date(disputeResult.createdAt).toLocaleDateString()}
+              </div>
+              {disputeEvents.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.brand[700], marginBottom: 6 }}>Event Timeline</div>
+                  {disputeEvents.map(ev => (
+                    <div key={ev.id} style={{ padding: '6px 0', borderBottom: '1px solid #f0f4f6', fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: colors.brand[700] }}>{ev.type}</span>
+                      <span style={{ color: colors.muted, marginLeft: 8 }}>{new Date(ev.createdAt).toLocaleString()}</span>
+                      <div style={{ color: '#374151', marginTop: 2 }}>{ev.body}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {['OPEN', 'UNDER_REVIEW'].includes(disputeResult.status) && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Submit Evidence</div>
+                  <textarea
+                    value={evidenceBody}
+                    onChange={e => setEvidenceBody(e.target.value)}
+                    rows={2}
+                    placeholder="Describe your issue or attach supporting information…"
+                    style={{ width: '100%', padding: 8, border: `1px solid ${colors.border}`, borderRadius: 4, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!evidenceBody.trim()) return;
+                      setEvidenceSubmitting(true);
+                      try {
+                        await submitDisputeEvidence(disputeResult.id, evidenceBody);
+                        setEvidenceBody('');
+                        const events = await fetchDisputeEvents(disputeResult.id);
+                        setDisputeEvents(events);
+                      } catch (err: any) {
+                        setDisputeError(err.message || 'Failed to submit evidence');
+                      } finally {
+                        setEvidenceSubmitting(false);
+                      }
+                    }}
+                    disabled={evidenceSubmitting || !evidenceBody.trim()}
+                    style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: evidenceSubmitting ? 0.6 : 1 }}
+                  >
+                    {evidenceSubmitting ? 'Submitting…' : 'Submit Evidence'}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
