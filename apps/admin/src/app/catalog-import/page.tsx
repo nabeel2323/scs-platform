@@ -13,6 +13,7 @@ import {
   type CatalogImport,
   type CatalogImportPreview,
   type CatalogImportError,
+  type ImportOverrides,
 } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import {
@@ -57,6 +58,7 @@ export default function CatalogImportPage() {
   const [executionResult, setExecutionResult] = useState<{
     created: number; updated: number; unchanged: number; rejected: number; errors: string[];
   } | null>(null);
+  const [overrides, setOverrides] = useState<ImportOverrides>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadImports = useCallback(() => {
@@ -101,7 +103,10 @@ export default function CatalogImportPage() {
     setError('');
 
     try {
-      const result = await executeCatalogImport(currentImport.id);
+      const result = await executeCatalogImport(
+        currentImport.id,
+        Object.keys(overrides).length > 0 ? overrides : undefined,
+      );
       setExecutionResult(result);
       setStage('result');
       loadImports();
@@ -110,6 +115,20 @@ export default function CatalogImportPage() {
       setStage('preview');
     }
   };
+
+  const handleOverrideChange = (entityType: string, externalKey: string, field: string, value: string) => {
+    setOverrides(prev => {
+      const next = { ...prev };
+      if (!next[entityType]) next[entityType] = {};
+      if (!next[entityType][externalKey]) next[entityType] = { ...next[entityType], [externalKey]: {} };
+      next[entityType][externalKey] = { ...next[entityType][externalKey], [field]: value };
+      return next;
+    });
+  };
+
+  const overrideCount = Object.values(overrides).reduce(
+    (sum, keys) => sum + Object.values(keys).reduce((s2, fields) => s2 + Object.keys(fields).length, 0), 0,
+  );
 
   const handleViewErrors = async (importId: string) => {
     try {
@@ -164,6 +183,9 @@ export default function CatalogImportPage() {
           <PreviewStage
             importJob={currentImport}
             preview={preview}
+            overrides={overrides}
+            overrideCount={overrideCount}
+            onOverrideChange={handleOverrideChange}
             onExecute={handleExecute}
             onBack={handleBackToDashboard}
           />
@@ -345,14 +367,22 @@ function UploadingStage() {
 
 // ── Preview Stage ───────────────────────────────────────────────
 
-function PreviewStage({ importJob, preview, onExecute, onBack }: {
+function PreviewStage({ importJob, preview, overrides, overrideCount, onOverrideChange, onExecute, onBack }: {
   importJob: CatalogImport;
   preview: CatalogImportPreview;
+  overrides: ImportOverrides;
+  overrideCount: number;
+  onOverrideChange: (entityType: string, externalKey: string, field: string, value: string) => void;
   onExecute: () => void;
   onBack: () => void;
 }) {
   const { summary } = preview.plan;
-  const hasErrors = preview.errors.some(e => e.severity === 'ERROR');
+  const hardErrors = preview.errors.filter(e => e.severity === 'ERROR');
+  const hasErrors = hardErrors.length > 0;
+
+  // Errors that can be corrected via overrides (have externalKey + field)
+  const fixableErrors = hardErrors.filter(e => e.externalKey && e.field);
+  const unfixableErrors = hardErrors.filter(e => !e.externalKey || !e.field);
 
   return (
     <>
@@ -401,21 +431,80 @@ function PreviewStage({ importJob, preview, onExecute, onBack }: {
         </div>
       )}
 
-      {/* Validation errors */}
-      {preview.errors.length > 0 && (
-        <div style={{ marginBottom: 24, padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md }}>
-          <div style={{ ...typeScale.h4, color: '#991b1b', marginBottom: 12 }}>
-            Validation Issues ({preview.errors.length})
+      {/* Interactive corrections */}
+      {fixableErrors.length > 0 && (
+        <div style={{ marginBottom: 24, padding: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: radii.md }}>
+          <div style={{ ...typeScale.h4, color: '#92400e', marginBottom: 8 }}>
+            ✏️ Corrections ({fixableErrors.length})
           </div>
-          <div style={{ maxHeight: 200, overflow: 'auto' }}>
-            {preview.errors.slice(0, 20).map((e, i) => (
-              <div key={i} style={{ ...typeScale.bodySm, color: '#991b1b', padding: '4px 0', borderBottom: '1px solid #fecaca' }}>
-                [{e.severity}] {e.sheet} row {e.rowNumber}: {e.errorMessage}
+          <div style={{ ...typeScale.bodySm, color: '#78350f', marginBottom: 12 }}>
+            Enter corrected values below to fix these errors before importing.
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', ...typeScale.bodySm }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #fde68a' }}>
+                <th style={thStyle}>Entity</th>
+                <th style={thStyle}>Key</th>
+                <th style={thStyle}>Field</th>
+                <th style={thStyle}>Current Value</th>
+                <th style={thStyle}>Error</th>
+                <th style={{ ...thStyle, minWidth: 200 }}>Correction</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fixableErrors.map((e, i) => {
+                const et = e.entityType!;
+                const ek = e.externalKey!;
+                const fld = e.field!;
+                const currentOverride = overrides[et]?.[ek]?.[fld] ?? '';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #fde68a' }}>
+                    <td style={tdStyle}>{et}</td>
+                    <td style={tdStyle}>{ek}</td>
+                    <td style={tdStyle}><code>{fld}</code></td>
+                    <td style={{ ...tdStyle, color: colors.muted, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {e.rawValue ?? '—'}
+                    </td>
+                    <td style={{ ...tdStyle, color: '#991b1b' }}>{e.errorMessage}</td>
+                    <td style={tdStyle}>
+                      <input
+                        type="text"
+                        value={currentOverride}
+                        onChange={ev => onOverrideChange(et, ek, fld, ev.target.value)}
+                        placeholder="Enter corrected value…"
+                        style={{
+                          width: '100%', padding: '6px 8px', border: '1px solid #d1d5db',
+                          borderRadius: radii.sm, fontSize: 13,
+                          outline: 'none',
+                        }}
+                        onFocus={ev => (ev.target.style.borderColor = colors.brand[500])}
+                        onBlur={ev => (ev.target.style.borderColor = '#d1d5db')}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Unfixable errors */}
+      {unfixableErrors.length > 0 && (
+        <div style={{ marginBottom: 24, padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md }}>
+          <div style={{ ...typeScale.h4, color: '#991b1b', marginBottom: 8 }}>
+            Errors That Require File Changes ({unfixableErrors.length})
+          </div>
+          <div style={{ maxHeight: 120, overflow: 'auto' }}>
+            {unfixableErrors.slice(0, 10).map((e, i) => (
+              <div key={i} style={{ ...typeScale.bodySm, color: '#991b1b', padding: '3px 0', borderBottom: '1px solid #fecaca' }}>
+                {e.sheet} row {e.rowNumber}: {e.errorMessage}
+                {e.suggestedFix ? ` — ${e.suggestedFix}` : ''}
               </div>
             ))}
-            {preview.errors.length > 20 && (
-              <div style={{ ...typeScale.caption, color: colors.muted, padding: '8px 0' }}>
-                … and {preview.errors.length - 20} more issues
+            {unfixableErrors.length > 10 && (
+              <div style={{ ...typeScale.caption, color: colors.muted, padding: '6px 0' }}>
+                … and {unfixableErrors.length - 10} more
               </div>
             )}
           </div>
@@ -427,15 +516,19 @@ function PreviewStage({ importJob, preview, onExecute, onBack }: {
         <button onClick={onBack} style={btnSecondary}>Cancel</button>
         <button
           onClick={onExecute}
-          disabled={hasErrors}
+          disabled={unfixableErrors.length > 0}
           style={{
             ...btnPrimary,
-            opacity: hasErrors ? 0.5 : 1,
-            cursor: hasErrors ? 'not-allowed' : 'pointer',
+            opacity: unfixableErrors.length > 0 ? 0.5 : 1,
+            cursor: unfixableErrors.length > 0 ? 'not-allowed' : 'pointer',
           }}
-          title={hasErrors ? 'Fix validation errors before executing' : 'Execute the import'}
+          title={unfixableErrors.length > 0 ? 'Fix unfixable errors in the Excel file first' : overrideCount > 0 ? `Execute with ${overrideCount} correction(s)` : 'Execute the import'}
         >
-          {hasErrors ? '⚠️ Fix Errors First' : `✅ Import (${summary.totalCreate} new, ${summary.totalUpdate} updates)`}
+          {unfixableErrors.length > 0
+            ? '⚠️ Fix File Errors First'
+            : overrideCount > 0
+              ? `✅ Import with ${overrideCount} Correction(s)`
+              : `✅ Import (${summary.totalCreate} new, ${summary.totalUpdate} updates)`}
         </button>
       </div>
     </>
