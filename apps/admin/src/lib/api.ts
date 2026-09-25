@@ -712,7 +712,8 @@ export interface AdminProductTypeSummary {
 
 export async function fetchAdminCategories(opts?: { all?: boolean; includeInactive?: boolean }): Promise<AdminCategory[]> {
   const sp = new URLSearchParams();
-  if (opts?.all) sp.set('all', 'true');
+  // Admin needs the full tree — always pass all=true to get child categories
+  sp.set('all', 'true');
   if (opts?.includeInactive) sp.set('includeInactive', 'true');
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/categories${qs ? `?${qs}` : ''}`);
