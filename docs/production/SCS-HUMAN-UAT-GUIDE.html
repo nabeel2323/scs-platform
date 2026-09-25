@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCS Platform — Human UI Acceptance Testing Guide</title>
+<style>
+:root {
+  --bg: #0f1117; --bg2: #161922; --bg3: #1c1f2e; --bg4: #232738;
+  --fg: #e4e6eb; --fg2: #9ca3af; --fg3: #6b7280;
+  --accent: #3b82f6; --accent2: #2563eb; --accent-bg: rgba(59,130,246,.12);
+  --pass: #22c55e; --pass-bg: rgba(34,197,94,.12);
+  --fail: #ef4444; --fail-bg: rgba(239,68,68,.12);
+  --blocked: #f59e0b; --blocked-bg: rgba(245,158,11,.12);
+  --na: #8b5cf6; --na-bg: rgba(139,92,246,.12);
+  --pending: #6b7280; --pending-bg: rgba(107,114,128,.12);
+  --critical: #ef4444;
+  --border: #2a2e3d; --border2: #363b4e;
+  --radius: 8px; --radius2: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,.3);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--fg); line-height: 1.6; min-height: 100vh; display: flex; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: var(--font); cursor: pointer; border: none; border-radius: var(--radius); padding: 6px 14px; font-size: .85rem; transition: all .15s; }
+input, select, textarea { font-family: var(--font); background: var(--bg3); color: var(--fg); border: 1px solid var(--border2); border-radius: var(--radius); padding: 6px 10px; font-size: .85rem; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-bg); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Sidebar */
+#sidebar { width: 260px; min-width: 260px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; position: sticky; top: 0; overflow-y: auto; z-index: 100; }
+#sidebar .logo { padding: 20px 16px 12px; border-bottom: 1px solid var(--border); }
+#sidebar .logo h1 { font-size: 1rem; font-weight: 700; color: var(--fg); letter-spacing: -.02em; }
+#sidebar .logo span { font-size: .7rem; color: var(--fg3); text-transform: uppercase; letter-spacing: .08em; }
+#sidebar nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+#sidebar nav a { display: flex; align-items: center; gap: 8px; padding: 7px 16px; color: var(--fg2); font-size: .82rem; border-left: 3px solid transparent; transition: all .12s; }
+#sidebar nav a:hover, #sidebar nav a.active { background: var(--bg3); color: var(--fg); border-left-color: var(--accent); text-decoration: none; }
+#sidebar nav a .badge { margin-left: auto; background: var(--bg4); color: var(--fg3); font-size: .65rem; padding: 1px 6px; border-radius: 10px; }
+.nav-section { padding: 10px 16px 4px; font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--fg3); font-weight: 600; }
+
+/* Main */
+#main { flex: 1; min-width: 0; padding: 0; }
+#topbar { position: sticky; top: 0; z-index: 50; background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 12px; backdrop-filter: blur(8px); }
+#topbar h2 { font-size: 1rem; font-weight: 600; white-space: nowrap; }
+#topbar .search { flex: 1; max-width: 320px; }
+#topbar .search input { width: 100%; }
+.filter-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.filter-bar select { font-size: .78rem; padding: 4px 8px; }
+.quick-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+.qf-btn { background: var(--bg3); color: var(--fg2); font-size: .72rem; padding: 3px 10px; border-radius: 14px; border: 1px solid var(--border); }
+.qf-btn:hover, .qf-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+
+#content { padding: 24px; max-width: 1200px; }
+
+/* Dashboard cards */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.dash-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); padding: 16px; }
+.dash-card .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--fg3); margin-bottom: 4px; }
+.dash-card .value { font-size: 1.6rem; font-weight: 700; }
+.dash-card .value.pass { color: var(--pass); }
+.dash-card .value.fail { color: var(--fail); }
+.dash-card .value.blocked { color: var(--blocked); }
+.dash-card .value.pending { color: var(--fg3); }
+.progress-bar { height: 6px; background: var(--bg4); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.progress-bar .fill { height: 100%; border-radius: 3px; transition: width .3s; }
+
+/* Suite section */
+.suite { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius2); margin-bottom: 16px; overflow: hidden; }
+.suite-header { padding: 16px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+.suite-header:hover { background: var(--bg3); }
+.suite-header .suite-id { font-family: var(--mono); font-size: .75rem; color: var(--accent); background: var(--accent-bg); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+.suite-header .suite-title { font-weight: 600; font-size: .95rem; flex: 1; }
+.suite-header .suite-stats { display: flex; gap: 6px; font-size: .7rem; }
+.suite-header .suite-stats .st { padding: 1px 7px; border-radius: 10px; }
+.st-pass { background: var(--pass-bg); color: var(--pass); }
+.st-fail { background: var(--fail-bg); color: var(--fail); }
+.st-blocked { background: var(--blocked-bg); color: var(--blocked); }
+.st-na { background: var(--na-bg); color: var(--na); }
+.st-pending { background: var(--pending-bg); color: var(--pending); }
+.suite-body { display: none; padding: 0; }
+.suite.open .suite-body { display: block; }
+.suite-chevron { color: var(--fg3); transition: transform .2s; font-size: .8rem; }
+.suite.open .suite-chevron { transform: rotate(90deg); }
+
+/* Test case */
+.test-case { border-bottom: 1px solid var(--border); }
+.test-case:last-child { border-bottom: none; }
+.tc-header { padding: 12px 20px; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.tc-header:hover { background: var(--bg3); }
+.tc-id { font-family: var(--mono); font-size: .72rem; color: var(--fg3); min-width: 60px; }
+.tc-title { font-weight: 500; font-size: .88rem; flex: 1; }
+.tc-meta { display: flex; gap: 4px; flex-wrap: wrap; }
+.tc-tag { font-size: .65rem; padding: 1px 7px; border-radius: 10px; background: var(--bg4); color: var(--fg3); }
+.tc-tag.critical { background: var(--fail-bg); color: var(--fail); font-weight: 600; }
+.tc-tag.app-admin { background: rgba(59,130,246,.1); color: #60a5fa; }
+.tc-tag.app-merchant { background: rgba(16,185,129,.1); color: #34d399; }
+.tc-tag.app-buyer { background: rgba(245,158,11,.1); color: #fbbf24; }
+.tc-tag.app-mobile { background: rgba(168,85,246,.1); color: #c084fc; }
+.tc-body { display: none; padding: 0 20px 16px 90px; }
+.test-case.open .tc-body { display: block; }
+
+.tc-status-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.status-btn { font-size: .72rem; padding: 3px 12px; border-radius: 14px; border: 1px solid var(--border2); background: var(--bg3); color: var(--fg2); }
+.status-btn:hover { border-color: var(--fg3); }
+.status-btn.active-pass { background: var(--pass-bg); color: var(--pass); border-color: var(--pass); }
+.status-btn.active-fail { background: var(--fail-bg); color: var(--fail); border-color: var(--fail); }
+.status-btn.active-blocked { background: var(--blocked-bg); color: var(--blocked); border-color: var(--blocked); }
+.status-btn.active-na { background: var(--na-bg); color: var(--na); border-color: var(--na); }
+
+/* Steps */
+.steps { margin: 10px 0; }
+.step { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: .84rem; color: var(--fg2); }
+.step input[type="checkbox"] { margin-top: 4px; accent-color: var(--accent); width: 15px; height: 15px; flex-shrink: 0; }
+.step.checked { color: var(--pass); }
+.step.checked label { text-decoration: line-through; text-decoration-color: var(--fg3); }
+
+/* Evidence */
+.evidence-section { margin-top: 10px; }
+.evidence-section label { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fg3); margin-bottom: 3px; }
+.evidence-section textarea { width: 100%; min-height: 50px; resize: vertical; font-size: .82rem; }
+.tc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.tc-fields input { width: 100%; font-size: .8rem; }
+
+/* Expected / Negative */
+.tc-info { margin: 8px 0; padding: 10px 12px; background: var(--bg3); border-radius: var(--radius); font-size: .82rem; }
+.tc-info strong { color: var(--fg3); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 2px; }
+
+/* Live session */
+.session-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.session-grid label { font-size: .72rem; color: var(--fg3); text-transform: uppercase; letter-spacing: .04em; }
+.session-grid input { width: 100%; margin-top: 2px; }
+.session-field { display: flex; flex-direction: column; }
+
+/* Export / Actions */
+.action-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-secondary { background: var(--bg3); color: var(--fg2); border: 1px solid var(--border2); }
+.btn-secondary:hover { background: var(--bg4); color: var(--fg); }
+.btn-danger { background: var(--fail-bg); color: var(--fail); border: 1px solid rgba(239,68,68,.3); }
+
+/* Section headers */
+.section-title { font-size: 1.1rem; font-weight: 700; margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+/* Responsive */
+@media (max-width: 768px) {
+  #sidebar { display: none; }
+  #content { padding: 12px; }
+  .dash-grid { grid-template-columns: repeat(2, 1fr); }
+  .session-grid { grid-template-columns: 1fr; }
+  .tc-fields { grid-template-columns: 1fr; }
+  .tc-body { padding-left: 20px; }
+}
+@media print {
+  #sidebar, #topbar, .action-bar, .filter-bar, .quick-filters { display: none !important; }
+  body { background: #fff; color: #000; }
+  .suite { break-inside: avoid; border: 1px solid #ccc; }
+  .suite-body { display: block !important; }
+  .test-case { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="logo">
+    <h1>SCS Platform</h1>
+    <span>Human UAT Guide v1.0</span>
+  </div>
+  <nav id="sideNav">
+    <div class="nav-section">Overview</div>
+    <a href="#dashboard" class="active" data-section="dashboard">Dashboard</a>
+    <a href="#session" data-section="session">Live Test Session</a>
+    <a href="#evidence-auto" data-section="evidence-auto">Automated Evidence</a>
+    <div class="nav-section">Environment &amp; Auth</div>
+    <a href="#suite-01" data-section="suite-01">01 Test Environment</a>
+    <a href="#suite-02" data-section="suite-02">02 Authentication</a>
+    <div class="nav-section">Admin</div>
+    <a href="#suite-03" data-section="suite-03">03 Admin Dashboard</a>
+    <a href="#suite-04" data-section="suite-04">04 User Management</a>
+    <a href="#suite-05" data-section="suite-05">05 Organizations</a>
+    <a href="#suite-06" data-section="suite-06">06 Merchant Mgmt</a>
+    <div class="nav-section">Catalog</div>
+    <a href="#suite-07" data-section="suite-07">07 Catalog Governance</a>
+    <a href="#suite-08" data-section="suite-08">08 Product Mgmt</a>
+    <a href="#suite-09" data-section="suite-09">09 Variants</a>
+    <a href="#suite-10" data-section="suite-10">10 Product Studio</a>
+    <a href="#suite-11" data-section="suite-11">11 Merchant Offers</a>
+    <a href="#suite-12" data-section="suite-12">12 Pricing</a>
+    <a href="#suite-13" data-section="suite-13">13 Inventory</a>
+    <div class="nav-section">Commerce</div>
+    <a href="#suite-14" data-section="suite-14">14 Buyer Home/Search</a>
+    <a href="#suite-15" data-section="suite-15">15 Product Details</a>
+    <a href="#suite-16" data-section="suite-16">16 Offer Comparison</a>
+    <a href="#suite-17" data-section="suite-17">17 Cart</a>
+    <a href="#suite-18" data-section="suite-18">18 Checkout</a>
+    <a href="#suite-19" data-section="suite-19">19 Multi-Merchant</a>
+    <a href="#suite-20" data-section="suite-20">20 Order Lifecycle</a>
+    <a href="#suite-21" data-section="suite-21">21 Partial Acceptance</a>
+    <a href="#suite-22" data-section="suite-22">22 Inventory↔Order</a>
+    <div class="nav-section">Post-Order</div>
+    <a href="#suite-23" data-section="suite-23">23 Disputes</a>
+    <a href="#suite-24" data-section="suite-24">24 Reviews</a>
+    <a href="#suite-25" data-section="suite-25">25 Notifications</a>
+    <div class="nav-section">Import</div>
+    <a href="#suite-26" data-section="suite-26">26 Catalog Import</a>
+    <a href="#suite-27" data-section="suite-27">27 Import→Commerce</a>
+    <div class="nav-section">Security &amp; Quality</div>
+    <a href="#suite-28" data-section="suite-28">28 RBAC Security</a>
+    <a href="#suite-29" data-section="suite-29">29 Error Handling</a>
+    <a href="#suite-30" data-section="suite-30">30 Validation/Edge</a>
+    <a href="#suite-31" data-section="suite-31">31 Idempotency</a>
+    <div class="nav-section">Mobile</div>
+    <a href="#suite-32" data-section="suite-32">32 Mobile App</a>
+    <div class="nav-section">Cross-System</div>
+    <a href="#suite-33" data-section="suite-33">33 Cross-Role E2E</a>
+    <a href="#suite-34" data-section="suite-34">34 Cross-Merchant</a>
+    <a href="#suite-35" data-section="suite-35">35 Data Integrity</a>
+    <div class="nav-section">UX</div>
+    <a href="#suite-36" data-section="suite-36">36 Responsive Web</a>
+    <a href="#suite-37" data-section="suite-37">37 UI Quality</a>
+    <a href="#suite-38" data-section="suite-38">38 Console/Network</a>
+    <div class="nav-section">Report</div>
+    <a href="#signoff" data-section="signoff">Final Sign-Off</a>
+  </nav>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <div class="search"><input type="text" id="globalSearch" placeholder="Search tests..." /></div>
+    <div class="filter-bar">
+      <select id="filterApp"><option value="">All Apps</option><option>Admin</option><option>Merchant Web</option><option>Buyer Web</option><option>Mobile</option></select>
+      <select id="filterRole"><option value="">All Roles</option><option>SUPER_ADMIN</option><option>ADMIN</option><option>MODERATOR</option><option>MERCHANT_OWNER</option><option>MERCHANT_STAFF</option><option>BUYER</option></select>
+      <select id="filterStatus"><option value="">All Status</option><option value="NOT TESTED">Not Tested</option><option value="PASS">Pass</option><option value="FAIL">Fail</option><option value="BLOCKED">Blocked</option><option value="N/A">N/A</option></select>
+      <select id="filterPriority"><option value="">All Priority</option><option>P0</option><option>P1</option><option>P2</option></select>
+    </div>
+    <div class="quick-filters">
+      <button class="qf-btn" data-qf="all">All</button>
+      <button class="qf-btn" data-qf="critical">Critical</button>
+      <button class="qf-btn" data-qf="fail">Failed</button>
+      <button class="qf-btn" data-qf="blocked">Blocked</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- Dashboard -->
+    <div id="dashboard" class="view-section">
+      <div class="dash-grid" id="dashCards"></div>
+      <div class="section-title">Progress by Application</div>
+      <div class="dash-grid" id="dashByApp"></div>
+      <div class="section-title">Progress by Role</div>
+      <div class="dash-grid" id="dashByRole"></div>
+      <div class="section-title">Progress by Module</div>
+      <div class="dash-grid" id="dashByModule"></div>
+    </div>
+
+    <!-- Live Session -->
+    <div id="session" class="view-section" style="display:none">
+      <div class="section-title">Live Test Session Data</div>
+      <p style="color:var(--fg2);font-size:.85rem;margin-bottom:16px">Record IDs and environment details here. These persist across page reloads and are included in exports.</p>
+      <div class="session-grid" id="sessionFields"></div>
+    </div>
+
+    <!-- Automated Evidence -->
+    <div id="evidence-auto" class="view-section" style="display:none">
+      <div class="section-title">Automated Evidence</div>
+      <p style="color:var(--fg2);font-size:.85rem;margin-bottom:16px">Backend automated tests discovered in the repository. These are <strong>NOT</strong> human UI tests — all human UI tests remain NOT TESTED until physically performed.</p>
+      <div id="autoEvidenceList"></div>
+    </div>
+
+    <!-- Suite containers -->
+    <div id="suites-container"></div>
+
+    <!-- Sign-off -->
+    <div id="signoff" class="view-section" style="display:none">
+      <div class="section-title">Final Tester Sign-Off</div>
+      <div class="session-grid">
+        <div class="session-field"><label>Tester Name</label><input id="signoffTester" /></div>
+        <div class="session-field"><label>Date</label><input id="signoffDate" type="date" /></div>
+        <div class="session-field"><label>Environment</label><input id="signoffEnv" /></div>
+        <div class="session-field"><label>Overall Human Acceptance</label>
+          <select id="signoffAcceptance"><option value="">-- Select --</option><option>ACCEPTED</option><option>CONDITIONALLY ACCEPTED</option><option>NOT ACCEPTED</option></select>
+        </div>
+      </div>
+      <div class="session-field" style="margin-top:12px"><label>Notes</label><textarea id="signoffNotes" style="width:100%;min-height:80px;margin-top:4px"></textarea></div>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-bar" style="margin-top:24px">
+      <button class="btn-primary" onclick="exportJSON()">Export JSON</button>
+      <button class="btn-primary" onclick="document.getElementById('importFile').click()">Import JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)" />
+      <button class="btn-secondary" onclick="exportHTMLReport()">Export HTML Report</button>
+      <button class="btn-secondary" onclick="window.print()">Print</button>
+      <button class="btn-danger" onclick="resetAll()">Reset All</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Test Data ──
+const SUITES = [];
+const TESTS = [];
+let state = {};
+
+function addSuite(id, title, module) {
+  SUITES.push({ id, title, module });
+}
+function addTest(id, suiteId, title, opts = {}) {
+  TESTS.push({
+    id, suiteId, title,
+    app: opts.app || '', role: opts.role || '', module: opts.module || '',
+    priority: opts.priority || 'P1', severity: opts.severity || 'Medium',
+    critical: opts.critical || false,
+    preconditions: opts.preconditions || '',
+    testData: opts.testData || '',
+    steps: opts.steps || [],
+    expected: opts.expected || '',
+    negative: opts.negative || '',
+  });
+}
+
+// ── SUITE 01: Test Environment ──
+addSuite('SUITE-01', 'Test Environment', 'Environment');
+addTest('ENV-001','SUITE-01','Admin application accessible',{app:'Admin',role:'SUPER_ADMIN',module:'Environment',priority:'P0',critical:true,steps:['Open browser to Admin URL (e.g. http://localhost:3001)','Verify login page loads with email/password fields','Verify no console errors on page load'],expected:'Admin login page renders correctly'});
+addTest('ENV-002','SUITE-01','Buyer web application accessible',{app:'Buyer Web',role:'BUYER',module:'Environment',priority:'P0',critical:true,steps:['Open browser to Web URL (e.g. http://localhost:3000)','Verify home page or login page loads'],expected:'Buyer web app renders correctly'});
+addTest('ENV-003','SUITE-01','Merchant web portal accessible',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Environment',priority:'P0',critical:true,steps:['Open browser to Web URL','Navigate to /merchant path','Verify merchant dashboard or login loads'],expected:'Merchant portal renders correctly'});
+addTest('ENV-004','SUITE-01','API health check',{app:'Admin',role:'SUPER_ADMIN',module:'Environment',priority:'P0',critical:true,steps:['Send GET request to API base URL /health or /','Verify 200 response'],expected:'API responds with healthy status'});
+addTest('ENV-005','SUITE-01','Database connectivity',{app:'Admin',role:'SUPER_ADMIN',module:'Environment',priority:'P0',steps:['Login as admin','Verify dashboard loads with data (not empty error)'],expected:'Dashboard shows real data from database'});
+addTest('ENV-006','SUITE-01','Seed data loaded',{app:'Admin',role:'SUPER_ADMIN',module:'Environment',priority:'P1',steps:['Login as admin','Navigate to Categories','Verify at least some categories exist from seed data'],expected:'Categories are present'});
+addTest('ENV-007','SUITE-01','Test accounts available',{app:'Admin',role:'SUPER_ADMIN',module:'Environment',priority:'P0',critical:true,steps:['Login with ADMIN_EMAIL/ADMIN_PASSWORD','Login with MERCHANT_EMAIL/MERCHANT_PASSWORD','Login with BUYER_EMAIL/BUYER_PASSWORD'],expected:'All test accounts can authenticate'});
+
+// ── SUITE 02: Authentication ──
+addSuite('SUITE-02', 'Authentication', 'Auth');
+addTest('AUTH-001','SUITE-02','Admin login with valid credentials',{app:'Admin',role:'ADMIN',module:'Auth',priority:'P0',critical:true,steps:['Open admin login page','Enter admin email','Enter admin password','Click login button','Verify redirect to admin dashboard'],expected:'Successfully logged in and redirected to dashboard'});
+addTest('AUTH-002','SUITE-02','Login with invalid credentials',{app:'Admin',role:'ADMIN',module:'Auth',priority:'P0',critical:true,steps:['Open login page','Enter wrong email/password','Click login'],expected:'Error message shown, no redirect'});
+addTest('AUTH-003','SUITE-02','Buyer login',{app:'Buyer Web',role:'BUYER',module:'Auth',priority:'P0',critical:true,steps:['Open buyer login page','Enter buyer credentials','Click login','Verify buyer home page'],expected:'Buyer logged in and sees home page'});
+addTest('AUTH-004','SUITE-02','Merchant login',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Auth',priority:'P0',critical:true,steps:['Open web login page','Enter merchant owner credentials','Click login','Navigate to merchant section'],expected:'Merchant logged in and sees merchant dashboard'});
+addTest('AUTH-005','SUITE-02','Logout',{app:'Admin',role:'ADMIN',module:'Auth',priority:'P0',steps:['Login as admin','Click logout button','Verify redirect to login page','Try accessing dashboard URL directly'],expected:'Redirected to login, cannot access dashboard'});
+addTest('AUTH-006','SUITE-02','Direct URL access without auth',{app:'Admin',role:'BUYER',module:'Auth',priority:'P0',critical:true,steps:['Logout all sessions','Navigate directly to /admin/categories','Verify redirect to login or 403'],expected:'Unauthorized access blocked'});
+addTest('AUTH-007','SUITE-02','Session persistence across refresh',{app:'Buyer Web',role:'BUYER',module:'Auth',priority:'P1',steps:['Login as buyer','Refresh the page (F5)','Verify still logged in'],expected:'Session persists after page refresh'});
+addTest('AUTH-008','SUITE-02','Role-based landing page',{app:'Admin',role:'ADMIN',module:'Auth',priority:'P1',steps:['Login as admin — verify admin dashboard','Login as buyer — verify buyer home','Login as merchant — verify merchant dashboard'],expected:'Each role sees appropriate landing page'});
+
+// ── SUITE 03: Admin Dashboard ──
+addSuite('SUITE-03', 'Admin Dashboard', 'Admin');
+addTest('ADM-001','SUITE-03','Dashboard loads with KPIs',{app:'Admin',role:'ADMIN',module:'Admin',priority:'P0',critical:true,steps:['Login as admin','Navigate to dashboard (/)','Verify KPI cards are visible','Verify numbers are real data (not zero/placeholder)'],expected:'Dashboard shows real KPI data'});
+addTest('ADM-002','SUITE-03','Navigation sidebar works',{app:'Admin',role:'ADMIN',module:'Admin',priority:'P1',steps:['Click each sidebar link','Verify page changes for each','Verify no broken links'],expected:'All navigation items work'});
+addTest('ADM-003','SUITE-03','Analytics page',{app:'Admin',role:'ADMIN',module:'Admin',priority:'P2',steps:['Navigate to /analytics','Verify charts/data render'],expected:'Analytics page loads'});
+addTest('ADM-004','SUITE-03','KPIs page',{app:'Admin',role:'ADMIN',module:'Admin',priority:'P2',steps:['Navigate to /kpis','Verify KPI listing'],expected:'KPIs page loads with data'});
+
+// ── SUITE 04: User Management ──
+addSuite('SUITE-04', 'Admin User Management', 'Admin');
+addTest('USR-001','SUITE-04','User listing page',{app:'Admin',role:'ADMIN',module:'Users',priority:'P1',steps:['Navigate to /users','Verify user list loads','Verify search/filter controls visible'],expected:'User list displays'});
+addTest('USR-002','SUITE-04','User detail view',{app:'Admin',role:'ADMIN',module:'Users',priority:'P1',steps:['Click on a user','Verify user detail page loads','Verify user info displayed'],expected:'User detail page shows correct info'});
+addTest('USR-003','SUITE-04','Buyer cannot access user management',{app:'Admin',role:'BUYER',module:'Users',priority:'P0',critical:true,steps:['Login as buyer','Navigate to /users directly','Verify access denied or redirect'],expected:'Buyer cannot access admin user management'});
+
+// ── SUITE 05: Organizations ──
+addSuite('SUITE-05', 'Organizations', 'Admin');
+addTest('ORG-001','SUITE-05','Organization listing',{app:'Admin',role:'ADMIN',module:'Organizations',priority:'P1',steps:['Navigate to /organizations','Verify org list loads'],expected:'Organization list displays'});
+addTest('ORG-002','SUITE-05','Create organization',{app:'Admin',role:'ADMIN',module:'Organizations',priority:'P0',critical:true,steps:['Navigate to /organizations','Click create/add button','Fill in organization name and details','Submit','Verify organization created'],expected:'New organization created successfully'});
+addTest('ORG-003','SUITE-05','Organization detail',{app:'Admin',role:'ADMIN',module:'Organizations',priority:'P1',steps:['Click on an organization','Verify detail page loads','Verify members/store info'],expected:'Organization detail shows correct data'});
+addTest('ORG-004','SUITE-05','Organization isolation',{app:'Admin',role:'MERCHANT_OWNER',module:'Organizations',priority:'P0',critical:true,steps:['Login as merchant owner of Org A','Try to access Org B organization page','Verify access denied'],expected:'Cannot access another organization'});
+
+// ── SUITE 06: Merchant Management ──
+addSuite('SUITE-06', 'Merchant Management', 'Admin');
+addTest('MER-001','SUITE-06','Merchant listing',{app:'Admin',role:'ADMIN',module:'Merchants',priority:'P1',steps:['Navigate to /merchants','Verify merchant list loads'],expected:'Merchant list displays'});
+addTest('MER-002','SUITE-06','Merchant detail',{app:'Admin',role:'ADMIN',module:'Merchants',priority:'P1',steps:['Click on a merchant','Verify detail page loads with store info'],expected:'Merchant detail shows correct data'});
+addTest('MER-003','SUITE-06','Merchant registration flow',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Merchants',priority:'P0',critical:true,steps:['Navigate to /merchant/register','Fill in merchant registration form','Submit','Verify registration pending/approved'],expected:'Merchant registration submitted'});
+addTest('MER-004','SUITE-06','Merchant approval workflow',{app:'Admin',role:'ADMIN',module:'Merchants',priority:'P1',steps:['Find pending merchant in admin','Approve merchant','Verify merchant status changes to approved'],expected:'Merchant approval works'});
+
+// ── SUITE 07: Catalog Governance ──
+addSuite('SUITE-07', 'Catalog Governance', 'Catalog');
+addTest('CAT-001','SUITE-07','Categories listing',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P0',critical:true,steps:['Navigate to /categories','Verify category tree/list loads'],expected:'Categories display correctly'});
+addTest('CAT-002','SUITE-07','Create category',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P0',critical:true,steps:['Click create category','Enter name, slug, parent (if any)','Submit','Verify category created'],expected:'Category created successfully'});
+addTest('CAT-003','SUITE-07','Category hierarchy',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P1',steps:['Create parent category','Create child category with parent','Verify hierarchy displayed'],expected:'Parent-child relationship visible'});
+addTest('CAT-004','SUITE-07','Brands listing and create',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P1',steps:['Navigate to /brands','Verify brand list','Create a new brand','Verify brand created'],expected:'Brands CRUD works'});
+addTest('CAT-005','SUITE-07','Attributes listing and create',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P0',critical:true,steps:['Navigate to /attributes','Verify attribute list','Create attribute with data type','Create attribute options','Verify saved'],expected:'Attributes CRUD works'});
+addTest('CAT-006','SUITE-07','Attribute groups',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P1',steps:['Navigate to /attribute-groups','Create attribute group','Add attributes to group','Verify grouping'],expected:'Attribute groups work'});
+addTest('CAT-007','SUITE-07','Product types',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P0',critical:true,steps:['Navigate to /product-types','Create product type','Assign attributes (required/optional)','Mark variant-driving attributes','Publish product type','Verify schema generated'],expected:'Product type created with attribute schema'});
+addTest('CAT-008','SUITE-07','Product type duplicate',{app:'Admin',role:'ADMIN',module:'Catalog',priority:'P2',steps:['Open product type detail','Click duplicate if available','Verify new product type created'],expected:'Duplicate works if implemented'});
+addTest('CAT-009','SUITE-07','Buyer cannot create categories',{app:'Admin',role:'BUYER',module:'Catalog',priority:'P0',critical:true,steps:['Login as buyer','Navigate to /categories','Try to create category via UI or API','Verify access denied'],expected:'Buyer cannot modify catalog governance'});
+
+// ── SUITE 08: Product Management ──
+addSuite('SUITE-08', 'Product Management', 'Catalog');
+addTest('PRD-001','SUITE-08','Create canonical product',{app:'Admin',role:'ADMIN',module:'Products',priority:'P0',critical:true,steps:['Navigate to product creation','Enter product title, description','Select category, brand, product type','Fill required attributes','Submit','Verify product created'],expected:'Canonical product created with correct taxonomy'});
+addTest('PRD-002','SUITE-08','Product detail view',{app:'Admin',role:'ADMIN',module:'Products',priority:'P1',steps:['Open product detail page','Verify all attributes displayed','Verify variants listed','Verify offers listed'],expected:'Product detail shows complete info'});
+addTest('PRD-003','SUITE-08','Product media',{app:'Admin',role:'ADMIN',module:'Products',priority:'P2',steps:['Upload media for product','Verify image displayed','Verify thumbnail generated'],expected:'Media upload works if implemented'});
+addTest('PRD-004','SUITE-08','Product completeness',{app:'Admin',role:'ADMIN',module:'Products',priority:'P1',steps:['Create product without all required attributes','Verify validation error','Complete all required fields','Verify product can be saved'],expected:'Required attribute validation works'});
+
+// ── SUITE 09: Variants ──
+addSuite('SUITE-09', 'Variants', 'Catalog');
+addTest('VAR-001','SUITE-09','Create variant',{app:'Admin',role:'ADMIN',module:'Variants',priority:'P0',critical:true,steps:['Open product with product type','Create variant with attribute combination','Enter SKU','Submit','Verify variant created'],expected:'Variant created with correct attributes'});
+addTest('VAR-002','SUITE-09','Duplicate variant combination rejected',{app:'Admin',role:'ADMIN',module:'Variants',priority:'P0',critical:true,steps:['Try to create variant with same attribute combination as existing','Verify error/rejection'],expected:'Duplicate combination prevented'});
+addTest('VAR-003','SUITE-09','Variant detail',{app:'Admin',role:'ADMIN',module:'Variants',priority:'P1',steps:['Open variant detail','Verify attributes, SKU, product link'],expected:'Variant detail correct'});
+addTest('VAR-004','SUITE-09','Variant-to-offer relationship',{app:'Admin',role:'ADMIN',module:'Variants',priority:'P1',steps:['Open variant detail','Verify associated offers visible'],expected:'Offers linked to variant shown'});
+
+// ── SUITE 10: Product Studio ──
+addSuite('SUITE-10', 'Merchant Product Studio', 'Merchant');
+addTest('PS-001','SUITE-10','Product Studio flow — Identity',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',critical:true,steps:['Navigate to /merchant/product-studio','Verify step 1: Identity','Search/select canonical product or start new','Verify product info displayed'],expected:'Identity step works'});
+addTest('PS-002','SUITE-10','Product Studio — Specs',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',steps:['Proceed to Specs step','Fill/verify product specifications','Verify attribute fields from product type'],expected:'Specs step shows correct attributes'});
+addTest('PS-003','SUITE-10','Product Studio — Variants',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',critical:true,steps:['Proceed to Variants step','Select/configure variant attributes','Verify variant generated'],expected:'Variant configuration works'});
+addTest('PS-004','SUITE-10','Product Studio — Offer',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',critical:true,steps:['Proceed to Offer step','Enter price, MOQ, lead time, merchant SKU','Verify offer preview'],expected:'Offer details captured'});
+addTest('PS-005','SUITE-10','Product Studio — Review & Submit',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',critical:true,steps:['Proceed to Review step','Verify all information displayed','Submit','Verify product+variant+offer created'],expected:'Full studio flow completes successfully'});
+addTest('PS-006','SUITE-10','Merchant cannot modify platform taxonomy',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'ProductStudio',priority:'P0',critical:true,steps:['In Product Studio, verify merchant cannot create/edit categories, brands, attributes','Verify merchant can only select from existing taxonomy'],expected:'Platform taxonomy protected from merchant modification'});
+
+// ── SUITE 11: Merchant Offers ──
+addSuite('SUITE-11', 'Merchant Offers', 'Merchant');
+addTest('OFF-001','SUITE-11','Offer listing',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Offers',priority:'P1',steps:['Navigate to /merchant/offers','Verify offer list loads'],expected:'Offer list displays'});
+addTest('OFF-002','SUITE-11','Offer lifecycle — DRAFT to ACTIVE',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Offers',priority:'P0',critical:true,steps:['Create offer in DRAFT','Verify DRAFT status','Submit/propose offer','Verify PROPOSED status','Admin approves → verify ACTIVE'],expected:'Offer progresses through lifecycle'});
+addTest('OFF-003','SUITE-11','Offer fields — price, MOQ, lead time',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Offers',priority:'P0',steps:['Open offer detail','Verify price, MOQ, lead time, merchant SKU visible','Edit and save'],expected:'Offer fields editable and saved'});
+addTest('OFF-004','SUITE-11','Tenant ownership — cannot create offer in another store',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Offers',priority:'P0',critical:true,steps:['Login as merchant A','Try to create offer under merchant B store via API or UI','Verify rejected'],expected:'Cross-merchant offer creation blocked'});
+
+// ── SUITE 12: Pricing ──
+addSuite('SUITE-12', 'Pricing', 'Merchant');
+addTest('PRI-001','SUITE-12','Price tier creation',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Pricing',priority:'P0',critical:true,steps:['Navigate to /merchant/pricing','Create price tier (e.g. qty 1-10: $10, qty 11+: $8)','Verify tiers saved'],expected:'Price tiers created'});
+addTest('PRI-002','SUITE-12','B2B quantity pricing display',{app:'Buyer Web',role:'BUYER',module:'Pricing',priority:'P1',steps:['View product with tiered pricing','Verify quantity breaks shown','Change quantity — verify price updates'],expected:'Tiered pricing visible and responsive'});
+addTest('PRI-003','SUITE-12','Checkout uses server-side pricing',{app:'Buyer Web',role:'BUYER',module:'Pricing',priority:'P0',critical:true,steps:['Add item to cart at tier-1 price','Change quantity to qualify for tier-2','Proceed to checkout','Verify server recalculates correct tier price'],expected:'Server-side pricing authoritative, not client'});
+
+// ── SUITE 13: Inventory ──
+addSuite('SUITE-13', 'Inventory', 'Merchant');
+addTest('INV-001','SUITE-13','Inventory listing',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',critical:true,steps:['Navigate to /merchant/inventory','Verify inventory items displayed with qty, warehouse'],expected:'Inventory list shows stock data'});
+addTest('INV-002','SUITE-13','Stock adjustment',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',steps:['Adjust stock for an item (add 10)','Verify quantity updated','Verify movement recorded'],expected:'Stock adjustment works'});
+addTest('INV-003','SUITE-13','Negative stock prevented',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',critical:true,steps:['Try to set stock to negative value','Verify rejected with error'],expected:'Negative stock prevented'});
+addTest('INV-004','SUITE-13','Warehouse management',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P1',steps:['Navigate to /merchant/warehouses','Verify warehouse list','Create warehouse if available'],expected:'Warehouse management works'});
+addTest('INV-005','SUITE-13','Low stock alerts',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P2',steps:['Check low stock page/alerts','Verify items below threshold shown'],expected:'Low stock alerts functional if implemented'});
+
+// ── SUITE 14: Buyer Home and Search ──
+addSuite('SUITE-14', 'Buyer Home and Search', 'Buyer');
+addTest('BUY-001','SUITE-14','Home page loads',{app:'Buyer Web',role:'BUYER',module:'Search',priority:'P0',critical:true,steps:['Login as buyer','Verify home page loads with products/categories'],expected:'Home page displays content'});
+addTest('BUY-002','SUITE-14','Product search',{app:'Buyer Web',role:'BUYER',module:'Search',priority:'P0',critical:true,steps:['Enter search term','Verify results displayed','Verify results show canonical product data'],expected:'Search returns relevant products'});
+addTest('BUY-003','SUITE-14','Search filters and sorting',{app:'Buyer Web',role:'BUYER',module:'Search',priority:'P1',steps:['Apply category filter','Apply price/sort options','Verify results update'],expected:'Filters and sorting work'});
+addTest('BUY-004','SUITE-14','Product cards show offer info',{app:'Buyer Web',role:'BUYER',module:'Search',priority:'P1',steps:['Verify product cards show price, merchant, stock'],expected:'Product cards display complete info'});
+addTest('BUY-005','SUITE-14','Empty search result',{app:'Buyer Web',role:'BUYER',module:'Search',priority:'P2',steps:['Search for nonexistent product','Verify empty state shown'],expected:'Empty state displayed gracefully'});
+
+// ── SUITE 15: Product Details ──
+addSuite('SUITE-15', 'Product Details (PDP)', 'Buyer');
+addTest('PDP-001','SUITE-15','Product detail page loads',{app:'Buyer Web',role:'BUYER',module:'PDP',priority:'P0',critical:true,steps:['Click on a product from search/home','Verify PDP loads with title, description, media'],expected:'PDP displays correctly'});
+addTest('PDP-002','SUITE-15','Variant selection',{app:'Buyer Web',role:'BUYER',module:'PDP',priority:'P0',critical:true,steps:['Select different variants','Verify price/stock updates per variant','Verify SKU changes'],expected:'Variant selection updates display'});
+addTest('PDP-003','SUITE-15','Available offers shown',{app:'Buyer Web',role:'BUYER',module:'PDP',priority:'P0',steps:['Verify merchant offers listed','Verify price, MOQ, lead time per offer'],expected:'Offers displayed with merchant data'});
+addTest('PDP-004','SUITE-15','Add to cart',{app:'Buyer Web',role:'BUYER',module:'PDP',priority:'P0',critical:true,steps:['Select variant and quantity','Click add to cart','Verify item appears in cart','Verify correct price/quantity'],expected:'Item added to cart correctly'});
+
+// ── SUITE 16: Offer Comparison ──
+addSuite('SUITE-16', 'Offer Comparison', 'Buyer');
+addTest('CMP-001','SUITE-16','Multiple offers comparison',{app:'Buyer Web',role:'BUYER',module:'Compare',priority:'P1',steps:['Navigate to /compare or product with multiple offers','Verify offers compared side by side'],expected:'Offer comparison works if implemented'});
+addTest('CMP-002','SUITE-16','Select specific offer',{app:'Buyer Web',role:'BUYER',module:'Compare',priority:'P0',steps:['Select a specific merchant offer','Add to cart','Verify correct offer added (not a different one)'],expected:'Selected offer is the one added to cart'});
+
+// ── SUITE 17: Cart ──
+addSuite('SUITE-17', 'Cart', 'Buyer');
+addTest('CART-001','SUITE-17','Cart displays items',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P0',critical:true,steps:['Add items to cart','Navigate to /cart','Verify items displayed with price, quantity, line total'],expected:'Cart shows correct items'});
+addTest('CART-002','SUITE-17','Update quantity',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P0',critical:true,steps:['Change item quantity','Verify line total recalculates','Verify price tier updates if applicable'],expected:'Quantity update recalculates correctly'});
+addTest('CART-003','SUITE-17','Remove item',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P1',steps:['Remove item from cart','Verify item removed','Verify totals updated'],expected:'Item removal works'});
+addTest('CART-004','SUITE-17','MOQ validation',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P0',critical:true,steps:['Reduce quantity below MOQ','Verify error/warning shown'],expected:'MOQ violation prevented'});
+addTest('CART-005','SUITE-17','Multiple merchants in cart',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P0',critical:true,steps:['Add item from Merchant A','Add item from Merchant B','Verify both in cart','Verify merchant grouping visible'],expected:'Multi-merchant cart works'});
+addTest('CART-006','SUITE-17','Empty cart state',{app:'Buyer Web',role:'BUYER',module:'Cart',priority:'P2',steps:['Remove all items','Verify empty cart message'],expected:'Empty state displayed'});
+
+// ── SUITE 18: Checkout ──
+addSuite('SUITE-18', 'Checkout', 'Buyer');
+addTest('CO-001','SUITE-18','Checkout page loads',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P0',critical:true,steps:['Add items to cart','Navigate to /checkout','Verify order summary, address, delivery method'],expected:'Checkout page loads correctly'});
+addTest('CO-002','SUITE-18','Delivery address',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P0',steps:['Enter/verify delivery address','Verify address saved'],expected:'Address captured'});
+addTest('CO-003','SUITE-18','Fulfillment method',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P1',steps:['Select delivery/pickup method','Verify delivery fee updates'],expected:'Fulfillment method selectable'});
+addTest('CO-004','SUITE-18','Pricing totals correct',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P0',critical:true,steps:['Verify subtotal matches cart','Verify tax calculated','Verify delivery fee','Verify grand total = subtotal - discount + tax + delivery'],expected:'Financial totals are correct'});
+addTest('CO-005','SUITE-18','Place order',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P0',critical:true,steps:['Click place order','Verify order confirmation','Verify order ID displayed','Verify redirect to order detail'],expected:'Order placed successfully'});
+addTest('CO-006','SUITE-18','Client-side totals cannot override server',{app:'Buyer Web',role:'BUYER',module:'Checkout',priority:'P0',critical:true,steps:['Inspect network request during checkout','Verify totals sent to server are recalculated server-side','Verify server response totals match'],expected:'Server authoritative for all financial calculations'});
+
+// ── SUITE 19: Multi-Merchant Checkout ──
+addSuite('SUITE-19', 'Multi-Merchant Checkout', 'Commerce');
+addTest('MMCO-001','SUITE-19','Multi-merchant cart setup',{app:'Buyer Web',role:'BUYER',module:'Commerce',priority:'P0',critical:true,steps:['Add Product A from Merchant A to cart','Add Product B from Merchant B to cart','Verify both items in cart with correct merchant grouping'],expected:'Multi-merchant cart works'});
+addTest('MMCO-002','SUITE-19','Single checkout creates master order',{app:'Buyer Web',role:'BUYER',module:'Commerce',priority:'P0',critical:true,steps:['Proceed to checkout with multi-merchant cart','Place order','Verify master order created','Verify sub-order for Merchant A','Verify sub-order for Merchant B'],expected:'Master order with sub-orders per merchant'});
+addTest('MMCO-003','SUITE-19','Sub-order correctness',{app:'Buyer Web',role:'BUYER',module:'Commerce',priority:'P0',critical:true,steps:['Verify sub-order A has correct items, prices, quantities from Merchant A','Verify sub-order B has correct items, prices, quantities from Merchant B','Verify totals per sub-order'],expected:'Each sub-order contains correct merchant data'});
+addTest('MMCO-004','SUITE-19','Financial breakdown',{app:'Buyer Web',role:'BUYER',module:'Commerce',priority:'P0',steps:['View order detail','Verify financial breakdown: subtotal, discount, tax, delivery, total'],expected:'Financial breakdown accurate'});
+addTest('MMCO-005','SUITE-19','Merchant sees only their sub-order',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Commerce',priority:'P0',critical:true,steps:['Login as Merchant A','View orders','Verify only sub-order A visible','Verify cannot see sub-order B or master order details of other merchant'],expected:'Merchant isolation enforced'});
+
+// ── SUITE 20: Order Lifecycle ──
+addSuite('SUITE-20', 'Order Lifecycle', 'Commerce');
+addTest('ORD-001','SUITE-20','Buyer views order',{app:'Buyer Web',role:'BUYER',module:'Orders',priority:'P0',steps:['Navigate to /orders','Click on order','Verify order detail with status, items, totals'],expected:'Order detail displays correctly'});
+addTest('ORD-002','SUITE-20','Merchant accepts order',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',critical:true,steps:['Login as merchant','View pending order','Click accept','Verify status changes to ACCEPTED','Verify buyer sees updated status'],expected:'Order accepted, status updated'});
+addTest('ORD-003','SUITE-20','Merchant rejects order',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',steps:['View pending order','Click reject with reason','Verify status REJECTED'],expected:'Order rejected with reason'});
+addTest('ORD-004','SUITE-20','Order progression — PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',critical:true,steps:['Accept order → ACCEPTED','Transition to PREPARING','Transition to READY','Transition to OUT_FOR_DELIVERY','Transition to DELIVERED','Verify each status change visible to buyer'],expected:'Full order progression works'});
+addTest('ORD-005','SUITE-20','Buyer cancels order',{app:'Buyer Web',role:'BUYER',module:'Orders',priority:'P1',steps:['View order in cancellable state','Click cancel','Verify status CANCELLED'],expected:'Buyer can cancel before fulfillment'});
+addTest('ORD-006','SUITE-20','Invalid transition blocked',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',critical:true,steps:['Try to transition DELIVERED back to PREPARING via UI','Verify transition not available','Verify API rejects if attempted'],expected:'Invalid FSM transitions blocked'});
+addTest('ORD-007','SUITE-20','Terminal status cannot re-transition',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',steps:['View CANCELLED/REJECTED order','Verify no transition buttons available'],expected:'Terminal states locked'});
+
+// ── SUITE 21: Partial Acceptance ──
+addSuite('SUITE-21', 'Partial Acceptance', 'Commerce');
+addTest('PA-001','SUITE-21','Merchant partially accepts order',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',critical:true,steps:['View order with quantity > available','Accept partial quantity (e.g. 5 of 10)','Verify confirmed quantity displayed','Verify rejected quantity displayed'],expected:'Partial acceptance captured correctly'});
+addTest('PA-002','SUITE-21','Totals recalculated after partial accept',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',critical:true,steps:['After partial acceptance','Verify subtotal reflects accepted quantity only','Verify tax recalculated','Verify delivery fee','Verify total = subtotal - discount + tax + delivery'],expected:'Financial invariant holds after partial accept'});
+addTest('PA-003','SUITE-21','Order status becomes PARTIALLY_ACCEPTED',{app:'Buyer Web',role:'BUYER',module:'Orders',priority:'P0',steps:['View order as buyer after partial accept','Verify status shows PARTIALLY_ACCEPTED','Verify updated quantities visible'],expected:'Buyer sees correct partial status'});
+addTest('PA-004','SUITE-21','Inventory reservation adjusted',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Orders',priority:'P0',steps:['Check inventory after partial accept','Verify excess reservation released','Verify reserved = accepted quantity'],expected:'Inventory reservations correct'});
+addTest('PA-005','SUITE-21','Status history recorded',{app:'Admin',role:'ADMIN',module:'Orders',priority:'P1',steps:['View order status history','Verify transition from original to PARTIALLY_ACCEPTED recorded','Verify timestamp and actor'],expected:'History append-only and correct'});
+
+// ── SUITE 22: Inventory ↔ Order Integration ──
+addSuite('SUITE-22', 'Inventory ↔ Order Integration', 'Commerce');
+addTest('IO-001','SUITE-22','Sufficient stock — checkout succeeds',{app:'Buyer Web',role:'BUYER',module:'Inventory',priority:'P0',steps:['Verify item has sufficient stock','Add to cart and checkout','Verify order placed','Verify stock reserved'],expected:'Stock reserved on checkout'});
+addTest('IO-002','SUITE-22','Insufficient stock — checkout fails',{app:'Buyer Web',role:'BUYER',module:'Inventory',priority:'P0',critical:true,steps:['Try to add more than available stock','Verify error shown'],expected:'Insufficient stock prevented at checkout'});
+addTest('IO-003','SUITE-22','Order cancellation releases reservation',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',critical:true,steps:['Accept order (stock reserved)','Cancel order','Verify stock reservation released','Verify qtyOnHand unchanged, qtyReserved decreased'],expected:'Reservation released on cancel'});
+addTest('IO-004','SUITE-22','Order completion consumes stock',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',critical:true,steps:['Complete order through to DELIVERED/COMPLETED','Verify stock deducted (qtyOnHand decreased, qtyReserved decreased)'],expected:'Stock consumed on completion'});
+addTest('IO-005','SUITE-22','No negative inventory possible',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Inventory',priority:'P0',critical:true,steps:['Attempt various operations that could cause negative stock','Verify all rejected'],expected:'Negative inventory impossible'});
+
+// ── SUITE 23: Disputes ──
+addSuite('SUITE-23', 'Disputes', 'Post-Order');
+addTest('DIS-001','SUITE-23','Buyer creates dispute',{app:'Buyer Web',role:'BUYER',module:'Disputes',priority:'P0',critical:true,steps:['View delivered order','Create dispute with reason and description','Verify dispute created','Verify dispute ID'],expected:'Dispute created successfully'});
+addTest('DIS-002','SUITE-23','Cannot dispute another buyer order',{app:'Buyer Web',role:'BUYER',module:'Disputes',priority:'P0',critical:true,steps:['Login as buyer B','Try to create dispute for buyer A order','Verify rejected'],expected:'Cross-buyer dispute blocked'});
+addTest('DIS-003','SUITE-23','Merchant/admin sees dispute',{app:'Admin',role:'ADMIN',module:'Disputes',priority:'P1',steps:['Navigate to /disputes','Verify dispute list','Open dispute detail','Verify evidence, timeline'],expected:'Dispute visible to admin/merchant'});
+addTest('DIS-004','SUITE-23','Dispute evidence upload',{app:'Buyer Web',role:'BUYER',module:'Disputes',priority:'P1',steps:['Upload evidence file to dispute','Verify file attached','Verify visible in timeline'],expected:'Evidence upload works if implemented'});
+
+// ── SUITE 24: Reviews ──
+addSuite('SUITE-24', 'Reviews', 'Post-Order');
+addTest('REV-001','SUITE-24','Buyer submits review',{app:'Buyer Web',role:'BUYER',module:'Reviews',priority:'P1',steps:['View completed order','Submit review with rating and comment','Verify review saved'],expected:'Review submitted'});
+addTest('REV-002','SUITE-24','Duplicate review prevented',{app:'Buyer Web',role:'BUYER',module:'Reviews',priority:'P1',steps:['Try to review same product/order again','Verify rejected or not allowed'],expected:'Duplicate review blocked'});
+addTest('REV-003','SUITE-24','Reviews visible on product',{app:'Buyer Web',role:'BUYER',module:'Reviews',priority:'P2',steps:['View product page','Verify review displayed with rating'],expected:'Reviews visible if implemented'});
+
+// ── SUITE 25: Notifications ──
+addSuite('SUITE-25', 'Notifications', 'Platform');
+addTest('NOT-001','SUITE-25','Notification list',{app:'Buyer Web',role:'BUYER',module:'Notifications',priority:'P1',steps:['Navigate to /notifications','Verify notification list loads'],expected:'Notifications display'});
+addTest('NOT-002','SUITE-25','Unread/read state',{app:'Buyer Web',role:'BUYER',module:'Notifications',priority:'P2',steps:['Verify unread indicator','Click notification — verify marked read'],expected:'Read/unread state works'});
+addTest('NOT-003','SUITE-25','Order notification received',{app:'Buyer Web',role:'BUYER',module:'Notifications',priority:'P1',steps:['Place an order','Check notifications','Verify order confirmation notification'],expected:'Order notification received'});
+addTest('NOT-004','SUITE-25','Realtime notification (if implemented)',{app:'Buyer Web',role:'BUYER',module:'Notifications',priority:'P2',steps:['Keep browser open','Trigger action that generates notification','Verify realtime delivery'],expected:'Realtime notification if WebSocket active'});
+
+// ── SUITE 26: Catalog Import Center ──
+addSuite('SUITE-26', 'Catalog Import Center', 'Import');
+addTest('IMP-001','SUITE-26','Download import template',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',critical:true,steps:['Navigate to /catalog-import','Click download template','Verify XLSX downloaded'],expected:'Template downloads'});
+addTest('IMP-002','SUITE-26','Upload valid XLSX',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',critical:true,steps:['Fill template with valid data','Upload XLSX','Verify parse succeeds','Verify validation results'],expected:'Valid workbook parsed and validated'});
+addTest('IMP-003','SUITE-26','Import preview',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',steps:['After upload, view preview','Verify planned changes displayed','Verify categories, brands, products, variants shown'],expected:'Preview shows import plan'});
+addTest('IMP-004','SUITE-26','Execute import',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',critical:true,steps:['Click execute','Verify import job runs','Verify report generated','Verify products/variants created'],expected:'Import executes and creates entities'});
+addTest('IMP-005','SUITE-26','Invalid workbook rejected',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',critical:true,steps:['Upload CSV file — verify rejected','Upload XLS file — verify rejected','Upload empty file — verify error'],expected:'Invalid formats rejected'});
+addTest('IMP-006','SUITE-26','Import error handling',{app:'Admin',role:'ADMIN',module:'Import',priority:'P1',steps:['Upload workbook with invalid references','Verify errors displayed','Verify no partial import'],expected:'Errors shown, transaction rolled back'});
+addTest('IMP-007','SUITE-26','Import job listing',{app:'Admin',role:'ADMIN',module:'Import',priority:'P1',steps:['Navigate to /catalog-import','Verify job list with status','Click job for detail'],expected:'Import jobs tracked'});
+
+// ── SUITE 27: Import → Commerce Lifecycle ──
+addSuite('SUITE-27', 'Import → Commerce Lifecycle', 'Import');
+addTest('IC-001','SUITE-27','Imported product appears in catalog',{app:'Admin',role:'ADMIN',module:'Import',priority:'P0',critical:true,steps:['After import, navigate to products','Verify imported product exists','Verify category, brand, attributes correct'],expected:'Imported product in catalog'});
+addTest('IC-002','SUITE-27','Create offer for imported product',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Import',priority:'P0',critical:true,steps:['Login as merchant','Create offer for imported product via Product Studio','Set price, MOQ','Activate offer'],expected:'Offer created for imported product'});
+addTest('IC-003','SUITE-27','Imported product searchable by buyer',{app:'Buyer Web',role:'BUYER',module:'Import',priority:'P0',steps:['Search for imported product name','Verify product appears in results'],expected:'Imported product discoverable'});
+addTest('IC-004','SUITE-27','Full import-to-order flow',{app:'Buyer Web',role:'BUYER',module:'Import',priority:'P0',critical:true,steps:['Find imported product','Add to cart','Checkout','Verify master order created','Record all IDs: Product, Variant, Offer, Order'],expected:'Complete import→commerce flow works'});
+
+// ── SUITE 28: RBAC Security ──
+addSuite('SUITE-28', 'RBAC Security', 'Security');
+addTest('RBAC-001','SUITE-28','Buyer cannot access admin pages',{app:'Admin',role:'BUYER',module:'Security',priority:'P0',critical:true,steps:['Login as buyer','Navigate to /categories, /users, /organizations','Verify each blocked'],expected:'All admin pages blocked for buyer'});
+addTest('RBAC-002','SUITE-28','Buyer cannot access merchant pages',{app:'Merchant Web',role:'BUYER',module:'Security',priority:'P0',critical:true,steps:['Login as buyer','Navigate to /merchant/*','Verify blocked'],expected:'Merchant pages blocked for buyer'});
+addTest('RBAC-003','SUITE-28','Merchant cannot access admin pages',{app:'Admin',role:'MERCHANT_OWNER',module:'Security',priority:'P0',critical:true,steps:['Login as merchant owner','Navigate to /categories, /users','Verify blocked'],expected:'Admin pages blocked for merchant'});
+addTest('RBAC-004','SUITE-28','Hidden controls for unauthorized users',{app:'Admin',role:'BUYER',module:'Security',priority:'P1',steps:['Login as buyer','Verify no admin/merchant navigation visible','Verify no create/edit buttons for admin functions'],expected:'UI controls hidden for unauthorized roles'});
+addTest('RBAC-005','SUITE-28','Cross-organization access blocked',{app:'Admin',role:'MERCHANT_OWNER',module:'Security',priority:'P0',critical:true,steps:['Login as merchant in Org A','Try to access Org B resources via direct URL','Verify blocked'],expected:'Cross-org access denied'});
+addTest('RBAC-006','SUITE-28','SUPER_ADMIN bypasses',{app:'Admin',role:'SUPER_ADMIN',module:'Security',priority:'P1',steps:['Login as SUPER_ADMIN','Verify access to all admin functions'],expected:'SUPER_ADMIN has full access'});
+
+// ── SUITE 29: Error Handling ──
+addSuite('SUITE-29', 'Error Handling', 'UX');
+addTest('ERR-001','SUITE-29','401 unauthorized shows login',{app:'Buyer Web',role:'BUYER',module:'Errors',priority:'P0',steps:['Expire session or clear tokens','Attempt action','Verify redirect to login with message'],expected:'401 handled gracefully'});
+addTest('ERR-002','SUITE-29','403 forbidden shows message',{app:'Buyer Web',role:'BUYER',module:'Errors',priority:'P1',steps:['Try accessing forbidden resource','Verify 403 message shown'],expected:'403 displayed clearly'});
+addTest('ERR-003','SUITE-29','404 not found',{app:'Buyer Web',role:'BUYER',module:'Errors',priority:'P2',steps:['Navigate to nonexistent page','Verify 404 page or message'],expected:'404 handled'});
+addTest('ERR-004','SUITE-29','Network failure handling',{app:'Buyer Web',role:'BUYER',module:'Errors',priority:'P1',steps:['Disable network','Attempt action','Verify error message, no blank page'],expected:'Network error shown'});
+addTest('ERR-005','SUITE-29','Form values preserved on error',{app:'Buyer Web',role:'BUYER',module:'Errors',priority:'P2',steps:['Fill form','Submit with error condition','Verify form values preserved after error'],expected:'Form state preserved'});
+
+// ── SUITE 30: Validation and Edge Cases ──
+addSuite('SUITE-30', 'Validation and Edge Cases', 'UX');
+addTest('VAL-001','SUITE-30','Empty required fields',{app:'Admin',role:'ADMIN',module:'Validation',priority:'P1',steps:['Submit form with empty required fields','Verify validation errors shown'],expected:'Required field validation works'});
+addTest('VAL-002','SUITE-30','Negative quantity rejected',{app:'Buyer Web',role:'BUYER',module:'Validation',priority:'P0',steps:['Try to enter negative quantity in cart','Verify rejected'],expected:'Negative quantity prevented'});
+addTest('VAL-003','SUITE-30','Zero quantity rejected',{app:'Buyer Web',role:'BUYER',module:'Validation',priority:'P1',steps:['Try to set quantity to 0','Verify rejected or item removed'],expected:'Zero quantity handled'});
+addTest('VAL-004','SUITE-30','Extremely large quantity',{app:'Buyer Web',role:'BUYER',module:'Validation',priority:'P2',steps:['Enter very large quantity (999999)','Verify handled gracefully'],expected:'Large quantity handled'});
+addTest('VAL-005','SUITE-30','Duplicate SKU',{app:'Admin',role:'ADMIN',module:'Validation',priority:'P0',steps:['Create variant with existing SKU','Verify duplicate rejected'],expected:'Duplicate SKU prevented'});
+
+// ── SUITE 31: Idempotency / Double Submission ──
+addSuite('SUITE-31', 'Idempotency / Double Submission', 'Security');
+addTest('IDM-001','SUITE-31','Checkout double-click',{app:'Buyer Web',role:'BUYER',module:'Idempotency',priority:'P0',critical:true,steps:['Click place order twice rapidly','Verify only one order created','Verify same order ID returned'],expected:'Idempotency prevents duplicate orders'});
+addTest('IDM-002','SUITE-31','Create product double-click',{app:'Admin',role:'ADMIN',module:'Idempotency',priority:'P1',steps:['Click create product twice rapidly','Verify only one product created'],expected:'Duplicate creation prevented'});
+addTest('IDM-003','SUITE-31','Accept order twice',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Idempotency',priority:'P0',steps:['Click accept twice rapidly','Verify order accepted only once','Verify no error'],expected:'Double accept handled'});
+addTest('IDM-004','SUITE-31','Submit import twice',{app:'Admin',role:'ADMIN',module:'Idempotency',priority:'P1',steps:['Click execute import twice','Verify only one import job runs'],expected:'Duplicate import prevented'});
+
+// ── SUITE 32: Mobile Application ──
+addSuite('SUITE-32', 'Mobile Application', 'Mobile');
+addTest('MOB-001','SUITE-32','Mobile app launches',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P0',critical:true,steps:['Open Flutter mobile app','Verify login screen loads'],expected:'App launches correctly'});
+addTest('MOB-002','SUITE-32','Mobile buyer login',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P0',critical:true,steps:['Enter buyer credentials','Login','Verify home screen'],expected:'Mobile login works'});
+addTest('MOB-003','SUITE-32','Mobile home and search',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P0',steps:['View home screen','Search for product','Verify results'],expected:'Mobile search works'});
+addTest('MOB-004','SUITE-32','Mobile product detail',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P0',steps:['Tap product','Verify PDP loads with variants, offers'],expected:'Mobile PDP works'});
+addTest('MOB-005','SUITE-32','Mobile cart and checkout',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P0',critical:true,steps:['Add to cart','View cart','Checkout','Verify order placed'],expected:'Mobile checkout works'});
+addTest('MOB-006','SUITE-32','Mobile orders',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P1',steps:['View orders list','View order detail'],expected:'Mobile orders work'});
+addTest('MOB-007','SUITE-32','Mobile merchant dashboard',{app:'Mobile',role:'MERCHANT_OWNER',module:'Mobile',priority:'P1',steps:['Login as merchant','View merchant dashboard','Verify orders, inventory, catalog screens'],expected:'Mobile merchant screens work'});
+addTest('MOB-008','SUITE-32','Mobile notifications',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P2',steps:['View notifications screen','Verify list loads'],expected:'Mobile notifications work'});
+addTest('MOB-009','SUITE-32','Mobile empty states',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P2',steps:['View screens with no data','Verify empty state messages'],expected:'Empty states shown'});
+addTest('MOB-010','SUITE-32','Mobile navigation and back',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P1',steps:['Navigate through screens','Use back button','Verify correct behavior'],expected:'Navigation works'});
+addTest('MOB-011','SUITE-32','Driver screen status',{app:'Mobile',role:'BUYER',module:'Mobile',priority:'P2',steps:['Check if driver dashboard exists','If exists, verify basic display','If not, mark N/A'],expected:'Driver screen status documented'});
+
+// ── SUITE 33: Cross-Role E2E ──
+addSuite('SUITE-33', 'Cross-Role End-to-End Journey', 'E2E');
+addTest('E2E-001','SUITE-33','Complete marketplace lifecycle',{app:'Admin',role:'SUPER_ADMIN',module:'E2E',priority:'P0',critical:true,steps:['ADMIN: Create category','ADMIN: Create brand','ADMIN: Create product type with attributes','ADMIN: Create canonical product','ADMIN: Create variant'],expected:'Catalog structure created by admin'});
+addTest('E2E-002','SUITE-33','Merchant creates offer',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'E2E',priority:'P0',critical:true,steps:['MERCHANT: Use Product Studio to create offer for product','Set price, MOQ, lead time','Add inventory','Activate offer'],expected:'Merchant offer active'});
+addTest('E2E-003','SUITE-33','Buyer purchases',{app:'Buyer Web',role:'BUYER',module:'E2E',priority:'P0',critical:true,steps:['BUYER: Search product','BUYER: Select offer','BUYER: Add to cart','BUYER: Checkout','Record Order ID'],expected:'Order placed'});
+addTest('E2E-004','SUITE-33','Merchant fulfills',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'E2E',priority:'P0',critical:true,steps:['MERCHANT: Accept order','MERCHANT: PREPARING','MERCHANT: READY','MERCHANT: OUT_FOR_DELIVERY','MERCHANT: DELIVERED'],expected:'Order fulfilled'});
+addTest('E2E-005','SUITE-33','Buyer reviews',{app:'Buyer Web',role:'BUYER',module:'E2E',priority:'P1',steps:['BUYER: View completed order','BUYER: Submit review'],expected:'Review submitted'});
+
+// ── SUITE 34: Cross-Merchant Business Journey ──
+addSuite('SUITE-34', 'Cross-Merchant Business Journey', 'E2E');
+addTest('XMER-001','SUITE-34','Setup two merchant offers',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'E2E',priority:'P0',critical:true,steps:['Merchant A: Create offer for Product X','Merchant B: Create offer for Product Y','Verify both offers ACTIVE'],expected:'Two merchant offers ready'});
+addTest('XMER-002','SUITE-34','Buyer creates multi-merchant cart',{app:'Buyer Web',role:'BUYER',module:'E2E',priority:'P0',critical:true,steps:['Add Product X (Merchant A) to cart','Add Product Y (Merchant B) to cart','Verify both in cart'],expected:'Multi-merchant cart created'});
+addTest('XMER-003','SUITE-34','Single checkout, master order',{app:'Buyer Web',role:'BUYER',module:'E2E',priority:'P0',critical:true,steps:['Checkout','Verify master order created','Verify sub-order A (Merchant A)','Verify sub-order B (Merchant B)','Record all IDs'],expected:'Master order with sub-orders'});
+addTest('XMER-004','SUITE-34','Each merchant fulfills independently',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'E2E',priority:'P0',critical:true,steps:['Login as Merchant A — accept and fulfill sub-order A','Login as Merchant B — accept and fulfill sub-order B','Verify both sub-orders completed','Verify buyer sees both completed'],expected:'Independent fulfillment works'});
+addTest('XMER-005','SUITE-34','Data isolation verified',{app:'Admin',role:'ADMIN',module:'E2E',priority:'P0',steps:['Verify Merchant A cannot see Merchant B sub-order','Verify Merchant B cannot see Merchant A sub-order','Verify buyer sees complete picture'],expected:'Merchant data isolated'});
+
+// ── SUITE 35: Data Integrity Through UI ──
+addSuite('SUITE-35', 'Data Integrity Through UI', 'E2E');
+addTest('DI-001','SUITE-35','Order totals match calculation',{app:'Buyer Web',role:'BUYER',module:'Integrity',priority:'P0',steps:['After checkout, view order','Manually verify: total = subtotal - discount + tax + delivery','Verify matches displayed total'],expected:'Financial math correct'});
+addTest('DI-002','SUITE-35','Inventory matches after order',{app:'Merchant Web',role:'MERCHANT_OWNER',module:'Integrity',priority:'P0',steps:['Note inventory before order','Place order','Verify reserved stock increased','Complete order','Verify on-hand decreased'],expected:'Inventory tracks correctly'});
+addTest('DI-003','SUITE-35','Timestamps reasonable',{app:'Admin',role:'ADMIN',module:'Integrity',priority:'P2',steps:['View order timestamps','Verify created/updated times reasonable','Verify no future dates'],expected:'Timestamps valid'});
+
+// ── SUITE 36: Responsive Web ──
+addSuite('SUITE-36', 'Responsive Web', 'UX');
+addTest('RWD-001','SUITE-36','Desktop layout (1920px)',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Set viewport to 1920px','Verify layout correct, no overflow'],expected:'Desktop layout OK'});
+addTest('RWD-002','SUITE-36','Tablet layout (768px)',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Set viewport to 768px','Verify layout adapts','Verify tables/forms usable'],expected:'Tablet layout OK'});
+addTest('RWD-003','SUITE-36','Mobile browser layout (375px)',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Set viewport to 375px','Verify no horizontal overflow','Verify buttons accessible'],expected:'Mobile web layout OK'});
+addTest('RWD-004','SUITE-36','Checkout usable on mobile width',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P1',steps:['Set mobile viewport','Go through checkout','Verify forms/buttons usable'],expected:'Checkout works on mobile width'});
+
+// ── SUITE 37: UI Quality ──
+addSuite('SUITE-37', 'UI Quality', 'UX');
+addTest('UI-001','SUITE-37','Consistent typography and buttons',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Browse multiple pages','Verify consistent font, button styles','Note any inconsistencies'],expected:'Visual consistency'});
+addTest('UI-002','SUITE-37','Empty states meaningful',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['View empty cart, empty orders, empty search','Verify helpful messages shown'],expected:'Empty states informative'});
+addTest('UI-003','SUITE-37','Loading states shown',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Navigate to data-heavy pages','Verify loading indicators shown during fetch'],expected:'Loading states present'});
+addTest('UI-004','SUITE-37','Destructive action confirmation',{app:'Admin',role:'ADMIN',module:'UX',priority:'P1',steps:['Try to delete/cancel','Verify confirmation dialog shown'],expected:'Confirmation before destructive actions'});
+addTest('UI-005','SUITE-37','No placeholder text visible',{app:'Buyer Web',role:'BUYER',module:'UX',priority:'P2',steps:['Browse pages','Verify no "Lorem ipsum" or TODO text visible'],expected:'No placeholder text'});
+
+// ── SUITE 38: Browser Console / Network Sanity ──
+addSuite('SUITE-38', 'Browser Console / Network Sanity', 'UX');
+addTest('CON-001','SUITE-38','No uncaught JS errors on home',{app:'Buyer Web',role:'BUYER',module:'Console',priority:'P1',steps:['Open DevTools (F12)','Navigate to home','Check Console tab','Verify no red errors'],expected:'No JS errors'});
+addTest('CON-002','SUITE-38','No failed API calls on normal flow',{app:'Buyer Web',role:'BUYER',module:'Console',priority:'P1',steps:['Open DevTools Network tab','Complete normal flow: search → PDP → cart → checkout','Check for failed requests (red)'],expected:'No unexpected API failures'});
+addTest('CON-003','SUITE-38','No CORS errors',{app:'Buyer Web',role:'BUYER',module:'Console',priority:'P1',steps:['Open DevTools Console','Perform normal operations','Verify no CORS errors'],expected:'No CORS issues'});
+addTest('CON-004','SUITE-38','No broken images',{app:'Buyer Web',role:'BUYER',module:'Console',priority:'P2',steps:['Browse product pages','Verify all images load','Check Network tab for 404s on images'],expected:'No broken images'});
+
+// ── Session fields ──
+const SESSION_FIELDS = [
+  'Environment','API URL','Web URL','Admin URL','Admin User','Merchant User','Merchant Store','Buyer User',
+  'Organization ID','Merchant ID','Store ID','Warehouse ID',
+  'Product ID','Variant ID','Offer ID',
+  'Cart ID','Checkout ID',
+  'Master Order ID','Sub Order A','Sub Order B',
+  'Dispute ID','Import Job ID'
+];
+
+// ── Automated evidence ──
+const AUTO_EVIDENCE = [
+  { file: 'catalog-lifecycle.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'transaction-lifecycle.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'phase1-marketplace.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'phase2-multi-merchant.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'phase3-security.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'phase4-import-commerce.e2e.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+  { file: 'seed-pg.postgres.spec.ts', path: 'apps/api/src/__tests__/integration/', status: 'AVAILABLE' },
+];
+
+// ── State management ──
+const STORAGE_KEY = 'scs-uat-guide-state';
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) { state = JSON.parse(saved); return; }
+  } catch(e) {}
+  state = { tests: {}, session: {}, signoff: {}, suitesOpen: {}, testsOpen: {} };
+}
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
+}
+
+function getTestState(id) { return state.tests[id] || { status: 'NOT TESTED', steps: {}, evidence: '', fields: {} }; }
+function setTestState(id, val) { state.tests[id] = val; saveState(); }
+
+// ── Rendering ──
+function renderDashboard() {
+  const total = TESTS.length;
+  const counts = { 'NOT TESTED': 0, PASS: 0, FAIL: 0, BLOCKED: 0, 'N/A': 0 };
+  const byApp = {}, byRole = {}, byModule = {};
+  const criticalTotal = TESTS.filter(t => t.critical).length;
+  let criticalPass = 0, criticalFail = 0, criticalBlocked = 0;
+
+  TESTS.forEach(t => {
+    const s = getTestState(t.id);
+    counts[s.status] = (counts[s.status] || 0) + 1;
+    byApp[t.app] = byApp[t.app] || { total: 0, PASS: 0 };
+    byApp[t.app].total++;
+    if (s.status === 'PASS') byApp[t.app].PASS++;
+    byRole[t.role] = byRole[t.role] || { total: 0, PASS: 0 };
+    byRole[t.role].total++;
+    if (s.status === 'PASS') byRole[t.role].PASS++;
+    byModule[t.module] = byModule[t.module] || { total: 0, PASS: 0 };
+    byModule[t.module].total++;
+    if (s.status === 'PASS') byModule[t.module].PASS++;
+    if (t.critical) {
+      if (s.status === 'PASS') criticalPass++;
+      else if (s.status === 'FAIL') criticalFail++;
+      else if (s.status === 'BLOCKED') criticalBlocked++;
+    }
+  });
+
+  const tested = total - counts['NOT TESTED'];
+  const pct = total ? Math.round((tested / total) * 100) : 0;
+  const passPct = total ? Math.round((counts.PASS / total) * 100) : 0;
+
+  document.getElementById('dashCards').innerHTML = `
+    <div class="dash-card"><div class="label">Total Tests</div><div class="value">${total}</div></div>
+    <div class="dash-card"><div class="label">Not Tested</div><div class="value pending">${counts['NOT TESTED']}</div></div>
+    <div class="dash-card"><div class="label">Passed</div><div class="value pass">${counts.PASS}</div></div>
+    <div class="dash-card"><div class="label">Failed</div><div class="value fail">${counts.FAIL}</div></div>
+    <div class="dash-card"><div class="label">Blocked</div><div class="value blocked">${counts.BLOCKED}</div></div>
+    <div class="dash-card"><div class="label">N/A</div><div class="value" style="color:var(--na)">${counts['N/A']}</div></div>
+    <div class="dash-card"><div class="label">Completion</div><div class="value">${pct}%</div><div class="progress-bar"><div class="fill" style="width:${pct}%;background:var(--accent)"></div></div></div>
+    <div class="dash-card"><div class="label">Human Acceptance</div><div class="value pass">${passPct}%</div><div class="progress-bar"><div class="fill" style="width:${passPct}%;background:var(--pass)"></div></div></div>
+    <div class="dash-card"><div class="label">Critical Total</div><div class="value">${criticalTotal}</div></div>
+    <div class="dash-card"><div class="label">Critical Passed</div><div class="value pass">${criticalPass}</div></div>
+    <div class="dash-card"><div class="label">Critical Failed</div><div class="value fail">${criticalFail}</div></div>
+    <div class="dash-card"><div class="label">Critical Blocked</div><div class="value blocked">${criticalBlocked}</div></div>
+  `;
+
+  const renderGroup = (obj) => Object.entries(obj).map(([k, v]) => {
+    const p = v.total ? Math.round((v.PASS / v.total) * 100) : 0;
+    return `<div class="dash-card"><div class="label">${k}</div><div class="value" style="font-size:1.1rem">${v.PASS}/${v.total}</div><div class="progress-bar"><div class="fill" style="width:${p}%;background:var(--pass)"></div></div></div>`;
+  }).join('');
+
+  document.getElementById('dashByApp').innerHTML = renderGroup(byApp);
+  document.getElementById('dashByRole').innerHTML = renderGroup(byRole);
+  document.getElementById('dashByModule').innerHTML = renderGroup(byModule);
+}
+
+function renderSession() {
+  document.getElementById('sessionFields').innerHTML = SESSION_FIELDS.map(f => {
+    const val = state.session[f] || '';
+    return `<div class="session-field"><label>${f}</label><input value="${val}" onchange="state.session['${f}']=this.value;saveState()" /></div>`;
+  }).join('');
+}
+
+function renderAutoEvidence() {
+  document.getElementById('autoEvidenceList').innerHTML = AUTO_EVIDENCE.map(e => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+      <span style="font-family:var(--mono);font-size:.82rem;color:var(--accent)">${e.file}</span>
+      <span style="font-size:.75rem;color:var(--fg3)">${e.path}</span>
+      <span style="margin-left:auto;font-size:.72rem;padding:2px 10px;border-radius:10px;background:var(--pass-bg);color:var(--pass)">Automated Evidence: ${e.status}</span>
+      <span style="font-size:.72rem;padding:2px 10px;border-radius:10px;background:var(--pending-bg);color:var(--pending)">Human UI Status: NOT TESTED</span>
+    </div>
+  `).join('');
+}
+
+function renderSuites() {
+  const container = document.getElementById('suites-container');
+  container.innerHTML = SUITES.map(suite => {
+    const suiteTests = TESTS.filter(t => t.suiteId === suite.id);
+    const counts = { 'NOT TESTED': 0, PASS: 0, FAIL: 0, BLOCKED: 0, 'N/A': 0 };
+    suiteTests.forEach(t => { counts[getTestState(t.id).status]++; });
+    const isOpen = state.suitesOpen[suite.id] ? ' open' : '';
+
+    return `<div class="suite${isOpen}" id="${suite.id}" data-suite="${suite.id}">
+      <div class="suite-header" onclick="toggleSuite('${suite.id}')">
+        <span class="suite-chevron">▶</span>
+        <span class="suite-id">${suite.id.replace('SUITE-','S')}</span>
+        <span class="suite-title">${suite.title}</span>
+        <div class="suite-stats">
+          ${counts.PASS ? `<span class="st st-pass">${counts.PASS}</span>` : ''}
+          ${counts.FAIL ? `<span class="st st-fail">${counts.FAIL}</span>` : ''}
+          ${counts.BLOCKED ? `<span class="st st-blocked">${counts.BLOCKED}</span>` : ''}
+          ${counts['N/A'] ? `<span class="st st-na">${counts['N/A']}</span>` : ''}
+          <span class="st st-pending">${counts['NOT TESTED']}</span>
+        </div>
+      </div>
+      <div class="suite-body">
+        ${suiteTests.map(t => renderTestCase(t)).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTestCase(t) {
+  const ts = getTestState(t.id);
+  const isOpen = state.testsOpen[t.id] ? ' open' : '';
+  const appClass = t.app ? `app-${t.app.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z-]/g,'')}` : '';
+
+  return `<div class="test-case${isOpen}" data-test-id="${t.id}" data-app="${t.app}" data-role="${t.role}" data-priority="${t.priority}" data-status="${ts.status}" data-module="${t.module}">
+    <div class="tc-header" onclick="toggleTest('${t.id}')">
+      <span class="tc-id">${t.id}</span>
+      <span class="tc-title">${t.title}</span>
+      <div class="tc-meta">
+        ${t.critical ? '<span class="tc-tag critical">CRITICAL</span>' : ''}
+        <span class="tc-tag ${appClass}">${t.app}</span>
+        <span class="tc-tag">${t.role}</span>
+        <span class="tc-tag">${t.priority}</span>
+        <span class="tc-tag" style="background:${statusColor(ts.status)}20;color:${statusColor(ts.status)}">${ts.status}</span>
+      </div>
+    </div>
+    <div class="tc-body">
+      <div class="tc-status-bar">
+        <span style="font-size:.72rem;color:var(--fg3);margin-right:4px">Status:</span>
+        ${['NOT TESTED','PASS','FAIL','BLOCKED','N/A'].map(s =>
+          `<button class="status-btn${ts.status===s?' active-'+s.toLowerCase().replace(/\s+/,'').replace('n/a','na'):''}" onclick="setStatus('${t.id}','${s}')">${s}</button>`
+        ).join('')}
+      </div>
+      ${t.preconditions ? `<div class="tc-info"><strong>Preconditions</strong>${t.preconditions}</div>` : ''}
+      ${t.testData ? `<div class="tc-info"><strong>Test Data</strong>${t.testData}</div>` : ''}
+      <div class="tc-info"><strong>Expected Result</strong>${t.expected}</div>
+      ${t.negative ? `<div class="tc-info"><strong>Negative Test</strong>${t.negative}</div>` : ''}
+      <div class="steps">
+        ${t.steps.map((s, i) => {
+          const checked = ts.steps[i] ? ' checked' : '';
+          return `<div class="step${checked}"><input type="checkbox" id="step-${t.id}-${i}" ${ts.steps[i]?'checked':''} onchange="toggleStep('${t.id}',${i})" /><label for="step-${t.id}-${i}">${s}</label></div>`;
+        }).join('')}
+      </div>
+      <div class="evidence-section">
+        <label>Evidence / Notes</label>
+        <textarea onchange="setEvidence('${t.id}',this.value)" placeholder="Record screenshots, IDs, observations...">${ts.evidence || ''}</textarea>
+      </div>
+      <div class="tc-fields">
+        <input placeholder="Created Entity ID (e.g. Order ID)" value="${ts.fields.entityId||''}" onchange="setField('${t.id}','entityId',this.value)" />
+        <input placeholder="Tester / Date" value="${ts.fields.tester||''}" onchange="setField('${t.id}','tester',this.value)" />
+      </div>
+    </div>
+  </div>`;
+}
+
+function statusColor(s) {
+  return { PASS: 'var(--pass)', FAIL: 'var(--fail)', BLOCKED: 'var(--blocked)', 'N/A': 'var(--na)', 'NOT TESTED': 'var(--pending)' }[s] || 'var(--pending)';
+}
+
+// ── Interactions ──
+function toggleSuite(id) {
+  state.suitesOpen[id] = !state.suitesOpen[id];
+  saveState();
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+function toggleTest(id) {
+  state.testsOpen[id] = !state.testsOpen[id];
+  saveState();
+  const el = document.querySelector(`[data-test-id="${id}"]`);
+  if (el) el.classList.toggle('open');
+}
+
+function setStatus(id, status) {
+  const ts = getTestState(id);
+  ts.status = status;
+  setTestState(id, ts);
+  refreshTestUI(id);
+  renderDashboard();
+  updateSuiteStats(id);
+}
+
+function toggleStep(testId, stepIdx) {
+  const ts = getTestState(testId);
+  ts.steps[stepIdx] = !ts.steps[stepIdx];
+  setTestState(testId, ts);
+  const el = document.getElementById(`step-${testId}-${stepIdx}`);
+  if (el) el.parentElement.classList.toggle('checked', ts.steps[stepIdx]);
+}
+
+function setEvidence(id, val) {
+  const ts = getTestState(id);
+  ts.evidence = val;
+  setTestState(id, ts);
+}
+
+function setField(id, key, val) {
+  const ts = getTestState(id);
+  ts.fields[key] = val;
+  setTestState(id, ts);
+}
+
+function refreshTestUI(id) {
+  const el = document.querySelector(`[data-test-id="${id}"]`);
+  if (!el) return;
+  const ts = getTestState(id);
+  el.dataset.status = ts.status;
+  const bar = el.querySelector('.tc-status-bar');
+  if (bar) {
+    bar.querySelectorAll('.status-btn').forEach(btn => {
+      btn.className = 'status-btn' + (btn.textContent === ts.status ? ' active-' + ts.status.toLowerCase().replace(/\s+/,'').replace('n/a','na') : '');
+    });
+  }
+  const meta = el.querySelector('.tc-meta');
+  if (meta) {
+    const statusTag = meta.querySelector('.tc-tag:last-child');
+    if (statusTag) {
+      statusTag.textContent = ts.status;
+      statusTag.style.background = statusColor(ts.status) + '20';
+      statusTag.style.color = statusColor(ts.status);
+    }
+  }
+}
+
+function updateSuiteStats(testId) {
+  const test = TESTS.find(t => t.id === testId);
+  if (!test) return;
+  const suite = document.getElementById(test.suiteId);
+  if (!suite) return;
+  const suiteTests = TESTS.filter(t => t.suiteId === test.suiteId);
+  const counts = { 'NOT TESTED': 0, PASS: 0, FAIL: 0, BLOCKED: 0, 'N/A': 0 };
+  suiteTests.forEach(t => { counts[getTestState(t.id).status]++; });
+  const statsEl = suite.querySelector('.suite-stats');
+  if (statsEl) {
+    statsEl.innerHTML = `
+      ${counts.PASS ? `<span class="st st-pass">${counts.PASS}</span>` : ''}
+      ${counts.FAIL ? `<span class="st st-fail">${counts.FAIL}</span>` : ''}
+      ${counts.BLOCKED ? `<span class="st st-blocked">${counts.BLOCKED}</span>` : ''}
+      ${counts['N/A'] ? `<span class="st st-na">${counts['N/A']}</span>` : ''}
+      <span class="st st-pending">${counts['NOT TESTED']}</span>
+    `;
+  }
+}
+
+// ── Filters ──
+function applyFilters() {
+  const app = document.getElementById('filterApp').value;
+  const role = document.getElementById('filterRole').value;
+  const status = document.getElementById('filterStatus').value;
+  const priority = document.getElementById('filterPriority').value;
+  const search = document.getElementById('globalSearch').value.toLowerCase();
+
+  document.querySelectorAll('.test-case').forEach(el => {
+    const tid = el.dataset.testId;
+    const t = TESTS.find(x => x.id === tid);
+    if (!t) return;
+    const ts = getTestState(tid);
+    let show = true;
+    if (app && t.app !== app) show = false;
+    if (role && t.role !== role) show = false;
+    if (status && ts.status !== status) show = false;
+    if (priority && t.priority !== priority) show = false;
+    if (search && !t.title.toLowerCase().includes(search) && !t.id.toLowerCase().includes(search)) show = false;
+    el.style.display = show ? '' : 'none';
+  });
+
+  // Show/hide suites based on visible tests
+  document.querySelectorAll('.suite').forEach(sEl => {
+    const visibleTests = sEl.querySelectorAll('.test-case:not([style*="display: none"])');
+    sEl.style.display = visibleTests.length > 0 ? '' : 'none';
+  });
+}
+
+// ── Quick filters ──
+document.querySelectorAll('.qf-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.qf-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const qf = btn.dataset.qf;
+    if (qf === 'all') {
+      document.getElementById('filterApp').value = '';
+      document.getElementById('filterRole').value = '';
+      document.getElementById('filterStatus').value = '';
+      document.getElementById('filterPriority').value = '';
+      document.getElementById('globalSearch').value = '';
+    } else if (qf === 'critical') {
+      document.getElementById('filterPriority').value = 'P0';
+    } else if (qf === 'fail') {
+      document.getElementById('filterStatus').value = 'FAIL';
+    } else if (qf === 'blocked') {
+      document.getElementById('filterStatus').value = 'BLOCKED';
+    }
+    applyFilters();
+  });
+});
+
+['filterApp','filterRole','filterStatus','filterPriority','globalSearch'].forEach(id => {
+  document.getElementById(id).addEventListener('input', applyFilters);
+  document.getElementById(id).addEventListener('change', applyFilters);
+});
+
+// ── Navigation ──
+document.querySelectorAll('#sideNav a').forEach(a => {
+  a.addEventListener('click', (e) => {
+    document.querySelectorAll('#sideNav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    const section = a.dataset.section;
+    document.querySelectorAll('.view-section').forEach(v => v.style.display = 'none');
+    const target = document.getElementById(section);
+    if (target) {
+      target.style.display = '';
+      document.getElementById('pageTitle').textContent = a.textContent.trim();
+    }
+    // Open suite if it's a suite link
+    if (section.startsWith('suite-')) {
+      const suiteId = 'SUITE-' + section.replace('suite-','').toUpperCase().replace('-','');
+      const suiteEl = document.getElementById(suiteId);
+      if (suiteEl && !suiteEl.classList.contains('open')) {
+        state.suitesOpen[suiteId] = true;
+        saveState();
+        suiteEl.classList.add('open');
+      }
+    }
+  });
+});
+
+// ── Export / Import ──
+function exportJSON() {
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `scs-uat-session-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      state = JSON.parse(e.target.result);
+      saveState();
+      renderAll();
+      alert('Session imported successfully.');
+    } catch(err) { alert('Invalid JSON file.'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function exportHTMLReport() {
+  const total = TESTS.length;
+  const counts = { 'NOT TESTED': 0, PASS: 0, FAIL: 0, BLOCKED: 0, 'N/A': 0 };
+  TESTS.forEach(t => { counts[getTestState(t.id).status]++; });
+  const tested = total - counts['NOT TESTED'];
+  const pct = total ? Math.round((tested / total) * 100) : 0;
+
+  let html = `<html><head><title>SCS UAT Report</title><style>body{font-family:sans-serif;max-width:800px;margin:40px auto;padding:20px}table{width:100%;border-collapse:collapse;margin:16px 0}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:.85rem}th{background:#f5f5f5}.pass{color:green}.fail{color:red}.blocked{color:orange}</style></head><body>`;
+  html += `<h1>SCS Platform — Human UAT Report</h1>`;
+  html += `<p>Generated: ${new Date().toISOString()}</p>`;
+  html += `<h2>Summary</h2><table><tr><th>Metric</th><th>Value</th></tr>`;
+  html += `<tr><td>Total Tests</td><td>${total}</td></tr>`;
+  html += `<tr><td>Tested</td><td>${tested} (${pct}%)</td></tr>`;
+  html += `<tr><td>Passed</td><td class="pass">${counts.PASS}</td></tr>`;
+  html += `<tr><td>Failed</td><td class="fail">${counts.FAIL}</td></tr>`;
+  html += `<tr><td>Blocked</td><td class="blocked">${counts.BLOCKED}</td></tr>`;
+  html += `<tr><td>N/A</td><td>${counts['N/A']}</td></tr>`;
+  html += `<tr><td>Not Tested</td><td>${counts['NOT TESTED']}</td></tr></table>`;
+
+  if (counts.FAIL > 0) {
+    html += `<h2>Failed Tests</h2><table><tr><th>ID</th><th>Title</th><th>Notes</th></tr>`;
+    TESTS.filter(t => getTestState(t.id).status === 'FAIL').forEach(t => {
+      const ts = getTestState(t.id);
+      html += `<tr><td>${t.id}</td><td>${t.title}</td><td>${ts.evidence || '-'}</td></tr>`;
+    });
+    html += `</table>`;
+  }
+
+  if (counts.BLOCKED > 0) {
+    html += `<h2>Blocked Tests</h2><table><tr><th>ID</th><th>Title</th><th>Blocker</th></tr>`;
+    TESTS.filter(t => getTestState(t.id).status === 'BLOCKED').forEach(t => {
+      const ts = getTestState(t.id);
+      html += `<tr><td>${t.id}</td><td>${t.title}</td><td>${ts.evidence || '-'}</td></tr>`;
+    });
+    html += `</table>`;
+  }
+
+  const so = state.signoff || {};
+  html += `<h2>Sign-Off</h2><table>`;
+  html += `<tr><td>Tester</td><td>${so.tester || '-'}</td></tr>`;
+  html += `<tr><td>Date</td><td>${so.date || '-'}</td></tr>`;
+  html += `<tr><td>Environment</td><td>${so.env || '-'}</td></tr>`;
+  html += `<tr><td>Acceptance</td><td>${so.acceptance || '-'}</td></tr>`;
+  html += `<tr><td>Notes</td><td>${so.notes || '-'}</td></tr></table>`;
+  html += `</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `scs-uat-report-${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+}
+
+function resetAll() {
+  if (!confirm('Reset all test progress? This cannot be undone.')) return;
+  state = { tests: {}, session: {}, signoff: {}, suitesOpen: {}, testsOpen: {} };
+  saveState();
+  renderAll();
+}
+
+// ── Sign-off persistence ──
+['signoffTester','signoffDate','signoffEnv','signoffAcceptance','signoffNotes'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const key = id.replace('signoff','').toLowerCase();
+  el.addEventListener('input', () => { state.signoff[key] = el.value; saveState(); });
+});
+
+function restoreSignoff() {
+  const so = state.signoff || {};
+  if (so.tester) document.getElementById('signoffTester').value = so.tester;
+  if (so.date) document.getElementById('signoffDate').value = so.date;
+  if (so.env) document.getElementById('signoffEnv').value = so.env;
+  if (so.acceptance) document.getElementById('signoffAcceptance').value = so.acceptance;
+  if (so.notes) document.getElementById('signoffNotes').value = so.notes;
+}
+
+// ── Init ──
+function renderAll() {
+  renderDashboard();
+  renderSession();
+  renderAutoEvidence();
+  renderSuites();
+  restoreSignoff();
+}
+
+loadState();
+renderAll();
+</script>
+</body>
+</html>
