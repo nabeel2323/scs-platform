@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet, jsonb } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
 /**
  * Identity & access schema (migration 0001_identity)
@@ -73,6 +74,26 @@ export const organizationMembers = pgTable('organization_members', {
   status: varchar('status', { length: 12 }).notNull().default('ACTIVE'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ── Drizzle relational query definitions ─────────────────────
+
+export const usersRelations = relations(users, ({ many }) => ({
+  orgMemberships: many(organizationMembers),
+}));
+
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  members: many(organizationMembers),
+}));
+
+export const rolesRelations = relations(roles, ({ many }) => ({
+  members: many(organizationMembers),
+}));
+
+export const organizationMembersRelations = relations(organizationMembers, ({ one }) => ({
+  user: one(users, { fields: [organizationMembers.userId], references: [users.id] }),
+  role: one(roles, { fields: [organizationMembers.roleId], references: [roles.id] }),
+  organization: one(organizations, { fields: [organizationMembers.orgId], references: [organizations.id] }),
+}));
 
 /**
  * Organization update requests — merchants submit proposed changes to legal
