@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import {
   uploadCatalogImport,
   fetchCatalogImports,
@@ -333,6 +334,7 @@ function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefres
                     <td style={tdStyle}>{imp.errorCount}</td>
                     <td style={tdStyle}>{formatDate(imp.createdAt)}</td>
                     <td style={tdStyle}>
+                      <Link href={`/catalog-import/${imp.id}`} style={{...btnSmall, textDecoration: 'none', color: colors.brand[700], borderColor: colors.brand[300]}}>Details</Link>
                       {imp.errorCount > 0 && (
                         <button onClick={() => onViewErrors(imp.id)} style={btnSmall}>Errors</button>
                       )}

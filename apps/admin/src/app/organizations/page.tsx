@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { UPDATE_REQUEST_STATUS_LABELS } from '@scs/contracts';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { getUser } from '../../lib/auth';
@@ -209,19 +210,13 @@ export default function OrganizationsPage() {
                     </td>
                     <td style={td}>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <button
-                          onClick={async () => {
-                            setDetailLoading(true);
-                            setDetailOrg(null);
-                            try { setDetailOrg(await fetchAdminOrganizationDetail(org.id)); }
-                            catch { /* handled by null check */ }
-                            finally { setDetailLoading(false); }
-                          }}
+                        <Link
+                          href={`/organizations/${org.id}`}
                           style={viewBtn}
                           aria-label={`View details for ${org.name}`}
                         >
                           View Details
-                        </button>
+                        </Link>
                         {canManage && (
                           <button
                             onClick={() => setConfirmTarget({ org, next: !org.isActive })}

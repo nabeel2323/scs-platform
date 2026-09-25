@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   AttributeDefinition, AttributeOption, AttributeScope, AttributeType,
   fetchAttributes, createAttribute, updateAttribute, deleteAttribute, addAttributeOption,
@@ -142,7 +143,7 @@ export default function AttributesPage() {
                     <td>{HAS_OPTIONS.has(attr.type) ? (attr.options?.length ?? 0) : '—'}</td>
                     <td>
                       <div className={styles['actions']}>
-                        <button type="button" onClick={() => setEditing(attr)}>View / Edit</button>
+                        <Link href={`/attributes/${attr.id}`} className={styles['viewLink']}>View / Edit</Link>
                       </div>
                     </td>
                   </tr>

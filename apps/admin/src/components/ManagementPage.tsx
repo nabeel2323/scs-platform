@@ -14,6 +14,18 @@ import { ErrorNotice, PreviewImage, RecordFields, textValue } from './RecordFiel
 import { CategoryEditor, BrandEditor, DisputeActions, useAdminMutation, UserMemberships, UserStatusActions, userDetailKeys, OfferGovernanceActions } from './EntityActions';
 import styles from './management.module.css';
 
+/** Entities that have dedicated detail pages — clicking View navigates instead of opening a modal. */
+const DETAIL_PAGE_ROUTES: Partial<Record<ManagementEntity, (id: string) => string>> = {
+  products: (id: string) => `/products/${id}`,
+  offers: (id: string) => `/offers/${id}`,
+  categories: (id: string) => `/categories/${id}`,
+  brands: (id: string) => `/brands/${id}`,
+  merchants: (id: string) => `/merchants/${id}`,
+  orders: (id: string) => `/orders/${id}`,
+  users: (id: string) => `/users/${id}`,
+  disputes: (id: string) => `/disputes/${id}`,
+};
+
 export default function ManagementPage({ entity }: { entity: ManagementEntity }) {
   return <Suspense fallback={<div style={{ padding: 32 }}><SkeletonTable rows={6} cols={5} /></div>}><ManagementTable entity={entity} /></Suspense>;
 }
@@ -133,11 +145,21 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
           </th>)}<th scope="col">Actions</th>
         </tr></thead><tbody>
           {rows.map(row => <tr key={row.id} data-row-id={row.id} data-selected={selectedId === row.id} onClick={event => {
-            if (rowClickOpensDetail(event.target)) { event.currentTarget.querySelector<HTMLButtonElement>('[data-view]')?.focus(); open(row); }
+            if (rowClickOpensDetail(event.target)) {
+              if (DETAIL_PAGE_ROUTES[entity]) {
+                window.location.href = DETAIL_PAGE_ROUTES[entity]!(row.id);
+              } else {
+                event.currentTarget.querySelector<HTMLButtonElement>('[data-view]')?.focus(); open(row);
+              }
+            }
           }}>
             {config.columns.map(field => <td key={field}><Cell row={row} field={field} /></td>)}
             <td><div className={styles['actions']}>
-              <button type="button" data-view onClick={() => open(row)} aria-label={`View ${row['title'] || row['fullName'] || row['displayName'] || row['name'] || row.id}`}>View</button>
+              {DETAIL_PAGE_ROUTES[entity] ? (
+                <Link href={DETAIL_PAGE_ROUTES[entity]!(row.id)} className={styles['viewLink']} aria-label={`View ${row['title'] || row['fullName'] || row['displayName'] || row['name'] || row.id}`}>View</Link>
+              ) : (
+                <button type="button" data-view onClick={() => open(row)} aria-label={`View ${row['title'] || row['fullName'] || row['displayName'] || row['name'] || row.id}`}>View</button>
+              )}
               {entity === 'products' && <ProductModerationActions id={row.id} status={String(row['status'])} onDone={list.reload} />}
               {entity === 'offers' && <OfferGovernanceActions record={row} onDone={list.reload} />}
               {entity === 'users' && <UserStatusActions record={row} onDone={list.reload} />}
