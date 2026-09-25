@@ -5,6 +5,42 @@ import { authFetch } from './auth';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
+// ── Error handling ───────────────────────────────────────────
+
+/**
+ * HTTP-aware error thrown by every API function.  Carries the status code so
+ * UI layers can differentiate 409 (conflict), 422 (validation), 429 (rate
+ * limit), etc. from generic 500 failures.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+
+  /**
+   * Build an ApiError from a failed Response.  Reads the problem+json body
+   * when available, otherwise falls back to a status-keyed message.
+   */
+  static async from(res: Response, fallback: string): Promise<ApiError> {
+    let detail = '';
+    try {
+      const body = await res.clone().json();
+      detail = body?.detail || body?.message || '';
+    } catch { /* non-JSON body — use status map */ }
+
+    if (!detail) {
+      detail = fallback;
+    }
+    return new ApiError(res.status, detail);
+  }
+}
+
 // ── Types ────────────────────────────────────────────────────
 
 export interface FacetEntry {
@@ -281,13 +317,13 @@ export async function searchProducts(params: {
   if (params.offset) qs.set('offset', String(params.offset));
   if (params.attrFilters && Object.keys(params.attrFilters).length > 0) qs.set('attrFilters', JSON.stringify(params.attrFilters));
   const res = await authFetch(`${API_URL}/v1/search?${qs}`);
-  if (!res.ok) throw new Error(`Search failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Search failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchCategories(): Promise<Category[]> {
   const res = await authFetch(`${API_URL}/v1/search/categories`);
-  if (!res.ok) throw new Error(`Categories failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Categories failed (${res.status})`);
   return res.json();
 }
 
@@ -295,7 +331,7 @@ export async function fetchBrands(): Promise<
   { id: string; name: string; slug: string; logoUrl: string | null }[]
 > {
   const res = await authFetch(`${API_URL}/v1/search/brands`);
-  if (!res.ok) throw new Error(`Brands failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Brands failed (${res.status})`);
   return res.json();
 }
 
@@ -304,13 +340,13 @@ export async function fetchBrands(): Promise<
 /** Product + seller + per-variant pricing (`store`/`variants` added by A5-1). */
 export async function fetchProduct(id: string): Promise<ProductDetail> {
   const res = await authFetch(`${API_URL}/v1/products/${id}`);
-  if (!res.ok) throw new Error(`Product failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Product not found (${res.status})`);
   return res.json();
 }
 
 export async function fetchProductVariants(productId: string): Promise<ProductVariant[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/variants`);
-  if (!res.ok) throw new Error(`Variants failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Variants failed (${res.status})`);
   return res.json();
 }
 
@@ -324,13 +360,13 @@ export async function fetchPublicStores(params?: {
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
   const res = await authFetch(`${API_URL}/v1/stores?${qs}`);
-  if (!res.ok) throw new Error(`Stores failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Stores failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchPublicStore(slugOrId: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/stores/${slugOrId}`);
-  if (!res.ok) throw new Error(`Store failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Store not found (${res.status})`);
   return res.json();
 }
 
@@ -358,7 +394,7 @@ export async function fetchStoreProducts(
   if (params?.limit) qs.set('limit', String(params.limit));
   if (params?.offset) qs.set('offset', String(params.offset));
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products?${qs}`);
-  if (!res.ok) throw new Error(`Store products failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Store products failed (${res.status})`);
   return res.json();
 }
 
@@ -366,7 +402,7 @@ export async function fetchStoreProducts(
 
 export async function fetchCart(): Promise<Cart> {
   const res = await authFetch(`${API_URL}/v1/cart`);
-  if (!res.ok) throw new Error(`Cart failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Cart failed (${res.status})`);
   return res.json();
 }
 
@@ -382,7 +418,7 @@ export async function addToCart(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Add to cart failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Could not add to cart (${res.status})`);
   return res.json();
 }
 
@@ -392,19 +428,19 @@ export async function updateCartItem(itemId: string, quantity: number): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ quantity }),
   });
-  if (!res.ok) throw new Error(`Update cart failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update cart failed (${res.status})`);
   return res.json();
 }
 
 export async function removeCartItem(itemId: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/cart/items/${itemId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Remove cart item failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Remove cart item failed (${res.status})`);
   return res.json();
 }
 
 export async function clearCart(): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/cart`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Clear cart failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Clear cart failed (${res.status})`);
   return res.json();
 }
 
@@ -418,7 +454,7 @@ export interface CartValidationReport {
 
 export async function validateCart(): Promise<CartValidationReport> {
   const res = await authFetch(`${API_URL}/v1/cart/validate`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Cart validation failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Cart validation failed (${res.status})`);
   return res.json();
 }
 
@@ -428,7 +464,7 @@ export async function applyPromoCode(code: string): Promise<unknown> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   });
-  if (!res.ok) throw new Error(`Apply promo failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Invalid promo code (${res.status})`);
   return res.json();
 }
 
@@ -445,7 +481,7 @@ export async function checkout(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Checkout failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Checkout failed (${res.status})`);
   return res.json();
 }
 
@@ -459,7 +495,7 @@ export async function fetchOrders(params?: {
   if (params?.status) qs.set('status', params.status);
   if (params?.storeId) qs.set('storeId', params.storeId);
   const res = await authFetch(`${API_URL}/v1/orders?${qs}`);
-  if (!res.ok) throw new Error(`Orders failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Orders failed (${res.status})`);
   return res.json();
 }
 
@@ -467,19 +503,19 @@ export async function fetchOrder(
   id: string,
 ): Promise<SubOrder & { items: OrderItem[]; financialBreakdown: unknown }> {
   const res = await authFetch(`${API_URL}/v1/orders/${id}`);
-  if (!res.ok) throw new Error(`Order failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Order failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchMasterOrder(id: string): Promise<MasterOrder> {
   const res = await authFetch(`${API_URL}/v1/orders/master/${id}`);
-  if (!res.ok) throw new Error(`Master order failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Master order failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchOrderHistory(orderId: string): Promise<StatusHistoryEntry[]> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/history`);
-  if (!res.ok) throw new Error(`History failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `History failed (${res.status})`);
   return res.json();
 }
 
@@ -489,7 +525,7 @@ export async function cancelOrder(orderId: string, reason: string): Promise<unkn
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   });
-  if (!res.ok) throw new Error(`Cancel failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Cancel failed (${res.status})`);
   return res.json();
 }
 
@@ -506,7 +542,7 @@ export async function reorder(orderId: string): Promise<ReorderResult> {
   const res = await authFetch(`${API_URL}/v1/orders/master/${orderId}/reorder`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error(`Reorder failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Reorder failed (${res.status})`);
   return res.json();
 }
 
@@ -514,31 +550,31 @@ export async function reorder(orderId: string): Promise<ReorderResult> {
 
 export async function fetchNotifications(limit = 50, offset = 0): Promise<Notification[]> {
   const res = await authFetch(`${API_URL}/v1/notifications?limit=${limit}&offset=${offset}`);
-  if (!res.ok) throw new Error(`Notifications failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Notifications failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchUnreadCount(): Promise<{ count: number }> {
   const res = await authFetch(`${API_URL}/v1/notifications/unread-count`);
-  if (!res.ok) throw new Error(`Unread count failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Unread count failed (${res.status})`);
   return res.json();
 }
 
 export async function markNotificationRead(id: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/notifications/${id}/read`, { method: 'PATCH' });
-  if (!res.ok) throw new Error(`Mark read failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Mark read failed (${res.status})`);
   return res.json();
 }
 
 export async function markNotificationUnread(id: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/notifications/${id}/unread`, { method: 'PATCH' });
-  if (!res.ok) throw new Error(`Mark unread failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Mark unread failed (${res.status})`);
   return res.json();
 }
 
 export async function markAllNotificationsRead(): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/notifications/read-all`, { method: 'PATCH' });
-  if (!res.ok) throw new Error(`Mark all read failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Mark all read failed (${res.status})`);
   return res.json();
 }
 
@@ -558,13 +594,13 @@ export async function createReview(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Review failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Review failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchStoreReviews(storeId: string): Promise<Review[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/reviews`);
-  if (!res.ok) throw new Error(`Store reviews failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Store reviews failed (${res.status})`);
   return res.json();
 }
 
@@ -582,7 +618,7 @@ export async function fetchTrust(entityType: string, entityId: string): Promise<
   const res = await authFetch(`${API_URL}/v1/trust/${entityType}/${entityId}`);
   if (!res.ok) {
     if (res.status === 404) return null;
-    throw new Error(`Trust snapshot failed: ${res.status}`);
+    throw await ApiError.from(res, `Trust snapshot failed (${res.status})`);
   }
   return res.json();
 }
@@ -624,20 +660,20 @@ export async function createDispute(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Dispute failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Dispute failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchDisputes(status?: string): Promise<Dispute[]> {
   const qs = status ? `?status=${status}` : '';
   const res = await authFetch(`${API_URL}/v1/disputes${qs}`);
-  if (!res.ok) throw new Error(`Disputes failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Disputes failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchDisputeEvents(disputeId: string): Promise<DisputeEvent[]> {
   const res = await authFetch(`${API_URL}/v1/disputes/${disputeId}/events`);
-  if (!res.ok) throw new Error(`Dispute events failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Dispute events failed (${res.status})`);
   return res.json();
 }
 
@@ -651,7 +687,7 @@ export async function submitDisputeEvidence(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, attachments }),
   });
-  if (!res.ok) throw new Error(`Evidence submission failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Evidence submission failed (${res.status})`);
   return res.json();
 }
 
@@ -659,7 +695,7 @@ export async function submitDisputeEvidence(
 
 export async function acceptMerchantOrder(orderId: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/accept`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Accept failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Accept failed (${res.status})`);
   return res.json();
 }
 
@@ -669,7 +705,7 @@ export async function rejectMerchantOrder(orderId: string, reason: string): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason }),
   });
-  if (!res.ok) throw new Error(`Reject failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Reject failed (${res.status})`);
   return res.json();
 }
 
@@ -682,7 +718,7 @@ export async function partiallyAcceptMerchantOrder(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ confirmations }),
   });
-  if (!res.ok) throw new Error(`Partial accept failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Partial accept failed (${res.status})`);
   return res.json();
 }
 
@@ -696,7 +732,7 @@ export async function transitionOrderStatus(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, reason }),
   });
-  if (!res.ok) throw new Error(`Status transition failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Status transition failed (${res.status})`);
   return res.json();
 }
 
@@ -712,7 +748,7 @@ export interface Favorite {
 
 export async function fetchFavorites(): Promise<Favorite[]> {
   const res = await authFetch(`${API_URL}/v1/me/favorites`);
-  if (!res.ok) throw new Error(`Favorites failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Favorites failed (${res.status})`);
   return res.json();
 }
 
@@ -722,13 +758,13 @@ export async function addFavorite(productId: string): Promise<Favorite> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ productId }),
   });
-  if (!res.ok) throw new Error(`Add favorite failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Add favorite failed (${res.status})`);
   return res.json();
 }
 
 export async function removeFavorite(productId: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/me/favorites/${productId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Remove favorite failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Remove favorite failed (${res.status})`);
   return res.json();
 }
 
@@ -745,7 +781,7 @@ export interface SavedSupplier {
 
 export async function fetchSavedSuppliers(): Promise<SavedSupplier[]> {
   const res = await authFetch(`${API_URL}/v1/me/saved-suppliers`);
-  if (!res.ok) throw new Error(`Saved suppliers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Saved suppliers failed (${res.status})`);
   return res.json();
 }
 
@@ -755,13 +791,13 @@ export async function saveSupplier(storeId: string): Promise<SavedSupplier> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ storeId }),
   });
-  if (!res.ok) throw new Error(`Save supplier failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Save supplier failed (${res.status})`);
   return res.json();
 }
 
 export async function removeSavedSupplier(storeId: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/me/saved-suppliers/${storeId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Remove saved supplier failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Remove saved supplier failed (${res.status})`);
   return res.json();
 }
 
@@ -782,7 +818,7 @@ export interface UserProfile {
 
 export async function fetchProfile(): Promise<UserProfile> {
   const res = await authFetch(`${API_URL}/v1/me`);
-  if (!res.ok) throw new Error(`Profile failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Profile failed (${res.status})`);
   return res.json();
 }
 
@@ -796,13 +832,13 @@ export async function updateProfile(body: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Update profile failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update profile failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchMyOrganizations(): Promise<unknown[]> {
   const res = await authFetch(`${API_URL}/v1/me/organizations`);
-  if (!res.ok) throw new Error(`Organizations failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Organizations failed (${res.status})`);
   return res.json();
 }
 
@@ -820,7 +856,7 @@ export interface CustomerSummary {
 
 export async function fetchMerchantCustomers(): Promise<CustomerSummary[]> {
   const res = await authFetch(`${API_URL}/v1/merchant/customers`);
-  if (!res.ok) throw new Error(`Fetch customers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch customers failed (${res.status})`);
   return res.json();
 }
 
@@ -957,7 +993,7 @@ export async function createProduct(input: CreateProductInput): Promise<Product>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create product failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create product failed (${res.status})`);
   return res.json();
 }
 
@@ -967,27 +1003,19 @@ export async function updateProduct(id: string, input: UpdateProductInput): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    // Surface the RFC 7807 detail (e.g. moderation-guard rejections) to the UI
-    let detail = `Update product failed: ${res.status}`;
-    try {
-      const body = await res.json();
-      if (body?.detail) detail = body.detail;
-    } catch { /* non-JSON body */ }
-    throw new Error(detail);
-  }
+  if (!res.ok) throw await ApiError.from(res, `Update product failed (${res.status})`);
   return res.json();
 }
 
 export async function deleteProduct(id: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/products/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Delete product failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Delete product failed (${res.status})`);
   return res.json();
 }
 
 export async function listVariants(productId: string): Promise<ProductVariant[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/variants`);
-  if (!res.ok) throw new Error(`Variants failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Variants failed (${res.status})`);
   return res.json();
 }
 
@@ -1000,7 +1028,7 @@ export async function createVariant(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create variant failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create variant failed (${res.status})`);
   return res.json();
 }
 
@@ -1014,13 +1042,13 @@ export async function updateVariant(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update variant failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update variant failed (${res.status})`);
   return res.json();
 }
 
 export async function listMedia(productId: string): Promise<MediaItem[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/media`);
-  if (!res.ok) throw new Error(`Media failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Media failed (${res.status})`);
   return res.json();
 }
 
@@ -1030,13 +1058,13 @@ export async function addMedia(productId: string, input: AddMediaInput): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Add media failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Add media failed (${res.status})`);
   return res.json();
 }
 
 export async function removeMedia(productId: string, mediaId: string): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/media/${mediaId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Remove media failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Remove media failed (${res.status})`);
 }
 
 export async function bulkVariantOperations(
@@ -1052,7 +1080,7 @@ export async function bulkVariantOperations(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ops),
   });
-  if (!res.ok) throw new Error(`Bulk variant ops failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Bulk variant ops failed (${res.status})`);
   return res.json();
 }
 
@@ -1065,7 +1093,7 @@ export async function reorderProductMedia(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ order }),
   });
-  if (!res.ok) throw new Error(`Reorder media failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Reorder media failed (${res.status})`);
   return res.json();
 }
 
@@ -1078,13 +1106,13 @@ export async function presignMedia(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Presign failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Presign failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchStoreCategories(storeId: string): Promise<Category[]> {
   const res = await authFetch(`${API_URL}/v1/categories?storeId=${encodeURIComponent(storeId)}`);
-  if (!res.ok) throw new Error(`Categories failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Categories failed (${res.status})`);
   return res.json();
 }
 
@@ -1094,7 +1122,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Catego
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create category failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create category failed (${res.status})`);
   return res.json();
 }
 
@@ -1104,13 +1132,13 @@ export async function updateCategory(id: string, input: UpdateCategoryInput): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update category failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update category failed (${res.status})`);
   return res.json();
 }
 
 export async function deleteCategory(id: string): Promise<unknown> {
   const res = await authFetch(`${API_URL}/v1/categories/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Delete category failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Delete category failed (${res.status})`);
   return res.json();
 }
 
@@ -1144,20 +1172,20 @@ export interface InventoryItem {
 
 export async function fetchStoreWarehouses(storeId: string): Promise<WarehouseSummary[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/warehouses`);
-  if (!res.ok) throw new Error(`Warehouses failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Warehouses failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchWarehouseInventory(warehouseId: string): Promise<InventoryItem[]> {
   const res = await authFetch(`${API_URL}/v1/inventory/warehouse/${warehouseId}`);
-  if (!res.ok) throw new Error(`Inventory failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Inventory failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchLowStock(warehouseId?: string): Promise<InventoryItem[]> {
   const qs = warehouseId ? `?warehouseId=${encodeURIComponent(warehouseId)}` : '';
   const res = await authFetch(`${API_URL}/v1/inventory/low-stock${qs}`);
-  if (!res.ok) throw new Error(`Low stock failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Low stock failed (${res.status})`);
   return res.json();
 }
 
@@ -1171,7 +1199,7 @@ export async function adjustStock(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Adjust stock failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Adjust stock failed (${res.status})`);
   return res.json();
 }
 
@@ -1188,7 +1216,7 @@ export interface StockMovement {
 
 export async function fetchInventoryMovements(inventoryItemId: string, limit = 50): Promise<StockMovement[]> {
   const res = await authFetch(`${API_URL}/v1/inventory/${inventoryItemId}/movements?limit=${limit}`);
-  if (!res.ok) throw new Error(`Movements failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Movements failed (${res.status})`);
   return res.json();
 }
 
@@ -1203,7 +1231,7 @@ export async function createInventoryItem(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create inventory item failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create inventory item failed (${res.status})`);
   return res.json();
 }
 
@@ -1217,7 +1245,7 @@ export async function updateInventoryItem(id: string, input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update inventory item failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update inventory item failed (${res.status})`);
   return res.json();
 }
 
@@ -1231,7 +1259,7 @@ export async function bulkAdjustStock(items: Array<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ items }),
   });
-  if (!res.ok) throw new Error(`Bulk adjust failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Bulk adjust failed (${res.status})`);
   return res.json();
 }
 
@@ -1244,13 +1272,13 @@ export async function fetchStoreInventory(
   if (opts?.offset != null) params.set('offset', String(opts.offset));
   const qs = params.toString();
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory${qs ? `?${qs}` : ''}`);
-  if (!res.ok) throw new Error(`Store inventory failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Store inventory failed (${res.status})`);
   return res.json();
 }
 
 export async function exportInventoryCsv(storeId: string): Promise<string> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/export`);
-  if (!res.ok) throw new Error(`Export inventory failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Export inventory failed (${res.status})`);
   return res.text();
 }
 
@@ -1266,13 +1294,13 @@ export async function transferStock(input: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Transfer failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Transfer failed (${res.status})`);
   return res.json();
 }
 
 export async function exportMovementsCsv(storeId: string): Promise<string> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/movements/export`);
-  if (!res.ok) throw new Error(`Export movements failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Export movements failed (${res.status})`);
   return res.text();
 }
 
@@ -1280,7 +1308,7 @@ export async function checkLowStock(storeId: string): Promise<InventoryItem[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/inventory/check-low-stock`, {
     method: 'POST',
   });
-  if (!res.ok) throw new Error(`Low stock check failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Low stock check failed (${res.status})`);
   return res.json();
 }
 
@@ -1301,7 +1329,7 @@ export interface Brand {
 export async function fetchBrandsAdmin(includeInactive = false): Promise<Brand[]> {
   const qs = includeInactive ? '?includeInactive=true' : '';
   const res = await authFetch(`${API_URL}/v1/brands${qs}`);
-  if (!res.ok) throw new Error(`Brands failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Brands failed (${res.status})`);
   return res.json();
 }
 
@@ -1311,7 +1339,7 @@ export async function createBrand(input: { name: string; nameAr?: string; logoUr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create brand failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create brand failed (${res.status})`);
   return res.json();
 }
 
@@ -1321,13 +1349,13 @@ export async function updateBrand(id: string, input: Partial<Brand>): Promise<Br
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update brand failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update brand failed (${res.status})`);
   return res.json();
 }
 
 export async function deactivateBrand(id: string): Promise<Brand> {
   const res = await authFetch(`${API_URL}/v1/brands/${id}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Deactivate brand failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Deactivate brand failed (${res.status})`);
   return res.json();
 }
 
@@ -1361,13 +1389,13 @@ export interface PriceTier {
 
 export async function fetchStorePriceLists(storeId: string): Promise<PriceList[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/price-lists`);
-  if (!res.ok) throw new Error(`Price lists failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Price lists failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchPriceListTiers(listId: string): Promise<PriceTier[]> {
   const res = await authFetch(`${API_URL}/v1/price-lists/${listId}/tiers`);
-  if (!res.ok) throw new Error(`Price tiers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Price tiers failed (${res.status})`);
   return res.json();
 }
 
@@ -1377,7 +1405,7 @@ export async function createPriceList(input: { storeId: string; name: string; cu
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create price list failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Create price list failed (${res.status})`);
   return res.json();
 }
 
@@ -1387,7 +1415,7 @@ export async function addPriceTier(input: { priceListId: string; variantId: stri
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Add tier failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Add tier failed (${res.status})`);
   return res.json();
 }
 
@@ -1397,13 +1425,13 @@ export async function updatePriceTier(tierId: string, input: { minQty?: number; 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Update tier failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Update tier failed (${res.status})`);
   return res.json();
 }
 
 export async function removePriceTier(tierId: string): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/tiers/${tierId}`, { method: 'DELETE' });
-  if (!res.ok) throw new Error(`Remove tier failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Remove tier failed (${res.status})`);
 }
 
 // ── Device Management ────────────────────────────────────────
@@ -1420,7 +1448,7 @@ export interface DeviceToken {
 
 export async function fetchDevices(): Promise<DeviceToken[]> {
   const res = await authFetch(`${API_URL}/v1/me/devices`);
-  if (!res.ok) throw new Error(`Fetch devices failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch devices failed (${res.status})`);
   return res.json();
 }
 
@@ -1428,7 +1456,7 @@ export async function unregisterDevice(token: string): Promise<{ success: boolea
   const res = await authFetch(`${API_URL}/v1/me/devices/${encodeURIComponent(token)}`, {
     method: 'DELETE',
   });
-  if (!res.ok) throw new Error(`Unregister device failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Unregister device failed (${res.status})`);
   return res.json();
 }
 
@@ -1443,19 +1471,19 @@ export async function bulkProductAction(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`Bulk action failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Bulk action failed (${res.status})`);
   return res.json();
 }
 
 export async function exportProductsCsv(storeId: string): Promise<string> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/products/export`);
-  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Export failed (${res.status})`);
   return res.text();
 }
 
 export async function fetchStoreVariants(storeId: string): Promise<ProductVariant[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${storeId}/variants`);
-  if (!res.ok) throw new Error(`Store variants failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Store variants failed (${res.status})`);
   return res.json();
 }
 
@@ -1503,7 +1531,7 @@ export interface CreateOfferInput {
 
 export async function fetchProductOffers(productId: string): Promise<Offer[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/offers`);
-  if (!res.ok) throw new Error(`Product offers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Product offers failed (${res.status})`);
   return res.json();
 }
 
@@ -1543,14 +1571,14 @@ export interface RankedProductOffer {
 
 export async function fetchProductOffersRanked(productId: string): Promise<RankedProductOffer[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/offers/ranked`);
-  if (!res.ok) throw new Error(`Ranked product offers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Ranked product offers failed (${res.status})`);
   return res.json();
 }
 
 export async function fetchMerchantOffers(storeId: string, status?: string): Promise<Offer[]> {
   const params = status ? `?status=${status}` : '';
   const res = await authFetch(`${API_URL}/v1/merchant/offers?storeId=${storeId}${status ? `&status=${status}` : ''}`);
-  if (!res.ok) throw new Error(`Merchant offers failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Merchant offers failed (${res.status})`);
   return res.json();
 }
 
@@ -1579,7 +1607,7 @@ export interface OfferAnalyticsRow {
 
 export async function fetchMerchantOfferAnalytics(storeId: string): Promise<OfferAnalyticsRow[]> {
   const res = await authFetch(`${API_URL}/v1/merchant/offers/analytics?storeId=${storeId}`);
-  if (!res.ok) throw new Error(`Offer analytics failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Offer analytics failed (${res.status})`);
   return res.json();
 }
 
@@ -1608,7 +1636,7 @@ export async function fetchMerchantOfferTrend(opts: {
   if (opts.from) params.set('from', opts.from);
   else if (opts.days != null) params.set('days', String(opts.days));
   const res = await authFetch(`${API_URL}/v1/merchant/offers/analytics/trend?${params.toString()}`);
-  if (!res.ok) throw new Error(`Offer trend failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Offer trend failed (${res.status})`);
   return res.json();
 }
 
@@ -1616,19 +1644,19 @@ export async function createMerchantOffer(input: CreateOfferInput): Promise<Offe
   const res = await authFetch(`${API_URL}/v1/merchant/offers`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
-  if (!res.ok) { const b = await res.json().catch(() => ({})); throw new Error(b.message || `Create failed (${res.status})`); }
+  if (!res.ok) throw await ApiError.from(res, `Create offer failed (${res.status})`);
   return res.json();
 }
 
 export async function proposeOffer(offerId: string): Promise<Offer> {
   const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/propose`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Propose failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Propose failed (${res.status})`);
   return res.json();
 }
 
 export async function withdrawOffer(offerId: string): Promise<Offer> {
   const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/withdraw`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Withdraw failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Withdraw failed (${res.status})`);
   return res.json();
 }
 
@@ -1636,7 +1664,7 @@ export async function updateOfferPricing(offerId: string, patch: { basePriceMino
   const res = await authFetch(`${API_URL}/v1/merchant/offers/${offerId}/pricing`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
   });
-  if (!res.ok) throw new Error(`Pricing update failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Pricing update failed (${res.status})`);
   return res.json();
 }
 
@@ -1661,7 +1689,7 @@ export async function fetchProductTypes(params?: {
   if (params?.status) sp.set('status', params.status);
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/product-types${qs ? `?${qs}` : ''}`);
-  if (!res.ok) throw new Error(`Product types failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Product types failed (${res.status})`);
   return res.json();
 }
 
@@ -1690,7 +1718,7 @@ export interface ProductTypeSchemaDetail extends ProductTypeSummary {
 
 export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSchemaDetail> {
   const res = await authFetch(`${API_URL}/v1/product-types/${id}/schema`);
-  if (!res.ok) throw new Error(`Product type schema failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Product type schema failed (${res.status})`);
   return res.json();
 }
 
@@ -1704,7 +1732,7 @@ export async function searchCanonicalProducts(params: {
   if (params.title) sp.set('title', params.title);
   const qs = sp.toString();
   const res = await authFetch(`${API_URL}/v1/canonical/match${qs ? `?${qs}` : ''}`);
-  if (!res.ok) throw new Error(`Canonical search failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Canonical search failed (${res.status})`);
   return res.json();
 }
 
@@ -1738,7 +1766,7 @@ export interface VariantMatrix {
 
 export async function fetchVariantMatrix(productId: string): Promise<VariantMatrix> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/variant-matrix`);
-  if (!res.ok) throw new Error(`Variant matrix failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Variant matrix failed (${res.status})`);
   return res.json();
 }
 
@@ -1751,7 +1779,7 @@ export async function upsertProductAttributeValues(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ values }),
   });
-  if (!res.ok) throw new Error(`Upsert attribute values failed: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Upsert attribute values failed (${res.status})`);
   return res.json();
 }
 
@@ -1799,7 +1827,7 @@ export interface CreatePromotionInput {
 
 export async function fetchStorePromotions(storeId: string): Promise<Promotion[]> {
   const res = await authFetch(`${API_URL}/v1/stores/${encodeURIComponent(storeId)}/promotions`);
-  if (!res.ok) throw new Error(`Failed to fetch promotions: ${res.status}`);
+  if (!res.ok) throw await ApiError.from(res, `Failed to fetch promotions (${res.status})`);
   return res.json();
 }
 
@@ -1809,10 +1837,7 @@ export async function createPromotion(input: CreatePromotionInput): Promise<Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Failed to create promotion: ${res.status}`);
-  }
+  if (!res.ok) throw await ApiError.from(res, `Create promotion failed (${res.status})`);
   return res.json();
 }
 
@@ -1822,9 +1847,6 @@ export async function updatePromotion(id: string, input: Partial<CreatePromotion
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Failed to update promotion: ${res.status}`);
-  }
+  if (!res.ok) throw await ApiError.from(res, `Update promotion failed (${res.status})`);
   return res.json();
 }

@@ -547,7 +547,9 @@ export class ExcelExecutorService {
     }
 
     const id = randomUUID();
-    // Upsert on unique(slug) to prevent duplicate-key violation from poisoning the transaction
+    // Plain INSERT for CREATE actions — planner already verified product doesn't exist.
+    // No onConflictDoUpdate because DB has UNIQUE(store_id, slug) not UNIQUE(slug),
+    // and canonical products have store_id = NULL.
     await tx.insert(products).values({
       id,
       storeId: null, // Canonical product
@@ -564,20 +566,6 @@ export class ExcelExecutorService {
       ean: d.ean ? (d.ean as string).slice(0, 20) : null,
       status: ((d.status as string) || 'ACTIVE').slice(0, 16),
       condition: ((d.condition as string) || 'NEW').slice(0, 16),
-    }).onConflictDoUpdate({
-      target: products.slug,
-      set: {
-        title: sql`excluded.title`,
-        titleAr: sql`excluded.title_ar`,
-        description: sql`excluded.description`,
-        descriptionAr: sql`excluded.description_ar`,
-        mpn: sql`excluded.mpn`,
-        gtin: sql`excluded.gtin`,
-        ean: sql`excluded.ean`,
-        status: sql`excluded.status`,
-        condition: sql`excluded.condition`,
-        updatedAt: new Date(),
-      },
     });
     return id;
   }

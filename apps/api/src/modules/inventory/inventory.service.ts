@@ -182,25 +182,35 @@ export class InventoryService {
   }
 
   async bulkAdjustStock(items: Array<{ inventoryItemId: string; quantity: number; reason?: string }>, userId?: string, caller?: CallerContext) {
+    // ADVERSARIAL FIX: each adjustment is wrapped in its own transaction so a
+    // movement write failure cannot leave qty changed without a ledger row.
     const results: Array<{ inventoryItemId: string; newQty: number }> = [];
     for (const item of items) {
       if (caller) await assertInventoryItemInOrg(this.db, caller, item.inventoryItemId);
       const inv = await this.getItem(item.inventoryItemId);
       const newQty = inv['qtyOnHand'] + item.quantity;
+      // ADVERSARIAL FIX: respect reserved stock
+      if (newQty < inv['qtyReserved']) {
+        throw new BadRequestException(
+          `Insufficient stock for ${item.inventoryItemId}: ${inv['qtyOnHand']} on hand, ${inv['qtyReserved']} reserved`,
+        );
+      }
       if (newQty < 0) throw new BadRequestException(`Insufficient stock for ${item.inventoryItemId}`);
 
-      await this.db.db
-        .update(inventoryItems)
-        .set({ qtyOnHand: newQty, updatedAt: new Date() })
-        .where(eq(inventoryItems.id, item.inventoryItemId));
+      await this.db.db.transaction(async (tx) => {
+        await tx
+          .update(inventoryItems)
+          .set({ qtyOnHand: newQty, updatedAt: new Date() })
+          .where(eq(inventoryItems.id, item.inventoryItemId));
 
-      await this.db.db.insert(stockMovements).values({
-        id: crypto.randomUUID(),
-        inventoryItemId: item.inventoryItemId,
-        movementType: 'ADJUST',
-        quantity: item.quantity,
-        reason: item.reason || null,
-        performedBy: userId || null,
+        await tx.insert(stockMovements).values({
+          id: crypto.randomUUID(),
+          inventoryItemId: item.inventoryItemId,
+          movementType: 'ADJUST',
+          quantity: item.quantity,
+          reason: item.reason || null,
+          performedBy: userId || null,
+        });
       });
 
       results.push({ inventoryItemId: item.inventoryItemId, newQty });
@@ -262,24 +272,34 @@ export class InventoryService {
     const item = await this.getItem(input.inventoryItemId);
     if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
 
-    // Update quantity
+    // ADVERSARIAL FIX: negative adjustments must not reduce on-hand below
+    // reserved — otherwise orders that already reserved stock become
+    // unfulfillable and the ledger is silently corrupted.
     const newQty = item['qtyOnHand'] + input.quantity;
+    if (newQty < item['qtyReserved']) {
+      throw new BadRequestException(
+        `Insufficient stock: ${item['qtyOnHand']} on hand, ${item['qtyReserved']} reserved — cannot reduce below reserved`,
+      );
+    }
     if (newQty < 0) throw new BadRequestException('Insufficient stock for adjustment');
 
-    await this.db.db
-      .update(inventoryItems)
-      .set({ qtyOnHand: newQty, updatedAt: new Date() })
-      .where(eq(inventoryItems.id, input.inventoryItemId));
-
-    // Record movement
+    // ADVERSARIAL FIX: wrap update + movement in a single transaction so a
+    // failed movement insert cannot leave qty changed without a ledger row.
     const movementId = crypto.randomUUID();
-    await this.db.db.insert(stockMovements).values({
-      id: movementId,
-      inventoryItemId: input.inventoryItemId,
-      movementType: 'ADJUST',
-      quantity: input.quantity,
-      reason: input.reason || null,
-      performedBy: input.userId || null,
+    await this.db.db.transaction(async (tx) => {
+      await tx
+        .update(inventoryItems)
+        .set({ qtyOnHand: newQty, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, input.inventoryItemId));
+
+      await tx.insert(stockMovements).values({
+        id: movementId,
+        inventoryItemId: input.inventoryItemId,
+        movementType: 'ADJUST',
+        quantity: input.quantity,
+        reason: input.reason || null,
+        performedBy: input.userId || null,
+      });
     });
 
     // Emit low-stock alert if stock dropped below reorder point
@@ -414,61 +434,73 @@ export class InventoryService {
       throw new BadRequestException('Inventory item does not belong to source warehouse');
     }
 
+    // ADVERSARIAL FIX: respect reserved stock — transferable amount is
+    // on-hand minus reserved, not raw on-hand. Without this check a transfer
+    // could consume stock already promised to an accepted order.
+    const availableForTransfer = item['qtyOnHand'] - item['qtyReserved'];
+    if (availableForTransfer < input.quantity) {
+      throw new BadRequestException(
+        `Insufficient available stock: ${availableForTransfer} available (${item['qtyOnHand']} on hand - ${item['qtyReserved']} reserved) < ${input.quantity} requested`,
+      );
+    }
     const sourceQty = item['qtyOnHand'] - input.quantity;
-    if (sourceQty < 0) throw new BadRequestException('Insufficient stock for transfer');
 
-    // Decrement source
-    await this.db.db
-      .update(inventoryItems)
-      .set({ qtyOnHand: sourceQty, updatedAt: new Date() })
-      .where(eq(inventoryItems.id, input.inventoryItemId));
-
-    await this.db.db.insert(stockMovements).values({
-      id: crypto.randomUUID(),
-      inventoryItemId: input.inventoryItemId,
-      movementType: 'ADJUST',
-      quantity: -input.quantity,
-      reason: input.reason || `Transfer to warehouse ${input.toWarehouseId}`,
-      performedBy: input.userId || null,
-    });
-
-    // Find or create destination inventory item for the same variant
+    // Pre-resolve destination outside the transaction (read-only)
     const destItem = await this.db.db.query.inventoryItems.findFirst({
       where: and(
         eq(inventoryItems.variantId, item['variantId']),
         eq(inventoryItems.warehouseId, input.toWarehouseId),
       ),
     });
+    const destId = destItem?.id ?? crypto.randomUUID();
 
-    let destId: string;
-    if (destItem) {
-      destId = destItem.id;
-      await this.db.db
+    // ADVERSARIAL FIX: entire transfer is atomic — source decrement, destination
+    // increment, and all four movement rows in one transaction. Without this,
+    // a failure between source and destination writes permanently loses stock.
+    await this.db.db.transaction(async (tx) => {
+      // Decrement source
+      await tx
         .update(inventoryItems)
-        .set({ qtyOnHand: destItem['qtyOnHand'] + input.quantity, updatedAt: new Date() })
-        .where(eq(inventoryItems.id, destId));
-    } else {
-      destId = crypto.randomUUID();
-      await this.db.db.insert(inventoryItems).values({
-        id: destId,
-        variantId: item['variantId'],
-        warehouseId: input.toWarehouseId,
-        qtyOnHand: input.quantity,
-        qtyReserved: 0,
-        reorderPoint: 0,
-      });
-    }
+        .set({ qtyOnHand: sourceQty, updatedAt: new Date() })
+        .where(eq(inventoryItems.id, input.inventoryItemId));
 
-    await this.db.db.insert(stockMovements).values({
-      id: crypto.randomUUID(),
-      inventoryItemId: destId,
-      movementType: 'ADJUST',
-      quantity: input.quantity,
-      reason: input.reason || `Transfer from warehouse ${input.fromWarehouseId}`,
-      performedBy: input.userId || null,
+      await tx.insert(stockMovements).values({
+        id: crypto.randomUUID(),
+        inventoryItemId: input.inventoryItemId,
+        movementType: 'ADJUST',
+        quantity: -input.quantity,
+        reason: input.reason || `Transfer to warehouse ${input.toWarehouseId}`,
+        performedBy: input.userId || null,
+      });
+
+      // Increment destination (or create)
+      if (destItem) {
+        await tx
+          .update(inventoryItems)
+          .set({ qtyOnHand: destItem['qtyOnHand'] + input.quantity, updatedAt: new Date() })
+          .where(eq(inventoryItems.id, destId));
+      } else {
+        await tx.insert(inventoryItems).values({
+          id: destId,
+          variantId: item['variantId'],
+          warehouseId: input.toWarehouseId,
+          qtyOnHand: input.quantity,
+          qtyReserved: 0,
+          reorderPoint: 0,
+        });
+      }
+
+      await tx.insert(stockMovements).values({
+        id: crypto.randomUUID(),
+        inventoryItemId: destId,
+        movementType: 'ADJUST',
+        quantity: input.quantity,
+        reason: input.reason || `Transfer from warehouse ${input.fromWarehouseId}`,
+        performedBy: input.userId || null,
+      });
     });
 
-    // Emit outbox event for notifications / audit
+    // Emit outbox event for notifications / audit (after commit)
     await this.outbox.publish('inventory.transferred', input.inventoryItemId, {
       inventoryItemId: input.inventoryItemId,
       variantId: item['variantId'],

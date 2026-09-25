@@ -35,7 +35,11 @@ function createStatefulMocks(initialStatus: string) {
   };
 
   const insertValues = vi.fn().mockResolvedValue(undefined);
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const updateWhere = vi.fn().mockImplementation(() => {
+    // Support .returning() chain — returns the updated row for optimistic lock checks
+    const result = { returning: vi.fn().mockResolvedValue([currentOrder]) };
+    return result;
+  });
   const updateSet = vi.fn().mockImplementation((values: Record<string, any>) => {
     // Track status changes in the mock order
     if (values['status']) currentOrder = { ...currentOrder, status: values['status'] };

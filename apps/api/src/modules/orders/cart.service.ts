@@ -306,10 +306,29 @@ export class CartService {
       return this.removeItem(userId, itemId);
     }
 
-    const newLineTotal = quantity * item['priceMinor'];
+    // ADVERSARIAL FIX: re-resolve the price tier when quantity changes. Without
+    // this, a buyer who added 5 units at tier-1 price ($10) and then increased
+    // to 50 units would still pay $10/unit even though tier-2 ($8) applies.
+    // Conversely, decreasing from 50 to 5 must move back to the higher tier.
+    const variantId = item['variantId'] as string;
+    const storeId = item['storeId'] as string;
+    const pricing = await resolveOfferPrices(
+      this.db.db,
+      storeId,
+      [variantId],
+      quantity,
+      { ladder: false },
+    );
+    const tier = pricing.get(variantId);
+    if (!tier) {
+      throw new BadRequestException('No price available for this item at the new quantity');
+    }
+    const newLineTotal = quantity * tier.unitPriceMinor;
+    const offerId = tier.offerId ?? (item['offerId'] as string | null) ?? null;
+
     await this.db.db
       .update(cartItems)
-      .set({ quantity, lineTotalMinor: newLineTotal, updatedAt: new Date() })
+      .set({ quantity, priceMinor: tier.unitPriceMinor, tierMinQty: tier.minQty, offerId, lineTotalMinor: newLineTotal, updatedAt: new Date() })
       .where(eq(cartItems.id, itemId));
 
     await this.recalculateTotal(cart['id']);
