@@ -16,7 +16,7 @@ import {
   type AttributeScope,
   type AttributeType,
 } from './catalog.taxonomy.schema';
-import { products, productVariants } from './catalog.schema';
+import { products, productVariants, categories } from './catalog.schema';
 import { eq, and, ne, isNull, asc, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -415,6 +415,30 @@ export class CatalogTaxonomyService {
     const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
     if (!pt) throw new NotFoundException('Product type not found');
     return pt;
+  }
+
+  /**
+   * Update only the category_id of a product type, preserving version,
+   * status, and all other fields.
+   */
+  async updateProductTypeCategory(id: string, categoryId: string | null) {
+    const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
+    if (!pt) throw new NotFoundException('Product type not found');
+
+    // Validate the category exists when a non-null value is provided
+    if (categoryId) {
+      const cat = await this.db.db.query.categories.findFirst({
+        where: eq(categories.id, categoryId),
+      });
+      if (!cat) throw new BadRequestException(`Category not found: ${categoryId}`);
+    }
+
+    await this.db.db
+      .update(productTypes)
+      .set({ categoryId, updatedAt: new Date() })
+      .where(eq(productTypes.id, id));
+
+    return this.getProductType(id);
   }
 
   /**

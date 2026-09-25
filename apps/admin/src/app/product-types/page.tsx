@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ProductType, ProductTypeSchema, AdminCategory,
   fetchProductTypes, fetchProductTypeSchema, createProductType, publishProductType,
-  fetchAdminCategories,
+  fetchAdminCategories, updateProductTypeCategory,
 } from '../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../hooks/useRequirePerms';
 import { SkeletonTable } from '@scs/ui-kit';
@@ -179,6 +179,7 @@ export default function ProductTypesPage() {
                 schema={schema}
                 categories={categories}
                 onPublish={() => handlePublish(selected.id)}
+                onUpdate={() => { load(); setSelected(null); }}
               />
             )}
           </DetailDialog>
@@ -301,14 +302,38 @@ function ProductTypeForm({ categories, onDone, onCancel }: {
 
 /* ── Detail View ───────────────────────────────────────────── */
 
-function ProductTypeDetail({ productType, schema, categories, onPublish }: {
+function ProductTypeDetail({ productType, schema, categories, onPublish, onUpdate }: {
   productType: ProductType;
   schema: ProductTypeSchema | null;
   categories: AdminCategory[];
   onPublish: () => void;
+  onUpdate: () => void;
 }) {
   const pt = productType;
-  const category = categories.find(c => c.id === pt.categoryId);
+  const [editCatId, setEditCatId] = useState(pt.categoryId ?? '');
+  const [catBusy, setCatBusy] = useState(false);
+  const [catError, setCatError] = useState<string | null>(null);
+  const catChanged = editCatId !== (pt.categoryId ?? '');
+
+  // Reset editor state when the selected product type changes
+  useEffect(() => {
+    setEditCatId(pt.categoryId ?? '');
+    setCatBusy(false);
+    setCatError(null);
+  }, [pt.id, pt.categoryId]);
+
+  const handleSaveCategory = async () => {
+    setCatBusy(true);
+    setCatError(null);
+    try {
+      await updateProductTypeCategory(pt.id, editCatId || null);
+      onUpdate();
+    } catch (e: unknown) {
+      setCatError(e instanceof Error ? e.message : 'Failed to update category');
+    } finally {
+      setCatBusy(false);
+    }
+  };
 
   return (
     <div>
@@ -332,7 +357,28 @@ function ProductTypeDetail({ productType, schema, categories, onPublish }: {
         </div>
         <div>
           <dt>Category</dt>
-          <dd>{category?.name ?? '—'}</dd>
+          <dd>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select
+                value={editCatId}
+                onChange={e => setEditCatId(e.target.value)}
+                disabled={catBusy}
+                style={{ minWidth: 160 }}
+              >
+                <option value="">— None —</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <button
+                type="button"
+                disabled={!catChanged || catBusy}
+                onClick={handleSaveCategory}
+                style={{ fontSize: 12, padding: '4px 12px' }}
+              >
+                {catBusy ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            {catError && <small className={styles['error']} style={{ display: 'block', marginTop: 4 }}>{catError}</small>}
+          </dd>
         </div>
         <div>
           <dt>Version</dt>

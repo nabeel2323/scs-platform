@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   fetchStoreWarehouses, fetchWarehouseInventory, adjustStock,
-  fetchInventoryMovements, fetchStoreVariants, createInventoryItem,
+  fetchInventoryMovements, fetchStoreProducts, fetchProductVariants, createInventoryItem,
   updateInventoryItem, bulkAdjustStock, fetchStoreInventory, exportInventoryCsv,
   transferStock, exportMovementsCsv, checkLowStock,
   StockMovement,
@@ -41,8 +41,12 @@ function InventoryPageContent() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Variant lookup for SKU display
+  // Variant lookup for SKU display + searchable dropdown
   const [variantMap, setVariantMap] = useState<Record<string, ProductVariant>>({});
+  const [allVariants, setAllVariants] = useState<ProductVariant[]>([]);
+  const [variantSearch, setVariantSearch] = useState('');
+  const [showVariantDrop, setShowVariantDrop] = useState(false);
+  const variantDropRef = useRef<HTMLDivElement>(null);
 
   // Create inventory item dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -153,15 +157,48 @@ function InventoryPageContent() {
     })();
   }, [loadInventory, loadVariantInventory, variantFilter]);
 
-  // Batch-fetch variant details for SKU display
+  // Batch-fetch variant details via two-phase load: products → variants per product
   useEffect(() => {
     if (!storeId) return;
-    fetchStoreVariants(storeId).then(variants => {
-      const map: Record<string, ProductVariant> = {};
-      for (const v of variants) map[v.id] = v;
-      setVariantMap(map);
-    }).catch(() => {});
+    (async () => {
+      try {
+        const products: any[] = [];
+        let offset = 0;
+        while (true) {
+          const env = await fetchStoreProducts(storeId, { limit: 50, offset });
+          products.push(...(env.items as any[]));
+          if (products.length >= env.total || env.items.length === 0) break;
+          offset += 50;
+        }
+        const variantArrays = await Promise.all(
+          products.map(p => fetchProductVariants(p.id).catch(() => []))
+        );
+        const variants = variantArrays.flat();
+        setAllVariants(variants);
+        const map: Record<string, ProductVariant> = {};
+        for (const v of variants) map[v.id] = v;
+        setVariantMap(map);
+      } catch { /* silent — variantMap stays empty */ }
+    })();
   }, [storeId]);
+
+  // Close variant dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (variantDropRef.current && !variantDropRef.current.contains(e.target as Node)) {
+        setShowVariantDrop(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredVariants = allVariants.filter(v => {
+    if (!variantSearch) return true;
+    const q = variantSearch.toLowerCase();
+    return v.sku.toLowerCase().includes(q)
+      || (v.title || '').toLowerCase().includes(q);
+  });
 
   const onWarehouseChange = async (whId: string) => {
     setSelectedWh(whId);
@@ -435,7 +472,7 @@ function InventoryPageContent() {
             )}
             <button onClick={() => { if (viewMode === 'variant' && variantFilter) loadVariantInventory(variantFilter); else if (viewMode === 'all') loadAllInventory(); else loadInventory(selectedWh); }} style={primaryBtn}>Refresh</button>
             <div style={{ flex: 1 }} />
-            <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
+            <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
             <button onClick={handleExport} style={{ ...editBtn, fontSize: 12 }}>Export CSV</button>
             <button onClick={handleExportMovements} style={{ ...editBtn, fontSize: 12 }}>Movements</button>
             <button onClick={handleCheckLowStock} disabled={lowStockChecking} style={{ ...editBtn, fontSize: 12 }}>{lowStockChecking ? 'Checking…' : 'Check Low Stock'}</button>
@@ -454,7 +491,7 @@ function InventoryPageContent() {
 
           {loading ? <LoadingSpinner /> : items.length === 0 ? (
             <EmptyState title="No inventory items" description={variantFilter ? 'This variant has no tracked stock yet.' : 'This warehouse has no tracked stock yet.'}
-              action={!variantFilter ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
+              action={!variantFilter ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
           ) : (
             <div style={tableWrap}>
               <table style={table}>
@@ -618,12 +655,39 @@ function InventoryPageContent() {
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Assign Variant to Warehouse</h3>
             <p style={{ fontSize: 12, color: '#5b6b74', marginBottom: 12 }}>Link a product variant to a warehouse and optionally set initial stock.</p>
             <label style={label}>Variant *
-              <select value={newVariantId} onChange={e => setNewVariantId(e.target.value)} style={input}>
-                <option value="">Select variant…</option>
-                {Object.values(variantMap).map(v => (
-                  <option key={v.id} value={v.id}>{v.sku}{v.title ? ` — ${v.title}` : ''}</option>
-                ))}
-              </select>
+              <div ref={variantDropRef} style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={showVariantDrop ? variantSearch : (newVariantId ? (variantMap[newVariantId]?.sku || 'Selected variant') : '')}
+                  onChange={e => { setVariantSearch(e.target.value); setShowVariantDrop(true); }}
+                  onFocus={() => setShowVariantDrop(true)}
+                  onClick={e => e.stopPropagation()}
+                  placeholder="Search by SKU or name\u2026"
+                  style={input}
+                  autoComplete="off"
+                />
+                {allVariants.length === 0 && <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 0' }}>Loading variants\u2026</div>}
+                {showVariantDrop && allVariants.length > 0 && (
+                  <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #d9e2e6', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                    {filteredVariants.length === 0 ? (
+                      <div style={{ padding: '8px 12px', fontSize: 12, color: '#9ca3af' }}>No variants match &ldquo;{variantSearch}&rdquo;</div>
+                    ) : filteredVariants.map(v => (
+                      <div
+                        key={v.id}
+                        onClick={() => { setNewVariantId(v.id); setVariantSearch(''); setShowVariantDrop(false); }}
+                        style={{
+                          padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                          background: v.id === newVariantId ? '#e6f0f5' : 'transparent',
+                          borderBottom: '1px solid #f1f5f9',
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: 12, color: '#0f3340', fontFamily: 'monospace' }}>{v.sku}</span>
+                        {v.title && <span style={{ fontSize: 11, color: '#5b6b74' }}>{v.title}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </label>
             <label style={label}>Warehouse *
               <select value={newWarehouseId} onChange={e => setNewWarehouseId(e.target.value)} style={input}>
@@ -639,7 +703,7 @@ function InventoryPageContent() {
             </label>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button onClick={handleCreateItem} disabled={creating || !newVariantId || !newWarehouseId} style={primaryBtn}>{creating ? 'Creating…' : 'Create'}</button>
-              <button onClick={() => setShowCreate(false)} style={ghostBtn}>Cancel</button>
+              <button onClick={() => { setShowCreate(false); setNewVariantId(''); setVariantSearch(''); setShowVariantDrop(false); }} style={ghostBtn}>Cancel</button>
             </div>
           </div>
         </div>

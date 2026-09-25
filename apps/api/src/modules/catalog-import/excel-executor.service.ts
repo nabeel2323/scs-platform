@@ -176,9 +176,12 @@ export class ExcelExecutorService {
         for (const entry of plan.productTypes) {
           if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
-            const catId = entry.data['categorySlug']
-              ? resolveId(entry.data['categorySlug'] as string, refs.categoryIds)
-              : null;
+            const catSlug = entry.data['categorySlug'] as string | undefined;
+            let catId: string | null | undefined = null;
+            if (catSlug) {
+              catId = resolveId(catSlug, refs.categoryIds);
+              if (!catId) throw new Error(`Category slug "${catSlug}" could not be resolved — ensure the category exists or is included in the workbook`);
+            }
             // Resolve variant dimension attribute codes → UUIDs
             const dimCodes = (entry.data['variantDimensions'] as string[]) ?? [];
             const dimIds = dimCodes

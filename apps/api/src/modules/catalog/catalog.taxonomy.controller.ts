@@ -170,6 +170,16 @@ export class CatalogTaxonomyController {
     return this.taxonomy.setVariantDimensions(id, body.attributeIds ?? []);
   }
 
+  @Patch('admin/product-types/:id/category')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  updateCategory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { categoryId: string | null },
+  ) {
+    return this.taxonomy.updateProductTypeCategory(id, body.categoryId ?? null);
+  }
+
   /**
    * Preview how a product type renders for merchants (form), buyers (spec),
    * and search (facets) — with conditional rules evaluated against sample values.
