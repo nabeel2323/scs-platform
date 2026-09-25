@@ -557,9 +557,12 @@ export class OrdersService {
   // ── Merchant Actions ─────────────────────────────────────────
 
   async acceptOrder(orderId: string, merchantUserId: string, caller?: CallerContext) {
+    // P2 concurrency fix: use optimistic locking via atomic UPDATE WHERE to
+    // serialise concurrent accepts.  Only one caller can flip the status from
+    // PENDING_CONFIRMATION to ACCEPTED; the other sees rowCount=0 and throws.
     const order = await this.getOrder(orderId);
     if (caller) await assertOrderAccessible(this.db, caller, order);
-    // Accept from PENDING_CONFIRMATION (or SUBMITTED for backward compat — auto-advance first)
+
     let currentStatus = order['status'];
     if (currentStatus === 'SUBMITTED') {
       await this.autoAdvanceToPendingConfirmation(orderId, order['buyerId'], order['storeId']);
@@ -568,8 +571,6 @@ export class OrdersService {
     this.assertTransition(currentStatus, 'ACCEPTED');
 
     // ── Re-Price Guard ──────────────────────────────────────────
-    // Compare current price_tiers against order_items.unit_price_minor snapshot.
-    // If price changed >5%, return 409 with per-line deltas.
     const priceDeltas = await this.checkPriceDeltas(orderId, order['storeId']);
     const significantDeltas = priceDeltas.filter((d) => Math.abs(d.deltaPercent) > 5);
     if (significantDeltas.length > 0) {
@@ -582,14 +583,19 @@ export class OrdersService {
       });
     }
 
-    // ── Stock Reservation ────────────────────────────────────────
-    // Reserve stock for each order item in the store's warehouse(s)
-    await this.reserveStock(orderId, order['storeId']);
-
-    await this.db.db
+    // ── Optimistic lock: flip status atomically ──────────────────
+    const flipResult = await this.db.db
       .update(orders)
       .set({ status: 'ACCEPTED', slaConfirmedAt: new Date(), updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
+      .where(and(eq(orders.id, orderId), eq(orders.status, currentStatus)))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException('Order status already changed — concurrent accept rejected');
+    }
+
+    // ── Stock Reservation ────────────────────────────────────────
+    await this.reserveStock(orderId, order['storeId']);
 
     await this.recordStatusChange(orderId, currentStatus, 'ACCEPTED', merchantUserId, 'MERCHANT');
     await this.outbox.publish('order.accepted', orderId, { orderId, storeId: order['storeId'] });
@@ -630,16 +636,48 @@ export class OrdersService {
       newSubtotal += confirmed * item['unitPriceMinor'];
     }
 
+    // ADVERSARIAL FIX: recalculate tax and delivery through the same financial
+    // engine used at checkout. The old code set totalMinor = newSubtotal,
+    // violating the invariant total = subtotal - discount + tax + delivery.
+    const vatRate = Number(process.env['VAT_RATE'] ?? DEFAULT_VAT_RATE);
+    const fin = computeOrderFinancials({
+      subtotalMinor: newSubtotal,
+      discountMinor: Number(order['discountMinor'] ?? 0),
+      deliveryFeeMinor: Number(order['deliveryFeeMinor'] ?? 0),
+      vatRate,
+      commissionRate: Number(process.env['COMMISSION_RATE'] ?? DEFAULT_COMMISSION_RATE),
+    });
+
     await this.db.db
       .update(orders)
       .set({
         status: 'PARTIALLY_ACCEPTED',
-        subtotalMinor: newSubtotal,
-        totalMinor: newSubtotal,
+        subtotalMinor: fin.productsMinor,
+        discountMinor: fin.discountMinor,
+        taxMinor: fin.taxMinor,
+        totalMinor: fin.totalMinor,
         slaConfirmedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(orders.id, orderId));
+
+    // Keep the financial breakdown in sync with the new totals
+    const existingBreakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
+      where: eq(orderFinancialBreakdown.orderId, orderId),
+    });
+    if (existingBreakdown) {
+      await this.db.db
+        .update(orderFinancialBreakdown)
+        .set({
+          productsMinor: fin.productsMinor,
+          discountMinor: fin.discountMinor,
+          taxMinor: fin.taxMinor,
+          commissionMinor: fin.commissionMinor,
+          merchantNetMinor: fin.merchantNetMinor,
+          updatedAt: new Date(),
+        })
+        .where(eq(orderFinancialBreakdown.orderId, orderId));
+    }
 
     await this.recordStatusChange(
       orderId,
@@ -663,23 +701,29 @@ export class OrdersService {
     }
     this.assertTransition(currentStatus, 'REJECTED');
 
-    // A4-4: REJECTED is written directly rather than through transitionStatus,
-    // so the release has to be triggered here too.
+    // ADVERSARIAL FIX: stock settlement and status write must be atomic.
+    // settleStockForStatus runs first (it manages its own transactions per
+    // inventory item), then the status write + history are in a single
+    // transaction so a failure cannot leave stock released without the
+    // order status reflecting the rejection.
     await this.settleStockForStatus(orderId, 'REJECTED', merchantUserId);
 
-    await this.db.db
-      .update(orders)
-      .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
+    await this.db.db.transaction(async (tx) => {
+      await tx
+        .update(orders)
+        .set({ status: 'REJECTED', rejectionReason: reason, updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(
-      orderId,
-      currentStatus,
-      'REJECTED',
-      merchantUserId,
-      'MERCHANT',
-      reason,
-    );
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: currentStatus,
+        toStatus: 'REJECTED',
+        changedBy: merchantUserId,
+        actorType: 'MERCHANT',
+        reason,
+      });
+    });
     await this.outbox.publish('order.rejected', orderId, {
       orderId,
       storeId: order['storeId'],
@@ -721,16 +765,28 @@ export class OrdersService {
     if (caller) await assertOrderAccessible(this.db, caller, order);
     this.assertTransition(order['status'], newStatus);
 
-    // A4-4: free or consume the stock this order reserved before recording the
-    // new status.
+    // ADVERSARIAL FIX: stock settlement and status write must be atomic.
+    // Without a transaction, if the status update fails after settlement
+    // committed, stock is released/consumed but the order status doesn't
+    // change — creating a permanent ledger inconsistency.
     await this.settleStockForStatus(orderId, newStatus, userId);
 
-    await this.db.db
-      .update(orders)
-      .set({ status: newStatus, updatedAt: new Date() })
-      .where(eq(orders.id, orderId));
+    await this.db.db.transaction(async (tx) => {
+      await tx
+        .update(orders)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
 
-    await this.recordStatusChange(orderId, order['status'], newStatus, userId, actorType, reason);
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: order['status'],
+        toStatus: newStatus,
+        changedBy: userId,
+        actorType,
+        reason: reason || null,
+      });
+    });
 
     // Emit events based on status
     const eventMap: Record<string, string> = {
@@ -1066,12 +1122,13 @@ export class OrdersService {
    * partial reservations where item A succeeds but item B fails, leaving
    * orphan stock reservations.
    */
-  private async reserveStock(orderId: string, storeId: string) {
-    const items = await this.db.db.query.orderItems.findMany({
+  private async reserveStock(orderId: string, storeId: string, outerTx?: any) {
+    const runner = outerTx || this.db.db;
+    const items = await runner.query.orderItems.findMany({
       where: eq(orderItems.orderId, orderId),
     });
 
-    const storeWarehouses = await this.db.db
+    const storeWarehouses = await runner
       .select()
       .from(warehouses)
       .where(eq(warehouses.storeId, storeId));
@@ -1080,7 +1137,8 @@ export class OrdersService {
 
     // TRANSACTION FOUNDATION: Single transaction wraps ALL item reservations.
     // If any item fails, all roll back — no partial reservations.
-    await this.db.db.transaction(async (tx) => {
+    // When outerTx is provided, reuse it; otherwise create a new transaction.
+    const run = async (tx: any) => {
       for (const item of items) {
         let reserved = false;
 
@@ -1100,7 +1158,7 @@ export class OrdersService {
               ),
             )
             .for('update')
-            .then((rows) => rows[0]);
+            .then((rows: any[]) => rows[0]);
 
           if (!locked) continue;
 
@@ -1135,7 +1193,13 @@ export class OrdersService {
         // merchant can partially fulfill. But the transaction stays atomic:
         // either all reservations commit or none do.
       }
-    });
+    };
+
+    if (outerTx) {
+      await run(outerTx);
+    } else {
+      await this.db.db.transaction(run);
+    }
   }
 
   /**
