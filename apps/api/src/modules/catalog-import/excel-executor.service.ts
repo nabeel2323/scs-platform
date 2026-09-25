@@ -38,7 +38,7 @@ export interface ExecutionResult {
  * Used for pre-flight validation before entering the DB transaction so that
  * PostgreSQL error 22001 never poisons the transaction.
  */
-const VARCHAR_LIMITS: Record<string, Record<string, number>> = {
+export const VARCHAR_LIMITS: Record<string, Record<string, number>> = {
   attribute_groups: { name: 120, nameAr: 120, kind: 40 },
   categories: { slug: 120, name: 200, nameAr: 200 },
   brands: { slug: 120, name: 200, nameAr: 200 },

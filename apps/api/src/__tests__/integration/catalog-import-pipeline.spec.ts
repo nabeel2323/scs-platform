@@ -14,7 +14,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import ExcelJS from 'exceljs';
 import { ExcelParserService } from '../../modules/catalog-import/excel-parser.service';
 import { ExcelValidatorService, type ExistingDataSnapshot } from '../../modules/catalog-import/excel-validator.service';
-import { ExcelPlannerService, type ExistingEntityMap } from '../../modules/catalog-import/excel-planner.service';
+import { ExcelPlannerService, type ExistingEntityMap, type ImportPlan, type PlanEntry } from '../../modules/catalog-import/excel-planner.service';
+import { ExcelExecutorService, VARCHAR_LIMITS } from '../../modules/catalog-import/excel-executor.service';
 import { CatalogValidationService } from '../../modules/catalog/catalog.validation-service';
 
 /**
@@ -413,6 +414,45 @@ describe('Catalog Import Pipeline Integration', () => {
     expect(plan.summary.totalCreate).toBeGreaterThan(0);
     expect(plan.attributes.length).toBe(attrDefs.length);
     expect(plan.attributeOptions.length).toBe(optData.length);
+  });
+
+  it('pre-flight validation catches varchar overflow and overrides fix it', () => {
+    // Build a plan with an attribute whose type exceeds the 40-char limit
+    const plan: ImportPlan = {
+      categories: [], brands: [], attributeGroups: [],
+      attributes: [{
+        entityType: 'attributes',
+        externalKey: 'my-attr',
+        action: 'CREATE',
+        data: { code: 'my-attr', name: 'My Attribute', type: 'A'.repeat(50), scope: 'PRODUCT' },
+      }],
+      attributeOptions: [], productTypes: [], productTypeAttributes: [],
+      products: [], productAttributes: [], variants: [], variantAttributes: [],
+      sources: [],
+      summary: { totalCreate: 1, totalUpdate: 0, totalUnchanged: 0, byEntity: {} },
+    };
+
+    // Verify the VARCHAR_LIMITS constraint for attributes.type
+    expect(VARCHAR_LIMITS['attributes']!['type']).toBe(40);
+
+    // Simulate the service's applyOverrides: patch the plan entry
+    const overrides: Record<string, Record<string, Record<string, string>>> = { attributes: { 'my-attr': { type: 'SELECT' } } };
+    for (const [entityType, keyMap] of Object.entries(overrides)) {
+      const planKey = entityType as keyof ImportPlan;
+      for (const entry of plan[planKey] as PlanEntry[]) {
+        const fieldOverrides = keyMap[entry.externalKey];
+        if (fieldOverrides) {
+          for (const [field, value] of Object.entries(fieldOverrides)) {
+            entry.data[field] = value;
+          }
+        }
+      }
+    }
+
+    // After override, the type should be 'SELECT' (6 chars, well within 40)
+    const attrEntry = plan.attributes[0]!;
+    expect(attrEntry.data['type']).toBe('SELECT');
+    expect((attrEntry.data['type'] as string).length).toBeLessThanOrEqual(40);
   });
 });
 

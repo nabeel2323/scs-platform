@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Body,
   Param,
   Query,
   Res,
@@ -107,15 +108,17 @@ export class CatalogImportController {
   /**
    * POST /admin/catalog-imports/:id/execute
    * Confirm and execute the validated import.
+   * Optional body: { overrides: { [entityType]: { [externalKey]: { [field]: value } } } }
    */
   @Post(':id/execute')
   @RequirePermission('catalog:imports:manage')
   @RequireRole('ADMIN', 'SUPER_ADMIN')
   async execute(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { overrides?: Record<string, Record<string, Record<string, string>>> } = {},
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.importService.execute(id, user.sub);
+    return this.importService.execute(id, user.sub, body.overrides);
   }
 
   /**

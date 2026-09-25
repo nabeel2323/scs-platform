@@ -11,8 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { ExcelParserService, type ParsedWorkbook } from './excel-parser.service';
 import { ExcelValidatorService, type ExistingDataSnapshot, type ImportError } from './excel-validator.service';
 import { ExcelResolverService, type ResolvedReferences } from './excel-resolver.service';
-import { ExcelPlannerService, type ImportPlan, type ExistingEntityMap } from './excel-planner.service';
-import { ExcelExecutorService, type ExecutionResult } from './excel-executor.service';
+import { ExcelPlannerService, type ImportPlan, type PlanEntry, type ExistingEntityMap } from './excel-planner.service';
+import { ExcelExecutorService, type ExecutionResult, VARCHAR_LIMITS } from './excel-executor.service';
 import { TemplateGeneratorService } from './template-generator.service';
 
 /**
@@ -138,13 +138,29 @@ export class CatalogImportService {
 
   // ── Execute ───────────────────────────────────────────────────
 
-  async execute(importId: string, userId: string): Promise<ExecutionResult> {
+  async execute(
+    importId: string,
+    userId: string,
+    overrides?: Record<string, Record<string, Record<string, string>>>,
+  ): Promise<ExecutionResult> {
     const cached = this.planCache.get(importId);
     if (!cached) {
       throw new BadRequestException('No validated plan found. Please validate the import first.');
     }
 
     const { plan, refs } = cached;
+
+    // Apply interactive corrections (if any) before executing
+    if (overrides && Object.keys(overrides).length > 0) {
+      const applied = this.applyOverrides(plan, overrides);
+      const remaining = this.validateOverrideLengths(plan);
+      if (remaining.length > 0) {
+        throw new BadRequestException(
+          `Overrides still have ${remaining.length} violation(s): ${remaining.join('; ')}`,
+        );
+      }
+      this.logger.log(`Applied ${applied} override(s) to import ${importId}`);
+    }
 
     await this.updateStatus(importId, 'IMPORTING');
     await this.db.db.update(catalogImports).set({
@@ -193,6 +209,82 @@ export class CatalogImportService {
       this.logger.error(`Import ${importId} failed: ${err}`);
       throw err;
     }
+  }
+
+  /**
+   * Mapping from error sheet/entity names to ImportPlan keys.
+   */
+  private static readonly ENTITY_PLAN_KEYS: Record<string, keyof ImportPlan> = {
+    categories: 'categories',
+    brands: 'brands',
+    attribute_groups: 'attributeGroups',
+    attributes: 'attributes',
+    attribute_options: 'attributeOptions',
+    product_types: 'productTypes',
+    product_type_attributes: 'productTypeAttributes',
+    products: 'products',
+    variants: 'variants',
+  };
+
+  /**
+   * Apply interactive overrides to a cached plan.
+   * Overrides format: { [entityType]: { [externalKey]: { [field]: newValue } } }
+   * Returns the number of plan entries patched.
+   */
+  private applyOverrides(
+    plan: ImportPlan,
+    overrides: Record<string, Record<string, Record<string, string>>>,
+  ): number {
+    let applied = 0;
+    for (const [entityType, keyMap] of Object.entries(overrides)) {
+      const planKey = CatalogImportService.ENTITY_PLAN_KEYS[entityType];
+      if (!planKey) continue;
+      const entries = plan[planKey] as PlanEntry[];
+      for (const entry of entries) {
+        const fieldOverrides = keyMap[entry.externalKey];
+        if (!fieldOverrides) continue;
+        for (const [field, value] of Object.entries(fieldOverrides)) {
+          entry.data[field] = value;
+          applied++;
+        }
+      }
+    }
+    return applied;
+  }
+
+  /**
+   * Re-validate string lengths after overrides are applied.
+   * Returns an array of human-readable violation descriptions (empty = all good).
+   */
+  private validateOverrideLengths(plan: ImportPlan): string[] {
+    const errors: string[] = [];
+    const sections: Array<{ key: keyof ImportPlan; label: string }> = [
+      { key: 'attributeGroups', label: 'AttributeGroup' },
+      { key: 'categories', label: 'Category' },
+      { key: 'brands', label: 'Brand' },
+      { key: 'attributes', label: 'Attribute' },
+      { key: 'attributeOptions', label: 'AttributeOption' },
+      { key: 'productTypes', label: 'ProductType' },
+      { key: 'productTypeAttributes', label: 'ProductTypeAttribute' },
+      { key: 'products', label: 'Product' },
+      { key: 'variants', label: 'Variant' },
+    ];
+    for (const { key, label } of sections) {
+      const constraints = VARCHAR_LIMITS[key];
+      if (!constraints) continue;
+      for (const entry of plan[key] as PlanEntry[]) {
+        if (entry.action === 'UNCHANGED') continue;
+        for (const [field, maxLen] of Object.entries(constraints)) {
+          const value = entry.data[field];
+          if (typeof value === 'string' && value.length > maxLen) {
+            errors.push(
+              `${label} "${entry.externalKey}": field "${field}" is ${value.length} chars (max ${maxLen})`,
+            );
+          }
+        }
+      }
+    }
+    return errors;
   }
 
   // ── Query methods ─────────────────────────────────────────────

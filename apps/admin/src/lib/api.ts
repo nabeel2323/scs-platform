@@ -1235,15 +1235,22 @@ export async function fetchCatalogImportPreview(id: string): Promise<CatalogImpo
   return res.json();
 }
 
-export async function executeCatalogImport(id: string): Promise<{
+export type ImportOverrides = Record<string, Record<string, Record<string, string>>>;
+
+export async function executeCatalogImport(
+  id: string,
+  overrides?: ImportOverrides,
+): Promise<{
   created: number; updated: number; unchanged: number; rejected: number; errors: string[];
 }> {
   const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/execute`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides ? { overrides } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message || `Failed to execute catalog import: ${res.status}`);
+    throw new Error(body.detail || body.message || `Failed to execute catalog import: ${res.status}`);
   }
   return res.json();
 }
