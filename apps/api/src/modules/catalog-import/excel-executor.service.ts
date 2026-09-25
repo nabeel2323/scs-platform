@@ -574,6 +574,8 @@ export class ExcelExecutorService {
   private async upsertProductAttributeValue(tx: any, productId: string, attrId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
+    // Upsert on unique(product_id, attribute_definition_id) to prevent duplicate-key
+    // violation from poisoning the entire transaction.
     await tx.insert(productAttributeValues).values({
       id,
       productId,
@@ -582,6 +584,15 @@ export class ExcelExecutorService {
       valueNumber: d.valueNumber != null ? String(d.valueNumber) : null,
       valueBoolean: (d.valueBoolean as boolean) ?? null,
       optionValue: (d.optionKey as string) ?? null,
+    }).onConflictDoUpdate({
+      target: [productAttributeValues.productId, productAttributeValues.attributeDefinitionId],
+      set: {
+        valueText: sql`excluded.value_text`,
+        valueNumber: sql`excluded.value_number`,
+        valueBoolean: sql`excluded.value_boolean`,
+        optionValue: sql`excluded.option_value`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
@@ -605,6 +616,8 @@ export class ExcelExecutorService {
   private async upsertVariantAttributeValue(tx: any, variantId: string, attrId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
+    // Upsert on unique(variant_id, attribute_definition_id) to prevent duplicate-key
+    // violation from poisoning the entire transaction.
     await tx.insert(variantAttributeValues).values({
       id,
       variantId,
@@ -613,6 +626,15 @@ export class ExcelExecutorService {
       valueNumber: d.valueNumber != null ? String(d.valueNumber) : null,
       valueBoolean: (d.valueBoolean as boolean) ?? null,
       optionValue: (d.optionKey as string) ?? null,
+    }).onConflictDoUpdate({
+      target: [variantAttributeValues.variantId, variantAttributeValues.attributeDefinitionId],
+      set: {
+        valueText: sql`excluded.value_text`,
+        valueNumber: sql`excluded.value_number`,
+        valueBoolean: sql`excluded.value_boolean`,
+        optionValue: sql`excluded.option_value`,
+        updatedAt: new Date(),
+      },
     });
     return id;
   }
