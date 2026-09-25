@@ -1073,6 +1073,22 @@ export async function setVariantDimensions(id: string, attributeIds: string[]): 
   if (!res.ok) throw new Error(`Failed to set variant dimensions: ${res.status}`);
 }
 
+export async function updateProductTypeCategory(
+  id: string,
+  categoryId: string | null,
+): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/category`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to update product type category: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function createNewVersion(id: string): Promise<ProductType> {
   const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/versions`, { method: 'POST' });
   if (!res.ok) throw new Error(`Failed to create new version: ${res.status}`);
