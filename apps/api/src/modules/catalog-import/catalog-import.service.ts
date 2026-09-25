@@ -171,7 +171,8 @@ export class CatalogImportService {
     try {
       const result = await this.executor.execute(plan, refs);
 
-      const status = result.errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED';
+      const status = (result.errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED')
+        .slice(0, CatalogImportService.STATUS_MAX_LEN);
 
       await this.db.db.update(catalogImports).set({
         status,
@@ -362,8 +363,13 @@ export class CatalogImportService {
     return rows[0];
   }
 
+  /** Max length of catalog_imports.status column (varchar(30)). */
+  private static readonly STATUS_MAX_LEN = 30;
+
   private async updateStatus(importId: string, status: string): Promise<void> {
-    await this.db.db.update(catalogImports).set({ status, updatedAt: new Date() }).where(eq(catalogImports.id, importId));
+    // Safety: truncate to column limit to prevent PG 22001 transaction poisoning
+    const safe = status.slice(0, CatalogImportService.STATUS_MAX_LEN);
+    await this.db.db.update(catalogImports).set({ status: safe, updatedAt: new Date() }).where(eq(catalogImports.id, importId));
   }
 
   private async storeErrors(importId: string, errors: ImportError[]): Promise<void> {

@@ -47,7 +47,7 @@ export const catalogImports = pgTable('catalog_imports', {
   fileType: varchar('file_type', { length: 10 }).notNull().default('XLSX'),
   storageKey: text('storage_key').notNull(),
   importType: varchar('import_type', { length: 30 }).notNull().default('FULL_CATALOG'),
-  status: varchar('status', { length: 20 }).notNull().default('UPLOADED'),
+  status: varchar('status', { length: 30 }).notNull().default('UPLOADED'),
   totalRows: integer('total_rows').notNull().default(0),
   processedRows: integer('processed_rows').notNull().default(0),
   createdRows: integer('created_rows').notNull().default(0),
