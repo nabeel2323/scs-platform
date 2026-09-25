@@ -1314,3 +1314,48 @@ export async function exportCatalog(): Promise<void> {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ── Dispute Events ──────────────────────────────────────────
+
+export interface DisputeEventRecord {
+  id: string;
+  disputeId: string;
+  type: string;
+  body: string;
+  attachments: string[] | null;
+  submittedBy: string;
+  createdAt: string;
+}
+
+export async function fetchDisputeEvents(disputeId: string): Promise<DisputeEventRecord[]> {
+  const res = await authFetch(`${API_URL}/v1/disputes/${disputeId}/events`);
+  if (!res.ok) throw new Error(`Failed to fetch dispute events: ${res.status}`);
+  return res.json();
+}
+
+// ── Analytics ───────────────────────────────────────────────
+
+export interface AnalyticsEventCount {
+  eventType: string;
+  count: number;
+}
+
+export interface AnalyticsActivityEntry {
+  userId: string;
+  eventType: string;
+  createdAt: string;
+  properties: Record<string, unknown> | null;
+}
+
+export async function fetchAnalyticsEvents(from: string, to: string): Promise<AnalyticsEventCount[]> {
+  const res = await authFetch(`${API_URL}/v1/analytics/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  if (!res.ok) throw new Error(`Failed to fetch analytics events: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAnalyticsActivity(limit?: number): Promise<AnalyticsActivityEntry[]> {
+  const qs = limit ? `?limit=${limit}` : '';
+  const res = await authFetch(`${API_URL}/v1/analytics/activity${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch analytics activity: ${res.status}`);
+  return res.json();
+}

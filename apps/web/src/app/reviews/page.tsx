@@ -13,7 +13,7 @@ export default function ReviewDisputePage() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
-  const [disputeDesc, setDisputeDesc] = useState('');
+  const [disputeAgainst, setDisputeAgainst] = useState('');
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -30,12 +30,12 @@ export default function ReviewDisputePage() {
   };
 
   const handleDispute = async () => {
-    if (!orderId || !disputeReason) { setError('Order ID and reason required'); return; }
+    if (!orderId || !disputeAgainst || !disputeReason) { setError('Order ID, against ID, and reason required'); return; }
     setSubmitting(true); setError(''); setSuccess('');
     try {
-      await createDispute(orderId, { reason: disputeReason, description: disputeDesc });
+      await createDispute(orderId, { againstId: disputeAgainst, reason: disputeReason });
       setSuccess('Dispute opened successfully!');
-      setOrderId(''); setDisputeReason(''); setDisputeDesc('');
+      setOrderId(''); setDisputeReason(''); setDisputeAgainst('');
     } catch (err: any) { setError(err.message || 'Failed'); }
     finally { setSubmitting(false); }
   };
@@ -95,14 +95,14 @@ export default function ReviewDisputePage() {
             <input type="text" value={orderId} onChange={e => setOrderId(e.target.value)} placeholder="Order UUID" style={inputStyle} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Reason *</label>
-            <input type="text" value={disputeReason} onChange={e => setDisputeReason(e.target.value)} placeholder="e.g., Wrong items, Damaged goods" style={inputStyle} />
+            <label style={labelStyle}>Against (Store/Merchant ID) *</label>
+            <input type="text" value={disputeAgainst} onChange={e => setDisputeAgainst(e.target.value)} placeholder="Store or Merchant UUID" style={inputStyle} />
           </div>
           <div style={{ marginBottom: 24 }}>
-            <label style={labelStyle}>Description</label>
-            <textarea value={disputeDesc} onChange={e => setDisputeDesc(e.target.value)} rows={4} placeholder="Describe the issue in detail..." style={{ ...inputStyle, resize: 'vertical' }} />
+            <label style={labelStyle}>Additional Notes</label>
+            <textarea value={disputeReason} onChange={e => setDisputeReason(e.target.value)} rows={4} placeholder="Describe the issue in detail..." style={{ ...inputStyle, resize: 'vertical' }} />
           </div>
-          <button onClick={handleDispute} disabled={submitting} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: submitting ? colors.muted : colors.err, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+          <button onClick={handleDispute} disabled={submitting || !orderId || !disputeAgainst || !disputeReason} style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 600, background: (submitting || !orderId || !disputeAgainst || !disputeReason) ? colors.muted : colors.err, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
             {submitting ? 'Opening...' : 'Open Dispute'}
           </button>
         </div>

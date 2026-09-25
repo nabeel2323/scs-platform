@@ -32,9 +32,13 @@ function OfferDetailContent({ id }: { id: string }) {
   const { hasAccess } = useRequirePerms(['catalog:offers:govern']);
   const [ready, setReady] = useState(false);
   const [offer, setOffer] = useState<AdminRecord | null>(null);
+  const [inventory, setInventory] = useState<AdminRecord | null>(null);
+  const [invLoading, setInvLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('commercial');
+
+  const variantId = (offer?.['variantId'] as string | null) ?? null;
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -45,6 +49,15 @@ function OfferDetailContent({ id }: { id: string }) {
       .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load offer'); setLoading(false); });
   }, [id, ready, hasAccess]);
 
+  // Load inventory data when the tab is activated
+  useEffect(() => {
+    if (activeTab !== 'inventory' || !variantId) return;
+    setInvLoading(true);
+    adminRequest<AdminRecord>(`inventory/variant/${encodeURIComponent(variantId)}`)
+      .then(data => { setInventory(data); setInvLoading(false); })
+      .catch(() => { setInventory(null); setInvLoading(false); });
+  }, [activeTab, variantId]);
+
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: catalog:offers:govern</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={8} />;
@@ -53,7 +66,6 @@ function OfferDetailContent({ id }: { id: string }) {
 
   const status = String(offer['status'] || '');
   const productId = offer['productId'] as string;
-  const variantId = offer['variantId'] as string | null;
   const storeId = offer['storeId'] as string;
   const storeName = offer['storeName'] as string | null;
   const productTitle = offer['productTitle'] as string | null;
@@ -61,6 +73,7 @@ function OfferDetailContent({ id }: { id: string }) {
 
   const tabs = [
     { key: 'commercial', label: 'Commercial' },
+    { key: 'inventory', label: 'Inventory' },
     { key: 'merchant', label: 'Merchant' },
     { key: 'product', label: 'Canonical Product' },
   ];
@@ -142,6 +155,30 @@ function OfferDetailContent({ id }: { id: string }) {
         {activeTab === 'merchant' && (
           <AdminDetailSection title="Merchant & Store">
             <AdminKeyValueGrid items={merchantItems} />
+          </AdminDetailSection>
+        )}
+
+        {activeTab === 'inventory' && (
+          <AdminDetailSection
+            title="Inventory & Stock"
+            description="Stock levels for this offer's variant across warehouses."
+          >
+            {invLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading inventory data…</div>}
+            {!invLoading && !inventory && (
+              <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>
+                {variantId ? 'No inventory data available for this variant.' : 'This offer is not linked to a specific variant.'}
+              </div>
+            )}
+            {inventory && (
+              <AdminKeyValueGrid items={[
+                { key: 'totalAvailable', label: 'Total Available', value: String(inventory['totalAvailable'] ?? inventory['available'] ?? '—') },
+                { key: 'totalOnHand', label: 'Total On Hand', value: String(inventory['totalOnHand'] ?? inventory['onHand'] ?? '—') },
+                { key: 'warehouseCount', label: 'Warehouses', value: String(inventory['warehouseCount'] ?? '—') },
+                { key: 'variantId', label: 'Variant ID', value: (
+                  <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{variantId || '—'}</span>
+                )},
+              ]} />
+            )}
           </AdminDetailSection>
         )}
 

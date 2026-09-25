@@ -589,13 +589,36 @@ export async function fetchTrust(entityType: string, entityId: string): Promise<
 
 // ── Disputes ─────────────────────────────────────────────────
 
+export interface Dispute {
+  id: string;
+  orderId: string;
+  raisedBy: string;
+  againstId: string;
+  reason: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
+  resolution: string | null;
+}
+
+export interface DisputeEvent {
+  id: string;
+  disputeId: string;
+  type: string;
+  body: string;
+  attachments: string[] | null;
+  submittedBy: string;
+  createdAt: string;
+}
+
 export async function createDispute(
   orderId: string,
   input: {
+    againstId: string;
     reason: string;
-    description: string;
   },
-): Promise<unknown> {
+): Promise<Dispute> {
   const res = await authFetch(`${API_URL}/v1/orders/${orderId}/dispute`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -605,10 +628,30 @@ export async function createDispute(
   return res.json();
 }
 
-export async function fetchDisputes(status?: string): Promise<unknown[]> {
+export async function fetchDisputes(status?: string): Promise<Dispute[]> {
   const qs = status ? `?status=${status}` : '';
   const res = await authFetch(`${API_URL}/v1/disputes${qs}`);
   if (!res.ok) throw new Error(`Disputes failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDisputeEvents(disputeId: string): Promise<DisputeEvent[]> {
+  const res = await authFetch(`${API_URL}/v1/disputes/${disputeId}/events`);
+  if (!res.ok) throw new Error(`Dispute events failed: ${res.status}`);
+  return res.json();
+}
+
+export async function submitDisputeEvidence(
+  disputeId: string,
+  body: string,
+  attachments?: string[],
+): Promise<DisputeEvent> {
+  const res = await authFetch(`${API_URL}/v1/disputes/${disputeId}/evidence`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, attachments }),
+  });
+  if (!res.ok) throw new Error(`Evidence submission failed: ${res.status}`);
   return res.json();
 }
 
@@ -1709,5 +1752,79 @@ export async function upsertProductAttributeValues(
     body: JSON.stringify({ values }),
   });
   if (!res.ok) throw new Error(`Upsert attribute values failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Promotions ──────────────────────────────────────────────────
+
+export interface Promotion {
+  id: string;
+  storeId: string;
+  code: string | null;
+  name: string;
+  description: string | null;
+  promoType: string;
+  scope: string;
+  scopeId: string | null;
+  discountValue: number;
+  minOrderMinor: number | null;
+  maxDiscountMinor: number | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  perUserLimit: number | null;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromotionInput {
+  storeId: string;
+  code?: string;
+  name: string;
+  description?: string;
+  promoType: 'PERCENT' | 'FIXED' | 'QTY_DISCOUNT' | 'TIME_LIMITED';
+  scope?: 'STORE' | 'CATEGORY' | 'PRODUCT' | 'VARIANT';
+  scopeId?: string;
+  discountValue: number;
+  minOrderMinor?: number;
+  maxDiscountMinor?: number;
+  maxRedemptions?: number;
+  perUserLimit?: number;
+  startsAt: string;
+  endsAt: string;
+}
+
+export async function fetchStorePromotions(storeId: string): Promise<Promotion[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${encodeURIComponent(storeId)}/promotions`);
+  if (!res.ok) throw new Error(`Failed to fetch promotions: ${res.status}`);
+  return res.json();
+}
+
+export async function createPromotion(input: CreatePromotionInput): Promise<Promotion> {
+  const res = await authFetch(`${API_URL}/v1/promotions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to create promotion: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updatePromotion(id: string, input: Partial<CreatePromotionInput>): Promise<Promotion> {
+  const res = await authFetch(`${API_URL}/v1/promotions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to update promotion: ${res.status}`);
+  }
   return res.json();
 }
