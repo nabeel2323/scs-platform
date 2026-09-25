@@ -58,8 +58,13 @@ function CategoryDetailContent({ id }: { id: string }) {
   useEffect(() => {
     if (activeTab !== 'productTypes' || !id) return;
     setPtLoading(true);
-    adminRequest<{ data: AdminRecord[]; total: number }>(`product-types?categoryId=${encodeURIComponent(id)}&limit=50`)
-      .then(res => { setProductTypes(res?.data || []); setPtLoading(false); })
+    // API returns a plain array (not paginated), so handle both formats
+    adminRequest<AdminRecord[] | { data: AdminRecord[]; total: number }>(`product-types?categoryId=${encodeURIComponent(id)}&limit=50`)
+      .then(res => {
+        const list = Array.isArray(res) ? res : (res?.data ?? []);
+        setProductTypes(list);
+        setPtLoading(false);
+      })
       .catch(() => { setPtLoading(false); });
   }, [activeTab, id]);
 

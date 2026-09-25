@@ -7,7 +7,7 @@ import {
   attributeOptions,
   productTypes,
 } from '../catalog/catalog.taxonomy.schema';
-import { isNull } from 'drizzle-orm';
+import { isNull, eq } from 'drizzle-orm';
 import { CatalogValidationService } from '../catalog/catalog.validation-service';
 
 /**
@@ -172,6 +172,12 @@ export class TemplateGeneratorService {
       const ptRows = await this.db.db.select({ code: productTypes.code }).from(productTypes).limit(500);
       const ptCodes = ptRows.map(r => r.code);
 
+      // Add validations to Product Types sheet
+      const ptSheet = workbook.getWorksheet('Product Types');
+      if (ptSheet) {
+        this.addDropdownValidation(ptSheet, catSlugs, 5); // category_slug column
+      }
+
       // Add validations to Products sheet
       const productsSheet = workbook.getWorksheet('Products');
       if (productsSheet) {
@@ -298,17 +304,22 @@ export class TemplateGeneratorService {
   }
 
   private async exportProductTypes(workbook: ExcelJS.Workbook): Promise<void> {
+    // Join with categories to get the category slug for each product type
     const rows = await this.db.db.select({
       code: productTypes.code,
       name: productTypes.name,
       nameAr: productTypes.nameAr,
       description: productTypes.description,
-    }).from(productTypes);
+      categorySlug: categories.slug,
+      variantDimensions: productTypes.variantDimensions,
+    }).from(productTypes)
+      .leftJoin(categories, eq(productTypes.categoryId, categories.id));
 
     const sheet = workbook.addWorksheet('Product Types');
     this.addHeaders(sheet, SHEET_HEADERS['Product Types']!);
     for (const r of rows) {
-      sheet.addRow([r.code, r.name, r.nameAr ?? '', r.description ?? '', '', '']);
+      const dims = Array.isArray(r.variantDimensions) ? r.variantDimensions.join(',') : '';
+      sheet.addRow([r.code, r.name, r.nameAr ?? '', r.description ?? '', r.categorySlug ?? '', dims]);
     }
   }
 
