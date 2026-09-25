@@ -47,6 +47,8 @@ function InventoryPageContent() {
   const [variantSearch, setVariantSearch] = useState('');
   const [showVariantDrop, setShowVariantDrop] = useState(false);
   const variantDropRef = useRef<HTMLDivElement>(null);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
+  const [variantsError, setVariantsError] = useState('');
 
   // Create inventory item dialog
   const [showCreate, setShowCreate] = useState(false);
@@ -160,6 +162,8 @@ function InventoryPageContent() {
   // Batch-fetch variant details via two-phase load: products → variants per product
   useEffect(() => {
     if (!storeId) return;
+    setVariantsLoaded(false);
+    setVariantsError('');
     (async () => {
       try {
         const products: any[] = [];
@@ -170,6 +174,12 @@ function InventoryPageContent() {
           if (products.length >= env.total || env.items.length === 0) break;
           offset += 50;
         }
+        if (products.length === 0) {
+          setAllVariants([]);
+          setVariantMap({});
+          setVariantsLoaded(true);
+          return;
+        }
         const variantArrays = await Promise.all(
           products.map(p => fetchProductVariants(p.id).catch(() => []))
         );
@@ -178,7 +188,11 @@ function InventoryPageContent() {
         const map: Record<string, ProductVariant> = {};
         for (const v of variants) map[v.id] = v;
         setVariantMap(map);
-      } catch { /* silent — variantMap stays empty */ }
+        setVariantsLoaded(true);
+      } catch (err: any) {
+        setVariantsError(err.message || 'Failed to load variants');
+        setVariantsLoaded(true);
+      }
     })();
   }, [storeId]);
 
@@ -472,7 +486,7 @@ function InventoryPageContent() {
             )}
             <button onClick={() => { if (viewMode === 'variant' && variantFilter) loadVariantInventory(variantFilter); else if (viewMode === 'all') loadAllInventory(); else loadInventory(selectedWh); }} style={primaryBtn}>Refresh</button>
             <div style={{ flex: 1 }} />
-            <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
+            <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
             <button onClick={handleExport} style={{ ...editBtn, fontSize: 12 }}>Export CSV</button>
             <button onClick={handleExportMovements} style={{ ...editBtn, fontSize: 12 }}>Movements</button>
             <button onClick={handleCheckLowStock} disabled={lowStockChecking} style={{ ...editBtn, fontSize: 12 }}>{lowStockChecking ? 'Checking…' : 'Check Low Stock'}</button>
@@ -491,7 +505,7 @@ function InventoryPageContent() {
 
           {loading ? <LoadingSpinner /> : items.length === 0 ? (
             <EmptyState title="No inventory items" description={variantFilter ? 'This variant has no tracked stock yet.' : 'This warehouse has no tracked stock yet.'}
-              action={!variantFilter ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
+              action={!variantFilter ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
           ) : (
             <div style={tableWrap}>
               <table style={table}>
@@ -658,15 +672,17 @@ function InventoryPageContent() {
               <div ref={variantDropRef} style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  value={showVariantDrop ? variantSearch : (newVariantId ? (variantMap[newVariantId]?.sku || 'Selected variant') : '')}
+                  value={newVariantId && !showVariantDrop ? (variantMap[newVariantId]?.sku || 'Selected variant') : variantSearch}
                   onChange={e => { setVariantSearch(e.target.value); setShowVariantDrop(true); }}
-                  onFocus={() => setShowVariantDrop(true)}
+                  onFocus={() => { setShowVariantDrop(true); if (newVariantId && !variantSearch) setVariantSearch(variantMap[newVariantId]?.sku || ''); }}
                   onClick={e => e.stopPropagation()}
                   placeholder="Search by SKU or name\u2026"
                   style={input}
                   autoComplete="off"
                 />
-                {allVariants.length === 0 && <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 0' }}>Loading variants\u2026</div>}
+                {!variantsLoaded && !variantsError && <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 0' }}>Loading variants\u2026</div>}
+                {variantsError && <div style={{ fontSize: 11, color: '#991b1b', padding: '4px 0' }}>{variantsError}</div>}
+                {variantsLoaded && !variantsError && allVariants.length === 0 && <div style={{ fontSize: 11, color: '#9ca3af', padding: '4px 0' }}>No variants found. Create variants in Product Studio first.</div>}
                 {showVariantDrop && allVariants.length > 0 && (
                   <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: '#fff', border: '1px solid #d9e2e6', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                     {filteredVariants.length === 0 ? (
@@ -674,7 +690,7 @@ function InventoryPageContent() {
                     ) : filteredVariants.map(v => (
                       <div
                         key={v.id}
-                        onClick={() => { setNewVariantId(v.id); setVariantSearch(''); setShowVariantDrop(false); }}
+                        onClick={() => { setNewVariantId(v.id); setVariantSearch(v.sku); setShowVariantDrop(false); }}
                         style={{
                           padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
                           background: v.id === newVariantId ? '#e6f0f5' : 'transparent',
