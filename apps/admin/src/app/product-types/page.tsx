@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   ProductType, ProductTypeSchema, AdminCategory,
   fetchProductTypes, fetchProductTypeSchema, createProductType, publishProductType,
@@ -145,7 +146,7 @@ export default function ProductTypesPage() {
                     <td><time dateTime={pt.updatedAt}>{new Date(pt.updatedAt).toLocaleDateString()}</time></td>
                     <td>
                       <div className={styles['actions']}>
-                        <button type="button" onClick={() => setSelected(pt)}>View</button>
+                        <Link href={`/product-types/${pt.id}`} className={styles['viewLink']}>View</Link>
                         {pt.status === 'DRAFT' && (
                           <button type="button" onClick={() => handlePublish(pt.id)}>Publish</button>
                         )}
