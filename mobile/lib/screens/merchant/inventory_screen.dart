@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Merchant inventory management screen.
@@ -47,7 +48,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
             title: 'Error',
-            description: '$e',
+            description: ApiService.errorMessage(e),
             onAction: () => ref.invalidate(activeStoreProvider)),
         data: (store) {
           if (store == null) {
@@ -87,7 +88,7 @@ class _InventoryBody extends ConsumerWidget {
           loading: () => const LoadingSpinner(),
           error: (e, _) => EmptyState(
               title: 'Error',
-              description: '$e',
+              description: ApiService.errorMessage(e),
               onAction: () => ref.invalidate(
                   storeInventoryProvider((storeId: storeId, page: page)))),
           data: (pag) {

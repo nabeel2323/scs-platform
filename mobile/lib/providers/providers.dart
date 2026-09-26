@@ -38,6 +38,28 @@ final isAuthenticatedProvider = StateProvider<bool>((ref) => false);
 final currentUserPhoneProvider = StateProvider<String>((ref) => '');
 final activeOrgIdProvider = StateProvider<String?>((ref) => null);
 
+/// Restores the authentication session from secure storage on cold start.
+///
+/// Without this, [isAuthenticatedProvider] always defaults to `false` and the
+/// router redirect sends the user to `/login` on every app restart — even
+/// though valid tokens exist in [AuthStorage]. The router watches this provider
+/// so it is not created until restoration completes (avoiding a login flash).
+final sessionRestorationProvider = FutureProvider<bool>((ref) async {
+  final authStorage = ref.watch(authStorageProvider);
+  final accessToken = await authStorage.getAccessToken();
+  if (accessToken != null && accessToken.isNotEmpty) {
+    ref.read(apiClientProvider).setAccessToken(accessToken);
+    ref.read(isAuthenticatedProvider.notifier).state = true;
+    // Restore the active org id so org-scoped screens work immediately.
+    final orgId = await authStorage.getActiveOrgId();
+    if (orgId != null && orgId.isNotEmpty) {
+      ref.read(activeOrgIdProvider.notifier).state = orgId;
+    }
+    return true;
+  }
+  return false;
+});
+
 // ── Profile ─────────────────────────────────────────────────
 
 final profileProvider = FutureProvider<UserProfile>(
@@ -57,10 +79,31 @@ final categoriesProvider = FutureProvider<List<Category>>(
 final brandsProvider = FutureProvider<List<Brand>>(
     (ref) => ref.watch(apiServiceProvider).fetchBrands());
 
+/// Category hand-off from the Home rail to the Search tab. Home sets this just
+/// before `context.go('/search')`; [SearchScreen] `ref.listen`s to it so the
+/// filter applies even though the shell keeps the search branch alive
+/// (IndexedStack => initState does not re-run on tab switch). Cleared to null
+/// once consumed so a later manual visit starts unfiltered.
+final searchCategoryProvider = StateProvider<String?>((ref) => null);
+
+/// Commerce-home "Popular products" rail. Backed by a real search call (no
+/// query => the API's default ranked listing), never fabricated data (§14).
+final featuredProductsProvider = FutureProvider<SearchResult>(
+    (ref) => ref.watch(apiServiceProvider).search(limit: 10));
+
 // ── Stores ──────────────────────────────────────────────────
 
 final storesProvider = FutureProvider<List<Store>>(
     (ref) => ref.watch(apiServiceProvider).fetchStores(limit: 50));
+
+/// Seller reviews for a store, keyed by storeId. The reviews API is
+/// store-scoped only (`GET /v1/stores/:id/reviews`), so the PDP surfaces the
+/// *seller's* reputation — the same source the web PDP uses. Shared by the
+/// product detail and store detail screens.
+final storeReviewsProvider = FutureProvider.family<List<Review>, String>(
+    (ref, storeId) => storeId.isEmpty
+        ? Future.value(<Review>[])
+        : ref.watch(apiServiceProvider).fetchStoreReviews(storeId));
 
 // ── Cart ────────────────────────────────────────────────────
 
@@ -115,6 +158,57 @@ final merchantOrdersProvider = FutureProvider<List<SubOrder>>((ref) async {
   return ref.watch(apiServiceProvider).fetchOrders(storeId: store.id);
 });
 
+// ── Merchant Dashboard KPIs (audit row 190 / spec §29) ────────
+
+/// Headline numbers for the merchant dashboard. Each source is fetched in its
+/// own try/catch so a single failing endpoint degrades to `null` (the UI shows
+/// "—") instead of blanking every tile or inventing a zero. Orders reuse the
+/// store-scoped [merchantOrdersProvider] cache (shared with the Orders tab) so
+/// "Orders" counts real distinct sub-orders — never the sum of per-offer
+/// `ordersCount`, which double-counts multi-offer orders.
+final merchantKpisProvider = FutureProvider<MerchantKpis>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return MerchantKpis.empty;
+  final api = ref.watch(apiServiceProvider);
+
+  int ordersCount = 0, pendingCount = 0;
+  try {
+    final orders = await ref.watch(merchantOrdersProvider.future);
+    ordersCount = orders.length;
+    pendingCount = orders
+        .where((o) =>
+            o.status == 'SUBMITTED' || o.status == 'PENDING_CONFIRMATION')
+        .length;
+  } catch (_) {
+    // Degrade to 0; the Orders tab surfaces the real error.
+  }
+
+  int? revenueMinor, unitsSold;
+  try {
+    final rows = await api.fetchOfferAnalytics(store.id);
+    revenueMinor = rows.fold<int>(0, (s, r) => s + r.revenueMinor);
+    unitsSold = rows.fold<int>(0, (s, r) => s + r.unitsSold);
+  } catch (_) {
+    // Leave null so the KPI renders "—" rather than a fabricated 0.
+  }
+
+  int? lowStockCount;
+  try {
+    lowStockCount = (await api.fetchLowStock()).length;
+  } catch (_) {
+    // Leave null on failure.
+  }
+
+  return MerchantKpis(
+    revenueMinor: revenueMinor,
+    unitsSold: unitsSold,
+    currency: store.currency,
+    ordersCount: ordersCount,
+    pendingCount: pendingCount,
+    lowStockCount: lowStockCount,
+  );
+});
+
 // ── Merchant Catalog ────────────────────────────────────────
 
 final storeProductsProvider =
@@ -165,4 +259,39 @@ final storeInventoryProvider =
   return ref
       .watch(apiServiceProvider)
       .fetchStoreInventory(args.storeId, offset: args.page * 20);
+});
+
+// ── Merchant Offers (pricing / lifecycle management) ────────
+
+/// All offers for the active store. Auto-scoped via [activeStoreProvider].
+final merchantOffersProvider = FutureProvider<List<MerchantOffer>>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <MerchantOffer>[];
+  return ref.watch(apiServiceProvider).fetchMerchantOffers(store.id);
+});
+
+/// Single offer detail by ID. Used by the offer detail screen.
+final merchantOfferDetailProvider =
+    FutureProvider.family<MerchantOffer, String>(
+        (ref, id) => ref.watch(apiServiceProvider).fetchOfferDetail(id));
+
+/// Per-offer analytics (orders, units, revenue) for the active store.
+final merchantOfferAnalyticsProvider =
+    FutureProvider<List<OfferAnalyticsRow>>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <OfferAnalyticsRow>[];
+  return ref.watch(apiServiceProvider).fetchOfferAnalytics(store.id);
+});
+
+/// Time-series trend for the active store (or a single offer).
+final merchantOfferTrendProvider = FutureProvider.family<List<OfferTrendPoint>,
+    ({String? offerId, String granularity, int days})>((ref, args) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <OfferTrendPoint>[];
+  return ref.watch(apiServiceProvider).fetchOfferTrend(
+        storeId: store.id,
+        offerId: args.offerId,
+        granularity: args.granularity,
+        days: args.days,
+      );
 });

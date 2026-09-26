@@ -17,21 +17,29 @@ import '../screens/orders/order_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/merchant/merchant_orders_screen.dart';
 import '../screens/merchant/merchant_registration_screen.dart';
-import '../screens/merchant/merchant_dashboard_screen.dart';
+import '../screens/merchant/merchant_shell_screen.dart';
 import '../screens/merchant/store_profile_screen.dart';
 import '../screens/merchant/merchant_catalog_screen.dart';
 import '../screens/merchant/product_edit_screen.dart';
 import '../screens/merchant/category_manage_screen.dart';
 import '../screens/merchant/merchant_customers_screen.dart';
+import '../screens/merchant/merchant_offers_screen.dart';
+import '../screens/merchant/offer_detail_screen.dart';
+import '../screens/merchant/offer_create_screen.dart';
 import '../screens/merchant/inventory_screen.dart';
 import '../screens/reviews/reviews_disputes_screen.dart';
 import '../screens/profile/profile_screen.dart';
 import '../screens/organizations/organizations_screen.dart';
 import '../screens/organizations/org_detail_screen.dart';
-import '../screens/driver/driver_dashboard_screen.dart';
+import '../widgets/main_shell.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final isLoggedIn = ref.watch(isAuthenticatedProvider);
+  // Wait for session restoration before creating the router so the redirect
+  // logic sees the correct auth state on cold start. While restoration is
+  // loading, the initial location defaults to '/login' but the redirect below
+  // holds the user there only until restoration completes.
+  final sessionAsync = ref.watch(sessionRestorationProvider);
+  final isLoggedIn = sessionAsync.valueOrNull ?? false;
   return GoRouter(
     initialLocation: isLoggedIn ? '/home' : '/login',
     redirect: (context, state) {
@@ -59,17 +67,40 @@ final routerProvider = Provider<GoRouter>((ref) {
             !isMerchant) {
           return '/home';
         }
-        // Driver route hidden until DRIVER role exists (GAP-7).
-        if (path.startsWith('/driver')) {
-          return '/home';
-        }
       }
       return null;
     },
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-      GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
+
+      // ── Buyer bottom-nav shell (Home / Search / Cart / Orders / Account) ──
+      // Each branch keeps its own stack via indexedStack. Detail routes below
+      // are declared outside the shell so they push full-screen on top of it.
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/cart', builder: (_, __) => const CartScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/orders', builder: (_, __) => const OrdersListScreen()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/profile', builder: (_, __) => const ProfileScreen()),
+          ]),
+        ],
+      ),
+
+      // ── Discovery / detail routes (pushed above the shell) ──
       GoRoute(path: '/stores', builder: (_, __) => const StoresListScreen()),
       GoRoute(
           path: '/stores/:id',
@@ -79,9 +110,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/products/:id',
           builder: (_, state) =>
               ProductDetailScreen(productId: state.pathParameters['id']!)),
-      GoRoute(path: '/cart', builder: (_, __) => const CartScreen()),
       GoRoute(path: '/checkout', builder: (_, __) => const CheckoutScreen()),
-      GoRoute(path: '/orders', builder: (_, __) => const OrdersListScreen()),
       GoRoute(
           path: '/orders/:id',
           builder: (_, state) =>
@@ -97,7 +126,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           builder: (_, __) => const MerchantRegistrationScreen()),
       GoRoute(
           path: '/merchant',
-          builder: (_, __) => const MerchantDashboardScreen()),
+          builder: (_, state) => MerchantShellScreen(
+              initialTab: MerchantShellScreen.tabFromKey(
+                  state.uri.queryParameters['tab']))),
       GoRoute(
           path: '/merchant/store',
           builder: (_, __) => const StoreProfileScreen()),
@@ -118,11 +149,28 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/merchant/customers',
           builder: (_, __) => const MerchantCustomersScreen()),
       GoRoute(
+          path: '/merchant/offers',
+          builder: (_, __) => const MerchantOffersScreen()),
+      GoRoute(
+          path: '/merchant/offers/new',
+          builder: (_, __) => const OfferCreateScreen()),
+      GoRoute(
+          path: '/merchant/offers/:id',
+          builder: (_, state) =>
+              OfferDetailScreen(offerId: state.pathParameters['id']!)),
+      GoRoute(
           path: '/merchant/inventory',
           builder: (_, __) => const InventoryScreen()),
       GoRoute(
-          path: '/reviews', builder: (_, __) => const ReviewsDisputesScreen()),
-      GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          path: '/reviews',
+          builder: (_, state) {
+            final qp = state.uri.queryParameters;
+            return ReviewsDisputesScreen(
+              orderId: qp['orderId'],
+              storeId: qp['storeId'],
+              initialTab: qp['tab'] == 'dispute' ? 1 : 0,
+            );
+          }),
       GoRoute(
           path: '/profile/credentials',
           builder: (_, __) => const CredentialSetupScreen()),
@@ -139,8 +187,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/organizations/:id',
           builder: (_, state) =>
               OrgDetailScreen(orgId: state.pathParameters['id']!)),
-      GoRoute(
-          path: '/driver', builder: (_, __) => const DriverDashboardScreen()),
     ],
   );
 });

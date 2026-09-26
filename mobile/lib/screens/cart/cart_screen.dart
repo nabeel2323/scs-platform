@@ -4,24 +4,213 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-class CartScreen extends ConsumerWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends ConsumerState<CartScreen> {
+  final _promoCtrl = TextEditingController();
+  bool _applyingPromo = false;
+  bool _clearing = false;
+
+  @override
+  void dispose() {
+    _promoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _setQty(CartItem item, int qty) async {
+    try {
+      await ref.read(apiServiceProvider).updateCartItem(item.id, qty);
+      ref.invalidate(cartProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
+      }
+    }
+  }
+
+  Future<void> _removeItem(CartItem item) async {
+    try {
+      await ref.read(apiServiceProvider).removeCartItem(item.id);
+      ref.invalidate(cartProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
+      }
+    }
+  }
+
+  Future<void> _applyPromo() async {
+    final code = _promoCtrl.text.trim();
+    if (code.isEmpty) return;
+    setState(() => _applyingPromo = true);
+    try {
+      await ref.read(apiServiceProvider).applyPromo(code);
+      ref.invalidate(cartProvider);
+      _promoCtrl.clear();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Promo code applied')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
+      }
+    } finally {
+      if (mounted) setState(() => _applyingPromo = false);
+    }
+  }
+
+  /// MOQ floor for a line: the seller's minimum order quantity when the offer
+  /// carries one, else 1. [QuantityStepper] refuses to go below it (audit 4.3
+  /// row 151: "Use QuantityStepper + MOQ floor" — the raw ± buttons let a buyer
+  /// decrement under the MOQ, which checkout would then reject).
+  int _floorFor(CartItem item) {
+    final moq = item.offer?.moq ?? 1;
+    return moq > 1 ? moq : 1;
+  }
+
+  Widget _cartLine(CartItem item) {
+    final floor = _floorFor(item);
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title ?? item.sku ?? item.variantId.substring(0, 8),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 2),
+                    // PHASE 14: seller + offer attribution per line.
+                    Text(
+                      '${formatMinor(item.priceMinor, item.currency)} each'
+                      '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
+                      '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
+                      '${floor > 1 ? '  ·  MOQ $floor' : ''}',
+                      style: const TextStyle(
+                          fontSize: 12, color: TaifTokens.muted),
+                    ),
+                  ]),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline,
+                  size: 20, color: TaifTokens.err),
+              onPressed: () => _removeItem(item),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            QuantityStepper(
+              value: item.quantity,
+              minQty: floor,
+              onChanged: (q) => _setQty(item, q),
+            ),
+            const Spacer(),
+            Text(formatMinor(item.lineTotalMinor, item.currency),
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            const SizedBox(width: 8),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  /// Promo code input (audit 4.3 row 153: `applyPromo()` existed but had no
+  /// UI). Apply-only — the API exposes no remove-promo route, so an applied
+  /// code renders as a confirmation chip rather than a removable one.
+  Widget _promoSection(Cart c) {
+    final applied = c.promoCode != null && c.promoCode!.isNotEmpty;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: applied
+            ? Row(children: [
+                const Icon(Icons.local_offer_outlined,
+                    size: 18, color: TaifTokens.ok),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Promo "${c.promoCode}" applied',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: TaifTokens.ok)),
+                ),
+              ])
+            : Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: _promoCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Promo code',
+                      isDense: true,
+                      prefixIcon: Icon(Icons.local_offer_outlined, size: 18),
+                      border: OutlineInputBorder(),
+                    ),
+                    enabled: !_applyingPromo,
+                    onSubmitted: (_) => _applyPromo(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: _applyingPromo ? null : _applyPromo,
+                  child: _applyingPromo
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Apply'),
+                ),
+              ]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final cart = ref.watch(cartProvider);
     // PHASE 11/12: trigger validation on screen load (non-blocking).
     final validation = ref.watch(cartValidationProvider);
     return Scaffold(
         appBar: AppBar(title: const Text('Cart'), actions: [
           TextButton(
-              onPressed: () async {
-                await ref.read(apiServiceProvider).clearCart();
-                ref.invalidate(cartProvider);
-              },
-              child:
-                  const Text('Clear', style: TextStyle(color: TaifTokens.err))),
+              onPressed: _clearing
+                  ? null
+                  : () async {
+                      setState(() => _clearing = true);
+                      try {
+                        await ref.read(apiServiceProvider).clearCart();
+                        ref.invalidate(cartProvider);
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(
+                                  'Clear failed: ${ApiService.errorMessage(e)}')));
+                        }
+                      } finally {
+                        if (mounted) setState(() => _clearing = false);
+                      }
+                    },
+              child: Text(_clearing ? 'Clearing...' : 'Clear',
+                  style: const TextStyle(color: TaifTokens.err))),
         ]),
         body: cart.when(
           data: (c) {
@@ -78,7 +267,7 @@ class CartScreen extends ConsumerWidget {
               Expanded(
                   child: ListView(
                       children: grouped.entries
-                          .map((e) => Column(
+                          .map<Widget>((e) => Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Padding(
@@ -92,76 +281,10 @@ class CartScreen extends ConsumerWidget {
                                                 fontSize: 14,
                                                 color:
                                                     TaifTokens.brandPrimary))),
-                                    ...e.value.map((item) => Card(
-                                        margin: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 4),
-                                        child: ListTile(
-                                            title: Text(item.title ??
-                                                item.sku ??
-                                                item.variantId.substring(0, 8)),
-                                            // PHASE 14: seller + offer attribution per line
-                                            subtitle: Text(
-                                                '${item.quantity} × ${formatMinor(item.priceMinor, item.currency)}'
-                                                '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
-                                                '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
-                                                '${(item.offer?.moq ?? 0) > 1 ? '  ·  MOQ ${item.offer!.moq}' : ''}'),
-                                            trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                      icon: const Icon(
-                                                          Icons
-                                                              .remove_circle_outline,
-                                                          size: 20),
-                                                      onPressed: () async {
-                                                        await ref
-                                                            .read(
-                                                                apiServiceProvider)
-                                                            .updateCartItem(
-                                                                item.id,
-                                                                item.quantity -
-                                                                    1);
-                                                        ref.invalidate(
-                                                            cartProvider);
-                                                      }),
-                                                  Text('${item.quantity}',
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w600)),
-                                                  IconButton(
-                                                      icon: const Icon(
-                                                          Icons
-                                                              .add_circle_outline,
-                                                          size: 20),
-                                                      onPressed: () async {
-                                                        await ref
-                                                            .read(
-                                                                apiServiceProvider)
-                                                            .updateCartItem(
-                                                                item.id,
-                                                                item.quantity +
-                                                                    1);
-                                                        ref.invalidate(
-                                                            cartProvider);
-                                                      }),
-                                                  IconButton(
-                                                      icon: const Icon(
-                                                          Icons.delete_outline,
-                                                          size: 20,
-                                                          color:
-                                                              TaifTokens.err),
-                                                      onPressed: () async {
-                                                        await ref
-                                                            .read(
-                                                                apiServiceProvider)
-                                                            .removeCartItem(
-                                                                item.id);
-                                                        ref.invalidate(
-                                                            cartProvider);
-                                                      }),
-                                                ])))),
+                                    ...e.value.map((item) => _cartLine(item)),
                                   ]))
-                          .toList())),
+                          .toList()
+                        ..add(_promoSection(c)))),
               Container(
                   padding: const EdgeInsets.all(16),
                   decoration: const BoxDecoration(
@@ -240,7 +363,7 @@ class CartScreen extends ConsumerWidget {
           loading: () => const LoadingSpinner(),
           error: (e, _) => EmptyState(
               title: 'Error',
-              description: '$e',
+              description: ApiService.errorMessage(e),
               onAction: () => ref.invalidate(cartProvider)),
         ));
   }

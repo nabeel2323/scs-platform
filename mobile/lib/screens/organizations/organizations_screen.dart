@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_core/mobile_core.dart';
 import '../../core/theme.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 class OrganizationsScreen extends ConsumerStatefulWidget {
@@ -61,6 +63,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
       await auth.saveTokens(
         accessToken: res.accessToken,
         refreshToken: await auth.getRefreshToken() ?? '',
+        expiresAt: DateTime.now().add(AuthStorage.tokenLifetime),
         activeOrgId: orgId,
       );
       ref.read(apiClientProvider).setAccessToken(res.accessToken);
@@ -75,7 +78,8 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to switch: $e')),
+          SnackBar(
+              content: Text('Failed to switch: ${ApiService.errorMessage(e)}')),
         );
       }
     }
@@ -156,7 +160,11 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                       itemCount: list.length,
                       itemBuilder: (_, i) {
                         final o = list[i];
-                        final isActive = o.orgId == activeOrg;
+                        final isActive =
+                            o.orgId.isNotEmpty && o.orgId == activeOrg;
+                        final initial = o.orgName.isNotEmpty
+                            ? o.orgName.substring(0, 1).toUpperCase()
+                            : '?';
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -165,8 +173,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                                   ? TaifTokens.ok
                                   : TaifTokens.brandPrimary
                                       .withValues(alpha: 0.15),
-                              child: Text(
-                                  o.orgName.substring(0, 1).toUpperCase(),
+                              child: Text(initial,
                                   style: TextStyle(
                                       color: isActive
                                           ? Colors.white
@@ -183,12 +190,16 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
                                     label: Text('Active'),
                                     backgroundColor: Color(0xFFDCFCE7))
                                 : TextButton(
-                                    onPressed: () => _switchOrg(o.orgId),
+                                    onPressed: o.orgId.isNotEmpty
+                                        ? () => _switchOrg(o.orgId)
+                                        : null,
                                     child: const Text('Switch',
                                         style: TextStyle(fontSize: 12)),
                                   ),
-                            onTap: () =>
-                                context.push('/organizations/${o.orgId}'),
+                            onTap: o.orgId.isNotEmpty
+                                ? () =>
+                                    context.push('/organizations/${o.orgId}')
+                                : null,
                           ),
                         );
                       },
@@ -197,7 +208,7 @@ class _OrganizationsScreenState extends ConsumerState<OrganizationsScreen> {
             loading: () => const LoadingSpinner(),
             error: (e, _) => EmptyState(
               title: 'Error',
-              description: '$e',
+              description: ApiService.errorMessage(e),
               onAction: () => ref.invalidate(myOrganizationsProvider),
             ),
           ),

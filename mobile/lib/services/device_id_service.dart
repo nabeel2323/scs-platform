@@ -74,9 +74,11 @@ class DeviceIdService {
   }
 
   /// Get device info for API calls.
+  /// Returns only the fields accepted by the server's DeviceInfoDto
+  /// (platform + userAgent). The deviceId is sent as a top-level field
+  /// in auth requests, so it must NOT be included here — the API's
+  /// ValidationPipe rejects unknown nested fields with a 400.
   Future<Map<String, String>> getDeviceInfo() async {
-    final deviceId = await getDeviceId();
-
     String platform = 'unknown';
     if (Platform.isAndroid) {
       platform = 'android';
@@ -86,7 +88,6 @@ class DeviceIdService {
 
     return {
       'platform': platform,
-      'deviceId': deviceId,
       'userAgent': 'SmartCommerce-$platform',
     };
   }

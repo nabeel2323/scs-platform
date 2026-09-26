@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Merchant category management — list/create/edit/delete categories scoped to
@@ -34,7 +35,7 @@ class CategoryManageScreen extends ConsumerWidget {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
             title: 'Error',
-            description: '$e',
+            description: ApiService.errorMessage(e),
             onAction: () => ref.invalidate(myStoresProvider)),
         data: (store) {
           if (store == null) {
@@ -56,7 +57,7 @@ class CategoryManageScreen extends ConsumerWidget {
       loading: () => const LoadingSpinner(),
       error: (e, _) => EmptyState(
           title: 'Error',
-          description: '$e',
+          description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(storeCategoriesProvider(storeId))),
       data: (list) => list.isEmpty
           ? const EmptyState(

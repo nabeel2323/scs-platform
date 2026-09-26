@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { IsNotEmpty, IsOptional, IsInt, Min, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DatabaseService } from '../../common/database/database.service';
 import { PromotionsService } from '../promotions/promotions.service';
 import { carts, cartItems } from './cart.schema';
@@ -556,22 +558,35 @@ export class CartService {
 
 // ── Input types ──────────────────────────────────────────────────
 
-export interface AddCartItemInput {
-  variantId: string;
-  quantity: number;
-  /**
-   * Optional and never trusted for pricing — the authoritative store is
-   * derived from the variant's product. Accepted for backward compatibility.
-   */
+/**
+ * Class DTO (not an interface) so the global ValidationPipe can validate
+ * incoming cart-add requests. Interface DTOs erase to Object at runtime and
+ * bypass validation entirely — the root cause of the long-standing cart 400s.
+ */
+export class AddCartItemInput {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  @IsNotEmpty()
+  variantId!: string;
+
+  @ApiProperty({ minimum: 1 })
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Accepted for backward compat; never trusted for pricing — derived from the variant\'s product.',
+  })
+  @IsOptional()
+  @IsUUID()
   storeId?: string;
-  /**
-   * PHASE 13: Optional explicit merchant offer to buy under. When provided:
-   * - The offer must be ACTIVE and reference this variant (or its product as
-   *   a product-level fallback).
-   * - The cart line is stamped with `offerId`, and the effective store is the
-   *   offer's store (allowing multi-seller offers on a canonical variant).
-   * - Existing lines only merge when their `offerId` matches, so switching
-   *   sellers creates a new line rather than mutating another seller's line.
-   */
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'PHASE 13: Explicit merchant offer to buy under.',
+  })
+  @IsOptional()
+  @IsUUID()
   offerId?: string;
 }

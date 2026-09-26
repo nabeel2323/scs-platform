@@ -6,6 +6,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
+import '../../widgets/app_widgets.dart';
 import '../../widgets/common_widgets.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -24,25 +26,62 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   /// PHASE COS-15: dynamic attribute facet filters
   final Map<String, String> _attrFilters = {};
 
+  // ── Pagination (Phase 2) ──
+  // The search API is offset/limit based and returns an accurate `total`, so
+  // results page in with a "Load more" footer rather than one fixed 30-item
+  // fetch. `_items` accumulates across pages; `_facets`/`_total` track the
+  // latest response.
+  static const int _pageSize = 24;
+  List<Product> _items = [];
+  List<FacetEntry> _facets = [];
+  int _total = 0;
+  int _offset = 0;
+  bool _searching = true;
+  bool _loadingMore = false;
+
   void _onChanged(String q) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () => _search(q));
   }
 
-  Future<void> _search(String q) async {
+  Future<void> _search(String q, {bool append = false}) async {
     ref.read(searchQueryProvider.notifier).state = q;
+    if (append) {
+      setState(() => _loadingMore = true);
+    } else {
+      setState(() {
+        _searching = true;
+        _searchError = null;
+      });
+    }
+    final offset = append ? _offset : 0;
     try {
       final result = await ref.read(apiServiceProvider).search(
           q: q.isEmpty ? null : q,
           categoryId: _selectedCategory,
           brandId: _selectedBrand,
-          limit: 30);
+          limit: _pageSize,
+          offset: offset);
       if (!mounted) return;
-      setState(() => _searchError = null);
+      setState(() {
+        _facets = result.facets;
+        _total = result.total;
+        _items = append ? [..._items, ...result.products] : result.products;
+        _offset = _items.length;
+        _searching = false;
+        _loadingMore = false;
+        _searchError = null;
+      });
       ref.read(searchResultsProvider.notifier).state = result;
     } catch (e) {
       if (!mounted) return;
-      setState(() => _searchError = 'Search failed: $e');
+      setState(() {
+        _searching = false;
+        _loadingMore = false;
+        // Route through errorMessage so a failed page never prints a raw
+        // Dio/socket string (spec §40).
+        _searchError = ApiService.errorMessage(e);
+      });
     }
   }
 
@@ -59,16 +98,47 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
       }
     }
+  }
+
+  /// Brand filter bottom sheet. Price / in-stock / verified-seller / sort are
+  /// intentionally absent: the search endpoint does not accept them yet
+  /// (BG-3 — tracked in docs/production/BACKEND-EXTENSION-SPEC.md). Only real,
+  /// server-supported filters are surfaced so no control silently no-ops.
+  Future<void> _openFilters() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _FilterSheet(
+        selectedBrand: _selectedBrand,
+        onApply: (brandId) {
+          setState(() => _selectedBrand = brandId);
+          _search(_ctrl.text);
+        },
+      ),
+    );
   }
 
   @override
   void initState() {
     super.initState();
-    _search('');
+    // Consume a category handed off from the Home rail (see
+    // searchCategoryProvider). Cleared after the frame so re-selecting the
+    // same category from Home still registers as a change.
+    final initialCat = ref.read(searchCategoryProvider);
+    if (initialCat != null) {
+      _selectedCategory = initialCat;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(searchCategoryProvider.notifier).state = null;
+      });
+    }
+    // Defer the first search a frame so its synchronous setState is safe.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _search('');
+    });
   }
 
   @override
@@ -80,12 +150,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(searchResultsProvider);
     final cats = ref.watch(categoriesProvider);
+    // Home → Search category hand-off. The shell keeps this branch alive, so
+    // initState does not re-run on a tab switch; listening here applies the
+    // category whenever Home sets it.
+    ref.listen(searchCategoryProvider, (prev, next) {
+      if (next == null || next == _selectedCategory) return;
+      setState(() => _selectedCategory = next);
+      _search(_ctrl.text);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(searchCategoryProvider.notifier).state = null;
+      });
+    });
+    final activeFilters =
+        (_selectedBrand != null ? 1 : 0) + _attrFilters.length;
+    final hasMore = !_searching && _items.length < _total;
     return Scaffold(
         appBar: AppBar(
           title: const Text('Search'),
           actions: [
+            IconButton(
+              tooltip: 'Filters',
+              icon: Badge(
+                isLabelVisible: activeFilters > 0,
+                label: Text('$activeFilters'),
+                child: const Icon(Icons.tune),
+              ),
+              onPressed: _openFilters,
+            ),
             IconButton(
               icon: const Icon(Icons.qr_code_scanner),
               tooltip: 'Scan barcode',
@@ -122,13 +214,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink()),
           // PHASE COS-15: Dynamic attribute facets
-          if (results != null && results.facets.isNotEmpty)
+          if (_facets.isNotEmpty)
             SizedBox(
               height: 36,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: results.facets
+                children: _facets
                     .expand((facet) => [
                           for (final v in facet.values)
                             Padding(
@@ -158,39 +250,70 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           if (_searchError != null)
             ErrorBanner(
                 message: _searchError!, onRetry: () => _search(_ctrl.text)),
-          Expanded(
-              child: results == null
-                  // A failed first search left this spinner running forever,
-                  // because nothing else ever set the results.
-                  ? (_searchError != null
-                      ? const EmptyState(
-                          title: 'Search unavailable',
-                          description: 'The request failed. Check the term and '
-                              'try again.')
-                      : const LoadingSpinner())
-                  : results.products.isEmpty
-                      ? const EmptyState(
-                          title: 'No products found',
-                          description: 'Try a different search term')
-                      : GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 8,
-                                  crossAxisSpacing: 8,
-                                  // Cards now carry price and seller as well; at
-                                  // the default 1.0 the content overflowed the tile.
-                                  childAspectRatio: 0.62),
-                          itemCount: results.products.length,
-                          itemBuilder: (_, i) {
-                            final p = results.products[i];
-                            return ProductCard(
-                                product: p,
-                                onTap: () => context.push('/products/${p.id}'),
-                                onAddToCart: () => _addToCart(p));
-                          })),
+          Expanded(child: _resultsArea(hasMore)),
         ]));
+  }
+
+  Widget _resultsArea(bool hasMore) {
+    if (_searching) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          children: const [
+            AppSkeletonProductCard(),
+            AppSkeletonProductCard(),
+            AppSkeletonProductCard(),
+            AppSkeletonProductCard(),
+            AppSkeletonProductCard(),
+            AppSkeletonProductCard(),
+          ],
+        ),
+      );
+    }
+    if (_items.isEmpty) {
+      return const EmptyState(
+        title: 'No products found',
+        description: 'Try a different search term or clear your filters.',
+        icon: Icons.search_off,
+      );
+    }
+    return Column(children: [
+      Expanded(
+        child: GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            // Cards carry price and seller as well; at the default 1.0 the
+            // content overflowed the tile.
+            childAspectRatio: 0.62,
+          ),
+          itemCount: _items.length,
+          itemBuilder: (_, i) {
+            final p = _items[i];
+            return ProductCard(
+                product: p,
+                onTap: () => context.push('/products/${p.id}'),
+                onAddToCart: () => _addToCart(p));
+          },
+        ),
+      ),
+      if (hasMore)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: _loadingMore
+              ? const Center(child: CircularProgressIndicator())
+              : OutlinedButton.icon(
+                  onPressed: () => _search(_ctrl.text, append: true),
+                  icon: const Icon(Icons.expand_more),
+                  label: Text('Load more (${_items.length} of $_total)'),
+                ),
+        ),
+    ]);
   }
 
   Future<void> _scanBarcode() async {
@@ -213,6 +336,113 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           selected: selected,
           onSelected: (_) => onTap(),
           selectedColor: TaifTokens.brandPrimary.withAlpha(30)));
+}
+
+/// Brand filter sheet (Phase 2). Single-select brand only — the search endpoint
+/// does not yet accept price / in-stock / verified-seller / sort, so those are
+/// deliberately omitted rather than rendered as controls that silently do
+/// nothing (BG-3, docs/production/BACKEND-EXTENSION-SPEC.md).
+class _FilterSheet extends ConsumerStatefulWidget {
+  const _FilterSheet({required this.selectedBrand, required this.onApply});
+  final String? selectedBrand;
+  final ValueChanged<String?> onApply;
+  @override
+  ConsumerState<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends ConsumerState<_FilterSheet> {
+  late String? _brand = widget.selectedBrand;
+
+  @override
+  Widget build(BuildContext context) {
+    final brands = ref.watch(brandsProvider);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Text('Filters',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ]),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            const Text('Brand',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 10),
+            Flexible(
+              child: brands.when(
+                data: (list) => list.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Text('No brands available yet',
+                            style: TextStyle(color: TaifTokens.muted)),
+                      )
+                    : SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('All brands'),
+                              selected: _brand == null,
+                              onSelected: (_) => setState(() => _brand = null),
+                              selectedColor:
+                                  TaifTokens.brandPrimary.withAlpha(30),
+                            ),
+                            ...list.map((b) => ChoiceChip(
+                                  label: Text(b.name),
+                                  selected: _brand == b.id,
+                                  onSelected: (_) =>
+                                      setState(() => _brand = b.id),
+                                  selectedColor:
+                                      TaifTokens.brandPrimary.withAlpha(30),
+                                )),
+                          ],
+                        ),
+                      ),
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (_, __) => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Could not load brands',
+                      style: TextStyle(color: TaifTokens.err)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => setState(() => _brand = null),
+                  child: const Text('Clear'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onApply(_brand);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Barcode scanner screen using mobile_scanner.

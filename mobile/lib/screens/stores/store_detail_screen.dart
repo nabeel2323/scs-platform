@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 class StoreDetailScreen extends ConsumerWidget {
@@ -68,7 +69,9 @@ class StoreDetailScreen extends ConsumerWidget {
                               // looked dead.
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('$e')));
+                                    SnackBar(
+                                        content:
+                                            Text(ApiService.errorMessage(e))));
                               }
                             }
                           });

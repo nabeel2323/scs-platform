@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
+import '../../widgets/app_widgets.dart';
 import '../../widgets/common_widgets.dart';
 
 /// PHASE COS-15: Enhanced merchant catalog with search, status filter,
@@ -38,6 +40,10 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Catalog'), actions: [
         IconButton(
+            icon: const Icon(Icons.local_offer_outlined),
+            tooltip: 'Offers',
+            onPressed: () => context.push('/merchant/offers')),
+        IconButton(
             icon: const Icon(Icons.category),
             tooltip: 'Categories',
             onPressed: () => context.push('/merchant/categories')),
@@ -60,7 +66,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
             title: 'Error',
-            description: '$e',
+            description: ApiService.errorMessage(e),
             onAction: () => ref.invalidate(myStoresProvider)),
         data: (store) {
           if (store == null) {
@@ -82,7 +88,7 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
       loading: () => const LoadingSpinner(),
       error: (e, _) => EmptyState(
           title: 'Error',
-          description: '$e',
+          description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(storeProductsProvider(storeId))),
       data: (list) {
         // Apply search + status filters
@@ -223,15 +229,10 @@ class _MerchantCatalogScreenState extends ConsumerState<MerchantCatalogScreen> {
                   color: TaifTokens.bg,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: hasImage
-                    ? Image.network(p.imageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(
-                            Icons.inventory_2_outlined,
-                            color: TaifTokens.muted,
-                            size: 28))
-                    : const Icon(Icons.inventory_2_outlined,
-                        color: TaifTokens.muted, size: 28),
+                child: AppNetworkImage(
+                  url: hasImage ? p.imageUrl! : null,
+                  fit: BoxFit.cover,
+                ),
               ),
               const SizedBox(width: 12),
               // Content

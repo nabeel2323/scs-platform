@@ -4,10 +4,15 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  /// When embedded as the merchant console's Account tab, the "Merchant
+  /// Dashboard" entry is hidden so it cannot recursively push the shell it is
+  /// already inside.
+  const ProfileScreen({super.key, this.hideMerchantEntry = false});
+  final bool hideMerchantEntry;
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -53,6 +58,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  /// Session sign-out. Moved here from the old Home app bar now that Account is
+  /// a persistent tab: shut down push, clear stored tokens, drop the in-memory
+  /// access token, flip auth state, and route to login.
+  Future<void> _signOut() async {
+    ref.read(pushNotificationServiceProvider).shutdown();
+    await ref.read(authStorageProvider).clearTokens();
+    ref.read(apiClientProvider).clearAccessToken();
+    ref.read(isAuthenticatedProvider.notifier).state = false;
+    if (mounted) context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(profileProvider);
@@ -77,7 +93,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
           title: 'Error loading profile',
-          description: '$e',
+          description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(profileProvider),
         ),
       ),
@@ -117,7 +133,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   leading: const Icon(Icons.business),
                   title: Text(o.orgName),
                   subtitle: Text('${o.role} · ${o.orgType}'),
-                  trailing: o.orgId == p.activeOrgId
+                  trailing: o.orgId ==
+                          (ref.watch(activeOrgIdProvider) ?? p.activeOrgId)
                       ? const Chip(
                           label: Text('Active'),
                           backgroundColor: Color(0xFFDCFCE7))
@@ -155,6 +172,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             title: const Text('Active Sessions'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push('/profile/sessions'),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.notifications_outlined,
+                color: TaifTokens.brandPrimary),
+            title: const Text('Notifications'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/notifications'),
+          ),
+        ),
+        if (!widget.hideMerchantEntry &&
+            (p.role == 'MERCHANT_OWNER' || p.role == 'MERCHANT_STAFF'))
+          Card(
+            child: ListTile(
+              leading:
+                  const Icon(Icons.storefront, color: TaifTokens.brandPrimary),
+              title: const Text('Merchant Dashboard'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/merchant'),
+            ),
+          ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _signOut,
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: TaifTokens.err,
+              side: const BorderSide(color: TaifTokens.err),
+            ),
           ),
         ),
       ]);
