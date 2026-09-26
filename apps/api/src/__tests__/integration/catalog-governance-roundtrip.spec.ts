@@ -372,9 +372,9 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     });
 
     it('no duplicate entities after round-trip', async () => {
-      // Categories: no duplicate slugs
+      // Categories: no duplicate slugs (categories has no deleted_at column)
       const dupCats = await pool.query(
-        `SELECT slug, COUNT(*)::int as cnt FROM categories WHERE store_id IS NULL AND deleted_at IS NULL GROUP BY slug HAVING COUNT(*) > 1`,
+        `SELECT slug, COUNT(*)::int as cnt FROM categories WHERE store_id IS NULL GROUP BY slug HAVING COUNT(*) > 1`,
       );
       expect(dupCats.rows).toHaveLength(0);
 

@@ -274,7 +274,7 @@ export class ExcelValidatorService {
 
       // Parent reference
       const parentSlug = row['parent_slug'];
-      if (parentSlug && !seen.has(parentSlug)) {
+      if (parentSlug && !seen.has(parentSlug) && !existingSlugs.has(parentSlug)) {
         errors.push(this.err(sheet.name, rn, 'categories', slug, 'parent_slug', 'UNKNOWN_REFERENCE', `Parent category "${parentSlug}" not found`, parentSlug, 'Add the parent category first or use an existing category slug'));
       }
     }
