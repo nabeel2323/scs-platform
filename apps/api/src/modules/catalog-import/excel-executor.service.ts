@@ -205,6 +205,7 @@ export class ExcelExecutorService {
 
         // 7. Product Type Attributes
         for (const entry of plan.productTypeAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -248,6 +249,7 @@ export class ExcelExecutorService {
 
         // 9. Product Attributes
         for (const entry of plan.productAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -286,6 +288,7 @@ export class ExcelExecutorService {
 
         // 11. Variant Attributes
         for (const entry of plan.variantAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const varId = resolveId(entry.data['variantSku'] as string, refs.variantIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -669,8 +672,17 @@ export class ExcelExecutorService {
     const id = randomUUID();
     // Guard against invalid date strings (empty cells may arrive as '' or null;
     // new Date('') produces an Invalid Date whose .toISOString() throws).
-    const rawDate = d.verifiedAt ? new Date(d.verifiedAt as string) : null;
-    const verifiedAt = rawDate && !isNaN(rawDate.getTime()) ? rawDate : null;
+    let verifiedAt: Date | null = null;
+    if (d.verifiedAt) {
+      try {
+        const parsed = new Date(d.verifiedAt as string);
+        if (!isNaN(parsed.getTime())) {
+          verifiedAt = parsed;
+        }
+      } catch {
+        // Ignore invalid date — leave verifiedAt as null
+      }
+    }
     await tx.insert(productSources).values({
       id,
       productId,
@@ -680,7 +692,7 @@ export class ExcelExecutorService {
     }).onConflictDoUpdate({
       target: [productSources.productId, productSources.sourceType, productSources.sourceUrl],
       set: {
-        verifiedAt: verifiedAt !== null ? sql`excluded.verified_at` : productSources.verifiedAt,
+        verifiedAt: verifiedAt,
         updatedAt: new Date(),
       },
     });
