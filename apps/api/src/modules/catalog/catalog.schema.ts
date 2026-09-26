@@ -182,3 +182,24 @@ export const importJobs = pgTable('import_jobs', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Product Sources (migration 0038) — provenance tracking for canonical catalog
+ * data. Each row records where a product's information originated (manufacturer
+ * datasheet, distributor feed, manual entry, etc.).
+ *
+ * Idempotency: the unique constraint (product_id, source_type, source_url)
+ * ensures the same source is never duplicated on re-import.
+ */
+export const productSources = pgTable('product_sources', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  sourceType: varchar('source_type', { length: 30 }).notNull(),
+  sourceUrl: text('source_url').notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

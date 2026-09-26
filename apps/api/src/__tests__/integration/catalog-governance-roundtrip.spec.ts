@@ -28,7 +28,7 @@ import ExcelJS from 'exceljs';
 
 // ── Schemas ──────────────────────────────────────────────────────────────
 import {
-  products, productMedia, productVariants, categories, brands,
+  products, productMedia, productVariants, categories, brands, productSources,
 } from '../../modules/catalog/catalog.schema';
 import {
   attributeDefinitions, attributeOptions, attributeGroups,
@@ -196,9 +196,13 @@ async function buildAcceptanceWorkbook(): Promise<Buffer> {
   vaWs.addRow(['ROG-G15-R7-32-1TB', 'storage-gb', '', '1024', '', '']);
   vaWs.addRow(['ROG-G15-R7-32-1TB', 'color', '', '', '', 'black']);
 
-  // ── Sources (empty — no sources table yet, sheet must exist) ───
+  // ── Sources ─────────────────────────────────────────────────────
   const srcWs = wb.addWorksheet('Sources');
   srcWs.addRow(['product_slug', 'source_type', 'source_url', 'verified_at']);
+  srcWs.addRow(['latitude-5550', 'MANUFACTURER', 'https://dell.com/latitude5550', '2026-01-15T00:00:00Z']);
+  srcWs.addRow(['latitude-5550', 'DISTRIBUTOR', 'https://dist.example.com/lat5550', '']);
+  srcWs.addRow(['thinkpad-t14', 'MANUFACTURER', 'https://lenovo.com/thinkpad-t14', '2026-02-01T00:00:00Z']);
+  srcWs.addRow(['rog-strix-g15', 'MANUFACTURER', 'https://hp.com/rog-strix-g15', '']);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -229,7 +233,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productMedia, productVariants, categories, brands,
+        products, productMedia, productVariants, categories, brands, productSources,
         attributeDefinitions, attributeOptions, attributeGroups,
         productTypes, productTypeAttributes,
         productAttributeValues, variantAttributeValues,
@@ -309,6 +313,9 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
       const varCount = await pool.query('SELECT COUNT(*)::int FROM product_variants');
       expect(varCount.rows[0].count).toBe(4); // 4 variants total
+
+      const srcCount = await pool.query('SELECT COUNT(*)::int FROM product_sources');
+      expect(srcCount.rows[0].count).toBe(4); // 4 sources total
     });
 
     it('exports the database to Workbook B', async () => {
@@ -710,16 +717,16 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     const [brandRows, catRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
       db.select({ slug: brands.slug }).from(brands),
       db.select({ slug: categories.slug, storeId: categories.storeId }).from(categories),
-      db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type }).from(attributeDefinitions),
+      db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type, scope: attributeDefinitions.scope }).from(attributeDefinitions),
       db.select({ id: attributeOptions.id, attributeId: attributeOptions.attributeId, value: attributeOptions.value }).from(attributeOptions),
       db.select({ code: productTypes.code }).from(productTypes),
       db.select({ slug: products.slug, storeId: products.storeId }).from(products),
       db.select({ sku: productVariants.sku }).from(productVariants),
     ]);
 
-    const attributeMap = new Map<string, { type: string; options: Set<string> }>();
+    const attributeMap = new Map<string, { type: string; options: Set<string>; scope: string }>();
     for (const r of attrRows) {
-      attributeMap.set(r.code, { type: r.type, options: new Set() });
+      attributeMap.set(r.code, { type: r.type, options: new Set(), scope: r.scope ?? 'PRODUCT' });
     }
     // Populate option values per attribute from the options table
     // (attributeMap already has empty Sets; options are loaded via optRows

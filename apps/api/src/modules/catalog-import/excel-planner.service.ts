@@ -502,14 +502,20 @@ export class ExcelPlannerService {
 
     for (const row of sheet.rows) {
       const prodSlug = row['product_slug']!;
+      const sourceType = row['source_type']!;
+      const sourceUrl = row['source_url']!;
+      const compositeKey = `${prodSlug}:${sourceType}:${sourceUrl}`;
+
+      // Check if this exact source already exists
+      const exists = existing.sources?.has(compositeKey) ?? false;
       plan.sources.push({
         entityType: 'sources',
-        externalKey: `${prodSlug}:${row['source_type']}`,
-        action: 'CREATE',
+        externalKey: `${prodSlug}:${sourceType}`,
+        action: exists ? 'UNCHANGED' : 'CREATE',
         data: {
           productSlug: prodSlug,
-          sourceType: row['source_type']!,
-          sourceUrl: row['source_url']!,
+          sourceType,
+          sourceUrl,
           verifiedAt: row['verified_at'],
         },
       });
@@ -521,4 +527,5 @@ export interface ExistingEntityMap {
   categories: Map<string, { name: string; nameAr?: string | null; description?: string | null }>;
   brands: Map<string, { name: string; nameAr?: string | null; description?: string | null }>;
   products: Map<string, { title: string; description?: string | null; mpn?: string | null }>;
+  sources?: Set<string>;  // composite keys: "productSlug:sourceType:sourceUrl"
 }
