@@ -19,6 +19,7 @@ import {
   CreateProductTypeInput,
   TypeAttributeConfig,
 } from './catalog.taxonomy.service';
+import { CatalogService } from './catalog.service';
 import { ConditionalRulesService, ConditionalRule, AttributeValueMap } from './conditional-rules.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -38,6 +39,7 @@ export class CatalogTaxonomyController {
   constructor(
     private readonly taxonomy: CatalogTaxonomyService,
     private readonly rules: ConditionalRulesService,
+    private readonly catalogService: CatalogService,
   ) {}
 
   // ── Attributes ───────────────────────────────────────────────
@@ -112,6 +114,15 @@ export class CatalogTaxonomyController {
     return this.taxonomy.listProductTypes({ categoryId, status });
   }
 
+  /**
+   * Catalog Governance §23: products using a specific Product Type.
+   * Literal path `products` is matched before `:id` by NestJS routing.
+   */
+  @Get('product-types/products/:productTypeId')
+  getProductsByProductType(@Param('productTypeId', ParseUUIDPipe) productTypeId: string) {
+    return this.catalogService.getProductsByProductType(productTypeId);
+  }
+
   @Post('admin/product-types')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:product-types:manage')
@@ -127,6 +138,20 @@ export class CatalogTaxonomyController {
   @Get('product-types/:id/schema')
   getProductTypeSchema(@Param('id', ParseUUIDPipe) id: string) {
     return this.taxonomy.getProductTypeSchema(id);
+  }
+
+  /**
+   * Task §8: structured publish-readiness check. Returns `{ canPublish,
+   * errors[], warnings[] }` without mutating. The admin UI calls this to
+   * render the Publish button state and inline messages; tests call it as
+   * the source-of-truth for §29 acceptance criteria instead of parsing
+   * exception prose from the publish endpoint.
+   */
+  @Get('admin/product-types/:id/publish-readiness')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  publishReadiness(@Param('id', ParseUUIDPipe) id: string) {
+    return this.taxonomy.validateProductTypeForPublish(id);
   }
 
   @Post('admin/product-types/:id/publish')

@@ -27,7 +27,7 @@ import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
 import { merchantOffers } from './catalog.offer.schema';
-import { eq, and, isNull, asc, desc, sql, inArray, ilike } from 'drizzle-orm';
+import { eq, and, isNull, asc, desc, sql, inArray, ilike, like } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/index';
@@ -37,6 +37,33 @@ import {
   type ConditionalRule,
   type AttributeValueMap,
 } from './conditional-rules.service';
+
+/**
+ * BFS across the platform category rows to collect every descendant of
+ * `rootId`. Used by the category-contents endpoints because the materialized
+ * `categories.path` column is written inconsistently by the importer (see
+ * audit §3 note under the executor path builder), so a graph traversal is
+ * safer than pattern-matching on the path prefix. `all` is expected to be a
+ * small array (platform taxonomy is <200 nodes today), so the O(n²) scan is
+ * fine and avoids an index dependency.
+ */
+function collectDescendantIds(
+  all: ReadonlyArray<{ id: string; parentId: string | null }>,
+  rootId: string,
+): Set<string> {
+  const result = new Set<string>();
+  const queue: string[] = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const node of all) {
+      if (node.parentId === current && !result.has(node.id)) {
+        result.add(node.id);
+        queue.push(node.id);
+      }
+    }
+  }
+  return result;
+}
 
 /**
  * Catalog service — products, variants, categories, brands, media, imports.
@@ -184,6 +211,408 @@ export class CatalogService {
       where: and(eq(productTypes.categoryId, categoryId), eq(productTypes.status, 'PUBLISHED')),
       orderBy: [asc(productTypes.name)],
     });
+  }
+
+  // ── Category contents (audit §12, task §4/§5/§21/§23) ────────────
+  //
+  // These methods back the enriched GET /categories/:id, the new
+  // GET /categories/tree, GET /categories/:id/products, and the admin
+  // product-types listing per category. They intentionally do NOT rely on
+  // the materialized `categories.path` column: the current importer writes
+  // path inconsistently for roots vs children (see audit §3 note under the
+  // executor path builder), so traversal here is done via `parentId` over
+  // the small set of platform-level categories (storeId IS NULL).
+
+  /**
+   * Enriched category response per task §5. Adds parent / children /
+   * productTypeCount / directProductCount / descendantProductCount on top
+   * of the raw row so the admin category page can display real contents
+   * rather than frontend assumptions. Existing callers that only read the
+   * raw columns are unaffected because this method returns a superset.
+   */
+  async getCategoryContents(id: string) {
+    const cat = await this.db.db.query.categories.findFirst({
+      where: eq(categories.id, id),
+    });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const platformCats = await this.loadPlatformCategoryNodes();
+    const byId = new Map(platformCats.map(c => [c.id, c] as const));
+    const parentInfo = cat.parentId ? byId.get(cat.parentId) : null;
+    const childNodes = platformCats.filter(c => c.parentId === cat.id);
+    const descendantIds = collectDescendantIds(platformCats, cat.id);
+
+    const directCount = await this.countProductsInCategories([cat.id]);
+    const descendantCount = descendantIds.size > 0
+      ? await this.countProductsInCategories([...descendantIds])
+      : 0;
+
+    // Product-type count for a category = union of
+    //   (a) product types explicitly linked to this category via
+    //       productTypes.categoryId (task §21 relationship), and
+    //   (b) product types referenced by products directly in this category
+    //       or in its descendants (task §4 "what product types does this
+    //       category contain").
+    const linkedTypes = await this.db.db.select({ id: productTypes.id })
+      .from(productTypes)
+      .where(eq(productTypes.categoryId, cat.id));
+    const typesByProducts = await this.db.db.selectDistinct({ productTypeId: products.productTypeId })
+      .from(products)
+      .where(and(
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+        inArray(products.categoryId, [cat.id, ...descendantIds]),
+      ));
+    const typeIdSet = new Set<string>();
+    for (const r of linkedTypes) typeIdSet.add(r.id);
+    for (const r of typesByProducts) if (r.productTypeId) typeIdSet.add(r.productTypeId);
+
+    return {
+      ...cat,
+      parent: parentInfo ? { id: parentInfo.id, slug: parentInfo.slug, name: parentInfo.name } : null,
+      children: childNodes.map(c => ({ id: c.id, slug: c.slug, name: c.name })),
+      productTypeCount: typeIdSet.size,
+      directProductCount: directCount,
+      descendantProductCount: descendantCount,
+    };
+  }
+
+  /**
+   * Full platform category hierarchy with per-node counts. Task §23 requires
+   * the API to return explicit hierarchy (parent / children) rather than
+   * relying on the client to reconstruct from parentSlug = "".
+   */
+  async getCategoryTree() {
+    const nodes = await this.loadPlatformCategoryNodes();
+
+    // One group-by pass for direct product counts across every category.
+    const counts = await this.db.db.select({
+      categoryId: products.categoryId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(products)
+      .where(and(isNull(products.storeId), isNull(products.deletedAt)))
+      .groupBy(products.categoryId);
+    const countByCat = new Map<string, number>(
+      counts.filter(c => c.categoryId != null).map(c => [c.categoryId as string, c.count] as const),
+    );
+
+    type Node = {
+      id: string;
+      slug: string;
+      name: string;
+      nameAr: string | null;
+      sortOrder: number;
+      parentId: string | null;
+      directProductCount: number;
+      descendantProductCount: number;
+      children: Node[];
+    };
+
+    const nodeMap = new Map<string, Node>();
+    for (const c of nodes) {
+      nodeMap.set(c.id, {
+        id: c.id,
+        slug: c.slug,
+        name: c.name,
+        nameAr: c.nameAr,
+        sortOrder: c.sortOrder,
+        parentId: c.parentId,
+        directProductCount: countByCat.get(c.id) ?? 0,
+        descendantProductCount: 0,
+        children: [],
+      });
+    }
+
+    const roots: Node[] = [];
+    for (const c of nodes) {
+      const node = nodeMap.get(c.id)!;
+      if (c.parentId && nodeMap.has(c.parentId)) {
+        nodeMap.get(c.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    // Bottom-up accumulation: descendantProductCount for a node = sum of
+    // (direct + descendant) of each child. Mutates in place; recursion is
+    // bounded by tree depth (admin taxonomy is small).
+    const roll = (node: Node): number => {
+      let sum = 0;
+      for (const child of node.children) sum += roll(child);
+      node.descendantProductCount = sum;
+      return node.directProductCount + sum;
+    };
+    for (const r of roots) roll(r);
+
+    return roots;
+  }
+
+  /**
+   * Products belonging to a category, with direct vs descendant clearly
+   * separated (task §4 "Do not mix these counts without labeling them").
+   */
+  async getCategoryProducts(
+    id: string,
+    opts?: { scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH' },
+  ) {
+    const scope = opts?.scope ?? 'BOTH';
+    const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, id) });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const platformCats = await this.loadPlatformCategoryNodes();
+    const descendantIds = collectDescendantIds(platformCats, cat.id);
+
+    const baseConditions = [isNull(products.storeId), isNull(products.deletedAt)];
+
+    const directRows = scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
+    const descendantRows = scope === 'DIRECT' || descendantIds.size === 0
+      ? []
+      : await this.queryCategoryProductRows(baseConditions, [...descendantIds]);
+
+    return {
+      categoryId: cat.id,
+      categorySlug: cat.slug,
+      scope,
+      direct: scope === 'DESCENDANT' ? [] : directRows,
+      descendant: scope === 'DIRECT' ? [] : descendantRows,
+      directCount: directRows.length,
+      descendantCount: descendantRows.length,
+    };
+  }
+
+  /**
+   * Admin view of Product Types linked to a category, including DRAFT types
+   * (the existing listCategoryProductTypes filters to PUBLISHED and is used
+   * by merchant/buyer surfaces; the admin taxonomy UI needs every status
+   * plus variant and attribute counts per task §6).
+   */
+  async listCategoryProductTypesForAdmin(categoryId: string) {
+    const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, categoryId) });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const pts = await this.db.db.select({
+      id: productTypes.id,
+      code: productTypes.code,
+      name: productTypes.name,
+      nameAr: productTypes.nameAr,
+      description: productTypes.description,
+      status: productTypes.status,
+      version: productTypes.version,
+      publishedAt: productTypes.publishedAt,
+      variantDimensions: productTypes.variantDimensions,
+    })
+      .from(productTypes)
+      .where(eq(productTypes.categoryId, categoryId))
+      .orderBy(asc(productTypes.name));
+
+    if (pts.length === 0) return [];
+
+    const ptIds = pts.map(p => p.id);
+
+    // Variant count = number of variants attached to any product in this
+    // category whose productTypeId matches. Attribute count = PTA rows.
+    const variantCounts = await this.db.db.select({
+      productTypeId: products.productTypeId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(and(
+        inArray(products.productTypeId, ptIds),
+        eq(products.categoryId, categoryId),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ))
+      .groupBy(products.productTypeId);
+    const variantByPt = new Map(variantCounts.map(v => [v.productTypeId as string, v.count] as const));
+
+    const attrCounts = await this.db.db.select({
+      productTypeId: productTypeAttributes.productTypeId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(productTypeAttributes)
+      .where(inArray(productTypeAttributes.productTypeId, ptIds))
+      .groupBy(productTypeAttributes.productTypeId);
+    const attrByPt = new Map(attrCounts.map(a => [a.productTypeId, a.count] as const));
+
+    return pts.map(p => ({
+      ...p,
+      variantCount: variantByPt.get(p.id) ?? 0,
+      attributeCount: attrByPt.get(p.id) ?? 0,
+      publishStatus: p.status === 'PUBLISHED' ? 'PUBLISHED' : p.status === 'DRAFT' ? 'NOT_PUBLISHED' : p.status,
+    }));
+  }
+
+  /** Load the small set of platform-level categories used for tree/count traversal. */
+  private async loadPlatformCategoryNodes() {
+    return this.db.db.select({
+      id: categories.id,
+      parentId: categories.parentId,
+      slug: categories.slug,
+      name: categories.name,
+      nameAr: categories.nameAr,
+      sortOrder: categories.sortOrder,
+    })
+      .from(categories)
+      .where(isNull(categories.storeId))
+      .orderBy(asc(categories.sortOrder));
+  }
+
+  /** Count non-deleted canonical products assigned to any of the given category ids. */
+  private async countProductsInCategories(categoryIds: string[]): Promise<number> {
+    if (categoryIds.length === 0) return 0;
+    const rows = await this.db.db.select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(and(
+        inArray(products.categoryId, categoryIds),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ));
+    return rows[0]?.count ?? 0;
+  }
+
+  /** Fetch a page of products constrained to `oneOfCategoryIds`, joined with the
+   *  brand / product-type / category natural keys needed for the admin table. */
+  private async queryCategoryProductRows(baseConditions: unknown[], oneOfCategoryIds: string[]) {
+    if (oneOfCategoryIds.length === 0) return [];
+    return this.db.db.select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      titleAr: products.titleAr,
+      status: products.status,
+      condition: products.condition,
+      categoryId: products.categoryId,
+      categorySlug: categories.slug,
+      categoryName: categories.name,
+      brandSlug: brands.slug,
+      brandName: brands.name,
+      productTypeCode: productTypes.code,
+      productTypeName: productTypes.name,
+    })
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(productTypes, eq(products.productTypeId, productTypes.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(and(...(baseConditions as never[]), inArray(products.categoryId, oneOfCategoryIds)));
+  }
+
+  /**
+   * Catalog Governance §23: products that use a specific Product Type, so the
+   * admin product-type detail page can show "5 products · 10 variants" and
+   * link to each one.
+   */
+  async getProductsByProductType(productTypeId: string) {
+    const pt = await this.db.db.query.productTypes.findFirst({
+      where: eq(productTypes.id, productTypeId),
+    });
+    if (!pt) throw new NotFoundException('Product type not found');
+
+    const rows = await this.db.db.select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      titleAr: products.titleAr,
+      status: products.status,
+      condition: products.condition,
+      brandSlug: brands.slug,
+      brandName: brands.name,
+      categorySlug: categories.slug,
+      categoryName: categories.name,
+    })
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(and(
+        eq(products.productTypeId, productTypeId),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ))
+      .orderBy(asc(products.title));
+
+    // Enrich with variant counts
+    const productIds = rows.map(r => r.id);
+    const variantCountMap = new Map<string, number>();
+    if (productIds.length > 0) {
+      const vRows = await this.db.db.select({
+        productId: productVariants.productId,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .groupBy(productVariants.productId);
+      for (const r of vRows) variantCountMap.set(r.productId, r.count);
+    }
+
+    return {
+      productTypeId,
+      productTypeCode: pt.code,
+      productTypeName: pt.name,
+      products: rows.map(r => ({
+        ...r,
+        variantCount: variantCountMap.get(r.id) ?? 0,
+      })),
+      totalCount: rows.length,
+      totalVariantCount: rows.reduce((sum, r) => sum + (variantCountMap.get(r.id) ?? 0), 0),
+    };
+  }
+
+  /**
+   * Catalog Governance §26: identify variants with corrupted SKUs matching
+   * the `SKU-[...]` pattern produced by the old useProductStudio.ts bug.
+   * Returns full details so the admin can review before any migration.
+   */
+  async findCorruptedVariants() {
+    const rows = await this.db.db.select({
+      id: productVariants.id,
+      sku: productVariants.sku,
+      title: productVariants.title,
+      productId: productVariants.productId,
+      productSlug: products.slug,
+      productTitle: products.title,
+      createdAt: productVariants.createdAt,
+    })
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(like(productVariants.sku, 'SKU-[%'))
+      .orderBy(productVariants.createdAt);
+
+    // Enrich with variant attribute values so the admin can see what the
+    // variant actually represents before approving a SKU migration.
+    const variantIds = rows.map(r => r.id);
+    const attrMap = new Map<string, Array<{ attributeCode: string; valueText: string | null; valueNumber: string | null; optionValue: string | null }>>();
+    if (variantIds.length > 0) {
+      const { variantAttributeValues } = await import('../catalog/catalog.taxonomy.schema');
+      const { attributeDefinitions } = await import('../catalog/catalog.taxonomy.schema');
+      const vaRows = await this.db.db.select({
+        variantId: variantAttributeValues.variantId,
+        attributeCode: attributeDefinitions.code,
+        valueText: variantAttributeValues.valueText,
+        valueNumber: variantAttributeValues.valueNumber,
+        optionValue: variantAttributeValues.optionValue,
+      })
+        .from(variantAttributeValues)
+        .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .where(inArray(variantAttributeValues.variantId, variantIds));
+      for (const r of vaRows) {
+        if (!attrMap.has(r.variantId)) attrMap.set(r.variantId, []);
+        attrMap.get(r.variantId)!.push({
+          attributeCode: r.attributeCode,
+          valueText: r.valueText,
+          valueNumber: r.valueNumber,
+          optionValue: r.optionValue,
+        });
+      }
+    }
+
+    return {
+      count: rows.length,
+      variants: rows.map(r => ({
+        ...r,
+        attributes: attrMap.get(r.id) ?? [],
+      })),
+    };
   }
 
   // ── Brands ───────────────────────────────────────────────────
@@ -377,6 +806,93 @@ export class CatalogService {
     }
     const matched = gtin ? 'gtin' as const : ean ? 'ean' as const : 'mpn' as const;
     return { id: match.id, title: match.title, slug: match.slug, matched };
+  }
+
+  /**
+   * VARIANT REMEDIATION: Search canonical products (store_id IS NULL) by
+   * free-text title, brand, category, GTIN/EAN/MPN. Used by the merchant
+   * "Existing Product Selector" so merchants can find and link to canonical
+   * products instead of accidentally creating duplicates.
+   *
+   * Returns product rows enriched with brand name, category name, variant
+   * count, and active offer count.
+   */
+  async searchCanonicalProducts(filters: {
+    search?: string;
+    brandId?: string;
+    categoryId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = Math.min(filters.limit ?? 20, 50);
+    const offset = filters.offset ?? 0;
+    const conditions = [isNull(products.storeId), isNull(products.deletedAt)];
+
+    if (filters.search) {
+      const q = `%${filters.search}%`;
+      conditions.push(
+        // Title match OR identifier match
+        ilike(products.title, q)
+      );
+    }
+    if (filters.brandId) conditions.push(eq(products.brandId, filters.brandId));
+    if (filters.categoryId) conditions.push(eq(products.categoryId, filters.categoryId));
+
+    const rows = await this.db.db
+      .select({
+        id: products.id,
+        title: products.title,
+        titleAr: products.titleAr,
+        slug: products.slug,
+        brandId: products.brandId,
+        categoryId: products.categoryId,
+        gtin: products.gtin,
+        ean: products.ean,
+        mpn: products.mpn,
+        status: products.status,
+        brandName: brands.name,
+        categoryName: categories.name,
+      })
+      .from(products)
+      .leftJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(categories, eq(categories.id, products.categoryId))
+      .where(and(...conditions))
+      .orderBy(desc(products.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Enrich with variant count and active offer count per product.
+    const productIds = rows.map(r => r.id);
+    const variantCounts = new Map<string, number>();
+    const offerCounts = new Map<string, number>();
+
+    if (productIds.length > 0) {
+      const vRows = await this.db.db
+        .select({ productId: productVariants.productId, count: sql<number>`count(*)::int` })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .groupBy(productVariants.productId);
+      for (const r of vRows) variantCounts.set(r.productId, r.count);
+
+      const oRows = await this.db.db
+        .select({ productId: merchantOffers.productId, count: sql<number>`count(*)::int` })
+        .from(merchantOffers)
+        .where(and(
+          inArray(merchantOffers.productId, productIds),
+          eq(merchantOffers.status, 'ACTIVE'),
+        ))
+        .groupBy(merchantOffers.productId);
+      for (const r of oRows) offerCounts.set(r.productId, r.count);
+    }
+
+    return {
+      items: rows.map(r => ({
+        ...r,
+        variantCount: variantCounts.get(r.id) ?? 0,
+        activeOfferCount: offerCounts.get(r.id) ?? 0,
+      })),
+      total: rows.length < limit ? offset + rows.length : offset + limit + 1,
+    };
   }
 
   /**

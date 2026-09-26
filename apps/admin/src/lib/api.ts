@@ -1353,9 +1353,146 @@ export async function fetchAnalyticsEvents(from: string, to: string): Promise<An
   return res.json();
 }
 
-export async function fetchAnalyticsActivity(limit?: number): Promise<AnalyticsActivityEntry[]> {
+export async function fetchAnalyticsActivity(limit?: string | number): Promise<AnalyticsActivityEntry[]> {
   const qs = limit ? `?limit=${limit}` : '';
   const res = await authFetch(`${API_URL}/v1/analytics/activity${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch analytics activity: ${res.status}`);
   return res.json();
 }
+
+// ────────────────────────────────────────────────────────────
+// Catalog round-trip remediation (M2/M3) — enriched Category
+// contents, category tree, admin product-types-by-category, and
+// structured Product Type publish-readiness. Consumes the M2 API
+// contracts and adds no behaviour of its own.
+// ────────────────────────────────────────────────────────────
+
+export interface CategorySummaryRef {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface EnrichedCategory extends AdminCategory {
+  parent: CategorySummaryRef | null;
+  children: CategorySummaryRef[];
+  productTypeCount: number;
+  directProductCount: number;
+  descendantProductCount: number;
+}
+
+export interface CategoryTreeNode extends CategorySummaryRef {
+  nameAr: string | null;
+  sortOrder: number;
+  parentId: string | null;
+  directProductCount: number;
+  descendantProductCount: number;
+  children: CategoryTreeNode[];
+}
+
+export interface CategoryProductRow {
+  id: string;
+  slug: string | null;
+  title: string;
+  titleAr: string | null;
+  status: string;
+  condition: string | null;
+  categoryId: string;
+  categorySlug: string | null;
+  categoryName: string | null;
+  brandSlug: string | null;
+  brandName: string | null;
+  productTypeCode: string | null;
+  productTypeName: string | null;
+}
+
+export interface CategoryProductsResponse {
+  categoryId: string;
+  categorySlug: string;
+  scope: 'DIRECT' | 'DESCENDANT' | 'BOTH';
+  direct: CategoryProductRow[];
+  descendant: CategoryProductRow[];
+  directCount: number;
+  descendantCount: number;
+}
+
+export interface AdminCategoryProductTypeRow {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  status: string;
+  version: number;
+  publishedAt: string | null;
+  variantDimensions: unknown;
+  variantCount: number;
+  attributeCount: number;
+  publishStatus: 'PUBLISHED' | 'NOT_PUBLISHED' | string;
+}
+
+export interface PublishValidationIssue {
+  code:
+    | 'PRODUCT_TYPE_NOT_FOUND'
+    | 'CATEGORY_MISSING'
+    | 'CATEGORY_NOT_FOUND'
+    | 'CATEGORY_NOT_PLATFORM'
+    | 'NO_ATTRIBUTES'
+    | 'NO_REQUIRED_ATTRIBUTES'
+    | 'VARIANT_DIMENSION_INVALID_REF'
+    | 'VARIANT_DIMENSION_NOT_FOUND'
+    | 'VARIANT_DIMENSION_WRONG_SCOPE'
+    | 'VARIANT_DIM_INACTIVE'
+    | 'VARIANT_DIM_NOT_IN_ATTRIBUTES';
+  field: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface PublishValidationResult {
+  canPublish: boolean;
+  errors: PublishValidationIssue[];
+  warnings: PublishValidationIssue[];
+}
+
+export async function fetchCategoryContents(id: string): Promise<EnrichedCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to fetch category: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryTree(): Promise<CategoryTreeNode[]> {
+  const res = await authFetch(`${API_URL}/v1/categories/tree`);
+  if (!res.ok) throw new Error(`Failed to fetch category tree: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryProducts(
+  id: string,
+  scope: 'DIRECT' | 'DESCENDANT' | 'BOTH' = 'BOTH',
+): Promise<CategoryProductsResponse> {
+  const res = await authFetch(
+    `${API_URL}/v1/categories/${encodeURIComponent(id)}/products?scope=${scope}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch category products: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryProductTypesForAdmin(
+  id: string,
+): Promise<AdminCategoryProductTypeRow[]> {
+  const res = await authFetch(
+    `${API_URL}/v1/admin/categories/${encodeURIComponent(id)}/product-types`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch admin category product types: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProductTypePublishReadiness(id: string): Promise<PublishValidationResult> {
+  const res = await authFetch(
+    `${API_URL}/v1/admin/product-types/${encodeURIComponent(id)}/publish-readiness`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch publish readiness: ${res.status}`);
+  return res.json();
+}
+

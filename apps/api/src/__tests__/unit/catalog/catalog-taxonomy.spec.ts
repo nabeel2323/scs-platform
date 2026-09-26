@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { CatalogTaxonomyService, type AttributeValueInput } from '../../../modules/catalog/catalog.taxonomy.service';
 
 /**
@@ -166,7 +166,12 @@ describe('CatalogTaxonomyService — product types', () => {
       },
       productTypeAttributes: { findMany: [] },
     });
-    await expect(svc.publishProductType('pt-1')).rejects.toBeInstanceOf(BadRequestException);
+    // Task §8: publish readiness is now a structured 422 so the UI can show
+    // the reason inline instead of parsing prose. Assert both the HTTP shape
+    // and that NO_ATTRIBUTES is one of the returned error codes.
+    await expect(svc.publishProductType('pt-1')).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 
   it('rejects a duplicate version-1 code on create', async () => {

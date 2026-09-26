@@ -16,7 +16,7 @@ import StepReview from './steps/StepReview';
 export default function ProductStudioPage() {
   const router = useRouter();
   const studio = useProductStudio();
-  const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, searchCanonical } = studio;
+  const { step, setStep, stepIndex, state, setState, stores, categories, brands, error, saving, success, goNext, goPrev, handleSaveProduct, completeness, canonicalMatches, canonicalSearchResults, searchCanonical, searchCanonicalFreeText, existingVariants, loadExistingVariants } = studio;
   const [productTypes, setProductTypes] = useState<ProductTypeSummary[]>([]);
 
   // Load product types
@@ -59,6 +59,8 @@ export default function ProductStudioPage() {
             productTypes={productTypes}
             canonicalMatches={canonicalMatches}
             onSearchCanonical={searchCanonical}
+            canonicalSearchResults={canonicalSearchResults}
+            onSearchCanonicalFreeText={searchCanonicalFreeText}
           />
         )}
 
@@ -69,12 +71,22 @@ export default function ProductStudioPage() {
 
         {/* Step 3: Variants */}
         {step === 'variants' && (
-          <StepVariants state={state} setState={setState} />
+          <StepVariants
+            state={state}
+            setState={setState}
+            existingVariants={existingVariants}
+            onLoadExistingVariants={loadExistingVariants}
+          />
         )}
 
         {/* Step 4: Offer */}
         {step === 'offer' && (
-          <StepOffer state={state} setState={setState} />
+          <StepOffer
+            state={state}
+            setState={setState}
+            existingVariants={existingVariants}
+            stores={stores}
+          />
         )}
 
         {/* Step 5: Media */}

@@ -260,7 +260,11 @@ export async function enrichProductCards<T extends CardSource>(
   // Active merchant offer enrichment: count and lowest price across ALL stores'
   // offers for each product. This tells the buyer whether competing sellers
   // exist and what the cheapest entry point is, regardless of the product owner.
-  const offerByProduct = new Map<string, { count: number; lowestPrice: number | null; lowestCurrency: string | null }>();
+  //
+  // Cross-currency safety: prices are tracked per-currency so we never compare
+  // 3250 SAR against 900 USD numerically. The "lowest" reported to the client
+  // prefers the product's own store currency when available.
+  const offerByProduct = new Map<string, { count: number; lowestByCurrency: Map<string, number> }>();
   try {
     const productIds = items.map(i => i.id);
     const offerRows = await db.query.merchantOffers.findMany({
@@ -273,20 +277,20 @@ export async function enrichProductCards<T extends CardSource>(
     for (const row of offerRows) {
       const pid = row['productId'];
       const entry = offerByProduct.get(pid);
+      const price = row['basePriceMinor'];
+      const currency = row['currency'];
       if (entry) {
         entry.count++;
-        const price = row['basePriceMinor'];
-        if (price != null && (entry.lowestPrice == null || price < entry.lowestPrice)) {
-          entry.lowestPrice = price;
-          entry.lowestCurrency = row['currency'];
+        if (price != null && currency) {
+          const prev = entry.lowestByCurrency.get(currency);
+          if (prev == null || price < prev) {
+            entry.lowestByCurrency.set(currency, price);
+          }
         }
       } else {
-        const price = row['basePriceMinor'];
-        offerByProduct.set(pid, {
-          count: 1,
-          lowestPrice: price ?? null,
-          lowestCurrency: price != null ? row['currency'] : null,
-        });
+        const byCurrency = new Map<string, number>();
+        if (price != null && currency) byCurrency.set(currency, price);
+        offerByProduct.set(pid, { count: 1, lowestByCurrency: byCurrency });
       }
     }
   } catch {
@@ -302,6 +306,25 @@ export async function enrichProductCards<T extends CardSource>(
       if (!cheapest || pricing.unitPriceMinor < cheapest.unitPriceMinor) cheapest = pricing;
     }
     const offerData = offerByProduct.get(item.id);
+    // Pick the lowest offer price in the product's own store currency when
+    // available; otherwise report the first currency's lowest (no cross-currency
+    // numeric comparison — each currency is tracked independently).
+    let lowestPrice: number | null = null;
+    let lowestCurrency: string | null = null;
+    if (offerData && offerData.lowestByCurrency.size > 0) {
+      const storeCurrency = item.storeId ? (storeById.get(item.storeId)?.currency) : null;
+      if (storeCurrency && offerData.lowestByCurrency.has(storeCurrency)) {
+        lowestPrice = offerData.lowestByCurrency.get(storeCurrency)!;
+        lowestCurrency = storeCurrency;
+      } else {
+        // No offers in the store currency — report the first available currency.
+        const first = offerData.lowestByCurrency.entries().next();
+        if (!first.done) {
+          lowestCurrency = first.value[0];
+          lowestPrice = first.value[1];
+        }
+      }
+    }
     return {
       ...item,
       store: item.storeId ? (storeById.get(item.storeId) ?? null) : null,
@@ -310,8 +333,8 @@ export async function enrichProductCards<T extends CardSource>(
       stockStatus: stockByProduct.get(item.id) ?? 'UNKNOWN',
       imageUrl: imageByProduct.get(item.id) ?? null,
       activeOfferCount: offerData?.count ?? 0,
-      lowestOfferPriceMinor: offerData?.lowestPrice ?? null,
-      lowestOfferCurrency: offerData?.lowestCurrency ?? null,
+      lowestOfferPriceMinor: lowestPrice,
+      lowestOfferCurrency: lowestCurrency,
     };
   });
 }

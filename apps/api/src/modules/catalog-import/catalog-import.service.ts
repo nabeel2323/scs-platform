@@ -14,6 +14,25 @@ import { ExcelResolverService, type ResolvedReferences } from './excel-resolver.
 import { ExcelPlannerService, type ImportPlan, type PlanEntry, type ExistingEntityMap } from './excel-planner.service';
 import { ExcelExecutorService, type ExecutionResult, VARCHAR_LIMITS } from './excel-executor.service';
 import { TemplateGeneratorService } from './template-generator.service';
+import { CatalogTaxonomyService } from '../catalog/catalog.taxonomy.service';
+
+/** Extended result with publishability info per Catalog Governance §21. */
+export interface ImportExecutionResult extends ExecutionResult {
+  publishability: PublishabilityReport;
+}
+
+/** Per-product-type publishability breakdown after import. */
+export interface PublishabilityReport {
+  totalProductTypes: number;
+  publishable: number;
+  notPublishable: number;
+  details: Array<{
+    code: string;
+    name: string;
+    canPublish: boolean;
+    errors: Array<{ code: string; message: string }>;
+  }>;
+}
 
 /**
  * Orchestrates the catalog import pipeline:
@@ -42,6 +61,7 @@ export class CatalogImportService {
     private readonly planner: ExcelPlannerService,
     private readonly executor: ExcelExecutorService,
     private readonly templateGenerator: TemplateGeneratorService,
+    private readonly taxonomyService: CatalogTaxonomyService,
   ) {}
 
   // ── Upload ────────────────────────────────────────────────────
@@ -142,7 +162,7 @@ export class CatalogImportService {
     importId: string,
     userId: string,
     overrides?: Record<string, Record<string, Record<string, string>>>,
-  ): Promise<ExecutionResult> {
+  ): Promise<ImportExecutionResult> {
     const cached = this.planCache.get(importId);
     if (!cached) {
       throw new BadRequestException('No validated plan found. Please validate the import first.');
@@ -170,6 +190,11 @@ export class CatalogImportService {
 
     try {
       const result = await this.executor.execute(plan, refs);
+
+      // Catalog Governance §21: post-import publishability check. After the
+      // transaction commits, validate every product type that was created or
+      // updated so the admin knows which ones can be published immediately.
+      const publishability = await this.checkPublishability(plan, refs);
 
       const status = (result.errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED')
         .slice(0, CatalogImportService.STATUS_MAX_LEN);
@@ -204,7 +229,10 @@ export class CatalogImportService {
       this.planCache.delete(importId);
 
       this.logger.log(`Import ${importId} completed: ${result.created} created, ${result.updated} updated`);
-      return result;
+      return {
+        ...result,
+        publishability,
+      };
     } catch (err) {
       await this.updateStatus(importId, 'FAILED');
       this.logger.error(`Import ${importId} failed: ${err}`);
@@ -445,6 +473,47 @@ export class CatalogImportService {
       categories: new Map(catRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       brands: new Map(brandRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       products: new Map(prodRows.map(r => [r.slug, { title: r.title, description: r.description, mpn: r.mpn }])),
+    };
+  }
+
+  /**
+   * Catalog Governance §21: after import execution, validate each product type
+   * that was created or updated so the admin sees publishability counts and
+   * can drill into specific validation failures.
+   */
+  private async checkPublishability(plan: ImportPlan, refs: ResolvedReferences): Promise<PublishabilityReport> {
+    const details: PublishabilityReport['details'] = [];
+
+    // Collect product type IDs that were created or updated in this import.
+    // After execution, refs.productTypeIds maps externalKey → real UUID.
+    for (const entry of plan.productTypes) {
+      if (entry.action === 'UNCHANGED') continue;
+      const ptId = refs.productTypeIds.get(entry.externalKey);
+      if (!ptId || ptId.startsWith('pending:')) continue;
+      try {
+        const result = await this.taxonomyService.validateProductTypeForPublish(ptId);
+        details.push({
+          code: entry.data['code'] as string || entry.externalKey,
+          name: entry.data['name'] as string || entry.externalKey,
+          canPublish: result.canPublish,
+          errors: result.errors.map(e => ({ code: e.code, message: e.message })),
+        });
+      } catch (err) {
+        this.logger.warn(`Publishability check failed for PT ${ptId}: ${err}`);
+        details.push({
+          code: entry.data['code'] as string || entry.externalKey,
+          name: entry.data['name'] as string || entry.externalKey,
+          canPublish: false,
+          errors: [{ code: 'VALIDATION_ERROR', message: err instanceof Error ? err.message : String(err) }],
+        });
+      }
+    }
+
+    return {
+      totalProductTypes: details.length,
+      publishable: details.filter(d => d.canPublish).length,
+      notPublishable: details.filter(d => !d.canPublish).length,
+      details,
     };
   }
 }

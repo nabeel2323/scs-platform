@@ -854,4 +854,60 @@ void main() {
       expect(p.revenueMinor, 0);
     });
   });
+
+  // ── CanonicalProduct (Variant Identity Remediation) ──────────
+
+  group('CanonicalProduct.fromJson', () {
+    test('parses all fields correctly', () {
+      final p = CanonicalProduct.fromJson({
+        'id': 'cp1',
+        'title': 'Dell Latitude 5540',
+        'slug': 'dell-latitude-5540',
+        'status': 'ACTIVE',
+        'titleAr': 'ديل لاتيتود',
+        'brandId': 'b1',
+        'categoryId': 'c1',
+        'brandName': 'Dell',
+        'categoryName': 'Laptops',
+        'gtin': '0123456789012',
+        'ean': '0123456789012',
+        'mpn': 'LAT-5540',
+        'variantCount': 5,
+        'activeOfferCount': 3,
+      });
+      expect(p.id, 'cp1');
+      expect(p.title, 'Dell Latitude 5540');
+      expect(p.brandName, 'Dell');
+      expect(p.categoryName, 'Laptops');
+      expect(p.variantCount, 5);
+      expect(p.activeOfferCount, 3);
+      expect(p.gtin, '0123456789012');
+    });
+
+    test('defaults counts to zero for missing fields', () {
+      final p = CanonicalProduct.fromJson({
+        'id': 'cp2',
+        'title': 'Generic Widget',
+        'slug': 'generic-widget',
+      });
+      expect(p.variantCount, 0);
+      expect(p.activeOfferCount, 0);
+      expect(p.brandName, isNull);
+      expect(p.categoryName, isNull);
+    });
+  });
+
+  group('CanonicalSearchResult', () {
+    test('holds items and total', () {
+      final result = CanonicalSearchResult(
+        items: [
+          CanonicalProduct.fromJson({'id': '1', 'title': 'A', 'slug': 'a'}),
+          CanonicalProduct.fromJson({'id': '2', 'title': 'B', 'slug': 'b'}),
+        ],
+        total: 10,
+      );
+      expect(result.items.length, 2);
+      expect(result.total, 10);
+    });
+  });
 }

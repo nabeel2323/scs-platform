@@ -241,6 +241,58 @@ class Product {
       : formatMinor(priceFromMinor!, priceCurrency ?? store?.currency ?? 'SAR');
 }
 
+/// Canonical product summary returned by GET /v1/canonical/search.
+/// Used by the merchant "Existing Product Selector" in the offer create flow.
+class CanonicalProduct {
+  final String id, title, slug, status;
+  final String? titleAr, brandId, categoryId;
+  final String? brandName, categoryName;
+  final String? gtin, ean, mpn;
+  final int variantCount;
+  final int activeOfferCount;
+
+  CanonicalProduct({
+    required this.id,
+    required this.title,
+    required this.slug,
+    required this.status,
+    this.titleAr,
+    this.brandId,
+    this.categoryId,
+    this.brandName,
+    this.categoryName,
+    this.gtin,
+    this.ean,
+    this.mpn,
+    this.variantCount = 0,
+    this.activeOfferCount = 0,
+  });
+
+  factory CanonicalProduct.fromJson(Map<String, dynamic> j) => CanonicalProduct(
+        id: j['id'],
+        title: j['title'] ?? '',
+        slug: j['slug'] ?? '',
+        status: j['status'] ?? 'ACTIVE',
+        titleAr: j['titleAr'],
+        brandId: j['brandId'],
+        categoryId: j['categoryId'],
+        brandName: j['brandName'],
+        categoryName: j['categoryName'],
+        gtin: j['gtin'],
+        ean: j['ean'],
+        mpn: j['mpn'],
+        variantCount: j['variantCount'] as int? ?? 0,
+        activeOfferCount: j['activeOfferCount'] as int? ?? 0,
+      );
+}
+
+/// Paginated result from GET /v1/canonical/search.
+class CanonicalSearchResult {
+  final List<CanonicalProduct> items;
+  final int total;
+  CanonicalSearchResult({required this.items, required this.total});
+}
+
 class ProductVariant {
   final String id, productId, sku, unit;
   final String? barcode, title, titleAr;
