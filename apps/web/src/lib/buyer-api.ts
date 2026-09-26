@@ -1741,6 +1741,49 @@ export async function searchCanonicalProducts(params: {
   return res.json();
 }
 
+// ── Canonical Catalog Search (Existing Product Selector) ─────────
+
+export interface CanonicalProductSummary {
+  id: string;
+  title: string;
+  titleAr: string | null;
+  slug: string;
+  brandId: string | null;
+  categoryId: string | null;
+  brandName: string | null;
+  categoryName: string | null;
+  gtin: string | null;
+  ean: string | null;
+  mpn: string | null;
+  status: string;
+  variantCount: number;
+  activeOfferCount: number;
+}
+
+/**
+ * Free-text search across canonical products for the merchant
+ * "Existing Product Selector". Returns products with brand/category
+ * names, variant count, and active offer count.
+ */
+export async function searchCanonicalCatalog(params: {
+  search?: string;
+  brandId?: string;
+  categoryId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: CanonicalProductSummary[]; total: number }> {
+  const sp = new URLSearchParams();
+  if (params.search) sp.set('search', params.search);
+  if (params.brandId) sp.set('brandId', params.brandId);
+  if (params.categoryId) sp.set('categoryId', params.categoryId);
+  if (params.limit != null) sp.set('limit', String(params.limit));
+  if (params.offset != null) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/canonical/search${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw await ApiError.from(res, `Canonical catalog search failed (${res.status})`);
+  return res.json();
+}
+
 // ── Variant Matrix — dimension-based variant selector ──────────────
 
 export interface VariantMatrixDimension {

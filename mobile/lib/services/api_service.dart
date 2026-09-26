@@ -1083,4 +1083,32 @@ class ApiService {
           .data
           .map<PriceTier>((e) => PriceTier.fromJson(e))
           .toList();
+
+  // ── Canonical Catalog Search (Existing Product Selector) ────
+  /// Free-text search across canonical products (store_id IS NULL).
+  /// Returns { items, total } for the merchant offer-create flow.
+  Future<CanonicalSearchResult> searchCanonicalCatalog({
+    String? search,
+    String? brandId,
+    String? categoryId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final p = <String, dynamic>{};
+    if (search != null && search.isNotEmpty) p['search'] = search;
+    if (brandId != null) p['brandId'] = brandId;
+    if (categoryId != null) p['categoryId'] = categoryId;
+    p['limit'] = limit;
+    p['offset'] = offset;
+    final res = await _dio.get('/v1/canonical/search', queryParameters: p);
+    final data = res.data;
+    final items = (data['items'] as List<dynamic>? ?? [])
+        .map((e) =>
+            CanonicalProduct.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    return CanonicalSearchResult(
+      items: items,
+      total: data['total'] as int? ?? items.length,
+    );
+  }
 }

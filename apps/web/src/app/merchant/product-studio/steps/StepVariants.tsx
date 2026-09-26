@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { ProductVariant } from '../../../../lib/buyer-api';
 import { type StudioState } from '../../../../hooks/useProductStudio';
 import { StepCard } from './StepIdentity';
 import VariantMatrix from '../components/VariantMatrix';
@@ -7,9 +9,72 @@ import VariantMatrix from '../components/VariantMatrix';
 interface StepVariantsProps {
   state: StudioState;
   setState: React.Dispatch<React.SetStateAction<StudioState>>;
+  existingVariants?: ProductVariant[];
+  onLoadExistingVariants?: (productId: string) => Promise<ProductVariant[]>;
 }
 
-export default function StepVariants({ state, setState }: StepVariantsProps) {
+export default function StepVariants({ state, setState, existingVariants = [], onLoadExistingVariants }: StepVariantsProps) {
+  // When an existing canonical product is selected, load its variants
+  useEffect(() => {
+    if (state.useExistingProductId && onLoadExistingVariants) {
+      onLoadExistingVariants(state.useExistingProductId);
+    }
+  }, [state.useExistingProductId, onLoadExistingVariants]);
+
+  // ── Existing product: show variant selector ─────────────────────
+  if (state.useExistingProductId) {
+    const selectedVariant = existingVariants.find(v => v.id === state.selectedExistingVariantId);
+
+    return (
+      <StepCard title="Existing Variants" subtitle={`This product has ${existingVariants.length} existing variant(s). Select one to attach your offer, or skip to create an offer at the product level.`}>
+        {existingVariants.length === 0 ? (
+          <div style={{ padding: 16, background: '#f7f9fa', borderRadius: 6, textAlign: 'center', color: '#5b6b74' }}>
+            <p style={{ margin: '0 0 8px' }}>This product has no variants yet.</p>
+            <p style={{ margin: 0, fontSize: 12 }}>You can create an offer at the product level, or go back and create variants first.</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gap: 4, maxHeight: 320, overflowY: 'auto' }}>
+              {existingVariants.map(v => (
+                <div
+                  key={v.id}
+                  onClick={() => setState(prev => ({ ...prev, selectedExistingVariantId: v.id }))}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 14px', borderRadius: 6, cursor: 'pointer',
+                    border: state.selectedExistingVariantId === v.id ? '2px solid #0f3340' : '1px solid #e5ecf0',
+                    background: state.selectedExistingVariantId === v.id ? '#f0fdf4' : '#fff',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#16232b', fontFamily: 'monospace' }}>{v.sku}</div>
+                    <div style={{ fontSize: 12, color: '#5b6b74' }}>{v.title || 'Untitled variant'}</div>
+                  </div>
+                  <div style={{ fontSize: 11, color: v.isActive ? '#166534' : '#991b1b' }}>
+                    {v.isActive ? 'Active' : 'Inactive'}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {selectedVariant && (
+              <div style={{ padding: 10, background: '#eaf5ef', color: '#1b7a4b', borderRadius: 6, fontSize: 12 }}>
+                ✓ Selected variant: <strong>{selectedVariant.sku}</strong> — {selectedVariant.title || 'Untitled'}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setState(prev => ({ ...prev, selectedExistingVariantId: null }))}
+              style={{ padding: '8px 14px', fontSize: 12, border: '1px solid #d9e2e6', borderRadius: 6, cursor: 'pointer', background: '#fff', color: '#5b6b74' }}
+            >
+              Clear selection (create offer at product level)
+            </button>
+          </>
+        )}
+      </StepCard>
+    );
+  }
+
+  // ── New product: show variant matrix builder ────────────────────
   const schema = state.productTypeSchema;
 
   if (!schema || schema.variantDimensions.length === 0) {

@@ -5,8 +5,10 @@ import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
   Category, Brand, createProduct, upsertProductAttributeValues, createVariant,
   createMerchantOffer, presignMedia, addMedia, searchCanonicalProducts, Product,
+  searchCanonicalCatalog, CanonicalProductSummary, fetchProductVariants, ProductVariant,
 } from '../lib/buyer-api';
 import { fetchMyStores } from '../lib/api';
+import { generateSku, buildVariantTitle, resolveComboAttributes } from '../lib/sku-utils';
 
 export type Step = 'identity' | 'specifications' | 'variants' | 'offer' | 'media' | 'review';
 
@@ -37,6 +39,7 @@ export interface StudioState {
   mpn: string;
   condition: string;
   useExistingProductId: string | null;
+  selectedExistingVariantId: string | null;
   // Step 2: Specifications (attributeId → value)
   attributeValues: Record<string, string>;
   // Step 3: Variants
@@ -58,6 +61,7 @@ const INITIAL: StudioState = {
   storeId: '', categoryId: '', brandId: '', productTypeId: '', productTypeSchema: null,
   title: '', titleAr: '', slug: '', description: '', descriptionAr: '',
   gtin: '', ean: '', mpn: '', condition: 'NEW', useExistingProductId: null,
+  selectedExistingVariantId: null,
   attributeValues: {}, variantDimensions: {}, enabledCombinations: new Set(),
   currency: 'SAR', basePriceMinor: 0, moq: 1, leadTimeDays: 3, warehouseId: '',
   mediaItems: [], productId: null,
@@ -73,6 +77,8 @@ export function useProductStudio() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
   const [canonicalMatches, setCanonicalMatches] = useState<Product[]>([]);
+  const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>([]);
+  const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
 
   // Load initial data
   useEffect(() => {
@@ -109,7 +115,7 @@ export function useProductStudio() {
   const goNext = () => { setError(''); if (stepIndex < STEPS.length - 1) setStep(STEPS[stepIndex + 1]!.key); };
   const goPrev = () => { setError(''); if (stepIndex > 0) setStep(STEPS[stepIndex - 1]!.key); };
 
-  // Search canonical products by GTIN/EAN/MPN
+  // Search canonical products by GTIN/EAN/MPN (legacy identifier match)
   const searchCanonical = useCallback(async (query: { gtin?: string; ean?: string; mpn?: string; title?: string }) => {
     try {
       const results = await searchCanonicalProducts(query);
@@ -117,6 +123,32 @@ export function useProductStudio() {
       return results;
     } catch {
       setCanonicalMatches([]);
+      return [];
+    }
+  }, []);
+
+  // Free-text search across canonical catalog (Existing Product Selector)
+  const searchCanonicalFreeText = useCallback(async (params: {
+    search?: string; brandId?: string; categoryId?: string;
+  }) => {
+    try {
+      const result = await searchCanonicalCatalog(params);
+      setCanonicalSearchResults(result.items);
+      return result.items;
+    } catch {
+      setCanonicalSearchResults([]);
+      return [];
+    }
+  }, []);
+
+  // Load existing variants when a canonical product is selected
+  const loadExistingVariants = useCallback(async (productId: string) => {
+    try {
+      const variants = await fetchProductVariants(productId);
+      setExistingVariants(variants);
+      return variants;
+    } catch {
+      setExistingVariants([]);
       return [];
     }
   }, []);
@@ -156,14 +188,30 @@ export function useProductStudio() {
         }
       }
 
-      // Step 3: Create variants for enabled combinations
-      if (state.enabledCombinations.size > 0) {
-        for (const comboKey of state.enabledCombinations) {
-          await createVariant(productId, {
-            sku: `${state.slug || 'SKU'}-${comboKey}`.substring(0, 60),
-            title: comboKey,
-            attributes: JSON.parse(comboKey),
-          });
+      // Step 3: Create variants for enabled combinations (skip if using existing variant)
+      if (!state.selectedExistingVariantId) {
+        // Resolve brand name for SKU generation (from the brands loaded at init).
+        const brandName = brands.find(b => b.id === state.brandId)?.name ?? null;
+        if (state.enabledCombinations.size > 0) {
+          for (const comboKey of state.enabledCombinations) {
+            // Resolve raw attrId/value pairs to human-readable attribute entries
+            // using the product type schema (attribute definition names + option labels).
+            const resolved = resolveComboAttributes(comboKey, state.productTypeSchema);
+            const attrValues = resolved.map(r => r.label);
+            const title = buildVariantTitle(
+              resolved.map(r => ({ name: r.name, value: r.label })),
+            );
+            const sku = generateSku({
+              brand: brandName,
+              productTitle: state.title,
+              attributeValues: attrValues,
+            });
+            await createVariant(productId, {
+              sku,
+              title: title || undefined,
+              attributes: JSON.parse(comboKey),
+            });
+          }
         }
       }
 
@@ -224,6 +272,8 @@ export function useProductStudio() {
     stores, categories, brands,
     error, setError, saving, success,
     canonicalMatches, searchCanonical,
+    canonicalSearchResults, searchCanonicalFreeText,
+    existingVariants, loadExistingVariants,
     goNext, goPrev, handleSaveProduct, completeness,
   };
 }

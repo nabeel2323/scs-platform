@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   ProductTypeSchema, AttributeDefinition,
   fetchProductTypeSchema, fetchAttributes,
   setProductTypeAttributes, setVariantDimensions, publishProductType,
+  adminRequest, type AdminRecord,
 } from '../../../lib/api';
 import { useRequirePerms, AccessDenied } from '../../../hooks/useRequirePerms';
 import { AttributeTree, AttributeConfigPanel, VariantDimensionSelector } from '../../../components/product-type-builder';
@@ -19,10 +21,49 @@ import {
   AdminCopyButton,
   AdminLoadingSkeleton,
   AdminErrorState,
+  AdminEmptyState,
   formatDate,
   type KVItem,
 } from '../../../components/detail';
 import styles from '../../../components/management.module.css';
+
+/** Structured publish-readiness result from the backend validator. */
+interface PublishValidationResult {
+  canPublish: boolean;
+  errors: Array<{ code: string; field: string; message: string; severity: string }>;
+  warnings: Array<{ code: string; field: string; message: string; severity: string }>;
+}
+
+/** Fetch publish-readiness for a product type. */
+function fetchProductTypePublishReadiness(id: string): Promise<PublishValidationResult> {
+  return adminRequest<PublishValidationResult>(`admin/product-types/${encodeURIComponent(id)}/publish-readiness`);
+}
+
+/** Banner showing publish-readiness errors/warnings for DRAFT product types. */
+function PublishReadinessBanner({ readiness }: { readiness: PublishValidationResult | null }) {
+  if (!readiness) return null;
+  if (readiness.canPublish && readiness.warnings.length === 0) return null;
+  return (
+    <div style={{
+      margin: '0 32px', padding: '10px 16px', borderRadius: 8,
+      background: readiness.canPublish ? '#fef3c7' : '#fef2f2',
+      border: `1px solid ${readiness.canPublish ? '#fcd34d' : '#fca5a5'}`,
+      fontSize: 13,
+    }}>
+      {readiness.canPublish ? (
+        <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Publishable with warnings</div>
+      ) : (
+        <div style={{ fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>Cannot publish — {readiness.errors.length} error(s)</div>
+      )}
+      {readiness.errors.map((e, i) => (
+        <div key={`e${i}`} style={{ color: '#991b1b', fontSize: 12 }}>[{e.code}] {e.message}</div>
+      ))}
+      {readiness.warnings.map((w, i) => (
+        <div key={`w${i}`} style={{ color: '#92400e', fontSize: 12 }}>[{w.code}] {w.message}</div>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Product Type Builder — three-panel layout for configuring a product type's
@@ -39,6 +80,7 @@ export default function ProductTypeBuilderPage() {
   // Schema state
   const [schema, setSchema] = useState<ProductTypeSchema | null>(null);
   const [allAttributes, setAllAttributes] = useState<AttributeDefinition[]>([]);
+  const [readiness, setReadiness] = useState<PublishValidationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -51,6 +93,10 @@ export default function ProductTypeBuilderPage() {
 
   // Tab state
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Products tab state
+  const [ptProducts, setPtProducts] = useState<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>({ products: [], totalCount: 0, totalVariantCount: 0 });
+  const [ptProdLoading, setPtProdLoading] = useState(false);
 
   // Dirty tracking
   const [dirty, setDirty] = useState(false);
@@ -77,6 +123,20 @@ export default function ProductTypeBuilderPage() {
       setVariantDimIds(vDims);
       setDirty(false);
       setSaveSuccess(null);
+
+      // Task §8/§22: structured publish-readiness. Best-effort — a failure
+      // to fetch readiness must not block the builder from loading. Only
+      // meaningful for DRAFT types; skip otherwise to avoid noise.
+      if (schemaData.status === 'DRAFT') {
+        try {
+          const r = await fetchProductTypePublishReadiness(id);
+          setReadiness(r);
+        } catch {
+          setReadiness(null);
+        }
+      } else {
+        setReadiness(null);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load product type schema');
     } finally {
@@ -85,6 +145,24 @@ export default function ProductTypeBuilderPage() {
   }, [id]);
 
   useEffect(() => { if (ready && hasAccess && id) load(); }, [ready, hasAccess, id, load]);
+
+  // Load products when the Products tab is activated
+  useEffect(() => {
+    if (activeTab !== 'products' || !id) return;
+    setPtProdLoading(true);
+    adminRequest<{ products: AdminRecord[]; totalCount: number; totalVariantCount: number }>(
+      `product-types/products/${encodeURIComponent(id)}`,
+    )
+      .then(res => {
+        setPtProducts({
+          products: res?.products ?? [],
+          totalCount: res?.totalCount ?? 0,
+          totalVariantCount: res?.totalVariantCount ?? 0,
+        });
+        setPtProdLoading(false);
+      })
+      .catch(() => { setPtProdLoading(false); });
+  }, [activeTab, id]);
 
   // Handlers
   const handleAddAttribute = useCallback((attrId: string) => {
@@ -224,6 +302,7 @@ export default function ProductTypeBuilderPage() {
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'builder', label: 'Attribute Builder' },
+    { key: 'products', label: 'Products', count: ptProducts.totalCount },
   ];
 
   const overviewItems: KVItem[] = [
@@ -304,6 +383,13 @@ export default function ProductTypeBuilderPage() {
       {/* Tabs */}
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
+      {/* Task §8/§22: Publish-readiness banner. Renders only when the
+          backend reports at least one error or warning. Sits above the
+          tab content so admins see why Publish will fail before clicking. */}
+      {readiness && (readiness.errors.length > 0 || readiness.warnings.length > 0) && (
+        <PublishReadinessBanner readiness={readiness} />
+      )}
+
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -374,6 +460,43 @@ export default function ProductTypeBuilderPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Products Tab */}
+      {activeTab === 'products' && (
+        <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <AdminDetailSection title={`Products (${ptProducts.totalCount}) · ${ptProducts.totalVariantCount} variants`}>
+            {ptProdLoading && <div style={{ padding: 16, color: '#6b7280', fontSize: 13 }}>Loading products…</div>}
+            {!ptProdLoading && ptProducts.products.length === 0 && (
+              <AdminEmptyState title="No products" description="No canonical products use this Product Type yet." />
+            )}
+            {ptProducts.products.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ptProducts.products.map(p => (
+                  <Link
+                    key={p.id}
+                    href={`/products/${p.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '10px 14px', border: '1px solid #d9e2e6', borderRadius: 8,
+                      textDecoration: 'none', color: '#16232b', transition: 'background 0.12s',
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 500 }}>{String(p['title'] || p['slug'])}</span>
+                      {p['brandName'] != null && String(p['brandName']) && <span style={{ marginLeft: 8, fontSize: 12, color: '#5b6b74' }}>{String(p['brandName'])}</span>}
+                      {p['categoryName'] != null && String(p['categoryName']) && <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af' }}>{String(p['categoryName'])}</span>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(p['variantCount'] ?? 0)} variants</span>
+                      <AdminStatusBadge status={String(p['status'] || 'DRAFT')} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </AdminDetailSection>
+        </div>
       )}
     </div>
   );

@@ -72,9 +72,20 @@ export class CatalogController {
     });
   }
 
+  /**
+   * Task §23: full platform category hierarchy in one request so the admin
+   * tree view does not have to reconstruct parent/child relationships from
+   * `parentSlug = ""`. Declared BEFORE `@Get('categories/:id')` because
+   * NestJS matches literal path segments ahead of parameterized siblings.
+   */
+  @Get('categories/tree')
+  async getCategoryTree() {
+    return this.catalogService.getCategoryTree();
+  }
+
   @Get('categories/:id')
   async getCategory(@Param('id') id: string) {
-    return this.catalogService.getCategory(id);
+    return this.catalogService.getCategoryContents(id);
   }
 
   /**
@@ -84,6 +95,32 @@ export class CatalogController {
   @Get('categories/:id/product-types')
   async listCategoryProductTypes(@Param('id') id: string) {
     return this.catalogService.listCategoryProductTypes(id);
+  }
+
+  /**
+   * Task §4: products belonging to a category with direct vs descendant
+   * clearly separated. Consumer chooses `scope=DIRECT`, `scope=DESCENDANT`,
+   * or omits for BOTH (default).
+   */
+  @Get('categories/:id/products')
+  async listCategoryProducts(
+    @Param('id') id: string,
+    @Query('scope') scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH',
+  ) {
+    return this.catalogService.getCategoryProducts(id, { scope });
+  }
+
+  /**
+   * Task §21: admin-scoped listing that includes DRAFT product types with
+   * variant and attribute counts, complementing the PUBLISHED-only
+   * `GET /categories/:id/product-types` used by merchant/buyer surfaces.
+   */
+  @Get('admin/categories/:id/product-types')
+  @UseGuards(PermissionsGuard, RolesGuard)
+  @RequirePermission('catalog:categories:write')
+  @RequireRole('ADMIN', 'MODERATOR')
+  async listCategoryProductTypesForAdmin(@Param('id') id: string) {
+    return this.catalogService.listCategoryProductTypesForAdmin(id);
   }
 
   @Patch('categories/:id')
@@ -433,6 +470,28 @@ export class CatalogController {
   }
 
   /**
+   * VARIANT REMEDIATION: Free-text search across canonical products.
+   * Returns products with brand/category names, variant count, offer count.
+   * Used by the merchant "Existing Product Selector" on web and mobile.
+   */
+  @Get('canonical/search')
+  async searchCanonical(
+    @Query('search') search?: string,
+    @Query('brandId') brandId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.catalogService.searchCanonicalProducts({
+      search,
+      brandId,
+      categoryId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  /**
    * Admin: scan for potential duplicate products (same title + category).
    */
   @Get('canonical/duplicates')
@@ -450,5 +509,15 @@ export class CatalogController {
   @RequirePermission('catalog:product-types:manage')
   getDataQuality() {
     return this.catalogService.getDataQualityMetrics();
+  }
+
+  /**
+   * Catalog Governance §26: identify variants with corrupted SKU-[...] patterns.
+   */
+  @Get('admin/corrupted-variants')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission('catalog:product-types:manage')
+  findCorruptedVariants() {
+    return this.catalogService.findCorruptedVariants();
   }
 }

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import {
@@ -66,6 +67,35 @@ export interface UpsertOptionInput {
   valueAr?: string;
   label?: string;
   sortOrder?: number;
+}
+
+/**
+ * Task §8: one publish-readiness finding. `code` is a stable identifier so
+ * consumers can branch on it without parsing prose; `field` points at the
+ * offending input surface for form-level highlighting.
+ */
+export interface PublishValidationIssue {
+  code:
+    | 'PRODUCT_TYPE_NOT_FOUND'
+    | 'CATEGORY_MISSING'
+    | 'CATEGORY_NOT_FOUND'
+    | 'CATEGORY_NOT_PLATFORM'
+    | 'NO_ATTRIBUTES'
+    | 'NO_REQUIRED_ATTRIBUTES'
+    | 'VARIANT_DIMENSION_INVALID_REF'
+    | 'VARIANT_DIMENSION_NOT_FOUND'
+    | 'VARIANT_DIMENSION_WRONG_SCOPE'
+    | 'VARIANT_DIM_INACTIVE'
+    | 'VARIANT_DIM_NOT_IN_ATTRIBUTES';
+  field: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface PublishValidationResult {
+  canPublish: boolean;
+  errors: PublishValidationIssue[];
+  warnings: PublishValidationIssue[];
 }
 
 export interface CreateProductTypeInput {
@@ -379,14 +409,19 @@ export class CatalogTaxonomyService {
     const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
     if (!pt) throw new NotFoundException('Product type not found');
 
-    // A published template must have at least one attribute and valid dimensions.
-    const attrs = await this.db.db.query.productTypeAttributes.findMany({
-      where: eq(productTypeAttributes.productTypeId, id),
-    });
-    if (attrs.length === 0) {
-      throw new BadRequestException('Cannot publish a product type with no attributes');
+    // Task §8/§22: publish readiness is now a shared validator that returns
+    // structured errors. The endpoint surfaces them via 422 with a machine-
+    // readable payload so the admin UI, Import Center and tests can all
+    // consume the same shape without parsing prose.
+    const validation = await this.validateProductTypeForPublish(id);
+    if (!validation.canPublish) {
+      throw new UnprocessableEntityException({
+        message: `Cannot publish Product Type "${pt.name}"`,
+        productTypeId: id,
+        errors: validation.errors,
+        warnings: validation.warnings,
+      });
     }
-    await this.validateVariantDimensions(pt.categoryId, (pt.variantDimensions as string[]) ?? []);
 
     const now = new Date();
     // Deprecate every PRIOR published version of the same logical code (§12) so
@@ -409,6 +444,157 @@ export class CatalogTaxonomyService {
       .where(eq(productTypes.id, id));
 
     return this.getProductType(id);
+  }
+
+  /**
+   * Task §8: shared publish-readiness validator. Returns `{ canPublish,
+   * errors[], warnings[] }` with stable `code` values so downstream
+   * (admin UI, Import Center, tests) can react programmatically instead of
+   * parsing exception messages. Does NOT mutate; safe to call repeatedly.
+   *
+   * Errors (block publishing):
+   *   PRODUCT_TYPE_NOT_FOUND, CATEGORY_MISSING, CATEGORY_NOT_FOUND,
+   *   NO_ATTRIBUTES, VARIANT_DIMENSION_INVALID_REF,
+   *   VARIANT_DIMENSION_NOT_FOUND, VARIANT_DIMENSION_WRONG_SCOPE
+   *
+   * Warnings (surface but do not block):
+   *   CATEGORY_NOT_PLATFORM, NO_REQUIRED_ATTRIBUTES,
+   *   VARIANT_DIM_NOT_IN_ATTRIBUTES, VARIANT_DIM_INACTIVE
+   */
+  async validateProductTypeForPublish(id: string): Promise<PublishValidationResult> {
+    const errors: PublishValidationIssue[] = [];
+    const warnings: PublishValidationIssue[] = [];
+
+    const pt = await this.db.db.query.productTypes.findFirst({ where: eq(productTypes.id, id) });
+    if (!pt) {
+      return {
+        canPublish: false,
+        errors: [
+          {
+            code: 'PRODUCT_TYPE_NOT_FOUND',
+            field: 'id',
+            message: `Product type ${id} does not exist`,
+            severity: 'ERROR',
+          },
+        ],
+        warnings: [],
+      };
+    }
+
+    // 1. Category binding (task §21 inverse: PTs must point at a real category).
+    if (!pt.categoryId) {
+      errors.push({
+        code: 'CATEGORY_MISSING',
+        field: 'categoryId',
+        message: `Product Type "${pt.name}" is not linked to a category`,
+        severity: 'ERROR',
+      });
+    } else {
+      const cat = await this.db.db.query.categories.findFirst({
+        where: eq(categories.id, pt.categoryId),
+      });
+      if (!cat) {
+        errors.push({
+          code: 'CATEGORY_NOT_FOUND',
+          field: 'categoryId',
+          message: `Category ${pt.categoryId} referenced by Product Type "${pt.name}" does not exist`,
+          severity: 'ERROR',
+        });
+      } else if (cat.storeId != null) {
+        warnings.push({
+          code: 'CATEGORY_NOT_PLATFORM',
+          field: 'categoryId',
+          message: `Category "${cat.name}" is store-scoped; platform Product Types should reference a platform-level category`,
+          severity: 'WARNING',
+        });
+      }
+    }
+
+    // 2. Attribute bindings.
+    const attrs = await this.db.db.query.productTypeAttributes.findMany({
+      where: eq(productTypeAttributes.productTypeId, id),
+    });
+    if (attrs.length === 0) {
+      errors.push({
+        code: 'NO_ATTRIBUTES',
+        field: 'productTypeAttributes',
+        message: `Product Type "${pt.name}" has no attributes configured`,
+        severity: 'ERROR',
+      });
+    } else {
+      const requiredPresent = attrs.some(a => a.required);
+      if (!requiredPresent) {
+        warnings.push({
+          code: 'NO_REQUIRED_ATTRIBUTES',
+          field: 'productTypeAttributes',
+          message: `Product Type "${pt.name}" has attributes but none marked required`,
+          severity: 'WARNING',
+        });
+      }
+    }
+
+    // 3. Variant dimensions: must be UUID strings resolving to VARIANT-scope attributes.
+    const rawDims = Array.isArray(pt.variantDimensions) ? (pt.variantDimensions as unknown[]) : [];
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const malformed = rawDims.filter(d => typeof d !== 'string' || !uuidRe.test(d));
+    if (malformed.length > 0) {
+      errors.push({
+        code: 'VARIANT_DIMENSION_INVALID_REF',
+        field: 'variantDimensions',
+        message: `Variant dimensions must be attribute UUIDs (found: ${malformed.map(m => String(m)).join(', ')})`,
+        severity: 'ERROR',
+      });
+    }
+    const validDimIds = rawDims.filter(d => typeof d === 'string' && uuidRe.test(d)) as string[];
+    if (validDimIds.length > 0) {
+      const attrRows = await this.db.db.query.attributeDefinitions.findMany({
+        where: inArray(attributeDefinitions.id, validDimIds),
+      });
+      const byId = new Map(attrRows.map(a => [a.id, a]));
+      const ptaAttrIds = new Set(attrs.map(a => a.attributeDefinitionId));
+      for (const dimId of validDimIds) {
+        const a = byId.get(dimId);
+        if (!a) {
+          errors.push({
+            code: 'VARIANT_DIMENSION_NOT_FOUND',
+            field: 'variantDimensions',
+            message: `Variant dimension references unknown attribute ${dimId}`,
+            severity: 'ERROR',
+          });
+          continue;
+        }
+        if (a.scope !== 'VARIANT') {
+          errors.push({
+            code: 'VARIANT_DIMENSION_WRONG_SCOPE',
+            field: 'variantDimensions',
+            message: `Variant dimension "${a.code}" must have VARIANT scope (found ${a.scope})`,
+            severity: 'ERROR',
+          });
+        }
+        if (a.status !== 'ACTIVE') {
+          warnings.push({
+            code: 'VARIANT_DIM_INACTIVE',
+            field: 'variantDimensions',
+            message: `Variant dimension "${a.code}" is ${a.status}, not ACTIVE`,
+            severity: 'WARNING',
+          });
+        }
+        if (!ptaAttrIds.has(dimId)) {
+          warnings.push({
+            code: 'VARIANT_DIM_NOT_IN_ATTRIBUTES',
+            field: 'variantDimensions',
+            message: `Variant dimension "${a.code}" is not listed in this Product Type's attributes`,
+            severity: 'WARNING',
+          });
+        }
+      }
+    }
+
+    return {
+      canPublish: errors.length === 0,
+      errors,
+      warnings,
+    };
   }
 
   async getProductType(id: string) {
