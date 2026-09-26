@@ -746,16 +746,26 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
   }
 
   async function loadExistingEntityMap() {
-    const [catRows, brandRows, prodRows] = await Promise.all([
+    const [catRows, brandRows, prodRows, srcRows] = await Promise.all([
       db.select({ slug: categories.slug, name: categories.name, nameAr: categories.nameAr, description: categories.description }).from(categories).where(isNull(categories.storeId)),
       db.select({ slug: brands.slug, name: brands.name, nameAr: brands.nameAr, description: brands.description }).from(brands),
       db.select({ slug: products.slug, title: products.title, description: products.description, mpn: products.mpn }).from(products).where(isNull(products.storeId)),
+      db.select({ slug: products.slug, sourceType: productSources.sourceType, sourceUrl: productSources.sourceUrl })
+        .from(productSources)
+        .innerJoin(products, eq(productSources.productId, products.id)),
     ]);
+
+    // Build composite source keys: "productSlug:sourceType:sourceUrl"
+    const sources = new Set<string>();
+    for (const r of srcRows) {
+      sources.add(`${r.slug}:${r.sourceType}:${r.sourceUrl}`);
+    }
 
     return {
       categories: new Map(catRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       brands: new Map(brandRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       products: new Map(prodRows.map(r => [r.slug, { title: r.title, description: r.description, mpn: r.mpn }])),
+      sources,
     };
   }
 });

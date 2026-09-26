@@ -132,10 +132,14 @@ export class ExcelPlannerService {
         });
       } else {
         const ex = existing.categories.get(slug);
+        // Use `|| ''` (not `?? ''`) so that null and '' are treated as
+        // equivalent.  The executor stores null for empty cells, and the
+        // round-trip export→parser produces null for empty cells too, but
+        // the ORIGINAL parser may produce '' for whitespace-only cells.
         const changed = ex && (
-          ex.name !== row['name'] ||
-          (row['name_ar'] ?? '') !== (ex.nameAr ?? '') ||
-          (row['description'] ?? '') !== (ex.description ?? '')
+          (ex.name || '') !== (row['name'] || '') ||
+          (row['name_ar'] || '') !== (ex.nameAr || '') ||
+          (row['description'] || '') !== (ex.description || '')
         );
         plan.categories.push({
           entityType: 'categories',
@@ -167,9 +171,9 @@ export class ExcelPlannerService {
       } else {
         const ex = existing.brands.get(slug);
         const changed = ex && (
-          ex.name !== row['name'] ||
-          (row['name_ar'] ?? '') !== (ex.nameAr ?? '') ||
-          (row['description'] ?? '') !== (ex.description ?? '')
+          (ex.name || '') !== (row['name'] || '') ||
+          (row['name_ar'] || '') !== (ex.nameAr || '') ||
+          (row['description'] || '') !== (ex.description || '')
         );
         plan.brands.push({
           entityType: 'brands',
@@ -386,9 +390,9 @@ export class ExcelPlannerService {
       } else {
         const ex = existing.products.get(slug);
         const changed = ex && (
-          ex.title !== row['title'] ||
-          (row['description'] ?? '') !== (ex.description ?? '') ||
-          (row['mpn'] ?? '') !== (ex.mpn ?? '')
+          (ex.title || '') !== (row['title'] || '') ||
+          (row['description'] || '') !== (ex.description || '') ||
+          (row['mpn'] || '') !== (ex.mpn || '')
         );
         plan.products.push({
           entityType: 'products',
