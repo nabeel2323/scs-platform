@@ -756,6 +756,149 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     });
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // M5 — PRODUCT TYPE PUBLISH & CATEGORY UI REMEDIATION
+  // ═══════════════════════════════════════════════════════════════════
+
+  describe('M5 — Product Type publish & Category UI remediation', () => {
+    // M5-1: Code-based variant dimensions are resolved to UUIDs before publish
+    it('resolves natural-code variant dimensions to UUIDs and publishes', async () => {
+      // Find the business-laptop product type (imported with UUID dims by executor)
+      const ptRow = await pool.query(
+        `SELECT id, code, variant_dimensions FROM product_types WHERE code = 'business-laptop'`,
+      );
+      expect(ptRow.rows).toHaveLength(1);
+      const ptId = ptRow.rows[0].id;
+
+      // Simulate the defect: overwrite variant_dimensions with natural codes
+      await pool.query(
+        `UPDATE product_types SET variant_dimensions = $1::jsonb WHERE id = $2`,
+        [JSON.stringify(['ram-gb', 'storage-gb', 'color']), ptId],
+      );
+
+      // Validate for publish — should resolve codes → UUIDs and succeed
+      const readiness = await taxonomy.validateProductTypeForPublish(ptId);
+      expect(readiness.canPublish).toBe(true);
+      expect(readiness.errors).toHaveLength(0);
+
+      // Verify the DB was fixed: dimensions are now UUIDs
+      const fixed = await pool.query(
+        `SELECT variant_dimensions FROM product_types WHERE id = $1`,
+        [ptId],
+      );
+      const dims = fixed.rows[0].variant_dimensions as string[];
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      expect(dims.every(d => uuidRe.test(d))).toBe(true);
+
+      // Actually publish it
+      const published = await taxonomy.publishProductType(ptId);
+      expect(published.status).toBe('PUBLISHED');
+    });
+
+    // M5-2: Invalid dimension code still fails
+    it('rejects non-existent attribute code in variant dimensions', async () => {
+      const barePtId = randomUUID();
+      const laptopsRow = await pool.query(`SELECT id FROM categories WHERE slug = 'laptops'`);
+      const laptopsId = laptopsRow.rows[0].id;
+
+      await pool.query(
+        `INSERT INTO product_types (id, code, name, category_id, status, variant_dimensions) VALUES ($1, 'defective-type', 'Defective', $2, 'DRAFT', $3)`,
+        [barePtId, laptopsId, JSON.stringify(['nonexistent-attr'])],
+      );
+      // Add a PTA row so NO_ATTRIBUTES doesn't fire
+      const attrRow = await pool.query(`SELECT id FROM attribute_definitions WHERE code = 'ram-gb'`);
+      await pool.query(
+        `INSERT INTO product_type_attributes (id, product_type_id, attribute_definition_id, required, scope) VALUES ($1, $2, $3, true, 'VARIANT')`,
+        [randomUUID(), barePtId, attrRow.rows[0].id],
+      );
+
+      const readiness = await taxonomy.validateProductTypeForPublish(barePtId);
+      expect(readiness.canPublish).toBe(false);
+      const errorCodes = readiness.errors.map(e => e.code);
+      expect(errorCodes).toContain('VARIANT_DIMENSION_INVALID_REF');
+    });
+
+    // M5-3: PRODUCT-scope attribute used as dimension fails
+    it('rejects PRODUCT-scope attribute used as variant dimension', async () => {
+      // cpu-model is PRODUCT scope in our workbook
+      const ptId2 = randomUUID();
+      const laptopsRow = await pool.query(`SELECT id FROM categories WHERE slug = 'laptops'`);
+      const laptopsId = laptopsRow.rows[0].id;
+
+      await pool.query(
+        `INSERT INTO product_types (id, code, name, category_id, status, variant_dimensions) VALUES ($1, 'wrong-scope-type', 'Wrong Scope', $2, 'DRAFT', $3)`,
+        [ptId2, laptopsId, JSON.stringify(['cpu-model'])],
+      );
+      // Add PTA
+      const attrRow = await pool.query(`SELECT id FROM attribute_definitions WHERE code = 'cpu-model'`);
+      await pool.query(
+        `INSERT INTO product_type_attributes (id, product_type_id, attribute_definition_id, required, scope) VALUES ($1, $2, $3, true, 'PRODUCT')`,
+        [randomUUID(), ptId2, attrRow.rows[0].id],
+      );
+
+      const readiness = await taxonomy.validateProductTypeForPublish(ptId2);
+      expect(readiness.canPublish).toBe(false);
+      const errorCodes = readiness.errors.map(e => e.code);
+      expect(errorCodes).toContain('VARIANT_DIMENSION_WRONG_SCOPE');
+    });
+
+    // M5-4: Admin category product types includes DRAFT types
+    it('listCategoryProductTypesForAdmin returns DRAFT product types', async () => {
+      const laptopsRow = await pool.query(`SELECT id FROM categories WHERE slug = 'laptops'`);
+      const laptopsId = laptopsRow.rows[0].id;
+
+      // business-laptop was just published above; gaming-laptop should still be DRAFT
+      const adminPts = await catalog.listCategoryProductTypesForAdmin(laptopsId);
+      expect(adminPts.length).toBeGreaterThanOrEqual(1);
+      // Should include both DRAFT and PUBLISHED types
+      const statuses = adminPts.map((p: any) => p.status);
+      expect(statuses).toContain('DRAFT');
+    });
+
+    // M5-5: listCategories returns productCount
+    it('listCategories includes productCount per category', async () => {
+      const allCats = await catalog.listCategories({ all: true, isActive: undefined });
+      // The 'laptops' category should have products (latitude-5550, thinkpad-t14)
+      const laptopsCat = allCats.find((c: any) => c.slug === 'laptops');
+      expect(laptopsCat).toBeDefined();
+      expect((laptopsCat as any).productCount).toBe(2);
+
+      // 'gaming-laptops' should have 1 product (rog-strix-g15)
+      const gamingCat = allCats.find((c: any) => c.slug === 'gaming-laptops');
+      expect(gamingCat).toBeDefined();
+      expect((gamingCat as any).productCount).toBe(1);
+
+      // 'electronics' root should have 0 direct products
+      const elecCat = allCats.find((c: any) => c.slug === 'electronics');
+      expect(elecCat).toBeDefined();
+      expect((elecCat as any).productCount).toBe(0);
+    });
+
+    // M5-6: getProductTypeSchema enriches variant dimensions with attribute details
+    it('getProductTypeSchema returns enriched variant dimensions', async () => {
+      const ptRow = await pool.query(
+        `SELECT id FROM product_types WHERE code = 'business-laptop'`,
+      );
+      const ptId = ptRow.rows[0].id;
+
+      const schema = await taxonomy.getProductTypeSchema(ptId);
+      // variantDimensions stays as UUID string[] for backward compatibility
+      expect(Array.isArray(schema.variantDimensions)).toBe(true);
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      expect((schema.variantDimensions as string[]).every(d => uuidRe.test(d))).toBe(true);
+
+      // variantDimensionsEnriched has human-readable attribute details
+      const enriched = (schema as any).variantDimensionsEnriched as any[];
+      expect(enriched.length).toBeGreaterThan(0);
+      for (const d of enriched) {
+        expect(d).toHaveProperty('id');
+        expect(d).toHaveProperty('code');
+        expect(d).toHaveProperty('name');
+        expect(d).toHaveProperty('scope');
+      }
+    });
+  });
+
   // ── Helper methods (mirror CatalogImportService private methods) ──────
 
   async function loadExistingDataSnapshot() {

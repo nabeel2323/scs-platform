@@ -5,7 +5,7 @@ import {
   AdminCategory,
   AdminProductTypeSummary,
   fetchAdminCategories,
-  fetchCategoryProductTypes,
+  fetchCategoryProductTypesForAdmin,
   createAdminCategory,
   updateAdminCategory,
   deleteAdminCategory,
@@ -69,8 +69,10 @@ function CategoriesPageContent() {
   useEffect(() => {
     if (!selected) { setProductTypes([]); return; }
     setPtLoading(true);
-    fetchCategoryProductTypes(selected.id)
-      .then(setProductTypes)
+    // M5 remediation: use admin endpoint which includes all statuses (DRAFT,
+    // PUBLISHED, etc.) instead of the public endpoint which only returns PUBLISHED.
+    fetchCategoryProductTypesForAdmin(selected.id)
+      .then(pts => setProductTypes(pts as unknown as AdminProductTypeSummary[]))
       .catch(() => setProductTypes([]))
       .finally(() => setPtLoading(false));
   }, [selected]);
