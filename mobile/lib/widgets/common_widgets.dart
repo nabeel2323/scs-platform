@@ -185,6 +185,32 @@ class ProductCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: priced ? TaifTokens.ok : TaifTokens.muted),
               ),
+              // Offer indicator: shows how many active merchant offers exist
+              // and the lowest offer price when it differs from the owner's.
+              if (product.activeOfferCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text(
+                    '${product.activeOfferCount} offer${product.activeOfferCount != 1 ? 's' : ''}'
+                    '${product.lowestOfferPriceMinor != null ? ' · From ${formatMinor(product.lowestOfferPriceMinor!, product.lowestOfferCurrency ?? product.priceCurrency ?? 'SAR')}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: TaifTokens.ok),
+                  ),
+                )
+              else if (priced)
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    'No active offers',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: TaifTokens.muted),
+                  ),
+                ),
               if (showStore && seller != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -208,7 +234,7 @@ class ProductCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'MOQ: ${product.moq}',
                 style: const TextStyle(fontSize: 11, color: TaifTokens.muted),

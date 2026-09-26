@@ -86,6 +86,11 @@ export interface Product {
   priceCurrency?: string | null;
   /** Card enrichment: first product image signed for display; null if unresolvable. */
   imageUrl?: string | null;
+  /** Offer enrichment: number of ACTIVE merchant offers across all stores. */
+  activeOfferCount?: number;
+  /** Offer enrichment: lowest base price among active merchant offers. */
+  lowestOfferPriceMinor?: number | null;
+  lowestOfferCurrency?: string | null;
 }
 
 export interface ProductVariant {

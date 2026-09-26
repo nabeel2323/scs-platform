@@ -242,14 +242,43 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                               fontWeight: FontWeight.w600, fontSize: 14)),
                       const SizedBox(height: 8),
                       ...o.items.map((item) => Card(
-                          child: ListTile(
-                              title: Text(item.title),
-                              subtitle: Text(
-                                  'Qty ${item.quantity} × ${formatMinor(item.unitPriceMinor, o.currency)}'),
-                              trailing: Text(
-                                  formatMinor(item.lineTotalMinor, o.currency),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))))),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.title,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                      'SKU: ${item.sku.isNotEmpty ? item.sku : 'N/A'} · Qty: ${item.quantity}${item.qtyConfirmed != null ? ' (Confirmed: ${item.qtyConfirmed})' : ''}',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: TaifTokens.muted)),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                          '${formatMinor(item.unitPriceMinor, o.currency)} × ${item.quantity}',
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              color: TaifTokens.muted)),
+                                      Text(
+                                          formatMinor(
+                                              item.lineTotalMinor, o.currency),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14)),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )),
                       const SizedBox(height: 16),
                       const Text('Financial Breakdown',
                           style: TextStyle(

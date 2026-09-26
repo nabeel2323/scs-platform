@@ -86,6 +86,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   Future<void> _addToCart(Product p) async {
+    // Canonical products (no storeId) require an explicit offer/seller
+    // selection — the backend will reject a bare add. Navigate to the PDP
+    // where the buyer can pick a merchant offer.
+    if (p.storeId.isEmpty) {
+      context.push('/products/${p.id}');
+      return;
+    }
     try {
       // The cart line references a variant, not a product; the service resolves
       // the default one and buys at the MOQ (A5-12 — this used to post `p.id`
@@ -94,12 +101,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ref.invalidate(cartProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Added to cart'), duration: Duration(seconds: 1)));
+            content: Text('✓ Added to cart'), duration: Duration(seconds: 2)));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(ApiService.errorMessage(e))));
       }
     }
   }

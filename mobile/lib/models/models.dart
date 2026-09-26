@@ -136,6 +136,13 @@ class Product {
   final int? priceFromMinor;
   final String? priceCurrency;
 
+  /// Offer enrichment: number of ACTIVE merchant offers across all stores.
+  final int activeOfferCount;
+
+  /// Offer enrichment: lowest base price among active merchant offers.
+  final int? lowestOfferPriceMinor;
+  final String? lowestOfferCurrency;
+
   /// Embedded by GET /v1/products/:id (A5-1) with each variant's effective
   /// `priceMinor`. Empty on list endpoints, which do not carry variants.
   final List<ProductVariant> variants;
@@ -159,6 +166,9 @@ class Product {
       this.resolvedImageUrl,
       this.priceFromMinor,
       this.priceCurrency,
+      this.activeOfferCount = 0,
+      this.lowestOfferPriceMinor,
+      this.lowestOfferCurrency,
       this.variants = const [],
       required this.createdAt});
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -186,6 +196,9 @@ class Product {
       resolvedImageUrl: j['imageUrl'] as String?,
       priceFromMinor: j['priceFromMinor'] as int?,
       priceCurrency: j['priceCurrency'] as String?,
+      activeOfferCount: j['activeOfferCount'] as int? ?? 0,
+      lowestOfferPriceMinor: j['lowestOfferPriceMinor'] as int?,
+      lowestOfferCurrency: j['lowestOfferCurrency'] as String?,
       variants: (j['variants'] as List? ?? [])
           .map((e) =>
               ProductVariant.fromJson(Map<String, dynamic>.from(e as Map)))
