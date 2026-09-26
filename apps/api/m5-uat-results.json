@@ -1,0 +1,151 @@
+{
+  "results": [
+    {
+      "id": "UAT-01",
+      "scenario": "Workbook upload",
+      "status": "PASS",
+      "evidence": "importId=2eb856d8-6cbc-4608-95df-fd5fa05cb35c"
+    },
+    {
+      "id": "UAT-02",
+      "scenario": "Import preview",
+      "status": "PASS",
+      "evidence": "preview returned"
+    },
+    {
+      "id": "UAT-03",
+      "scenario": "Preview non-mutation",
+      "status": "PASS",
+      "evidence": "entities after preview: 0 (expected 0)"
+    },
+    {
+      "id": "UAT-04",
+      "scenario": "Import execution",
+      "status": "PASS",
+      "evidence": "created=75 rejected=0 errors=0"
+    },
+    {
+      "id": "UAT-05",
+      "scenario": "Category productCount (laptops)",
+      "status": "PASS",
+      "evidence": "laptops.productCount=2 (expected 2)"
+    },
+    {
+      "id": "UAT-06",
+      "scenario": "Category productCount (gaming)",
+      "status": "PASS",
+      "evidence": "gaming-laptops.productCount=1 (expected 1)"
+    },
+    {
+      "id": "UAT-07",
+      "scenario": "Category productCount (root)",
+      "status": "PASS",
+      "evidence": "electronics.productCount=0 (expected 0)"
+    },
+    {
+      "id": "UAT-07b",
+      "scenario": "SQL ↔ API count match (laptops)",
+      "status": "PASS",
+      "evidence": "SQL=2 API=2"
+    },
+    {
+      "id": "UAT-08",
+      "scenario": "Admin shows DRAFT product types",
+      "status": "PASS",
+      "evidence": "laptops PTs: 1, hasDRAFT=true"
+    },
+    {
+      "id": "UAT-09",
+      "scenario": "Business Laptop PT visible",
+      "status": "PASS",
+      "evidence": "id=3b129864… status=DRAFT"
+    },
+    {
+      "id": "UAT-10",
+      "scenario": "variantDimensions are UUIDs",
+      "status": "PASS",
+      "evidence": "dims=[\"c4f7bb98-1bc4-44b1-b4ff-213e7fe3630e\",\"e32ca908-1db2-4754-a031-d1d3b0fa56c0\",\"4d23f631-dc29-4ac6-9779-67bc3dffa6a0\",\"5f7d42b1-098a-4d29-833f-1d65f19154fa\"]"
+    },
+    {
+      "id": "UAT-11",
+      "scenario": "Enriched dimensions have names",
+      "status": "PASS",
+      "evidence": "ram-gb→RAM (GB), storage-gb→Storage (GB), color→Color, os→Operating System"
+    },
+    {
+      "id": "UAT-12",
+      "scenario": "All variant_dimensions are UUIDs",
+      "status": "PASS",
+      "evidence": "2 product types checked"
+    },
+    {
+      "id": "UAT-13",
+      "scenario": "Code-based dims resolve for publish",
+      "status": "PASS",
+      "evidence": "canPublish=true errors=[]"
+    },
+    {
+      "id": "UAT-14",
+      "scenario": "Codes persisted as UUIDs",
+      "status": "PASS",
+      "evidence": "AFTER: [c4f7bb98…, e32ca908…, 4d23f631…, 5f7d42b1…]"
+    },
+    {
+      "id": "UAT-15",
+      "scenario": "Product Type publish",
+      "status": "PASS",
+      "evidence": "status=PUBLISHED"
+    },
+    {
+      "id": "UAT-16",
+      "scenario": "Invalid dimension rejected",
+      "status": "PASS",
+      "evidence": "canPublish=false errors=[{\"code\":\"VARIANT_DIMENSION_INVALID_REF\",\"field\":\"variantDimensions\",\"message\":\"Variant dimensions must be attribute UUIDs (found: does-not-exist)\",\"severity\":\"ERROR\"}]"
+    },
+    {
+      "id": "UAT-17",
+      "scenario": "PRODUCT-scope dim rejected",
+      "status": "PASS",
+      "evidence": "canPublish=false hasScopeError=true errors=[{\"code\":\"VARIANT_DIMENSION_WRONG_SCOPE\",\"field\":\"variantDimensions\",\"message\":\"Variant dimension \\\"cpu-model\\\" must have VARIANT scope (found PRODUCT)\",\"severity\":\"ERROR\"}]"
+    },
+    {
+      "id": "UAT-18",
+      "scenario": "Product count stable after publish",
+      "status": "PASS",
+      "evidence": "laptops.productCount=2 (expected 2)"
+    },
+    {
+      "id": "UAT-19",
+      "scenario": "Published PT visible in category",
+      "status": "PASS",
+      "evidence": "status=PUBLISHED"
+    },
+    {
+      "id": "UAT-20",
+      "scenario": "No corrupted SKUs",
+      "status": "PASS",
+      "evidence": "corrupted SKUs: 0, total SKUs: 4"
+    },
+    {
+      "id": "UAT-21",
+      "scenario": "Catalog export",
+      "status": "PASS",
+      "evidence": "size=19243 isXlsx=true"
+    },
+    {
+      "id": "UAT-22",
+      "scenario": "Round-trip idempotency",
+      "status": "FAIL",
+      "evidence": "created=41 updated=0 unchanged=38 errors=0"
+    },
+    {
+      "id": "UAT-23",
+      "scenario": "RBAC: unauthenticated rejected",
+      "status": "PASS",
+      "evidence": "status=401"
+    }
+  ],
+  "passed": 23,
+  "failed": 1,
+  "blocked": 0
+}
