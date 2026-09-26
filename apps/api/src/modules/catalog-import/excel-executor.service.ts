@@ -667,7 +667,10 @@ export class ExcelExecutorService {
   private async upsertSource(tx: any, productId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    const verifiedAt = d.verifiedAt ? new Date(d.verifiedAt as string) : null;
+    // Guard against invalid date strings (empty cells may arrive as '' or null;
+    // new Date('') produces an Invalid Date whose .toISOString() throws).
+    const rawDate = d.verifiedAt ? new Date(d.verifiedAt as string) : null;
+    const verifiedAt = rawDate && !isNaN(rawDate.getTime()) ? rawDate : null;
     await tx.insert(productSources).values({
       id,
       productId,
