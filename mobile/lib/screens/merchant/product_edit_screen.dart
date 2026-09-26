@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Product create/edit screen. `productId == null` => create mode.
@@ -287,7 +288,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
             child: LoadingSpinner()),
-        error: (e, _) => ErrorBanner(message: '$e'),
+        error: (e, _) => ErrorBanner(message: ApiService.errorMessage(e)),
         data: (list) => list.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -412,7 +413,7 @@ class _ProductEditScreenState extends ConsumerState<ProductEditScreen> {
         loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
             child: LoadingSpinner()),
-        error: (e, _) => ErrorBanner(message: '$e'),
+        error: (e, _) => ErrorBanner(message: ApiService.errorMessage(e)),
         data: (list) => list.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 class StoresListScreen extends ConsumerWidget {
@@ -37,7 +38,7 @@ class StoresListScreen extends ConsumerWidget {
           loading: () => const LoadingSpinner(),
           error: (e, _) => EmptyState(
               title: 'Error',
-              description: '$e',
+              description: ApiService.errorMessage(e),
               onAction: () => ref.invalidate(storesProvider)),
         ));
   }

@@ -9,6 +9,62 @@ class ApiService {
   ApiService(this._dio);
   final Dio _dio;
 
+  /// Extract the server's actual error detail from a [DioException].
+  ///
+  /// The API returns RFC 7807 `application/problem+json` with a `detail` field
+  /// containing the human-readable reason. Without this helper, catch blocks
+  /// that interpolate `$e` only see Dio's generic status-line text
+  /// (e.g. "client error - the request contains bad syntax…") and the real
+  /// cause (e.g. "No price is available for this item") is lost.
+  /// Human-readable message for any failure. Prefers a server-provided RFC 7807
+  /// `detail`/`title`; otherwise maps the HTTP status (401/403/404/409/422/429/
+  /// 5xx) and network-level failures to friendly copy, so no screen ever shows
+  /// a raw socket string or a bare status code (spec §40).
+  static String errorMessage(Object error) {
+    if (error is! DioException) return error.toString();
+
+    // 1. Server-provided human message wins (RFC 7807 ProblemDetail).
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final detail = data['detail'];
+      final title = data['title'];
+      if (detail is String && detail.isNotEmpty) return detail;
+      if (title is String && title.isNotEmpty) return title;
+    }
+
+    // 2. Map the HTTP status when the body carried nothing usable.
+    final byStatus = switch (error.response?.statusCode) {
+      400 => 'That request was invalid. Please check your input and retry.',
+      401 => 'Your session has expired. Please sign in again.',
+      403 => 'You don\'t have permission to do that.',
+      404 => 'We couldn\'t find what you were looking for.',
+      409 => 'That conflicts with the current state. Please refresh and retry.',
+      422 => 'Some details need attention. Please review and retry.',
+      429 => 'Too many attempts. Please wait a moment and try again.',
+      500 ||
+      502 ||
+      503 ||
+      504 =>
+        'Our servers are having trouble right now. Please retry shortly.',
+      _ => null,
+    };
+    if (byStatus != null) return byStatus;
+
+    // 3. Network-level failures (no HTTP response at all).
+    final byType = switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout =>
+        'The connection timed out. Please check your network and retry.',
+      DioExceptionType.connectionError =>
+        'No internet connection. Please check your network and retry.',
+      _ => null,
+    };
+    if (byType != null) return byType;
+
+    return error.message ?? 'Request failed. Please try again.';
+  }
+
   // ── Auth ──────────────────────────────────────────────────
   Future<void> requestOtp(String phone) async =>
       _dio.post('/v1/auth/otp/request', data: {'phone': phone});
@@ -626,9 +682,14 @@ class ApiService {
       _dio.post('/v1/orders/$orderId/accept');
   Future<void> rejectOrder(String orderId, String reason) async =>
       _dio.post('/v1/orders/$orderId/reject', data: {'reason': reason});
+
+  /// Batch partial acceptance. `confirmations` is a list of
+  /// `{itemId, qtyConfirmed}` maps (backend `ItemConfirmation`). Posts to the
+  /// `partial-accept` route — NOT `items/:itemId/confirm`, which confirms a
+  /// single line only.
   Future<void> partialAccept(
           String orderId, List<Map<String, dynamic>> confirmations) async =>
-      _dio.post('/v1/orders/$orderId/items/confirm',
+      _dio.post('/v1/orders/$orderId/partial-accept',
           data: {'confirmations': confirmations});
   Future<void> transitionStatus(String orderId, String status,
           {String? reason}) async =>
@@ -883,6 +944,132 @@ class ApiService {
           .data
           .map<InventoryItem>((e) => InventoryItem.fromJson(e))
           .toList();
+
+  /// READ-ONLY low-stock list (qtyOnHand ≤ reorderPoint). Unlike
+  /// [checkLowStock] — a side-effecting POST that emits notifications — this GET
+  /// is safe to call on every dashboard load for the low-stock KPI. With no
+  /// [warehouseId] the backend scopes the result to the caller's own org
+  /// warehouses (A3-1), so a merchant sees exactly their own low-stock items.
+  Future<List<InventoryItem>> fetchLowStock({String? warehouseId}) async =>
+      (await _dio.get('/v1/inventory/low-stock',
+              queryParameters:
+                  warehouseId != null ? {'warehouseId': warehouseId} : null))
+          .data
+          .map<InventoryItem>((e) => InventoryItem.fromJson(e))
+          .toList();
+
+  // ── Merchant Analytics ───────────────────────────────────────
+  /// Per-offer sales analytics for a store (orders, units, revenue). Backs the
+  /// merchant dashboard KPIs (audit row 190). Returns an empty list when the
+  /// store has no offers; the caller sums `revenueMinor` / `unitsSold`.
+  Future<List<OfferAnalyticsRow>> fetchOfferAnalytics(String storeId) async =>
+      (await _dio.get('/v1/merchant/offers/analytics',
+              queryParameters: {'storeId': storeId}))
+          .data
+          .map<OfferAnalyticsRow>((e) =>
+              OfferAnalyticsRow.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+  // ── Merchant Offer Management ─────────────────────────────
+
+  /// List all offers for a store (merchant-side management surface).
+  /// GET /v1/merchant/offers?storeId=…
+  Future<List<MerchantOffer>> fetchMerchantOffers(String storeId) async =>
+      (await _dio.get('/v1/merchant/offers',
+              queryParameters: {'storeId': storeId}))
+          .data
+          .map<MerchantOffer>((e) =>
+              MerchantOffer.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+
+  /// Get a single offer by ID. GET /v1/offers/:id
+  Future<MerchantOffer> fetchOfferDetail(String id) async =>
+      MerchantOffer.fromJson((await _dio.get('/v1/offers/$id')).data);
+
+  /// Create a new merchant offer. POST /v1/merchant/offers
+  /// Price is in minor units (cents/halalas). Status defaults to DRAFT.
+  Future<MerchantOffer> createMerchantOffer({
+    required String storeId,
+    required String productId,
+    String? variantId,
+    int? basePriceMinor,
+    String currency = 'SAR',
+    int moq = 1,
+    int? leadTimeDays,
+  }) async {
+    final d = <String, dynamic>{
+      'storeId': storeId,
+      'productId': productId,
+      'currency': currency,
+      'moq': moq,
+    };
+    if (variantId != null) d['variantId'] = variantId;
+    if (basePriceMinor != null) d['basePriceMinor'] = basePriceMinor;
+    if (leadTimeDays != null) d['leadTimeDays'] = leadTimeDays;
+    return MerchantOffer.fromJson(
+        (await _dio.post('/v1/merchant/offers', data: d)).data);
+  }
+
+  /// Propose a DRAFT/REJECTED offer for admin approval.
+  /// POST /v1/merchant/offers/:id/propose
+  Future<MerchantOffer> proposeOffer(String offerId) async =>
+      MerchantOffer.fromJson(
+          (await _dio.post('/v1/merchant/offers/$offerId/propose')).data);
+
+  /// Withdraw an offer from the approval/sales workflow.
+  /// POST /v1/merchant/offers/:id/withdraw
+  Future<MerchantOffer> withdrawOffer(String offerId) async =>
+      MerchantOffer.fromJson(
+          (await _dio.post('/v1/merchant/offers/$offerId/withdraw')).data);
+
+  /// Update an offer's commercial terms (price, MOQ, lead time, etc.).
+  /// PATCH /v1/merchant/offers/:id/pricing
+  Future<MerchantOffer> updateOfferPricing(
+    String offerId, {
+    int? basePriceMinor,
+    String? currency,
+    int? moq,
+    int? leadTimeDays,
+    int? compareAtPriceMinor,
+    int? orderIncrement,
+    bool? isAvailable,
+  }) async {
+    final d = <String, dynamic>{};
+    if (basePriceMinor != null) d['basePriceMinor'] = basePriceMinor;
+    if (currency != null) d['currency'] = currency;
+    if (moq != null) d['moq'] = moq;
+    if (leadTimeDays != null) d['leadTimeDays'] = leadTimeDays;
+    if (compareAtPriceMinor != null) {
+      d['compareAtPriceMinor'] = compareAtPriceMinor;
+    }
+    if (orderIncrement != null) d['orderIncrement'] = orderIncrement;
+    if (isAvailable != null) d['isAvailable'] = isAvailable;
+    return MerchantOffer.fromJson(
+        (await _dio.patch('/v1/merchant/offers/$offerId/pricing', data: d))
+            .data);
+  }
+
+  /// Time-series sales trend for a store or single offer.
+  /// GET /v1/merchant/offers/analytics/trend
+  Future<List<OfferTrendPoint>> fetchOfferTrend({
+    required String storeId,
+    String? offerId,
+    String granularity = 'day',
+    int days = 90,
+  }) async {
+    final p = <String, dynamic>{
+      'storeId': storeId,
+      'granularity': granularity,
+      'days': days,
+    };
+    if (offerId != null) p['offerId'] = offerId;
+    return (await _dio.get('/v1/merchant/offers/analytics/trend',
+            queryParameters: p))
+        .data
+        .map<OfferTrendPoint>((e) =>
+            OfferTrendPoint.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
 
   // ── Merchant Pricing ───────────────────────────────────────
   Future<List<PriceList>> fetchStorePriceLists(String storeId) async =>

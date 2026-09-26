@@ -225,6 +225,13 @@ function SearchPageContent() {
 
   const handleAddToCart = async (product: Product) => {
     setCartError('');
+    // Canonical products (no storeId) require an explicit offer/seller
+    // selection — the backend will reject a bare add. Navigate to the PDP
+    // where the buyer can pick a merchant offer.
+    if (!product.storeId) {
+      router.push(`/products/${product.id}`);
+      return;
+    }
     try {
       const variants = await fetchProductVariants(product.id);
       const variant = variants.find(v => v.isActive);
@@ -553,16 +560,46 @@ function SearchPageContent() {
                               {product.title}
                             </div>
                             <div style={{ marginBottom: 6 }}>
-                              {product.priceFromMinor != null ? (
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                                  <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{product.priceCurrency || 'SAR'}</span>
-                                  <span style={{ fontSize: 18, fontWeight: 700, color: colors.brand[700] }}>
-                                    {(product.priceFromMinor / 100).toFixed(2)}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span style={{ ...typeScale.bodySm, color: colors.warn, fontWeight: 500 }}>Price on request</span>
-                              )}
+                              {(() => {
+                                const offerCount = product.activeOfferCount ?? 0;
+                                const lowestOffer = product.lowestOfferPriceMinor;
+                                const hasOffers = offerCount > 0;
+                                // Use the lowest offer price when it is cheaper
+                                // than the product-owner's price — the buyer
+                                // cares about the best deal, not the source.
+                                const displayPrice = (lowestOffer != null && (product.priceFromMinor == null || lowestOffer < product.priceFromMinor))
+                                  ? lowestOffer
+                                  : product.priceFromMinor;
+                                const displayCurrency = (lowestOffer != null && lowestOffer < (product.priceFromMinor ?? Infinity))
+                                  ? (product.lowestOfferCurrency || product.priceCurrency || 'SAR')
+                                  : (product.priceCurrency || 'SAR');
+                                return (
+                                  <>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                                      {displayPrice != null ? (
+                                        <>
+                                          <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{displayCurrency}</span>
+                                          <span style={{ fontSize: 18, fontWeight: 700, color: colors.brand[700] }}>
+                                            {(displayPrice / 100).toFixed(2)}
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <span style={{ ...typeScale.bodySm, color: colors.warn, fontWeight: 500 }}>Price on request</span>
+                                      )}
+                                    </div>
+                                    {hasOffers && (
+                                      <div style={{ fontSize: 11, color: colors.ok, fontWeight: 500, marginTop: 2 }}>
+                                        {offerCount} offer{offerCount !== 1 ? 's' : ''}{lowestOffer != null ? ` · From ${displayCurrency} ${(lowestOffer / 100).toFixed(2)}` : ''}
+                                      </div>
+                                    )}
+                                    {!hasOffers && (
+                                      <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                                        No active offers
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             {/* Stock status badge */}
                             {(product as any).stockStatus && (product as any).stockStatus !== 'UNKNOWN' && (

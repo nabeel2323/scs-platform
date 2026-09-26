@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_core/mobile_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/device_id_service.dart';
+import '../../services/api_service.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
@@ -70,7 +72,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   /// router redirect bounces straight back to /login.
   Future<void> _completeLogin(AuthTokens tokens, String phone) async {
     await ref.read(authStorageProvider).saveTokens(
-        accessToken: tokens.accessToken, refreshToken: tokens.refreshToken);
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: DateTime.now().add(AuthStorage.tokenLifetime));
     ref.read(apiClientProvider).setAccessToken(tokens.accessToken);
     ref.read(isAuthenticatedProvider.notifier).state = true;
     ref.read(currentUserPhoneProvider.notifier).state = phone;
@@ -131,7 +135,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await _completeLogin(tokens, '');
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ApiService.errorMessage(e);
         _isLoading = false;
       });
     }
@@ -157,7 +161,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       });
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ApiService.errorMessage(e);
         _isLoading = false;
       });
     }
@@ -187,7 +191,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       await _completeLogin(data, _phoneController.text);
     } catch (e) {
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = ApiService.errorMessage(e);
         _isLoading = false;
       });
     }

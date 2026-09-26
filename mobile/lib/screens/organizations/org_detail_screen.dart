@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_core/mobile_core.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 class OrgDetailScreen extends ConsumerWidget {
@@ -77,7 +79,7 @@ class OrgDetailScreen extends ConsumerWidget {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
           title: 'Error',
-          description: '$e',
+          description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(orgDetailProvider(orgId)),
         ),
       );
@@ -148,7 +150,7 @@ class OrgDetailScreen extends ConsumerWidget {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
           title: 'Error',
-          description: '$e',
+          description: ApiService.errorMessage(e),
           onAction: () => ref.invalidate(orgMembersProvider(orgId)),
         ),
       );
@@ -221,8 +223,8 @@ class OrgDetailScreen extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Failed: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
         }
       }
     }
@@ -278,8 +280,8 @@ class OrgDetailScreen extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Failed: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
         }
       }
     }
@@ -317,8 +319,8 @@ class OrgDetailScreen extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
       }
     }
   }
@@ -350,6 +352,7 @@ class OrgDetailScreen extends ConsumerWidget {
         await auth.saveTokens(
           accessToken: res.accessToken,
           refreshToken: await auth.getRefreshToken() ?? '',
+          expiresAt: DateTime.now().add(AuthStorage.tokenLifetime),
           activeOrgId: targetOrgId,
         );
         ref.read(apiClientProvider).setAccessToken(res.accessToken);
@@ -361,8 +364,8 @@ class OrgDetailScreen extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Failed: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed: ${ApiService.errorMessage(e)}')));
         }
       }
     }

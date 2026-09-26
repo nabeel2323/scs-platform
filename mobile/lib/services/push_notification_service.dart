@@ -22,7 +22,10 @@ class PushNotificationService {
   PushNotificationService(this._api);
   final ApiService _api;
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  // Lazy getter — accessing FirebaseMessaging.instance at field-init time
+  // crashes when Firebase is not configured (no google-services.json).
+  // Deferring to a getter means the try/catch in initialize() handles it.
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 

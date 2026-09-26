@@ -594,4 +594,264 @@ void main() {
       expect(item.currency, isNull);
     });
   });
+
+  group('OfferAnalyticsRow.fromJson', () {
+    test('parses the analytics contract, including the id→offerId rename', () {
+      final r = OfferAnalyticsRow.fromJson({
+        'offerId': 'off-1',
+        'storeId': 's-1',
+        'productId': 'p-1',
+        'variantId': 'v-1',
+        'status': 'ACTIVE',
+        'currency': 'AED',
+        'basePriceMinor': 250,
+        'moq': 10,
+        'leadTimeDays': 3,
+        'createdAt': '2024-01-01T00:00:00.000Z',
+        'productTitle': 'Emirates Fresh Dates',
+        'variantSku': 'EFD-1KG',
+        'variantTitle': '1kg box',
+        'ordersCount': 4,
+        'unitsSold': 40,
+        'revenueMinor': 10000,
+      });
+      // The server renames the offer's `id` to `offerId`; an `id`-based parse
+      // would silently yield an empty offerId, so pin the real field name.
+      expect(r.offerId, 'off-1');
+      expect(r.variantSku, 'EFD-1KG');
+      expect(r.currency, 'AED');
+      expect(r.unitsSold, 40);
+      expect(r.revenueMinor, 10000);
+      expect(formatMinor(r.revenueMinor, r.currency), '100.00 AED');
+    });
+
+    test('coerces numeric aggregates and defaults absent optionals to null',
+        () {
+      final r = OfferAnalyticsRow.fromJson({
+        'offerId': 'off-2',
+        'storeId': 's-1',
+        'productId': 'p-2',
+        'status': 'DRAFT',
+        'currency': 'SAR',
+        // A zero-sale offer: the SQL SUM can surface aggregates as doubles.
+        'unitsSold': 0.0,
+        'revenueMinor': 0.0,
+      });
+      expect(r.unitsSold, 0);
+      expect(r.revenueMinor, 0);
+      expect(r.ordersCount, 0);
+      expect(r.variantId, isNull);
+      expect(r.productTitle, isNull);
+      expect(r.basePriceMinor, isNull);
+    });
+  });
+
+  group('MerchantOffer.fromJson', () {
+    test('parses all fields from backend Drizzle row', () {
+      final o = MerchantOffer.fromJson({
+        'id': 'offer-1',
+        'storeId': 'store-1',
+        'productId': 'prod-1',
+        'variantId': 'var-1',
+        'status': 'DRAFT',
+        'currency': 'SAR',
+        'basePriceMinor': 350000,
+        'compareAtPriceMinor': 400000,
+        'moq': 5,
+        'orderIncrement': 1,
+        'leadTimeDays': 3,
+        'isAvailable': true,
+        'priceListId': 'pl-1',
+        'warehouseId': 'wh-1',
+        'externalRef': 'EXT-001',
+        'proposedBy': 'user-1',
+        'reviewedBy': null,
+        'reviewedAt': null,
+        'rejectionReason': null,
+        'activatedAt': null,
+        'createdAt': '2025-01-01T00:00:00Z',
+        'updatedAt': '2025-01-01T00:00:00Z',
+      });
+      expect(o.id, 'offer-1');
+      expect(o.storeId, 'store-1');
+      expect(o.productId, 'prod-1');
+      expect(o.variantId, 'var-1');
+      expect(o.status, 'DRAFT');
+      expect(o.currency, 'SAR');
+      expect(o.basePriceMinor, 350000);
+      expect(o.compareAtPriceMinor, 400000);
+      expect(o.moq, 5);
+      expect(o.leadTimeDays, 3);
+      expect(o.isAvailable, true);
+    });
+
+    test('handles null optional fields', () {
+      final o = MerchantOffer.fromJson({
+        'id': 'offer-2',
+        'storeId': 'store-1',
+        'productId': 'prod-1',
+        'status': 'ACTIVE',
+        'currency': 'USD',
+        'createdAt': '2025-06-01',
+        'updatedAt': '2025-06-01',
+      });
+      expect(o.variantId, isNull);
+      expect(o.basePriceMinor, isNull);
+      expect(o.leadTimeDays, isNull);
+      expect(o.moq, 1); // default
+      expect(o.isAvailable, true); // default
+    });
+
+    test('handles string-encoded bigint for price fields', () {
+      final o = MerchantOffer.fromJson({
+        'id': 'offer-3',
+        'storeId': 's',
+        'productId': 'p',
+        'status': 'DRAFT',
+        'currency': 'SAR',
+        'basePriceMinor': '12345',
+        'createdAt': '2025-01-01',
+        'updatedAt': '2025-01-01',
+      });
+      expect(o.basePriceMinor, 12345);
+    });
+
+    test('canPropose is true for DRAFT and REJECTED', () {
+      expect(
+          MerchantOffer.fromJson({
+            'id': '1',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'DRAFT',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canPropose,
+          isTrue);
+      expect(
+          MerchantOffer.fromJson({
+            'id': '2',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'REJECTED',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canPropose,
+          isTrue);
+      expect(
+          MerchantOffer.fromJson({
+            'id': '3',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'ACTIVE',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canPropose,
+          isFalse);
+    });
+
+    test('canWithdraw is false only for WITHDRAWN', () {
+      for (final s in [
+        'DRAFT',
+        'PROPOSED',
+        'ACTIVE',
+        'SUSPENDED',
+        'REJECTED'
+      ]) {
+        expect(
+            MerchantOffer.fromJson({
+              'id': 'x',
+              'storeId': 's',
+              'productId': 'p',
+              'status': s,
+              'currency': 'SAR',
+              'createdAt': '',
+              'updatedAt': '',
+            }).canWithdraw,
+            isTrue);
+      }
+      expect(
+          MerchantOffer.fromJson({
+            'id': 'x',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'WITHDRAWN',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canWithdraw,
+          isFalse);
+    });
+
+    test('canUpdatePricing for DRAFT, ACTIVE, SUSPENDED', () {
+      expect(
+          MerchantOffer.fromJson({
+            'id': '1',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'DRAFT',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canUpdatePricing,
+          isTrue);
+      expect(
+          MerchantOffer.fromJson({
+            'id': '2',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'ACTIVE',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canUpdatePricing,
+          isTrue);
+      expect(
+          MerchantOffer.fromJson({
+            'id': '3',
+            'storeId': 's',
+            'productId': 'p',
+            'status': 'PROPOSED',
+            'currency': 'SAR',
+            'createdAt': '',
+            'updatedAt': '',
+          }).canUpdatePricing,
+          isFalse);
+    });
+  });
+
+  group('OfferTrendPoint.fromJson', () {
+    test('parses bucket and metrics', () {
+      final p = OfferTrendPoint.fromJson({
+        'bucket': '2025-06-01',
+        'ordersCount': 12,
+        'unitsSold': 48,
+        'revenueMinor': 1680000,
+      });
+      expect(p.bucket, '2025-06-01');
+      expect(p.ordersCount, 12);
+      expect(p.unitsSold, 48);
+      expect(p.revenueMinor, 1680000);
+    });
+
+    test('handles string-encoded numbers', () {
+      final p = OfferTrendPoint.fromJson({
+        'bucket': '2025-06-01',
+        'ordersCount': 5,
+        'unitsSold': '20',
+        'revenueMinor': '50000',
+      });
+      expect(p.unitsSold, 20);
+      expect(p.revenueMinor, 50000);
+    });
+
+    test('defaults to zero for missing fields', () {
+      final p = OfferTrendPoint.fromJson({'bucket': '2025-01-01'});
+      expect(p.ordersCount, 0);
+      expect(p.unitsSold, 0);
+      expect(p.revenueMinor, 0);
+    });
+  });
 }

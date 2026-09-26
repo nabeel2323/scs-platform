@@ -125,10 +125,23 @@ class Product {
   /// (a merchant's own product list), so every reader must treat it as optional.
   final ListingStore? store;
 
+  /// Server-resolved primary image URL attached by the card-enrichment layer
+  /// (`enrichProductCards` → `imageUrl`). Raw `images` entries are often
+  /// object-storage keys that Flutter cannot render directly, so every image
+  /// widget must prefer this. Null on non-enriched endpoints.
+  final String? resolvedImageUrl;
+
   /// Cheapest active variant price at this product's MOQ, or null when no price
   /// list covers it — which is "Price on request", never a fabricated figure.
   final int? priceFromMinor;
   final String? priceCurrency;
+
+  /// Offer enrichment: number of ACTIVE merchant offers across all stores.
+  final int activeOfferCount;
+
+  /// Offer enrichment: lowest base price among active merchant offers.
+  final int? lowestOfferPriceMinor;
+  final String? lowestOfferCurrency;
 
   /// Embedded by GET /v1/products/:id (A5-1) with each variant's effective
   /// `priceMinor`. Empty on list endpoints, which do not carry variants.
@@ -150,8 +163,12 @@ class Product {
       this.productTypeId,
       this.attributeValues,
       this.store,
+      this.resolvedImageUrl,
       this.priceFromMinor,
       this.priceCurrency,
+      this.activeOfferCount = 0,
+      this.lowestOfferPriceMinor,
+      this.lowestOfferCurrency,
       this.variants = const [],
       required this.createdAt});
   factory Product.fromJson(Map<String, dynamic> j) => Product(
@@ -176,8 +193,12 @@ class Product {
       store: j['store'] is Map
           ? ListingStore.fromJson(Map<String, dynamic>.from(j['store'] as Map))
           : null,
+      resolvedImageUrl: j['imageUrl'] as String?,
       priceFromMinor: j['priceFromMinor'] as int?,
       priceCurrency: j['priceCurrency'] as String?,
+      activeOfferCount: j['activeOfferCount'] as int? ?? 0,
+      lowestOfferPriceMinor: j['lowestOfferPriceMinor'] as int?,
+      lowestOfferCurrency: j['lowestOfferCurrency'] as String?,
       variants: (j['variants'] as List? ?? [])
           .map((e) =>
               ProductVariant.fromJson(Map<String, dynamic>.from(e as Map)))
@@ -192,10 +213,16 @@ class Product {
     return null;
   }
 
-  /// First image URL, tolerating both shapes the JSONB column has held: the
-  /// contract declares an array of URL strings, while older writers used
-  /// objects carrying `url` (A5-9).
+  /// Primary image URL. Prefers the server-resolved [resolvedImageUrl] (card
+  /// enrichment), because the raw JSONB `images` entries are frequently
+  /// object-storage keys that are not directly renderable. Falls back to the
+  /// array for payloads that carry only full URLs and no enrichment, tolerating
+  /// both shapes the column has held: bare URL strings and legacy `{url}`
+  /// objects (A5-9).
   String? get imageUrl {
+    if (resolvedImageUrl != null && resolvedImageUrl!.isNotEmpty) {
+      return resolvedImageUrl;
+    }
     if (images.isEmpty) return null;
     final first = images.first;
     if (first is String) return first.isEmpty ? null : first;
@@ -679,10 +706,13 @@ class OrgMembership {
     required this.orgType,
   });
   factory OrgMembership.fromJson(Map<String, dynamic> j) => OrgMembership(
-        orgId: j['orgId'] ?? '',
-        role: j['role'] ?? '',
-        orgName: j['orgName'] ?? '',
-        orgType: j['orgType'] ?? '',
+        // Backend listUserOrgs spreads the org row (id/name/type) and adds
+        // roleId/membershipStatus. Read the real keys first, keep legacy
+        // aliases as fallbacks so tests and mock data still work.
+        orgId: (j['id'] ?? j['orgId'] ?? '').toString(),
+        role: (j['roleKey'] ?? j['roleId'] ?? j['role'] ?? '').toString(),
+        orgName: (j['name'] ?? j['orgName'] ?? '').toString(),
+        orgType: (j['type'] ?? j['orgType'] ?? '').toString(),
       );
 }
 
@@ -745,9 +775,17 @@ String formatMinor(int minor, [String? currency]) =>
     '${(minor / 100).toStringAsFixed(2)} ${currency ?? 'SAR'}';
 
 /// Product media row returned by GET /v1/products/:id/media.
+///
+/// `url`/`thumbUrl` are the RAW object-storage keys (e.g. `products/{id}/x.jpg`)
+/// and are NOT directly renderable. The backend resolves each row into a
+/// presigned `displayUrl`/`thumbSrc` (or passes through a full http(s) URL), so
+/// image widgets must use [renderUrl], never [url] alone.
 class MediaItem {
   final String id, productId, mediaType, url, createdAt;
   final String? variantId, thumbUrl, altText;
+
+  /// Server-resolved, renderable URLs (presigned GET or http passthrough).
+  final String? displayUrl, thumbSrc;
   final int sortOrder;
   MediaItem({
     required this.id,
@@ -757,9 +795,19 @@ class MediaItem {
     this.variantId,
     this.thumbUrl,
     this.altText,
+    this.displayUrl,
+    this.thumbSrc,
     this.sortOrder = 0,
     required this.createdAt,
   });
+
+  /// The URL an image widget should load: prefer the resolved display URL, then
+  /// the resolved thumbnail, then the raw url (which is only loadable when it
+  /// already happens to be a full http(s) URL).
+  String get renderUrl => displayUrl ?? thumbSrc ?? url;
+
+  bool get isImage => mediaType.toUpperCase() == 'IMAGE';
+
   factory MediaItem.fromJson(Map<String, dynamic> j) => MediaItem(
         id: j['id'] ?? '',
         productId: j['productId'] ?? '',
@@ -768,6 +816,8 @@ class MediaItem {
         variantId: j['variantId'],
         thumbUrl: j['thumbUrl'],
         altText: j['altText'],
+        displayUrl: j['displayUrl'] as String?,
+        thumbSrc: j['thumbSrc'] as String?,
         sortOrder: j['sortOrder'] as int? ?? 0,
         createdAt: j['createdAt'] ?? '',
       );
@@ -841,6 +891,76 @@ class PaginatedInventory {
             .toList(),
         total: j['total'] as int? ?? 0,
       );
+}
+
+/// Per-offer sales performance row returned by
+/// GET /v1/merchant/offers/analytics?storeId=… (backend `listOfferAnalytics`).
+/// Field names mirror the API response exactly — note the server renames the
+/// offer's `id` to `offerId` and merges zero-sale offers with aggregate counts.
+class OfferAnalyticsRow {
+  final String offerId, storeId, productId, status, currency;
+  final String? variantId, productTitle, variantSku, variantTitle, createdAt;
+  final int? basePriceMinor, moq, leadTimeDays;
+  final int ordersCount, unitsSold, revenueMinor;
+  OfferAnalyticsRow({
+    required this.offerId,
+    required this.storeId,
+    required this.productId,
+    required this.status,
+    required this.currency,
+    this.variantId,
+    this.productTitle,
+    this.variantSku,
+    this.variantTitle,
+    this.createdAt,
+    this.basePriceMinor,
+    this.moq,
+    this.leadTimeDays,
+    this.ordersCount = 0,
+    this.unitsSold = 0,
+    this.revenueMinor = 0,
+  });
+  factory OfferAnalyticsRow.fromJson(Map<String, dynamic> j) =>
+      OfferAnalyticsRow(
+        offerId: j['offerId'] ?? '',
+        storeId: j['storeId'] ?? '',
+        productId: j['productId'] ?? '',
+        status: j['status'] ?? '',
+        currency: j['currency'] ?? 'SAR',
+        variantId: j['variantId'] as String?,
+        productTitle: j['productTitle'] as String?,
+        variantSku: j['variantSku'] as String?,
+        variantTitle: j['variantTitle'] as String?,
+        createdAt: j['createdAt']?.toString(),
+        basePriceMinor: (j['basePriceMinor'] as num?)?.toInt(),
+        moq: (j['moq'] as num?)?.toInt(),
+        leadTimeDays: (j['leadTimeDays'] as num?)?.toInt(),
+        ordersCount: (j['ordersCount'] as num?)?.toInt() ?? 0,
+        unitsSold: (j['unitsSold'] as num?)?.toInt() ?? 0,
+        revenueMinor: (j['revenueMinor'] as num?)?.toInt() ?? 0,
+      );
+}
+
+/// Aggregated merchant dashboard KPIs (audit row 190 / spec §29). Every figure
+/// is derived from a real API response. A `null` value means the backing
+/// endpoint was unavailable, so the UI renders "—" instead of a fabricated zero
+/// — a degraded KPI must never read as a genuine "0 sales".
+class MerchantKpis {
+  final int? revenueMinor; // null ⇒ offer-analytics unavailable
+  final int? unitsSold; // null ⇒ offer-analytics unavailable
+  final String currency;
+  final int ordersCount; // distinct store sub-orders (real list length)
+  final int pendingCount; // SUBMITTED + PENDING_CONFIRMATION
+  final int? lowStockCount; // null ⇒ low-stock endpoint unavailable
+  const MerchantKpis({
+    this.revenueMinor,
+    this.unitsSold,
+    this.currency = 'SAR',
+    this.ordersCount = 0,
+    this.pendingCount = 0,
+    this.lowStockCount,
+  });
+  static const empty = MerchantKpis();
 }
 
 /// Price list row returned by GET /v1/stores/:id/price-lists.
@@ -1031,13 +1151,70 @@ class AttributeValue {
 /// Variant matrix dimension returned by GET /v1/products/:id/variant-matrix.
 class VariantMatrix {
   final List<VariantDimension> dimensions;
-  VariantMatrix({this.dimensions = const []});
+  final List<VariantCombination> combinations;
+  VariantMatrix({this.dimensions = const [], this.combinations = const []});
   factory VariantMatrix.fromJson(Map<String, dynamic> j) => VariantMatrix(
         dimensions: (j['dimensions'] as List? ?? [])
             .map((e) =>
                 VariantDimension.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
+        combinations: (j['combinations'] as List? ?? [])
+            .map((e) => VariantCombination.fromJson(
+                Map<String, dynamic>.from(e as Map)))
+            .toList(),
       );
+
+  /// Active combinations only — what the selector resolves against.
+  List<VariantCombination> get activeCombinations =>
+      combinations.where((c) => c.isActive).toList();
+}
+
+/// One selectable variant in the matrix, keyed by its per-dimension option
+/// `values` (attributeDefinitionId -> option) and enriched with the winning
+/// price and aggregated stock. Mirrors the backend `VariantMatrixCombination`.
+class VariantCombination {
+  final String variantId, sku;
+  final String? title;
+  final bool isActive;
+  final Map<String, String> values;
+  final int? unitPriceMinor;
+  final String? currency;
+  final int? stockAvailable, stockOnHand;
+  VariantCombination({
+    required this.variantId,
+    required this.sku,
+    this.title,
+    required this.isActive,
+    this.values = const <String, String>{},
+    this.unitPriceMinor,
+    this.currency,
+    this.stockAvailable,
+    this.stockOnHand,
+  });
+  factory VariantCombination.fromJson(Map<String, dynamic> j) {
+    final pricing = j['pricing'] is Map
+        ? Map<String, dynamic>.from(j['pricing'] as Map)
+        : null;
+    final stock =
+        j['stock'] is Map ? Map<String, dynamic>.from(j['stock'] as Map) : null;
+    final rawValues = j['values'];
+    return VariantCombination(
+      variantId: j['variantId'] ?? '',
+      sku: j['sku'] ?? '',
+      title: j['title'] as String?,
+      isActive: j['isActive'] as bool? ?? true,
+      values: rawValues is Map
+          ? rawValues.map((k, v) => MapEntry(k.toString(), v.toString()))
+          : const <String, String>{},
+      unitPriceMinor: (pricing?['unitPriceMinor'] as num?)?.toInt(),
+      currency: pricing?['currency'] as String?,
+      stockAvailable: (stock?['totalAvailable'] as num?)?.toInt(),
+      stockOnHand: (stock?['totalOnHand'] as num?)?.toInt(),
+    );
+  }
+
+  /// Null stock means "not published" — treated as on-request, not out-of-stock.
+  bool get inStock => stockAvailable == null || stockAvailable! > 0;
 }
 
 class VariantDimension {
@@ -1118,5 +1295,110 @@ class RankedProductOffer {
         unitsSold: j['unitsSold'] as int? ?? 0,
         isMostPopular: j['isMostPopular'] as bool? ?? false,
         disclosureHidden: j['disclosureHidden'] as bool? ?? false,
+      );
+}
+
+/// Merchant-side offer with full lifecycle status (DRAFT → PROPOSED → ACTIVE
+/// etc.). Separate from the buyer-oriented [Offer] which only carries
+/// display-friendly fields (storeName, isActive). The merchant model maps
+/// directly to the Drizzle row returned by GET /v1/merchant/offers and
+/// GET /v1/offers/:id.
+class MerchantOffer {
+  final String id, storeId, productId, status, currency;
+  final String? variantId;
+  final int? basePriceMinor, compareAtPriceMinor;
+  final int moq;
+  final int? orderIncrement, leadTimeDays;
+  final bool isAvailable;
+  final String? priceListId, warehouseId, externalRef;
+  final String? proposedBy, reviewedBy;
+  final String? reviewedAt, rejectionReason, activatedAt;
+  final String createdAt, updatedAt;
+
+  MerchantOffer({
+    required this.id,
+    required this.storeId,
+    required this.productId,
+    required this.status,
+    required this.currency,
+    this.variantId,
+    this.basePriceMinor,
+    this.compareAtPriceMinor,
+    this.moq = 1,
+    this.orderIncrement,
+    this.leadTimeDays,
+    this.isAvailable = true,
+    this.priceListId,
+    this.warehouseId,
+    this.externalRef,
+    this.proposedBy,
+    this.reviewedBy,
+    this.reviewedAt,
+    this.rejectionReason,
+    this.activatedAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory MerchantOffer.fromJson(Map<String, dynamic> j) => MerchantOffer(
+        id: j['id'] ?? '',
+        storeId: j['storeId'] ?? '',
+        productId: j['productId'] ?? '',
+        status: j['status'] ?? 'DRAFT',
+        currency: j['currency'] ?? 'SAR',
+        variantId: j['variantId'] as String?,
+        basePriceMinor: j['basePriceMinor'] is int
+            ? j['basePriceMinor'] as int
+            : int.tryParse(j['basePriceMinor']?.toString() ?? ''),
+        compareAtPriceMinor: j['compareAtPriceMinor'] is int
+            ? j['compareAtPriceMinor'] as int
+            : int.tryParse(j['compareAtPriceMinor']?.toString() ?? ''),
+        moq: j['moq'] as int? ?? 1,
+        orderIncrement: j['orderIncrement'] as int?,
+        leadTimeDays: j['leadTimeDays'] as int?,
+        isAvailable: j['isAvailable'] as bool? ?? true,
+        priceListId: j['priceListId'] as String?,
+        warehouseId: j['warehouseId'] as String?,
+        externalRef: j['externalRef'] as String?,
+        proposedBy: j['proposedBy'] as String?,
+        reviewedBy: j['reviewedBy'] as String?,
+        reviewedAt: j['reviewedAt']?.toString(),
+        rejectionReason: j['rejectionReason'] as String?,
+        activatedAt: j['activatedAt']?.toString(),
+        createdAt: j['createdAt']?.toString() ?? '',
+        updatedAt: j['updatedAt']?.toString() ?? '',
+      );
+
+  /// Whether this offer can be proposed (DRAFT or REJECTED).
+  bool get canPropose => status == 'DRAFT' || status == 'REJECTED';
+
+  /// Whether this offer can be withdrawn (anything except WITHDRAWN).
+  bool get canWithdraw => status != 'WITHDRAWN';
+
+  /// Whether pricing can be updated (not terminal).
+  bool get canUpdatePricing =>
+      status == 'DRAFT' || status == 'ACTIVE' || status == 'SUSPENDED';
+}
+
+/// Time-series trend bucket returned by
+/// GET /v1/merchant/offers/analytics/trend.
+class OfferTrendPoint {
+  final String bucket;
+  final int ordersCount, unitsSold, revenueMinor;
+  OfferTrendPoint({
+    required this.bucket,
+    this.ordersCount = 0,
+    this.unitsSold = 0,
+    this.revenueMinor = 0,
+  });
+  factory OfferTrendPoint.fromJson(Map<String, dynamic> j) => OfferTrendPoint(
+        bucket: j['bucket']?.toString() ?? '',
+        ordersCount: j['ordersCount'] as int? ?? 0,
+        unitsSold: j['unitsSold'] is int
+            ? j['unitsSold'] as int
+            : int.tryParse(j['unitsSold']?.toString() ?? '') ?? 0,
+        revenueMinor: j['revenueMinor'] is int
+            ? j['revenueMinor'] as int
+            : int.tryParse(j['revenueMinor']?.toString() ?? '') ?? 0,
       );
 }

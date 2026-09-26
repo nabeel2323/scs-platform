@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../services/realtime_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -17,6 +18,7 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   StreamSubscription<NotificationEvent>? _sub;
+  bool _markingAllRead = false;
 
   @override
   void initState() {
@@ -44,12 +46,27 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     return Scaffold(
         appBar: AppBar(title: const Text('Notifications'), actions: [
           TextButton(
-              onPressed: () async {
-                await ref.read(apiServiceProvider).markAllNotificationsRead();
-                ref.invalidate(notificationsProvider);
-                ref.invalidate(unreadCountProvider);
-              },
-              child: const Text('Mark All Read')),
+              onPressed: _markingAllRead
+                  ? null
+                  : () async {
+                      setState(() => _markingAllRead = true);
+                      try {
+                        await ref
+                            .read(apiServiceProvider)
+                            .markAllNotificationsRead();
+                        ref.invalidate(notificationsProvider);
+                        ref.invalidate(unreadCountProvider);
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(
+                                  'Mark all read failed: ${ApiService.errorMessage(e)}')));
+                        }
+                      } finally {
+                        if (mounted) setState(() => _markingAllRead = false);
+                      }
+                    },
+              child: Text(_markingAllRead ? 'Marking...' : 'Mark All Read')),
         ]),
         body: notifs.when(
           data: (list) => list.isEmpty
@@ -107,7 +124,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           loading: () => const LoadingSpinner(),
           error: (e, _) => EmptyState(
               title: 'Error',
-              description: '$e',
+              description: ApiService.errorMessage(e),
               onAction: () => ref.invalidate(notificationsProvider)),
         ));
   }

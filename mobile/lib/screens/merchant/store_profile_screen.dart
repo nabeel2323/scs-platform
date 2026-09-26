@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
+import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Merchant store profile editor — mirrors the web /merchant/store page.
@@ -157,7 +158,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
         loading: () => const LoadingSpinner(),
         error: (e, _) => EmptyState(
             title: 'Error',
-            description: '$e',
+            description: ApiService.errorMessage(e),
             onAction: () => ref.invalidate(myStoresProvider)),
         data: (store) {
           if (store == null) {
@@ -285,7 +286,7 @@ class _StoreProfileScreenState extends ConsumerState<StoreProfileScreen> {
         loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
             child: LoadingSpinner()),
-        error: (e, _) => ErrorBanner(message: '$e'),
+        error: (e, _) => ErrorBanner(message: ApiService.errorMessage(e)),
         data: (list) => list.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),

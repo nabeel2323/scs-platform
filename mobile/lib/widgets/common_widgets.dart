@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
+import 'app_widgets.dart';
 
 /// Status badge widget.
 class StatusBadge extends StatelessWidget {
@@ -21,6 +22,7 @@ class StatusBadge extends StatelessWidget {
   }
 
   Color _color(String s) => switch (s) {
+        // Order statuses
         'SUBMITTED' => TaifTokens.warn,
         'PENDING_CONFIRMATION' => TaifTokens.info,
         'ACCEPTED' => TaifTokens.ok,
@@ -36,6 +38,12 @@ class StatusBadge extends StatelessWidget {
         'REJECTED' => TaifTokens.err,
         'VERIFIED' => TaifTokens.ok,
         'PENDING' => TaifTokens.warn,
+        // Offer lifecycle statuses
+        'DRAFT' => TaifTokens.muted,
+        'PROPOSED' => TaifTokens.info,
+        'ACTIVE' => TaifTokens.ok,
+        'SUSPENDED' => TaifTokens.warn,
+        'WITHDRAWN' => TaifTokens.muted,
         _ => TaifTokens.muted
       };
 }
@@ -147,24 +155,14 @@ class ProductCard extends StatelessWidget {
               // The thumbnail absorbs the tile's height instead of taking a
               // fixed 80 px: with four text rows below it, a fixed box overflowed
               // the square grid tile these cards are laid out in.
+              // Cached + shimmer placeholder; a 404 falls back to the icon
+              // instead of a red exception box (spec §38/Phase 5).
               Expanded(
-                child: Container(
+                child: AppNetworkImage(
+                  url: image,
                   width: double.infinity,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    color: TaifTokens.bg,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: image == null
-                      ? const Center(
-                          child: Icon(Icons.inventory_2_outlined,
-                              color: TaifTokens.muted))
-                      : Image.network(image,
-                          fit: BoxFit.cover,
-                          // A URL that 404s must not leave a red exception box.
-                          errorBuilder: (_, __, ___) => const Center(
-                              child: Icon(Icons.inventory_2_outlined,
-                                  color: TaifTokens.muted))),
+                  fit: BoxFit.cover,
+                  radius: 6,
                 ),
               ),
               const SizedBox(height: 8),
@@ -187,6 +185,32 @@ class ProductCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: priced ? TaifTokens.ok : TaifTokens.muted),
               ),
+              // Offer indicator: shows how many active merchant offers exist
+              // and the lowest offer price when it differs from the owner's.
+              if (product.activeOfferCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text(
+                    '${product.activeOfferCount} offer${product.activeOfferCount != 1 ? 's' : ''}'
+                    '${product.lowestOfferPriceMinor != null ? ' · From ${formatMinor(product.lowestOfferPriceMinor!, product.lowestOfferCurrency ?? product.priceCurrency ?? 'SAR')}' : ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: TaifTokens.ok),
+                  ),
+                )
+              else if (priced)
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    'No active offers',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, color: TaifTokens.muted),
+                  ),
+                ),
               if (showStore && seller != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -210,7 +234,7 @@ class ProductCard extends StatelessWidget {
                     ],
                   ),
                 ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 'MOQ: ${product.moq}',
                 style: const TextStyle(fontSize: 11, color: TaifTokens.muted),
