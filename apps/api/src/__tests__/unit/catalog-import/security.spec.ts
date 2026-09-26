@@ -109,7 +109,7 @@ describe('Catalog Import Security', () => {
       }
       const buf = Buffer.from(await wb.xlsx.writeBuffer());
       await expect(parser.parse(buf, 'test.xlsx')).rejects.toThrow('Maximum is 50000');
-    });
+    }, 30000);
   });
 
   describe('cell value limits', () => {

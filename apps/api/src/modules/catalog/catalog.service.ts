@@ -150,10 +150,31 @@ export class CatalogService {
     if (filters?.isActive !== undefined) conditions.push(eq(categories.isActive, filters.isActive));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
-    return this.db.db.query.categories.findMany({
+    const cats = await this.db.db.query.categories.findMany({
       where,
       orderBy: [categories.sortOrder],
     });
+
+    // M5 remediation: attach per-category canonical product count so the
+    // Admin UI can display accurate counts without a separate request.
+    if (cats.length > 0) {
+      const catIds = cats.map(c => c.id);
+      const countRows = await this.db.db.select({
+        categoryId: products.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(products)
+        .where(and(
+          inArray(products.categoryId, catIds),
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+        ))
+        .groupBy(products.categoryId);
+      const countMap = new Map(countRows.map(r => [r.categoryId as string, r.count] as const));
+      return cats.map(c => ({ ...c, productCount: countMap.get(c.id) ?? 0 }));
+    }
+
+    return cats;
   }
 
   async updateCategory(id: string, input: UpdateCategoryInput) {

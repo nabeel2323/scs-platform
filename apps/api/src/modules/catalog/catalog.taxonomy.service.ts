@@ -534,9 +534,34 @@ export class CatalogTaxonomyService {
     }
 
     // 3. Variant dimensions: must be UUID strings resolving to VARIANT-scope attributes.
-    const rawDims = Array.isArray(pt.variantDimensions) ? (pt.variantDimensions as unknown[]) : [];
+    let rawDims = Array.isArray(pt.variantDimensions) ? (pt.variantDimensions as unknown[]) : [];
     const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const malformed = rawDims.filter(d => typeof d !== 'string' || !uuidRe.test(d));
+    let malformed = rawDims.filter(d => typeof d !== 'string' || !uuidRe.test(d));
+
+    // M5 remediation: if dimensions are stored as natural codes (e.g. from an
+    // older import), resolve them to attribute UUIDs before validation.
+    // Spec: "If the DB stores natural codes, the backend should resolve:
+    // attribute code → attribute_definitions.id before validation."
+    if (malformed.length > 0 && rawDims.every(d => typeof d === 'string')) {
+      const codeDims = rawDims as string[];
+      const resolvedAttrRows = await this.db.db.query.attributeDefinitions.findMany({
+        where: inArray(attributeDefinitions.code, codeDims),
+      });
+      const codeToId = new Map(resolvedAttrRows.map(a => [a.code, a.id]));
+      const allResolved = codeDims.every(c => codeToId.has(c));
+
+      if (allResolved) {
+        const resolvedIds = codeDims.map(c => codeToId.get(c)!);
+        // Persist the resolution so subsequent reads find UUIDs
+        await this.db.db
+          .update(productTypes)
+          .set({ variantDimensions: resolvedIds, updatedAt: new Date() })
+          .where(eq(productTypes.id, id));
+        rawDims = resolvedIds;
+        malformed = [];
+      }
+    }
+
     if (malformed.length > 0) {
       errors.push({
         code: 'VARIANT_DIMENSION_INVALID_REF',
@@ -729,7 +754,57 @@ export class CatalogTaxonomyService {
       };
     });
 
-    return { ...pt, groups, attributes };
+    // M5 remediation: resolve variant dimensions — if stored as natural codes
+    // (from an older import), resolve to UUIDs and enrich with attribute defs
+    // so the Admin UI can display human-readable names.
+    const dimsRaw = Array.isArray(pt.variantDimensions) ? (pt.variantDimensions as unknown[]) : [];
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let resolvedUuids: string[] = [];
+    let enrichedDims: Array<{ id: string; code: string; name: string; scope: string } | string> = [];
+
+    if (dimsRaw.length > 0 && !dimsRaw.every(d => typeof d === 'string' && uuidRe.test(d as string))) {
+      // Attempt to resolve natural codes → UUIDs
+      const allStrings = dimsRaw.every(d => typeof d === 'string');
+      if (allStrings) {
+        const resolvedAttrRows = await this.db.db.query.attributeDefinitions.findMany({
+          where: inArray(attributeDefinitions.code, dimsRaw as string[]),
+        });
+        const codeToId = new Map(resolvedAttrRows.map(a => [a.code, a.id]));
+        if ((dimsRaw as string[]).every(c => codeToId.has(c))) {
+          resolvedUuids = (dimsRaw as string[]).map(c => codeToId.get(c)!);
+          // Persist so subsequent reads find UUIDs
+          await this.db.db
+            .update(productTypes)
+            .set({ variantDimensions: resolvedUuids, updatedAt: new Date() })
+            .where(eq(productTypes.id, id));
+          enrichedDims = resolvedAttrRows.map(a => ({
+            id: a.id, code: a.code, name: a.name, scope: a.scope,
+          }));
+        }
+      }
+    } else if (dimsRaw.length > 0) {
+      // Already UUIDs — enrich with attribute definitions for display
+      resolvedUuids = dimsRaw as string[];
+      const attrRows = await this.db.db.query.attributeDefinitions.findMany({
+        where: inArray(attributeDefinitions.id, resolvedUuids),
+      });
+      const byId = new Map(attrRows.map(a => [a.id, a]));
+      enrichedDims = resolvedUuids.map(uid => {
+        const a = byId.get(uid);
+        return a ? { id: a.id, code: a.code, name: a.name, scope: a.scope } : uid;
+      });
+    }
+
+    return {
+      ...pt,
+      // Keep variantDimensions as UUID string[] for backward compatibility
+      // with the builder UI (VariantDimensionSelector uses Set<string>)
+      variantDimensions: resolvedUuids.length > 0 ? resolvedUuids : dimsRaw,
+      // Enriched view with human-readable attribute names for display
+      variantDimensionsEnriched: enrichedDims,
+      groups,
+      attributes,
+    };
   }
 
   // ── Product type ⇄ attribute configuration ───────────────────
