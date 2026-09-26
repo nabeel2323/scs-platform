@@ -383,6 +383,39 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       expect(result.errors).toHaveLength(0);
     });
 
+    it('three-time idempotency: third import also produces 0 creates, 0 updates', async () => {
+      // Third import using the same exported workbook — must also be fully idempotent
+      const exportBuf2 = Buffer.from(await templateGen.generateExport());
+      const workbook3 = await parser.parse(exportBuf2, 'export-3.xlsx');
+      const snapshot3 = await loadExistingDataSnapshot();
+      const errors3 = validator.validate(workbook3, snapshot3);
+      expect(errors3.filter(e => e.severity === 'ERROR')).toHaveLength(0);
+
+      const refs3 = await resolver.resolve(workbook3);
+      const existing3 = await loadExistingEntityMap();
+      const plan3 = planner.buildPlan(workbook3, refs3, existing3);
+
+      expect(plan3.summary.totalCreate).toBe(0);
+      expect(plan3.summary.totalUpdate).toBe(0);
+      expect(plan3.summary.totalUnchanged).toBeGreaterThan(0);
+
+      const result3 = await executor.execute(plan3, refs3);
+      expect(result3.created).toBe(0);
+      expect(result3.updated).toBe(0);
+      expect(result3.rejected).toBe(0);
+      expect(result3.errors).toHaveLength(0);
+
+      // Verify no duplicates were introduced by the third import
+      const dupCats = await pool.query(
+        `SELECT slug, COUNT(*)::int as cnt FROM categories WHERE store_id IS NULL GROUP BY slug HAVING COUNT(*) > 1`,
+      );
+      expect(dupCats.rows).toHaveLength(0);
+      const dupVars = await pool.query(
+        `SELECT sku, COUNT(*)::int as cnt FROM product_variants GROUP BY sku HAVING COUNT(*) > 1`,
+      );
+      expect(dupVars.rows).toHaveLength(0);
+    });
+
     it('no duplicate entities after round-trip', async () => {
       // Categories: no duplicate slugs (categories has no deleted_at column)
       const dupCats = await pool.query(
