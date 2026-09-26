@@ -120,7 +120,7 @@ export class ExcelValidatorService {
     // Validate attributes — workbook attributes become available for
     // attribute options, product type attributes, product/variant attributes
     const attrSheet = workbook.sheets.get('attributes');
-    const attrCodes = new Map<string, { type: string; options: Set<string> }>(existingData.attributeMap);
+    const attrCodes = new Map<string, { type: string; options: Set<string>; scope: string }>(existingData.attributeMap);
     if (attrSheet) {
       this.validateAttributes(attrSheet, attrCodes, errors);
       // Register validated workbook attributes for downstream lookups
@@ -128,7 +128,7 @@ export class ExcelValidatorService {
         const code = row['code'];
         const type = row['type'] ?? 'TEXT';
         if (code && !attrCodes.has(code)) {
-          attrCodes.set(code, { type, options: new Set() });
+          attrCodes.set(code, { type, options: new Set(), scope: row['scope'] ?? 'PRODUCT' });
         }
       }
     }
@@ -159,6 +159,9 @@ export class ExcelValidatorService {
         if (code) ptCodes.add(code);
       }
     }
+
+    // Track PTA required attributes for Phase 8 completeness checks
+    this.productTypeAttributes = [];
 
     // Validate product type attributes
     const ptaSheet = workbook.sheets.get('product_type_attributes');
@@ -209,6 +212,14 @@ export class ExcelValidatorService {
     // Validate column length limits — catches varchar overflow BEFORE the
     // executor enters the DB transaction (which would abort the whole tx).
     this.validateColumnLengths(workbook, errors);
+
+    // Phase 8: Required attribute completeness — verify that imported products
+    // and variants provide values for all required Product Type Attributes.
+    this.validateRequiredAttributes(workbook, prodSlugs, variantSkus, attrCodes, errors);
+
+    // Phase 7/10: Variant dimension scope — verify that each Product Type's
+    // variant_dimensions resolve to attributes with scope = VARIANT.
+    this.validateVariantDimensionScope(workbook, attrCodes, errors);
 
     return errors;
   }
@@ -263,7 +274,7 @@ export class ExcelValidatorService {
 
       // Parent reference
       const parentSlug = row['parent_slug'];
-      if (parentSlug && !seen.has(parentSlug)) {
+      if (parentSlug && !seen.has(parentSlug) && !existingSlugs.has(parentSlug)) {
         errors.push(this.err(sheet.name, rn, 'categories', slug, 'parent_slug', 'UNKNOWN_REFERENCE', `Parent category "${parentSlug}" not found`, parentSlug, 'Add the parent category first or use an existing category slug'));
       }
     }
@@ -297,7 +308,7 @@ export class ExcelValidatorService {
     }
   }
 
-  private validateAttributes(sheet: ParsedSheet, existingAttrs: Map<string, { type: string; options: Set<string> }>, errors: ImportError[]): void {
+  private validateAttributes(sheet: ParsedSheet, existingAttrs: Map<string, { type: string; options: Set<string>; scope: string }>, errors: ImportError[]): void {
     const validTypes = new Set(['TEXT', 'LONG_TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTI_SELECT', 'COLOR', 'URL', 'FILE', 'MEASUREMENT', 'CURRENCY']);
     const validScopes = new Set(['PRODUCT', 'VARIANT', 'OFFER']);
     const seen = new Set<string>();
@@ -333,7 +344,7 @@ export class ExcelValidatorService {
     }
   }
 
-  private validateAttributeOptions(sheet: ParsedSheet, attrCodes: Map<string, { type: string; options: Set<string> }>, errors: ImportError[]): void {
+  private validateAttributeOptions(sheet: ParsedSheet, attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>, errors: ImportError[]): void {
     for (const row of sheet.rows) {
       const rn = Number(row['__row_number'] ?? 0);
       const attrCode = row['attribute_code'] ?? '';
@@ -381,7 +392,10 @@ export class ExcelValidatorService {
     }
   }
 
-  private validateProductTypeAttributes(sheet: ParsedSheet, ptCodes: Set<string>, attrCodes: Map<string, { type: string; options: Set<string> }>, errors: ImportError[]): void {
+  /** PTA entries tracked for required-attribute completeness (Phase 8). */
+  private productTypeAttributes: Array<{ productTypeCode: string; attributeCode: string; required: boolean; scope: string }> = [];
+
+  private validateProductTypeAttributes(sheet: ParsedSheet, ptCodes: Set<string>, attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>, errors: ImportError[]): void {
     for (const row of sheet.rows) {
       const rn = Number(row['__row_number'] ?? 0);
       const ptCode = row['product_type_code'] ?? '';
@@ -393,6 +407,14 @@ export class ExcelValidatorService {
       if (!attrCode || !attrCodes.has(attrCode)) {
         errors.push(this.err(sheet.name, rn, 'product_type_attributes', ptCode, 'attribute_code', 'UNKNOWN_REFERENCE', `Attribute "${attrCode}" not found`, attrCode, null));
       }
+
+      // Track for required-attribute completeness check (Phase 8)
+      this.productTypeAttributes.push({
+        productTypeCode: ptCode,
+        attributeCode: attrCode,
+        required: row['required']?.toLowerCase() === 'true',
+        scope: row['scope'] ?? 'PRODUCT',
+      });
     }
   }
 
@@ -455,7 +477,7 @@ export class ExcelValidatorService {
     }
   }
 
-  private validateProductAttributes(sheet: ParsedSheet, prodSlugs: Set<string>, attrCodes: Map<string, { type: string; options: Set<string> }>, errors: ImportError[]): void {
+  private validateProductAttributes(sheet: ParsedSheet, prodSlugs: Set<string>, attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>, errors: ImportError[]): void {
     for (const row of sheet.rows) {
       const rn = Number(row['__row_number'] ?? 0);
       const prodSlug = row['product_slug'] ?? '';
@@ -497,7 +519,7 @@ export class ExcelValidatorService {
     }
   }
 
-  private validateVariantAttributes(sheet: ParsedSheet, variantSkus: Set<string>, attrCodes: Map<string, { type: string; options: Set<string> }>, errors: ImportError[]): void {
+  private validateVariantAttributes(sheet: ParsedSheet, variantSkus: Set<string>, attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>, errors: ImportError[]): void {
     for (const row of sheet.rows) {
       const rn = Number(row['__row_number'] ?? 0);
       const varSku = row['variant_sku'] ?? '';
@@ -585,6 +607,179 @@ export class ExcelValidatorService {
     }
   }
 
+  // ── Phase 8: Required attribute completeness ──────────────────
+
+  /**
+   * For every Product Type Attribute with required=true, verify that the
+   * corresponding product or variant provides a value in the workbook.
+   *
+   * PRODUCT-scope required → product_attributes sheet must have a row.
+   * VARIANT-scope required → variant_attributes sheet must have a row.
+   */
+  private validateRequiredAttributes(
+    workbook: ParsedWorkbook,
+    prodSlugs: Set<string>,
+    variantSkus: Set<string>,
+    attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>,
+    errors: ImportError[],
+  ): void {
+    // Build product → productTypeCode map
+    const prodSheet = workbook.sheets.get('products');
+    const prodPtMap = new Map<string, string>();
+    if (prodSheet) {
+      for (const row of prodSheet.rows) {
+        const slug = row['slug'] ?? '';
+        const ptCode = row['product_type_code'] ?? '';
+        if (slug && ptCode) prodPtMap.set(slug, ptCode);
+      }
+    }
+
+    // Build product → provided attribute codes
+    const prodAttrMap = new Map<string, Set<string>>();
+    const paSheet = workbook.sheets.get('product_attributes');
+    if (paSheet) {
+      for (const row of paSheet.rows) {
+        const ps = row['product_slug'] ?? '';
+        const ac = row['attribute_code'] ?? '';
+        if (ps && ac) {
+          if (!prodAttrMap.has(ps)) prodAttrMap.set(ps, new Set());
+          prodAttrMap.get(ps)!.add(ac);
+        }
+      }
+    }
+
+    // Build variant → product slug + provided attribute codes
+    const varProdMap = new Map<string, string>();
+    const varSheet = workbook.sheets.get('variants');
+    if (varSheet) {
+      for (const row of varSheet.rows) {
+        const sku = row['sku'] ?? '';
+        const ps = row['product_slug'] ?? '';
+        if (sku && ps) varProdMap.set(sku, ps);
+      }
+    }
+
+    const varAttrMap = new Map<string, Set<string>>();
+    const vaSheet = workbook.sheets.get('variant_attributes');
+    if (vaSheet) {
+      for (const row of vaSheet.rows) {
+        const vs = row['variant_sku'] ?? '';
+        const ac = row['attribute_code'] ?? '';
+        if (vs && ac) {
+          if (!varAttrMap.has(vs)) varAttrMap.set(vs, new Set());
+          varAttrMap.get(vs)!.add(ac);
+        }
+      }
+    }
+
+    // Check PRODUCT-scope required attributes per product
+    if (prodSheet) {
+      for (const row of prodSheet.rows) {
+        const slug = row['slug'] ?? '';
+        const ptCode = row['product_type_code'] ?? '';
+        if (!slug || !ptCode) continue;
+
+        const requiredProdAttrs = this.productTypeAttributes.filter(
+          pta => pta.productTypeCode === ptCode && pta.required && pta.scope === 'PRODUCT',
+        );
+        if (requiredProdAttrs.length === 0) continue;
+
+        const provided = prodAttrMap.get(slug) ?? new Set();
+        const missing = this.validationService.findMissingRequiredAttributes(
+          provided,
+          requiredProdAttrs.map(a => ({ code: a.attributeCode, required: true })),
+        );
+        for (const attrCode of missing) {
+          errors.push(this.err(
+            'Products', Number(row['__row_number'] ?? 0), 'products', slug,
+            attrCode, 'PRODUCT_REQUIRED_ATTRIBUTE_MISSING',
+            `Product "${slug}" is missing required attribute "${attrCode}" for product type "${ptCode}"`,
+            null, `Add a row in Product Attributes for "${slug}" with attribute "${attrCode}"`,
+          ));
+        }
+      }
+    }
+
+    // Check VARIANT-scope required attributes per variant
+    if (varSheet) {
+      for (const row of varSheet.rows) {
+        const sku = row['sku'] ?? '';
+        const prodSlug = row['product_slug'] ?? '';
+        if (!sku || !prodSlug) continue;
+
+        const ptCode = prodPtMap.get(prodSlug);
+        if (!ptCode) continue;
+
+        const requiredVarAttrs = this.productTypeAttributes.filter(
+          pta => pta.productTypeCode === ptCode && pta.required && pta.scope === 'VARIANT',
+        );
+        if (requiredVarAttrs.length === 0) continue;
+
+        const provided = varAttrMap.get(sku) ?? new Set();
+        const missing = this.validationService.findMissingRequiredAttributes(
+          provided,
+          requiredVarAttrs.map(a => ({ code: a.attributeCode, required: true })),
+        );
+        for (const attrCode of missing) {
+          errors.push(this.err(
+            'Variants', Number(row['__row_number'] ?? 0), 'variants', sku,
+            attrCode, 'VARIANT_REQUIRED_ATTRIBUTE_MISSING',
+            `Variant "${sku}" is missing required attribute "${attrCode}" for product type "${ptCode}"`,
+            null, `Add a row in Variant Attributes for "${sku}" with attribute "${attrCode}"`,
+          ));
+        }
+      }
+    }
+  }
+
+  // ── Phase 7/10: Variant dimension scope validation ────────────
+
+  /**
+   * For every Product Type's variant_dimensions, verify that each dimension
+   * code resolves to an attribute with scope = VARIANT.
+   *
+   * Uses the same validation contract as validateProductTypeForPublish()
+   * without duplicating the rules — this is the pre-execution (preview-safe)
+   * equivalent operating on workbook data rather than DB state.
+   */
+  private validateVariantDimensionScope(
+    workbook: ParsedWorkbook,
+    attrCodes: Map<string, { type: string; options: Set<string>; scope: string }>,
+    errors: ImportError[],
+  ): void {
+    const ptSheet = workbook.sheets.get('product_types');
+    if (!ptSheet) return;
+
+    for (const row of ptSheet.rows) {
+      const rn = Number(row['__row_number'] ?? 0);
+      const code = row['code'] ?? '';
+      const dims = row['variant_dimensions'];
+      if (!dims) continue;
+
+      const dimCodes = dims.split(',').map((s: string) => s.trim()).filter(Boolean);
+      for (const dimCode of dimCodes) {
+        const attr = attrCodes.get(dimCode);
+        if (!attr) {
+          errors.push(this.err(
+            ptSheet.name, rn, 'product_types', code, 'variant_dimensions',
+            'VARIANT_DIMENSION_NOT_FOUND',
+            `Variant dimension "${dimCode}" does not resolve to a known attribute`,
+            dimCode, 'Add the attribute definition first or use an existing attribute code',
+          ));
+          continue;
+        }
+        if (attr.scope !== 'VARIANT') {
+          errors.push(this.err(
+            ptSheet.name, rn, 'product_types', code, 'variant_dimensions',
+            'VARIANT_DIMENSION_WRONG_SCOPE',
+            `Variant dimension "${dimCode}" must have VARIANT scope (found ${attr.scope})`,
+            dimCode, `Change attribute "${dimCode}" scope to VARIANT`,
+          ));
+        }
+      }
+    }
+  }
+
   private err(
     sheet: string, rowNumber: number, entityType: string, externalKey: string | null,
     field: string, errorCode: string, errorMessage: string, rawValue: string | null,
@@ -598,7 +793,7 @@ export class ExcelValidatorService {
 export interface ExistingDataSnapshot {
   categorySlugs: string[];
   brandSlugs: string[];
-  attributeMap: Array<[string, { type: string; options: Set<string> }]>;
+  attributeMap: Array<[string, { type: string; options: Set<string>; scope: string }]>;
   productTypeCodes: string[];
   productSlugs: string[];
   variantSkus: string[];

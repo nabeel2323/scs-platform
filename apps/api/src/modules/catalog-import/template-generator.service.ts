@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import { DatabaseService } from '../../common/database/database.service';
-import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
+import { brands, categories, products, productVariants, productSources } from '../catalog/catalog.schema';
 import {
   attributeDefinitions,
   attributeGroups,
@@ -592,18 +592,31 @@ export class TemplateGeneratorService {
   }
 
   private async exportSources(workbook: ExcelJS.Workbook): Promise<number> {
-    // SHEET_HEADERS declares Sources and excel-parser.service.ts's
-    // SHEET_ENTITY_MAP recognises the sheet, but no `sources` /
-    // `product_sources` table exists in the current Drizzle schema (verified
-    // against catalog.schema.ts, catalog.taxonomy.schema.ts, catalog.offer
-    // .schema.ts and the migrations dir). Emitting an empty sheet preserves
-    // the workbook structure without inventing values (Task §13: "Do not
-    // invent values", Task §32: "Do not mask the problem"). Persisting
-    // Sources through the importer and adding the corresponding table are
-    // tracked as follow-ups.
     const sheet = workbook.addWorksheet('Sources');
     this.addHeaders(sheet, SHEET_HEADERS['Sources']!);
-    return 0;
+
+    const rows = await this.db.db
+      .select({
+        productSlug: products.slug,
+        sourceType: productSources.sourceType,
+        sourceUrl: productSources.sourceUrl,
+        verifiedAt: productSources.verifiedAt,
+      })
+      .from(productSources)
+      .innerJoin(products, eq(productSources.productId, products.id))
+      .where(isNull(products.deletedAt));
+
+    let written = 0;
+    for (const r of rows) {
+      sheet.addRow([
+        r.productSlug,
+        r.sourceType,
+        r.sourceUrl,
+        r.verifiedAt ? r.verifiedAt.toISOString() : '',
+      ]);
+      written++;
+    }
+    return written;
   }
 
   /**

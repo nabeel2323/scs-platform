@@ -345,4 +345,141 @@ describe('ExcelValidatorService', () => {
       expect(tooLong).toHaveLength(0);
     });
   });
+
+  // ── Phase 7/10: Variant dimension scope validation ─────────────────
+
+  describe('variant dimension scope validation (Phase 7/10)', () => {
+    it('reports VARIANT_DIMENSION_WRONG_SCOPE when dimension attr has PRODUCT scope', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'color', name: 'Color', type: 'SELECT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug', 'variant_dimensions'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', variant_dimensions: 'color', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      expect(errors.some(e => e.errorCode === 'VARIANT_DIMENSION_WRONG_SCOPE')).toBe(true);
+    });
+
+    it('passes when variant dimension attr has VARIANT scope', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'ram', name: 'RAM', type: 'SELECT', scope: 'VARIANT', __row_number: '2' },
+      ]));
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug', 'variant_dimensions'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', variant_dimensions: 'ram', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      expect(errors.filter(e => e.errorCode === 'VARIANT_DIMENSION_WRONG_SCOPE')).toHaveLength(0);
+    });
+
+    it('reports VARIANT_DIMENSION_NOT_FOUND for unknown dimension code', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug', 'variant_dimensions'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', variant_dimensions: 'nonexistent', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      expect(errors.some(e => e.errorCode === 'VARIANT_DIMENSION_NOT_FOUND')).toBe(true);
+    });
+  });
+
+  // ── Phase 8: Required attribute completeness ───────────────────────
+
+  describe('required attribute completeness (Phase 8)', () => {
+    it('reports PRODUCT_REQUIRED_ATTRIBUTE_MISSING when product lacks required attr', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      // Need categories, brands for cross-ref validation
+      sheets.set('categories', makeSheet('Categories', 'categories', ['slug', 'name'], [
+        { slug: 'laptops', name: 'Laptops', __row_number: '2' },
+      ]));
+      sheets.set('brands', makeSheet('Brands', 'brands', ['slug', 'name'], [
+        { slug: 'dell', name: 'Dell', __row_number: '2' },
+      ]));
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'processor', name: 'Processor', type: 'TEXT', scope: 'PRODUCT', __row_number: '2' },
+        { code: 'ram', name: 'RAM', type: 'TEXT', scope: 'PRODUCT', __row_number: '3' },
+      ]));
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      sheets.set('product_type_attributes', makeSheet('PTA', 'product_type_attributes', ['product_type_code', 'attribute_code', 'required', 'scope'], [
+        { product_type_code: 'laptop', attribute_code: 'processor', required: 'true', scope: 'PRODUCT', __row_number: '2' },
+        { product_type_code: 'laptop', attribute_code: 'ram', required: 'true', scope: 'PRODUCT', __row_number: '3' },
+      ]));
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug'], [
+        { slug: 'latitude-5550', title: 'Latitude 5550', brand_slug: 'dell', product_type_code: 'laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      // Only provide processor, not ram
+      sheets.set('product_attributes', makeSheet('Product Attributes', 'product_attributes', ['product_slug', 'attribute_code', 'value_text'], [
+        { product_slug: 'latitude-5550', attribute_code: 'processor', value_text: 'Intel Core i5', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const missing = errors.filter(e => e.errorCode === 'PRODUCT_REQUIRED_ATTRIBUTE_MISSING');
+      expect(missing.length).toBe(1);
+      expect(missing[0]!.errorMessage).toContain('ram');
+    });
+
+    it('passes when all required product attributes are provided', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('categories', makeSheet('Categories', 'categories', ['slug', 'name'], [
+        { slug: 'laptops', name: 'Laptops', __row_number: '2' },
+      ]));
+      sheets.set('brands', makeSheet('Brands', 'brands', ['slug', 'name'], [
+        { slug: 'dell', name: 'Dell', __row_number: '2' },
+      ]));
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'processor', name: 'Processor', type: 'TEXT', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      sheets.set('product_type_attributes', makeSheet('PTA', 'product_type_attributes', ['product_type_code', 'attribute_code', 'required', 'scope'], [
+        { product_type_code: 'laptop', attribute_code: 'processor', required: 'true', scope: 'PRODUCT', __row_number: '2' },
+      ]));
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug'], [
+        { slug: 'latitude-5550', title: 'Latitude 5550', brand_slug: 'dell', product_type_code: 'laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      sheets.set('product_attributes', makeSheet('Product Attributes', 'product_attributes', ['product_slug', 'attribute_code', 'value_text'], [
+        { product_slug: 'latitude-5550', attribute_code: 'processor', value_text: 'Intel Core i5', __row_number: '2' },
+      ]));
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      expect(errors.filter(e => e.errorCode === 'PRODUCT_REQUIRED_ATTRIBUTE_MISSING')).toHaveLength(0);
+    });
+
+    it('reports VARIANT_REQUIRED_ATTRIBUTE_MISSING for variants lacking required variant attrs', () => {
+      const sheets = new Map<string, ParsedSheet>();
+      sheets.set('categories', makeSheet('Categories', 'categories', ['slug', 'name'], [
+        { slug: 'laptops', name: 'Laptops', __row_number: '2' },
+      ]));
+      sheets.set('brands', makeSheet('Brands', 'brands', ['slug', 'name'], [
+        { slug: 'dell', name: 'Dell', __row_number: '2' },
+      ]));
+      sheets.set('attributes', makeSheet('Attributes', 'attributes', ['code', 'name', 'type', 'scope'], [
+        { code: 'ram', name: 'RAM', type: 'SELECT', scope: 'VARIANT', __row_number: '2' },
+      ]));
+      sheets.set('product_types', makeSheet('Product Types', 'product_types', ['code', 'name', 'category_slug'], [
+        { code: 'laptop', name: 'Laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      sheets.set('product_type_attributes', makeSheet('PTA', 'product_type_attributes', ['product_type_code', 'attribute_code', 'required', 'scope'], [
+        { product_type_code: 'laptop', attribute_code: 'ram', required: 'true', scope: 'VARIANT', __row_number: '2' },
+      ]));
+      sheets.set('products', makeSheet('Products', 'products', ['slug', 'title', 'brand_slug', 'product_type_code', 'category_slug'], [
+        { slug: 'latitude-5550', title: 'Latitude 5550', brand_slug: 'dell', product_type_code: 'laptop', category_slug: 'laptops', __row_number: '2' },
+      ]));
+      sheets.set('variants', makeSheet('Variants', 'variants', ['product_slug', 'sku'], [
+        { product_slug: 'latitude-5550', sku: 'LAT5550-16GB', __row_number: '2' },
+      ]));
+      // No variant_attributes sheet — ram is missing
+      const wb = makeWorkbook(sheets);
+      const errors = validator.validate(wb, emptySnapshot());
+      const missing = errors.filter(e => e.errorCode === 'VARIANT_REQUIRED_ATTRIBUTE_MISSING');
+      expect(missing.length).toBe(1);
+      expect(missing[0]!.errorMessage).toContain('ram');
+    });
+  });
 });

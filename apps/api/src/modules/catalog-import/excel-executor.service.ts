@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
-import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
+import { brands, categories, products, productVariants, productSources } from '../catalog/catalog.schema';
 import {
   attributeGroups,
   attributeDefinitions,
@@ -31,6 +31,7 @@ export interface ExecutionResult {
   unchanged: number;
   rejected: number;
   errors: string[];
+  sources: { created: number; updated: number; unchanged: number };
 }
 
 /**
@@ -60,7 +61,7 @@ export class ExcelExecutorService {
    * Execute the import plan in a transaction.
    */
   async execute(plan: ImportPlan, refs: ResolvedReferences): Promise<ExecutionResult> {
-    const result: ExecutionResult = { created: 0, updated: 0, unchanged: 0, rejected: 0, errors: [] };
+    const result: ExecutionResult = { created: 0, updated: 0, unchanged: 0, rejected: 0, errors: [], sources: { created: 0, updated: 0, unchanged: 0 } };
 
     // Pre-flight: validate all string lengths BEFORE entering the transaction.
     // A varchar overflow inside a PG transaction aborts the entire transaction,
@@ -204,6 +205,7 @@ export class ExcelExecutorService {
 
         // 7. Product Type Attributes
         for (const entry of plan.productTypeAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -247,6 +249,7 @@ export class ExcelExecutorService {
 
         // 9. Product Attributes
         for (const entry of plan.productAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -285,6 +288,7 @@ export class ExcelExecutorService {
 
         // 11. Variant Attributes
         for (const entry of plan.variantAttributes) {
+          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
           try {
             const varId = resolveId(entry.data['variantSku'] as string, refs.variantIds);
             const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
@@ -298,6 +302,28 @@ export class ExcelExecutorService {
           } catch (err) {
             result.rejected++;
             result.errors.push(`VA ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+
+        // 12. Sources — tracked separately for the execution report (Phase 13)
+        for (const entry of plan.sources) {
+          if (entry.action === 'UNCHANGED') { result.sources.unchanged++; continue; }
+          try {
+            const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
+            if (!prodId) {
+              result.rejected++;
+              result.errors.push(`Source ${entry.externalKey}: unresolved product reference`);
+              continue;
+            }
+            await this.upsertSource(tx, prodId, entry);
+            if (entry.action === 'CREATE') {
+              result.sources.created++;
+            } else {
+              result.sources.updated++;
+            }
+          } catch (err) {
+            result.rejected++;
+            result.errors.push(`Source ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       });
@@ -632,6 +658,41 @@ export class ExcelExecutorService {
         valueNumber: sql`excluded.value_number`,
         valueBoolean: sql`excluded.value_boolean`,
         optionValue: sql`excluded.option_value`,
+        updatedAt: new Date(),
+      },
+    });
+    return id;
+  }
+
+  /**
+   * Upsert a product source. Idempotent on (product_id, source_type, source_url).
+   */
+  private async upsertSource(tx: any, productId: string, entry: PlanEntry): Promise<string> {
+    const d = entry.data as any;
+    const id = randomUUID();
+    // Guard against invalid date strings (empty cells may arrive as '' or null;
+    // new Date('') produces an Invalid Date whose .toISOString() throws).
+    let verifiedAt: Date | null = null;
+    if (d.verifiedAt) {
+      try {
+        const parsed = new Date(d.verifiedAt as string);
+        if (!isNaN(parsed.getTime())) {
+          verifiedAt = parsed;
+        }
+      } catch {
+        // Ignore invalid date — leave verifiedAt as null
+      }
+    }
+    await tx.insert(productSources).values({
+      id,
+      productId,
+      sourceType: d.sourceType as string,
+      sourceUrl: d.sourceUrl as string,
+      verifiedAt,
+    }).onConflictDoUpdate({
+      target: [productSources.productId, productSources.sourceType, productSources.sourceUrl],
+      set: {
+        verifiedAt: verifiedAt,
         updatedAt: new Date(),
       },
     });

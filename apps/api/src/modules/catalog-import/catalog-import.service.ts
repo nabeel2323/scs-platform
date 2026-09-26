@@ -3,7 +3,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/audit.service';
 import { catalogImports, catalogImportErrors } from './catalog-import.schema';
-import { brands, categories, products, productVariants } from '../catalog/catalog.schema';
+import { brands, categories, products, productVariants, productSources } from '../catalog/catalog.schema';
 import { attributeDefinitions, attributeOptions, productTypes } from '../catalog/catalog.taxonomy.schema';
 import ExcelJS from 'exceljs';
 import { eq, isNull, desc } from 'drizzle-orm';
@@ -34,6 +34,21 @@ export interface PublishabilityReport {
   }>;
 }
 
+/** Preview-safe publishability summary (Phase 11) — computed from workbook
+ *  data and validation errors without touching the database. */
+export interface PreviewPublishability {
+  totalProductTypes: number;
+  publishable: number;
+  notPublishable: number;
+  warnings: number;
+  details: Array<{
+    code: string;
+    name: string;
+    canPublish: boolean;
+    errors: string[];
+  }>;
+}
+
 /**
  * Orchestrates the catalog import pipeline:
  *   upload → parse → validate → resolve → plan → preview → execute → report
@@ -49,7 +64,7 @@ export class CatalogImportService {
   private readonly logger = new Logger(CatalogImportService.name);
 
   /** In-memory cache of plans/errors keyed by import ID (for preview before execute). */
-  private readonly planCache = new Map<string, { plan: ImportPlan; refs: ResolvedReferences; errors: ImportError[] }>();
+  private readonly planCache = new Map<string, { plan: ImportPlan; refs: ResolvedReferences; errors: ImportError[]; previewPublishability?: PreviewPublishability }>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -129,8 +144,9 @@ export class CatalogImportService {
     const existingEntities = await this.loadExistingEntityMap();
     const plan = this.planner.buildPlan(workbook, refs, existingEntities);
 
-    // Store plan in cache
-    this.planCache.set(importId, { plan, refs, errors });
+    // Store plan in cache with preview publishability (Phase 11)
+    const previewPublishability = this.checkPreviewPublishability(workbook, errors);
+    this.planCache.set(importId, { plan, refs, errors, previewPublishability });
 
     // Update import record
     const totalRows = this.countTotalRows(workbook);
@@ -343,6 +359,7 @@ export class CatalogImportService {
     return {
       plan: cached.plan,
       errors: cached.errors,
+      publishability: cached.previewPublishability,
     };
   }
 
@@ -439,7 +456,7 @@ export class CatalogImportService {
     const [brandRows, catRows, attrRows, _optRows, ptRows, prodRows, varRows] = await Promise.all([
       this.db.db.select({ slug: brands.slug }).from(brands),
       this.db.db.select({ slug: categories.slug, storeId: categories.storeId }).from(categories),
-      this.db.db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type }).from(attributeDefinitions),
+      this.db.db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type, scope: attributeDefinitions.scope }).from(attributeDefinitions),
       this.db.db.select({ id: attributeOptions.id, attributeId: attributeOptions.attributeId, value: attributeOptions.value }).from(attributeOptions),
       this.db.db.select({ code: productTypes.code }).from(productTypes),
       this.db.db.select({ slug: products.slug, storeId: products.storeId }).from(products),
@@ -447,9 +464,9 @@ export class CatalogImportService {
     ]);
 
     // Build attribute map with options
-    const attributeMap = new Map<string, { type: string; options: Set<string> }>();
+    const attributeMap = new Map<string, { type: string; options: Set<string>; scope: string }>();
     for (const r of attrRows) {
-      attributeMap.set(r.code, { type: r.type, options: new Set() });
+      attributeMap.set(r.code, { type: r.type, options: new Set(), scope: r.scope ?? 'PRODUCT' });
     }
 
     return {
@@ -463,16 +480,24 @@ export class CatalogImportService {
   }
 
   private async loadExistingEntityMap(): Promise<ExistingEntityMap> {
-    const [catRows, brandRows, prodRows] = await Promise.all([
+    const [catRows, brandRows, prodRows, srcRows] = await Promise.all([
       this.db.db.select({ slug: categories.slug, name: categories.name, nameAr: categories.nameAr, description: categories.description }).from(categories).where(isNull(categories.storeId)),
       this.db.db.select({ slug: brands.slug, name: brands.name, nameAr: brands.nameAr, description: brands.description }).from(brands),
       this.db.db.select({ slug: products.slug, title: products.title, description: products.description, mpn: products.mpn }).from(products).where(isNull(products.storeId)),
+      this.db.db.select({ productSlug: products.slug, sourceType: productSources.sourceType, sourceUrl: productSources.sourceUrl }).from(productSources).innerJoin(products, eq(productSources.productId, products.id)),
     ]);
+
+    // Build source composite keys for idempotent re-import
+    const sourceKeys = new Set<string>();
+    for (const r of srcRows) {
+      sourceKeys.add(`${r.productSlug}:${r.sourceType}:${r.sourceUrl}`);
+    }
 
     return {
       categories: new Map(catRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       brands: new Map(brandRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       products: new Map(prodRows.map(r => [r.slug, { title: r.title, description: r.description, mpn: r.mpn }])),
+      sources: sourceKeys,
     };
   }
 
@@ -513,6 +538,69 @@ export class CatalogImportService {
       totalProductTypes: details.length,
       publishable: details.filter(d => d.canPublish).length,
       notPublishable: details.filter(d => !d.canPublish).length,
+      details,
+    };
+  }
+
+  /**
+   * Phase 11: Preview-safe publishability check. Derives publishability
+   * signals from workbook data and validation errors without touching the
+   * database. This is the non-mutating counterpart to checkPublishability().
+   */
+  private checkPreviewPublishability(
+    workbook: ParsedWorkbook,
+    errors: ImportError[],
+  ): PreviewPublishability {
+    const ptSheet = workbook.sheets.get('product_types');
+    if (!ptSheet || ptSheet.rows.length === 0) {
+      return { totalProductTypes: 0, publishable: 0, notPublishable: 0, warnings: 0, details: [] };
+    }
+
+    const details: PreviewPublishability['details'] = [];
+
+    for (const row of ptSheet.rows) {
+      const code = row['code'] ?? '';
+      const name = row['name'] ?? code;
+      const catSlug = row['category_slug'];
+      if (!code) continue;
+
+      const ptErrors: string[] = [];
+
+      // Category binding
+      if (!catSlug) {
+        ptErrors.push('Category not specified');
+      }
+
+      // Collect validation errors for this product type
+      const varDimErrors = errors.filter(
+        e => e.entityType === 'product_types' && e.externalKey === code &&
+             (e.errorCode === 'VARIANT_DIMENSION_NOT_FOUND' || e.errorCode === 'VARIANT_DIMENSION_WRONG_SCOPE'),
+      );
+      for (const e of varDimErrors) ptErrors.push(e.errorMessage);
+
+      const reqAttrErrors = errors.filter(
+        e => (e.errorCode === 'PRODUCT_REQUIRED_ATTRIBUTE_MISSING' || e.errorCode === 'VARIANT_REQUIRED_ATTRIBUTE_MISSING') &&
+             e.errorMessage.includes(`product type "${code}"`),
+      );
+      for (const e of reqAttrErrors) ptErrors.push(e.errorMessage);
+
+      details.push({
+        code,
+        name,
+        canPublish: ptErrors.length === 0,
+        errors: ptErrors,
+      });
+    }
+
+    const publishable = details.filter(d => d.canPublish).length;
+    const notPublishable = details.filter(d => !d.canPublish).length;
+    const warnings = errors.filter(e => e.severity === 'WARNING').length;
+
+    return {
+      totalProductTypes: details.length,
+      publishable,
+      notPublishable,
+      warnings,
       details,
     };
   }

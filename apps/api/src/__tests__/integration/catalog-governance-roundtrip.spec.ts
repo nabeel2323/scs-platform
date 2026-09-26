@@ -28,7 +28,7 @@ import ExcelJS from 'exceljs';
 
 // ── Schemas ──────────────────────────────────────────────────────────────
 import {
-  products, productMedia, productVariants, categories, brands,
+  products, productMedia, productVariants, categories, brands, productSources,
 } from '../../modules/catalog/catalog.schema';
 import {
   attributeDefinitions, attributeOptions, attributeGroups,
@@ -196,9 +196,13 @@ async function buildAcceptanceWorkbook(): Promise<Buffer> {
   vaWs.addRow(['ROG-G15-R7-32-1TB', 'storage-gb', '', '1024', '', '']);
   vaWs.addRow(['ROG-G15-R7-32-1TB', 'color', '', '', '', 'black']);
 
-  // ── Sources (empty — no sources table yet, sheet must exist) ───
+  // ── Sources ─────────────────────────────────────────────────────
   const srcWs = wb.addWorksheet('Sources');
   srcWs.addRow(['product_slug', 'source_type', 'source_url', 'verified_at']);
+  srcWs.addRow(['latitude-5550', 'MANUFACTURER', 'https://dell.com/latitude5550', '2026-01-15T00:00:00Z']);
+  srcWs.addRow(['latitude-5550', 'DISTRIBUTOR', 'https://dist.example.com/lat5550', '']);
+  srcWs.addRow(['thinkpad-t14', 'MANUFACTURER', 'https://lenovo.com/thinkpad-t14', '2026-02-01T00:00:00Z']);
+  srcWs.addRow(['rog-strix-g15', 'MANUFACTURER', 'https://hp.com/rog-strix-g15', '']);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -229,7 +233,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productMedia, productVariants, categories, brands,
+        products, productMedia, productVariants, categories, brands, productSources,
         attributeDefinitions, attributeOptions, attributeGroups,
         productTypes, productTypeAttributes,
         productAttributeValues, variantAttributeValues,
@@ -292,6 +296,10 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
       // All entities should be CREATE (empty DB)
       expect(result.created).toBeGreaterThan(0);
+      if (result.errors.length > 0) {
+        // Log the actual executor errors for CI diagnostics
+        console.error('Executor errors during initial import:', JSON.stringify(result.errors, null, 2));
+      }
       expect(result.errors).toHaveLength(0);
 
       // Verify basic counts
@@ -309,6 +317,9 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
       const varCount = await pool.query('SELECT COUNT(*)::int FROM product_variants');
       expect(varCount.rows[0].count).toBe(4); // 4 variants total
+
+      const srcCount = await pool.query('SELECT COUNT(*)::int FROM product_sources');
+      expect(srcCount.rows[0].count).toBe(4); // 4 sources total
     });
 
     it('exports the database to Workbook B', async () => {
@@ -316,21 +327,22 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       expect(exportBuf).toBeTruthy();
       expect(exportBuf.length).toBeGreaterThan(0);
 
-      // Parse the export to verify it has the expected sheets
+      // Parse the export to verify it has the expected sheets.
+      // The parser keys its `sheets` Map by entity type (lowercase), but
+      // `sheetNames` preserves the original worksheet names from the workbook.
       const exportWb = await parser.parse(exportBuf, 'export.xlsx');
-      const sheetNames = [...exportWb.sheets.keys()];
 
       // All 12 entity sheets should be present
-      expect(sheetNames).toContain('Categories');
-      expect(sheetNames).toContain('Brands');
-      expect(sheetNames).toContain('Attributes');
-      expect(sheetNames).toContain('Attribute Options');
-      expect(sheetNames).toContain('Product Types');
-      expect(sheetNames).toContain('Product Type Attributes');
-      expect(sheetNames).toContain('Products');
-      expect(sheetNames).toContain('Product Attributes');
-      expect(sheetNames).toContain('Variants');
-      expect(sheetNames).toContain('Variant Attributes');
+      expect(exportWb.sheetNames).toContain('Categories');
+      expect(exportWb.sheetNames).toContain('Brands');
+      expect(exportWb.sheetNames).toContain('Attributes');
+      expect(exportWb.sheetNames).toContain('Attribute Options');
+      expect(exportWb.sheetNames).toContain('Product Types');
+      expect(exportWb.sheetNames).toContain('Product Type Attributes');
+      expect(exportWb.sheetNames).toContain('Products');
+      expect(exportWb.sheetNames).toContain('Product Attributes');
+      expect(exportWb.sheetNames).toContain('Variants');
+      expect(exportWb.sheetNames).toContain('Variant Attributes');
     });
 
     it('re-importing Workbook B produces 0 creates, 0 updates, 0 rejected', async () => {
@@ -352,6 +364,13 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       const plan = planner.buildPlan(workbook, refs, existing);
 
       // The key assertion: everything should be UNCHANGED
+      if (plan.summary.totalCreate > 0) {
+        // Log which entity types have unexpected CREATE actions for CI diagnostics
+        const createsByEntity = Object.entries(plan.summary.byEntity)
+          .filter(([, v]) => v.create > 0)
+          .map(([k, v]) => `${k}: ${v.create}`);
+        console.error('Unexpected CREATEs by entity:', createsByEntity.join(', '));
+      }
       expect(plan.summary.totalCreate).toBe(0);
       expect(plan.summary.totalUpdate).toBe(0);
       expect(plan.summary.totalUnchanged).toBeGreaterThan(0);
@@ -365,9 +384,9 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     });
 
     it('no duplicate entities after round-trip', async () => {
-      // Categories: no duplicate slugs
+      // Categories: no duplicate slugs (categories has no deleted_at column)
       const dupCats = await pool.query(
-        `SELECT slug, COUNT(*)::int as cnt FROM categories WHERE store_id IS NULL AND deleted_at IS NULL GROUP BY slug HAVING COUNT(*) > 1`,
+        `SELECT slug, COUNT(*)::int as cnt FROM categories WHERE store_id IS NULL GROUP BY slug HAVING COUNT(*) > 1`,
       );
       expect(dupCats.rows).toHaveLength(0);
 
@@ -710,16 +729,16 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     const [brandRows, catRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
       db.select({ slug: brands.slug }).from(brands),
       db.select({ slug: categories.slug, storeId: categories.storeId }).from(categories),
-      db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type }).from(attributeDefinitions),
+      db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type, scope: attributeDefinitions.scope }).from(attributeDefinitions),
       db.select({ id: attributeOptions.id, attributeId: attributeOptions.attributeId, value: attributeOptions.value }).from(attributeOptions),
       db.select({ code: productTypes.code }).from(productTypes),
       db.select({ slug: products.slug, storeId: products.storeId }).from(products),
       db.select({ sku: productVariants.sku }).from(productVariants),
     ]);
 
-    const attributeMap = new Map<string, { type: string; options: Set<string> }>();
+    const attributeMap = new Map<string, { type: string; options: Set<string>; scope: string }>();
     for (const r of attrRows) {
-      attributeMap.set(r.code, { type: r.type, options: new Set() });
+      attributeMap.set(r.code, { type: r.type, options: new Set(), scope: r.scope ?? 'PRODUCT' });
     }
     // Populate option values per attribute from the options table
     // (attributeMap already has empty Sets; options are loaded via optRows
@@ -738,16 +757,56 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
   }
 
   async function loadExistingEntityMap() {
-    const [catRows, brandRows, prodRows] = await Promise.all([
+    const [catRows, brandRows, prodRows, srcRows, ptaRows, paRows, vaRows] = await Promise.all([
       db.select({ slug: categories.slug, name: categories.name, nameAr: categories.nameAr, description: categories.description }).from(categories).where(isNull(categories.storeId)),
       db.select({ slug: brands.slug, name: brands.name, nameAr: brands.nameAr, description: brands.description }).from(brands),
       db.select({ slug: products.slug, title: products.title, description: products.description, mpn: products.mpn }).from(products).where(isNull(products.storeId)),
+      db.select({ slug: products.slug, sourceType: productSources.sourceType, sourceUrl: productSources.sourceUrl })
+        .from(productSources)
+        .innerJoin(products, eq(productSources.productId, products.id)),
+      // PTA composite keys: ptCode:attrCode
+      db.select({ ptCode: productTypes.code, attrCode: attributeDefinitions.code })
+        .from(productTypeAttributes)
+        .innerJoin(productTypes, eq(productTypeAttributes.productTypeId, productTypes.id))
+        .innerJoin(attributeDefinitions, eq(productTypeAttributes.attributeDefinitionId, attributeDefinitions.id)),
+      // PA composite keys: productSlug:attrCode
+      db.select({ slug: products.slug, attrCode: attributeDefinitions.code })
+        .from(productAttributeValues)
+        .innerJoin(products, eq(productAttributeValues.productId, products.id))
+        .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id)),
+      // VA composite keys: variantSku:attrCode
+      db.select({ sku: productVariants.sku, attrCode: attributeDefinitions.code })
+        .from(variantAttributeValues)
+        .innerJoin(productVariants, eq(variantAttributeValues.variantId, productVariants.id))
+        .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id)),
     ]);
+
+    // Build composite key Sets for round-trip idempotency checks
+    const sources = new Set<string>();
+    for (const r of srcRows) {
+      sources.add(`${r.slug}:${r.sourceType}:${r.sourceUrl}`);
+    }
+    const ptaKeys = new Set<string>();
+    for (const r of ptaRows) {
+      ptaKeys.add(`${r.ptCode}:${r.attrCode}`);
+    }
+    const paKeys = new Set<string>();
+    for (const r of paRows) {
+      paKeys.add(`${r.slug}:${r.attrCode}`);
+    }
+    const vaKeys = new Set<string>();
+    for (const r of vaRows) {
+      vaKeys.add(`${r.sku}:${r.attrCode}`);
+    }
 
     return {
       categories: new Map(catRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       brands: new Map(brandRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       products: new Map(prodRows.map(r => [r.slug, { title: r.title, description: r.description, mpn: r.mpn }])),
+      sources,
+      productTypeAttributes: ptaKeys,
+      productAttributes: paKeys,
+      variantAttributes: vaKeys,
     };
   }
 });

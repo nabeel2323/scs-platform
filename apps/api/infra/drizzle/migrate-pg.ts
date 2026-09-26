@@ -23,6 +23,11 @@ import { Pool } from 'pg';
 // Migrations live at repo root: infra/drizzle/migrations/
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
+// Migrations that require extensions not available in the base PostGIS image
+// (pg_partman is only installed in the CI service container). The integration
+// test runner excludes the same files.
+const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+
 function isDryRun(): boolean {
   return process.argv.includes('--dry-run');
 }
@@ -34,7 +39,7 @@ function listMigrationFiles(): string[] {
   }
   return fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
+    .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
     .sort();
 }
 
