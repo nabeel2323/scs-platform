@@ -296,6 +296,10 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
 
       // All entities should be CREATE (empty DB)
       expect(result.created).toBeGreaterThan(0);
+      if (result.errors.length > 0) {
+        // Log the actual executor errors for CI diagnostics
+        console.error('Executor errors during initial import:', JSON.stringify(result.errors, null, 2));
+      }
       expect(result.errors).toHaveLength(0);
 
       // Verify basic counts
@@ -360,6 +364,13 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       const plan = planner.buildPlan(workbook, refs, existing);
 
       // The key assertion: everything should be UNCHANGED
+      if (plan.summary.totalCreate > 0) {
+        // Log which entity types have unexpected CREATE actions for CI diagnostics
+        const createsByEntity = Object.entries(plan.summary.byEntity)
+          .filter(([, v]) => v.create > 0)
+          .map(([k, v]) => `${k}: ${v.create}`);
+        console.error('Unexpected CREATEs by entity:', createsByEntity.join(', '));
+      }
       expect(plan.summary.totalCreate).toBe(0);
       expect(plan.summary.totalUpdate).toBe(0);
       expect(plan.summary.totalUnchanged).toBeGreaterThan(0);
@@ -746,19 +757,46 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
   }
 
   async function loadExistingEntityMap() {
-    const [catRows, brandRows, prodRows, srcRows] = await Promise.all([
+    const [catRows, brandRows, prodRows, srcRows, ptaRows, paRows, vaRows] = await Promise.all([
       db.select({ slug: categories.slug, name: categories.name, nameAr: categories.nameAr, description: categories.description }).from(categories).where(isNull(categories.storeId)),
       db.select({ slug: brands.slug, name: brands.name, nameAr: brands.nameAr, description: brands.description }).from(brands),
       db.select({ slug: products.slug, title: products.title, description: products.description, mpn: products.mpn }).from(products).where(isNull(products.storeId)),
       db.select({ slug: products.slug, sourceType: productSources.sourceType, sourceUrl: productSources.sourceUrl })
         .from(productSources)
         .innerJoin(products, eq(productSources.productId, products.id)),
+      // PTA composite keys: ptCode:attrCode
+      db.select({ ptCode: productTypes.code, attrCode: attributeDefinitions.code })
+        .from(productTypeAttributes)
+        .innerJoin(productTypes, eq(productTypeAttributes.productTypeId, productTypes.id))
+        .innerJoin(attributeDefinitions, eq(productTypeAttributes.attributeDefinitionId, attributeDefinitions.id)),
+      // PA composite keys: productSlug:attrCode
+      db.select({ slug: products.slug, attrCode: attributeDefinitions.code })
+        .from(productAttributeValues)
+        .innerJoin(products, eq(productAttributeValues.productId, products.id))
+        .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id)),
+      // VA composite keys: variantSku:attrCode
+      db.select({ sku: productVariants.sku, attrCode: attributeDefinitions.code })
+        .from(variantAttributeValues)
+        .innerJoin(productVariants, eq(variantAttributeValues.variantId, productVariants.id))
+        .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id)),
     ]);
 
-    // Build composite source keys: "productSlug:sourceType:sourceUrl"
+    // Build composite key Sets for round-trip idempotency checks
     const sources = new Set<string>();
     for (const r of srcRows) {
       sources.add(`${r.slug}:${r.sourceType}:${r.sourceUrl}`);
+    }
+    const ptaKeys = new Set<string>();
+    for (const r of ptaRows) {
+      ptaKeys.add(`${r.ptCode}:${r.attrCode}`);
+    }
+    const paKeys = new Set<string>();
+    for (const r of paRows) {
+      paKeys.add(`${r.slug}:${r.attrCode}`);
+    }
+    const vaKeys = new Set<string>();
+    for (const r of vaRows) {
+      vaKeys.add(`${r.sku}:${r.attrCode}`);
     }
 
     return {
@@ -766,6 +804,9 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       brands: new Map(brandRows.map(r => [r.slug, { name: r.name, nameAr: r.nameAr, description: r.description }])),
       products: new Map(prodRows.map(r => [r.slug, { title: r.title, description: r.description, mpn: r.mpn }])),
       sources,
+      productTypeAttributes: ptaKeys,
+      productAttributes: paKeys,
+      variantAttributes: vaKeys,
     };
   }
 });

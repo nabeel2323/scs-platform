@@ -337,10 +337,11 @@ export class ExcelPlannerService {
       const attrCode = row['attribute_code']!;
       const key = `${ptCode}:${attrCode}`;
 
+      const exists = existing.productTypeAttributes?.has(key) ?? false;
       plan.productTypeAttributes.push({
         entityType: 'product_type_attributes',
         externalKey: key,
-        action: 'CREATE', // Always insert — upsert handled by unique constraint
+        action: exists ? 'UNCHANGED' : 'CREATE',
         data: {
           productTypeCode: ptCode,
           attributeCode: attrCode,
@@ -353,6 +354,7 @@ export class ExcelPlannerService {
           visibleInListing: row['visible_in_listing']?.toLowerCase() !== 'false',
           visibleInDetail: row['visible_in_detail']?.toLowerCase() !== 'false',
         },
+        ...(exists ? { existingId: key } : {}),
       });
     }
   }
@@ -419,10 +421,11 @@ export class ExcelPlannerService {
       const attrCode = row['attribute_code']!;
       const key = `${prodSlug}:${attrCode}`;
 
+      const exists = existing.productAttributes?.has(key) ?? false;
       plan.productAttributes.push({
         entityType: 'product_attributes',
         externalKey: key,
-        action: 'CREATE',
+        action: exists ? 'UNCHANGED' : 'CREATE',
         data: {
           productSlug: prodSlug,
           attributeCode: attrCode,
@@ -433,6 +436,7 @@ export class ExcelPlannerService {
             : null,
           optionKey: row['option_key'],
         },
+        ...(exists ? { existingId: key } : {}),
       });
     }
   }
@@ -482,10 +486,11 @@ export class ExcelPlannerService {
       const attrCode = row['attribute_code']!;
       const key = `${varSku}:${attrCode}`;
 
+      const exists = existing.variantAttributes?.has(key) ?? false;
       plan.variantAttributes.push({
         entityType: 'variant_attributes',
         externalKey: key,
-        action: 'CREATE',
+        action: exists ? 'UNCHANGED' : 'CREATE',
         data: {
           variantSku: varSku,
           attributeCode: attrCode,
@@ -496,6 +501,7 @@ export class ExcelPlannerService {
             : null,
           optionKey: row['option_key'],
         },
+        ...(exists ? { existingId: key } : {}),
       });
     }
   }
@@ -532,4 +538,7 @@ export interface ExistingEntityMap {
   brands: Map<string, { name: string; nameAr?: string | null; description?: string | null }>;
   products: Map<string, { title: string; description?: string | null; mpn?: string | null }>;
   sources?: Set<string>;  // composite keys: "productSlug:sourceType:sourceUrl"
+  productTypeAttributes?: Set<string>;  // composite keys: "ptCode:attrCode"
+  productAttributes?: Set<string>;  // composite keys: "productSlug:attrCode"
+  variantAttributes?: Set<string>;  // composite keys: "variantSku:attrCode"
 }
