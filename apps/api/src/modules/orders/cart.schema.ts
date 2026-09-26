@@ -25,6 +25,15 @@ export const carts = pgTable('carts', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * cart_items: grouped by store_id for multi-supplier support.
+ * price_minor is SNAPSHOT at add time (not live from price list).
+ *
+ * DB-level uniqueness (managed by migration, not Drizzle indexes):
+ *   - (cart_id, variant_id, offer_id) WHERE offer_id IS NOT NULL
+ *   - (cart_id, variant_id)            WHERE offer_id IS NULL
+ * This lets different sellers of the same variant coexist as separate lines.
+ */
 export const cartItems = pgTable('cart_items', {
   id: uuid('id').primaryKey(),
   cartId: uuid('cart_id').notNull().references(() => carts.id, { onDelete: 'cascade' }),

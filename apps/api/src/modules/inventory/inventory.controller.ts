@@ -6,29 +6,49 @@ import { InventoryService, AdjustStockInput, ReserveStockInput, UpdateInventoryI
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
+import { DatabaseService } from '../../common/database/database.service';
+import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly db: DatabaseService,
+  ) {}
 
   // ── Store-level inventory (literal paths before parameterized) ──
 
   @Get('stores/:storeId/inventory/export')
   @RequirePermission('merchant:inventory:read')
-  async exportInventory(@Param('storeId') storeId: string) {
+  async exportInventory(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
     return this.inventoryService.exportInventoryCsv(storeId);
   }
 
   @Get('stores/:storeId/inventory/movements/export')
   @RequirePermission('merchant:inventory:read')
-  async exportMovements(@Param('storeId') storeId: string) {
+  async exportMovements(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
     return this.inventoryService.exportMovementsCsv(storeId);
   }
 
   @Post('stores/:storeId/inventory/check-low-stock')
   @RequirePermission('merchant:inventory:write')
-  async checkLowStock(@Param('storeId') storeId: string) {
+  async checkLowStock(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
     return this.inventoryService.checkAndNotifyLowStock(storeId);
   }
 
@@ -36,9 +56,12 @@ export class InventoryController {
   @RequirePermission('merchant:inventory:read')
   async listByStore(
     @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
     const lim = limit ? parseInt(limit, 10) : 50;
     const off = offset ? parseInt(offset, 10) : 0;
     return this.inventoryService.listByStore(storeId, { limit: lim, offset: off });
