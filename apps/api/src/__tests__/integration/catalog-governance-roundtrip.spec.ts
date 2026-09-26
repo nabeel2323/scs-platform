@@ -323,21 +323,22 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
       expect(exportBuf).toBeTruthy();
       expect(exportBuf.length).toBeGreaterThan(0);
 
-      // Parse the export to verify it has the expected sheets
+      // Parse the export to verify it has the expected sheets.
+      // The parser keys its `sheets` Map by entity type (lowercase), but
+      // `sheetNames` preserves the original worksheet names from the workbook.
       const exportWb = await parser.parse(exportBuf, 'export.xlsx');
-      const sheetNames = [...exportWb.sheets.keys()];
 
       // All 12 entity sheets should be present
-      expect(sheetNames).toContain('Categories');
-      expect(sheetNames).toContain('Brands');
-      expect(sheetNames).toContain('Attributes');
-      expect(sheetNames).toContain('Attribute Options');
-      expect(sheetNames).toContain('Product Types');
-      expect(sheetNames).toContain('Product Type Attributes');
-      expect(sheetNames).toContain('Products');
-      expect(sheetNames).toContain('Product Attributes');
-      expect(sheetNames).toContain('Variants');
-      expect(sheetNames).toContain('Variant Attributes');
+      expect(exportWb.sheetNames).toContain('Categories');
+      expect(exportWb.sheetNames).toContain('Brands');
+      expect(exportWb.sheetNames).toContain('Attributes');
+      expect(exportWb.sheetNames).toContain('Attribute Options');
+      expect(exportWb.sheetNames).toContain('Product Types');
+      expect(exportWb.sheetNames).toContain('Product Type Attributes');
+      expect(exportWb.sheetNames).toContain('Products');
+      expect(exportWb.sheetNames).toContain('Product Attributes');
+      expect(exportWb.sheetNames).toContain('Variants');
+      expect(exportWb.sheetNames).toContain('Variant Attributes');
     });
 
     it('re-importing Workbook B produces 0 creates, 0 updates, 0 rejected', async () => {

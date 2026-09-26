@@ -107,13 +107,15 @@ export class ExcelResolverService {
    * within the same import resolve correctly.
    */
   private registerPendingEntities(workbook: ParsedWorkbook, refs: ResolvedReferences): void {
-    // Categories from the import
+    // Categories from the import — key by raw slug (the executor's resolveId
+    // and ref lookups use the raw slug, not a prefixed key).  The `pending:`
+    // prefix lives only on the VALUE so the executor can distinguish pending
+    // placeholders from real UUIDs.
     const catSheet = workbook.sheets.get('categories');
     if (catSheet) {
       for (const row of catSheet.rows) {
         const slug = row['slug'];
         if (slug && !refs.categoryIds.has(slug)) {
-          // Use a placeholder UUID — will be replaced during execution
           refs.categoryIds.set(slug, `pending:cat:${slug}`);
         }
       }
