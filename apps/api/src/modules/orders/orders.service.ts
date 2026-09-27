@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
   Optional,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   orderFinancialBreakdown,
   orderStatusHistory,
 } from './orders.schema';
+import { shipments, shipmentEvents } from './shipment.schema';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
@@ -600,6 +602,10 @@ export class OrdersService {
     await this.reserveStock(orderId, order['storeId']);
 
     await this.recordStatusChange(orderId, currentStatus, 'ACCEPTED', merchantUserId, 'MERCHANT');
+
+    // ── Shipment Creation ─────────────────────────────────────────
+    await this.createShipment(orderId, order['storeId'], merchantUserId);
+
     await this.outbox.publish('order.accepted', orderId, { orderId, storeId: order['storeId'] });
 
     return this.getOrder(orderId);
@@ -1111,6 +1117,426 @@ export class OrdersService {
     }
 
     return deltas;
+  }
+
+  // ── M7.1 Fulfillment ─────────────────────────────────────────
+
+  /**
+   * Create a shipment record when an order is accepted.
+   * One shipment per merchant sub-order (not per master order).
+   */
+  private async createShipment(orderId: string, storeId: string, actorUserId: string) {
+    const shipmentId = crypto.randomUUID();
+    await this.db.db.insert(shipments).values({
+      id: shipmentId,
+      orderId,
+      storeId,
+      status: 'PREPARING',
+    });
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId,
+      eventType: 'PREPARING',
+      actorUserId,
+      actorType: 'MERCHANT',
+      notes: 'Shipment created on order acceptance',
+    });
+    return shipmentId;
+  }
+
+  /**
+   * Merchant marks order as being prepared.
+   * ACCEPTED → PREPARING (shipment already in PREPARING from accept).
+   */
+  async prepareOrder(orderId: string, userId: string, caller?: CallerContext) {
+    return this.fulfillmentTransition(orderId, 'PREPARING', userId, 'MERCHANT', caller);
+  }
+
+  /**
+   * Merchant marks order as ready for pickup/assignment.
+   * PREPARING → READY
+   */
+  async readyOrder(orderId: string, userId: string, caller?: CallerContext) {
+    return this.fulfillmentTransition(orderId, 'READY', userId, 'MERCHANT', caller);
+  }
+
+  /**
+   * Merchant assigns a driver to the order.
+   * READY → ASSIGNED. Atomically updates shipment with driver assignment.
+   */
+  async assignDriver(orderId: string, driverId: string, userId: string, caller?: CallerContext) {
+    const order = await this.getOrder(orderId);
+    if (caller) await assertOrderAccessible(this.db, caller, order);
+    this.assertTransition(order['status'], 'ASSIGNED');
+
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (!shipment) throw new NotFoundException('Shipment not found for order');
+    if (shipment['status'] !== 'PREPARING' && shipment['status'] !== 'READY') {
+      throw new ConflictException(`Shipment cannot be assigned in status ${shipment['status']}`);
+    }
+
+    // Atomic optimistic lock on order status
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: 'ASSIGNED', updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException('Order status already changed — concurrent assignment rejected');
+    }
+
+    // Update shipment with driver assignment
+    await this.db.db
+      .update(shipments)
+      .set({
+        status: 'ASSIGNED',
+        assignedDriverId: driverId,
+        assignedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(shipments.id, shipment['id']));
+
+    // Shipment event
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId: shipment['id'],
+      eventType: 'ASSIGNED',
+      actorUserId: userId,
+      actorType: 'MERCHANT',
+      notes: `Driver ${driverId} assigned`,
+    });
+
+    // Order status history
+    await this.recordStatusChange(orderId, order['status'], 'ASSIGNED', userId, 'MERCHANT');
+    await this.outbox.publish('order.fulfillment.assigned', orderId, {
+      orderId, storeId: order['storeId'], driverId,
+    });
+
+    // Realtime notification
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'ASSIGNED' });
+
+    return this.getOrder(orderId);
+  }
+
+  /**
+   * Driver confirms pickup.
+   * ASSIGNED → PICKED_UP
+   */
+  async pickupOrder(orderId: string, userId: string, caller?: CallerContext) {
+    return this.driverFulfillmentTransition(orderId, 'PICKED_UP', userId, caller);
+  }
+
+  /**
+   * Driver marks as out for delivery.
+   * PICKED_UP → OUT_FOR_DELIVERY
+   */
+  async outForDeliveryOrder(orderId: string, userId: string, caller?: CallerContext) {
+    return this.driverFulfillmentTransition(orderId, 'OUT_FOR_DELIVERY', userId, caller);
+  }
+
+  /**
+   * Driver confirms delivery.
+   * OUT_FOR_DELIVERY → DELIVERED
+   */
+  async deliverOrder(orderId: string, userId: string, caller?: CallerContext) {
+    const order = await this.getOrder(orderId);
+    if (caller) {
+      await assertOrderAccessible(this.db, caller, order);
+      const DRIVER_ROLES = ['DRIVER', 'ADMIN', 'SUPER_ADMIN'];
+      if (caller.role && !DRIVER_ROLES.includes(caller.role)) {
+        throw new ForbiddenException(`Role ${caller.role} cannot perform driver fulfillment actions`);
+      }
+    }
+    this.assertTransition(order['status'], 'DELIVERED');
+
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (!shipment) throw new NotFoundException('Shipment not found for order');
+
+    // Verify driver ownership
+    await this.assertDriverOwnership(shipment, userId);
+
+    // Atomic optimistic lock
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: 'DELIVERED', updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException('Order status already changed — concurrent delivery rejected');
+    }
+
+    // Settle stock (SALE movement)
+    await this.settleStockForStatus(orderId, 'DELIVERED', userId);
+
+    // Update shipment
+    await this.db.db
+      .update(shipments)
+      .set({ status: 'DELIVERED', deliveredAt: new Date(), updatedAt: new Date() })
+      .where(eq(shipments.id, shipment['id']));
+
+    // Shipment event
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId: shipment['id'],
+      eventType: 'DELIVERED',
+      actorUserId: userId,
+      actorType: 'DRIVER',
+    });
+
+    // Order status history
+    await this.recordStatusChange(orderId, order['status'], 'DELIVERED', userId, 'DRIVER');
+    await this.outbox.publish('order.fulfillment.delivered', orderId, {
+      orderId, storeId: order['storeId'],
+    });
+
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'DELIVERED' });
+
+    return this.getOrder(orderId);
+  }
+
+  /**
+   * Get tracking information for a buyer's order.
+   * Returns sub-order statuses with shipment events for multi-merchant tracking.
+   */
+  async getTracking(masterOrderId: string, buyerId: string) {
+    const masterOrder = await this.db.db.query.masterOrders.findFirst({
+      where: eq(masterOrders.id, masterOrderId),
+    });
+    if (!masterOrder) throw new NotFoundException('Master order not found');
+    if (masterOrder['buyerId'] !== buyerId) {
+      throw new BadRequestException('Cannot access tracking for another buyer\'s order');
+    }
+
+    const subOrders = await this.db.db.query.orders.findMany({
+      where: eq(orders.masterOrderId, masterOrderId),
+    });
+
+    const result = [];
+    for (const so of subOrders) {
+      const shipment = await this.getShipmentByOrderId(so['id']);
+      const events = shipment
+        ? await this.db.db.query.shipmentEvents.findMany({
+            where: eq(shipmentEvents.shipmentId, shipment['id']),
+            orderBy: [shipmentEvents.sequence],
+          })
+        : [];
+
+      result.push({
+        orderId: so['id'],
+        storeId: so['storeId'],
+        status: so['status'],
+        shipment: shipment ? {
+          id: shipment['id'],
+          status: shipment['status'],
+          assignedDriverId: shipment['assignedDriverId'],
+          assignedAt: shipment['assignedAt'],
+          pickedUpAt: shipment['pickedUpAt'],
+          outForDeliveryAt: shipment['outForDeliveryAt'],
+          deliveredAt: shipment['deliveredAt'],
+        } : null,
+        events: events.map((e) => ({
+          eventType: e['eventType'],
+          actorType: e['actorType'],
+          createdAt: e['createdAt'],
+          notes: e['notes'],
+        })),
+      });
+    }
+
+    return {
+      masterOrderId,
+      masterStatus: masterOrder['status'],
+      shipments: result,
+    };
+  }
+
+  /**
+   * Get shipment by order ID.
+   */
+  async getShipmentByOrderId(orderId: string) {
+    return this.db.db.query.shipments.findFirst({
+      where: eq(shipments.orderId, orderId),
+    });
+  }
+
+  /**
+   * List shipments for a driver (assigned to them).
+   */
+  async listDriverShipments(driverId: string, status?: string) {
+    const conditions = [eq(shipments.assignedDriverId, driverId)];
+    if (status) {
+      conditions.push(eq(shipments.status, status));
+    }
+    return this.db.db.query.shipments.findMany({
+      where: and(...conditions),
+      orderBy: [shipments.updatedAt],
+    });
+  }
+
+  /**
+   * Generic fulfillment transition for merchant actions (prepare, ready).
+   * Uses optimistic locking to prevent concurrent transitions.
+   */
+  private async fulfillmentTransition(
+    orderId: string,
+    newStatus: string,
+    userId: string,
+    actorType: string,
+    caller?: CallerContext,
+  ) {
+    const order = await this.getOrder(orderId);
+    if (caller) {
+      await assertOrderAccessible(this.db, caller, order);
+      // M7.1: only merchant roles (or platform admins) may drive fulfillment transitions.
+      const MERCHANT_ROLES = ['MERCHANT_OWNER', 'MERCHANT_STAFF', 'ADMIN', 'SUPER_ADMIN'];
+      if (caller.role && !MERCHANT_ROLES.includes(caller.role)) {
+        throw new ForbiddenException(`Role ${caller.role} cannot perform merchant fulfillment actions`);
+      }
+    }
+    this.assertTransition(order['status'], newStatus);
+
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (!shipment) throw new NotFoundException('Shipment not found for order');
+
+    // Atomic optimistic lock on order status
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: newStatus, updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException(`Order status already changed — concurrent ${newStatus} rejected`);
+    }
+
+    // Update shipment status
+    const shipmentUpdate: Record<string, unknown> = {
+      status: newStatus,
+      updatedAt: new Date(),
+    };
+    if (newStatus === 'PICKED_UP') shipmentUpdate['pickedUpAt'] = new Date();
+    if (newStatus === 'OUT_FOR_DELIVERY') shipmentUpdate['outForDeliveryAt'] = new Date();
+    if (newStatus === 'DELIVERED') shipmentUpdate['deliveredAt'] = new Date();
+    if (newStatus === 'COMPLETED') shipmentUpdate['completedAt'] = new Date();
+
+    await this.db.db
+      .update(shipments)
+      .set(shipmentUpdate)
+      .where(eq(shipments.id, shipment['id']));
+
+    // Shipment event
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId: shipment['id'],
+      eventType: newStatus,
+      actorUserId: userId,
+      actorType,
+    });
+
+    // Order status history
+    await this.recordStatusChange(orderId, order['status'], newStatus, userId, actorType);
+
+    // Outbox event
+    const eventKey = `order.fulfillment.${newStatus.toLowerCase()}`;
+    await this.outbox.publish(eventKey, orderId, {
+      orderId, storeId: order['storeId'],
+    });
+
+    // Realtime
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
+      orderId, status: newStatus,
+    });
+
+    return this.getOrder(orderId);
+  }
+
+  /**
+   * Driver-specific fulfillment transition.
+   * Verifies the driver is assigned to this shipment.
+   */
+  private async driverFulfillmentTransition(
+    orderId: string,
+    newStatus: string,
+    userId: string,
+    caller?: CallerContext,
+  ) {
+    const order = await this.getOrder(orderId);
+    if (caller) {
+      await assertOrderAccessible(this.db, caller, order);
+      // M7.1: only driver role (or platform admins) may perform driver actions.
+      const DRIVER_ROLES = ['DRIVER', 'ADMIN', 'SUPER_ADMIN'];
+      if (caller.role && !DRIVER_ROLES.includes(caller.role)) {
+        throw new ForbiddenException(`Role ${caller.role} cannot perform driver fulfillment actions`);
+      }
+    }
+    this.assertTransition(order['status'], newStatus);
+
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (!shipment) throw new NotFoundException('Shipment not found for order');
+
+    // Verify driver is assigned to this shipment
+    await this.assertDriverOwnership(shipment, userId);
+
+    // Atomic optimistic lock
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: newStatus, updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException(`Order status already changed — concurrent ${newStatus} rejected`);
+    }
+
+    // Update shipment
+    const shipmentUpdate: Record<string, unknown> = {
+      status: newStatus,
+      updatedAt: new Date(),
+    };
+    if (newStatus === 'PICKED_UP') shipmentUpdate['pickedUpAt'] = new Date();
+    if (newStatus === 'OUT_FOR_DELIVERY') shipmentUpdate['outForDeliveryAt'] = new Date();
+    if (newStatus === 'DELIVERED') shipmentUpdate['deliveredAt'] = new Date();
+
+    await this.db.db
+      .update(shipments)
+      .set(shipmentUpdate)
+      .where(eq(shipments.id, shipment['id']));
+
+    // Shipment event
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId: shipment['id'],
+      eventType: newStatus,
+      actorUserId: userId,
+      actorType: 'DRIVER',
+    });
+
+    // Order status history
+    await this.recordStatusChange(orderId, order['status'], newStatus, userId, 'DRIVER');
+
+    // Outbox
+    const eventKey = `order.fulfillment.${newStatus.toLowerCase()}`;
+    await this.outbox.publish(eventKey, orderId, {
+      orderId, storeId: order['storeId'],
+    });
+
+    // Realtime
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
+      orderId, status: newStatus,
+    });
+
+    return this.getOrder(orderId);
+  }
+
+  /**
+   * Verify the driver is assigned to this shipment.
+   */
+  private async assertDriverOwnership(shipment: Record<string, unknown>, userId: string) {
+    if (shipment['assignedDriverId'] !== userId) {
+      throw new BadRequestException('Driver is not assigned to this shipment');
+    }
   }
 
   // ── Stock Reservation ───────────────────────────────────────

@@ -1432,6 +1432,112 @@ class MerchantOffer {
       status == 'DRAFT' || status == 'ACTIVE' || status == 'SUSPENDED';
 }
 
+// ── M7.1 Fulfillment / Tracking Models ────────────────────────
+
+/// A single shipment event in the tracking timeline.
+class TrackingEvent {
+  final String eventType, actorType, createdAt;
+  final String? notes;
+  TrackingEvent({
+    required this.eventType,
+    required this.actorType,
+    required this.createdAt,
+    this.notes,
+  });
+  factory TrackingEvent.fromJson(Map<String, dynamic> j) => TrackingEvent(
+        eventType: j['eventType'] ?? '',
+        actorType: j['actorType'] ?? '',
+        createdAt: j['createdAt'] ?? '',
+        notes: j['notes'] as String?,
+      );
+}
+
+/// Per-sub-order shipment tracking data.
+class TrackingShipment {
+  final String orderId, storeId, status;
+  final String? assignedDriverId;
+  final String? assignedAt, pickedUpAt, outForDeliveryAt, deliveredAt;
+  final List<TrackingEvent> events;
+  TrackingShipment({
+    required this.orderId,
+    required this.storeId,
+    required this.status,
+    this.assignedDriverId,
+    this.assignedAt,
+    this.pickedUpAt,
+    this.outForDeliveryAt,
+    this.deliveredAt,
+    this.events = const [],
+  });
+  factory TrackingShipment.fromJson(Map<String, dynamic> j) => TrackingShipment(
+        orderId: j['orderId'] ?? '',
+        storeId: j['storeId'] ?? '',
+        status: j['status'] ?? '',
+        assignedDriverId: j['shipment']?['assignedDriverId'] as String?,
+        assignedAt: j['shipment']?['assignedAt']?.toString(),
+        pickedUpAt: j['shipment']?['pickedUpAt']?.toString(),
+        outForDeliveryAt: j['shipment']?['outForDeliveryAt']?.toString(),
+        deliveredAt: j['shipment']?['deliveredAt']?.toString(),
+        events: (j['events'] as List? ?? [])
+            .map((e) =>
+                TrackingEvent.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+/// Top-level tracking response for a master order.
+class TrackingInfo {
+  final String masterOrderId, masterStatus;
+  final List<TrackingShipment> shipments;
+  TrackingInfo({
+    required this.masterOrderId,
+    required this.masterStatus,
+    this.shipments = const [],
+  });
+  factory TrackingInfo.fromJson(Map<String, dynamic> j) => TrackingInfo(
+        masterOrderId: j['masterOrderId'] ?? '',
+        masterStatus: j['masterStatus'] ?? '',
+        shipments: (j['shipments'] as List? ?? [])
+            .map((e) =>
+                TrackingShipment.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+/// Shipment row from GET /v1/drivers/shipments (driver's assigned shipments).
+class DriverShipment {
+  final String id, orderId, storeId, status;
+  final String? assignedDriverId;
+  final String? assignedAt, pickedUpAt, outForDeliveryAt, deliveredAt;
+  final String createdAt, updatedAt;
+  DriverShipment({
+    required this.id,
+    required this.orderId,
+    required this.storeId,
+    required this.status,
+    this.assignedDriverId,
+    this.assignedAt,
+    this.pickedUpAt,
+    this.outForDeliveryAt,
+    this.deliveredAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+  factory DriverShipment.fromJson(Map<String, dynamic> j) => DriverShipment(
+        id: j['id'] ?? '',
+        orderId: j['orderId'] ?? '',
+        storeId: j['storeId'] ?? '',
+        status: j['status'] ?? '',
+        assignedDriverId: j['assignedDriverId'] as String?,
+        assignedAt: j['assignedAt']?.toString(),
+        pickedUpAt: j['pickedUpAt']?.toString(),
+        outForDeliveryAt: j['outForDeliveryAt']?.toString(),
+        deliveredAt: j['deliveredAt']?.toString(),
+        createdAt: j['createdAt']?.toString() ?? '',
+        updatedAt: j['updatedAt']?.toString() ?? '',
+      );
+}
+
 /// Time-series trend bucket returned by
 /// GET /v1/merchant/offers/analytics/trend.
 class OfferTrendPoint {

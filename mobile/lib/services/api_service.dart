@@ -677,6 +677,34 @@ class ApiService {
           .map<Dispute>((e) => Dispute.fromJson(e))
           .toList();
 
+  // ── M7.1 Fulfillment Actions ──────────────────────────────
+  Future<void> prepareOrder(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/prepare');
+  Future<void> readyOrder(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/ready');
+  Future<void> assignDriver(String orderId, String driverId) async => _dio
+      .post('/v1/orders/$orderId/assign-driver', data: {'driverId': driverId});
+  Future<void> pickupOrder(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/pickup');
+  Future<void> outForDelivery(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/out-for-delivery');
+  Future<void> deliverOrder(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/deliver');
+
+  /// Buyer tracking for a master order (per-sub-shipment events).
+  Future<TrackingInfo> fetchTracking(String masterOrderId) async =>
+      TrackingInfo.fromJson(
+          (await _dio.get('/v1/orders/master/$masterOrderId/tracking')).data
+              as Map<String, dynamic>);
+
+  /// Driver's assigned shipment list.
+  Future<List<DriverShipment>> listDriverShipments({String? status}) async =>
+      (await _dio.get('/v1/drivers/shipments',
+              queryParameters: status != null ? {'status': status} : null))
+          .data
+          .map<DriverShipment>((e) => DriverShipment.fromJson(e))
+          .toList();
+
   // ── Merchant Order Management ─────────────────────────────
   Future<void> acceptOrder(String orderId) async =>
       _dio.post('/v1/orders/$orderId/accept');

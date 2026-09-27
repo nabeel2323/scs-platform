@@ -15,6 +15,7 @@ import '../screens/cart/checkout_screen.dart';
 import '../screens/orders/orders_list_screen.dart';
 import '../screens/orders/order_detail_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
+import '../screens/driver/driver_shipments_screen.dart';
 import '../screens/merchant/merchant_orders_screen.dart';
 import '../screens/merchant/merchant_registration_screen.dart';
 import '../screens/merchant/merchant_shell_screen.dart';
@@ -58,6 +59,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           orElse: () => null,
         );
         final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
+        final isDriver = role == 'DRIVER';
         final path = state.matchedLocation;
 
         // Merchant routes require merchant role, except /merchant/register
@@ -65,6 +67,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (path.startsWith('/merchant') &&
             path != '/merchant/register' &&
             !isMerchant) {
+          return '/home';
+        }
+
+        // M7.1: Driver routes require DRIVER role (or admin).
+        if (path.startsWith('/driver') &&
+            !isDriver &&
+            role != 'ADMIN' &&
+            role != 'SUPER_ADMIN') {
           return '/home';
         }
       }
@@ -187,6 +197,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/organizations/:id',
           builder: (_, state) =>
               OrgDetailScreen(orgId: state.pathParameters['id']!)),
+      // M7.1: Driver workflow screen.
+      GoRoute(
+          path: '/driver/shipments',
+          builder: (_, __) => const DriverShipmentsScreen()),
     ],
   );
 });

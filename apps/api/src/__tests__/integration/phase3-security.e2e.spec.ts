@@ -67,12 +67,13 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 53,
+  SUPER_ADMIN: 57,
   ADMIN: 38,
   MODERATOR: 21,
-  MERCHANT_OWNER: 19,
-  MERCHANT_STAFF: 15,
+  MERCHANT_OWNER: 21,
+  MERCHANT_STAFF: 17,
   BUYER: 6,
+  DRIVER: 4,
 };
 
 describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
@@ -249,7 +250,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   // 1. ROLES & PERMISSIONS
   // ═══════════════════════════════════════════════════════════════════
   describe('1. Roles & Permissions', () => {
-    it('all 6 canonical roles exist in the database', async () => {
+    it('all 7 canonical roles exist in the database', async () => {
       const res = await pool.query(`SELECT key FROM roles ORDER BY key`);
       const keys = res.rows.map((r: any) => r.key);
       expect(keys).toContain('SUPER_ADMIN');
@@ -258,6 +259,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       expect(keys).toContain('MERCHANT_OWNER');
       expect(keys).toContain('MERCHANT_STAFF');
       expect(keys).toContain('BUYER');
+      expect(keys).toContain('DRIVER');
     });
 
     it('permission counts match seed-pg.ts definitions', async () => {
@@ -272,9 +274,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 53', async () => {
+    it('total permission count is 57', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(53);
+      expect(res.rows[0].cnt).toBe(57);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
