@@ -9,6 +9,9 @@ import {
   transitionOrderStatus,
   fetchMerchantCustomersCached,
   clearMerchantCustomersCache,
+  prepareOrder,
+  readyOrder,
+  assignDriver,
   SubOrder,
   OrderItem,
 } from '../../../lib/buyer-api';
@@ -43,6 +46,8 @@ const STATUS_FILTER_OPTIONS: { value: string; label: string; statuses: string[] 
   { value: 'ACCEPTED', label: 'Accepted', statuses: ['ACCEPTED', 'PARTIALLY_ACCEPTED'] },
   { value: 'PREPARING', label: 'Preparing', statuses: ['PREPARING'] },
   { value: 'READY', label: 'Ready', statuses: ['READY'] },
+  { value: 'ASSIGNED', label: 'Assigned', statuses: ['ASSIGNED'] },
+  { value: 'PICKED_UP', label: 'Picked Up', statuses: ['PICKED_UP'] },
   { value: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', statuses: ['OUT_FOR_DELIVERY'] },
   { value: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
   { value: 'COMPLETED', label: 'Completed', statuses: ['COMPLETED'] },
@@ -93,6 +98,9 @@ export default function MerchantOrdersPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [cancelId, setCancelId] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [assignId, setAssignId] = useState('');
+  const [driverInput, setDriverInput] = useState('');
+  const [fulfillmentError, setFulfillmentError] = useState('');
 
   // Buyer directory (buyerId → name/phone), loaded once per org; orders only
   // carry buyerId, so the labels resolve from GET /v1/merchant/customers.
@@ -204,6 +212,33 @@ export default function MerchantOrdersPage() {
       await transitionOrderStatus(orderId, status);
       await load(storeId);
     } catch (err: any) { setError(err.message || 'Transition failed'); }
+  };
+
+  const handlePrepare = async (orderId: string) => {
+    setFulfillmentError('');
+    try {
+      await prepareOrder(orderId);
+      await load(storeId);
+    } catch (err: any) { setFulfillmentError(err.message || 'Prepare failed'); }
+  };
+
+  const handleReady = async (orderId: string) => {
+    setFulfillmentError('');
+    try {
+      await readyOrder(orderId);
+      await load(storeId);
+    } catch (err: any) { setFulfillmentError(err.message || 'Ready failed'); }
+  };
+
+  const handleAssignDriver = async () => {
+    if (!driverInput.trim()) return;
+    setFulfillmentError('');
+    try {
+      await assignDriver(assignId, driverInput.trim());
+      setAssignId('');
+      setDriverInput('');
+      await load(storeId);
+    } catch (err: any) { setFulfillmentError(err.message || 'Assign driver failed'); }
   };
 
   const handleCancel = async () => {
@@ -318,6 +353,7 @@ export default function MerchantOrdersPage() {
       <div style={{ padding: '20px 24px 48px' }}>
 
       {error && <ErrorBanner message={error} />}
+      {fulfillmentError && <ErrorBanner message={fulfillmentError} />}
 
       {stores.length > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
@@ -489,7 +525,31 @@ export default function MerchantOrdersPage() {
                   </div>
                   <div className="mo-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     <StatusBadge status={order.status} />
-                    {nextStatuses.filter(ns => ns !== 'CANCELLED').map(ns => (
+                    {/* M7.1 Fulfillment actions */}
+                    {order.status === 'ACCEPTED' && (
+                      <button onClick={() => handlePrepare(order.id)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                        Prepare
+                      </button>
+                    )}
+                    {order.status === 'PREPARING' && (
+                      <button onClick={() => handleReady(order.id)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                        Ready
+                      </button>
+                    )}
+                    {order.status === 'READY' && (
+                      <>
+                        <button onClick={() => { setAssignId(order.id); setDriverInput(''); }} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                          Assign Driver
+                        </button>
+                        {nextStatuses.filter(ns => !['CANCELLED', 'ASSIGNED'].includes(ns)).map(ns => (
+                          <button key={ns} onClick={() => handleTransition(order.id, ns)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
+                            → {ns.replace(/_/g, ' ')}
+                          </button>
+                        ))}
+                      </>
+                    )}
+                    {/* Fallback for other active statuses */}
+                    {!['ACCEPTED', 'PREPARING', 'READY'].includes(order.status) && nextStatuses.filter(ns => ns !== 'CANCELLED').map(ns => (
                       <button key={ns} onClick={() => handleTransition(order.id, ns)} style={{ padding: '4px 12px', fontSize: 11, fontWeight: 600, background: '#0f3340', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                         → {ns.replace(/_/g, ' ')}
                       </button>
@@ -504,6 +564,13 @@ export default function MerchantOrdersPage() {
                     <input type="text" placeholder="Cancellation reason..." value={cancelReason} onChange={e => setCancelReason(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
                     <button onClick={handleCancel} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#991b1b', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm</button>
                     <button onClick={() => setCancelId('')} style={{ padding: '6px 12px', fontSize: 12, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer' }}>Close</button>
+                  </div>
+                )}
+                {assignId === order.id && (
+                  <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="text" placeholder="Driver user ID..." value={driverInput} onChange={e => setDriverInput(e.target.value)} style={{ flex: 1, padding: '6px 10px', border: '1px solid #d9e2e6', borderRadius: 4, fontSize: 13 }} />
+                    <button onClick={handleAssignDriver} style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Assign</button>
+                    <button onClick={() => setAssignId('')} style={{ padding: '6px 12px', fontSize: 12, background: '#fff', border: '1px solid #d9e2e6', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
                   </div>
                 )}
               </div>

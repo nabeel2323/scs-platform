@@ -741,6 +741,65 @@ export async function transitionOrderStatus(
   return res.json();
 }
 
+// ── M7.1 Fulfillment ─────────────────────────────────────
+
+export async function prepareOrder(orderId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/orders/${orderId}/prepare`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Prepare failed (${res.status})`);
+  return res.json();
+}
+
+export async function readyOrder(orderId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/orders/${orderId}/ready`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Ready failed (${res.status})`);
+  return res.json();
+}
+
+export async function assignDriver(orderId: string, driverId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/orders/${orderId}/assign-driver`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driverId }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Assign driver failed (${res.status})`);
+  return res.json();
+}
+
+export interface TrackingEvent {
+  eventType: string;
+  actorType: string;
+  createdAt: string;
+  notes: string | null;
+}
+
+export interface TrackingShipment {
+  orderId: string;
+  storeId: string;
+  status: string;
+  shipment: {
+    id: string;
+    status: string;
+    assignedDriverId: string | null;
+    assignedAt: string | null;
+    pickedUpAt: string | null;
+    outForDeliveryAt: string | null;
+    deliveredAt: string | null;
+  } | null;
+  events: TrackingEvent[];
+}
+
+export interface TrackingInfo {
+  masterOrderId: string;
+  masterStatus: string;
+  shipments: TrackingShipment[];
+}
+
+export async function fetchTracking(masterOrderId: string): Promise<TrackingInfo> {
+  const res = await authFetch(`${API_URL}/v1/orders/master/${masterOrderId}/tracking`);
+  if (!res.ok) throw await ApiError.from(res, `Tracking failed (${res.status})`);
+  return res.json();
+}
+
 // ── Favorites / Wishlist ─────────────────────────────────────
 
 export interface Favorite {

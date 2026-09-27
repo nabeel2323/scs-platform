@@ -209,6 +209,14 @@ final merchantKpisProvider = FutureProvider<MerchantKpis>((ref) async {
   );
 });
 
+// ── M7.1 Driver Shipments ───────────────────────────────────
+
+/// Shipments assigned to the current driver. Auto-disposes so re-entering
+/// the driver screen always fetches fresh data.
+final driverShipmentsProvider =
+    FutureProvider.autoDispose<List<DriverShipment>>(
+        (ref) => ref.watch(apiServiceProvider).listDriverShipments());
+
 // ── Merchant Catalog ────────────────────────────────────────
 
 final storeProductsProvider =

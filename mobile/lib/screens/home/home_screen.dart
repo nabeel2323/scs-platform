@@ -31,6 +31,7 @@ class HomeScreen extends ConsumerWidget {
         : null;
     final role = profile?.role;
     final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
+    final isDriver = role == 'DRIVER';
     final phone = ref.watch(currentUserPhoneProvider);
     final fullName = profile?.fullName;
     final avatarLetter = (fullName != null && fullName.isNotEmpty)
@@ -78,6 +79,7 @@ class HomeScreen extends ConsumerWidget {
             _popularSection(context, ref),
             _suppliersSection(context, ref),
             if (isMerchant) _manageSection(context),
+            if (isDriver) _driverSection(context),
             const SizedBox(height: 24),
           ],
         ),
@@ -415,6 +417,40 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// M7.1: Driver workflow entry — only visible to DRIVER role users.
+  Widget _driverSection(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionHeader(context, 'Driver'),
+      GestureDetector(
+        onTap: () => context.push('/driver/shipments'),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              const Icon(Icons.local_shipping,
+                  size: 30, color: TaifTokens.info),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('My Shipments',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600)),
+                      Text('View and manage assigned deliveries',
+                          style:
+                              TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                    ]),
+              ),
+              const Icon(Icons.chevron_right, color: TaifTokens.muted),
+            ]),
+          ),
+        ),
+      ),
+      const SizedBox(height: 24),
+    ]);
   }
 
   /// Merchant tooling — rendered ONLY for merchant roles. Buyers never see

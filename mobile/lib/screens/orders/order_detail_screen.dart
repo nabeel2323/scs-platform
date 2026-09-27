@@ -22,6 +22,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   late final RealtimeService _realtime;
   late Future<SubOrder> _orderFuture;
   late Future<List<StatusHistoryEntry>> _historyFuture;
+  Future<TrackingInfo>? _trackingFuture;
   StreamSubscription<OrderStatusEvent>? _sub;
   bool _busy = false;
 
@@ -184,6 +185,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       _orderFuture = order;
       _historyFuture = history;
     }
+    // M7.1: load tracking once the order arrives (we need masterOrderId).
+    _orderFuture.then((o) {
+      if (!mounted) return;
+      setState(() {
+        _trackingFuture = api.fetchTracking(o.masterOrderId);
+      });
+    }).catchError((_) {});
   }
 
   @override
@@ -409,6 +417,27 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         ),
                       if (['DELIVERED', 'COMPLETED'].contains(o.status))
                         const SizedBox(height: 16),
+                      // M7.1: Shipment tracking for this sub-order.
+                      if (_trackingFuture != null)
+                        FutureBuilder<TrackingInfo>(
+                          future: _trackingFuture,
+                          builder: (context, tSnap) {
+                            if (tSnap.connectionState != ConnectionState.done) {
+                              return const SizedBox.shrink();
+                            }
+                            final tracking = tSnap.data;
+                            if (tracking == null)
+                              return const SizedBox.shrink();
+                            // Find the shipment for THIS sub-order.
+                            final shipment = tracking.shipments
+                                .where((s) => s.orderId == widget.orderId)
+                                .firstOrNull;
+                            if (shipment == null || shipment.events.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+                            return _shipmentTracking(shipment);
+                          },
+                        ),
                       FutureBuilder<List<StatusHistoryEntry>>(
                         future: _historyFuture,
                         builder: (context, hSnap) {
@@ -423,6 +452,86 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                     ]));
           },
         ));
+  }
+
+  /// M7.1: Shipment tracking timeline for a single sub-order's shipment.
+  /// Shows each fulfillment event as a dot + label, newest-last.
+  Widget _shipmentTracking(TrackingShipment shipment) {
+    final events = [...shipment.events]
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.local_shipping, size: 16, color: TaifTokens.info),
+          const SizedBox(width: 6),
+          const Text('Shipment Tracking',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          const Spacer(),
+          StatusBadge(shipment.status),
+        ]),
+        const SizedBox(height: 12),
+        for (var i = 0; i < events.length; i++)
+          _trackingEventNode(events[i], isCurrent: i == events.length - 1),
+      ]),
+    );
+  }
+
+  Widget _trackingEventNode(TrackingEvent evt, {required bool isCurrent}) {
+    final color = isCurrent ? TaifTokens.brandPrimary : TaifTokens.info;
+    final when = DateTime.tryParse(evt.createdAt)?.toLocal();
+    final stamp =
+        when == null ? evt.createdAt : when.toString().substring(0, 16);
+    return IntrinsicHeight(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        SizedBox(
+          width: 24,
+          child: Column(children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            ),
+            if (!isCurrent)
+              Expanded(
+                child: Container(
+                  width: 2,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  color: TaifTokens.line,
+                ),
+              ),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: isCurrent ? 0 : 14),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(evt.eventType.replaceAll('_', ' '),
+                  style: TextStyle(
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      fontSize: 13,
+                      color: isCurrent
+                          ? TaifTokens.brandPrimary
+                          : TaifTokens.ink)),
+              const SizedBox(height: 2),
+              Text(stamp,
+                  style:
+                      const TextStyle(fontSize: 11, color: TaifTokens.muted)),
+              if (evt.notes != null && evt.notes!.isNotEmpty)
+                Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(evt.notes!,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: TaifTokens.muted,
+                            fontStyle: FontStyle.italic))),
+            ]),
+          ),
+        ),
+      ]),
+    );
   }
 
   Widget _row(String label, String value, {bool bold = false}) => Padding(

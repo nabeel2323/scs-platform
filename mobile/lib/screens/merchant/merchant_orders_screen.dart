@@ -220,6 +220,49 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
         success: 'Moved to ${next.replaceAll('_', ' ')}');
   }
 
+  /// M7.1: Dedicated fulfillment actions for merchant.
+  Future<void> _prepare(SubOrder o) async {
+    await _run(o.id, () => _api.prepareOrder(o.id),
+        success: 'Order marked as preparing');
+  }
+
+  Future<void> _ready(SubOrder o) async {
+    await _run(o.id, () => _api.readyOrder(o.id),
+        success: 'Order marked as ready');
+  }
+
+  Future<void> _assignDriver(SubOrder o) async {
+    final driverCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Assign driver to #${o.id.substring(0, 8)}'),
+        content: TextField(
+          controller: driverCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Driver User ID *',
+            hintText: 'Enter the driver\'s user ID',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),
+              child: const Text('Assign')),
+        ],
+      ),
+    );
+    final driverId = driverCtrl.text.trim();
+    driverCtrl.dispose();
+    if (ok != true || driverId.isEmpty) return;
+    await _run(o.id, () => _api.assignDriver(o.id, driverId),
+        success: 'Driver assigned');
+  }
+
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(merchantOrdersProvider);
@@ -345,27 +388,96 @@ class _MerchantOrdersScreenState extends ConsumerState<MerchantOrdersScreen> {
       : Icon(icon, size: 16, color: color);
 
   Widget _activeCard(SubOrder o) {
-    final next = _nextStatuses(o.status);
     final busy = _busyOrderId == o.id;
     return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: ListTile(
-            title: Text('Order #${o.id.substring(0, 8)}',
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text('Order #${o.id.substring(0, 8)}',
                 style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(formatMinor(o.totalMinor, o.currency)),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              StatusBadge(o.status),
-              ...next.map((ns) => Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: ElevatedButton(
-                      onPressed: busy ? null : () => _transition(o, ns),
-                      style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(44, 36),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 6)),
-                      child: Text(ns.replaceAll('_', ' '),
-                          style: const TextStyle(fontSize: 11)))))
-            ])));
+            const Spacer(),
+            StatusBadge(o.status),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+              '${formatMinor(o.totalMinor, o.currency)} · ${o.itemCount} ${o.itemCount == 1 ? 'item' : 'items'}',
+              style: const TextStyle(color: TaifTokens.muted, fontSize: 13)),
+          const SizedBox(height: 12),
+          // M7.1: fulfillment-specific actions per status.
+          _fulfillmentActions(o, busy),
+        ]),
+      ),
+    );
+  }
+
+  /// M7.1: Merchant fulfillment action buttons based on order status.
+  /// Merchant can: Prepare (ACCEPTED→PREPARING), Ready (PREPARING→READY),
+  /// Assign Driver (READY→ASSIGNED). Driver-only actions are NOT exposed here.
+  Widget _fulfillmentActions(SubOrder o, bool busy) {
+    switch (o.status) {
+      case 'ACCEPTED':
+      case 'PARTIALLY_ACCEPTED':
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : () => _prepare(o),
+            style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),
+            icon: _busyIcon(busy, Icons.restaurant, Colors.white),
+            label: const Text('Prepare'),
+          ),
+        );
+      case 'PREPARING':
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : () => _ready(o),
+            style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.ok),
+            icon: _busyIcon(busy, Icons.check_circle_outline, Colors.white),
+            label: const Text('Ready'),
+          ),
+        );
+      case 'READY':
+        return SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: busy ? null : () => _assignDriver(o),
+            style: ElevatedButton.styleFrom(backgroundColor: TaifTokens.info),
+            icon: _busyIcon(busy, Icons.local_shipping_outlined, Colors.white),
+            label: const Text('Assign Driver'),
+          ),
+        );
+      case 'ASSIGNED':
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Text('Awaiting driver pickup…',
+              style: TextStyle(color: TaifTokens.muted, fontSize: 13)),
+        );
+      case 'PICKED_UP':
+      case 'OUT_FOR_DELIVERY':
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Text('In transit — driver has the order',
+              style: TextStyle(color: TaifTokens.muted, fontSize: 13)),
+        );
+      default:
+        // Fallback for any other active status — show generic transitions.
+        final next = _nextStatuses(o.status);
+        if (next.isEmpty) return const SizedBox.shrink();
+        return Row(children: [
+          ...next.map((ns) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ElevatedButton(
+                  onPressed: busy ? null : () => _transition(o, ns),
+                  style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(44, 36),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6)),
+                  child: Text(ns.replaceAll('_', ' '),
+                      style: const TextStyle(fontSize: 11))))),
+        ]);
+    }
   }
 
   Widget _doneCard(SubOrder o) => Card(

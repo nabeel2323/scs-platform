@@ -11,11 +11,13 @@ import {
   createDispute,
   fetchDisputeEvents,
   submitDisputeEvidence,
+  fetchTracking,
   ReorderResult,
   StatusHistoryEntry,
   OrderItem,
   Dispute,
   DisputeEvent,
+  TrackingInfo,
 } from '../../../lib/buyer-api';
 import { useAuth } from '../../../components/AuthProvider';
 import { onOrderStatus, watchOrder } from '../../../lib/realtime';
@@ -75,6 +77,9 @@ export default function OrderDetailPage() {
   const [evidenceBody, setEvidenceBody] = useState('');
   const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
 
+  // M7.1 Shipment tracking
+  const [tracking, setTracking] = useState<TrackingInfo | null>(null);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
@@ -91,10 +96,15 @@ export default function OrderDetailPage() {
       fetchOrder(orderId).then(setOrder as any),
       fetchOrderHistory(orderId).then(setHistory),
     ])
-      // A4-6: a swallowed rejection rendered as "Order not found", which sends
-      // the buyer to file a support ticket for an order that does exist.
       .catch((err: any) => setLoadError(err.message || 'Could not load this order'))
       .finally(() => setLoading(false));
+
+    // Load shipment tracking if this is a sub-order of a master order
+    fetchOrder(orderId).then((o: any) => {
+      if (o.masterOrderId) {
+        fetchTracking(o.masterOrderId).then(setTracking).catch(() => {});
+      }
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -433,12 +443,47 @@ export default function OrderDetailPage() {
           )}
         </div>
 
-        {/* Right column — Timeline */}
+        {/* Right column — Timeline + Tracking */}
         <div>
-          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
+          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Order Timeline</div>
             <OrderTimeline history={history} />
           </div>
+
+          {/* M7.1 Shipment Tracking */}
+          {tracking && tracking.shipments.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Shipment Tracking</div>
+              {tracking.shipments.map((ts) => (
+                <div key={ts.orderId} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
+                    Sub-order #{ts.orderId.slice(0, 8)} · <StatusBadge status={ts.status} />
+                  </div>
+                  {ts.shipment && (
+                    <div style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>
+                      Shipment: <strong style={{ color: colors.brand[700] }}>{ts.shipment.status.replace(/_/g, ' ')}</strong>
+                      {ts.shipment.assignedDriverId && ` · Driver assigned`}
+                      {ts.shipment.pickedUpAt && ` · Picked up`}
+                      {ts.shipment.deliveredAt && ` · Delivered`}
+                    </div>
+                  )}
+                  <div style={{ paddingLeft: 8, borderLeft: `2px solid ${colors.border}` }}>
+                    {ts.events.map((ev, idx) => (
+                      <div key={idx} style={{ padding: '4px 0 4px 12px', fontSize: 12, position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: -5, top: 8, width: 8, height: 8, borderRadius: '50%', background: idx === ts.events.length - 1 ? '#065f46' : '#d1d5db' }} />
+                        <div style={{ fontWeight: 600, color: colors.brand[700] }}>{ev.eventType.replace(/_/g, ' ')}</div>
+                        <div style={{ color: colors.muted, fontSize: 11 }}>{formatDate(ev.createdAt)} · {ev.actorType}</div>
+                        {ev.notes && <div style={{ color: '#374151', fontSize: 11, marginTop: 1 }}>{ev.notes}</div>}
+                      </div>
+                    ))}
+                    {ts.events.length === 0 && (
+                      <div style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic' }}>No tracking events yet</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       </div>

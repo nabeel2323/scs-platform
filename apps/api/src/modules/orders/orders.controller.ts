@@ -135,4 +135,71 @@ export class OrdersController {
   ) {
     return this.ordersService.cancelOrder(id, user.sub, body.reason, user);
   }
+
+  // ── M7.1 Fulfillment Actions ──────────────────────────────────
+
+  @Post('orders/:id/prepare')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
+  async prepareOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.prepareOrder(id, user.sub, user);
+  }
+
+  @Post('orders/:id/ready')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:orders:write')
+  async readyOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.readyOrder(id, user.sub, user);
+  }
+
+  @Post('orders/:id/assign-driver')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:assign')
+  async assignDriver(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { driverId: string },
+  ) {
+    return this.ordersService.assignDriver(id, body.driverId, user.sub, user);
+  }
+
+  @Post('orders/:id/pickup')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:pickup')
+  async pickupOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.pickupOrder(id, user.sub, user);
+  }
+
+  @Post('orders/:id/out-for-delivery')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:pickup')
+  async outForDeliveryOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.outForDeliveryOrder(id, user.sub, user);
+  }
+
+  @Post('orders/:id/deliver')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:deliver')
+  async deliverOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.deliverOrder(id, user.sub, user);
+  }
+
+  // ── Buyer Tracking ────────────────────────────────────────────
+
+  @Get('orders/master/:id/tracking')
+  async getTracking(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.getTracking(id, user.sub);
+  }
+
+  // ── Driver Shipments ──────────────────────────────────────────
+
+  @Get('drivers/shipments')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:read')
+  async listDriverShipments(
+    @CurrentUser() user: JwtPayload,
+    @Query('status') status?: string,
+  ) {
+    return this.ordersService.listDriverShipments(user.sub, status);
+  }
 }

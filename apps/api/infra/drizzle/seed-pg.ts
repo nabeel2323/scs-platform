@@ -94,6 +94,11 @@ const PERMISSIONS: string[] = [
   'admin:audit:read',
   'admin:users:read',
   'admin:users:write',
+  // Fulfillment / Shipments (M7.1)
+  'fulfillment:shipments:read',
+  'fulfillment:shipments:assign',
+  'fulfillment:shipments:pickup',
+  'fulfillment:shipments:deliver',
 ];
 
 // ─── Platform roles ──────────────────────────────────────────────────────────
@@ -220,6 +225,9 @@ const ROLES: RoleDef[] = [
       'merchant:pricing:read',
       'merchant:pricing:write',
       'identity:organizations:write',
+      // M7.1 fulfillment — merchant can assign drivers
+      'fulfillment:shipments:read',
+      'fulfillment:shipments:assign',
       'analytics:track',
     ],
   },
@@ -245,6 +253,9 @@ const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      // M7.1 fulfillment — staff can assign drivers
+      'fulfillment:shipments:read',
+      'fulfillment:shipments:assign',
       'analytics:track',
     ],
   },
@@ -258,6 +269,16 @@ const ROLES: RoleDef[] = [
       'orders:cancel',
       'merchant:stores:read',
       'analytics:track',
+    ],
+  },
+  {
+    key: 'DRIVER',
+    name: 'Driver',
+    permissions: [
+      'orders:read',
+      'fulfillment:shipments:read',
+      'fulfillment:shipments:pickup',
+      'fulfillment:shipments:deliver',
     ],
   },
 ];
