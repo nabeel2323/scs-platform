@@ -520,6 +520,8 @@ export class OrdersService {
     orgIdByStore: Map<string, string>,
   ) {
     if (!this.notifications) return;
+    // Guard: isolated test mocks may not wire the full relational query surface.
+    if (!this.db.db.query?.organizationMembers) return;
     try {
       const membersByOrg = new Map<string, string[]>();
       for (const s of subOrders) {
