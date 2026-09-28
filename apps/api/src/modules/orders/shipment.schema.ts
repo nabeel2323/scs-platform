@@ -4,14 +4,20 @@ import { stores } from '../merchant/merchant.schema';
 import { orders } from './orders.schema';
 
 /**
- * Shipment schema (migration 0040_shipments)
+ * Shipment schema (migration 0040_shipments, extended by 0041_shipping)
  *
  * - shipments: one fulfillment shipment per merchant sub-order
  * - shipment_events: append-only audit trail of fulfillment transitions
  *
  * A master order with multiple merchants produces multiple shipments —
- * one per sub-order. Each shipment tracks its own fulfillment lifecycle
+ * one per sub-order. Each shipment track its own fulfillment lifecycle
  * independently.
+ *
+ * M7.2 extensions (0041):
+ * - deliveryAddress: JSONB address snapshot at createShipment() time
+ * - carrierTrackingId: external carrier tracking number
+ * - shippingMethodId: FK to shipping_methods (nullable until assigned)
+ * - shippingProviderKey: which provider handles this shipment
  */
 
 export const shipments = pgTable('shipments', {
@@ -28,6 +34,11 @@ export const shipments = pgTable('shipments', {
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // M7.2 extensions (0041_shipping)
+  deliveryAddress: jsonb('delivery_address'),
+  carrierTrackingId: varchar('carrier_tracking_id', { length: 120 }),
+  shippingMethodId: uuid('shipping_method_id'),
+  shippingProviderKey: varchar('shipping_provider_key', { length: 40 }),
 });
 
 export const shipmentEvents = pgTable('shipment_events', {
