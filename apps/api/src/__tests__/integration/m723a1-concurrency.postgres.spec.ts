@@ -606,12 +606,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       }
     });
 
-    it('missing master key fails safely at construction', () => {
+    it('missing master key degrades gracefully at construction', () => {
       const oldKey = process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
       delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
 
       try {
-        expect(() => new CarrierCredentialCryptoService()).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+        // Constructor degrades gracefully — no throw
+        const svc = new CarrierCredentialCryptoService();
+        expect(svc).toBeDefined();
+        // encrypt/decrypt throw at first use
+        expect(() => svc.encrypt('test')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+        expect(() => svc.decrypt('aabb')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
       } finally {
         process.env['CARRIER_CREDENTIALS_MASTER_KEY'] = oldKey;
       }

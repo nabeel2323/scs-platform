@@ -43,9 +43,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 68 permissions seeded (M7.2.3-A added 3 carrier permissions).
-      expect(result.permissionsTotal).toBe(68);
-      expect(result.newPermissions).toBe(68);
+      // 69 permissions seeded (M7.2.3-C added admin:shipping:recovery).
+      expect(result.permissionsTotal).toBe(69);
+      expect(result.newPermissions).toBe(69);
 
       // 7 roles seeded (M7.1 added DRIVER).
       expect(result.rolesTotal).toBe(7);
@@ -53,7 +53,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(68);
+      expect(permCount.rows[0].cnt).toBe(69);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -80,7 +80,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(68);
+      expect(permCount.rows[0].cnt).toBe(69);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -121,7 +121,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(68);
+      expect(permCount.rows[0].cnt).toBe(69);
     } finally {
       client.release();
     }
@@ -140,8 +140,8 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(68);
-    expect(byRole.get('ADMIN')).toBe(44);
+    expect(byRole.get('SUPER_ADMIN')).toBe(69);
+    expect(byRole.get('ADMIN')).toBe(45);
     expect(byRole.get('MODERATOR')).toBe(21);
     expect(byRole.get('MERCHANT_OWNER')).toBe(31);
     expect(byRole.get('MERCHANT_STAFF')).toBe(25);
