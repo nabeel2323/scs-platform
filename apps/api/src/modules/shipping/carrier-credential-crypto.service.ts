@@ -22,7 +22,7 @@ import * as crypto from 'node:crypto';
 @Injectable()
 export class CarrierCredentialCryptoService {
   private readonly logger = new Logger(CarrierCredentialCryptoService.name);
-  private readonly masterKey: Buffer;
+  private readonly masterKey: Buffer | null;
 
   /** AES-256-GCM initialization vector length (96 bits). */
   private static readonly IV_LENGTH = 12;
@@ -37,13 +37,15 @@ export class CarrierCredentialCryptoService {
     const rawKey = process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
 
     if (!rawKey) {
-      // Fail fast: the application cannot safely handle carrier credentials
-      // without a configured master key.  We throw at construction time so the
-      // NestJS bootstrap fails loudly rather than at first credential access.
-      throw new Error(
-        'CARRIER_CREDENTIALS_MASTER_KEY is required. ' +
-        'Generate a 32-byte hex key: openssl rand -hex 32',
+      // Degrade gracefully: the app can start without the key.  Encrypt /
+      // decrypt calls will throw a clear error at first use, but the rest
+      // of the application (non-carrier endpoints) remains fully functional.
+      this.masterKey = null;
+      this.logger.warn(
+        'CARRIER_CREDENTIALS_MASTER_KEY is not set — carrier credential '
+        + 'encryption is disabled. Generate a key with: openssl rand -hex 32',
       );
+      return;
     }
 
     // The master key must be a 64-character hex string (32 bytes).
@@ -64,11 +66,12 @@ export class CarrierCredentialCryptoService {
    * @returns Hex-encoded string: iv + authTag + ciphertext.
    */
   encrypt(plaintext: string): string {
+    const key = this.getKey();
     const iv = crypto.randomBytes(CarrierCredentialCryptoService.IV_LENGTH);
 
     const cipher = crypto.createCipheriv(
       CarrierCredentialCryptoService.ALGORITHM,
-      this.masterKey,
+      key,
       iv,
     );
 
@@ -91,6 +94,7 @@ export class CarrierCredentialCryptoService {
    *         does not match (tampered data or wrong key).
    */
   decrypt(hexCiphertext: string): string {
+    const key = this.getKey();
     const combined = Buffer.from(hexCiphertext, 'hex');
 
     const minLen =
@@ -116,7 +120,7 @@ export class CarrierCredentialCryptoService {
 
     const decipher = crypto.createDecipheriv(
       CarrierCredentialCryptoService.ALGORITHM,
-      this.masterKey,
+      key,
       iv,
     );
     decipher.setAuthTag(authTag);
@@ -127,6 +131,20 @@ export class CarrierCredentialCryptoService {
     ]);
 
     return decrypted.toString('utf8');
+  }
+
+  /**
+   * Return the master key or throw a descriptive error if not configured.
+   */
+  private getKey(): Buffer {
+    if (!this.masterKey) {
+      throw new Error(
+        'CARRIER_CREDENTIALS_MASTER_KEY is not configured. '
+        + 'Cannot encrypt/decrypt carrier credentials. '
+        + 'Generate a key: openssl rand -hex 32',
+      );
+    }
+    return this.masterKey;
   }
 
   /**

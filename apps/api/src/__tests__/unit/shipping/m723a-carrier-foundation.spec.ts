@@ -89,13 +89,18 @@ describe('CarrierCredentialCryptoService', () => {
     expect(() => svc.decrypt(tampered)).toThrow();
   });
 
-  it('fails construction when master key is missing', async () => {
+  it('constructs without master key but encrypt/decrypt throw', async () => {
     delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
 
     const { CarrierCredentialCryptoService } = await import(
       '../../../modules/shipping/carrier-credential-crypto.service'
     );
-    expect(() => new CarrierCredentialCryptoService()).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+    // Constructor degrades gracefully — no throw
+    const svc = new CarrierCredentialCryptoService();
+    expect(svc).toBeDefined();
+    // Encrypt / decrypt throw at first use with a clear message
+    expect(() => svc.encrypt('test')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+    expect(() => svc.decrypt('aabb')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
   });
 
   it('fails construction when master key has invalid format', async () => {
