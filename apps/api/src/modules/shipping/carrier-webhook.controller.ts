@@ -260,6 +260,8 @@ export class CarrierWebhookController {
     const candidates = [
       'shipment_id', 'tracking_number', 'awb', 'carrier_shipment_id',
       'delivery_id', 'consignment_id', 'external_delivery_id',
+      // Aramex PascalCase field names (B2.21)
+      'WaybillNumber', 'ShipmentNumber', 'TrackingNumber',
     ];
 
     for (const key of candidates) {

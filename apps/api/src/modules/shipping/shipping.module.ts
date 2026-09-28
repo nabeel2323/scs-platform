@@ -15,6 +15,8 @@ import { ShipmentOperationsController } from './shipment-operations.controller';
 import { CarrierEmailResolver } from './carrier-email-resolver';
 import { CarrierConfigValidator } from './carrier-config-validation';
 import { CarrierObservabilityService } from './carrier-observability';
+// M7.2.3-B.2 — Aramex provider
+import { AramexProvider } from './aramex/aramex.provider';
 
 /**
  * ShippingModule — M7.2.3-A Shipping, Delivery & Carrier Integration.
@@ -60,6 +62,7 @@ import { CarrierObservabilityService } from './carrier-observability';
     ShippingProviderRegistry,
     ShippingService,
     ManualDeliveryProvider,
+    AramexProvider,
     CarrierCredentialCryptoService,
     CarrierCredentialsService,
     CarrierConfigurationsService,
@@ -79,6 +82,8 @@ import { CarrierObservabilityService } from './carrier-observability';
     CarrierEmailResolver,
     CarrierConfigValidator,
     CarrierObservabilityService,
+    // M7.2.3-B.2
+    AramexProvider,
   ],
 })
 export class ShippingModule {}

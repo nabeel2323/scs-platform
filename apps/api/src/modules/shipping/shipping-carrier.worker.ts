@@ -6,7 +6,10 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
-import { generateIdempotencyKey, CarrierCreateStatus } from './shipping.types';
+import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest } from './shipping.types';
+import { classifyCarrierError } from './carrier-errors';
+import { CarrierObservabilityService } from './carrier-observability';
+import { CarrierEmailResolver } from './carrier-email-resolver';
 
 /**
  * ShippingCarrierWorker — dedicated worker for shipping.carrier.* outbox events.
@@ -62,6 +65,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     private readonly registry: ShippingProviderRegistry,
     private readonly credentials: CarrierCredentialsService,
     private readonly configurations: CarrierConfigurationsService,
+    private readonly observability: CarrierObservabilityService,
+    private readonly emailResolver: CarrierEmailResolver,
   ) {}
 
   onModuleInit() {
@@ -275,21 +280,93 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // CARRIER provider — no real adapter exists yet.
-    // Mark as FAILED with a clear message for when a real adapter is plugged in.
-    await this.db.db
-      .update(shipments)
-      .set({
-        carrierCreateStatus: 'FAILED' as any,
-        carrierCreateError: `No carrier adapter implemented for provider '${providerKey}'. ` +
-          'Carrier integration foundation is ready — adapter required.',
-        updatedAt: new Date(),
-      })
-      .where(eq(shipments.id, shipmentId));
+    // CARRIER provider — invoke the real adapter.
+    // Build a CreateShipmentRequest from the shipment data.
+    const deliveryAddr = shipment.deliveryAddress as Record<string, unknown> | null;
 
-    this.logger.warn(
-      `Shipment ${shipmentId} — carrier adapter for '${providerKey}' not yet implemented.`,
-    );
+    // Resolve consignee email (may throw CarrierEmailRequiredError)
+    let consigneeEmail: string | undefined;
+    try {
+      const resolved = await this.emailResolver.tryResolve(shipmentId);
+      if (resolved) consigneeEmail = resolved.email;
+    } catch {
+      // Email resolution failure is not fatal — some carriers may not require it
+    }
+
+    const createRequest: CreateShipmentRequest = {
+      shipmentId,
+      orderId: shipment.orderId,
+      storeId: shipment.storeId,
+      deliveryAddress: {
+        street: (deliveryAddr?.['street'] as string) || '',
+        city: (deliveryAddr?.['city'] as string) || '',
+        country: (deliveryAddr?.['country'] as string) || '',
+        postalCode: deliveryAddr?.['postalCode'] as string | undefined,
+        region: deliveryAddr?.['region'] as string | undefined,
+        phone: deliveryAddr?.['phone'] as string | undefined,
+        recipientName: deliveryAddr?.['recipientName'] as string | undefined,
+      },
+      serviceType: undefined, // resolved by provider from configuration
+      weightGrams: typeof deliveryAddr?.['weightGrams'] === 'number'
+        ? deliveryAddr['weightGrams'] as number : undefined,
+      currency: (deliveryAddr?.['currency'] as string) || undefined,
+      codAmountMinor: typeof deliveryAddr?.['codAmountMinor'] === 'number'
+        ? deliveryAddr['codAmountMinor'] as number : undefined,
+      declaredValueMinor: typeof deliveryAddr?.['declaredValueMinor'] === 'number'
+        ? deliveryAddr['declaredValueMinor'] as number : undefined,
+      idempotencyKey: shipment.idempotencyKey || generateIdempotencyKey(shipmentId),
+      consigneeEmail,
+      metadata: shipment.metadata as Record<string, unknown>,
+    };
+
+    try {
+      const result = await provider.createShipment(createRequest);
+
+      // Success — update shipment with carrier result
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCreateStatus: 'SUCCESS' as any,
+          carrierShipmentId: result.carrierShipmentId || null,
+          carrierTrackingId: result.trackingId || null,
+          carrierStatusRaw: result.carrierStatus || null,
+          carrierStatusMapped: result.carrierStatus || null,
+          lastCarrierSyncAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+
+      this.logger.log(
+        `Shipment ${shipmentId} — carrier creation SUCCESS ` +
+        `(carrier ID: ${result.carrierShipmentId || 'none'})`,
+      );
+
+    } catch (err: any) {
+      // Classify the error to determine retry behaviour
+      const classification = classifyCarrierError(err);
+      const isFinal = (shipment.carrierCreateRetries || 0) + 1 >= ShippingCarrierWorker.MAX_ATTEMPTS;
+
+      const newStatus: CarrierCreateStatus = (classification.decision === 'retry' && !isFinal)
+        ? 'PENDING'
+        : 'FAILED';
+
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCreateStatus: newStatus as any,
+          carrierCreateError: classification.safeMessage,
+          carrierCreateRetries: (shipment.carrierCreateRetries || 0) + 1,
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+
+      this.logger.error(
+        `Shipment ${shipmentId} — carrier creation failed: ${classification.safeMessage}`,
+      );
+
+      // Re-throw so the event handler marks the outbox event appropriately
+      throw err;
+    }
   }
 
   /**

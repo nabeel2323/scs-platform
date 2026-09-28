@@ -28,6 +28,8 @@ import { ShippingCarrierWorker } from '../../modules/shipping/shipping-carrier.w
 import { CarrierCredentialCryptoService } from '../../modules/shipping/carrier-credential-crypto.service';
 import { CarrierCredentialsService } from '../../modules/shipping/carrier-credentials.service';
 import { CarrierConfigurationsService } from '../../modules/shipping/carrier-configurations.service';
+import { CarrierObservabilityService } from '../../modules/shipping/carrier-observability';
+import { CarrierEmailResolver } from '../../modules/shipping/carrier-email-resolver';
 import { WebhookSecurityService } from '../../modules/shipping/webhook-security.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
@@ -128,7 +130,9 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     cryptoService = new CarrierCredentialCryptoService();
     credentialsService = new CarrierCredentialsService(databaseService, cryptoService);
     configurationsService = new CarrierConfigurationsService(databaseService);
-    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService);
+    const observability = new CarrierObservabilityService();
+    const emailResolver = new CarrierEmailResolver(databaseService);
+    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver);
   }, 120_000);
 
   afterAll(async () => {
