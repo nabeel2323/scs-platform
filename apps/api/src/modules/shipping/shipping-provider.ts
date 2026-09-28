@@ -5,6 +5,9 @@ import {
   CarrierStatusMapping,
   ProviderCapabilities,
   ShippingAddress,
+  CancelShipmentResult,
+  GenerateLabelResult,
+  TrackingInfo,
 } from './shipping.types';
 
 /**
@@ -13,7 +16,11 @@ import {
  * The provider abstraction allows the platform to work with different
  * fulfillment methods (manual driver delivery, Aramex, SMSA, etc.)
  * through a single interface.  Only ManualDeliveryProvider is registered
- * in M7.2.1; external carriers will be added in later phases.
+ * in M7.2.1; external carriers will be added in later M7.2 phases.
+ *
+ * M7.2.3-A: Unsupported operations now return explicit typed results
+ * instead of silently succeeding with no-ops.  ManualDeliveryProvider
+ * continues to work unchanged for all supported operations.
  */
 export abstract class ShippingProvider {
   /** Provider type: MANUAL or CARRIER */
@@ -38,25 +45,31 @@ export abstract class ShippingProvider {
 
   /**
    * Cancel a previously created shipment.
-   * Optional — not all providers support cancellation.
+   *
+   * M7.2.3-A: Providers that do not support cancellation MUST return
+   * `{ supported: false, reason: '...' }` rather than silently doing nothing.
    */
-  async cancelShipment(_shipmentId: string): Promise<void> {
-    // Default: no-op.  Override in providers that support cancellation.
+  async cancelShipment(_shipmentId: string): Promise<CancelShipmentResult> {
+    return { supported: false, reason: `${this.key} does not support shipment cancellation` };
   }
 
   /**
    * Generate a shipping label.
-   * Optional — only providers with label support implement this.
+   *
+   * M7.2.3-A: Providers that do not support label generation MUST return
+   * `{ supported: false, reason: '...' }` rather than returning null.
    */
-  async generateLabel(_shipmentId: string): Promise<string | null> {
-    return null;
+  async generateLabel(_shipmentId: string): Promise<GenerateLabelResult> {
+    return { supported: false, reason: `${this.key} does not support label generation` };
   }
 
   /**
    * Get tracking information.
-   * Optional — only providers with tracking support implement this.
+   *
+   * M7.2.3-A: Returns a typed TrackingInfo object.  Providers that do not
+   * support tracking return null.
    */
-  async getTrackingInfo(_trackingId: string): Promise<Record<string, unknown> | null> {
+  async getTrackingInfo(_trackingId: string): Promise<TrackingInfo | null> {
     return null;
   }
 
@@ -70,7 +83,9 @@ export abstract class ShippingProvider {
 
   /**
    * Map a carrier-specific status to an internal shipment status.
-   * Optional — only carrier providers implement this.
+   *
+   * M7.2.3-A: Returns a typed CarrierStatusMapping.  Providers that do not
+   * support status mapping return null.
    */
   mapCarrierStatus(_carrierStatus: string): CarrierStatusMapping | null {
     return null;

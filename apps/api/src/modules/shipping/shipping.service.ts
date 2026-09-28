@@ -34,6 +34,10 @@ export interface CreateShippingMethodInput {
   estimatedDaysMin?: number;
   estimatedDaysMax?: number;
   currency?: string;
+  /** M7.2.3-A: provider key for carrier binding. */
+  shippingProviderKey?: string;
+  /** M7.2.3-A: carrier-specific service code. */
+  carrierServiceCode?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -46,6 +50,10 @@ export interface UpdateShippingMethodInput {
   estimatedDaysMin?: number | null;
   estimatedDaysMax?: number | null;
   isActive?: boolean;
+  /** M7.2.3-A: provider key for carrier binding. */
+  shippingProviderKey?: string | null;
+  /** M7.2.3-A: carrier-specific service code. */
+  carrierServiceCode?: string | null;
   metadata?: Record<string, unknown>;
 }
 
@@ -159,6 +167,21 @@ export class ShippingService implements OnModuleInit {
     const key = input.key.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     if (!key) throw new BadRequestException('Key is required and must be alphanumeric');
 
+    // M7.2.3-A: Provider binding validation
+    const carrierType = (input.carrierType || 'MERCHANT').toUpperCase();
+    if (carrierType === 'EXTERNAL' && !input.shippingProviderKey) {
+      throw new BadRequestException(
+        'External carrier shipping methods MUST have a shippingProviderKey',
+      );
+    }
+    // Validate provider exists in registry if specified
+    if (input.shippingProviderKey && !this.registry.hasProvider(input.shippingProviderKey)) {
+      throw new BadRequestException(
+        `Unknown shipping provider: '${input.shippingProviderKey}'. ` +
+        `Registered: [${this.registry.listProviderKeys().join(', ')}]`,
+      );
+    }
+
     // Validate fees
     if (input.baseFeeMinor < 0) throw new BadRequestException('baseFeeMinor must be >= 0');
     if (input.minOrderMinor != null && input.minOrderMinor < 0) {
@@ -187,7 +210,7 @@ export class ShippingService implements OnModuleInit {
         name: input.name.trim(),
         description: input.description?.trim() || null,
         fulfillmentMethod: input.fulfillmentMethod,
-        carrierType: input.carrierType || 'MERCHANT',
+        carrierType: carrierType,
         type: input.type || 'STANDARD',
         baseFeeMinor: input.baseFeeMinor,
         minOrderMinor: input.minOrderMinor ?? null,
@@ -195,6 +218,8 @@ export class ShippingService implements OnModuleInit {
         estimatedDaysMin: input.estimatedDaysMin ?? null,
         estimatedDaysMax: input.estimatedDaysMax ?? null,
         currency: input.currency || 'SAR',
+        shippingProviderKey: input.shippingProviderKey ?? null,
+        carrierServiceCode: input.carrierServiceCode ?? null,
         metadata: input.metadata || {},
         createdAt: now,
         updatedAt: now,
@@ -242,6 +267,9 @@ export class ShippingService implements OnModuleInit {
     if (input.estimatedDaysMax !== undefined) updates['estimatedDaysMax'] = input.estimatedDaysMax;
     if (input.isActive !== undefined) updates['isActive'] = input.isActive;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
+    // M7.2.3-A: provider binding updates
+    if (input.shippingProviderKey !== undefined) updates['shippingProviderKey'] = input.shippingProviderKey;
+    if (input.carrierServiceCode !== undefined) updates['carrierServiceCode'] = input.carrierServiceCode;
 
     const [updated] = await this.db.db.update(shippingMethods)
       .set(updates)

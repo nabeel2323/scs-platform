@@ -67,11 +67,11 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 65,
-  ADMIN: 42,
+  SUPER_ADMIN: 68,
+  ADMIN: 44,
   MODERATOR: 21,
-  MERCHANT_OWNER: 29,
-  MERCHANT_STAFF: 23,
+  MERCHANT_OWNER: 31,
+  MERCHANT_STAFF: 25,
   BUYER: 6,
   DRIVER: 6,
 };
@@ -274,9 +274,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 65', async () => {
+    it('total permission count is 68', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(65);
+      expect(res.rows[0].cnt).toBe(68);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
@@ -317,12 +317,13 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       expect(res.rows[0].cnt).toBe(0);
     });
 
-    it('MERCHANT_OWNER does NOT have admin:* permissions', async () => {
+    it('MERCHANT_OWNER does NOT have admin:* permissions (except carrier read)', async () => {
       const res = await pool.query(
         `SELECT p.key FROM role_permissions rp
          JOIN roles r ON r.id = rp.role_id
          JOIN permissions p ON p.id = rp.permission_id
-         WHERE r.key = 'MERCHANT_OWNER' AND p.key LIKE 'admin:%'`,
+         WHERE r.key = 'MERCHANT_OWNER' AND p.key LIKE 'admin:%'
+           AND p.key != 'admin:carrier:read'`,
       );
       expect(res.rows.length).toBe(0);
     });

@@ -1,0 +1,41 @@
+﻿node.exe : npm notice run @scs/api@0.1.0 npx
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\nabee\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice run @scs/api@0.1.0 npx 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice run vitest run --reporter=verbose 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts
+[33mThe CJS build of Vite's Node API is deprecated. See 
+https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for 
+more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/TAIF/scs-platform/apps/api[39m
+
+[32m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22msuccessful transaction: shipment UPDATE + outbox INSERT are atomic
+[32m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [32m    LOG[39m [38;5;3m[CarrierCredentialsService] [39m[32mCarrier credential created: test-carrier/sandbox for org 01a101c8-8b7f-4024-8e78-8ec7e73613d5[39m
+[32m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [32m    LOG[39m [38;5;3m[CarrierCredentialsService] [39m[32mCarrier credential created: test-carrier/sandbox for org 3cc3b54d-c56a-4012-b950-ca52be12d7e0[39m
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mtransaction rollback: failure in outbox INSERT rolls back shipment UPDATE
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mno orphan PENDING shipment without outbox event
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mrepeated worker processing remains safe (idempotency)
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mmigration 0044 adds webhook_token column
+[32m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [32m    LOG[39m [38;5;3m[CarrierCredentialsService] [39m[32mCarrier credential created: test-carrier-2/sandbox for org 01a101c8-8b7f-4024-8e78-8ec7e73613d5[39m
+[32m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [32m    LOG[39m [38;5;3m[CarrierCredentialsService] [39m[32mCarrier credential created: test-carrier-2/sandbox for org 3cc3b54d-c56a-4012-b950-ca52be12d7e0[39m
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mwebhook tokens are unique per credential
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mcross-tenant webhook: token routes to correct org only
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from buyer user record
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from shipment metadata (highest priority)
+[33m[Nest] 24456  - [39m09/28/2026, 9:46:56 PM [33m   WARN[39m [38;5;3m[CarrierEmailResolver] [39m[33mNo email resolved for shipment 0e9be515-c927-43ee-9c2d-3ae7b9033bec ΓÇö carrier integration will not have consignee email.[39m
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mthrows CarrierEmailRequiredError when no email available
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mtenant isolation: wrong org cannot resolve email
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22morg A cannot see org B credentials
+ [32mΓ£ô[39m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22mcredential list only returns own org credentials
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 21:46:50
+[2m   Duration [22m 5.94s[2m (transform 401ms, setup 26ms, collect 1.79s, tests 3.13s, environment 0ms, prepare 300ms)[22m
+

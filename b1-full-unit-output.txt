@@ -1,0 +1,896 @@
+﻿node.exe : npm notice run @scs/api@0.1.0 npx
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\nabee\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice run @scs/api@0.1.0 npx 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice run vitest run --reporter=verbose src/__tests__/unit/
+[33mThe CJS build of Vite's Node API is deprecated. See 
+https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for 
+more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/TAIF/scs-platform/apps/api[39m
+
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould calculate 10% of cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould round to nearest integer
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould round up when >= .5
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould return 0 for zero cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould handle 100% discount
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö PERCENT Discount[2m > [22mshould handle 50% discount
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö FIXED Discount[2m > [22mshould return fixed discount amount
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö FIXED Discount[2m > [22mshould return fixed discount regardless of cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö FIXED Discount[2m > [22mshould cap at cart total when fixed discount exceeds cart
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö FIXED Discount[2m > [22mshould handle fixed discount equal to cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö QTY_DISCOUNT[2m > [22mshould return fixed qty discount
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö QTY_DISCOUNT[2m > [22mshould cap at cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö TIME_LIMITED Discount[2m > [22mshould calculate percentage like PERCENT
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö TIME_LIMITED Discount[2m > [22mshould round correctly
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Min Order Threshold[2m > [22mshould apply discount when cart meets minimum
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Min Order Threshold[2m > [22mshould return 0 when cart is below minimum
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Min Order Threshold[2m > [22mshould return 0 for zero cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Min Order Threshold[2m > [22mshould apply discount at exactly the minimum
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Max Discount Cap[2m > [22mshould cap discount at maxDiscountMinor
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Max Discount Cap[2m > [22mshould not cap when discount is below max
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Max Discount Cap[2m > [22mshould apply cap at exact boundary
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Max Discount Cap[2m > [22mshould handle FIXED discount with cap
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Discount Invariants[2m > [22mdiscount should never exceed cart total
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Discount Invariants[2m > [22mdiscount should never be negative
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Discount Invariants[2m > [22munknown promo type should return 0 discount
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mmax redemptions[2m > [22mshould allow redemption when under limit
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mmax redemptions[2m > [22mshould block redemption when max reached
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mmax redemptions[2m > [22mshould block redemption when over limit
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mmax redemptions[2m > [22mshould allow unlimited redemptions when maxRedemptions is null
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mper-user limit[2m > [22mshould allow first use when perUserLimit is 1
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mper-user limit[2m > [22mshould block second use when perUserLimit is 1
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mper-user limit[2m > [22mshould allow multiple uses when perUserLimit is higher
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mper-user limit[2m > [22mshould block when user reaches per-user limit
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mcombined limits[2m > [22mshould block when both limits are reached
+ [32mΓ£ô[39m src/__tests__/unit/promotions/promotions.service.spec.ts[2m > [22mPromotions Service ΓÇö Redemption Limits[2m > [22mcombined limits[2m > [22mshould block on user limit even if global limit not reached
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mCarrierError is the base class[33m 301[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mRetryableCarrierError is retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mRateLimitCarrierError includes retryAfterSeconds
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mNonRetryableCarrierError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mAuthenticationCarrierError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mValidationCarrierError includes field errors
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mUnsupportedCarrierOperationError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mclassifyCarrierError returns correct decisions
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mclassifyCarrierError handles unknown errors as retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mtoSafeMessage never includes raw secrets
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mallows requests below the limit
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mblocks requests exceeding the limit
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mtracks rate limits per IP address independently
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mdifferent provider keys share the same IP-based limiter
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mexpired windows reset the counter
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Storage Layer[2m > [22mreports correct timeToExpire
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Malicious Request Scenarios[2m > [22mrepeated requests without valid signatures are still rate-limited
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Malicious Request Scenarios[2m > [22mbrute-force signature attempts are capped by rate limiter
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Malicious Request Scenarios[2m > [22mdistributed requests from different IPs are tracked independently
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22maccepts valid HTTPS URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects localhost
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 127.0.0.1
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 10.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 172.16.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 192.168.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects link-local 169.254.x (cloud metadata)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 loopback ::1
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 link-local fe80::
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 ULA fd00::
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects cloud metadata hostname
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects non-HTTPS when required
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mallows HTTP when not required
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects file:// scheme
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects gopher:// scheme
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects invalid URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22menforces provider allowlist
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22maccepts URLs matching allowlist
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 0.0.0.0
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+[32m[Nest] 12564  - [39m09/28/2026, 9:53:24 PM [32m    LOG[39m [38;5;3m[CarrierCredentialCryptoService] [39m[32mCarrier credential encryption initialised (AES-256-GCM).[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mencrypts and decrypts a plaintext string[33m 1700[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mproduces different ciphertexts for the same plaintext (random IV)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mfails to decrypt with wrong key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mfails to decrypt malformed ciphertext (too short)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mfails to decrypt tampered ciphertext (auth tag mismatch)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mfails construction when master key is missing
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mfails construction when master key has invalid format
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mencryptOptional returns null for null/undefined
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrierCredentialCryptoService[2m > [22mdecryptOptional returns null for null/undefined
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mIdempotency key generation[2m > [22mgenerates deterministic key from shipment ID
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mIdempotency key generation[2m > [22msame shipment ID always produces same key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mIdempotency key generation[2m > [22mdifferent shipment IDs produce different keys
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrier create status[2m > [22massertCarrierCreateStatus accepts valid statuses
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrier create status[2m > [22massertCarrierCreateStatus rejects invalid statuses
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mCarrier create status[2m > [22mCARRIER_CREATE_STATUSES contains exactly 4 values
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mcomputes and verifies a valid HMAC signature
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mrejects mismatched signature
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mverifies signature with timestamp
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mrejects stale timestamp (>5 minutes)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22maccepts fresh timestamp
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mrejects invalid timestamp format
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mvalidates body size within limit
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22mrejects oversized body
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mWebhookSecurityService[2m > [22msupports millisecond timestamps
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mheader validation[2m > [22mreports missing required headers
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mheader validation[2m > [22mpasses when all required headers present
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcategory validation[2m > [22mdetects duplicate category slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcategory validation[2m > [22mdetects invalid slug format
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcategory validation[2m > [22mdetects missing slug value
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mbrand validation[2m > [22mdetects duplicate brand slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mattribute validation[2m > [22mrejects invalid attribute type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mattribute validation[2m > [22mrejects invalid attribute scope
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mproduct validation[2m > [22mdetects unknown brand reference
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mproduct validation[2m > [22mdetects invalid GTIN format
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mvariant validation[2m > [22mdetects duplicate SKUs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22msource validation[2m > [22mrejects invalid source type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcross-sheet attribute resolution[2m > [22mshould resolve Attribute Options against Attributes by Attribute Code
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcross-sheet attribute resolution[2m > [22mstill catches genuinely invalid attribute references
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mfull cross-sheet workbook validation[2m > [22mvalidates a complete workbook with all entity types referencing each other
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcolumn length validation[2m > [22mreports VALUE_TOO_LONG when a field exceeds the database column limit
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcolumn length validation[2m > [22mreports VALUE_TOO_LONG for attribute type exceeding 40 chars
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcolumn length validation[2m > [22mreports VALUE_TOO_LONG for product gtin exceeding 20 chars
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mcolumn length validation[2m > [22mdoes not report VALUE_TOO_LONG when all fields are within limits
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mvariant dimension scope validation (Phase 7/10)[2m > [22mreports VARIANT_DIMENSION_WRONG_SCOPE when dimension attr has PRODUCT scope
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mvariant dimension scope validation (Phase 7/10)[2m > [22mpasses when variant dimension attr has VARIANT scope
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mvariant dimension scope validation (Phase 7/10)[2m > [22mreports VARIANT_DIMENSION_NOT_FOUND for unknown dimension code
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mrequired attribute completeness (Phase 8)[2m > [22mreports PRODUCT_REQUIRED_ATTRIBUTE_MISSING when product lacks required attr
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mrequired attribute completeness (Phase 8)[2m > [22mpasses when all required product attributes are provided
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-validator.spec.ts[2m > [22mExcelValidatorService[2m > [22mrequired attribute completeness (Phase 8)[2m > [22mreports VARIANT_REQUIRED_ATTRIBUTE_MISSING for variants lacking required variant attrs
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mDRAFT ΓåÆ SUBMITTED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mSUBMITTED ΓåÆ ACCEPTED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mSUBMITTED ΓåÆ PARTIALLY_ACCEPTED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mSUBMITTED ΓåÆ REJECTED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mSUBMITTED ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mACCEPTED ΓåÆ CONFIRMED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mACCEPTED ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mPARTIALLY_ACCEPTED ΓåÆ CONFIRMED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mPARTIALLY_ACCEPTED ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mCONFIRMED ΓåÆ PREPARING should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mCONFIRMED ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mPREPARING ΓåÆ READY should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mPREPARING ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mREADY ΓåÆ OUT_FOR_DELIVERY should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mREADY ΓåÆ DELIVERED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mREADY ΓåÆ CANCELLED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mOUT_FOR_DELIVERY ΓåÆ DELIVERED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mDELIVERED ΓåÆ COMPLETED should be allowed
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mshould support the full happy path lifecycle
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mshould allow direct READY ΓåÆ DELIVERED (skip OUT_FOR_DELIVERY)
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mvalid transitions[2m > [22mshould allow cancellation from all pre-delivery active states
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mDRAFT ΓåÆ ACCEPTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mDRAFT ΓåÆ CONFIRMED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mDRAFT ΓåÆ DELIVERED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mSUBMITTED ΓåÆ CONFIRMED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mSUBMITTED ΓåÆ PREPARING should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mSUBMITTED ΓåÆ DELIVERED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mACCEPTED ΓåÆ SUBMITTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCONFIRMED ΓåÆ SUBMITTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCONFIRMED ΓåÆ ACCEPTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mPREPARING ΓåÆ CONFIRMED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mPREPARING ΓåÆ ACCEPTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mREADY ΓåÆ PREPARING should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mDELIVERED ΓåÆ READY should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mDELIVERED ΓåÆ OUT_FOR_DELIVERY should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCOMPLETED ΓåÆ CANCELLED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCOMPLETED ΓåÆ DELIVERED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCANCELLED ΓåÆ SUBMITTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mCANCELLED ΓåÆ ACCEPTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mREJECTED ΓåÆ SUBMITTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mREJECTED ΓåÆ ACCEPTED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mOUT_FOR_DELIVERY ΓåÆ READY should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mOUT_FOR_DELIVERY ΓåÆ CANCELLED should be rejected
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mshould reject transitions from unknown statuses
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22minvalid transitions[2m > [22mshould reject transitions to unknown statuses
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mterminal states[2m > [22mCOMPLETED has no outgoing transitions
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mterminal states[2m > [22mCANCELLED has no outgoing transitions
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mterminal states[2m > [22mREJECTED has no outgoing transitions
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mtransition matrix completeness[2m > [22mshould have exactly 12 statuses
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mtransition matrix completeness[2m > [22mevery status should be reachable from DRAFT
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö FSM Transitions[2m > [22mtransition matrix completeness[2m > [22mevery status appears as a key in the transition map
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mcalculates 5% commission on net goods and 15% VAT
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mapplies discount before VAT and commission
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mincludes delivery fee in the taxable base but not in commission
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mhandles a full breakdown: subtotal - discount + delivery + VAT
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mmerchant net + commission = net goods (invariant)
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mhandles a zero-value order
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Financial Breakdown (real computeOrderFinancials)[2m > [22mrounds commission to the nearest integer
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mSUBMITTED should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mACCEPTED should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mPARTIALLY_ACCEPTED should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mCONFIRMED should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mPREPARING should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mREADY should be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mDELIVERED should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mCOMPLETED should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mCANCELLED should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mREJECTED should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mDRAFT should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Cancel Eligibility[2m > [22mOUT_FOR_DELIVERY should NOT be cancellable
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould detect no change when prices are equal
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould detect price increase
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould detect price decrease
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould flag >5% change as significant
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould not flag exactly 5% change
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould handle zero snapshot price gracefully
+ [32mΓ£ô[39m src/__tests__/unit/orders/orders.service.spec.ts[2m > [22mOrders Service ΓÇö Re-Price Guard[2m > [22mshould handle small price changes below threshold
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts password fields[33m 1915[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts API keys
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts bearer tokens
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts nested secrets
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts encrypted credential contents
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mhandles arrays
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mhandles null and primitives
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mresolves service-specific endpoint
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mfalls back to primary endpoint when service not configured
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mreturns null when no endpoint available
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mextracts endpoints from payload
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mvalidates endpoint URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mreturns empty errors for valid endpoints
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the first tier for qty=1
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the first tier for qty=5 (within 1-10 range)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the second tier for qty=10 (boundary)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the second tier for qty=25
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the third tier for qty=50 (boundary)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mbasic tier matching[2m > [22mshould return the third tier for qty=1000 (unlimited maxQty)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mboundary conditions[2m > [22mshould NOT match tier when qty equals maxQty (exclusive upper bound)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mboundary conditions[2m > [22mshould return null when no tiers match
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mboundary conditions[2m > [22mshould return null when qty is below all minQty values
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mtier selection priority[2m > [22mshould select the highest minQty tier when multiple match
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mtier selection priority[2m > [22mshould handle single tier with no maxQty
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mmulti-variant, multi-list[2m > [22mshould filter by variantId
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mmulti-variant, multi-list[2m > [22mshould filter by priceListId
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Tier Resolution[2m > [22mmulti-variant, multi-list[2m > [22mshould not cross-contaminate between lists
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Price List Priority[2m > [22mshould return only active lists for the given store
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Price List Priority[2m > [22mshould order by priority descending (highest first)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Price List Priority[2m > [22mshould exclude inactive lists even with high priority
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Price List Priority[2m > [22mshould exclude lists from other stores
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Edge Cases[2m > [22mshould handle zero quantity
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Edge Cases[2m > [22mshould handle minQty = maxQty (empty range ΓÇö no match)
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Edge Cases[2m > [22mshould handle large quantities
+ [32mΓ£ô[39m src/__tests__/unit/pricing/pricing.service.spec.ts[2m > [22mPricing Service ΓÇö Edge Cases[2m > [22mshould handle zero price
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mcreates an inventory item with initial stock and records IMPORT movement
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22madjusts stock and emits low-stock alert when below reorder point
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mrejects adjustment that would make stock negative
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mtransfers stock between warehouses
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mrejects transfer with zero or negative quantity
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mrejects transfer to the same warehouse
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mexports inventory as CSV with correct headers
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mexports movements as CSV
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mcheckAndNotifyLowStock emits events for items below reorder point
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mbulk adjust applies to multiple items
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mreserves stock and records a RESERVE movement with negative quantity
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mrejects reservation when available stock is insufficient
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mreleases reserved stock and records a RELEASE movement
+ [32mΓ£ô[39m src/__tests__/unit/inventory/stock-lifecycle.spec.ts[2m > [22mInventoryService ΓÇö stock lifecycle[2m > [22mclamps release to zero when releasing more than reserved
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShippingCarrierWorker backoff[2m > [22mcalculates next attempt dates[33m 2250[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShippingCarrierWorker backoff[2m > [22mreturns null for max attempts exceeded
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mPICKUP with no shippingMethodId ΓåÆ PASS (returns null method)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mPICKUP with shippingMethodId ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mPLATFORM_DELIVERY without shippingMethodId ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mMERCHANT_DELIVERY without shippingMethodId ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mdelivery method that is inactive ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mdelivery method from another store ΓåÆ REJECT (not found)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mPLATFORM_DELIVERY + active method + no zones ΓåÆ PASS (unrestricted)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö fulfillment compatibility[2m > [22mMERCHANT_DELIVERY + active method + no zones ΓåÆ PASS
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mno zones ΓåÆ unrestricted delivery (zero-zone policy A)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mzones exist + matching zone ΓåÆ PASS
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mzones exist + no matching zone ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mzone with method associations + method available ΓåÆ PASS
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mzone with method associations + method NOT available ΓåÆ REJECT
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22minactive zone is excluded from matching
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zone enforcement[2m > [22mdelivery address required for delivery methods
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-validation-remediation.spec.ts[2m > [22mvalidateCheckoutSelection ΓÇö zero-zone policy[2m > [22mstore with zero zones allows delivery to any address (unrestricted)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mProvider capability contract (M7.2.3-A)[2m > [22mManualDeliveryProvider.cancelShipment returns unsupported result[33m 316[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mProvider capability contract (M7.2.3-A)[2m > [22mManualDeliveryProvider.generateLabel returns unsupported result
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mProvider capability contract (M7.2.3-A)[2m > [22mManualDeliveryProvider.getTrackingInfo returns null
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mProvider capability contract (M7.2.3-A)[2m > [22mManualDeliveryProvider.mapCarrierStatus returns null
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mProvider capability contract (M7.2.3-A)[2m > [22mManualDeliveryProvider still creates shipments normally
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Controller Integration[2m > [22mCarrierWebhookController imports ThrottlerGuard[33m 4495[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Controller Integration[2m > [22mThrottlerGuard is exported from @nestjs/throttler
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Environment Configuration[2m > [22mreads WEBHOOK_THROTTLE_LIMIT from environment
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Environment Configuration[2m > [22mreads WEBHOOK_THROTTLE_TTL_MS from environment
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Environment Configuration[2m > [22mdefaults to 30 requests per 60 seconds when env vars are not set
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Environment Configuration[2m > [22mapp.module.ts configures both default and webhook named throttlers
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Execution Order[2m > [22mrate limiting fires before HMAC validation (architectural guarantee)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Execution Order[2m > [22mresponse codes follow correct priority order
+ [32mΓ£ô[39m src/__tests__/unit/shipping/webhook-rate-limiting.spec.ts[2m > [22mWebhook Rate Limiting ΓÇö Execution Order[2m > [22mwebhook controller source applies @UseGuards(ThrottlerGuard)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mvalidates correct email format[33m 2055[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mrejects invalid email format
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mnormalizes email to lowercase trimmed
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mCarrierEmailRequiredError has shipmentId
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mM7.2.3-A RBAC permissions[2m > [22mseed function is exported and callable[33m 538[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShipping types enrichment (M7.2.3-A)[2m > [22mCreateShipmentRequest supports carrier-specific fields
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShipping types enrichment (M7.2.3-A)[2m > [22mCreateShipmentResult supports carrier response fields
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShipping types enrichment (M7.2.3-A)[2m > [22mCancelShipmentResult supports typed union
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShipping types enrichment (M7.2.3-A)[2m > [22mGenerateLabelResult supports typed union
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723a-carrier-foundation.spec.ts[2m > [22mShipping types enrichment (M7.2.3-A)[2m > [22mTrackingInfo has typed events
+[32m[Nest] 21188  - [39m09/28/2026, 9:53:27 PM [32m    LOG[39m [38;5;3m[CarrierOps] [39m[32m[car-531f56c9-22b6-4128-b17d-00b814e030a9] provider=aramex op=createShipment attempt=1 | START[39m
+[32m[Nest] 21188  - [39m09/28/2026, 9:53:27 PM [32m    LOG[39m [38;5;3m[CarrierOps] [39m[32m[car-63da911b-3fca-4f8d-927d-da2d6e519416] provider=aramex op=createShipment attempt=1 | duration=250ms | result=success[39m
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22mfirst checkout with idempotency key succeeds and stores fingerprint
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame key + same request returns existing order (no duplicate)
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame key + different cart items throws 409 Conflict
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame key + different quantity throws 409 Conflict
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame key + different offer throws 409 Conflict
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame key + different fulfillmentMethod throws 409 Conflict
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22msame cart items always produce the same fingerprint
+ [32mΓ£ô[39m src/__tests__/unit/orders/idempotency-fingerprint.spec.ts[2m > [22mP1.1-A - Idempotency Fingerprint[2m > [22mconflict error includes RFC 7807 problem detail
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mgenerates correlation IDs with prefix
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mcreates context with defaults
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mlogStart does not throw
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mlogComplete does not throw
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mvalidates a complete configuration
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects empty provider key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects invalid environment
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects missing credentials
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects private IP endpoint
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mwarns about missing webhook secret when webhooks enabled
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mlistUserOrgs[2m > [22mfetches all orgs in one batched query (no per-membership findFirst)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mlistUserOrgs[2m > [22mreturns [] without querying orgs when the user has no memberships
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mlistOrgMembers[2m > [22mfetches users and roles in one batched query each (no per-member findFirst)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mlistOrgMembers[2m > [22mfalls back to Unknown/UNKNOWN when a user or role row is missing
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mlistOrgMembers[2m > [22mreturns [] without batched queries when the org has no members
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mgetProfile[2m > [22mfetches membership orgs in one batched query (no per-membership findFirst)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mbuildClaims (via switchOrg)[2m > [22mresolves role permissions in one batched query (no per-permission findFirst)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mbuildClaims (via switchOrg)[2m > [22mskips the permissions query entirely when the role has none
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mbuildClaims (via refreshToken) ΓÇö membership-less buyer[2m > [22mcarries the BUYER role permissions instead of an empty perms array
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.n-plus-one.spec.ts[2m > [22mIdentityService ΓÇö N+1 elimination (P2)[2m > [22mgetProfile ΓÇö membership-less buyer[2m > [22mresolves role BUYER and returns its permission keys (client gating)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mwarranty=No ΓåÆ period and terms not required
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mwarranty=Yes + period supplied + terms supplied ΓåÆ valid
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mwarranty=Yes + period missing ΓåÆ validation error
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mwarranty=Yes + both missing ΓåÆ two validation errors
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mupdate from NoΓåÆYes triggers requirement
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mWarranty scenario ΓÇö conditional require[2m > [22mupdate from YesΓåÆNo removes requirement
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mhide action[2m > [22mhides attribute when condition is met (color Γëá custom)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mhide action[2m > [22mdoes not hide when condition is not met (color = custom)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mhide action[2m > [22mhidden attribute is not required even if previously required by another rule
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22moptional action[2m > [22mmakes attribute optional when condition is met (shipping=standard)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22moptional action[2m > [22mrequires attribute when shipping=express
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mScope validation at correct layer[2m > [22mPRODUCT scope rules are evaluated against product attribute values
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mScope validation at correct layer[2m > [22mempty values map ΓåÆ no rules fire, no errors
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mAll operators[2m > [22min operator ΓÇö matches when value is in the list
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mAll operators[2m > [22mnot_in operator ΓÇö matches when value is NOT in the list
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mAll operators[2m > [22mgt operator
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules-enforcement.spec.ts[2m > [22mAll operators[2m > [22mlte operator
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mlocks request/store, batches scoped activation, and inserts transactional outbox
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mREJECTED does not activate products
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mREVISION does not activate products
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mrefuses already APPROVED requests
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mrefuses already REJECTED requests
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mrejects missing request without writes
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mrejects missing store without writes
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mrejects organization mismatch
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mvalidates decisions and bounded notes before opening a transaction
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.reviewVerification[2m > [22mpropagates an outbox failure to the transaction
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.getCustomersByOrg[2m > [22mreturns an empty array when the org has no stores
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.getCustomersByOrg[2m > [22maggregates Drizzle order rows into per-buyer camelCase summaries
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.getCustomersByOrg[2m > [22mhandles null totalMinor values gracefully
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.uploadDocument[2m > [22mpersists the client-supplied storageKey so downloads presign the uploaded object
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.uploadDocument[2m > [22mfalls back to a deterministic docs/{orgId}/{docId}/{fileName} key when none is supplied
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.presignForMerchant[2m > [22mreturns presigned URL when user is an org member
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.presignForMerchant[2m > [22mthrows ForbiddenException when user is not an org member
+ [32mΓ£ô[39m src/__tests__/unit/merchant/merchant.service.spec.ts[2m > [22mMerchantService.presignForMerchant[2m > [22mthrows NotFoundException when document does not exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mCategories[2m > [22mhas at least 20 categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mCategories[2m > [22mhas unique slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mCategories[2m > [22mall parent references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mCategories[2m > [22mhas a single root category
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mBrands[2m > [22mhas 18 brands
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mBrands[2m > [22mhas unique slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mBrands[2m > [22mincludes major IT brands
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mhas at least 60 attribute definitions
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mhas unique codes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mall SELECT attributes have options
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mSELECT options have unique values within each attribute
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mhas at least 12 attribute groups
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mAttributes[2m > [22mhas unique group names
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProduct Types[2m > [22mhas at least 15 product types
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProduct Types[2m > [22mhas unique codes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProduct Types[2m > [22mall category references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProduct Types[2m > [22mall attribute references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProduct Types[2m > [22mvariant dimensions reference valid attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mhas at least 25 canonical products
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mhas unique slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mhas unique SKUs across all variants
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mall brand references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mall category references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mall product type references resolve
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mevery product has at least one variant
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mno fabricated GTIN/EAN codes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mall product attribute values reference valid attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mall variant attribute values reference valid attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mProducts[2m > [22mSELECT option values match attribute definitions
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mSources[2m > [22mhas sources for most products
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mSources[2m > [22mall source product slugs exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-seed.spec.ts[2m > [22mCatalog Seed Data ΓÇö Structure[2m > [22mvalidateCatalogSeed()[2m > [22mreturns zero errors
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö attributes[2m > [22mrejects an unsupported attribute type
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö attributes[2m > [22mrejects an unsupported scope
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö attributes[2m > [22mrejects a duplicate code before inserting
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö attributes[2m > [22minserts the definition then its options for a SELECT attribute
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö variant dimensions[2m > [22mrejects a dimension whose attribute is not VARIANT scope
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö variant dimensions[2m > [22mrejects an unknown dimension attribute
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö product types[2m > [22mrefuses to publish a type with no attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö product types[2m > [22mrejects a duplicate version-1 code on create
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö canonical attribute values (PHASE 3)[2m > [22mrejects a variant-scope attribute written at the product level
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö canonical attribute values (PHASE 3)[2m > [22mrejects a value that does not match the attribute type
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö canonical attribute values (PHASE 3)[2m > [22mstores an INTEGER value in the typed numeric column
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö canonical attribute values (PHASE 3)[2m > [22mrequires the variant to belong to the product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-taxonomy.spec.ts[2m > [22mCatalogTaxonomyService ΓÇö canonical attribute values (PHASE 3)[2m > [22mcomputes an order-independent combination key
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachOrderIdentity[2m > [22mprefers the checkout snapshot over the seller's current currency
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachOrderIdentity[2m > [22mfalls back to the seller's currency and says it was not snapshotted
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachOrderIdentity[2m > [22mnames the seller and reports the fallback when nothing can be read
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachOrderIdentity[2m > [22mresolves a whole page with one batched store read
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachOrderIdentity[2m > [22missues no query for an empty page
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mtotalsByCurrency[2m > [22mkeeps amounts apart instead of adding unlike money
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mtotalsByCurrency[2m > [22mreturns nothing for nothing
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachBuyerContacts[2m > [22mresolves a page with one batched users read
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachBuyerContacts[2m > [22mnull-degrades every row when the mock db has no query.users
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachBuyerContacts[2m > [22missues no query for an empty page or when every buyerId is null
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachItemCounts[2m > [22mcounts each order's lines in one grouped query
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-identity.spec.ts[2m > [22mattachItemCounts[2m > [22mdoes not query at all for an empty page
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 1 create, 0 update, 0 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 0 create, 0 update, 1 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 0 create, 1 update, 0 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 1 create, 0 update, 0 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 1 create, 0 update, 0 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 1 create, 0 update, 0 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 2 create, 0 update, 1 unchanged[39m
+[32m[Nest] 10372  - [39m09/28/2026, 9:53:31 PM [32m    LOG[39m [38;5;3m[ExcelPlannerService] [39m[32mImport plan: 1 create, 0 update, 0 unchanged[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mcategory planning[2m > [22mmarks new categories as CREATE
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mcategory planning[2m > [22mmarks existing unchanged categories as UNCHANGED
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mcategory planning[2m > [22mmarks existing changed categories as UPDATE
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mbrand planning[2m > [22mmarks new brands as CREATE
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mproduct planning[2m > [22mmarks new products as CREATE with correct data
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mvariant planning[2m > [22mmarks new variants as CREATE
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22msummary computation[2m > [22mcomputes correct summary across entity types
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-planner.spec.ts[2m > [22mExcelPlannerService[2m > [22mattribute option planning[2m > [22mmarks new options as CREATE
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mRejecting socket sock-1: Missing access token[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mRejecting socket sock-1: Invalid or expired access token[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mRejecting socket sock-1: Access token has been revoked[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mRejecting socket sock-1: Token missing subject[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 authenticated as user u1[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 authenticated as user u2[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 joined room user:u1[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 joined room org:org-1[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 joined room order:o-1[39m
+[95m[Nest] 6720  - [39m09/28/2026, 9:53:32 PM [95m  DEBUG[39m [38;5;3m[RealtimeGateway] [39m[95mClient sock-1 denied join to user:u2[39m
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22mrejects a socket that presents no token
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22mrejects a token that fails signature/expiry verification
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22mrejects a valid-signature token whose jti is denylisted
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22mrejects a verified token with no subject claim
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22mbinds an authenticated socket to its own user room
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö handshake authentication[2m > [22maccepts a token supplied via the Authorization header
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö join authorization[2m > [22mallows the socket to join its own user room plus org and order rooms
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö join authorization[2m > [22mrefuses to join another user's personal room
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö join authorization[2m > [22mignores malformed room names
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö emit helpers[2m > [22mfans an order-status change to the order, buyer and store rooms
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö emit helpers[2m > [22mskips the buyer/store rooms when their ids are absent
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö emit helpers[2m > [22memits a new notification to the user room
+ [32mΓ£ô[39m src/__tests__/unit/realtime/realtime.gateway.spec.ts[2m > [22mRealtimeGateway ΓÇö emit helpers[2m > [22memits a new_order signal scoped to the selling store room
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mrejects a MERCHANT_OWNER assigning SUPER_ADMIN (Forbidden)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mrejects a MERCHANT_OWNER assigning ADMIN and MODERATOR (Forbidden)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mrejects an unknown roleId (BadRequest)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mrejects an actor who is not a member of the target org (tenant scoping)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mrejects when the target user does not exist (NotFound)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mallows a MERCHANT_OWNER (ACTIVE member) to add a MERCHANT_STAFF
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mallows a platform actor (admin:users:write) to assign a platform role
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.addOrgMember ΓÇö privilege-escalation guard[2m > [22mstill rejects duplicate membership (Conflict) for an allowed role
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.add-org-member.spec.ts[2m > [22mIdentityService.listRoles ΓÇö merchant-scoped role exposure[2m > [22mqueries only merchant-assignable roles (never surfaces platform roles)
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22mallows endpoints with no required permissions
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22mthrows 403 when the request has no user
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22mthrows 403 when the user has no perms claim
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22mallows when the user holds the required permission
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22menforces AND semantics ΓÇö missing one of several required perms throws
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö mechanics[2m > [22msurfaces the missing permission key in the RFC7807 detail
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö merchant/catalog write endpoints[2m > [22mgates POST /stores (createStore) behind merchant:stores:write
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö merchant/catalog write endpoints[2m > [22mgates POST /products (createProduct) behind merchant:products:write
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö merchant/catalog write endpoints[2m > [22mgates POST /orders/:id/accept (acceptOrder) behind merchant:orders:write
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö merchant/catalog write endpoints[2m > [22mgates POST /promotions (createPromotion) behind merchant:promotions:write
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö merchant/catalog write endpoints[2m > [22mgates POST /categories (createCategory) behind catalog:categories:write
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mMERCHANT_OWNER can write stores, products, orders and promotions
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mMERCHANT_STAFF can write products/orders/promotions but NOT stores (owner-only)
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mMODERATOR can curate products/categories but not manage stores or orders
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mADMIN can write stores but not merchant products/orders/promotions
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mSUPER_ADMIN passes every merchant/catalog write gate
+ [32mΓ£ô[39m src/__tests__/unit/rbac/merchant-rbac.spec.ts[2m > [22mPermissionsGuard ΓÇö seeded role matrix[2m > [22mBUYER is rejected from every merchant/catalog write gate
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mallows merchant A to access their own product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mdenies merchant B access to merchant A's product (403)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mdenies access when the product does not exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mdenies access when the product has no storeId (canonical product)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mADMIN bypasses ownership check
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mSUPER_ADMIN bypasses ownership check
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertProductInOrg[2m > [22mMODERATOR bypasses ownership check
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertStoreInOrg[2m > [22mallows merchant A to access their own store
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertStoreInOrg[2m > [22mdenies merchant B access to merchant A's store
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertStoreInOrg[2m > [22mdenies when the store does not exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertStoreInOrg[2m > [22mADMIN bypasses store ownership check
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertVariantInOrg[2m > [22mdenies merchant B access to variant on merchant A's product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertVariantInOrg[2m > [22mallows merchant A access to variant on their own product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22massertVariantInOrg[2m > [22mADMIN bypasses variant ownership check
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22mOffer store ownership[2m > [22mrejects merchant B creating an offer with merchant A's storeId
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22mOffer store ownership[2m > [22mallows merchant A to create an offer with their own storeId
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-ownership.spec.ts[2m > [22mOffer store ownership[2m > [22mADMIN can create offers on any store
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mtoken-denylist helpers[2m > [22mbuilds a namespaced redis key from a jti
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mtoken-denylist helpers[2m > [22mcomputes remaining seconds until exp
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mtoken-denylist helpers[2m > [22mreturns 0 for missing or already-expired tokens (nothing to denylist)
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mJwtAuthGuard ΓÇö denylist enforcement (API-B9)[2m > [22mallows a valid token whose jti is not denylisted
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mJwtAuthGuard ΓÇö denylist enforcement (API-B9)[2m > [22mrejects a valid-signature token whose jti has been revoked
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mJwtAuthGuard ΓÇö denylist enforcement (API-B9)[2m > [22mskips the denylist for legacy tokens without a jti
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mJwtAuthGuard ΓÇö denylist enforcement (API-B9)[2m > [22mrejects a token that fails signature/expiry verification
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mJwtAuthGuard ΓÇö denylist enforcement (API-B9)[2m > [22mrejects a request with no Authorization header
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mIdentityService.switchOrg ΓÇö prior-token revocation (API-B9)[2m > [22mdenylists the presenting token jti for its remaining lifetime
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mIdentityService.switchOrg ΓÇö prior-token revocation (API-B9)[2m > [22mmints the new token with a fresh jti and the carried sid
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mIdentityService.switchOrg ΓÇö prior-token revocation (API-B9)[2m > [22mdoes not denylist when no prior token is supplied (back-compat)
+ [32mΓ£ô[39m src/__tests__/unit/auth/token-revocation.spec.ts[2m > [22mIdentityService.switchOrg ΓÇö prior-token revocation (API-B9)[2m > [22mdoes not denylist an already-expired prior token (ttl 0)
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Ownership Enforcement[2m > [22mupdateItemQuantity rejects item from another user's cart
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Ownership Enforcement[2m > [22mremoveItem rejects item from another user's cart
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Client Price Not Trusted[2m > [22maddItem resolves price server-side, ignoring any client price
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Client StoreId Not Trusted[2m > [22mAddCartItemInput.storeId is documented as untrusted
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Offer Validation[2m > [22maddItem rejects inactive offer
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Offer Validation[2m > [22maddItem rejects offer that doesn't match variant or product
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Offer Validation[2m > [22maddItem accepts product-level offer for any variant of that product
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart-authorization.spec.ts[2m > [22mCart Authorization ΓÇö Security Model[2m > [22mdocuments the cart security model
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns AVAILABLE with base fee when no thresholds are set
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns UNAVAILABLE when subtotal is below minimum
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns AVAILABLE when subtotal exactly meets minimum
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns FREE when subtotal meets free threshold
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns AVAILABLE when subtotal is just below free threshold
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns UNAVAILABLE when minOrder not met, even if free threshold exists
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mreturns FREE when both min and free thresholds are met
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mhandles zero base fee
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mclamps negative base fee to 0
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mresolveShippingCost[2m > [22mrounds fractional base fee to integer
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mreturns null when no zones exist
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mreturns null when all zones are inactive
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mmatches by postal code (highest priority)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mmatches by city + country when no postal code
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mmatches by country only (lowest priority)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mreturns null when no zone matches the address
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mis case-insensitive for city matching
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-cost-resolver.spec.ts[2m > [22mmatchDeliveryZone[2m > [22mis case-insensitive for postal code matching
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mreturns empty effects when there are no rules
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mIF gpu=Dedicated THEN gpu_model=required ΓÇö condition met
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mIF gpu=Dedicated THEN gpu_model=required ΓÇö condition NOT met
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mhide action makes attribute hidden and not required
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22moptional action unsets required when no other rule requires it
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mneq operator works correctly
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22min operator checks array membership
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mnumeric comparison operators (gt, lt, gte, lte)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mno validation error when required attribute has a value
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mmultiple rules can target the same attribute
+ [32mΓ£ô[39m src/__tests__/unit/catalog/conditional-rules.spec.ts[2m > [22mConditionalRulesService[2m > [22mhandles missing condition attribute gracefully (no value = condition not met)
+[32m[Nest] 7364  - [39m09/28/2026, 9:53:34 PM [32m    LOG[39m [38;5;3m[ShippingProviderRegistry] [39m[32mRegistered shipping provider: manual-driver (Manual Driver Delivery)[39m
+[32m[Nest] 7364  - [39m09/28/2026, 9:53:34 PM [32m    LOG[39m [38;5;3m[ShippingProviderRegistry] [39m[32mRegistered shipping provider: manual-driver (Manual Driver Delivery)[39m
+[32m[Nest] 7364  - [39m09/28/2026, 9:53:34 PM [32m    LOG[39m [38;5;3m[ShippingProviderRegistry] [39m[32mRegistered shipping provider: manual-driver (Manual Driver Delivery)[39m
+[32m[Nest] 7364  - [39m09/28/2026, 9:53:34 PM [32m    LOG[39m [38;5;3m[ShippingProviderRegistry] [39m[32mRegistered shipping provider: manual-driver (Manual Driver Delivery)[39m
+[32m[Nest] 7364  - [39m09/28/2026, 9:53:34 PM [32m    LOG[39m [38;5;3m[ShippingProviderRegistry] [39m[32mRegistered shipping provider: manual-driver (Manual Driver Delivery)[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mhas type MANUAL
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mhas key manual-driver
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mhas a human-readable name
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mcan create shipments but cannot cancel/label/track/validate/webhooks
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mcreateShipment is deterministic ΓÇö returns providerKey and metadata
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mcreateShipment does not fabricate a tracking ID
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mcreateShipment makes no external calls (no side effects)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mcancelShipment returns unsupported result (M7.2.3-A)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mgenerateLabel returns unsupported result (M7.2.3-A)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mgetTrackingInfo returns null
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mvalidateAddress returns true (default pass-through)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mManualDeliveryProvider[2m > [22mmapCarrierStatus returns null
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mmanual provider is registered and retrievable by key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mdefault provider is manual-driver when registered as default
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mfirst registered provider becomes default if no explicit default
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mthrows on unknown provider key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mthrows when no default provider is registered
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mfindProvider returns undefined for unknown key (no throw)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mlistProviderKeys returns all registered keys
+ [32mΓ£ô[39m src/__tests__/unit/shipping/shipping-provider.spec.ts[2m > [22mShippingProviderRegistry[2m > [22mhasProvider returns false for unregistered key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces the same fingerprint for same selections in different order
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints for different fulfillment methods
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints for different shipping method IDs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints when a shipping method is added vs absent
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints for different addresses
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints for different cart items
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces different fingerprints for different store sets
+ [32mΓ£ô[39m src/__tests__/unit/shipping/checkout-fingerprint-m722.spec.ts[2m > [22mM7.2.2 Checkout Fingerprint[2m > [22mproduces a 64-character hex string
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22maccepts valid slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22mrejects empty slugs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22mrejects slugs with uppercase
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22mrejects slugs with spaces
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22mrejects slugs with leading/trailing hyphens
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateSlug[2m > [22mrejects slugs over 200 chars
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateCode[2m > [22maccepts valid codes
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateCode[2m > [22mrejects empty codes
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateCode[2m > [22mrejects codes over 80 chars
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateGtin[2m > [22maccepts valid GTINs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateGtin[2m > [22maccepts empty GTIN (optional)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateGtin[2m > [22mrejects non-digit GTINs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateGtin[2m > [22mrejects too-short GTINs
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateEan[2m > [22maccepts valid EANs (8, 13, 14 digits)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateEan[2m > [22mrejects invalid EAN lengths
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateEan[2m > [22maccepts empty EAN (optional)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates INTEGER type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates DECIMAL type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates BOOLEAN type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates SELECT type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates URL type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates COLOR type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates TEXT type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mvalidateAttributeValue[2m > [22mvalidates DATE type
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mfindMissingRequiredAttributes[2m > [22mreturns missing required attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22mfindMissingRequiredAttributes[2m > [22mreturns empty when all required are present
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22msanitizeForExcel[2m > [22mprefixes dangerous formula characters
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/catalog-validation-service.spec.ts[2m > [22mCatalogValidationService[2m > [22msanitizeForExcel[2m > [22mleaves safe values unchanged
+ [32mΓ£ô[39m src/__tests__/unit/catalog/store-products.spec.ts[2m > [22mCatalogService.listProductsByStore[2m > [22mattaches the seller and the price without dropping the product columns
+ [32mΓ£ô[39m src/__tests__/unit/catalog/store-products.spec.ts[2m > [22mCatalogService.listProductsByStore[2m > [22mfilters visibility on the caller's terms and always hides soft-deleted rows
+ [32mΓ£ô[39m src/__tests__/unit/catalog/store-products.spec.ts[2m > [22mCatalogService.listProductsByStore[2m > [22mhonours limit/offset only when the caller sends them, capped at one page
+ [32mΓ£ô[39m src/__tests__/unit/catalog/store-products.spec.ts[2m > [22mCatalogService.listProductsByStore[2m > [22mstill lists a product that has no price rather than dropping it from the grid
+[95m[Nest] 14552  - [39m09/28/2026, 9:53:35 PM [95m  DEBUG[39m [38;5;3m[StorageService] [39m[95mputObject scs-media/products/test.png[39m
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mconstructor[2m > [22mthrows if S3_ENDPOINT is missing
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mconstructor[2m > [22mthrows if S3_ACCESS_KEY is missing
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mconstructor[2m > [22mthrows if S3_SECRET_KEY is missing
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mconstructor[2m > [22mconstructs successfully with valid env
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mbucket validation[2m > [22mrejects operations on buckets not in the allowed set
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mbucket validation[2m > [22mrejects getObject on disallowed bucket
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mbucket validation[2m > [22mrejects deleteObject on disallowed bucket
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mbucket validation[2m > [22mrejects presigned GET on disallowed bucket
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mbucket validation[2m > [22mrejects presigned PUT on disallowed bucket
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mputObject[2m > [22mcalls S3 send with correct params and returns bucket/key
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mexists[2m > [22mreturns true when headObject succeeds
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mexists[2m > [22mreturns false when headObject throws (not found)
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mpresigned URLs[2m > [22mcreatePresignedGetUrl returns a signed URL
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mpresigned URLs[2m > [22mcreatePresignedPutUrl returns a signed URL
+ [32mΓ£ô[39m src/__tests__/unit/storage/storage.service.spec.ts[2m > [22mStorageService[2m > [22mpresigned URLs[2m > [22mclamps expiry to MAX_PRESIGN_EXPIRY (900s) even if caller requests more
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mcharges the platform fee for PLATFORM_DELIVERY
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mcharges nothing for PICKUP
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mcharges nothing for MERCHANT_DELIVERY
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mdefaults to platform delivery when method is absent
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mis case-insensitive
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mresolveDeliveryFeeMinor[2m > [22mnever returns a negative fee
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö VAT[2m > [22mapplies 15% VAT to goods with no discount or delivery
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö VAT[2m > [22mcharges VAT on the discounted base, not the gross
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö VAT[2m > [22mincludes the delivery fee in the taxable base
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö VAT[2m > [22mrounds VAT to the nearest minor unit
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö VAT[2m > [22mcharges no VAT when the rate is zero
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö commission & merchant net[2m > [22mtakes commission on net goods only (excludes VAT and delivery)
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö commission & merchant net[2m > [22msatisfies merchantNet + commission = netGoods
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö clamping & invariants[2m > [22mclamps a discount that exceeds the subtotal
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö clamping & invariants[2m > [22mnever produces negative totals from negative inputs
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö clamping & invariants[2m > [22mreturns integer minor units for every field
+ [32mΓ£ô[39m src/__tests__/unit/orders/order-pricing.spec.ts[2m > [22mcomputeOrderFinancials ΓÇö clamping & invariants[2m > [22mhandles a zero-value order
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö create[2m > [22mrejects an initial status other than DRAFT/PROPOSED
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö create[2m > [22mrejects MOQ below 1
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö create[2m > [22mrejects a variant that is not on the product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö create[2m > [22mrejects a duplicate store offer for the same variant
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö create[2m > [22minserts a product-level DRAFT offer then reads it back
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö lifecycle[2m > [22mrefuses an illegal transition (DRAFT ΓåÆ ACTIVE)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö lifecycle[2m > [22mrequires a reason to reject a proposed offer
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö lifecycle[2m > [22mthrows when the offer does not exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö pricing/stock linkage[2m > [22mrejects a price list owned by a different store
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö pricing/stock linkage[2m > [22mrejects a warehouse owned by a different store
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-offer.spec.ts[2m > [22mCatalogOfferService ΓÇö pricing/stock linkage[2m > [22mupdates terms when the price list belongs to the offer store
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mresolveVariantPrices[2m > [22mtakes the first candidate row per variant, as the ordering guarantees
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mresolveVariantPrices[2m > [22mskips the ladder read entirely when the caller only needs a unit price
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mresolveVariantPrices[2m > [22momits variants with no qualifying tier
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mresolveVariantPrices[2m > [22masks for no ladder query when nothing qualifies
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mresolveVariantPrices[2m > [22mshort-circuits an empty variant list instead of issuing IN ()
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mpriceForQty[2m > [22mpicks the deepest tier at or below the quantity
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mpriceForQty[2m > [22mtreats maxQty as an exclusive upper bound
+ [32mΓ£ô[39m src/__tests__/unit/pricing/price-resolution.spec.ts[2m > [22mpriceForQty[2m > [22mreturns undefined below the first tier and for an empty ladder
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mgetProfile forwards sub + the verified activeOrg (ADM-B2 role source of truth)
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mgetProfile forwards a null activeOrg unchanged (no active organization)
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mupdateProfile forwards sub + dto
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mgetMyOrganizations forwards sub
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mregisterDevice forwards token/platform/appVersion
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22munregisterDevice forwards sub + token
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mfavorites delegate to the catalog service
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22msaved suppliers delegate to the catalog service (┬º21.3)
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22msetupCredentials forwards sub/email/password + device header
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mchangePassword forwards sub/current/new + device header
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mgetSessions forwards sub + the caller sid (WEB-B3, non-spoofable)
+ [32mΓ£ô[39m src/__tests__/unit/identity/profile.controller.spec.ts[2m > [22mProfileController[2m > [22mrevokeSessionsByDevice forwards sub + deviceId
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22mlistSavedSuppliers[2m > [22mreturns an empty list without querying stores when nothing is saved
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22mlistSavedSuppliers[2m > [22menriches each save with its store from a single batched query
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22mlistSavedSuppliers[2m > [22mdrops saves whose store no longer exists
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22msaveSupplier[2m > [22mthrows NotFoundException when the store does not exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22msaveSupplier[2m > [22mis idempotent: re-saving returns the existing row without inserting
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22msaveSupplier[2m > [22minserts a new save when the store exists and is not yet saved
+ [32mΓ£ô[39m src/__tests__/unit/catalog/saved-suppliers.spec.ts[2m > [22mCatalogService ΓÇö Saved Suppliers (┬º21.3)[2m > [22mremoveSavedSupplier[2m > [22mdeletes by (user, store) and reports success even when nothing matched
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mproduces a deterministic SKU from brand + title + attributes
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22momits brand prefix when brand is null
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mhandles empty attribute values
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mskips empty/whitespace attribute values
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mtruncates to 100 characters max
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mstrips diacritics and non-ASCII characters
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mgenerateSku[2m > [22mnever produces JSON or attrId patterns
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mappendCollisionSuffix[2m > [22mappends a numeric suffix
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mappendCollisionSuffix[2m > [22mtruncates base to 96 chars before appending
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mbuildVariantTitle[2m > [22mjoins attribute values with " / "
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mbuildVariantTitle[2m > [22mskips attributes with empty values
+ [32mΓ£ô[39m src/__tests__/unit/common/sku-generator.spec.ts[2m > [22mSKU Generator (Variant Identity Remediation)[2m > [22mbuildVariantTitle[2m > [22mreturns empty string when all values are empty
+ [32mΓ£ô[39m src/__tests__/unit/catalog/product-card.spec.ts[2m > [22menrichProductCards[2m > [22mattaches the seller and the cheapest variant price per product
+ [32mΓ£ô[39m src/__tests__/unit/catalog/product-card.spec.ts[2m > [22menrichProductCards[2m > [22mbatches all products per store at qty=1 (MOQ is offer-owned)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/product-card.spec.ts[2m > [22menrichProductCards[2m > [22mkeeps a product whose seller row is missing instead of dropping it
+ [32mΓ£ô[39m src/__tests__/unit/catalog/product-card.spec.ts[2m > [22menrichProductCards[2m > [22mreports no price rather than a false one when nothing is priced
+ [32mΓ£ô[39m src/__tests__/unit/catalog/product-card.spec.ts[2m > [22menrichProductCards[2m > [22missues no queries at all for an empty page
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mfile validation[2m > [22mrejects empty buffers
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mfile validation[2m > [22mrejects oversized files
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mfile validation[2m > [22mrejects non-xlsx extensions
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mfile validation[2m > [22mrejects macro-enabled workbooks
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mfile validation[2m > [22mrejects malformed xlsx content
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mparses recognized sheets[33m 324[2mms[22m[39m
+[33m[Nest] 24828  - [39m09/28/2026, 9:53:39 PM [33m   WARN[39m [38;5;3m[ExcelParserService] [39m[33mSkipping unrecognized worksheet: "RandomSheet"[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mskips unrecognized sheets
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mdetects README sheet
+[33m[Nest] 24828  - [39m09/28/2026, 9:53:39 PM [33m   WARN[39m [38;5;3m[ExcelParserService] [39m[33mSkipping unrecognized worksheet: "Random"[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mrejects workbooks with no recognized sheets
+[33m[Nest] 24828  - [39m09/28/2026, 9:53:39 PM [33m   WARN[39m [38;5;3m[ExcelParserService] [39m[33mWorksheet "Brands" has no data rows[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mskips empty sheets (header only)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22msheet parsing[2m > [22mrejects duplicate headers
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mcreates a PENDING update request for an org member
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mthrows ForbiddenException for non-members
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mthrows ForbiddenException for deactivated organizations
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mthrows ConflictException when a PENDING request already exists
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mthrows BadRequestException when no fields are provided
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.requestOrgUpdate[2m > [22mthrows NotFoundException for unknown org
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.listOrgUpdateRequests[2m > [22mreturns requests ordered newest first for members
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.org-update-request.spec.ts[2m > [22mIdentityService.listOrgUpdateRequests[2m > [22mthrows ForbiddenException for non-members
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mcell value handling[2m > [22mhandles null/empty cells
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mcell value handling[2m > [22mconverts numbers to strings
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mcell value handling[2m > [22mtracks row numbers
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/excel-parser.spec.ts[2m > [22mExcelParserService[2m > [22mSHEET_ENTITY_MAP[2m > [22mmaps all expected sheets
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart.service.spec.ts[2m > [22mCartService.listCartItems[2m > [22mfilters the join by the requested cart
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart.service.spec.ts[2m > [22mCartService.listCartItems[2m > [22mprojects title, sku, supplier name/slug and currency onto each line
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart.service.spec.ts[2m > [22mCartService.listCartItems[2m > [22mkeeps lines whose variant/product/store no longer resolve
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart.service.spec.ts[2m > [22mCartService.addItems[2m > [22mrejects non-positive quantities without hitting the DB
+ [32mΓ£ô[39m src/__tests__/unit/orders/cart.service.spec.ts[2m > [22mCartService.addItems[2m > [22mrejects an empty items array
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mflags the session matching the current sid as isCurrent
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mmarks all other sessions as not current
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mreturns no current session when the sid matches none (e.g. legacy token without sid)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mtreats an omitted currentSessionId as "no current session" (back-compat)
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mmaps revokedAt to isRevoked independently of isCurrent
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mprojects only the public session fields
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.sessions.spec.ts[2m > [22mIdentityService ΓÇö getUserSessions (WEB-B3 isCurrent contract)[2m > [22mreturns an empty list for a user with no sessions
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mproducts validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22musers validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mmerchants validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22morders validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mverifications validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mdisputes validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22maudit validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mcategories validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mbrands validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22moffers validates common inputs and stable SQL ordering
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin database-wide query validation[2m > [22mvalidates entity filters and requires a currency for amounts
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistOrders retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistMerchants retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mgetAuditLogs retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistVerifications retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mverificationQueue retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistUsers retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistProductsModeration retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistCategories retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mlistDisputes retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mgetDispute retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mproductMediaPreviews retains its permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22madmin HTTP permission contracts[2m > [22mPOST and PATCH moderation use the same service, DTO behavior and permission
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mdeduplicates references without trusting malformed JSON or variants
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects documents/a.pdf
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products/../a
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products/./a
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products//a
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products/%2e%2e/a
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products/a?key=x
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects products/a\b
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mrejects https://example.test/a
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin-tables.spec.ts[2m > [22mproduct image normalization and key restrictions[2m > [22mallows a product media object key
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22mapplies the payload to the organization on APPROVED
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22msends org_update.approved notification on APPROVED
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22msends org_update.rejected notification on REJECTED
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22mdoes not touch the organization on REJECTED
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22mthrows NotFoundException for unknown request
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22mthrows BadRequestException when the request was already decided
+ [32mΓ£ô[39m src/__tests__/unit/admin/admin.org-update-review.spec.ts[2m > [22mAdminService.reviewOrgUpdateRequest[2m > [22mthrows BadRequestException when the approved payload has no applicable fields
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile type validation[2m > [22mrejects .xls (legacy format)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile type validation[2m > [22mrejects .csv files
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile type validation[2m > [22mrejects .xlsm (macro-enabled)
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile type validation[2m > [22mrejects files with double extensions
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile size limits[2m > [22mrejects files over 25 MB
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mfile size limits[2m > [22maccepts files just under 25 MB (if valid xlsx)[33m 407[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindProductByIdentifiers[2m > [22mreturns null for empty identifiers
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindProductByIdentifiers[2m > [22mreturns match when GTIN is found
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindProductByIdentifiers[2m > [22mreturns null when no product matches
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindProductByIdentifiers[2m > [22mfalls through to MPN when GTIN returns null (multi-id)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindPotentialDuplicates[2m > [22mreturns groups from raw SQL
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-dedup.spec.ts[2m > [22mfindPotentialDuplicates[2m > [22mhandles empty result
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö isProductionLikeEnv[2m > [22mtreats development and test as non-production
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö isProductionLikeEnv[2m > [22mtreats staging/production (and unknown values) as production-like
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mthrows in production when the secret is unset
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mthrows in production when the secret is the well-known dev default
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mthrows in production when the secret is shorter than the minimum
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mreturns the provided secret in production when it is strong
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mtrims surrounding whitespace from the production secret
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mfalls back to the dev default in development/test when unset or weak
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö resolveJwtAccessSecret[2m > [22mhonours a strong secret in development when provided
+ [32mΓ£ô[39m src/__tests__/unit/config/env-gate.spec.ts[2m > [22menv-gate ΓÇö assertJwtConfig[2m > [22mreads NODE_ENV + JWT_ACCESS_SECRET from the supplied env bag
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mallows ADMIN to manage categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mallows MODERATOR to manage categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mallows SUPER_ADMIN bypass to manage categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mrejects MERCHANT_OWNER from managing categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mrejects MERCHANT_STAFF from managing categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mRolesGuard ΓÇö Category Write Restriction[2m > [22mrejects BUYER from managing categories
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mProduct Update ΓÇö Offer-Owned Fields Rejected[2m > [22mCreateProductInput no longer includes moq field
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mProduct Update ΓÇö Offer-Owned Fields Rejected[2m > [22mUpdateProductInput no longer includes moq, isAvailable, or attributes
+ [32mΓ£ô[39m src/__tests__/unit/catalog/catalog-remediation-security.spec.ts[2m > [22mProduct Update ΓÇö Offer-Owned Fields Rejected[2m > [22mCreateProductInput accepts only canonical product fields
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mRateLimitException[2m > [22mcarries remaining/limit/retryAfter in a 429 RFC 7807 body
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mAllExceptionsFilter ΓÇö 429 headers[2m > [22memits X-RateLimit-* and Retry-After headers for a RateLimitException
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mAllExceptionsFilter ΓÇö 429 headers[2m > [22mdoes not attach rate-limit headers to non-429 responses
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mRateLimitService.getResetSeconds[2m > [22mreturns the positive TTL as the retry-after window
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mRateLimitService.getResetSeconds[2m > [22mmaps a missing key (-2) to 0
+ [32mΓ£ô[39m src/__tests__/unit/common/rate-limit.spec.ts[2m > [22mRateLimitService.getResetSeconds[2m > [22mmaps a key with no expiry (-1) to 0
+ [32mΓ£ô[39m src/__tests__/unit/catalog/canonical-product-nullable-store.spec.ts[2m > [22mCanonical product ΓÇö nullable storeId[2m > [22mcreates a product with storeId = null (canonical marketplace product)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/canonical-product-nullable-store.spec.ts[2m > [22mCanonical product ΓÇö nullable storeId[2m > [22mcreates a product with storeId = undefined (treated as null)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/canonical-product-nullable-store.spec.ts[2m > [22mCanonical product ΓÇö nullable storeId[2m > [22mstill accepts an explicit storeId for merchant-owned products
+ [32mΓ£ô[39m src/__tests__/unit/catalog/canonical-product-nullable-store.spec.ts[2m > [22mCanonical product ΓÇö nullable storeId[2m > [22mCreateProductInput type allows optional storeId
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mrequestOtp forwards the phone
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mverifyOtp forwards phone/otp/device fields + request context
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mrefreshToken forwards the refresh token
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mlogout forwards the refresh token
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mswitchOrg forwards sub, orgId, sid and the presenting token jti/exp (API-B9 + WEB-B3)
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mloginPassword forwards credentials + device + request context
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth.controller.spec.ts[2m > [22mAuthController[2m > [22mcheckDeviceLogin forwards email + deviceId
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mgenerateSku never produces SKU-[...] pattern
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mgenerateSku produces deterministic output for same input
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mgenerateSku handles empty attribute values
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mgenerateSku handles null/undefined inputs gracefully
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mappendCollisionSuffix does not produce corrupted pattern
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mSKU never contains JSON artifacts (braces, brackets, quotes)
+ [32mΓ£ô[39m src/__tests__/unit/catalog/corrupted-sku-regression.spec.ts[2m > [22mCorrupted SKU regression (Phase 21)[2m > [22mSKU is human-readable and contains abbreviated tokens
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mformula injection prevention[2m > [22mnever evaluates formulas ΓÇö extracts cached result only
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mpath traversal prevention[2m > [22mdoes not interpret path separators in filenames
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mExcel sanitization[2m > [22msanitizes formula-starting values for export
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mExcel sanitization[2m > [22mdoes not modify safe values
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22maccepts a well-formed login/password body and transforms it
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects unknown body fields on login/password
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects an invalid email on login/password
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects a missing required deviceId on login/password
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22maccepts a valid OTP verify body
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects an OTP that is not exactly 6 digits
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22maccepts a UUID orgId on switch-org
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects a non-UUID orgId on switch-org
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects an empty phone on otp/request
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrejects extra fields on device-check
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mAuth DTO validation (forbidNonWhitelisted effective)[2m > [22mrequires refreshToken on refresh/logout
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mCredential DTO validation[2m > [22mrejects a setup password shorter than 8 chars
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mCredential DTO validation[2m > [22maccepts a valid change-password body
+ [32mΓ£ô[39m src/__tests__/unit/identity/auth-dto.spec.ts[2m > [22mCredential DTO validation[2m > [22mrejects a change-password body missing currentPassword
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mcreateOrg forwards body + the caller sub
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mjoinOrg forwards sub + invite code
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mgetOrg forwards the id
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mupdateOrg forwards id + body
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22maddMember forwards orgId + userId + roleId + the actor identity
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mlistMembers forwards the orgId (API-B8 batched path)
+ [32mΓ£ô[39m src/__tests__/unit/identity/organizations.controller.spec.ts[2m > [22mOrganizationsController[2m > [22mremoveMember forwards orgId + userId
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.deactivate-org.spec.ts[2m > [22mIdentityService.deactivateOrg[2m > [22mshould deactivate an existing organization
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.deactivate-org.spec.ts[2m > [22mIdentityService.deactivateOrg[2m > [22mshould reactivate a deactivated organization
+ [32mΓ£ô[39m src/__tests__/unit/identity/identity.deactivate-org.spec.ts[2m > [22mIdentityService.deactivateOrg[2m > [22mshould throw NotFoundException for unknown org
+ [32mΓ£ô[39m src/__tests__/unit/catalog/search-service.spec.ts[2m > [22mSearchService ΓÇö construction[2m > [22minstantiates without error
+ [32mΓ£ô[39m src/__tests__/unit/catalog/search-service.spec.ts[2m > [22mSearchService ΓÇö empty query path[2m > [22mreturns empty items when no products exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/search-service.spec.ts[2m > [22mSearchService ΓÇö getTopCategories[2m > [22mreturns empty array when no categories exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/search-service.spec.ts[2m > [22mSearchService ΓÇö getPopularBrands[2m > [22mreturns empty array when no brands exist
+ [32mΓ£ô[39m src/__tests__/unit/catalog/search-service.spec.ts[2m > [22mSearchService ΓÇö SKU fast path[2m > [22mreturns null match when no variant matches the SKU
+ [32mΓ£ô[39m src/__tests__/unit/notifications/notifications.service.spec.ts[2m > [22mNotificationsService ΓÇö IN_APP channel filter on bell-facing queries[2m > [22mlistNotifications restricts the query to channel = IN_APP
+ [32mΓ£ô[39m src/__tests__/unit/notifications/notifications.service.spec.ts[2m > [22mNotificationsService ΓÇö IN_APP channel filter on bell-facing queries[2m > [22mgetUnreadCount restricts the query to channel = IN_APP
+ [32mΓ£ô[39m src/__tests__/unit/notifications/notifications.service.spec.ts[2m > [22mNotificationsService ΓÇö IN_APP channel filter on bell-facing queries[2m > [22mmarkAllAsRead restricts the update to channel = IN_APP
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mrow limits[2m > [22mrejects sheets with more than 50,000 rows[33m 6226[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/catalog-import/security.spec.ts[2m > [22mCatalog Import Security[2m > [22mcell value limits[2m > [22mrejects cell values over 10,000 characters
+
+[2m Test Files [22m [1m[32m56 passed[39m[22m[90m (56)[39m
+[2m      Tests [22m [1m[32m838 passed[39m[22m[90m (838)[39m
+[2m   Start at [22m 21:53:20
+[2m   Duration [22m 27.75s[2m (transform 29.43s, setup 1.85s, collect 147.34s, tests 25.78s, environment 45ms, prepare 35.98s)[22m
+
