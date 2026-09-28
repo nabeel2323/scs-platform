@@ -28,6 +28,8 @@ import { warehouses, stores } from '../merchant/merchant.schema';
 import { PromotionsService } from '../promotions/promotions.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ShippingService } from '../shipping/shipping.service';
+import { ZoneMatchInput } from '../shipping/shipping-cost.resolver';
 import { organizationMembers } from '../identity/identity.schema';
 import {
   computeOrderFinancials,
@@ -80,6 +82,10 @@ export class OrdersService {
     // this service by hand keep compiling; supplied by the @Global
     // NotificationsModule at runtime. Fan-out is skipped entirely when absent.
     @Optional() private readonly notifications?: NotificationsService,
+    // M7.2.2: Per-store shipping resolution. Optional so existing specs that
+    // construct the service by hand keep compiling. When absent, checkout
+    // falls back to the legacy global fulfillment-method / delivery-fee path.
+    @Optional() private readonly shipping?: ShippingService,
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
@@ -217,16 +223,101 @@ export class OrdersService {
     const platformDeliveryFee = Number(
       process.env['PLATFORM_DELIVERY_FEE_MINOR'] ?? DEFAULT_PLATFORM_DELIVERY_FEE_MINOR,
     );
+
+    // ── M7.2.2: Per-store shipping resolution ──────────────────────────
+    // Build a normalised selection per store.  If the caller supplied explicit
+    // shippingSelections they are validated; otherwise the legacy global
+    // fulfillmentMethod is fanned out to every store (backward-compat path).
+    const storeIdsInCart = [...grouped.keys()];
+    const selectionsByStore = new Map<string, { fulfillmentMethod: string; shippingMethodId?: string }>();
+    const resolvedFeeByStore = new Map<string, number>();
+
+    if (input.shippingSelections && input.shippingSelections.length > 0) {
+      // Validate: exactly one selection per store in the cart
+      const selStoreIds = input.shippingSelections.map(s => s.storeId);
+      const uniqueSelStores = new Set(selStoreIds);
+      if (selStoreIds.length !== uniqueSelStores.size) {
+        throw new BadRequestException('Duplicate shipping selections for the same store');
+      }
+      for (const sel of input.shippingSelections) {
+        if (!grouped.has(sel.storeId)) {
+          throw new BadRequestException(`Selection references store ${sel.storeId} not in cart`);
+        }
+      }
+      for (const cartStoreId of storeIdsInCart) {
+        if (!uniqueSelStores.has(cartStoreId)) {
+          throw new BadRequestException(`Missing shipping selection for store ${cartStoreId}`);
+        }
+      }
+      for (const sel of input.shippingSelections) {
+        selectionsByStore.set(sel.storeId, {
+          fulfillmentMethod: sel.fulfillmentMethod,
+          shippingMethodId: sel.shippingMethodId,
+        });
+      }
+    } else {
+      // Legacy path: fan out global fulfillmentMethod to all stores
+      const legacyMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
+      for (const storeId of storeIdsInCart) {
+        selectionsByStore.set(storeId, { fulfillmentMethod: legacyMethod });
+      }
+    }
+
+    // ── M7.2.2 Remediation: Validate each store's shipping selection ─────
+    // For delivery methods: zone enforcement, method availability, fulfillment
+    // compatibility.  For PICKUP: no shipping method allowed.
+    // Server-authoritative — never relies on UI to prevent invalid selections.
+    if (this.shipping) {
+      for (const [storeId, selection] of selectionsByStore) {
+        await this.shipping.validateCheckoutSelection(
+          storeId,
+          selection.fulfillmentMethod,
+          selection.shippingMethodId,
+          input.deliveryAddress as ZoneMatchInput,
+        );
+      }
+    }
+
+    // Resolve authoritative fees per store (server-authoritative — never trust client fees)
+    for (const [storeId, selection] of selectionsByStore) {
+      const storeItems = grouped.get(storeId)!;
+      const storeSubtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
+
+      if (selection.fulfillmentMethod === 'PICKUP') {
+        // PICKUP: no shipping fee
+        resolvedFeeByStore.set(storeId, 0);
+      } else if (selection.shippingMethodId && this.shipping) {
+        // M7.2.2: resolve fee from shipping_methods table via ShippingService
+        try {
+          const result = await this.shipping.resolveAuthoritativeFee(
+            storeId, selection.shippingMethodId, storeSubtotal,
+          );
+          resolvedFeeByStore.set(storeId, result.feeMinor);
+        } catch (err: any) {
+          if (err instanceof BadRequestException) throw err; // re-throw validation errors as-is
+          throw new BadRequestException(
+            `Shipping resolution failed for store ${storeId}: ${err.message}`,
+          );
+        }
+      } else {
+        // Legacy: use the flat platform delivery fee convention
+        resolvedFeeByStore.set(
+          storeId,
+          resolveDeliveryFeeMinor(selection.fulfillmentMethod, platformDeliveryFee),
+        );
+      }
+    }
+
+    // Primary fulfillment method for fingerprint (legacy compat — use first selection)
     const fulfillmentMethod = input.fulfillmentMethod || 'PLATFORM_DELIVERY';
-    const deliveryFee = resolveDeliveryFeeMinor(fulfillmentMethod, platformDeliveryFee);
 
     // ── PHASE 1.1: Idempotency Fingerprint ─────────────────────────────
     // Compute a server-side fingerprint of the logical checkout request from
-    // authoritative data (cart items, fulfillment method, delivery address).
+    // authoritative data (cart items, per-store shipping selections, delivery address).
     // If the same idempotency key was used for a DIFFERENT request, reject
     // with 409 Conflict instead of silently returning the first order.
     const requestFingerprint = input.idempotencyKey
-      ? this.computeCheckoutFingerprint(items, fulfillmentMethod, input.deliveryAddress)
+      ? this.computeCheckoutFingerprint(items, input.deliveryAddress, selectionsByStore)
       : null;
     if (input.idempotencyKey) {
       const existingByKey = await this.db.db.query.masterOrders.findFirst({
@@ -303,11 +394,13 @@ export class OrdersService {
         const subOrderId = crypto.randomUUID();
         const subtotal = storeItems.reduce((sum, i) => sum + i['lineTotalMinor'], 0);
         const { promo, discount } = promoDataByStore.get(storeId)!;
+        const storeSelection = selectionsByStore.get(storeId)!;
+        const storeDeliveryFee = resolvedFeeByStore.get(storeId) ?? 0;
 
         const fin = computeOrderFinancials({
           subtotalMinor: subtotal,
           discountMinor: discount,
-          deliveryFeeMinor: deliveryFee,
+          deliveryFeeMinor: storeDeliveryFee,
           vatRate,
           commissionRate,
         });
@@ -319,7 +412,7 @@ export class OrdersService {
           storeId,
           buyerId: input.buyerId,
           status: 'SUBMITTED',
-          fulfillmentMethod,
+          fulfillmentMethod: storeSelection.fulfillmentMethod,
           promoCode: promo ? cart['promoCode'] || promo['code'] : null,
           promotionId: promo ? promo['id'] : null,
           subtotalMinor: fin.productsMinor,
@@ -329,6 +422,9 @@ export class OrdersService {
           totalMinor: fin.totalMinor,
           currency: currencyByStore.get(storeId) ?? null,
           slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+          metadata: storeSelection.shippingMethodId
+            ? { shippingMethodId: storeSelection.shippingMethodId }
+            : {},
         });
 
         for (const item of storeItems) {
@@ -1124,14 +1220,35 @@ export class OrdersService {
   /**
    * Create a shipment record when an order is accepted.
    * One shipment per merchant sub-order (not per master order).
+   *
+   * M7.2.2: Snapshots delivery address from master order and shipping method
+   * from sub-order metadata so historical shipments are self-contained.
    */
   private async createShipment(orderId: string, storeId: string, actorUserId: string) {
     const shipmentId = crypto.randomUUID();
+
+    // Look up the sub-order and its master order for snapshot data
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, orderId),
+    });
+    let deliveryAddress: Record<string, unknown> | null = null;
+    let shippingMethodId: string | null = null;
+    if (order) {
+      const master = await this.db.db.query.masterOrders.findFirst({
+        where: eq(masterOrders.id, order['masterOrderId']),
+      });
+      deliveryAddress = (master?.['deliveryAddress'] as Record<string, unknown>) || null;
+      const meta = (order['metadata'] as Record<string, unknown>) || {};
+      shippingMethodId = (meta['shippingMethodId'] as string) || null;
+    }
+
     await this.db.db.insert(shipments).values({
       id: shipmentId,
       orderId,
       storeId,
       status: 'PREPARING',
+      deliveryAddress: deliveryAddress || undefined,
+      shippingMethodId: shippingMethodId || undefined,
     });
     await this.db.db.insert(shipmentEvents).values({
       id: crypto.randomUUID(),
@@ -1726,12 +1843,16 @@ export class OrdersService {
   // ── Idempotency Fingerprint ──────────────────────────────────
 
   /**
-   * PHASE 1.1: Compute a server-side fingerprint of the logical checkout request.
+   * PHASE 1.1 + M7.2.2: Compute a server-side fingerprint of the logical
+   * checkout request.
    *
    * The fingerprint represents the "logical checkout intent" — what the buyer
    * is actually purchasing. It is computed from authoritative server-side data
-   * (cart items, fulfillment method, delivery address) and never trusts
-   * client-supplied prices, totals, or hashes.
+   * (cart items, per-store shipping selections, delivery address) and never
+   * trusts client-supplied prices, totals, or hashes.
+   *
+   * M7.2.2: Per-store selections are normalised by storeId (sorted) so that
+   * equivalent selections in different array order produce the same fingerprint.
    *
    * Used to detect idempotency key reuse with a different logical operation:
    *   - Same key + same fingerprint → return existing order (idempotent)
@@ -1739,8 +1860,8 @@ export class OrdersService {
    */
   private computeCheckoutFingerprint(
     items: Array<{ variantId: string; quantity: number; offerId: string | null }>,
-    fulfillmentMethod: string,
     deliveryAddress: Record<string, unknown>,
+    selectionsByStore: Map<string, { fulfillmentMethod: string; shippingMethodId?: string }>,
   ): string {
     const sorted = [...items].sort((a, b) => {
       const aKey = `${a.variantId}|${a.offerId || ''}`;
@@ -1749,8 +1870,15 @@ export class OrdersService {
     });
     const lines = sorted.map(i => `${i.variantId}:${i.quantity}:${i.offerId || ''}`).join(',');
     const addr = JSON.stringify(deliveryAddress, Object.keys(deliveryAddress).sort());
+
+    // M7.2.2: deterministic per-store shipping segment (sorted by storeId)
+    const shippingSegment = [...selectionsByStore.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([storeId, sel]) => `${storeId}:${sel.fulfillmentMethod}:${sel.shippingMethodId || ''}`)
+      .join(';');
+
     return createHash('sha256')
-      .update(`${lines}|${fulfillmentMethod}|${addr}`)
+      .update(`${lines}|${shippingSegment}|${addr}`)
       .digest('hex')
       .slice(0, 64);
   }
@@ -1818,7 +1946,20 @@ export interface CheckoutInput {
   deliveryAddress: Record<string, unknown>;
   notes?: string;
   idempotencyKey?: string;
+  /** @deprecated Transitional — use shippingSelections for per-store control. */
   fulfillmentMethod?: string;
+  /** M7.2.2: Per-store shipping selections (preferred over global fulfillmentMethod). */
+  shippingSelections?: ShippingSelection[];
+}
+
+/**
+ * M7.2.2: Per-store shipping selection provided by the buyer at checkout.
+ * Each merchant group in the cart must have exactly one selection.
+ */
+export interface ShippingSelection {
+  storeId: string;
+  fulfillmentMethod: string;
+  shippingMethodId?: string;
 }
 
 export interface ItemConfirmation {

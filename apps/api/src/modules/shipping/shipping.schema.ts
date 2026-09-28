@@ -8,10 +8,10 @@ import { organizations } from '../identity/identity.schema';
 import { shipments } from '../orders/shipment.schema';
 
 /**
- * Shipping & Delivery schema (migration 0041_shipping)
+ * Shipping & Delivery schema (migration 0041_shipping, enhanced by 0042)
  *
- * New tables for M7.2:
- * - shippingMethods: per-store shipping options (STANDARD/EXPRESS/SAME_DAY)
+ * Tables for M7.2:
+ * - shippingMethods: per-store shipping options with CRUD fields (0042)
  * - deliveryZones: geographic zones for shipping availability
  * - deliveryZoneMethods: zone↔method mapping with optional fee override
  * - shipmentLabels: 1:1 label storage reference per shipment
@@ -19,6 +19,10 @@ import { shipments } from '../orders/shipment.schema';
  * - driverProfiles: driver eligibility metadata
  * - driverStoreAssignments: relational driver↔store assignment
  * - carrierWebhookEvents: inbound carrier webhook dedup log
+ *
+ * M7.2.2 enhancements (0042):
+ * - shippingMethods: added key, description, carrierType, minOrderMinor, freeAboveMinor
+ * - shipments.shippingMethodId: FK → shipping_methods(id) ON DELETE SET NULL
  */
 
 // ── Shipping Methods ────────────────────────────────────────────────────────
@@ -26,12 +30,17 @@ import { shipments } from '../orders/shipment.schema';
 export const shippingMethods = pgTable('shipping_methods', {
   id: uuid('id').primaryKey(),
   storeId: uuid('store_id').notNull().references(() => stores.id),
+  key: varchar('key', { length: 60 }),
   name: varchar('name', { length: 80 }).notNull(),
+  description: text('description'),
   fulfillmentMethod: varchar('fulfillment_method', { length: 24 }).notNull(),
+  carrierType: varchar('carrier_type', { length: 24 }).notNull().default('MERCHANT'),
   type: varchar('type', { length: 24 }).notNull().default('STANDARD'),
   estimatedDaysMin: integer('estimated_days_min'),
   estimatedDaysMax: integer('estimated_days_max'),
   baseFeeMinor: bigint('base_fee_minor', { mode: 'number' }).notNull().default(0),
+  minOrderMinor: bigint('min_order_minor', { mode: 'number' }),
+  freeAboveMinor: bigint('free_above_minor', { mode: 'number' }),
   currency: char('currency', { length: 3 }).notNull().default('SAR'),
   isActive: boolean('is_active').notNull().default(true),
   metadata: jsonb('metadata').notNull().default({}),
