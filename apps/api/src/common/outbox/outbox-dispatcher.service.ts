@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, or, isNull, lte } from 'drizzle-orm';
 
 /**
  * Outbox Dispatcher — polls outbox_events for PENDING events and dispatches them.
@@ -10,6 +10,11 @@ import { eq } from 'drizzle-orm';
  * 1. Domain services write to outbox_events within the same DB transaction
  * 2. This dispatcher polls for PENDING events (every 1s in dev)
  * 3. Marks as DISPATCHED on success, FAILED on error (with retry backoff)
+ *
+ * M7.2.3-A: Supports next_attempt_at for delayed retry.
+ * Pending events are eligible only when:
+ *   - next_attempt_at IS NULL (first attempt), OR
+ *   - next_attempt_at <= NOW() (retry is due)
  *
  * In production, this would publish to an event bus (Kafka, RabbitMQ, etc.)
  * For now, it logs dispatched events and marks them as processed.
@@ -33,8 +38,15 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Write an event to the outbox (called from domain services within a transaction).
+   * M7.2.3-A: Supports optional nextAttemptAt for delayed retry.
    */
-  async publish(eventType: string, aggregateId: string, payload: Record<string, unknown>, metadata?: Record<string, unknown>) {
+  async publish(
+    eventType: string,
+    aggregateId: string,
+    payload: Record<string, unknown>,
+    metadata?: Record<string, unknown>,
+    nextAttemptAt?: Date | null,
+  ) {
     const id = crypto.randomUUID();
     await this.db.db.insert(outboxEvents).values({
       id,
@@ -43,6 +55,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
       payload,
       metadata: metadata || {},
       status: 'PENDING',
+      nextAttemptAt: nextAttemptAt ?? null,
     });
     return id;
   }
@@ -64,10 +77,20 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
     try {
       // Fetch up to 10 pending events (oldest first)
+      // M7.2.3-A: Respect next_attempt_at for delayed retry
+      const now = new Date();
       const pending = await this.db.db
         .select()
         .from(outboxEvents)
-        .where(eq(outboxEvents.status, 'PENDING'))
+        .where(
+          and(
+            eq(outboxEvents.status, 'PENDING'),
+            or(
+              isNull(outboxEvents.nextAttemptAt),
+              lte(outboxEvents.nextAttemptAt, now),
+            ),
+          ),
+        )
         .orderBy(outboxEvents.createdAt)
         .limit(10);
 
@@ -82,8 +105,16 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
             .where(eq(outboxEvents.id, event['id']));
         } catch (err: any) {
           // Mark as failed with error
+          // M7.2.3-A: Exponential backoff with jitter
           const attempts = (event['attempts'] || 0) + 1;
-          const status = attempts >= 5 ? 'FAILED' : 'PENDING';
+          const isFinal = attempts >= 5;
+          const status = isFinal ? 'FAILED' : 'PENDING';
+
+          // Backoff schedule: 30s, 2m, 10m, 1h (with ±20% jitter)
+          const backoffSeconds = [0, 30, 120, 600, 3600];
+          const baseSec = backoffSeconds[attempts] ?? 3600;
+          const jitter = baseSec * 0.2 * (Math.random() * 2 - 1);
+          const nextAttemptAt = isFinal ? null : new Date(Date.now() + (baseSec + jitter) * 1000);
 
           await this.db.db
             .update(outboxEvents)
@@ -91,6 +122,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
               status,
               attempts,
               lastError: err?.message || 'Unknown error',
+              nextAttemptAt,
             })
             .where(eq(outboxEvents.id, event['id']));
 

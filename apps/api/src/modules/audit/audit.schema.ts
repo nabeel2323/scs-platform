@@ -38,6 +38,8 @@ export const outboxEvents = pgTable('outbox_events', {
   lastError: text('last_error'),
   dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // M7.2.3-A delayed retry support (0043)
+  nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
 });
 
 // ── Feature Flags ────────────────────────────────────────────

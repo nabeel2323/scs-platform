@@ -43,9 +43,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 65 permissions seeded (M7.1 added 4 fulfillment, M7.2 added 8 shipping permissions).
-      expect(result.permissionsTotal).toBe(65);
-      expect(result.newPermissions).toBe(65);
+      // 68 permissions seeded (M7.2.3-A added 3 carrier permissions).
+      expect(result.permissionsTotal).toBe(68);
+      expect(result.newPermissions).toBe(68);
 
       // 7 roles seeded (M7.1 added DRIVER).
       expect(result.rolesTotal).toBe(7);
@@ -53,11 +53,11 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(65);
-      
-      const roleCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM roles');
+      expect(permCount.rows[0].cnt).toBe(68);
+            
+      const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
-      
+            
       // Verify role keys exist.
       const roles = await pool.query(`SELECT key, name FROM roles ORDER BY key`);
       expect(roles.rows.map((r: { key: string }) => r.key)).toEqual([
@@ -80,11 +80,11 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(65);
-      
-      const roleCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM roles');
+      expect(permCount.rows[0].cnt).toBe(68);
+            
+      const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
-      
+            
       // Mapping count is stable.
       const mappingCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM role_permissions');
       expect(mappingCount.rows[0].cnt).toBe(result.mappingsTotal);
@@ -121,7 +121,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(65);
+      expect(permCount.rows[0].cnt).toBe(68);
     } finally {
       client.release();
     }
@@ -140,11 +140,11 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(65);
-    expect(byRole.get('ADMIN')).toBe(42);
+    expect(byRole.get('SUPER_ADMIN')).toBe(68);
+    expect(byRole.get('ADMIN')).toBe(44);
     expect(byRole.get('MODERATOR')).toBe(21);
-    expect(byRole.get('MERCHANT_OWNER')).toBe(29);
-    expect(byRole.get('MERCHANT_STAFF')).toBe(23);
+    expect(byRole.get('MERCHANT_OWNER')).toBe(31);
+    expect(byRole.get('MERCHANT_STAFF')).toBe(25);
     expect(byRole.get('BUYER')).toBe(6);
     expect(byRole.get('DRIVER')).toBe(6);
   });

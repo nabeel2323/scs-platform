@@ -1,0 +1,168 @@
+﻿node.exe : npm notice run @scs/api@0.1.0 npx
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\nabee\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice run @scs/api@0.1.0 npx 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice run vitest run --reporter=verbose 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts
+[33mThe CJS build of Vite's Node API is deprecated. See 
+https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for 
+more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/TAIF/scs-platform/apps/api[39m
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:02.732Z testcontainers [DEBUG] Checking container runtime strategy "TestcontainersHostStrategy"...
+2026-09-28T18:37:02.734Z testcontainers [DEBUG] Container runtime strategy "TestcontainersHostStrategy" is not applicable
+2026-09-28T18:37:02.734Z testcontainers [DEBUG] Checking container runtime strategy "ConfigurationStrategy"...
+2026-09-28T18:37:02.734Z testcontainers [DEBUG] Container runtime strategy "ConfigurationStrategy" is not applicable
+2026-09-28T18:37:02.735Z testcontainers [DEBUG] Checking container runtime strategy "UnixSocketStrategy"...
+2026-09-28T18:37:02.735Z testcontainers [DEBUG] Container runtime strategy "UnixSocketStrategy" is not applicable
+2026-09-28T18:37:02.735Z testcontainers [DEBUG] Checking container runtime strategy "RootlessUnixSocketStrategy"...
+2026-09-28T18:37:02.735Z testcontainers [DEBUG] Container runtime strategy "RootlessUnixSocketStrategy" is not applicable
+2026-09-28T18:37:02.735Z testcontainers [DEBUG] Checking container runtime strategy "NpipeSocketStrategy"...
+2026-09-28T18:37:02.735Z testcontainers [TRACE] Fetching Docker info...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:02.786Z testcontainers [TRACE] Fetching remote container runtime socket path...
+2026-09-28T18:37:02.787Z testcontainers [TRACE] Resolving host...
+2026-09-28T18:37:02.787Z testcontainers [TRACE] Fetching Compose info...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.635Z testcontainers [TRACE] Looking up host IPs...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.646Z testcontainers [TRACE] Initialising clients...
+2026-09-28T18:37:03.646Z testcontainers [TRACE] Container runtime info:
+{
+  "node": {
+    "version": "v26.4.0",
+    "architecture": "x64",
+    "platform": "win32"
+  },
+  "containerRuntime": {
+    "host": "localhost",
+    "hostIps": [
+      {
+        "address": "::1",
+        "family": 6
+      },
+      {
+        "address": "127.0.0.1",
+        "family": 4
+      }
+    ],
+    "remoteSocketPath": "//var/run/docker.sock",
+    "indexServerAddress": "https://index.docker.io/v1/",
+    "serverVersion": "29.1.2",
+    "operatingSystem": "Docker Desktop",
+    "operatingSystemType": "linux",
+    "architecture": "x86_64",
+    "cpus": 12,
+    "memory": 8135528448,
+    "runtimes": [
+      "io.containerd.runc.v2",
+      "nvidia",
+      "runc"
+    ],
+    "labels": [
+      "com.docker.desktop.address=npipe://\\\\.\\pipe\\docker_cli"
+    ]
+  },
+  "compose": {
+    "version": "2.40.3-desktop.1",
+    "compatability": "v2"
+  }
+}
+2026-09-28T18:37:03.647Z testcontainers [DEBUG] Container runtime strategy "NpipeSocketStrategy" works
+2026-09-28T18:37:03.647Z testcontainers [DEBUG] Checking if image exists "postgis/postgis:16-3.4"...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.802Z testcontainers [DEBUG] Checked if image exists "postgis/postgis:16-3.4"
+2026-09-28T18:37:03.802Z testcontainers [DEBUG] Image "postgis/postgis:16-3.4" already exists
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.811Z testcontainers [DEBUG] Acquiring lock file "C:\Users\nabee\AppData\Local\Temp\testcontainers-node.lock"...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.818Z testcontainers [DEBUG] Acquired lock file "C:\Users\nabee\AppData\Local\Temp\testcontainers-node.lock"
+2026-09-28T18:37:03.819Z testcontainers [DEBUG] Listing containers...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.891Z testcontainers [DEBUG] Listed containers
+2026-09-28T18:37:03.893Z testcontainers [DEBUG] Releasing lock file "C:\Users\nabee\AppData\Local\Temp\testcontainers-node.lock"...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:03.895Z testcontainers [DEBUG] Released lock file "C:\Users\nabee\AppData\Local\Temp\testcontainers-node.lock"
+2026-09-28T18:37:03.896Z testcontainers [DEBUG] Creating container for image "postgis/postgis:16-3.4"...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:04.055Z testcontainers [DEBUG] [b5e9c7191db7] Created container for image "postgis/postgis:16-3.4"
+2026-09-28T18:37:04.056Z testcontainers [INFO] [b5e9c7191db7] Starting container for image "postgis/postgis:16-3.4"...
+2026-09-28T18:37:04.056Z testcontainers [DEBUG] [b5e9c7191db7] Starting container...
+
+[90mstdout[2m | src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22m[2mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[22m[39m2026-09-28T18:37:04.836Z testcontainers [DEBUG] [b5e9c7191db7] Started container
+2026-09-28T18:37:04.836Z testcontainers [INFO] [b5e9c7191db7] Started container for image "postgis/postgis:16-3.4"
+
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22msuccessful transaction: shipment UPDATE + outbox INSERT are atomic
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mtransaction rollback: failure in outbox INSERT rolls back shipment UPDATE
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mno orphan PENDING shipment without outbox event
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mrepeated worker processing remains safe (idempotency)
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mmigration 0044 adds webhook_token column
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mwebhook tokens are unique per credential
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mcross-tenant webhook: token routes to correct org only
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from buyer user record
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from shipment metadata (highest priority)
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mthrows CarrierEmailRequiredError when no email available
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mtenant isolation: wrong org cannot resolve email
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22morg A cannot see org B credentials
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22mcredential list only returns own org credentials
+
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1m[7m Failed Suites 1 
+[27m[22mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+
+[31m[1m[7m FAIL [27m[22m[39m 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > 
+[22mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[31m[1mError[22m: No host port found for host IP[39m
+[90m [2mΓ¥»[22m resolveHostPortBinding ../../node_modules/.pnpm/testcontaine
+rs@10.28.0/node_modules/testcontainers/build/utils/bound-ports.js:[2m70:11[22
+m[39m
+[90m [2mΓ¥»[22m ../../node_modules/.pnpm/testcontainers@10.28.0/node_modules
+/testcontainers/src/utils/bound-ports.ts:[2m55:46[22m[39m
+[90m [2mΓ¥»[22m BoundPorts.fromInspectResult ../../node_modules/.pnpm/testco
+ntainers@10.28.0/node_modules/testcontainers/src/utils/bound-ports.ts:[2m54:41
+[22m[39m
+[90m [2mΓ¥»[22m PostgreSqlContainer.startContainer ../../node_modules/.pnpm/
+testcontainers@10.28.0/node_modules/testcontainers/src/generic-container/generi
+c-container.ts:[2m201:35[22m[39m
+[90m [2mΓ¥»[22m PostgreSqlContainer.start ../../node_modules/.pnpm/@testcont
+ainers+postgresql@10.28.0/node_modules/@testcontainers/postgresql/src/postgresq
+l-container.ts:[2m49:43[22m[39m
+[36m [2mΓ¥»[22m src/__tests__/integration/m723b1-foundation-hardening.postgr
+es.spec.ts:[2m59:17[22m[39m
+    [90m 57| [39m    
+process[33m.[39menv[[32m'CARRIER_CREDENTIALS_MASTER_KEY'[39m] [33m=[39m 
+[33mCARRIER_MASTER_KEY[39m[33m;[39m
+    [90m 58| [39m
+    [90m 59| [39m    container [33m=[39m [35mawait[39m [35mnew[39m 
+[33mPostgreSqlContainer[39m([32m'postgis/postgis:16-3.4'[39mΓÇª
+    [90m   | [39m                [31m^[39m
+    [90m 60| [39m    pool [33m=[39m [35mnew[39m [33mPool[39m({ 
+connectionString[33m:[39m container[33m.[39m[34mgetConnectionUri[39m() 
+}ΓÇª
+    [90m 61| [39m    db [33m=[39m [34mdrizzle[39m(pool[33m,[39m { 
+schema }) [35mas[39m any[33m;[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»[1/1]ΓÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [33m13 skipped[39m[90m (13)[39m
+[2m   Start at [22m 21:36:58
+[2m   Duration [22m 9.95s[2m (transform 595ms, setup 42ms, collect 3.48s, tests 5.15s, environment 0ms, prepare 440ms)[22m
+

@@ -91,12 +91,20 @@ describe('ManualDeliveryProvider', () => {
     expect(r1).toEqual(r2);
   });
 
-  it('cancelShipment is a no-op (returns void)', async () => {
-    await expect(provider.cancelShipment('any-id')).resolves.toBeUndefined();
+  it('cancelShipment returns unsupported result (M7.2.3-A)', async () => {
+    const result = await provider.cancelShipment('any-id');
+    expect(result).toEqual({
+      supported: false,
+      reason: 'manual-driver does not support shipment cancellation',
+    });
   });
 
-  it('generateLabel returns null', async () => {
-    await expect(provider.generateLabel('any-id')).resolves.toBeNull();
+  it('generateLabel returns unsupported result (M7.2.3-A)', async () => {
+    const result = await provider.generateLabel('any-id');
+    expect(result).toEqual({
+      supported: false,
+      reason: 'manual-driver does not support label generation',
+    });
   });
 
   it('getTrackingInfo returns null', async () => {

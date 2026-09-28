@@ -1,0 +1,100 @@
+﻿node.exe : npm notice run @scs/api@0.1.0 npx
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\nabee\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice run @scs/api@0.1.0 npx 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice run vitest run --reporter=verbose 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts
+[33mThe CJS build of Vite's Node API is deprecated. See 
+https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for 
+more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/TAIF/scs-platform/apps/api[39m
+
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22msuccessful transaction: shipment UPDATE + outbox INSERT are atomic
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mtransaction rollback: failure in outbox INSERT rolls back shipment UPDATE
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mno orphan PENDING shipment without outbox event
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.1 ΓÇö Atomic Shipment + Outbox Transaction[2m > [22mrepeated worker processing remains safe (idempotency)
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mmigration 0044 adds webhook_token column
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mwebhook tokens are unique per credential
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.7 ΓÇö Webhook Tenant Routing[2m > [22mcross-tenant webhook: token routes to correct org only
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from buyer user record
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mresolves email from shipment metadata (highest priority)
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mthrows CarrierEmailRequiredError when no email available
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mB1.2 ΓÇö Email Resolution[2m > [22mtenant isolation: wrong org cannot resolve email
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22morg A cannot see org B credentials
+ [2m[90mΓåô[39m[22m src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > [22mM7.2.3-B.1 ΓÇö PostgreSQL Integration[2m > [22mSecurity ΓÇö Credential Isolation[2m > [22mcredential list only returns own org credentials
+
+[31mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[1m[7m Failed Suites 1 
+[27m[22mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[39m
+
+[31m[1m[7m FAIL [27m[22m[39m 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > 
+[22mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[31m[1merror[22m: password authentication failed for user "scs"[39m
+[90m [2mΓ¥»[22m ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modul
+es/pg-pool/index.js:[2m45:11[22m[39m
+[36m [2mΓ¥»[22m src/__tests__/integration/m723b1-foundation-hardening.postgr
+es.spec.ts:[2m70:5[22m[39m
+    [90m 68| [39m    testDbName [33m=[39m [32m`b1_test_[39m[36m${[39m[
+34mrandomUUID[39m()[33m.[39m[34mreplace[39m([36m/-/g[39m[33m,[39m 
+[32m''[39m)[33m.[39m[34mslice[39m([34m0[39m[33m,[39m [34m16[39mΓÇª
+    [90m 69| [39m    adminPool [33m=[39m [35mnew[39m [33mPool[39m({ 
+host[33m:[39m [33mPG_HOST[39m[33m,[39m port[33m:[39m 
+[33mPG_PORT[39m[33m,[39m user[33m:[39m [33mPG_USER[39mΓÇª
+    [90m 70| [39m    [35mawait[39m 
+adminPool[33m.[39m[34mquery[39m([32m`CREATE DATABASE 
+[39m[36m${[39mtestDbName[36m}[39m[32m`[39m)[33m;[39m
+    [90m   | [39m    [31m^[39m
+    [90m 71| [39m
+    [90m 72| [39m    [90m// 2. Connect to the test database[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[22m[39m
+[31m[1mSerialized Error:[22m[39m [90m{ length: 99, severity: 'FATAL', 
+code: '28P01', detail: undefined, hint: undefined, position: undefined, 
+internalPosition: undefined, internalQuery: undefined, where: undefined, 
+schema: undefined, table: undefined, column: undefined, dataType: undefined, 
+constraint: undefined, file: 'auth.c', line: '324', routine: 'auth_failed' 
+}[39m
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»[1/2]ΓÄ»[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m 
+src/__tests__/integration/m723b1-foundation-hardening.postgres.spec.ts[2m > 
+[22mM7.2.3-B.1 ΓÇö PostgreSQL Integration
+[31m[1merror[22m: password authentication failed for user "scs"[39m
+[90m [2mΓ¥»[22m ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modul
+es/pg-pool/index.js:[2m45:11[22m[39m
+[36m [2mΓ¥»[22m src/__tests__/integration/m723b1-foundation-hardening.postgr
+es.spec.ts:[2m135:5[22m[39m
+    [90m133| [39m    [35mawait[39m 
+pool[33m?.[39m[34mend[39m()[33m;[39m
+    [90m134| [39m    [90m// Drop the isolated test database[39m
+    [90m135| [39m    [35mawait[39m 
+adminPool[33m?.[39m[34mquery[39m([32m`DROP DATABASE IF EXISTS 
+[39m[36m${[39mtestDbName[36m}[39m[32m`[39m)[33m;[39m
+    [90m   | [39m    [31m^[39m
+    [90m136| [39m    [35mawait[39m 
+adminPool[33m?.[39m[34mend[39m()[33m;[39m
+    [90m137| [39m  })[33m;[39m
+
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»[22m[39m
+[31m[1mSerialized Error:[22m[39m [90m{ length: 99, severity: 'FATAL', 
+code: '28P01', detail: undefined, hint: undefined, position: undefined, 
+internalPosition: undefined, internalQuery: undefined, where: undefined, 
+schema: undefined, table: undefined, column: undefined, dataType: undefined, 
+constraint: undefined, file: 'auth.c', line: '324', routine: 'auth_failed' 
+}[39m
+[31m[2mΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»ΓÄ»Γ
+Ä»[2/2]ΓÄ»[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [33m13 skipped[39m[90m (13)[39m
+[2m   Start at [22m 21:41:10
+[2m   Duration [22m 2.65s[2m (transform 435ms, setup 28ms, collect 1.41s, tests 179ms, environment 0ms, prepare 255ms)[22m
+

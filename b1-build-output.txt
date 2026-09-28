@@ -1,0 +1,16 @@
+﻿
+> @scs/api@0.1.0 build C:\TAIF\scs-platform\apps\api
+> nest build
+
+node.exe : -  TSC  Initializing type checker...
+At C:\Users\nabee\AppData\Roaming\npm\pnpm.ps1:24 char:5
++     & "node$exe"  "$basedir/node_modules/pnpm/bin/pnpm.cjs" $args
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (-  TSC  Initializing type checker 
+   ...:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Γ£ö  TSC  Initializing type checker...
+>  TSC  Found 0 issues.
+>  SWC  Running...
+Successfully compiled: 230 files with swc (220.38ms)

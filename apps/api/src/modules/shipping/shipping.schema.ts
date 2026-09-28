@@ -8,21 +8,24 @@ import { organizations } from '../identity/identity.schema';
 import { shipments } from '../orders/shipment.schema';
 
 /**
- * Shipping & Delivery schema (migration 0041_shipping, enhanced by 0042)
+ * Shipping & Delivery schema (migration 0041, enhanced by 0042, 0043)
  *
  * Tables for M7.2:
  * - shippingMethods: per-store shipping options with CRUD fields (0042)
  * - deliveryZones: geographic zones for shipping availability
  * - deliveryZoneMethods: zone↔method mapping with optional fee override
- * - shipmentLabels: 1:1 label storage reference per shipment
+ * - shipmentLabels: label storage references per shipment (multi-label since 0043)
  * - deliveryProofs: 1:1 proof-of-delivery (photo + signature) per shipment
  * - driverProfiles: driver eligibility metadata
  * - driverStoreAssignments: relational driver↔store assignment
  * - carrierWebhookEvents: inbound carrier webhook dedup log
  *
- * M7.2.2 enhancements (0042):
- * - shippingMethods: added key, description, carrierType, minOrderMinor, freeAboveMinor
- * - shipments.shippingMethodId: FK → shipping_methods(id) ON DELETE SET NULL
+ * M7.2.3-A carrier integration (0043):
+ * - carrierCredentials: encrypted per-org carrier API credentials
+ * - carrierConfigurations: org/store-level carrier configuration
+ * - shippingMethods: added shippingProviderKey, carrierServiceCode
+ * - shipmentLabels: added isVoid, providerKey, labelType; dropped 1:1 constraint
+ * - carrierWebhookEvents: added signatureValid, rawBody, processedAt, processingError
  */
 
 // ── Shipping Methods ────────────────────────────────────────────────────────
@@ -43,6 +46,9 @@ export const shippingMethods = pgTable('shipping_methods', {
   freeAboveMinor: bigint('free_above_minor', { mode: 'number' }),
   currency: char('currency', { length: 3 }).notNull().default('SAR'),
   isActive: boolean('is_active').notNull().default(true),
+  // M7.2.3-A provider binding (0043)
+  shippingProviderKey: varchar('shipping_provider_key', { length: 40 }),
+  carrierServiceCode: varchar('carrier_service_code', { length: 40 }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -86,6 +92,10 @@ export const shipmentLabels = pgTable('shipment_labels', {
   mimeType: varchar('mime_type', { length: 80 }).notNull().default('application/pdf'),
   sizeBytes: integer('size_bytes'),
   trackingUrl: varchar('tracking_url', { length: 500 }),
+  // M7.2.3-A multi-label support (0043)
+  isVoid: boolean('is_void').notNull().default(false),
+  providerKey: varchar('provider_key', { length: 40 }),
+  labelType: varchar('label_type', { length: 24 }).notNull().default('SHIPPING'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -141,4 +151,48 @@ export const carrierWebhookEvents = pgTable('carrier_webhook_events', {
   payload: jsonb('payload').notNull().default({}),
   processed: boolean('processed').notNull().default(false),
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  // M7.2.3-A webhook security metadata (0043)
+  signatureValid: boolean('signature_valid'),
+  rawBody: text('raw_body'),
+  processedAt: timestamp('processed_at', { withTimezone: true }),
+  processingError: text('processing_error'),
+});
+
+// ── Carrier Credentials (M7.2.3-A, 0043) ────────────────────────────────────
+// Encrypted per-org carrier API credentials.  Plaintext secrets are NEVER
+// returned through API responses.  Only SUPER_ADMIN/ADMIN may manage these.
+
+export const carrierCredentials = pgTable('carrier_credentials', {
+  id: uuid('id').primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  providerKey: varchar('provider_key', { length: 40 }).notNull(),
+  environment: varchar('environment', { length: 16 }).notNull().default('sandbox'),
+  label: varchar('label', { length: 120 }).notNull(),
+  credentialsEncrypted: text('credentials_encrypted').notNull(), // hex-encoded AES-256-GCM ciphertext
+  endpointUrl: varchar('endpoint_url', { length: 500 }),
+  webhookSecretEncrypted: text('webhook_secret_encrypted'), // hex-encoded AES-256-GCM ciphertext
+  // M7.2.3-B.1: Webhook tenant routing token (0044)
+  webhookToken: varchar('webhook_token', { length: 64 }),
+  isActive: boolean('is_active').notNull().default(true),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ── Carrier Configurations (M7.2.3-A, 0043) ─────────────────────────────────
+// Org-wide or store-specific carrier configuration.
+// storeId = NULL → org-wide default; storeId = X → store-specific override.
+
+export const carrierConfigurations = pgTable('carrier_configurations', {
+  id: uuid('id').primaryKey(),
+  orgId: uuid('org_id').notNull().references(() => organizations.id),
+  credentialId: uuid('credential_id').notNull().references(() => carrierCredentials.id),
+  storeId: uuid('store_id').references(() => stores.id),
+  providerKey: varchar('provider_key', { length: 40 }).notNull(),
+  defaultServiceCode: varchar('default_service_code', { length: 40 }),
+  defaultPackageType: varchar('default_package_type', { length: 40 }),
+  pickupAddress: jsonb('pickup_address'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

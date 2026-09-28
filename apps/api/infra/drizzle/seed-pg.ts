@@ -99,6 +99,7 @@ const PERMISSIONS: string[] = [
   'fulfillment:shipments:assign',
   'fulfillment:shipments:pickup',
   'fulfillment:shipments:deliver',
+  'fulfillment:shipments:write',
   // Shipping & Delivery (M7.2)
   'merchant:shipping:read',
   'merchant:shipping:write',
@@ -108,6 +109,9 @@ const PERMISSIONS: string[] = [
   'fulfillment:proof:write',
   'fulfillment:drivers:read',
   'fulfillment:drivers:write',
+  // Carrier integration (M7.2.3-A)
+  'admin:carrier:read',
+  'admin:carrier:write',
 ];
 
 // ─── Platform roles ──────────────────────────────────────────────────────────
@@ -122,7 +126,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 65
+    permissions: PERMISSIONS, // all 68
   },
   {
     key: 'ADMIN',
@@ -177,6 +181,9 @@ const ROLES: RoleDef[] = [
       'fulfillment:labels:read',
       'fulfillment:proof:read',
       'fulfillment:drivers:read',
+      // M7.2.3-A carrier admin read access
+      'admin:carrier:read',
+      'fulfillment:shipments:write',
     ],
   },
   {
@@ -251,6 +258,9 @@ const ROLES: RoleDef[] = [
       'fulfillment:proof:write',
       'fulfillment:drivers:read',
       'fulfillment:drivers:write',
+      // M7.2.3-A carrier shipment operations
+      'fulfillment:shipments:write',
+      'admin:carrier:read',
       'analytics:track',
     ],
   },
@@ -287,6 +297,9 @@ const ROLES: RoleDef[] = [
       'fulfillment:proof:read',
       'fulfillment:proof:write',
       'analytics:track',
+      // M7.2.3-A carrier shipment operations
+      'fulfillment:shipments:write',
+      'admin:carrier:read',
     ],
   },
   {

@@ -29,8 +29,16 @@ import { ShippingModule } from './modules/shipping/shipping.module';
     // ── Rate limiting (Redis token bucket per user/IP/role) ──
     ThrottlerModule.forRoot([
       {
+        name: 'default',
         ttl: 60_000,
         limit: 100,
+      },
+      {
+        // Webhook-specific throttler — tighter limit for inbound carrier webhooks.
+        // Configurable via WEBHOOK_THROTTLE_TTL_MS and WEBHOOK_THROTTLE_LIMIT env vars.
+        name: 'webhook',
+        ttl: parseInt(process.env['WEBHOOK_THROTTLE_TTL_MS'] || '60000', 10),
+        limit: parseInt(process.env['WEBHOOK_THROTTLE_LIMIT'] || '30', 10),
       },
     ]),
 
