@@ -15,7 +15,7 @@ export type ShippingProviderType = 'MANUAL' | 'CARRIER';
 export type ShippingMethodType = 'STANDARD' | 'EXPRESS' | 'SAME_DAY' | 'SCHEDULED';
 
 /** Carrier creation lifecycle status. */
-export type CarrierCreateStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED';
+export type CarrierCreateStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'RECOVERY_REQUIRED';
 
 export interface ShippingAddress {
   street: string;
@@ -173,6 +173,7 @@ export const CARRIER_CREATE_STATUSES: readonly CarrierCreateStatus[] = [
   'IN_PROGRESS',
   'SUCCESS',
   'FAILED',
+  'RECOVERY_REQUIRED',
 ] as const;
 
 /**

@@ -165,13 +165,14 @@ describe('Carrier create status', () => {
     expect(() => assertCarrierCreateStatus('pending')).toThrow(); // case-sensitive
   });
 
-  it('CARRIER_CREATE_STATUSES contains exactly 4 values', async () => {
+  it('CARRIER_CREATE_STATUSES contains exactly 5 values (M7.2.3-C: added RECOVERY_REQUIRED)', async () => {
     const { CARRIER_CREATE_STATUSES } = await import('../../../modules/shipping/shipping.types');
-    expect(CARRIER_CREATE_STATUSES).toHaveLength(4);
+    expect(CARRIER_CREATE_STATUSES).toHaveLength(5);
     expect(CARRIER_CREATE_STATUSES).toContain('PENDING');
     expect(CARRIER_CREATE_STATUSES).toContain('IN_PROGRESS');
     expect(CARRIER_CREATE_STATUSES).toContain('SUCCESS');
     expect(CARRIER_CREATE_STATUSES).toContain('FAILED');
+    expect(CARRIER_CREATE_STATUSES).toContain('RECOVERY_REQUIRED');
   });
 });
 
@@ -270,37 +271,53 @@ describe('WebhookSecurityService', () => {
 
 // ── Retry/Backoff Calculation ──────────────────────────────────────────────
 
-describe('ShippingCarrierWorker backoff', () => {
-  it('calculates next attempt dates', async () => {
-    const { ShippingCarrierWorker } = await import(
-      '../../../modules/shipping/shipping-carrier.worker'
+describe('CarrierRetryPolicy backoff (M7.2.3-C)', () => {
+  it('calculates backoff delays', async () => {
+    const { CarrierRetryPolicy } = await import(
+      '../../../modules/shipping/carrier-retry-policy'
     );
 
-    // Attempt 0 → immediate (0 seconds base)
-    const attempt0 = ShippingCarrierWorker.calculateNextAttempt(0);
-    // Should be very close to now (within a few seconds due to jitter on 0)
-    expect(attempt0).toBeInstanceOf(Date);
+    // Attempt 1: base 30s * 2^0 = 30s (no jitter)
+    const delay1 = CarrierRetryPolicy.calculateBackoff(1, { jitter: false });
+    expect(delay1).toBe(30_000);
 
-    // Attempt 1 → ~30 seconds
-    const attempt1 = ShippingCarrierWorker.calculateNextAttempt(1);
-    const delay1 = (attempt1!.getTime() - Date.now()) / 1000;
-    expect(delay1).toBeGreaterThan(20); // 30 - 20% jitter = 24
-    expect(delay1).toBeLessThan(40);    // 30 + 20% jitter = 36
+    // Attempt 2: base 30s * 2^1 = 60s (no jitter)
+    const delay2 = CarrierRetryPolicy.calculateBackoff(2, { jitter: false });
+    expect(delay2).toBe(60_000);
 
-    // Attempt 3 → ~10 minutes
-    const attempt3 = ShippingCarrierWorker.calculateNextAttempt(3);
-    const delay3 = (attempt3!.getTime() - Date.now()) / 1000;
-    expect(delay3).toBeGreaterThan(400);  // 600 - 20% = 480
-    expect(delay3).toBeLessThan(800);     // 600 + 20% = 720
+    // Attempt 3: base 30s * 2^2 = 120s (no jitter)
+    const delay3 = CarrierRetryPolicy.calculateBackoff(3, { jitter: false });
+    expect(delay3).toBe(120_000);
+
+    // With jitter: should be within ±25% of base
+    const delayJitter = CarrierRetryPolicy.calculateBackoff(1, { jitter: true });
+    expect(delayJitter).toBeGreaterThanOrEqual(22_500); // 30000 * 0.75
+    expect(delayJitter).toBeLessThanOrEqual(37_500);    // 30000 * 1.25
   });
 
-  it('returns null for max attempts exceeded', async () => {
-    const { ShippingCarrierWorker } = await import(
-      '../../../modules/shipping/shipping-carrier.worker'
+  it('classifies terminal errors as final', async () => {
+    const { CarrierRetryPolicy } = await import(
+      '../../../modules/shipping/carrier-retry-policy'
+    );
+    const { NonRetryableCarrierError } = await import(
+      '../../../modules/shipping/carrier-errors'
     );
 
-    const result = ShippingCarrierWorker.calculateNextAttempt(5);
-    expect(result).toBeNull();
+    const policy = new CarrierRetryPolicy();
+    const classification = policy.classify(new NonRetryableCarrierError('test', { providerKey: 'test', operation: 'createShipment' }), 1);
+    expect(classification.isFinal).toBe(true);
+    expect(classification.nextAttemptAt).toBeNull();
+  });
+
+  it('returns isFinal=true for max attempts exceeded', async () => {
+    const { CarrierRetryPolicy } = await import(
+      '../../../modules/shipping/carrier-retry-policy'
+    );
+
+    const policy = new CarrierRetryPolicy();
+    // Default maxAttempts = 8
+    const result = policy.classify(new Error('test'), 8);
+    expect(result.isFinal).toBe(true);
   });
 });
 

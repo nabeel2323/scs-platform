@@ -3,12 +3,14 @@ import {
   HttpStatus, Logger, UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
-import { Request, Response } from 'express';
 import { eq, and } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../common/database/database.service';
 import { WebhookSecurityService } from './webhook-security.service';
 import { CarrierCredentialsService } from './carrier-credentials.service';
+import { CarrierObservabilityService } from './carrier-observability';
 import { carrierWebhookEvents, carrierCredentials } from './shipping.schema';
+import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
 
 /**
@@ -59,6 +61,7 @@ export class CarrierWebhookController {
     private readonly db: DatabaseService,
     private readonly security: WebhookSecurityService,
     private readonly credentials: CarrierCredentialsService,
+    private readonly observability: CarrierObservabilityService,
   ) {}
 
   @Post(':providerKey')
@@ -67,8 +70,8 @@ export class CarrierWebhookController {
   @Throttle({ webhook: {} }) // Uses module-level env-configurable values (WEBHOOK_THROTTLE_TTL_MS / WEBHOOK_THROTTLE_LIMIT)
   async handleWebhook(
     @Param('providerKey') providerKey: string,
-    @Req() req: Request,
-    @Res() res: Response,
+    @Req() req: { rawBody?: string; headers: Record<string, any> },
+    @Res() res: { status(code: number): any; json(body: any): any },
   ) {
     return this.processWebhook(providerKey, null, req, res);
   }
@@ -86,8 +89,8 @@ export class CarrierWebhookController {
   async handleWebhookWithToken(
     @Param('providerKey') providerKey: string,
     @Param('webhookToken') webhookToken: string,
-    @Req() req: Request,
-    @Res() res: Response,
+    @Req() req: { rawBody?: string; headers: Record<string, any> },
+    @Res() res: { status(code: number): any; json(body: any): any },
   ) {
     return this.processWebhook(providerKey, webhookToken, req, res);
   }
@@ -98,11 +101,11 @@ export class CarrierWebhookController {
   private async processWebhook(
     providerKey: string,
     webhookToken: string | null,
-    req: Request,
-    res: Response,
+    req: { rawBody?: string; headers: Record<string, any> },
+    res: { status(code: number): any; json(body: any): any },
   ) {
     // 1. Validate body size
-    const rawBody = (req as any).rawBody as string | undefined;
+    const rawBody = req.rawBody;
     if (!rawBody) {
       return res.status(HttpStatus.BAD_REQUEST).json({
         error: 'Missing raw request body',
@@ -241,10 +244,77 @@ export class CarrierWebhookController {
       );
     }
 
-    // 10. Mark as processed
-    await this.db.db.update(carrierWebhookEvents)
-      .set({ processed: true, processedAt: new Date() })
-      .where(eq(carrierWebhookEvents.id, webhookEventId));
+    // 10. Process the webhook — on failure, persist error and schedule async retry
+    //     M7.2.3-C: Never block the HTTP response; always return 200 to the carrier.
+    try {
+      // Resolve tenant: carrier shipment reference → SCS shipment → store → org
+      // NEVER trust storeId/orgId from the webhook payload.
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: and(
+          eq(shipments.carrierShipmentId, externalDeliveryId),
+        ),
+      });
+
+      if (shipment) {
+        // Link the webhook event to the shipment
+        await this.db.db.update(carrierWebhookEvents)
+          .set({ shipmentId: shipment.id })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+        this.logger.log(
+          `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
+          `(store: ${shipment.storeId})`,
+        );
+      } else {
+        this.logger.warn(
+          `Webhook from ${providerKey}: no shipment found for carrier ID ${externalDeliveryId}`,
+        );
+      }
+
+      // Mark as processed
+      await this.db.db.update(carrierWebhookEvents)
+        .set({ processed: true, processedAt: new Date() })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+      this.observability.incrementCounter('carrier_webhook_total', providerKey);
+    } catch (processingErr: any) {
+      // M7.2.3-C ASYNC RETRY: persist error + insert outbox retry event
+      this.logger.error(
+        `Webhook processing failed for ${providerKey}/${externalDeliveryId}: ${processingErr?.message}`,
+      );
+
+      this.observability.incrementCounter('carrier_webhook_failures_total', providerKey);
+
+      // Mark the webhook event as failed with error details
+      await this.db.db.update(carrierWebhookEvents)
+        .set({
+          processed: false,
+          processingError: (processingErr?.message || 'Unknown processing error').slice(0, 2000),
+        })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+      // Insert async retry outbox event — the ShippingCarrierWorker picks this up
+      try {
+        await this.db.db.insert(outboxEvents).values({
+          id: randomUUID(),
+          eventType: 'shipping.carrier.webhook.retry',
+          aggregateId: webhookEventId,
+          payload: {
+            providerKey,
+            externalDeliveryId,
+            webhookEventId,
+            error: (processingErr?.message || 'Unknown').slice(0, 500),
+            source: 'webhook_async_retry',
+          },
+          status: 'PENDING',
+          organizationId: null,
+        });
+      } catch (outboxErr: any) {
+        this.logger.error(
+          `Failed to insert webhook retry outbox event: ${outboxErr?.message}`,
+        );
+      }
+    }
 
     return res.status(HttpStatus.OK).json({
       received: true,

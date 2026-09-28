@@ -17,6 +17,12 @@ import { CarrierConfigValidator } from './carrier-config-validation';
 import { CarrierObservabilityService } from './carrier-observability';
 // M7.2.3-B.2 — Aramex provider
 import { AramexProvider } from './aramex/aramex.provider';
+// M7.2.3-C — production carrier operations & reconciliation
+import { CarrierRetryPolicy } from './carrier-retry-policy';
+import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
+import { CarrierReconciliationService } from './carrier-reconciliation.service';
+import { CarrierTrackingPoller } from './carrier-tracking-poller';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * ShippingModule — M7.2.3-A Shipping, Delivery & Carrier Integration.
@@ -50,8 +56,21 @@ import { AramexProvider } from './aramex/aramex.provider';
  *   - Webhook tenant routing (token-based)
  *   - Carrier configuration validation
  *   - Carrier observability (correlation IDs)
+ *
+ * M7.2.3-C: Production carrier operations & reconciliation:
+ *   - Centralized retry policy (exponential backoff + jitter)
+ *   - Per-provider circuit breaker (CLOSED/OPEN/HALF_OPEN)
+ *   - Worker hardening (FOR UPDATE SKIP LOCKED, lease tracking)
+ *   - Tracking poller (dedup, forward-only status progression)
+ *   - Reconciliation engine (Cases A/B/C/D)
+ *   - Webhook async retry via outbox
+ *   - Admin recovery endpoints (RBAC + audit)
+ *   - In-memory metric counters with periodic flush
  */
 @Module({
+  imports: [
+    AuditModule, // M7.2.3-C: audit trail for recovery operations
+  ],
   controllers: [
     ShippingController,
     CarrierAdminController,
@@ -72,6 +91,11 @@ import { AramexProvider } from './aramex/aramex.provider';
     CarrierEmailResolver,
     CarrierConfigValidator,
     CarrierObservabilityService,
+    // M7.2.3-C
+    CarrierRetryPolicy,
+    CarrierCircuitBreaker,
+    CarrierReconciliationService,
+    CarrierTrackingPoller,
   ],
   exports: [
     ShippingService,
@@ -84,6 +108,11 @@ import { AramexProvider } from './aramex/aramex.provider';
     CarrierObservabilityService,
     // M7.2.3-B.2
     AramexProvider,
+    // M7.2.3-C
+    CarrierRetryPolicy,
+    CarrierCircuitBreaker,
+    CarrierReconciliationService,
+    CarrierTrackingPoller,
   ],
 })
 export class ShippingModule {}

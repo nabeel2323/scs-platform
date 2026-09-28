@@ -40,6 +40,12 @@ export const outboxEvents = pgTable('outbox_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   // M7.2.3-A delayed retry support (0043)
   nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+  // M7.2.3-C lease tracking for atomic claiming (0045)
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  lockedBy: varchar('locked_by', { length: 80 }),
+  // M7.2.3-C tenant scoping for multi-org job processing (0045)
+  organizationId: uuid('organization_id'),
+  storeId: uuid('store_id'),
 });
 
 // ── Feature Flags ────────────────────────────────────────────
