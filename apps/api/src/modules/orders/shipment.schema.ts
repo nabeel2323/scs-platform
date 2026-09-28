@@ -54,12 +54,16 @@ export const shipments = pgTable('shipments', {
   carrierStatusRaw: varchar('carrier_status_raw', { length: 80 }),
   carrierStatusMapped: varchar('carrier_status_mapped', { length: 24 }),
   lastCarrierSyncAt: timestamp('last_carrier_sync_at', { withTimezone: true }),
-  carrierCreateStatus: varchar('carrier_create_status', { length: 16 }),
+  carrierCreateStatus: varchar('carrier_create_status', { length: 24 }),
   carrierCreateError: text('carrier_create_error'),
   carrierCreateRetries: integer('carrier_create_retries').notNull().default(0),
   carrierCreateAttemptedAt: timestamp('carrier_create_attempted_at', { withTimezone: true }),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   cancellationReason: varchar('cancellation_reason', { length: 300 }),
+  // M7.2.3-C recovery/reconciliation (0045)
+  recoveryStatus: varchar('recovery_status', { length: 24 }),
+  nextReconciliationAt: timestamp('next_reconciliation_at', { withTimezone: true }),
+  carrierCreateErrorClass: varchar('carrier_create_error_class', { length: 40 }),
 });
 
 export const shipmentEvents = pgTable('shipment_events', {

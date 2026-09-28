@@ -30,6 +30,8 @@ import { CarrierCredentialsService } from '../../modules/shipping/carrier-creden
 import { CarrierConfigurationsService } from '../../modules/shipping/carrier-configurations.service';
 import { CarrierObservabilityService } from '../../modules/shipping/carrier-observability';
 import { CarrierEmailResolver } from '../../modules/shipping/carrier-email-resolver';
+import { CarrierRetryPolicy } from '../../modules/shipping/carrier-retry-policy';
+import { CarrierCircuitBreaker } from '../../modules/shipping/carrier-circuit-breaker';
 import { WebhookSecurityService } from '../../modules/shipping/webhook-security.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
@@ -132,7 +134,9 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     configurationsService = new CarrierConfigurationsService(databaseService);
     const observability = new CarrierObservabilityService();
     const emailResolver = new CarrierEmailResolver(databaseService);
-    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver);
+    const retryPolicy = new CarrierRetryPolicy();
+    const circuitBreaker = new CarrierCircuitBreaker();
+    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver, retryPolicy, circuitBreaker);
   }, 120_000);
 
   afterAll(async () => {
@@ -602,12 +606,17 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
       }
     });
 
-    it('missing master key fails safely at construction', () => {
+    it('missing master key degrades gracefully at construction', () => {
       const oldKey = process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
       delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
 
       try {
-        expect(() => new CarrierCredentialCryptoService()).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+        // Constructor degrades gracefully — no throw
+        const svc = new CarrierCredentialCryptoService();
+        expect(svc).toBeDefined();
+        // encrypt/decrypt throw at first use
+        expect(() => svc.encrypt('test')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
+        expect(() => svc.decrypt('aabb')).toThrow(/CARRIER_CREDENTIALS_MASTER_KEY/);
       } finally {
         process.env['CARRIER_CREDENTIALS_MASTER_KEY'] = oldKey;
       }
@@ -822,25 +831,28 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     });
 
     it('worker backoff schedule is correct', () => {
-      // Verify the static backoff calculation
-      const attempt0 = ShippingCarrierWorker.calculateNextAttempt(0);
-      const attempt1 = ShippingCarrierWorker.calculateNextAttempt(1);
-      const attempt4 = ShippingCarrierWorker.calculateNextAttempt(4);
-      const attempt5 = ShippingCarrierWorker.calculateNextAttempt(5);
-
-      // Attempt 0: base 0s + jitter → ~now
-      expect(attempt0).toBeInstanceOf(Date);
-      // Attempt 1: base 30s + ±20% jitter → 24-36s from now
-      expect(attempt1!.getTime()).toBeGreaterThan(Date.now() + 20_000);
-      expect(attempt1!.getTime()).toBeLessThan(Date.now() + 40_000);
-      // Attempt 5: MAX_ATTEMPTS → null (no more retries)
-      expect(attempt5).toBeNull();
+      // Verify the static backoff calculation (M7.2.3-C: centralized in CarrierRetryPolicy)
+      // Attempt 1: base 30s * 2^0 = 30s + ±25% jitter → 22.5-37.5s
+      const delay1 = CarrierRetryPolicy.calculateBackoff(1, { jitter: false });
+      expect(delay1).toBe(30_000);
+      // Attempt 2: base 30s * 2^1 = 60s
+      const delay2 = CarrierRetryPolicy.calculateBackoff(2, { jitter: false });
+      expect(delay2).toBe(60_000);
+      // Attempt 4: base 30s * 2^3 = 240s
+      const delay4 = CarrierRetryPolicy.calculateBackoff(4, { jitter: false });
+      expect(delay4).toBe(240_000);
+      // Attempt 5: base 30s * 2^4 = 480s
+      const delay5 = CarrierRetryPolicy.calculateBackoff(5, { jitter: false });
+      expect(delay5).toBe(480_000);
     });
 
-    it('max attempts is respected', () => {
-      // MAX_ATTEMPTS = 5, so attempt 5 should return null
-      expect(ShippingCarrierWorker.calculateNextAttempt(5)).toBeNull();
-      expect(ShippingCarrierWorker.calculateNextAttempt(6)).toBeNull();
+    it('max attempts is respected via retry policy', () => {
+      // M7.2.3-C: CarrierRetryPolicy default maxAttempts = 8
+      const policy = new CarrierRetryPolicy();
+      expect(policy.getMaxAttempts()).toBe(8);
+      // classify() at max attempts returns isFinal=true
+      const classification = policy.classify(new Error('test'), 8);
+      expect(classification.isFinal).toBe(true);
     });
 
     it('manual provider does not generate fake carrier success', async () => {

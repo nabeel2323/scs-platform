@@ -112,6 +112,8 @@ const PERMISSIONS: string[] = [
   // Carrier integration (M7.2.3-A)
   'admin:carrier:read',
   'admin:carrier:write',
+  // Carrier recovery (M7.2.3-C)
+  'admin:shipping:recovery',
 ];
 
 // ─── Platform roles ──────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 68
+    permissions: PERMISSIONS, // all 69
   },
   {
     key: 'ADMIN',
@@ -184,6 +186,8 @@ const ROLES: RoleDef[] = [
       // M7.2.3-A carrier admin read access
       'admin:carrier:read',
       'fulfillment:shipments:write',
+      // M7.2.3-C carrier recovery
+      'admin:shipping:recovery',
     ],
   },
   {
