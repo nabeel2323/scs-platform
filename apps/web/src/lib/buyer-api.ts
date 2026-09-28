@@ -480,6 +480,7 @@ export async function checkout(input: {
   notes?: string;
   idempotencyKey?: string;
   fulfillmentMethod?: string;
+  shippingSelections?: Array<{ storeId: string; fulfillmentMethod: string; shippingMethodId?: string }>;
 }): Promise<MasterOrder> {
   const res = await authFetch(`${API_URL}/v1/checkout`, {
     method: 'POST',
@@ -1955,5 +1956,147 @@ export async function updatePromotion(id: string, input: Partial<CreatePromotion
     body: JSON.stringify(input),
   });
   if (!res.ok) throw await ApiError.from(res, `Update promotion failed (${res.status})`);
+  return res.json();
+}
+
+// ── M7.2.2: Shipping Methods & Zones ────────────────────────────
+
+export interface ShippingMethod {
+  id: string;
+  storeId: string;
+  key: string | null;
+  name: string;
+  description: string | null;
+  fulfillmentMethod: string;
+  carrierType: string;
+  type: string;
+  baseFeeMinor: number;
+  minOrderMinor: number | null;
+  freeAboveMinor: number | null;
+  estimatedDaysMin: number | null;
+  estimatedDaysMax: number | null;
+  currency: string;
+  isActive: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface DeliveryZone {
+  id: string;
+  storeId: string;
+  name: string;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string;
+  isActive: boolean;
+}
+
+export interface ShippingEstimate {
+  storeId: string;
+  subtotalMinor: number;
+  currency: string;
+  deliveryAvailable: boolean;
+  methods: Array<{
+    methodId: string;
+    key: string | null;
+    name: string;
+    type: string;
+    carrierType: string;
+    estimatedDaysMin: number | null;
+    estimatedDaysMax: number | null;
+    feeMinor: number;
+    currency: string;
+    status: 'AVAILABLE' | 'UNAVAILABLE' | 'FREE';
+    reason?: string;
+  }>;
+}
+
+// Merchant: shipping methods CRUD
+export async function fetchShippingMethods(storeId: string): Promise<ShippingMethod[]> {
+  const res = await authFetch(`${API_URL}/v1/shipping/methods?storeId=${storeId}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch shipping methods failed (${res.status})`);
+  const data = await res.json();
+  return data.methods || [];
+}
+
+export async function createShippingMethod(input: {
+  storeId: string; key: string; name: string; fulfillmentMethod: string;
+  baseFeeMinor: number; description?: string; minOrderMinor?: number;
+  freeAboveMinor?: number; estimatedDaysMin?: number; estimatedDaysMax?: number;
+}): Promise<ShippingMethod> {
+  const res = await authFetch(`${API_URL}/v1/shipping/methods`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Create shipping method failed (${res.status})`);
+  return res.json();
+}
+
+export async function updateShippingMethod(id: string, patch: Record<string, unknown>): Promise<ShippingMethod> {
+  const res = await authFetch(`${API_URL}/v1/shipping/methods/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Update shipping method failed (${res.status})`);
+  return res.json();
+}
+
+export async function deactivateShippingMethod(id: string): Promise<ShippingMethod> {
+  const res = await authFetch(`${API_URL}/v1/shipping/methods/${id}/deactivate`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Deactivate failed (${res.status})`);
+  return res.json();
+}
+
+// Merchant: delivery zones CRUD
+export async function fetchDeliveryZones(storeId: string): Promise<DeliveryZone[]> {
+  const res = await authFetch(`${API_URL}/v1/shipping/zones?storeId=${storeId}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch zones failed (${res.status})`);
+  const data = await res.json();
+  return data.zones || [];
+}
+
+export async function createDeliveryZone(input: {
+  storeId: string; name: string; city?: string; region?: string;
+  postalCode?: string; country?: string;
+}): Promise<DeliveryZone> {
+  const res = await authFetch(`${API_URL}/v1/shipping/zones`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Create zone failed (${res.status})`);
+  return res.json();
+}
+
+export async function updateDeliveryZone(id: string, patch: Record<string, unknown>): Promise<DeliveryZone> {
+  const res = await authFetch(`${API_URL}/v1/shipping/zones/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Update zone failed (${res.status})`);
+  return res.json();
+}
+
+// Zone ↔ method associations
+export async function attachMethodToZone(zoneId: string, shippingMethodId: string, overrideFeeMinor?: number): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/shipping/zones/${zoneId}/methods`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shippingMethodId, overrideFeeMinor }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Attach method failed (${res.status})`);
+  return res.json();
+}
+
+export async function detachMethodFromZone(zoneId: string, methodId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/shipping/zones/${zoneId}/methods/${methodId}`, { method: 'DELETE' });
+  if (!res.ok) throw await ApiError.from(res, `Detach method failed (${res.status})`);
+}
+
+// Buyer: shipping estimate
+export async function fetchShippingEstimate(storeId: string, subtotal: number, city?: string, postalCode?: string): Promise<ShippingEstimate> {
+  const params = new URLSearchParams({ storeId, subtotal: String(subtotal) });
+  if (city) params.set('city', city);
+  if (postalCode) params.set('postalCode', postalCode);
+  const res = await authFetch(`${API_URL}/v1/shipping/estimate?${params}`);
+  if (!res.ok) throw await ApiError.from(res, `Shipping estimate failed (${res.status})`);
   return res.json();
 }
