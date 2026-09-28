@@ -43,9 +43,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 57 permissions seeded (M7.1 added 4 fulfillment permissions).
-      expect(result.permissionsTotal).toBe(57);
-      expect(result.newPermissions).toBe(57);
+      // 65 permissions seeded (M7.1 added 4 fulfillment, M7.2 added 8 shipping permissions).
+      expect(result.permissionsTotal).toBe(65);
+      expect(result.newPermissions).toBe(65);
 
       // 7 roles seeded (M7.1 added DRIVER).
       expect(result.rolesTotal).toBe(7);
@@ -53,7 +53,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(57);
+      expect(permCount.rows[0].cnt).toBe(65);
       
       const roleCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM roles');
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -80,7 +80,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(57);
+      expect(permCount.rows[0].cnt).toBe(65);
       
       const roleCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM roles');
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -121,7 +121,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(57);
+      expect(permCount.rows[0].cnt).toBe(65);
     } finally {
       client.release();
     }
@@ -140,13 +140,13 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(57);
-    expect(byRole.get('ADMIN')).toBe(38);
+    expect(byRole.get('SUPER_ADMIN')).toBe(65);
+    expect(byRole.get('ADMIN')).toBe(42);
     expect(byRole.get('MODERATOR')).toBe(21);
-    expect(byRole.get('MERCHANT_OWNER')).toBe(21);
-    expect(byRole.get('MERCHANT_STAFF')).toBe(17);
+    expect(byRole.get('MERCHANT_OWNER')).toBe(29);
+    expect(byRole.get('MERCHANT_STAFF')).toBe(23);
     expect(byRole.get('BUYER')).toBe(6);
-    expect(byRole.get('DRIVER')).toBe(4);
+    expect(byRole.get('DRIVER')).toBe(6);
   });
 
   it('rolls back the transaction when a permission insert fails', async () => {

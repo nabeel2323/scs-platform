@@ -22,6 +22,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { OutboxModule } from './common/outbox/outbox.module';
 import { StorageModule } from './common/storage/storage.module';
 import { CatalogImportModule } from './modules/catalog-import/catalog-import.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { CatalogImportModule } from './modules/catalog-import/catalog-import.mod
     AuditModule,
     AdminModule,
     CatalogImportModule,
+    ShippingModule,
   ],
   controllers: [HealthController],
 })

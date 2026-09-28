@@ -99,6 +99,15 @@ const PERMISSIONS: string[] = [
   'fulfillment:shipments:assign',
   'fulfillment:shipments:pickup',
   'fulfillment:shipments:deliver',
+  // Shipping & Delivery (M7.2)
+  'merchant:shipping:read',
+  'merchant:shipping:write',
+  'fulfillment:labels:read',
+  'fulfillment:labels:write',
+  'fulfillment:proof:read',
+  'fulfillment:proof:write',
+  'fulfillment:drivers:read',
+  'fulfillment:drivers:write',
 ];
 
 // ─── Platform roles ──────────────────────────────────────────────────────────
@@ -113,7 +122,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 52
+    permissions: PERMISSIONS, // all 65
   },
   {
     key: 'ADMIN',
@@ -163,6 +172,11 @@ const ROLES: RoleDef[] = [
       'admin:audit:read',
       'admin:users:read',
       'admin:users:write',
+      // M7.2 shipping oversight (read-only)
+      'merchant:shipping:read',
+      'fulfillment:labels:read',
+      'fulfillment:proof:read',
+      'fulfillment:drivers:read',
     ],
   },
   {
@@ -228,6 +242,15 @@ const ROLES: RoleDef[] = [
       // M7.1 fulfillment — merchant can assign drivers
       'fulfillment:shipments:read',
       'fulfillment:shipments:assign',
+      // M7.2 shipping management
+      'merchant:shipping:read',
+      'merchant:shipping:write',
+      'fulfillment:labels:read',
+      'fulfillment:labels:write',
+      'fulfillment:proof:read',
+      'fulfillment:proof:write',
+      'fulfillment:drivers:read',
+      'fulfillment:drivers:write',
       'analytics:track',
     ],
   },
@@ -256,6 +279,13 @@ const ROLES: RoleDef[] = [
       // M7.1 fulfillment — staff can assign drivers
       'fulfillment:shipments:read',
       'fulfillment:shipments:assign',
+      // M7.2 shipping operations
+      'merchant:shipping:read',
+      'merchant:shipping:write',
+      'fulfillment:labels:read',
+      'fulfillment:labels:write',
+      'fulfillment:proof:read',
+      'fulfillment:proof:write',
       'analytics:track',
     ],
   },
@@ -279,6 +309,9 @@ const ROLES: RoleDef[] = [
       'fulfillment:shipments:read',
       'fulfillment:shipments:pickup',
       'fulfillment:shipments:deliver',
+      // M7.2 delivery proof
+      'fulfillment:proof:read',
+      'fulfillment:proof:write',
     ],
   },
 ];
