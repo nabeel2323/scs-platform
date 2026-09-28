@@ -4,9 +4,8 @@
  * Tests carrier-related database persistence using real PostgreSQL 16.4.
  * No mocks — exercises actual schema against a dedicated test database.
  *
- * B.2.1: Modified to connect to a real PostgreSQL instance instead of
- * testcontainers (which has a known Docker Desktop Windows port-mapping bug).
- * Connects to dedicated scs-b21-pg container (postgres:16-alpine) on port 15432.
+ * B.2.1: Uses testcontainers (postgres:16-alpine) for cross-platform compatibility
+ * (local dev and CI). Each test run gets a fresh, isolated PostgreSQL instance.
  *
  * Coverage:
  *   - Shipment carrier state persistence (carrierShipmentId, carrierCreateStatus)
@@ -20,6 +19,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../../drizzle/schema';
 import { eq, and } from 'drizzle-orm';
@@ -41,12 +41,15 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/mig
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
 /**
- * Real PostgreSQL 16 connection for B.2.1 verification.
- * Uses the dedicated scs-b21-pg container (postgres:16-alpine) on port 15432.
+ * Hybrid connection strategy:
+ * - CI (Linux): testcontainers works fine → fresh isolated container.
+ * - Local Windows: Docker Desktop has a known port-mapping bug → fall back
+ *   to direct connection on the dedicated scs-b21-pg container (port 15432).
  */
-const PG_CONNECTION = process.env['B21_PG_URL'] || 'postgresql://scs:scs_dev_2026@localhost:15432/scs_b21_test';
+const FALLBACK_PG_URL = process.env['B21_PG_URL'] || 'postgresql://scs:scs_dev_2026@localhost:15432/scs_b21_test';
 
 describe('M7.2.3-B.2 — Aramex PostgreSQL Integration', () => {
+  let container: StartedPostgreSqlContainer | undefined;
   let pool: Pool;
   let db: any;
 
@@ -67,8 +70,19 @@ describe('M7.2.3-B.2 — Aramex PostgreSQL Integration', () => {
   beforeAll(async () => {
     process.env['CARRIER_CREDENTIALS_MASTER_KEY'] = CARRIER_MASTER_KEY;
 
-    // Connect to real PostgreSQL 16.4 (dedicated test database)
-    pool = new Pool({ connectionString: PG_CONNECTION });
+    // Try testcontainers first (works on CI/Linux); fall back to direct
+    // connection for local Windows Docker Desktop port-mapping issues.
+    try {
+      container = await new PostgreSqlContainer('postgres:16-alpine').start();
+      pool = new Pool({ connectionString: container.getConnectionUri() });
+      await pool.query('SELECT 1');
+      console.log('B.2 PG: using testcontainers');
+    } catch {
+      container = undefined;
+      pool = new Pool({ connectionString: FALLBACK_PG_URL });
+      await pool.query('SELECT 1');
+      console.log('B.2 PG: testcontainers unavailable, using direct connection');
+    }
 
     // Verify connectivity
     const versionResult = await pool.query('SELECT version()');
@@ -138,12 +152,13 @@ describe('M7.2.3-B.2 — Aramex PostgreSQL Integration', () => {
     );
 
     cryptoService = new CarrierCredentialCryptoService();
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
     delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
     await pool?.end();
-  });
+    if (container) await container.stop();
+  }, 30_000);
 
   // ── Carrier State Persistence ──────────────────────────────────────────────
 

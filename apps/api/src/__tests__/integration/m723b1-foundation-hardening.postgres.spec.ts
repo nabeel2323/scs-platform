@@ -7,12 +7,12 @@
  *   B1.2 — Email Resolution (database-backed)
  *   Security — Credential isolation, cross-tenant webhook
  *
- * Uses the project's existing PostgreSQL 16 container (scs-postgres)
- * with an isolated test database to avoid testcontainers port-mapping
- * issues on Docker Desktop for Windows.
+ * Uses testcontainers (postgres:16-alpine) with an isolated test database
+ * to avoid testcontainers port-mapping issues on Docker Desktop for Windows.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../../drizzle/schema';
 import { DatabaseService } from '../../common/database/database.service';
@@ -32,12 +32,15 @@ import { orders } from '../../modules/orders/orders.schema';
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
-// Connection to a dedicated test PostgreSQL container (b1-test-pg on port 15432).
-// Uses a fresh container to avoid auth configuration drift in the dev container.
-const PG_HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
-const PG_PORT = parseInt(process.env['TEST_PG_PORT'] ?? '15432', 10);
-const PG_USER = process.env['TEST_PG_USER'] ?? 'scs';
-const PG_PASSWORD = process.env['TEST_PG_PASSWORD'] ?? 'scs_dev_2026';
+// Hybrid connection strategy:
+// - CI (Linux): testcontainers → fresh isolated container.
+// - Local Windows: Docker Desktop port-mapping bug → fall back to direct
+//   connection on the dedicated scs-b21-pg container (port 15432).
+let container: StartedPostgreSqlContainer | undefined;
+const FALLBACK_PG_HOST = process.env['TEST_PG_HOST'] ?? 'localhost';
+const FALLBACK_PG_PORT = parseInt(process.env['TEST_PG_PORT'] ?? '15432', 10);
+const FALLBACK_PG_USER = process.env['TEST_PG_USER'] ?? 'scs';
+const FALLBACK_PG_PASSWORD = process.env['TEST_PG_PASSWORD'] ?? 'scs_dev_2026';
 
 describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
   let adminPool: Pool;
@@ -67,13 +70,34 @@ describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
 
     // 1. Create an isolated test database
     testDbName = `b1_test_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
-    adminPool = new Pool({ host: PG_HOST, port: PG_PORT, user: PG_USER, password: PG_PASSWORD, database: 'scs_platform' });
+
+    let adminConnectionString: string;
+    let testDbUrl: string;
+
+    // Try testcontainers first (works on CI/Linux); fall back to direct
+    // connection for local Windows Docker Desktop port-mapping issues.
+    try {
+      container = await new PostgreSqlContainer('postgres:16-alpine').start();
+      adminConnectionString = container.getConnectionUri();
+      console.log('B.1 PG: using testcontainers');
+    } catch {
+      container = undefined;
+      adminConnectionString = `postgresql://${FALLBACK_PG_USER}:${FALLBACK_PG_PASSWORD}@${FALLBACK_PG_HOST}:${FALLBACK_PG_PORT}/scs_b21_test`;
+      console.log('B.1 PG: testcontainers unavailable, using direct connection');
+    }
+
+    adminPool = new Pool({ connectionString: adminConnectionString });
     // Verify connectivity
     await adminPool.query('SELECT 1');
     await adminPool.query(`CREATE DATABASE ${testDbName}`);
 
     // 2. Connect to the test database
-    pool = new Pool({ host: PG_HOST, port: PG_PORT, user: PG_USER, password: PG_PASSWORD, database: testDbName });
+    if (container) {
+      testDbUrl = container.getConnectionUri().replace(/\/postgres$/, `/${testDbName}`);
+    } else {
+      testDbUrl = `postgresql://${FALLBACK_PG_USER}:${FALLBACK_PG_PASSWORD}@${FALLBACK_PG_HOST}:${FALLBACK_PG_PORT}/${testDbName}`;
+    }
+    pool = new Pool({ connectionString: testDbUrl });
     db = drizzle(pool, { schema }) as any;
 
     // 3. Run all migrations
@@ -88,7 +112,6 @@ describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
       catch { await pool.query('ROLLBACK'); }
     }
 
-    // 4. Seed RBAC
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
@@ -129,7 +152,7 @@ describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
     cryptoService = new CarrierCredentialCryptoService();
     credentialsService = new CarrierCredentialsService(databaseService, cryptoService);
     emailResolver = new CarrierEmailResolver(databaseService);
-  }, 120_000);
+  }, 180_000);
 
   afterAll(async () => {
     delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
@@ -137,7 +160,8 @@ describe('M7.2.3-B.1 — PostgreSQL Integration', () => {
     // Drop the isolated test database
     await adminPool?.query(`DROP DATABASE IF EXISTS ${testDbName}`);
     await adminPool?.end();
-  });
+    if (container) await container.stop();
+  }, 30_000);
 
   // ── B1.1: Atomic Shipment + Outbox Transaction ────────────────────────────
 

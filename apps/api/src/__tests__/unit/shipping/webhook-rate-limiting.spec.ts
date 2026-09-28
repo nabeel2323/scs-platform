@@ -14,6 +14,7 @@
  *   - Response code priority: 429 > 413 > 401 > 403 > 200
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import * as path from 'node:path';
 
 // ── In-Memory Throttler Storage ──────────────────────────────────────────
 
@@ -247,7 +248,7 @@ describe('Webhook Rate Limiting — Environment Configuration', () => {
     // Verify the app module source contains the webhook throttler configuration
     const fs = await import('node:fs');
     const appModuleSource = fs.readFileSync(
-      'c:/TAIF/scs-platform/apps/api/src/app.module.ts',
+      path.resolve(__dirname, '../../../../src/app.module.ts'),
       'utf-8',
     );
 
@@ -305,7 +306,7 @@ describe('Webhook Rate Limiting — Execution Order', () => {
   it('webhook controller source applies @UseGuards(ThrottlerGuard)', async () => {
     const fs = await import('node:fs');
     const controllerSource = fs.readFileSync(
-      'c:/TAIF/scs-platform/apps/api/src/modules/shipping/carrier-webhook.controller.ts',
+      path.resolve(__dirname, '../../../../src/modules/shipping/carrier-webhook.controller.ts'),
       'utf-8',
     );
 
