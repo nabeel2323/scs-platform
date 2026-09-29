@@ -541,7 +541,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       await cartService.addItem(buyerA, { variantId, quantity: 1, offerId: offerA });
       const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `fsm-cancel-${randomUUID()}` });
       const cancelId = co.subOrders[0]?.id;
-      await ordersService.cancelOrder(cancelId!, buyerA, 'Test cancel', undefined);
+      await ordersService.cancelOrder(cancelId!, buyerA, 'CUSTOMER_REQUEST', undefined);
       const cancelled = await ordersService.getOrder(cancelId!);
       expect(cancelled.status).toBe('CANCELLED');
 

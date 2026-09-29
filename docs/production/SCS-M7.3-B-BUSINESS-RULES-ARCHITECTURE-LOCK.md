@@ -74,7 +74,7 @@ DISPUTED → [] (terminal)
 ### 3.1 Cancellable States (Confirmed)
 
 ```text
-SUBMITTED          — buyer cancel button active
+SUBMITTED          — transient checkout state; not externally cancellable (AMENDED B.2)
 PENDING_CONFIRMATION — buyer cancel button active
 ACCEPTED           — buyer cancel button active
 PARTIALLY_ACCEPTED — buyer cancel button active
@@ -99,7 +99,6 @@ REJECTED           — already terminal
 ### 3.3 Cancellation Transition Map
 
 ```text
-SUBMITTED → CANCELLED          (buyer/merchant/admin)
 PENDING_CONFIRMATION → CANCELLED (buyer/merchant/admin)
 ACCEPTED → CANCELLED           (buyer/merchant/admin)
 PARTIALLY_ACCEPTED → CANCELLED (buyer/merchant/admin)
@@ -190,9 +189,10 @@ PAYMENT_PENDING → CANCELLED    (buyer/merchant/admin)
 ```text
 BUYER CANCELLATION CUTOFF: READY (inclusive)
 MERCHANT CANCELLATION CUTOFF: READY (inclusive)
-ADMIN CANCELLATION CUTOFF: Any non-terminal state (SUBMITTED through READY, plus
+ADMIN CANCELLATION CUTOFF: Any non-terminal state (PENDING_CONFIRMATION through READY, plus
                            ASSIGNED/PICKED_UP/OUT_FOR_DELIVERY with explicit
                            admin override; NOT DELIVERED/COMPLETED/DISPUTED/CANCELLED/REJECTED)
+                           (AMENDED B.2: SUBMITTED removed — transient auto-advance state)
 DRIVER CANCELLATION: Not permitted. Drivers report exceptions, not cancellations.
 ```
 
@@ -1072,7 +1072,7 @@ Future migration impact: None.
 | State | Allowed Transitions | Allowed Actors | Cancellable? | Inventory Effect | Shipment Effect |
 |-------|-------------------|----------------|-------------|-----------------|-----------------|
 | DRAFT | → SUBMITTED | BUYER | No | — | — |
-| SUBMITTED | → PENDING_CONFIRMATION | SYSTEM (auto) | Yes | — | — |
+| SUBMITTED | → PENDING_CONFIRMATION | SYSTEM (auto) | No (AMENDED B.2) | — | — |
 | PENDING_CONFIRMATION | → ACCEPTED, PARTIALLY_ACCEPTED, REJECTED, CANCELLED | MERCHANT, ADMIN | Yes | — | — |
 | ACCEPTED | → PREPARING, CANCELLED | MERCHANT, ADMIN | Yes | RESERVE | Create shipment |
 | PARTIALLY_ACCEPTED | → PREPARING, CANCELLED | MERCHANT, ADMIN | Yes | RESERVE (partial) | Create shipment |
@@ -1590,3 +1590,82 @@ Implementation performed:
 NO
 ========================================
 ```
+
+---
+
+## 35. B.0 FORMAL AMENDMENT — SUBMITTED CANCELLATION RULE
+
+**Amendment ID:** B.0-AMEND-001  
+**Date:** 2026-09-29  
+**Source:** M7.3-B.2 independent runtime verification  
+**Effective:** M7.3-B.2 release closure  
+**Status:** ACCEPTED
+
+### Original B.0 Rule
+
+The original B.0 document listed `SUBMITTED` as a cancellable state (section 3.1) and included:
+
+```text
+SUBMITTED → CANCELLED (buyer/merchant/admin)
+```
+
+in the cancellation transition map (section 3.3). The FSM state table (section 29) marked SUBMITTED as `Cancellable? = Yes`.
+
+### Amended Rule
+
+`SUBMITTED` is **not** a cancellable state.
+
+The effective cancellable states are:
+
+```text
+PENDING_CONFIRMATION
+ACCEPTED
+PARTIALLY_ACCEPTED
+PREPARING
+READY
+PAYMENT_PENDING
+```
+
+### Reason for Amendment
+
+The checkout transaction atomically creates the order as `SUBMITTED` and immediately auto-advances it to `PENDING_CONFIRMATION` within the same transaction:
+
+```typescript
+// Auto-advance all sub-orders: SUBMITTED → PENDING_CONFIRMATION
+for (const sub of subOrderData) {
+  await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
+}
+```
+
+Consequently:
+
+1. `SUBMITTED` is not externally observable via any API endpoint
+2. The FSM transition map defines `SUBMITTED → [PENDING_CONFIRMATION]` only — no `SUBMITTED → CANCELLED` exists in `OrdersService.TRANSITIONS`
+3. No user (buyer, merchant, or admin) can ever submit a cancellation request against an order in `SUBMITTED` state
+4. The B.0 listing was aspirational and did not account for the atomic auto-advance implemented before B.0 was written
+
+### Consequences
+
+- **No runtime behavior change required** — the implementation was already correct
+- The business-rule documentation is now aligned with the actual implemented FSM
+- Existing orders and existing cancellation behavior remain unchanged
+- The B.2 implementation correctly excluded `SUBMITTED` from the cancellable list
+
+### Compatibility
+
+Fully backward-compatible. No production code was modified to implement this amendment — only the documentation was reconciled.
+
+### Affected Sections
+
+| Section | Change |
+|---------|--------|
+| 3.1 Cancellable States | SUBMITTED annotated as transient, not cancellable |
+| 3.3 Cancellation Transition Map | SUBMITTED → CANCELLED line removed |
+| 4 Locked Decision | Admin cutoff changed from SUBMITTED to PENDING_CONFIRMATION |
+| 29 Final State Machines | SUBMITTED Cancellable? changed from Yes to No |
+
+### Reference
+
+See `ADR-M7.3-B0-013` in `docs/architecture/` for the formal ADR record.
+See `SCS-M7.3-B.2-RUNTIME-VERIFICATION-RESULTS.md` §8 for the discrepancy analysis.
+See `SCS-M7.3-B.2-RELEASE-CLOSURE.md` for the closure evidence.

@@ -864,6 +864,26 @@ export class OrdersService {
     return { itemId, qtyConfirmed };
   }
 
+  // ── M7.3-B.2: Cancellation Reason Validation ────────────────
+
+  private static readonly CANCELLATION_REASONS = new Set([
+    'CUSTOMER_REQUEST', 'DUPLICATE_ORDER', 'MERCHANT_UNABLE_TO_FULFILL',
+    'OUT_OF_STOCK', 'PRICE_ERROR', 'ADDRESS_PROBLEM', 'PAYMENT_PROBLEM',
+    'CARRIER_PROBLEM', 'SYSTEM_ERROR', 'ADMINISTRATIVE', 'OTHER',
+  ]);
+
+  // ── M7.3-B.2: Actor Resolution ──────────────────────────────
+
+  private resolveActorType(caller?: CallerContext): string {
+    if (!caller?.role) return 'SYSTEM';
+    const role = caller.role;
+    if (['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(role)) return 'ADMIN';
+    if (role === 'BUYER') return 'BUYER';
+    if (['MERCHANT_OWNER', 'MERCHANT_MANAGER'].includes(role)) return 'MERCHANT';
+    if (role === 'DRIVER') return 'DRIVER';
+    return 'SYSTEM';
+  }
+
   // ── Status Transitions ───────────────────────────────────────
 
   async transitionStatus(
@@ -874,6 +894,13 @@ export class OrdersService {
     reason?: string,
     caller?: CallerContext,
   ) {
+    // M7.3-B.2: Block CANCELLED via generic status endpoint — must use /cancel
+    if (newStatus === 'CANCELLED') {
+      throw new BadRequestException(
+        'Cancellation must use the dedicated POST /v1/orders/:id/cancel endpoint',
+      );
+    }
+
     const order = await this.getOrder(orderId);
     if (caller) await assertOrderAccessible(this.db, caller, order);
     const expectedStatus = order['status'] as string;
@@ -958,16 +985,34 @@ export class OrdersService {
     return this.getOrder(orderId);
   }
 
-  async cancelOrder(orderId: string, userId: string, reason: string, caller?: CallerContext) {
+  async cancelOrder(
+    orderId: string,
+    userId: string,
+    reason: string,
+    caller?: CallerContext,
+    notes?: string,
+  ) {
+    // M7.3-B.2: Validate cancellation reason against B.0 locked set
+    if (!OrdersService.CANCELLATION_REASONS.has(reason)) {
+      throw new BadRequestException(
+        `Invalid cancellation reason: ${reason}. Allowed: ${[...OrdersService.CANCELLATION_REASONS].join(', ')}`,
+      );
+    }
+    // OTHER requires explanatory notes
+    if (reason === 'OTHER' && !notes?.trim()) {
+      throw new BadRequestException(
+        'Cancellation reason OTHER requires explanatory notes',
+      );
+    }
+
     const order = await this.getOrder(orderId);
 
     // A3-1: object-level check — buyers cancel their own orders, merchants
     // cancel orders their org fulfills, platform staff bypass.
     if (caller) await assertOrderAccessible(this.db, caller, order);
 
-    // Can only cancel pre-DELIVERED
+    // Can only cancel pre-DELIVERED (SUBMITTED is auto-advance, not user-cancellable)
     const cancellable = [
-      'SUBMITTED',
       'PENDING_CONFIRMATION',
       'ACCEPTED',
       'PARTIALLY_ACCEPTED',
@@ -979,7 +1024,137 @@ export class OrdersService {
       throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
     }
 
-    return this.transitionStatus(orderId, 'CANCELLED', userId, 'BUYER', reason);
+    // M7.3-B.2: Resolve actor type from caller context (not hardcoded BUYER)
+    const actorType = this.resolveActorType(caller);
+    const expectedStatus = order['status'] as string;
+
+    // M7.3-B.2: Dedicated atomic transaction — NOT delegating to transitionStatus()
+    // Includes: optimistic lock, inventory settlement, shipment sync,
+    // shipment event, order history, cancellation metadata, outbox events.
+    await this.db.db.transaction(async (tx) => {
+      // 1. Optimistic lock: UPDATE WHERE status = expected
+      const flipResult = await tx
+        .update(orders)
+        .set({
+          status: 'CANCELLED',
+          cancellationReason: reason,
+          cancellationActorType: actorType,
+          cancellationActorId: userId,
+          cancelledAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(orders.id, orderId), eq(orders.status, expectedStatus)))
+        .returning({ id: orders.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'Order status already changed — concurrent transition rejected',
+        );
+      }
+
+      // 2. Inventory settlement inside the same transaction
+      await this.settleStockForStatus(orderId, 'CANCELLED', userId, tx);
+
+      // 3. Shipment synchronization: cancel associated shipment if it exists
+      // Use direct select (not tx.query.shipments) so it works with any
+      // drizzle instance — some test harnesses don't register shipments in schema.
+      const shipmentRows = await tx
+        .select({ id: shipments.id, status: shipments.status })
+        .from(shipments)
+        .where(eq(shipments.orderId, orderId))
+        .orderBy(shipments.createdAt)
+        .limit(1);
+      const shipment = shipmentRows[0] ?? null;
+
+      if (shipment) {
+        const shipmentId = shipment['id'] as string;
+        // Only cancel shipments not already in a terminal state
+        const shipmentStatus = shipment['status'] as string;
+        const cancellableShipmentStatuses = ['PREPARING', 'READY', 'ASSIGNED', 'PICKED_UP'];
+        if (cancellableShipmentStatuses.includes(shipmentStatus)) {
+          await tx
+            .update(shipments)
+            .set({
+              status: 'CANCELLED',
+              cancelledAt: new Date(),
+              cancellationReason: reason,
+              updatedAt: new Date(),
+            })
+            .where(eq(shipments.id, shipmentId));
+
+          // 4. Shipment event: insert CANCELLED event
+          await tx.insert(shipmentEvents).values({
+            id: crypto.randomUUID(),
+            shipmentId,
+            eventType: 'CANCELLED',
+            actorUserId: userId,
+            actorType,
+            notes: reason,
+          });
+        }
+      }
+
+      // 5. Order status history with correct actorType
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: expectedStatus,
+        toStatus: 'CANCELLED',
+        changedBy: userId,
+        actorType,
+        reason: notes ? `${reason}: ${notes}` : reason,
+      });
+
+      // 6. Outbox: order.cancelled event
+      await this.outbox.publish(
+        'order.cancelled',
+        orderId,
+        {
+          orderId,
+          status: 'CANCELLED',
+          storeId: order['storeId'],
+          buyerId: order['buyerId'],
+          actorType,
+          reason,
+          source: 'cancelOrder',
+        },
+        {},
+        null,
+        tx,
+      );
+
+      // 7. Outbox: shipment.cancelled event (if shipment exists)
+      if (shipment) {
+        await this.outbox.publish(
+          'shipment.cancelled',
+          shipment['id'] as string,
+          {
+            shipmentId: shipment['id'],
+            orderId,
+            status: 'CANCELLED',
+            reason,
+            actorType,
+            source: 'cancelOrder',
+          },
+          {},
+          null,
+          tx,
+        );
+      }
+    });
+
+    // Post-commit: realtime emit
+    this.realtime?.emitOrderStatusChanged(
+      orderId,
+      'CANCELLED',
+      order['buyerId'] as string | undefined,
+      order['storeId'] as string | undefined,
+    );
+
+    // Recalculate master order status after cancellation
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
+    return this.getOrder(orderId);
   }
 
   // ── Queries ──────────────────────────────────────────────────

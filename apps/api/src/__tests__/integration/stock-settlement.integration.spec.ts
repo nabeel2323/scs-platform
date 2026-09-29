@@ -118,7 +118,7 @@ describe('Order stock settlement (A4-4)', () => {
   it('releases the reservation when the order is cancelled', async () => {
     const h = createHarness('ACCEPTED', [reserved(10)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
+    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
 
     const [movement] = h.writtenMovements();
     expect(movement).toMatchObject({
@@ -137,7 +137,7 @@ describe('Order stock settlement (A4-4)', () => {
   it('scopes the ledger read to this order', async () => {
     const h = createHarness('ACCEPTED', [reserved(10)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
+    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
 
     // The fake below ignores the predicate and returns every row it is given, so
     // the only way to catch a dropped WHERE is to assert on the SQL itself.
@@ -174,7 +174,7 @@ describe('Order stock settlement (A4-4)', () => {
       },
     ]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'Duplicate request');
+    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'DUPLICATE_ORDER');
 
     expect(h.writtenMovements()).toEqual([]);
     expect(h.stockUpdates()).toEqual([]);
@@ -185,7 +185,7 @@ describe('Order stock settlement (A4-4)', () => {
     // Short stock: reserveStock holds 7 of the 10 ordered units.
     const h = createHarness('ACCEPTED', [reserved(7)]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
+    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
 
     expect(h.writtenMovements()[0]!['quantity']).toBe(7);
   });
@@ -200,7 +200,7 @@ describe('Order stock settlement (A4-4)', () => {
     };
     const h = createHarness('ACCEPTED', [legacy]);
 
-    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
+    await h.service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
 
     expect(h.writtenMovements()[0]!['quantity']).toBe(6);
   });
