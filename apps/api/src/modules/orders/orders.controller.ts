@@ -131,9 +131,9 @@ export class OrdersController {
   async cancelOrder(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() body: { reason: string },
+    @Body() body: { reason: string; notes?: string },
   ) {
-    return this.ordersService.cancelOrder(id, user.sub, body.reason, user);
+    return this.ordersService.cancelOrder(id, user.sub, body.reason, user, body.notes);
   }
 
   // ── M7.1 Fulfillment Actions ──────────────────────────────────

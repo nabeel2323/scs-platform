@@ -61,6 +61,11 @@ export const orders = pgTable('orders', {
   // M7.3-A: delivery completion tracking
   buyerConfirmedAt: timestamp('buyer_confirmed_at', { withTimezone: true }),
   autoCompleteAt: timestamp('auto_complete_at', { withTimezone: true }),
+  // M7.3-B.2: cancellation audit metadata (0048)
+  cancellationReason: varchar('cancellation_reason', { length: 40 }),
+  cancellationActorType: varchar('cancellation_actor_type', { length: 16 }),
+  cancellationActorId: uuid('cancellation_actor_id'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -442,7 +442,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const beforeReserved = before.qtyReserved;
 
       // Cancel
-      await ordersService.cancelOrder(subId!, buyerA, 'Changed mind', undefined);
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', undefined);
 
       const after = await inventoryService.getItem(invItemA);
       expect(after.qtyReserved).toBe(beforeReserved - 2);

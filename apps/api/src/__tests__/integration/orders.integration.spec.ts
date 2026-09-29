@@ -94,6 +94,8 @@ function createStatefulMocks(initialStatus: string) {
       },
       // A4-4: transitions now consult the stock ledger before writing the status.
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
+      // M7.3-B.2: cancelOrder checks for associated shipment
+      shipments: { findFirst: vi.fn().mockResolvedValue(undefined) },
     },
   };
 
@@ -289,7 +291,7 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      const result = await service.cancelOrder(ORDER_ID, BUYER_ID, 'Changed my mind');
+      const result = await service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
       expect(result.status).toBe('CANCELLED');
     });
 
@@ -303,7 +305,7 @@ describe('Order Lifecycle Integration', () => {
           mocks.mockPromotions,
         );
 
-        await expect(service.cancelOrder(ORDER_ID, BUYER_ID, 'Too late')).rejects.toThrow(
+        await expect(service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST')).rejects.toThrow(
           ConflictException,
         );
       },
@@ -317,7 +319,7 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      await service.cancelOrder(ORDER_ID, BUYER_ID, 'No longer needed');
+      await service.cancelOrder(ORDER_ID, BUYER_ID, 'CUSTOMER_REQUEST');
 
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
         'order.cancelled',

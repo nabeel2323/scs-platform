@@ -453,7 +453,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       const subB = (co.subOrders.find((s: any) => s.storeId === storeB) as any)?.id as string;
 
       await expect(
-        ordersService.cancelOrder(subB, merchantOwnerA, 'test', { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.cancelOrder(subB, merchantOwnerA, 'CUSTOMER_REQUEST', { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
       ).rejects.toThrow(/access/i);
     });
 
@@ -613,7 +613,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
       const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-own-cancel-${randomUUID()}` });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.cancelOrder(subId!, buyerA, 'test', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
       const order = await ordersService.getOrder(subId!);
       expect(order.status).toBe('CANCELLED');
     });
