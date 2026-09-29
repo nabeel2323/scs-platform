@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ShippingService } from './shipping.service';
 import { ShippingController } from './shipping.controller';
 import { ShippingProviderRegistry } from './shipping-registry';
@@ -23,6 +23,8 @@ import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { CarrierTrackingPoller } from './carrier-tracking-poller';
 import { AuditModule } from '../audit/audit.module';
+// M7.3-A: Carrier → Order delivery bridge (circular dep via forwardRef)
+import { OrdersModule } from '../orders/orders.module';
 
 /**
  * ShippingModule — M7.2.3-A Shipping, Delivery & Carrier Integration.
@@ -70,6 +72,7 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [
     AuditModule, // M7.2.3-C: audit trail for recovery operations
+    forwardRef(() => OrdersModule), // M7.3-A: carrier → order delivery bridge
   ],
   controllers: [
     ShippingController,

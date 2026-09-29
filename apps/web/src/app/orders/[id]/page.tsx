@@ -12,6 +12,7 @@ import {
   fetchDisputeEvents,
   submitDisputeEvidence,
   fetchTracking,
+  confirmDelivery,
   ReorderResult,
   StatusHistoryEntry,
   OrderItem,
@@ -79,6 +80,10 @@ export default function OrderDetailPage() {
 
   // M7.1 Shipment tracking
   const [tracking, setTracking] = useState<TrackingInfo | null>(null);
+
+  // M7.3-A: confirm delivery
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -189,6 +194,8 @@ export default function OrderDetailPage() {
   const canCancel = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'].includes(order.status);
   const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
   const canDispute = ['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status) && !disputeResult;
+  // M7.3-A: buyer can confirm delivery when order is DELIVERED
+  const canConfirmDelivery = order.status === 'DELIVERED';
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -213,6 +220,94 @@ export default function OrderDetailPage() {
           order.pending_confirmation after ~15s, but the buyer UI never told
           the story. Show an SLA banner while the order is in the merchant's
           review window so the buyer knows what to expect. */}
+      {/* M7.3-A: delivery confirmation banner */}
+      {order.status === 'COMPLETED' && (
+        <div
+          style={{
+            background: colors.okBg,
+            border: `1px solid ${colors.okBorder}`,
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>✓</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.ok }}>
+              Order completed
+            </div>
+            <div style={{ fontSize: 13, color: colors.ok, marginTop: 2 }}>
+              Delivery has been confirmed. Thank you for your order.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M7.3-A: confirm delivery prompt when DELIVERED */}
+      {canConfirmDelivery && (
+        <div
+          style={{
+            background: '#fffbeb',
+            border: '1px solid #fcd34d',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>📦</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e' }}>
+              Received your order?
+            </div>
+            <div style={{ fontSize: 13, color: '#92400e', marginTop: 2 }}>
+              Confirm delivery to complete this order. If you don't confirm, it will auto-complete after the dispute window.
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              setConfirming(true);
+              setConfirmError('');
+              try {
+                await confirmDelivery(orderId);
+                const updated = await fetchOrder(orderId);
+                setOrder(updated as any);
+                fetchOrderHistory(orderId).then(setHistory).catch(() => {});
+              } catch (err: any) {
+                setConfirmError(err.message || 'Failed to confirm delivery');
+              } finally {
+                setConfirming(false);
+              }
+            }}
+            disabled={confirming}
+            style={{
+              padding: '8px 20px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: '#065f46',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: confirming ? 'wait' : 'pointer',
+              opacity: confirming ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {confirming ? 'Confirming…' : 'Confirm Delivery'}
+          </button>
+        </div>
+      )}
+      {confirmError && (
+        <div role="alert" style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: colors.err }}>
+          {confirmError}
+        </div>
+      )}
+
       {(order.status === 'SUBMITTED' || order.status === 'PENDING_CONFIRMATION') && (
         <div
           style={{

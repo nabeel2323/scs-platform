@@ -184,6 +184,15 @@ export class OrdersController {
     return this.ordersService.deliverOrder(id, user.sub, user);
   }
 
+  // ── M7.3-A: Buyer Delivery Confirmation ───────────────────────
+
+  @Post('orders/:id/confirm-delivery')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('orders:write')
+  async confirmDelivery(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.confirmDelivery(id, user.sub, user);
+  }
+
   // ── Buyer Tracking ────────────────────────────────────────────
 
   @Get('orders/master/:id/tracking')

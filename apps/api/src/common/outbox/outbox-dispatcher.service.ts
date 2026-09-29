@@ -39,6 +39,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   /**
    * Write an event to the outbox (called from domain services within a transaction).
    * M7.2.3-A: Supports optional nextAttemptAt for delayed retry.
+   * M7.3-B.1: Optional txClient for atomic insertion inside a transaction.
    */
   async publish(
     eventType: string,
@@ -46,9 +47,11 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
     payload: Record<string, unknown>,
     metadata?: Record<string, unknown>,
     nextAttemptAt?: Date | null,
+    txClient?: any,
   ) {
     const id = crypto.randomUUID();
-    await this.db.db.insert(outboxEvents).values({
+    const db = txClient || this.db.db;
+    await db.insert(outboxEvents).values({
       id,
       eventType,
       aggregateId,

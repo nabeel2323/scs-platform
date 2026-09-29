@@ -51,7 +51,8 @@ function createHarness(initialStatus: string, ledger: LedgerRow[]) {
   const updateSet = vi.fn((values: Record<string, any>) => {
     updated.push(values);
     if (values['status']) order = { ...order, status: values['status'] };
-    return { where: vi.fn().mockResolvedValue(undefined) };
+    const whereFn = vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: ORDER_ID }]) }));
+    return { where: whereFn };
   });
 
   const findMany = vi.fn(async () => ledger);

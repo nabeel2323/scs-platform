@@ -620,6 +620,11 @@ class ApiService {
   Future<void> cancelOrder(String orderId, String reason) async =>
       _dio.post('/v1/orders/$orderId/cancel', data: {'reason': reason});
 
+  /// M7.3-A: buyer confirms delivery → DELIVERED → COMPLETED.
+  /// Idempotent: if already confirmed or auto-completed, returns success.
+  Future<void> confirmDelivery(String orderId) async =>
+      _dio.post('/v1/orders/$orderId/confirm-delivery');
+
   /// Re-add a past order. The body reports per-line outcomes, because a line can
   /// have been delisted or lost its price tier since — returning void here
   /// discarded the only notice a buyer got that the reorder was partial.

@@ -535,6 +535,16 @@ export async function cancelOrder(orderId: string, reason: string): Promise<unkn
   return res.json();
 }
 
+/** M7.3-A: buyer confirms delivery → transitions DELIVERED → COMPLETED.
+ *  Idempotent: if already confirmed or auto-completed, returns success. */
+export async function confirmDelivery(orderId: string): Promise<unknown> {
+  const res = await authFetch(`${API_URL}/v1/orders/${orderId}/confirm-delivery`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw await ApiError.from(res, `Confirm delivery failed (${res.status})`);
+  return res.json();
+}
+
 /** A4-7: reorder reports per-line outcomes, because a past order can contain
  *  variants that were delisted or lost their price tier since. */
 export interface ReorderResult {

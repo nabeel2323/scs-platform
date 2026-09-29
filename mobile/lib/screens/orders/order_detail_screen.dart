@@ -26,6 +26,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   StreamSubscription<OrderStatusEvent>? _sub;
   bool _busy = false;
 
+  /// M7.3-A: statuses where the buyer can confirm delivery.
+  static const _confirmableDelivery = {'DELIVERED'};
+
   /// Statuses the API permits a buyer to cancel from (orders.service.ts
   /// `cancelOrder`); anything else throws a 409, so the action is hidden rather
   /// than offered. Audit 4.3 row 162: the old AppBar popup showed cancel for
@@ -77,6 +80,27 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Cancel failed: ${ApiService.errorMessage(e)}')));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// M7.3-A: buyer confirms delivery → DELIVERED → COMPLETED.
+  Future<void> _confirmDelivery(SubOrder o) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(apiServiceProvider).confirmDelivery(o.id);
+      ref.invalidate(ordersProvider);
+      _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Delivery confirmed — order completed')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Confirm failed: ${ApiService.errorMessage(e)}')));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -244,6 +268,93 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                                 'Currency inferred from the seller — this order predates currency being recorded on it.',
                                 style: TextStyle(
                                     fontSize: 11, color: TaifTokens.warn))),
+                      // M7.3-A: completed order banner
+                      if (o.status == 'COMPLETED') ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: TaifTokens.ok.withOpacity(0.08),
+                            borderRadius:
+                                BorderRadius.circular(TaifTokens.radiusMd),
+                            border: Border.all(
+                                color: TaifTokens.ok.withOpacity(0.3)),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.check_circle,
+                                size: 18, color: TaifTokens.ok),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Order completed — delivery confirmed',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: TaifTokens.ok),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ],
+                      // M7.3-A: confirm delivery prompt when DELIVERED
+                      if (_confirmableDelivery.contains(o.status)) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: TaifTokens.warn.withOpacity(0.06),
+                            borderRadius:
+                                BorderRadius.circular(TaifTokens.radiusMd),
+                            border: Border.all(
+                                color: TaifTokens.warn.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Received your order?',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: TaifTokens.ink)),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Confirm delivery to complete this order. If you don\'t confirm, it will auto-complete after the dispute window.',
+                                  style: TextStyle(
+                                      fontSize: 12, color: TaifTokens.muted),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _confirmDelivery(o),
+                                    icon: _busy
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white))
+                                        : const Icon(Icons.check, size: 18),
+                                    label: Text(_busy
+                                        ? 'Confirming...'
+                                        : 'Confirm Delivery'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: TaifTokens.ok,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 10),
+                                    ),
+                                  ),
+                                ),
+                              ]),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       const SizedBox(height: 16),
                       const Text('Items',
                           style: TextStyle(

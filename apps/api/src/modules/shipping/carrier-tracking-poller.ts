@@ -22,7 +22,7 @@
  * This is the "recovery path" complement to webhooks (the "fast path").
  */
 
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Inject, forwardRef } from '@nestjs/common';
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
@@ -30,6 +30,7 @@ import { shipments, shipmentEvents } from '../orders/shipment.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { randomUUID } from 'node:crypto';
+import { OrdersService } from '../orders/orders.service';
 
 // ── Status Progression ──────────────────────────────────────────────────────
 
@@ -110,6 +111,9 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     private readonly registry: ShippingProviderRegistry,
     private readonly observability: CarrierObservabilityService,
     private readonly circuitBreaker: CarrierCircuitBreaker,
+    // M7.3-A: Carrier → Order delivery bridge
+    @Inject(forwardRef(() => OrdersService))
+    private readonly ordersService: OrdersService,
   ) {
     this.pollIntervalMs = parseInt(
       process.env['CARRIER_TRACKING_POLL_INTERVAL_MS'] || '600000',
@@ -233,6 +237,21 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
             updatedAt: new Date(),
           })
           .where(eq(shipments.id, shipment.id));
+
+        // M7.3-A: Bridge carrier DELIVERED → order DELIVERED
+        if (latestStatus === 'DELIVERED' && shipment.order_id) {
+          try {
+            await this.ordersService.processCarrierDelivery(
+              shipment.order_id,
+              shipment.carrier_shipment_id,
+              'tracking_poll',
+            );
+          } catch (bridgeErr: any) {
+            this.logger.warn(
+              `Carrier delivery bridge failed for order ${shipment.order_id}: ${bridgeErr?.message}`,
+            );
+          }
+        }
       } else {
         await this.db.db
           .update(shipments)
