@@ -249,6 +249,9 @@ describe('Order Lifecycle Integration', () => {
           expectedEvent,
           ORDER_ID,
           expect.objectContaining({ status: toStatus }),
+          {},
+          null,
+          expect.any(Object),
         );
       }
     });
@@ -320,6 +323,9 @@ describe('Order Lifecycle Integration', () => {
         'order.cancelled',
         ORDER_ID,
         expect.objectContaining({ status: 'CANCELLED' }),
+        {},
+        null,
+        expect.any(Object),
       );
     });
   });

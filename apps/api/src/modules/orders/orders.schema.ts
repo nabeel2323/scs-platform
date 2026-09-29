@@ -58,6 +58,9 @@ export const orders = pgTable('orders', {
   slaConfirmedAt: timestamp('sla_confirmed_at', { withTimezone: true }),
   slaAt: timestamp('sla_at', { withTimezone: true }),
   rejectionReason: text('rejection_reason'),
+  // M7.3-A: delivery completion tracking
+  buyerConfirmedAt: timestamp('buyer_confirmed_at', { withTimezone: true }),
+  autoCompleteAt: timestamp('auto_complete_at', { withTimezone: true }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

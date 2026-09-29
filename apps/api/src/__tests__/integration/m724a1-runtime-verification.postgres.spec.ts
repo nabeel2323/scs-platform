@@ -201,9 +201,9 @@ describe('Phase 3 — Migration 0046 Verification', () => {
     try {
       const count1 = await applyMigrations(pool, '0045_carrier_operations.sql');
       expect(count1).toBeGreaterThan(35);
-      // Now apply 0046
+      // Now apply remaining migrations (0046 and any later additions)
       const count2 = await applyMigrations(pool);
-      expect(count2).toBe(1); // only migration 0046 was newly applied
+      expect(count2).toBeGreaterThanOrEqual(1); // at least migration 0046 was newly applied
     } finally { await pool.end(); }
   });
 

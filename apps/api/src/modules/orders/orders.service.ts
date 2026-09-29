@@ -704,6 +704,9 @@ export class OrdersService {
 
     await this.outbox.publish('order.accepted', orderId, { orderId, storeId: order['storeId'] });
 
+    // M7.3-A: Recalculate master order status after acceptance
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
     return this.getOrder(orderId);
   }
 
@@ -792,6 +795,9 @@ export class OrdersService {
     );
     await this.outbox.publish('order.partially_accepted', orderId, { orderId, confirmations });
 
+    // M7.3-A: Recalculate master order status after partial acceptance
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
     return this.getOrder(orderId);
   }
 
@@ -834,6 +840,9 @@ export class OrdersService {
       reason,
     });
 
+    // M7.3-A: Recalculate master order status after rejection
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
     return this.getOrder(orderId);
   }
 
@@ -867,56 +876,70 @@ export class OrdersService {
   ) {
     const order = await this.getOrder(orderId);
     if (caller) await assertOrderAccessible(this.db, caller, order);
-    this.assertTransition(order['status'], newStatus);
+    const expectedStatus = order['status'] as string;
+    this.assertTransition(expectedStatus, newStatus);
 
-    // ADVERSARIAL FIX: stock settlement and status write must be atomic.
-    // Without a transaction, if the status update fails after settlement
-    // committed, stock is released/consumed but the order status doesn't
-    // change — creating a permanent ledger inconsistency.
-    await this.settleStockForStatus(orderId, newStatus, userId);
-
+    // M7.3-B.1 (F-01 + F-02): All state-changing operations are now atomic.
+    // 1. Optimistic lock: UPDATE WHERE status = expected (F-01)
+    // 2. Inventory settlement INSIDE the same transaction (F-02)
+    // 3. Status history INSIDE the same transaction
+    // 4. Outbox event INSIDE the same transaction (transactional outbox)
+    // If the optimistic lock fails (concurrent transition), the entire
+    // transaction rolls back — zero side effects.
     await this.db.db.transaction(async (tx) => {
-      await tx
+      const flipResult = await tx
         .update(orders)
         .set({ status: newStatus, updatedAt: new Date() })
-        .where(eq(orders.id, orderId));
+        .where(and(eq(orders.id, orderId), eq(orders.status, expectedStatus)))
+        .returning({ id: orders.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'Order status already changed — concurrent transition rejected',
+        );
+      }
+
+      // Inventory settlement inside the same transaction (F-02 fix)
+      await this.settleStockForStatus(orderId, newStatus, userId, tx);
 
       await tx.insert(orderStatusHistory).values({
         id: crypto.randomUUID(),
         orderId,
-        fromStatus: order['status'],
+        fromStatus: expectedStatus,
         toStatus: newStatus,
         changedBy: userId,
         actorType,
         reason: reason || null,
       });
+
+      // Outbox event inside the same transaction (transactional outbox)
+      const eventMap: Record<string, string> = {
+        PENDING_CONFIRMATION: 'order.pending_confirmation',
+        ACCEPTED: 'order.accepted',
+        PARTIALLY_ACCEPTED: 'order.partially_accepted',
+        REJECTED: 'order.rejected',
+        PREPARING: 'order.preparing',
+        READY: 'order.ready',
+        ASSIGNED: 'order.assigned',
+        PICKED_UP: 'order.picked_up',
+        OUT_FOR_DELIVERY: 'order.out_for_delivery',
+        DELIVERED: 'order.delivered',
+        COMPLETED: 'order.completed',
+        CANCELLED: 'order.cancelled',
+        DISPUTED: 'order.disputed',
+      };
+
+      if (eventMap[newStatus]) {
+        await this.outbox.publish(
+          eventMap[newStatus],
+          orderId,
+          { orderId, status: newStatus, storeId: order['storeId'], buyerId: order['buyerId'] },
+          {},
+          null,
+          tx,
+        );
+      }
     });
-
-    // Emit events based on status
-    const eventMap: Record<string, string> = {
-      PENDING_CONFIRMATION: 'order.pending_confirmation',
-      ACCEPTED: 'order.accepted',
-      PARTIALLY_ACCEPTED: 'order.partially_accepted',
-      REJECTED: 'order.rejected',
-      PREPARING: 'order.preparing',
-      READY: 'order.ready',
-      ASSIGNED: 'order.assigned',
-      PICKED_UP: 'order.picked_up',
-      OUT_FOR_DELIVERY: 'order.out_for_delivery',
-      DELIVERED: 'order.delivered',
-      COMPLETED: 'order.completed',
-      CANCELLED: 'order.cancelled',
-      DISPUTED: 'order.disputed',
-    };
-
-    if (eventMap[newStatus]) {
-      await this.outbox.publish(eventMap[newStatus], orderId, {
-        orderId,
-        status: newStatus,
-        storeId: order['storeId'],
-        buyerId: order['buyerId'],
-      });
-    }
 
     // Push the transition to connected sockets (WEB-B6 / realtime gap): the
     // buyer's personal room, the merchant's store room, and anyone tracking this
@@ -928,6 +951,9 @@ export class OrdersService {
       order['buyerId'] as string | undefined,
       order['storeId'] as string | undefined,
     );
+
+    // M7.3-A: Recalculate master order status after any transition
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     return this.getOrder(orderId);
   }
@@ -1330,6 +1356,9 @@ export class OrdersService {
       orderId, storeId: order['storeId'], driverId,
     });
 
+    // M7.3-A: Recalculate master order status after driver assignment
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
     // Realtime notification
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'ASSIGNED' });
 
@@ -1409,6 +1438,17 @@ export class OrdersService {
     });
 
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'DELIVERED' });
+
+    // M7.3-A: Schedule auto-completion after the configured window
+    const windowHours = parseInt(process.env['ORDER_AUTO_COMPLETE_HOURS'] || '72', 10);
+    const autoCompleteAt = new Date(Date.now() + windowHours * 60 * 60 * 1000);
+    await this.db.db
+      .update(orders)
+      .set({ autoCompleteAt, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    // M7.3-A: Recalculate master order status after delivery
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     return this.getOrder(orderId);
   }
@@ -1566,6 +1606,9 @@ export class OrdersService {
       orderId, status: newStatus,
     });
 
+    // M7.3-A: Recalculate master order status after fulfillment transition
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
     return this.getOrder(orderId);
   }
 
@@ -1643,6 +1686,9 @@ export class OrdersService {
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
       orderId, status: newStatus,
     });
+
+    // M7.3-A: Recalculate master order status after driver fulfillment transition
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     return this.getOrder(orderId);
   }
@@ -1764,12 +1810,24 @@ export class OrdersService {
    * previous status and the caller can retry, rather than an order that moved on
    * with its stock unaccounted for.
    */
-  private async settleStockForStatus(orderId: string, toStatus: string, performedBy?: string) {
+  // M7.3-B.1 (F-02): Accept an optional transaction client so inventory
+  // settlement runs inside the caller's transaction. When txClient is provided,
+  // all queries and mutations use it directly — no nested transactions.
+  // When called without txClient (from rejectOrder, deliverOrder), it falls
+  // back to the previous per-item transactional behavior.
+  private async settleStockForStatus(
+    orderId: string,
+    toStatus: string,
+    performedBy?: string,
+    txClient?: any,
+  ) {
     const releasesStock = toStatus === 'CANCELLED' || toStatus === 'REJECTED';
     const consumesStock = toStatus === 'DELIVERED';
     if (!releasesStock && !consumesStock) return;
 
-    const movements = await this.db.db.query.stockMovements.findMany({
+    const db = txClient || this.db.db;
+
+    const movements = await db.query.stockMovements.findMany({
       where: and(
         eq(stockMovements.referenceType, 'ORDER'),
         eq(stockMovements.referenceId, orderId),
@@ -1793,20 +1851,21 @@ export class OrdersService {
       outstanding.set(itemId, (outstanding.get(itemId) ?? 0) + delta);
     }
 
-    for (const [itemId, quantity] of outstanding) {
-      if (quantity <= 0) continue; // Already settled
+    if (txClient) {
+      // F-02 fix: When inside a caller's transaction, do all inventory work
+      // in that same transaction — no nested transactions. The SELECT FOR UPDATE
+      // locks still serialize concurrent settlements on the same inventory rows.
+      for (const [itemId, quantity] of outstanding) {
+        if (quantity <= 0) continue;
 
-      // Lock the inventory row before mutating so concurrent settlements
-      // cannot double-release or double-consume the same stock.
-      await this.db.db.transaction(async (tx) => {
-        await tx
+        await txClient
           .select()
           .from(inventoryItems)
           .where(eq(inventoryItems.id, itemId))
           .for('update');
 
         if (releasesStock) {
-          await tx
+          await txClient
             .update(inventoryItems)
             .set({
               qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
@@ -1814,7 +1873,7 @@ export class OrdersService {
             })
             .where(eq(inventoryItems.id, itemId));
         } else {
-          await tx
+          await txClient
             .update(inventoryItems)
             .set({
               qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${quantity}, 0)`,
@@ -1824,7 +1883,7 @@ export class OrdersService {
             .where(eq(inventoryItems.id, itemId));
         }
 
-        await tx.insert(stockMovements).values({
+        await txClient.insert(stockMovements).values({
           id: crypto.randomUUID(),
           inventoryItemId: itemId,
           movementType: releasesStock ? 'RELEASE' : 'SALE',
@@ -1836,7 +1895,53 @@ export class OrdersService {
             ? `Reservation released for ${toStatus.toLowerCase()} order ${orderId}`
             : `Stock deducted on delivery of order ${orderId}`,
         });
-      });
+      }
+    } else {
+      // Legacy path: no tx client — each item gets its own transaction.
+      // Used by rejectOrder() and deliverOrder() which have their own patterns.
+      for (const [itemId, quantity] of outstanding) {
+        if (quantity <= 0) continue;
+
+        await this.db.db.transaction(async (tx) => {
+          await tx
+            .select()
+            .from(inventoryItems)
+            .where(eq(inventoryItems.id, itemId))
+            .for('update');
+
+          if (releasesStock) {
+            await tx
+              .update(inventoryItems)
+              .set({
+                qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryItems.id, itemId));
+          } else {
+            await tx
+              .update(inventoryItems)
+              .set({
+                qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${quantity}, 0)`,
+                qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${quantity}, 0)`,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryItems.id, itemId));
+          }
+
+          await tx.insert(stockMovements).values({
+            id: crypto.randomUUID(),
+            inventoryItemId: itemId,
+            movementType: releasesStock ? 'RELEASE' : 'SALE',
+            quantity: releasesStock ? quantity : -quantity,
+            referenceType: 'ORDER',
+            referenceId: orderId,
+            performedBy: performedBy || null,
+            reason: releasesStock
+              ? `Reservation released for ${toStatus.toLowerCase()} order ${orderId}`
+              : `Stock deducted on delivery of order ${orderId}`,
+          });
+        });
+      }
     }
   }
 
@@ -1936,6 +2041,317 @@ export class OrdersService {
         `Invalid transition: ${currentStatus} → ${newStatus}. Allowed: ${allowed.join(', ') || 'none'}`,
       );
     }
+  }
+
+  // ── M7.3-A: Master Order Status Aggregation ─────────────────
+
+  /**
+   * Deterministic master-order status aggregation.
+   *
+   * Given the current statuses of all sub-orders, computes what the master
+   * order's aggregated status should be. This is a pure function with no
+   * side effects — safe to call repeatedly.
+   *
+   * Policy (evaluated top-to-bottom, first match wins):
+   *   ALL COMPLETED                                → COMPLETED
+   *   ALL CANCELLED/REJECTED                       → CANCELLED
+   *   ALL DELIVERED or COMPLETED                   → DELIVERED
+   *   ANY DISPUTED                                 → DISPUTED
+   *   ANY OUT_FOR_DELIVERY/ASSIGNED/PICKED_UP      → OUT_FOR_DELIVERY
+   *   ANY PREPARING/READY                          → PREPARING
+   *   ANY ACCEPTED/PARTIALLY_ACCEPTED              → ACCEPTED
+   *   ANY SUBMITTED/PENDING_CONFIRMATION           → SUBMITTED
+   */
+  static computeMasterStatus(subOrderStatuses: string[]): string {
+    if (subOrderStatuses.length === 0) return 'SUBMITTED';
+
+    const all = (pred: (s: string) => boolean) => subOrderStatuses.every(pred);
+    const any = (pred: (s: string) => boolean) => subOrderStatuses.some(pred);
+
+    if (all(s => s === 'COMPLETED')) return 'COMPLETED';
+    if (all(s => s === 'CANCELLED' || s === 'REJECTED')) return 'CANCELLED';
+    if (all(s => s === 'DELIVERED' || s === 'COMPLETED')) return 'DELIVERED';
+    if (any(s => s === 'DISPUTED')) return 'DISPUTED';
+    if (any(s => ['OUT_FOR_DELIVERY', 'ASSIGNED', 'PICKED_UP'].includes(s))) return 'OUT_FOR_DELIVERY';
+    if (any(s => ['PREPARING', 'READY'].includes(s))) return 'PREPARING';
+    if (any(s => ['ACCEPTED', 'PARTIALLY_ACCEPTED'].includes(s))) return 'ACCEPTED';
+    if (any(s => ['SUBMITTED', 'PENDING_CONFIRMATION'].includes(s))) return 'SUBMITTED';
+
+    return 'SUBMITTED';
+  }
+
+  /**
+   * Authoritative master-order status recalculation.
+   *
+   * Idempotent: repeated calls with no sub-order change are a no-op.
+   * Concurrency-safe: SELECT ... FOR UPDATE on the master row prevents
+   * lost updates when multiple sub-orders transition concurrently.
+   */
+  async recalculateMasterOrderStatus(masterOrderId: string): Promise<string> {
+    return this.db.db.transaction(async (tx) => {
+      // Lock the master order row
+      const master = await tx.query.masterOrders.findFirst({
+        where: eq(masterOrders.id, masterOrderId),
+      });
+      if (!master) return 'SUBMITTED';
+
+      // Lock the row explicitly (Drizzle query may not FOR UPDATE)
+      await tx.execute(
+        sql`SELECT id FROM master_orders WHERE id = ${masterOrderId} FOR UPDATE`
+      );
+
+      // Load sub-orders
+      const subOrders = await tx.query.orders.findMany({
+        where: eq(orders.masterOrderId, masterOrderId),
+      });
+
+      const newStatus = OrdersService.computeMasterStatus(
+        subOrders.map(so => so['status'] as string),
+      );
+
+      // Only update if changed
+      if (newStatus !== master['status']) {
+        await tx
+          .update(masterOrders)
+          .set({ status: newStatus, updatedAt: new Date() })
+          .where(eq(masterOrders.id, masterOrderId));
+
+        // Publish outbox event for the master status change
+        await this.outbox.publish('order.master.status_changed', masterOrderId, {
+          masterOrderId,
+          previousStatus: master['status'],
+          newStatus,
+          buyerId: master['buyerId'],
+        });
+      }
+
+      return newStatus;
+    });
+  }
+
+  // ── M7.3-A: Delivery Completion ──────────────────────────────
+
+  /**
+   * Buyer confirms delivery received.
+   * POST /orders/:id/confirm-delivery
+   *
+   * Idempotent: if already confirmed, returns success without side effects.
+   * Only the order's buyer (or platform admin) may confirm.
+   */
+  async confirmDelivery(orderId: string, userId: string, caller?: CallerContext) {
+    const order = await this.getOrder(orderId);
+    if (caller) {
+      await assertOrderAccessible(this.db, caller, order);
+      // Only the buyer can confirm delivery (not merchant, not driver)
+      if (order['buyerId'] !== caller.sub && !isTenantPrivileged(caller)) {
+        throw new ForbiddenException('Only the buyer can confirm delivery');
+      }
+    }
+
+    if (order['status'] === 'COMPLETED') {
+      // Already completed — idempotent return
+      return this.getOrderWithItems(orderId, caller);
+    }
+
+    if (order['status'] !== 'DELIVERED') {
+      throw new ConflictException(
+        `Order is ${order['status']}, not DELIVERED — cannot confirm delivery`,
+      );
+    }
+
+    // Atomically record buyer confirmation (optimistic lock)
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ buyerConfirmedAt: new Date(), updatedAt: new Date() })
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.status, 'DELIVERED'),
+          sql`${orders.buyerConfirmedAt} IS NULL`,
+        ),
+      )
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      // Race: another confirmation already happened — idempotent
+      const current = await this.getOrder(orderId);
+      if (current['status'] === 'COMPLETED') {
+        return this.getOrderWithItems(orderId, caller);
+      }
+      throw new ConflictException('Delivery confirmation already processed');
+    }
+
+    return this.completeOrder(orderId, userId, 'BUYER', 'BUYER_CONFIRMATION');
+  }
+
+  /**
+   * Canonical DELIVERED → COMPLETED transition.
+   *
+   * Shared by buyer confirmation, auto-completion worker, and any future
+   * completion trigger. No inventory movement (stock was already consumed
+   * at DELIVERED). Updates shipment completedAt, records history, publishes
+   * outbox event, and recalculates master order.
+   */
+  async completeOrder(
+    orderId: string,
+    userId: string,
+    actorType: string,
+    source: string,
+  ) {
+    const order = await this.getOrder(orderId);
+    this.assertTransition(order['status'], 'COMPLETED');
+
+    // Normalize actor userId — system-level callers (e.g. auto-complete worker)
+    // pass 'system' which is not a valid UUID; store null instead.
+    const actorUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+      ? userId : null;
+
+    // Atomic optimistic lock on order status
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: 'COMPLETED', updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) {
+      throw new ConflictException('Order status already changed — concurrent completion rejected');
+    }
+
+    // NO inventory movement — stock was consumed at DELIVERED
+
+    // Update shipment completedAt (shipment stays in DELIVERED status)
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (shipment) {
+      await this.db.db
+        .update(shipments)
+        .set({ completedAt: new Date(), updatedAt: new Date() })
+        .where(eq(shipments.id, shipment['id']));
+
+      // Shipment event (only if not already COMPLETED)
+      if (shipment['status'] !== 'COMPLETED') {
+        await this.db.db.insert(shipmentEvents).values({
+          id: crypto.randomUUID(),
+          shipmentId: shipment['id'],
+          eventType: 'COMPLETED',
+          actorUserId: actorUserId,
+          actorType,
+          notes: `Order completed via ${source}`,
+        });
+      }
+    }
+
+    // Order status history
+    await this.recordStatusChange(orderId, order['status'], 'COMPLETED', actorUserId, actorType);
+
+    // Outbox event
+    await this.outbox.publish('order.completed', orderId, {
+      orderId,
+      storeId: order['storeId'],
+      source,
+    });
+
+    // Realtime
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
+      orderId,
+      status: 'COMPLETED',
+    });
+
+    // Recalculate master order
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
+    return this.getOrder(orderId);
+  }
+
+  /**
+   * Carrier → Order delivery bridge.
+   *
+   * Called by the carrier tracking poller or webhook handler when a carrier
+   * reports DELIVERED. Reuses the same delivery logic as the driver API
+   * (inventory SALE, shipment update, order transition, master recalc).
+   *
+   * Idempotent: if the order is already DELIVERED or beyond, this is a no-op.
+   * Concurrency-safe: the internal deliverOrder call uses optimistic locking.
+   */
+  async processCarrierDelivery(
+    orderId: string,
+    carrierShipmentId: string | null,
+    source: string,
+  ): Promise<boolean> {
+    const order = await this.getOrder(orderId);
+
+    // Already delivered or beyond — idempotent no-op
+    if (['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(order['status'] as string)) {
+      return false;
+    }
+
+    // Verify the order can transition to DELIVERED from current state
+    const allowed = OrdersService.TRANSITIONS[order['status'] as string] || [];
+    if (!allowed.includes('DELIVERED')) {
+      return false;
+    }
+
+    // Find the shipment for this order
+    const shipment = await this.getShipmentByOrderId(orderId);
+    if (!shipment) return false;
+
+    // Use the driver fulfillment path (no driver ownership check for carrier)
+    // We replicate the core logic here to avoid the driver check
+    const flipResult = await this.db.db
+      .update(orders)
+      .set({ status: 'DELIVERED', updatedAt: new Date() })
+      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .returning({ id: orders.id });
+
+    if (flipResult.length === 0) return false; // Lost the race
+
+    // Settle stock (SALE movement) — idempotent via ledger netting
+    await this.settleStockForStatus(orderId, 'DELIVERED');
+
+    // Update shipment
+    await this.db.db
+      .update(shipments)
+      .set({ status: 'DELIVERED', deliveredAt: new Date(), updatedAt: new Date() })
+      .where(eq(shipments.id, shipment['id']));
+
+    // Shipment event
+    await this.db.db.insert(shipmentEvents).values({
+      id: crypto.randomUUID(),
+      shipmentId: shipment['id'],
+      eventType: 'DELIVERED',
+      actorType: 'CARRIER',
+      notes: `Carrier delivery via ${source}`,
+    });
+
+    // Order status history
+    await this.recordStatusChange(
+      orderId, order['status'] as string, 'DELIVERED', null, 'CARRIER',
+    );
+
+    // Outbox event
+    await this.outbox.publish('order.fulfillment.delivered', orderId, {
+      orderId,
+      storeId: order['storeId'],
+      source,
+    });
+
+    // Realtime
+    this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', {
+      orderId,
+      status: 'DELIVERED',
+    });
+
+    // Set auto-complete schedule
+    const windowHours = parseInt(process.env['ORDER_AUTO_COMPLETE_HOURS'] || '72', 10);
+    const autoCompleteAt = new Date(Date.now() + windowHours * 60 * 60 * 1000);
+    await this.db.db
+      .update(orders)
+      .set({ autoCompleteAt, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+
+    // Recalculate master order
+    await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
+
+    return true;
   }
 }
 

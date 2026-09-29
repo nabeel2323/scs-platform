@@ -93,7 +93,15 @@ export class NotificationsService implements OnModuleInit {
       channels: ['IN_APP', 'PUSH'],
       render: (data) => ({
         title: 'Order Delivered',
-        body: `Your order #${String(data['orderId'] || '').slice(0, 8)} has been delivered. Please rate your experience.`,
+        body: `Your order #${String(data['orderId'] || '').slice(0, 8)} has been delivered. Please confirm receipt or raise a dispute within 72 hours.`,
+      }),
+    },
+    'order.completed': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Order Completed',
+        body: `Your order #${String(data['orderId'] || '').slice(0, 8)} is now complete. Thank you for your purchase!`,
       }),
     },
     'order.cancelled': {
