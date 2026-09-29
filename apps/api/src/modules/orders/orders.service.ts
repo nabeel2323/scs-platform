@@ -2201,6 +2201,11 @@ export class OrdersService {
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
 
+    // Normalize actor userId — system-level callers (e.g. auto-complete worker)
+    // pass 'system' which is not a valid UUID; store null instead.
+    const actorUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)
+      ? userId : null;
+
     // Atomic optimistic lock on order status
     const flipResult = await this.db.db
       .update(orders)
@@ -2228,7 +2233,7 @@ export class OrdersService {
           id: crypto.randomUUID(),
           shipmentId: shipment['id'],
           eventType: 'COMPLETED',
-          actorUserId: userId,
+          actorUserId: actorUserId,
           actorType,
           notes: `Order completed via ${source}`,
         });
@@ -2236,7 +2241,7 @@ export class OrdersService {
     }
 
     // Order status history
-    await this.recordStatusChange(orderId, order['status'], 'COMPLETED', userId, actorType);
+    await this.recordStatusChange(orderId, order['status'], 'COMPLETED', actorUserId, actorType);
 
     // Outbox event
     await this.outbox.publish('order.completed', orderId, {

@@ -53,6 +53,7 @@ import { carts, cartItems } from '../../modules/orders/cart.schema';
 import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
+import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
@@ -203,8 +204,9 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
 
     database = { db } as DatabaseService;
     const promotions = new PromotionsService(database);
-    const inventoryService = new InventoryService(database, outbox);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
+    const realOutbox = new OutboxDispatcher(database);
+    const inventoryService = new InventoryService(database, realOutbox);
+    ordersService = new OrdersService(database, realOutbox, promotions, realtime, undefined, notifications);
 
     // Roles
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
@@ -321,7 +323,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     });
 
     it('CON-M73A-03: Double carrier delivery bridge — one succeeds, one no-op', async () => {
-      // Create an accepted order (not yet delivered)
+      // Create an order and advance to READY (which allows → DELIVERED)
       const cartId = randomUUID();
       await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
       await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, storeA, variantA, offerA]);
@@ -329,6 +331,8 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       const orderId = co.subOrders[0]!.id;
       const caller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA };
       await ordersService.acceptOrder(orderId, merchantA, caller);
+      await ordersService.prepareOrder(orderId, merchantA, caller);
+      await ordersService.readyOrder(orderId, merchantA, caller);
 
       // Two concurrent carrier delivery attempts
       const results = await Promise.allSettled([
