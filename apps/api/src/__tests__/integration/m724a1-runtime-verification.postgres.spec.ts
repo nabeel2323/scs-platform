@@ -20,6 +20,7 @@ import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 // This file creates real databases and runs heavy concurrent workloads.
 // Override the default 5 s test / 10 s hook timeouts for the entire file.
@@ -28,11 +29,21 @@ vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
-// ── Connection: direct PostgreSQL on port 15432 ────────────────────────────
-const PG_HOST = process.env['M724A1_PG_HOST'] ?? 'localhost';
-const PG_PORT = parseInt(process.env['M724A1_PG_PORT'] ?? '15432', 10);
-const PG_USER = process.env['M724A1_PG_USER'] ?? 'scs';
-const PG_PASS = process.env['M724A1_PG_PASS'] ?? 'scs_dev_2026';
+// ── Hybrid connection strategy (matches other integration tests) ──────────
+// - CI (Linux): testcontainers → fresh isolated container.
+// - Local Windows: Docker Desktop port-mapping → fall back to direct
+//   connection on the dedicated scs-b21-pg container (port 15432).
+let container: StartedPostgreSqlContainer | undefined;
+const FALLBACK_PG_HOST = process.env['M724A1_PG_HOST'] ?? 'localhost';
+const FALLBACK_PG_PORT = parseInt(process.env['M724A1_PG_PORT'] ?? '15432', 10);
+const FALLBACK_PG_USER = process.env['M724A1_PG_USER'] ?? 'scs';
+const FALLBACK_PG_PASS = process.env['M724A1_PG_PASS'] ?? 'scs_dev_2026';
+
+// Resolved at runtime by top-level beforeAll — all nested pools use these.
+let PG_HOST: string;
+let PG_PORT: number;
+let PG_USER: string;
+let PG_PASS: string;
 
 function getMigrations() {
   return fs.readdirSync(MIGRATIONS_DIR)
@@ -130,7 +141,29 @@ async function createOrgStoreShipment(pool: Pool, opts: {
 let adminPool: Pool;
 
 beforeAll(async () => {
-  adminPool = new Pool({ host: PG_HOST, port: PG_PORT, user: PG_USER, password: PG_PASS, database: 'scs_b21_test' });
+  // Try testcontainers first (works on CI/Linux); fall back to direct
+  // connection for local Windows Docker Desktop setups.
+  try {
+    container = await new PostgreSqlContainer('postgres:16-alpine').start();
+    const uri = new URL(container.getConnectionUri());
+    PG_HOST = uri.hostname;
+    PG_PORT = parseInt(uri.port, 10);
+    PG_USER = uri.username;
+    PG_PASS = uri.password;
+    console.log('M7.2.4-A.1 PG: using testcontainers');
+  } catch {
+    container = undefined;
+    PG_HOST = FALLBACK_PG_HOST;
+    PG_PORT = FALLBACK_PG_PORT;
+    PG_USER = FALLBACK_PG_USER;
+    PG_PASS = FALLBACK_PG_PASS;
+    console.log('M7.2.4-A.1 PG: testcontainers unavailable, using direct connection');
+  }
+
+  // Connect to an admin database (testcontainers uses 'postgres'; fallback uses 'scs_b21_test')
+  const adminDb = container ? 'postgres' : 'scs_b21_test';
+  adminPool = new Pool({ host: PG_HOST, port: PG_PORT, user: PG_USER, password: PG_PASS, database: adminDb });
+
   // Create the "fresh" database with all migrations — used by Phases 4-12
   await createFreshDatabase(adminPool, 'scs_m724a1_fresh');
   const freshPool = new Pool({ host: PG_HOST, port: PG_PORT, user: PG_USER, password: PG_PASS, database: 'scs_m724a1_fresh' });
@@ -143,6 +176,9 @@ afterAll(async () => {
   try { await adminPool.query(`DROP DATABASE IF EXISTS scs_m724a1_existing`); } catch {}
   try { await adminPool.query(`DROP DATABASE IF EXISTS scs_m724a1_dup`); } catch {}
   await adminPool.end();
+  if (container) {
+    try { await container.stop(); } catch {}
+  }
 }, 30_000);
 
 // ════════════════════════════════════════════════════════════════════════════
