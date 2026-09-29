@@ -1,19 +1,29 @@
 /**
- * Carrier Tracking Poller — M7.2.3-C
+ * Carrier Tracking Poller — M7.2.3-C + M7.2.4-A hardened
  *
  * Generic tracking polling worker that:
  *   - Polls shipments with active tracking needs
  *   - Calls provider.getTrackingInfo() per shipment
- *   - Deduplicates tracking events by externalEventId or fingerprint
+ *   - Deduplicates tracking events via UNIQUE constraint on externalEventId
+ *     (PG 23505 treated as idempotent dedup — no TOCTOU race)
  *   - Prevents backward state transitions (DELIVERED cannot go to OUT_FOR_DELIVERY)
  *   - Persists raw carrier events even when they don't advance state
  *   - Stops polling terminal states (DELIVERED, CANCELLED, COMPLETED)
+ *   - Multi-instance safe: atomic claim via lastCarrierSyncAt timestamp throttle
+ *   - SQL-level filtering: only eligible shipments are loaded from DB
+ *
+ * M7.2.4-A changes:
+ *   - Atomic claim: UPDATE ... WHERE lastCarrierSyncAt IS NULL OR stale
+ *     prevents two instances from polling the same shipment concurrently.
+ *   - SQL filtering: WHERE clause includes carrierTrackingId IS NOT NULL
+ *     and non-terminal status — no JS-side filtering.
+ *   - Dedup: INSERT + catch PG 23505 instead of SELECT → INSERT (TOCTOU fix).
  *
  * This is the "recovery path" complement to webhooks (the "fast path").
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, isNull, lte, inArray } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
@@ -92,6 +102,9 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
   /** Maximum shipments to poll per cycle. */
   private static readonly BATCH_SIZE = 20;
 
+  /** Minimum interval between tracking polls for the same shipment (ms). */
+  private static readonly MIN_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
   constructor(
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
@@ -127,33 +140,46 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Poll shipments that need tracking updates.
+   *
+   * M7.2.4-A: Atomic claim + SQL-level filtering.
+   * Uses lastCarrierSyncAt as a natural throttle — setting it to NOW() on claim
+   * prevents other instances from selecting the same shipment until the interval
+   * elapses. This is a lightweight claim without holding a transaction open.
    */
   private async poll() {
     if (this.running) return;
     this.running = true;
 
     try {
-      // Find shipments with active tracking needs
-      const due = await this.db.db
-        .select()
-        .from(shipments)
-        .where(
-          and(
-            eq(shipments.carrierCreateStatus, 'SUCCESS'),
-            // Has a tracking ID
-            // Drizzle doesn't support isNotNull cleanly here, use a workaround
-          ),
+      // M7.2.4-A: Atomic claim via UPDATE ... RETURNING.
+      // Only claims shipments that are eligible:
+      //   - carrierCreateStatus = SUCCESS
+      //   - carrierTrackingId IS NOT NULL
+      //   - non-terminal carrier status
+      //   - lastCarrierSyncAt is NULL or older than MIN_POLL_INTERVAL_MS
+      // The UPDATE sets lastCarrierSyncAt = NOW(), which acts as a claim marker
+      // and prevents other instances from selecting the same row.
+      const cutoff = new Date(Date.now() - CarrierTrackingPoller.MIN_POLL_INTERVAL_MS);
+
+      const claimed = await this.db.db.execute(sql`
+        UPDATE shipments
+        SET last_carrier_sync_at = NOW(), updated_at = NOW()
+        WHERE id IN (
+          SELECT id FROM shipments
+          WHERE carrier_create_status = 'SUCCESS'
+            AND carrier_tracking_id IS NOT NULL
+            AND (carrier_status_mapped IS NULL
+                 OR carrier_status_mapped NOT IN ('DELIVERED', 'CANCELLED', 'COMPLETED'))
+            AND (last_carrier_sync_at IS NULL OR last_carrier_sync_at <= ${cutoff})
+          ORDER BY last_carrier_sync_at NULLS FIRST
+          LIMIT ${CarrierTrackingPoller.BATCH_SIZE}
+          FOR UPDATE SKIP LOCKED
         )
-        .orderBy(shipments.lastCarrierSyncAt)
-        .limit(CarrierTrackingPoller.BATCH_SIZE);
+        RETURNING *
+      `);
 
-      // Filter to those with tracking IDs and non-terminal status
-      const candidates = due.filter(
-        s => s.carrierTrackingId &&
-          !TERMINAL_STATUSES.has(s.carrierStatusMapped || s.status || ''),
-      );
-
-      this.logger.log(`Tracking poll: ${candidates.length} shipments to check.`);
+      const candidates = claimed.rows ?? [];
+      this.logger.log(`Tracking poll: ${candidates.length} shipments claimed.`);
 
       for (const shipment of candidates) {
         await this.pollShipment(shipment);
@@ -224,13 +250,15 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Process a single tracking event with dedup and ordering protection.
+   *
+   * M7.2.4-A: Dedup via UNIQUE constraint (PG 23505 = idempotent duplicate).
+   * No more TOCTOU SELECT → INSERT race.
    */
   private async processTrackingEvent(
     shipment: any,
     providerKey: string,
     event: { timestamp: string; status: string; carrierStatus?: string; location?: string; description?: string },
   ): Promise<void> {
-    // Dedup: check if this event already exists
     const externalId = event.carrierStatus || null;
     const fingerprint = trackingEventFingerprint(
       providerKey,
@@ -239,16 +267,6 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       event.timestamp,
       event.description || null,
     );
-
-    // Check for existing event by fingerprint
-    const existing = await this.db.db.query.shipmentEvents.findFirst({
-      where: eq(shipmentEvents.externalEventId, fingerprint),
-    });
-
-    if (existing) {
-      // Duplicate — skip
-      return;
-    }
 
     // Order guard: don't insert events that would move state backward
     if (!canTransition(shipment.carrierStatusMapped, event.status)) {
@@ -259,22 +277,35 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       // Still persist the raw event but don't advance status
     }
 
-    // Persist the tracking event
-    await this.db.db.insert(shipmentEvents).values({
-      id: randomUUID(),
-      shipmentId: shipment.id,
-      eventType: 'CARRIER_TRACKING',
-      actorType: 'CARRIER',
-      locationText: event.location?.slice(0, 300) || null,
-      notes: event.description || null,
-      metadata: {
-        carrierStatus: event.status,
-        timestamp: event.timestamp,
-        providerKey,
-        source: 'tracking_poll',
-      },
-      externalEventId: fingerprint,
-      carrierEventCode: externalId?.slice(0, 40) || null,
-    });
+    // M7.2.4-A: Attempt INSERT; treat PG 23505 as idempotent dedup.
+    // The UNIQUE index uq_shipment_events_external_id is the final authority.
+    try {
+      await this.db.db.insert(shipmentEvents).values({
+        id: randomUUID(),
+        shipmentId: shipment.id,
+        eventType: 'CARRIER_TRACKING',
+        actorType: 'CARRIER',
+        locationText: event.location?.slice(0, 300) || null,
+        notes: event.description || null,
+        metadata: {
+          carrierStatus: event.status,
+          timestamp: event.timestamp,
+          providerKey,
+          source: 'tracking_poll',
+        },
+        externalEventId: fingerprint,
+        carrierEventCode: externalId?.slice(0, 40) || null,
+      });
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        // Duplicate — idempotent dedup. Another worker or a previous cycle
+        // already inserted this event. Safe to ignore.
+        this.logger.debug(
+          `Tracking event dedup: fingerprint ${fingerprint} already exists for shipment ${shipment.id}`,
+        );
+        return;
+      }
+      throw err;
+    }
   }
 }

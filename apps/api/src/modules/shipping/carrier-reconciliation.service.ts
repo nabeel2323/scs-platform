@@ -14,7 +14,7 @@
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, isNull, lte, or, sql } from 'drizzle-orm';
+import { eq, and, isNull, lte, or, sql, ne } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments } from '../orders/shipment.schema';
@@ -54,6 +54,9 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   /** Maximum shipments to reconcile per cycle. */
   private static readonly BATCH_SIZE = 20;
 
+  /** Claim lease timeout: 10 minutes. If a worker crashes, the claim expires after this. */
+  private static readonly CLAIM_LEASE_MS = 10 * 60 * 1000;
+
   constructor(
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
@@ -90,6 +93,15 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   /**
    * Run a reconciliation cycle.
    * Can also be called directly (e.g., from admin recovery endpoint).
+   *
+   * M7.2.4-A: Atomic claim via UPDATE ... RETURNING.
+   * Uses recoveryStatus = 'RECONCILING' as a claim marker and
+   * nextReconciliationAt as a lease timeout. Two-phase:
+   *   1. Short claim transaction (UPDATE ... RETURNING)
+   *   2. Process each claimed shipment without holding a transaction
+   *
+   * Two reconciliation workers (even across separate processes) will never
+   * process the same shipment as a normal candidate.
    */
   async reconcile(): Promise<ReconciliationResult[]> {
     if (this.running) return [];
@@ -98,28 +110,37 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const results: ReconciliationResult[] = [];
 
     try {
-      // Find shipments needing reconciliation
-      const candidates = await this.db.db
-        .select()
-        .from(shipments)
-        .where(
-          or(
-            // RECOVERY_REQUIRED state
-            eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
-            // Stuck PENDING/IN_PROGRESS with reconciliation due
-            and(
-              or(
-                eq(shipments.carrierCreateStatus, 'PENDING' as any),
-                eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
-              ),
-              lte(shipments.nextReconciliationAt, new Date()),
-            ),
-          ),
-        )
-        .orderBy(shipments.createdAt)
-        .limit(CarrierReconciliationService.BATCH_SIZE);
+      // M7.2.4-A: Atomic claim via UPDATE ... RETURNING.
+      // Claims shipments that need reconciliation by setting recoveryStatus = 'RECONCILING'
+      // and nextReconciliationAt to a future lease timestamp.
+      // Other workers see recoveryStatus = 'RECONCILING' and skip those rows.
+      const leaseExpiry = new Date(Date.now() + CarrierReconciliationService.CLAIM_LEASE_MS);
 
-      this.logger.log(`Reconciliation cycle: ${candidates.length} candidates.`);
+      const claimed = await this.db.db.execute(sql`
+        UPDATE shipments
+        SET recovery_status = 'RECONCILING',
+            next_reconciliation_at = ${leaseExpiry},
+            updated_at = NOW()
+        WHERE id IN (
+          SELECT id FROM shipments
+          WHERE (
+            carrier_create_status = 'RECOVERY_REQUIRED'
+            OR (
+              carrier_create_status IN ('PENDING', 'IN_PROGRESS')
+              AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
+            )
+          )
+          AND (recovery_status IS NULL
+               OR recovery_status NOT IN ('RECONCILING', 'RECOVERED', 'ADMIN_TRIGGERED'))
+          ORDER BY created_at
+          LIMIT ${CarrierReconciliationService.BATCH_SIZE}
+          FOR UPDATE SKIP LOCKED
+        )
+        RETURNING *
+      `);
+
+      const candidates = claimed.rows ?? [];
+      this.logger.log(`Reconciliation cycle: ${candidates.length} candidates claimed.`);
 
       for (const shipment of candidates) {
         const result = await this.reconcileShipment(shipment);

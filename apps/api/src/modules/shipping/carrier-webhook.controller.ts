@@ -246,31 +246,8 @@ export class CarrierWebhookController {
 
     // 10. Process the webhook — on failure, persist error and schedule async retry
     //     M7.2.3-C: Never block the HTTP response; always return 200 to the carrier.
+    //     M7.2.4-A: Removed duplicate shipment lookup (step 9 already did it).
     try {
-      // Resolve tenant: carrier shipment reference → SCS shipment → store → org
-      // NEVER trust storeId/orgId from the webhook payload.
-      const shipment = await this.db.db.query.shipments.findFirst({
-        where: and(
-          eq(shipments.carrierShipmentId, externalDeliveryId),
-        ),
-      });
-
-      if (shipment) {
-        // Link the webhook event to the shipment
-        await this.db.db.update(carrierWebhookEvents)
-          .set({ shipmentId: shipment.id })
-          .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-        this.logger.log(
-          `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
-          `(store: ${shipment.storeId})`,
-        );
-      } else {
-        this.logger.warn(
-          `Webhook from ${providerKey}: no shipment found for carrier ID ${externalDeliveryId}`,
-        );
-      }
-
       // Mark as processed
       await this.db.db.update(carrierWebhookEvents)
         .set({ processed: true, processedAt: new Date() })
@@ -293,6 +270,9 @@ export class CarrierWebhookController {
         })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
 
+      // M7.2.4-A: Resolve organizationId from the credential for tenant context.
+      const retryOrgId = (credential as any)?.orgId || null;
+
       // Insert async retry outbox event — the ShippingCarrierWorker picks this up
       try {
         await this.db.db.insert(outboxEvents).values({
@@ -307,7 +287,7 @@ export class CarrierWebhookController {
             source: 'webhook_async_retry',
           },
           status: 'PENDING',
-          organizationId: null,
+          organizationId: retryOrgId,
         });
       } catch (outboxErr: any) {
         this.logger.error(

@@ -496,10 +496,12 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     expect(shipmentCols.rows.length).toBe(3);
 
     // Check indexes exist
+    // M7.2.4-A: idx_shipment_events_external was replaced by uq_shipment_events_external_id
+    // (partial unique index) and idx_shipments_tracking_poll was added by migration 0046.
     const indexes = await pool.query(`
       SELECT indexname FROM pg_indexes
-      WHERE indexname IN ('idx_outbox_claim', 'idx_shipments_reconciliation', 'idx_shipments_tracking', 'idx_shipment_events_external', 'idx_webhook_events_lookup')
+      WHERE indexname IN ('idx_outbox_claim', 'idx_shipments_reconciliation', 'idx_shipments_tracking', 'uq_shipment_events_external_id', 'idx_shipments_tracking_poll', 'idx_webhook_events_lookup')
     `);
-    expect(indexes.rows.length).toBe(5);
+    expect(indexes.rows.length).toBe(6);
   });
 });
