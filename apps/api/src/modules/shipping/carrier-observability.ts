@@ -20,9 +20,10 @@
  *   - carrier_requests_total / carrier_request_failures_total
  *   - carrier_rate_limits_total
  *   - carrier_retries_total
- *   - carrier_recovery_total / carrier_reconciliation_total
+ *   - carrier_recovery_total / carrier_reconciliation_total / carrier_reconciliation_failures_total
  *   - carrier_webhook_total / carrier_webhook_failures_total / carrier_webhook_duplicates_total
- *   - carrier_outbox_pending / carrier_outbox_dead_letter
+ *   - carrier_outbox_pending / carrier_outbox_dead_letter (DB-backed gauges)
+ *   - carrier_request_duration_ms (cumulative duration + count for avg computation)
  *
  * NEVER logs:
  *   - Passwords, API keys, bearer tokens
@@ -34,6 +35,9 @@
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { eq, sql } from 'drizzle-orm';
+import { DatabaseService } from '../../common/database/database.service';
+import { outboxEvents } from '../audit/audit.schema';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -77,11 +81,13 @@ export type CarrierCounter =
   | 'carrier_retries_total'
   | 'carrier_recovery_total'
   | 'carrier_reconciliation_total'
+  | 'carrier_reconciliation_failures_total'
   | 'carrier_webhook_total'
   | 'carrier_webhook_failures_total'
   | 'carrier_webhook_duplicates_total'
   | 'carrier_outbox_pending'
-  | 'carrier_outbox_dead_letter';
+  | 'carrier_outbox_dead_letter'
+  | 'carrier_request_duration_ms';
 
 // ── Service ─────────────────────────────────────────────────────────────────
 
@@ -92,8 +98,15 @@ export class CarrierObservabilityService implements OnModuleInit, OnModuleDestro
   /** In-memory counters: Map<counterName, Map<providerKey, count>>. */
   private readonly counters = new Map<string, Map<string, number>>();
 
+  /** Duration tracking: Map<providerKey:operation, { totalMs, count }>. */
+  private readonly durations = new Map<string, { totalMs: number; count: number }>();
+
   /** Periodic counter flush interval (30 seconds). */
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(
+    private readonly db: DatabaseService,
+  ) {}
 
   onModuleInit() {
     this.flushTimer = setInterval(() => this.flushCounters(), 30_000);
@@ -226,7 +239,69 @@ export class CarrierObservabilityService implements OnModuleInit, OnModuleDestro
   }
 
   /**
+   * Record a request duration for a provider+operation combination.
+   * Accumulates total milliseconds and count for average computation.
+   * Dimensions: provider, operation, success/failure.
+   * NEVER records credentials, tokens, or sensitive data.
+   */
+  recordDuration(providerKey: string, operation: string, durationMs: number): void {
+    const key = `${providerKey}:${operation}`;
+    const existing = this.durations.get(key) || { totalMs: 0, count: 0 };
+    existing.totalMs += durationMs;
+    existing.count += 1;
+    this.durations.set(key, existing);
+
+    // Also accumulate as a counter for flush logging
+    this.incrementCounter('carrier_request_duration_ms', providerKey, durationMs);
+  }
+
+  /**
+   * Get average duration for a provider+operation.
+   */
+  getAverageDuration(providerKey: string, operation: string): number {
+    const key = `${providerKey}:${operation}`;
+    const entry = this.durations.get(key);
+    if (!entry || entry.count === 0) return 0;
+    return Math.round(entry.totalMs / entry.count);
+  }
+
+  /**
+   * DB-backed gauge: count of PENDING outbox events for carrier operations.
+   * Uses an efficient COUNT query — does not load rows.
+   */
+  async getOutboxPendingCount(): Promise<number> {
+    try {
+      const result = await this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM outbox_events
+        WHERE status = 'PENDING'
+          AND event_type LIKE 'shipping.carrier.%'
+      `);
+      return (result.rows?.[0] as any)?.cnt ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * DB-backed gauge: count of DEAD_LETTER outbox events for carrier operations.
+   * Uses an efficient COUNT query — does not load rows.
+   */
+  async getOutboxDeadLetterCount(): Promise<number> {
+    try {
+      const result = await this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS cnt FROM outbox_events
+        WHERE status = 'DEAD_LETTER'
+          AND event_type LIKE 'shipping.carrier.%'
+      `);
+      return (result.rows?.[0] as any)?.cnt ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * Periodically flush counters to the log (non-destructive snapshot).
+   * M7.2.4-A: Also refreshes DB-backed outbox gauges.
    */
   private flushCounters(): void {
     const snapshot = this.counterSnapshot();
@@ -242,7 +317,36 @@ export class CarrierObservabilityService implements OnModuleInit, OnModuleDestro
         .join(', ');
       parts.push(`${counter}: total=${total} (${detail})`);
     }
+
+    // Duration averages
+    if (this.durations.size > 0) {
+      const durParts: string[] = ['Duration averages:'];
+      for (const [key, { totalMs, count }] of this.durations) {
+        const avg = count > 0 ? Math.round(totalMs / count) : 0;
+        durParts.push(`${key}: avg=${avg}ms (n=${count})`);
+      }
+      parts.push(durParts.join(', '));
+    }
+
     this.logger.log(parts.join(' | '));
+
+    // Refresh DB-backed gauges asynchronously (non-blocking)
+    this.refreshOutboxGauges().catch(err => {
+      this.logger.error(`Failed to refresh outbox gauges: ${err?.message}`);
+    });
+  }
+
+  /**
+   * Refresh DB-backed outbox gauges and store as counters.
+   */
+  private async refreshOutboxGauges(): Promise<void> {
+    const [pending, deadLetter] = await Promise.all([
+      this.getOutboxPendingCount(),
+      this.getOutboxDeadLetterCount(),
+    ]);
+    // Store under a synthetic provider key '__all__' for flush visibility
+    this.incrementCounter('carrier_outbox_pending', '__all__', pending - this.getCounter('carrier_outbox_pending', '__all__'));
+    this.incrementCounter('carrier_outbox_dead_letter', '__all__', deadLetter - this.getCounter('carrier_outbox_dead_letter', '__all__'));
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────

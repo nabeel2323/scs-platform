@@ -1,19 +1,21 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query, UseGuards, HttpCode,
-  Logger, NotFoundException, ForbiddenException,
+  Logger, NotFoundException,
 } from '@nestjs/common';
-import { eq, and, or, isNull } from 'drizzle-orm';
+import { eq, and, or, isNull, inArray } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
   CurrentUser, JwtPayload, RequirePermission,
 } from '../../common/guards/current-user.decorator';
+import { isTenantPrivileged } from '../../common/tenant-scope';
 import { CarrierCredentialsService, CreateCarrierCredentialInput } from './carrier-credentials.service';
 import { CarrierConfigurationsService, CreateCarrierConfigurationInput, UpdateCarrierConfigurationInput } from './carrier-configurations.service';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { AuditService } from '../audit/audit.service';
 import { DatabaseService } from '../../common/database/database.service';
 import { shipments } from '../orders/shipment.schema';
+import { stores } from '../merchant/merchant.schema';
 
 /**
  * CarrierAdminController — M7.2.3-A + M7.2.3-C carrier management & recovery.
@@ -177,7 +179,9 @@ export class CarrierAdminController {
    * determines the correct action (recover, retry-safe, defer).
    *
    * RBAC: admin:shipping:recovery
-   * Org-scoped: cannot recover another org's shipments.
+   * M7.2.4-A Org-scoped: shipment → store → org chain verified against caller's activeOrg.
+   *   Cross-tenant requests return 404 (not 403) to avoid revealing existence.
+   *   SUPER_ADMIN bypasses via isTenantPrivileged().
    * Auditable: creates audit_log entry.
    */
   @Post('shipments/:id/recover')
@@ -197,14 +201,24 @@ export class CarrierAdminController {
       throw new NotFoundException(`Shipment ${id} not found`);
     }
 
-    // Org-scope: verify the caller's active org owns the shipment's store
-    // (The shipment doesn't have orgId directly, but the store belongs to an org)
-    // For simplicity, we verify the shipment is in a recoverable state
+    // M7.2.4-A Phase 6: Tenant isolation — verify shipment's store belongs to caller's org.
+    // Resolve: shipment → store → organization. Compare against caller's activeOrg.
+    // Cross-tenant → 404 (not 403) to avoid revealing another org's shipment exists.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    if (!isTenantPrivileged(caller)) {
+      const store = await this.db.db.query.stores.findFirst({
+        where: eq(stores.id, shipment.storeId),
+        columns: { orgId: true },
+      });
+      if (!store || store.orgId !== user.activeOrg) {
+        throw new NotFoundException(`Shipment ${id} not found`);
+      }
+    }
+
+    // Verify the shipment is in a recoverable state
     const recoverableStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
     if (!recoverableStatuses.includes(shipment.carrierCreateStatus || '')) {
-      throw new ForbiddenException(
-        `Shipment ${id} is not in a recoverable state (current: ${shipment.carrierCreateStatus})`,
-      );
+      throw new NotFoundException(`Shipment ${id} not found`);
     }
 
     // Schedule immediate reconciliation by setting nextReconciliationAt to now
@@ -217,8 +231,14 @@ export class CarrierAdminController {
       })
       .where(eq(shipments.id, id));
 
-    // Run reconciliation immediately for this shipment
-    const result = await this.reconciliation.reconcileShipment(shipment);
+    // M7.2.4-A Phase 8: Re-fetch the shipment after the update so reconciliation
+    // sees the authoritative current state (not a stale snapshot).
+    const freshShipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, id),
+    });
+
+    // Run reconciliation with fresh state
+    const result = await this.reconciliation.reconcileShipment(freshShipment!);
 
     // Audit trail
     await this.audit.record({
@@ -227,6 +247,7 @@ export class CarrierAdminController {
       action: 'carrier.shipment.recover',
       resource: 'shipments',
       resourceId: id,
+      orgId: user.activeOrg || undefined,
       metadata: {
         outcome: result.outcome,
         detail: result.detail,
@@ -252,6 +273,8 @@ export class CarrierAdminController {
    * List shipments needing recovery (RECOVERY_REQUIRED or stuck PENDING/IN_PROGRESS).
    *
    * RBAC: admin:shipping:recovery
+   * M7.2.4-A Phase 7: Tenant isolated — org admins see only their org's shipments.
+   *   SUPER_ADMIN sees all (via isTenantPrivileged bypass).
    */
   @Get('recovery/queue')
   @UseGuards(PermissionsGuard)
@@ -261,6 +284,38 @@ export class CarrierAdminController {
     @Query('limit') limit?: string,
   ) {
     const maxItems = Math.min(parseInt(limit || '50', 10) || 50, 200);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+
+    // M7.2.4-A Phase 7: For non-privileged callers, scope to their org's stores.
+    // Resolve the caller's store IDs and filter shipments by those stores.
+    let orgStoreIds: string[] | null = null;
+    if (!isTenantPrivileged(caller) && user.activeOrg) {
+      const storeRows = await this.db.db.query.stores.findMany({
+        where: eq(stores.orgId, user.activeOrg),
+        columns: { id: true },
+      });
+      orgStoreIds = storeRows.map(s => s.id);
+      // If the org has no stores, return empty queue
+      if (orgStoreIds.length === 0) {
+        return { queue: [], count: 0, limit: maxItems };
+      }
+    }
+
+    // Build the base query
+    const baseWhere = and(
+      or(
+        eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
+        and(
+          or(
+            eq(shipments.carrierCreateStatus, 'PENDING' as any),
+            eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
+            eq(shipments.carrierCreateStatus, 'FAILED' as any),
+          ),
+        ),
+      ),
+      // M7.2.4-A: tenant scope filter
+      orgStoreIds ? inArray(shipments.storeId, orgStoreIds) : undefined,
+    );
 
     const queue = await this.db.db
       .select({
@@ -279,18 +334,7 @@ export class CarrierAdminController {
         updatedAt: shipments.updatedAt,
       })
       .from(shipments)
-      .where(
-        or(
-          eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
-          and(
-            or(
-              eq(shipments.carrierCreateStatus, 'PENDING' as any),
-              eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
-              eq(shipments.carrierCreateStatus, 'FAILED' as any),
-            ),
-          ),
-        ),
-      )
+      .where(baseWhere)
       .orderBy(shipments.createdAt)
       .limit(maxItems);
 

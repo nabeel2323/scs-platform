@@ -404,16 +404,20 @@ describe('B1.9 — Observability', () => {
     return import('../../../modules/shipping/carrier-observability');
   }
 
+  // M7.2.4-A: CarrierObservabilityService now requires DatabaseService for DB-backed gauges.
+  // Unit tests use a minimal mock since they don't exercise DB gauge methods.
+  const mockDb = { db: { execute: async () => ({ rows: [] }) } } as any;
+
   it('generates correlation IDs with prefix', async () => {
     const { CarrierObservabilityService } = await loadObs();
-    const svc = new CarrierObservabilityService();
+    const svc = new CarrierObservabilityService(mockDb);
     const id = svc.generateCorrelationId();
     expect(id).toMatch(/^car-[0-9a-f-]{36}$/);
   });
 
   it('creates context with defaults', async () => {
     const { CarrierObservabilityService } = await loadObs();
-    const svc = new CarrierObservabilityService();
+    const svc = new CarrierObservabilityService(mockDb);
     const ctx = svc.createContext('aramex', 'createShipment', {
       organizationId: 'org-1',
       shipmentId: 'ship-1',
@@ -427,14 +431,14 @@ describe('B1.9 — Observability', () => {
 
   it('logStart does not throw', async () => {
     const { CarrierObservabilityService } = await loadObs();
-    const svc = new CarrierObservabilityService();
+    const svc = new CarrierObservabilityService(mockDb);
     const ctx = svc.createContext('aramex', 'createShipment');
     expect(() => svc.logStart(ctx)).not.toThrow();
   });
 
   it('logComplete does not throw', async () => {
     const { CarrierObservabilityService } = await loadObs();
-    const svc = new CarrierObservabilityService();
+    const svc = new CarrierObservabilityService(mockDb);
     const ctx = svc.createContext('aramex', 'createShipment');
     expect(() => svc.logComplete({
       context: ctx,

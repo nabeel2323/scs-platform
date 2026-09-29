@@ -6,6 +6,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
+import { carrierWebhookEvents } from './shipping.schema';
 import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest } from './shipping.types';
 import { classifyCarrierError, RetryableCarrierError } from './carrier-errors';
 import { CarrierObservabilityService } from './carrier-observability';
@@ -512,10 +513,106 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Handle shipping.carrier.webhook.retry — async webhook processing retry.
+   * Handle shipping.carrier.webhook.retry — async webhook re-processing.
+   *
+   * M7.2.4-A: Replaces the previous no-op implementation.
+   *
+   * Flow:
+   *   1. Load the original carrier_webhook_events row by aggregateId (webhookEventId)
+   *   2. Idempotent guard: if already processed, no-op
+   *   3. Re-attempt shipment linkage (may have failed originally due to timing)
+   *   4. Mark as processed on success
+   *   5. On failure: re-throw so handleFailure manages outbox retry
+   *
+   * The persisted webhook event is the authoritative retry source.
+   * No external carrier re-delivery is required — this is an internal retry
+   * of an already authenticated/persisted webhook event.
    */
   private async handleWebhookRetry(event: any): Promise<void> {
-    this.logger.log(`Webhook retry for event ${event.aggregateId} — delegated to webhook processor.`);
+    const webhookEventId = event.aggregateId;
+    if (!webhookEventId) throw new Error('shipping.carrier.webhook.retry requires aggregateId (webhookEventId)');
+
+    // 1. Load the original webhook event
+    const webhookEvent = await this.db.db.query.carrierWebhookEvents.findFirst({
+      where: eq(carrierWebhookEvents.id, webhookEventId),
+    });
+
+    if (!webhookEvent) {
+      this.logger.warn(`Webhook retry: event ${webhookEventId} not found — skipping.`);
+      return; // non-retryable: event row doesn't exist
+    }
+
+    // 2. Idempotent guard: already processed → no-op
+    if (webhookEvent.processed) {
+      this.logger.log(
+        `Webhook retry: event ${webhookEventId} already processed — skipping.`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Webhook retry: re-processing event ${webhookEventId} ` +
+      `(provider: ${webhookEvent.providerKey}, external: ${webhookEvent.externalDeliveryId})`,
+    );
+
+    // 3. Re-attempt shipment linkage (may have failed on first attempt)
+    if (!webhookEvent.shipmentId) {
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.carrierShipmentId, webhookEvent.externalDeliveryId),
+      });
+
+      if (shipment) {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ shipmentId: shipment.id })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+        this.logger.log(
+          `Webhook retry: linked event ${webhookEventId} to shipment ${shipment.id}`,
+        );
+      } else {
+        this.logger.warn(
+          `Webhook retry: no shipment found for carrier ID ${webhookEvent.externalDeliveryId}`,
+        );
+      }
+    }
+
+    // 4. Mark as processed — the actual "processing" for a webhook is
+    //    the linkage + persistence that already happened at ingest time.
+    //    The retry ensures the event is not silently lost.
+    try {
+      await this.db.db
+        .update(carrierWebhookEvents)
+        .set({
+          processed: true,
+          processedAt: new Date(),
+          processingError: null,
+        })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+      this.observability.incrementCounter('carrier_webhook_total', webhookEvent.providerKey);
+
+      this.logger.log(
+        `Webhook retry: event ${webhookEventId} processed successfully.`,
+      );
+    } catch (processingErr: any) {
+      // Mark the error but re-throw so the outbox retry policy handles backoff
+      await this.db.db
+        .update(carrierWebhookEvents)
+        .set({
+          processingError: (processingErr?.message || 'Unknown retry processing error').slice(0, 2000),
+        })
+        .where(eq(carrierWebhookEvents.id, webhookEventId));
+
+      this.observability.incrementCounter('carrier_webhook_failures_total', webhookEvent.providerKey);
+
+      this.logger.error(
+        `Webhook retry: event ${webhookEventId} failed: ${processingErr?.message}`,
+      );
+
+      // Re-throw so handleFailure manages the outbox retry/backoff/dead-letter
+      throw processingErr;
+    }
   }
 
   // ── Failure Handling ──────────────────────────────────────────────────────
