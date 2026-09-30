@@ -17,6 +17,25 @@ export type ShippingMethodType = 'STANDARD' | 'EXPRESS' | 'SAME_DAY' | 'SCHEDULE
 /** Carrier creation lifecycle status. */
 export type CarrierCreateStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'RECOVERY_REQUIRED';
 
+/**
+ * Carrier cancellation lifecycle status (M7.3-B.3).
+ *
+ * Modeled independently from {@link CarrierCreateStatus}: carrier creation and
+ * carrier cancellation are separate operation lifecycles and use separate
+ * state fields. Canonical values match the M7.3-B.3.0 architecture lock and
+ * all fit within VARCHAR(24). This is the state VOCABULARY only — the state
+ * machine execution is implemented in later B.3 phases, not here.
+ */
+export type CarrierCancelStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'UNKNOWN'
+  | 'NOT_REQUIRED'
+  | 'RECONCILIATION_REQUIRED'
+  | 'RETRY';
+
 export interface ShippingAddress {
   street: string;
   city: string;
@@ -159,11 +178,44 @@ export type GenerateLabelResult =
 export interface ProviderCapabilities {
   canCreateShipment: boolean;
   canCancel: boolean;
+  canCancelPickup: boolean;
   canGenerateLabel: boolean;
   canTrack: boolean;
   canValidateAddress: boolean;
   canReceiveWebhooks: boolean;
 }
+
+// ── Cancel Pickup (Provider Abstraction) ────────────────────────────────────
+
+/**
+ * CancelPickupRequest — input for the provider-level cancelPickup operation.
+ *
+ * The minimum information required by the carrier to cancel a scheduled pickup.
+ * The carrierPickupId must be a real carrier-assigned identifier (never fabricated).
+ */
+export interface CancelPickupRequest {
+  /** The carrier-assigned pickup identifier (e.g. Aramex PickupGUID). */
+  carrierPickupId: string;
+  /** Store ID — used for credential resolution / tenant isolation. */
+  storeId: string;
+  /** Shipment ID — used for idempotency key derivation and logging. */
+  shipmentId: string;
+  /** Optional comments forwarded to the carrier. */
+  comments?: string;
+}
+
+/**
+ * CancelPickupResult — typed result for the provider-level cancelPickup operation.
+ *
+ * Three shapes:
+ *   1. supported + cancelled     — carrier confirmed cancellation
+ *   2. supported + not cancelled — carrier responded with a business error
+ *   3. unsupported               — provider does not implement pickup cancellation
+ */
+export type CancelPickupResult =
+  | { supported: true; cancelled: true; carrierStatus?: string }
+  | { supported: true; cancelled: false; reason: string; carrierCode?: string }
+  | UnsupportedOperationResult;
 
 // ── Carrier Create Status Helpers ───────────────────────────────────────────
 
@@ -194,4 +246,59 @@ export function assertCarrierCreateStatus(value: string): asserts value is Carri
  */
 export function generateIdempotencyKey(shipmentId: string): string {
   return `carrier-create:${shipmentId}`;
+}
+
+// ── Carrier Cancel Status Helpers (M7.3-B.3.1) ──────────────────────────────
+
+/** All valid carrier cancel statuses (canonical vocabulary, no transitions yet). */
+export const CARRIER_CANCEL_STATUSES: readonly CarrierCancelStatus[] = [
+  'PENDING',
+  'IN_PROGRESS',
+  'SUCCEEDED',
+  'FAILED',
+  'UNKNOWN',
+  'NOT_REQUIRED',
+  'RECONCILIATION_REQUIRED',
+  'RETRY',
+] as const;
+
+/**
+ * Carrier-cancellation recovery tokens written to `shipments.recovery_status`
+ * (VARCHAR(24)) when a cancellation needs reconciliation or produces an
+ * ambiguous result. Namespaced with a `CANCEL_`/`DELIVERED_AFTER_` prefix so
+ * they never collide with the create-flow recovery values. Every token is
+ * <= 24 characters. `NOT_SUPPORTED` is deliberately excluded — the B.3.0 lock
+ * rejects that token; unsupported cancellation is represented by the
+ * `NOT_REQUIRED` carrier_cancel_status instead.
+ */
+export const CARRIER_CANCEL_RECOVERY_TOKENS = [
+  'CANCEL_UNKNOWN',
+  'CANCEL_TIMEOUT',
+  'CANCEL_FAILED',
+  'CANCEL_RECONCILE',
+  'DELIVERED_AFTER_CANCEL',
+] as const;
+
+export type CarrierCancelRecoveryToken = (typeof CARRIER_CANCEL_RECOVERY_TOKENS)[number];
+
+/**
+ * Validate that a string is a valid CarrierCancelStatus.
+ * Throws if the value is not in the allowed set.
+ */
+export function assertCarrierCancelStatus(value: string): asserts value is CarrierCancelStatus {
+  if (!CARRIER_CANCEL_STATUSES.includes(value as CarrierCancelStatus)) {
+    throw new Error(
+      `Invalid carrier cancel status: '${value}'. Allowed: ${CARRIER_CANCEL_STATUSES.join(', ')}`,
+    );
+  }
+}
+
+/**
+ * Generate a deterministic carrier-cancel idempotency key from a shipment ID.
+ * The same shipment always produces the same key (no random UUIDs), so a
+ * cancellation request is idempotent per shipment. Mirrors {@link
+ * generateIdempotencyKey} for the create flow.
+ */
+export function generateCarrierCancelIdempotencyKey(shipmentId: string): string {
+  return `carrier-cancel:${shipmentId}`;
 }

@@ -531,6 +531,7 @@ describe('B1.8 — Configuration Validation', () => {
       capabilities: {
         canCreateShipment: true,
         canCancel: false,
+        canCancelPickup: true,
         canGenerateLabel: true,
         canTrack: true,
         canValidateAddress: false,

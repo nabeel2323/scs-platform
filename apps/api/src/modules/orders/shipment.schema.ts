@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, jsonb, serial, integer } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, jsonb, serial, integer, boolean } from 'drizzle-orm/pg-core';
 import { users } from '../identity/identity.schema';
 import { stores } from '../merchant/merchant.schema';
 import { orders } from './orders.schema';
@@ -27,6 +27,16 @@ import { orders } from './orders.schema';
  * - carrierCreateStatus: PENDING/IN_PROGRESS/SUCCESS/FAILED
  * - carrierCreateError/carrierCreateRetries/carrierCreateAttemptedAt
  * - cancelledAt/cancellationReason: carrier-side cancellation
+ *
+ * M7.2.3-C recovery/reconciliation (0045):
+ * - recoveryStatus/nextReconciliationAt/carrierCreateErrorClass
+ *
+ * M7.3-B.3.1 carrier-cancel state foundation (0049):
+ * - carrierPickupId/pickupScheduled: carrier pickup persistence
+ *   (pickup workflow is not yet reachable in production; defaults inactive)
+ * - carrierCancelStatus/Error/ErrorClass/Retries/AttemptedAt/IdempotencyKey:
+ *   a DEDICATED cancellation lifecycle that never overloads the
+ *   carrier_create_* columns (create and cancel are separate operations)
  */
 
 export const shipments = pgTable('shipments', {
@@ -64,6 +74,17 @@ export const shipments = pgTable('shipments', {
   recoveryStatus: varchar('recovery_status', { length: 24 }),
   nextReconciliationAt: timestamp('next_reconciliation_at', { withTimezone: true }),
   carrierCreateErrorClass: varchar('carrier_create_error_class', { length: 40 }),
+  // M7.3-B.3.1 carrier pickup persistence (0049)
+  carrierPickupId: varchar('carrier_pickup_id', { length: 200 }),
+  pickupScheduled: boolean('pickup_scheduled').notNull().default(false),
+  // M7.3-B.3.1 carrier cancellation state (0049) — dedicated group,
+  // deliberately separate from the carrier_create_* lifecycle.
+  carrierCancelStatus: varchar('carrier_cancel_status', { length: 24 }),
+  carrierCancelError: text('carrier_cancel_error'),
+  carrierCancelErrorClass: varchar('carrier_cancel_error_class', { length: 40 }),
+  carrierCancelRetries: integer('carrier_cancel_retries').notNull().default(0),
+  carrierCancelAttemptedAt: timestamp('carrier_cancel_attempted_at', { withTimezone: true }),
+  carrierCancelIdempotencyKey: varchar('carrier_cancel_idempotency_key', { length: 120 }),
 });
 
 export const shipmentEvents = pgTable('shipment_events', {

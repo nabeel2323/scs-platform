@@ -6,6 +6,8 @@ import {
   ProviderCapabilities,
   ShippingAddress,
   CancelShipmentResult,
+  CancelPickupRequest,
+  CancelPickupResult,
   GenerateLabelResult,
   TrackingInfo,
 } from './shipping.types';
@@ -51,6 +53,17 @@ export abstract class ShippingProvider {
    */
   async cancelShipment(_shipmentId: string): Promise<CancelShipmentResult> {
     return { supported: false, reason: `${this.key} does not support shipment cancellation` };
+  }
+
+  /**
+   * Cancel a previously scheduled carrier pickup.
+   *
+   * M7.3-B.3.2: Providers that do not support pickup cancellation MUST return
+   * `{ supported: false, reason: '...' }` rather than silently doing nothing.
+   * Only providers whose capabilities include canCancelPickup should override.
+   */
+  async cancelPickup(_request: CancelPickupRequest): Promise<CancelPickupResult> {
+    return { supported: false, reason: `${this.key} does not support pickup cancellation` };
   }
 
   /**

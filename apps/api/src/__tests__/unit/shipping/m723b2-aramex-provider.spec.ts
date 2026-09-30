@@ -452,6 +452,7 @@ describe('B2.1: Provider Capabilities', () => {
     const caps = {
       canCreateShipment: true,
       canCancel: false,
+      canCancelPickup: true,
       canGenerateLabel: true,
       canTrack: true,
       canValidateAddress: true,
@@ -459,6 +460,7 @@ describe('B2.1: Provider Capabilities', () => {
     };
     expect(caps.canCreateShipment).toBe(true);
     expect(caps.canCancel).toBe(false);
+    expect(caps.canCancelPickup).toBe(true);
     expect(caps.canGenerateLabel).toBe(true);
     expect(caps.canTrack).toBe(true);
     expect(caps.canValidateAddress).toBe(true);
