@@ -33,10 +33,11 @@ describe('ManualDeliveryProvider', () => {
     expect(provider.name).toBe('Manual Driver Delivery');
   });
 
-  it('can create shipments but cannot cancel/label/track/validate/webhooks', () => {
+  it('can create shipments but cannot cancel/label/track/validate/webhooks/cancelPickup', () => {
     const caps: ProviderCapabilities = provider.capabilities;
     expect(caps.canCreateShipment).toBe(true);
     expect(caps.canCancel).toBe(false);
+    expect(caps.canCancelPickup).toBe(false);
     expect(caps.canGenerateLabel).toBe(false);
     expect(caps.canTrack).toBe(false);
     expect(caps.canValidateAddress).toBe(false);
@@ -115,6 +116,18 @@ describe('ManualDeliveryProvider', () => {
     await expect(
       provider.validateAddress({ street: 'A', city: 'B', country: 'SA' }),
     ).resolves.toBe(true);
+  });
+
+  it('cancelPickup returns unsupported result (M7.3-B.3.2)', async () => {
+    const result = await provider.cancelPickup({
+      carrierPickupId: 'any-pickup-id',
+      storeId: 'any-store',
+      shipmentId: 'any-shipment',
+    });
+    expect(result).toEqual({
+      supported: false,
+      reason: 'manual-driver does not support pickup cancellation',
+    });
   });
 
   it('mapCarrierStatus returns null', () => {

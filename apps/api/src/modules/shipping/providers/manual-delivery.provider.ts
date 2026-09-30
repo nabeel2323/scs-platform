@@ -30,6 +30,7 @@ export class ManualDeliveryProvider extends ShippingProvider {
   readonly capabilities: ProviderCapabilities = {
     canCreateShipment: true,
     canCancel: false,
+    canCancelPickup: false,
     canGenerateLabel: false,
     canTrack: false,
     canValidateAddress: false,

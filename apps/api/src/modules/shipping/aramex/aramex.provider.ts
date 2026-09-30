@@ -46,6 +46,8 @@ import {
   ProviderCapabilities,
   ShippingAddress,
   CancelShipmentResult,
+  CancelPickupRequest,
+  CancelPickupResult,
   GenerateLabelResult,
   TrackingInfo,
   TrackingEvent,
@@ -105,7 +107,6 @@ import type {
   AramexNotification,
   AramexRateResult,
   AramexPickupResult,
-  AramexCancelPickupResult,
 } from './aramex.types';
 
 // ── Provider ────────────────────────────────────────────────────────────────
@@ -119,6 +120,7 @@ export class AramexProvider extends ShippingProvider {
   readonly capabilities: ProviderCapabilities = {
     canCreateShipment: true,
     canCancel: false,          // Aramex has NO CancelShipment API
+    canCancelPickup: true,     // Aramex supports CancelPickup
     canGenerateLabel: true,
     canTrack: true,
     canValidateAddress: true,
@@ -656,15 +658,20 @@ export class AramexProvider extends ShippingProvider {
     };
   }
 
-  // ── CancelPickup (B2.16) ────────────────────────────────────────────────
+  // ── CancelPickup (B3.2) ────────────────────────────────────────────────
 
-  async cancelPickup(params: {
-    pickupGuid: string;
-    comments?: string;
-    storeId: string;
-  }): Promise<AramexCancelPickupResult> {
+  /**
+   * Cancel a previously scheduled carrier pickup.
+   *
+   * Uses the existing Aramex CancelPickup endpoint via the shared HTTP client.
+   * Credentials are resolved through the store → configuration → credential chain.
+   *
+   * HTTP 200 + HasErrors=true is treated as a carrier business error (NOT success).
+   * No blind retries — the caller (worker) owns the retry state machine.
+   */
+  override async cancelPickup(request: CancelPickupRequest): Promise<CancelPickupResult> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveCredentials(params.storeId);
+    const { payload, primaryUrl } = await this.resolveCredentials(request.storeId);
     const clientInfo = buildClientInfo(payload);
 
     const shippingBaseUrl = resolveCarrierEndpoint('shipping', payload, primaryUrl);
@@ -677,8 +684,8 @@ export class AramexProvider extends ShippingProvider {
 
     const cancelRequest: AramexCancelPickupRequest = {
       ClientInfo: clientInfo,
-      PickupGUID: params.pickupGuid,
-      Comments: params.comments,
+      PickupGUID: request.carrierPickupId,
+      Comments: request.comments,
     };
 
     const httpClient = this.createHttpClient();
@@ -692,11 +699,30 @@ export class AramexProvider extends ShippingProvider {
     });
 
     const body = response.body;
+
+    // B3.2 hardening: validate the carrier response structure before interpreting it.
+    // CarrierHttpClient.parseBody() returns the raw string on JSON parse failure,
+    // so body may be a string/primitive/null rather than a structured object.
+    // Without this check, a malformed response would be silently treated as success.
+    if (
+      typeof body !== 'object' ||
+      body === null ||
+      typeof body.HasErrors !== 'boolean'
+    ) {
+      throw new NonRetryableCarrierError(
+        'Aramex CancelPickup response missing HasErrors',
+        { providerKey: this.key, operation: 'cancelPickup' },
+      );
+    }
+
     if (body.HasErrors) {
+      const message = body.Notifications?.[0]?.Message || 'CancelPickup failed';
+      const carrierCode = body.Notifications?.[0]?.Code;
       return {
         supported: true,
         cancelled: false,
-        reason: body.Notifications?.[0]?.Message || 'CancelPickup failed',
+        reason: message,
+        carrierCode,
       };
     }
 
