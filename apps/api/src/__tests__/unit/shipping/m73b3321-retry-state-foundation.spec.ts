@@ -115,6 +115,8 @@ function makeShipment(overrides: Partial<ShipmentRow> = {}): ShipmentRow {
     carrierCreateStatus: 'SUCCESS',
     cancelledAt: null,
     cancellationReason: null,
+    recoveryStatus: null,
+    nextReconciliationAt: null,
     ...overrides,
   };
 }
@@ -348,10 +350,10 @@ describe('B3321-U-09..14: Terminal errors → FAILED, no throw', () => {
   });
 });
 
-// ── B3321-U-15..16: Timeout / connection reset → FAILED, no throw ──────────
+// ── B3321-U-15..16: Timeout / connection reset → UNKNOWN (B.3.3.3 implemented) ─
 
-describe('B3321-U-15..16: Timeout / indeterminate → FAILED, no throw (deferred to B.3.3.3)', () => {
-  it('timeout → FAILED with B.3.3.3 marker, does not throw', async () => {
+describe('B3321-U-15..16: Indeterminate transport → UNKNOWN (B.3.3.3)', () => {
+  it('timeout → UNKNOWN with CANCEL_TIMEOUT recovery token, does not throw', async () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
@@ -360,13 +362,15 @@ describe('B3321-U-15..16: Timeout / indeterminate → FAILED, no throw (deferred
 
     await (worker as any).handleCancel(makeEvent());
 
-    expect(shipment.carrierCancelStatus).toBe('FAILED');
-    expect(shipment.carrierCancelError).toContain('[TIMEOUT — B3.3.3 will set UNKNOWN]');
+    // B.3.3.3: timeout → UNKNOWN (not FAILED)
+    expect(shipment.carrierCancelStatus).toBe('UNKNOWN');
+    expect(shipment['recoveryStatus']).toBe('CANCEL_TIMEOUT');
+    expect(shipment['nextReconciliationAt']).not.toBeNull();
     expect(shipment.carrierCancelErrorClass).toBe('timeout');
     expect(shipment.carrierCancelRetries).toBe(0);
   });
 
-  it('connection reset (ECONNRESET) → FAILED, does not throw', async () => {
+  it('connection reset (ECONNRESET) → UNKNOWN with CANCEL_UNKNOWN, does not throw', async () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
@@ -377,7 +381,9 @@ describe('B3321-U-15..16: Timeout / indeterminate → FAILED, no throw (deferred
 
     await (worker as any).handleCancel(makeEvent());
 
-    expect(shipment.carrierCancelStatus).toBe('FAILED');
+    // B.3.3.3: ECONNRESET → UNKNOWN (not FAILED)
+    expect(shipment.carrierCancelStatus).toBe('UNKNOWN');
+    expect(shipment['recoveryStatus']).toBe('CANCEL_UNKNOWN');
     expect(shipment.carrierCancelErrorClass).toBe('timeout');
     expect(shipment.carrierCancelRetries).toBe(0);
   });

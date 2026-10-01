@@ -639,7 +639,7 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       `SELECT carrier_cancel_status, carrier_cancel_error_class FROM shipments WHERE id = $1`,
       [shipmentId],
     );
-    expect(shipRow.rows[0].carrier_cancel_status).toBe('FAILED');
+    expect(shipRow.rows[0].carrier_cancel_status).toBe('UNKNOWN');
     expect(shipRow.rows[0].carrier_cancel_status).not.toBe('SUCCEEDED');
     expect(shipRow.rows[0].carrier_cancel_error_class).toBe('timeout');
   });

@@ -84,6 +84,41 @@ export interface CarrierHttpResponse<T = unknown> {
   correlationId?: string;
 }
 
+// ── Retry-After parsing (M7.3-B.3.3.2.2) ────────────────────────────────────
+
+/**
+ * Parse the Retry-After header value as positive integer seconds.
+ *
+ * Accepts ONLY positive decimal integers (1–86400).
+ * Returns undefined for missing, empty, malformed, zero, negative,
+ * fractional, or out-of-range values. Never throws.
+ *
+ * HTTP-date format is NOT supported (deferred).
+ */
+export function parseRetryAfterSeconds(value: string | null): number | undefined {
+  if (value === null || value === '') return undefined;
+
+  const trimmed = value.trim();
+  if (trimmed === '') return undefined;
+
+  // Strict: digits only, optional leading minus (to reject before parseInt)
+  if (!/^-?\d+$/.test(trimmed)) return undefined;
+
+  const parsed = parseInt(trimmed, 10);
+
+  // Guard against NaN / Infinity (regex already prevents most cases)
+  if (!Number.isFinite(parsed)) return undefined;
+
+  // Zero and negative are invalid (BD-05, BD-06)
+  if (parsed <= 0) return undefined;
+
+  // Upper validation boundary — defense-in-depth (BD-07)
+  // CarrierRetryPolicy remains the single authority for the operational cap.
+  if (parsed > 86400) return undefined;
+
+  return parsed;
+}
+
 // ── Secret redaction ────────────────────────────────────────────────────────
 
 /**
@@ -169,7 +204,7 @@ export class CarrierHttpClient {
 
         // Classify HTTP-level errors
         if (status >= 400) {
-          const classified = this.classifyHttpStatus(status, req, rawBody);
+          const classified = this.classifyHttpStatus(status, req, rawBody, response.headers);
           if (classified.retryable && attempt < maxAttempts) {
             this.logger.warn(
               `[${correlationId}] Attempt ${attempt}/${maxAttempts} — ` +
@@ -346,6 +381,7 @@ export class CarrierHttpClient {
     status: number,
     req: CarrierHttpRequest,
     rawBody: string,
+    responseHeaders?: Headers,
   ): CarrierError {
     const opts = {
       providerKey: this.config.providerKey,
@@ -376,11 +412,14 @@ export class CarrierHttpClient {
       );
     }
 
-    // 429 → Rate limit
+    // 429 → Rate limit (read Retry-After header if present)
     if (status === 429) {
+      const retryAfterSeconds = responseHeaders
+        ? parseRetryAfterSeconds(responseHeaders.get('retry-after'))
+        : undefined;
       return new RateLimitCarrierError(
         'Rate limit exceeded (HTTP 429)',
-        opts,
+        { ...opts, retryAfterSeconds },
       );
     }
 
