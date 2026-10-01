@@ -165,6 +165,10 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       // and prevents other instances from selecting the same row.
       const cutoff = new Date(Date.now() - CarrierTrackingPoller.MIN_POLL_INTERVAL_MS);
 
+      // B.3.3.3 (C5): Exclude shipments with confirmed carrier cancellation
+      // from normal tracking progression. Only SUCCEEDED and NOT_REQUIRED are
+      // excluded — UNKNOWN/RECONCILIATION_REQUIRED shipments continue to be
+      // polled (full cancel-aware tracking deferred to B.3.3.4).
       const claimed = await this.db.db.execute(sql`
         UPDATE shipments
         SET last_carrier_sync_at = NOW(), updated_at = NOW()
@@ -174,6 +178,8 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
             AND carrier_tracking_id IS NOT NULL
             AND (carrier_status_mapped IS NULL
                  OR carrier_status_mapped NOT IN ('DELIVERED', 'CANCELLED', 'COMPLETED'))
+            AND (carrier_cancel_status IS NULL
+                 OR carrier_cancel_status NOT IN ('SUCCEEDED', 'NOT_REQUIRED'))
             AND (last_carrier_sync_at IS NULL OR last_carrier_sync_at <= ${cutoff})
           ORDER BY last_carrier_sync_at NULLS FIRST
           LIMIT ${CarrierTrackingPoller.BATCH_SIZE}

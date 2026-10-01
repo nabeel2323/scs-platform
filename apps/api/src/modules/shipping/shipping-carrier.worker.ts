@@ -630,25 +630,36 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       this.circuitBreaker.recordFailure(cbScope);
       const classification = classifyCarrierError(err);
       const isTimeout = this.isTimeoutError(err);
+      const errMsg = (err?.message || '').toLowerCase();
 
-      // TIMEOUT / INDETERMINATE:
-      //   B3.3.1 marks as FAILED. B3.3.3 will upgrade to UNKNOWN.
-      //   This branch is intentionally isolated so B3.3.3 can replace
-      //   the status assignment without restructuring the method.
+      // INDETERMINATE TRANSPORT FAILURE (B.3.3.3):
+      //   Timeout / ECONNRESET / ECONNABORTED / socket hang up / aborted.
+      //   The carrier MAY have processed the cancellation. We cannot know.
+      //   → UNKNOWN (never FAILED, never blind retry).
+      //   → recovery token: CANCEL_TIMEOUT for timeout/etimedout,
+      //     CANCEL_UNKNOWN for other transport failures.
+      //   → nextReconciliationAt = NOW() for immediate reconciliation.
+      //   → carrier_cancel_retries reset to 0 (reconciliation attempt counter).
       if (isTimeout) {
+        const isPureTimeout = errMsg.includes('timeout') || errMsg.includes('etimedout');
+        const recoveryToken = isPureTimeout ? 'CANCEL_TIMEOUT' : 'CANCEL_UNKNOWN';
+
         await this.db.db
           .update(shipments)
           .set({
-            carrierCancelStatus: 'FAILED' as any,
-            carrierCancelError: `[TIMEOUT — B3.3.3 will set UNKNOWN] ${classification.safeMessage}`.slice(0, 2000),
+            carrierCancelStatus: 'UNKNOWN' as any,
+            carrierCancelError: classification.safeMessage.slice(0, 2000),
             carrierCancelErrorClass: 'timeout',
             carrierCancelAttemptedAt: new Date(),
+            recoveryStatus: recoveryToken as any,
+            nextReconciliationAt: new Date(),
+            carrierCancelRetries: 0,
             updatedAt: new Date(),
           })
           .where(eq(shipments.id, shipmentId));
         this.logger.warn(
-          `Shipment ${shipmentId} — cancel timeout (indeterminate), marked FAILED. ` +
-          `B3.3.3 will upgrade to UNKNOWN.`,
+          `Shipment ${shipmentId} — indeterminate cancel (${recoveryToken}), ` +
+          `marked UNKNOWN. Reconciliation scheduled.`,
         );
         return;
       }

@@ -127,6 +127,8 @@ function makeShipment(overrides: Partial<ShipmentRow> = {}): ShipmentRow {
     carrierCreateStatus: 'SUCCESS',
     cancelledAt: null,
     cancellationReason: null,
+    recoveryStatus: null,
+    nextReconciliationAt: null,
     ...overrides,
   };
 }
@@ -527,7 +529,7 @@ describe('B331-U-15: Carrier-Neutral Worker Behavior', () => {
 // ── B331-U-16: Timeout Cannot Produce SUCCEEDED ────────────────────────────
 
 describe('B331-U-16: Timeout Boundary Protection', () => {
-  it('timeout error CANNOT produce carrierCancelStatus = SUCCEEDED', async () => {
+  it('timeout error → UNKNOWN (B.3.3.3), CANNOT produce SUCCEEDED', async () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
@@ -537,12 +539,12 @@ describe('B331-U-16: Timeout Boundary Protection', () => {
     await (worker as any).handleCancel(makeEvent());
 
     expect(shipment.carrierCancelStatus).not.toBe('SUCCEEDED');
-    expect(shipment.carrierCancelStatus).toBe('FAILED');
+    // B.3.3.3: timeout → UNKNOWN (not FAILED)
+    expect(shipment.carrierCancelStatus).toBe('UNKNOWN');
     expect(shipment.carrierCancelErrorClass).toBe('timeout');
-    expect(shipment.carrierCancelError).toContain('TIMEOUT');
   });
 
-  it('socket hang up cannot produce SUCCEEDED', async () => {
+  it('socket hang up → UNKNOWN (B.3.3.3), cannot produce SUCCEEDED', async () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
@@ -552,7 +554,8 @@ describe('B331-U-16: Timeout Boundary Protection', () => {
     await (worker as any).handleCancel(makeEvent());
 
     expect(shipment.carrierCancelStatus).not.toBe('SUCCEEDED');
-    expect(shipment.carrierCancelStatus).toBe('FAILED');
+    // B.3.3.3: socket hang up → UNKNOWN (not FAILED)
+    expect(shipment.carrierCancelStatus).toBe('UNKNOWN');
     expect(shipment.carrierCancelErrorClass).toBe('timeout');
   });
 });

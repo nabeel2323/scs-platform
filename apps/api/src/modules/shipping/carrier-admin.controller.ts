@@ -215,9 +215,12 @@ export class CarrierAdminController {
       }
     }
 
-    // Verify the shipment is in a recoverable state
-    const recoverableStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
-    if (!recoverableStatuses.includes(shipment.carrierCreateStatus || '')) {
+    // Verify the shipment is in a recoverable state (create or cancel)
+    const recoverableCreateStatuses = ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED'];
+    const recoverableCancelStatuses = ['UNKNOWN', 'RECONCILIATION_REQUIRED'];
+    const isCreateRecoverable = recoverableCreateStatuses.includes(shipment.carrierCreateStatus || '');
+    const isCancelRecoverable = recoverableCancelStatuses.includes(shipment.carrierCancelStatus || '');
+    if (!isCreateRecoverable && !isCancelRecoverable) {
       throw new NotFoundException(`Shipment ${id} not found`);
     }
 
@@ -237,7 +240,7 @@ export class CarrierAdminController {
       where: eq(shipments.id, id),
     });
 
-    // Run reconciliation with fresh state
+    // Run reconciliation with fresh state (routes to create or cancel path)
     const result = await this.reconciliation.reconcileShipment(freshShipment!);
 
     // Audit trail
@@ -251,7 +254,8 @@ export class CarrierAdminController {
       metadata: {
         outcome: result.outcome,
         detail: result.detail,
-        previousStatus: shipment.carrierCreateStatus,
+        previousCreateStatus: shipment.carrierCreateStatus,
+        previousCancelStatus: shipment.carrierCancelStatus,
         previousRecoveryStatus: shipment.recoveryStatus,
       },
     });
@@ -301,17 +305,23 @@ export class CarrierAdminController {
       }
     }
 
-    // Build the base query
+    // Build the base query — includes both create and cancel recovery states
     const baseWhere = and(
       or(
-        eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
-        and(
-          or(
-            eq(shipments.carrierCreateStatus, 'PENDING' as any),
-            eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
-            eq(shipments.carrierCreateStatus, 'FAILED' as any),
+        // Create recovery states
+        or(
+          eq(shipments.carrierCreateStatus, 'RECOVERY_REQUIRED' as any),
+          and(
+            or(
+              eq(shipments.carrierCreateStatus, 'PENDING' as any),
+              eq(shipments.carrierCreateStatus, 'IN_PROGRESS' as any),
+              eq(shipments.carrierCreateStatus, 'FAILED' as any),
+            ),
           ),
         ),
+        // B.3.3.3: Cancel recovery states
+        eq(shipments.carrierCancelStatus, 'UNKNOWN' as any),
+        eq(shipments.carrierCancelStatus, 'RECONCILIATION_REQUIRED' as any),
       ),
       // M7.2.4-A: tenant scope filter
       orgStoreIds ? inArray(shipments.storeId, orgStoreIds) : undefined,
@@ -326,6 +336,11 @@ export class CarrierAdminController {
         carrierCreateError: shipments.carrierCreateError,
         carrierCreateErrorClass: shipments.carrierCreateErrorClass,
         carrierCreateRetries: shipments.carrierCreateRetries,
+        // B.3.3.3: Cancel state fields
+        carrierCancelStatus: shipments.carrierCancelStatus,
+        carrierCancelError: shipments.carrierCancelError,
+        carrierCancelErrorClass: shipments.carrierCancelErrorClass,
+        carrierCancelRetries: shipments.carrierCancelRetries,
         recoveryStatus: shipments.recoveryStatus,
         nextReconciliationAt: shipments.nextReconciliationAt,
         shippingProviderKey: shipments.shippingProviderKey,
