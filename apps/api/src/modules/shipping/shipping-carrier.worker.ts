@@ -7,7 +7,7 @@ import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
 import { carrierWebhookEvents } from './shipping.schema';
-import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest } from './shipping.types';
+import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
 import { classifyCarrierError, RetryableCarrierError } from './carrier-errors';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierEmailResolver } from './carrier-email-resolver';
@@ -441,10 +441,262 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Handle shipping.carrier.cancel.
+   *
+   * M7.3-B.3.3.1 — Cancellation Execution Foundation.
+   *
+   * Flow:
+   *   1. Load shipment by aggregateId
+   *   2. Idempotent guard: SUCCEEDED / NOT_REQUIRED → skip
+   *   3. Resolve provider
+   *   4. Manual / unsupported → NOT_REQUIRED
+   *   5. Missing carrierPickupId → FAILED
+   *   6. Check circuit breaker
+   *   7. PENDING → IN_PROGRESS
+   *   8. Build CancelPickupRequest, call provider.cancelPickup()
+   *   9. Deterministic outcome: SUCCEEDED / FAILED / NOT_REQUIRED
+   *
+   * B3.3.1 scope: only deterministic outcomes. No RETRY, no UNKNOWN.
+   * Timeout/indeterminate errors are marked FAILED with a clear marker;
+   * B3.3.3 will upgrade these to UNKNOWN.
    */
   private async handleCancel(event: any): Promise<void> {
     const shipmentId = event.aggregateId;
-    this.logger.log(`Carrier cancel requested for shipment ${shipmentId} — not yet implemented.`);
+    if (!shipmentId) throw new Error('shipping.carrier.cancel requires aggregateId (shipmentId)');
+
+    // 1. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new Error(`Shipment ${shipmentId} not found`);
+
+    // Tenant verification: event storeId must match shipment storeId
+    const eventStoreId = event.storeId || event.metadata?.storeId;
+    if (eventStoreId && eventStoreId !== shipment.storeId) {
+      throw new Error(
+        `Tenant mismatch: event storeId ${eventStoreId} ≠ shipment storeId ${shipment.storeId}`,
+      );
+    }
+
+    // 2. Idempotent guard
+    const cancelStatus = shipment.carrierCancelStatus as string | null;
+    if (cancelStatus === 'SUCCEEDED') {
+      this.logger.log(`Shipment ${shipmentId} already SUCCEEDED — skipping cancel.`);
+      return;
+    }
+    if (cancelStatus === 'NOT_REQUIRED') {
+      this.logger.log(`Shipment ${shipmentId} already NOT_REQUIRED — skipping cancel.`);
+      return;
+    }
+
+    // 3. Resolve provider
+    const providerKey = shipment.shippingProviderKey || 'manual-driver';
+    const provider = this.registry.findProvider(providerKey);
+    if (!provider) {
+      throw new Error(`Provider '${providerKey}' not found in registry`);
+    }
+
+    // 4. Manual provider → NOT_REQUIRED
+    if (provider.type === 'MANUAL') {
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCancelStatus: 'NOT_REQUIRED' as any,
+          carrierCancelAttemptedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+      this.logger.log(`Shipment ${shipmentId} — manual provider, cancel NOT_REQUIRED.`);
+      return;
+    }
+
+    // 5. Check provider capability
+    if (!provider.capabilities.canCancelPickup) {
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCancelStatus: 'NOT_REQUIRED' as any,
+          carrierCancelAttemptedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+      this.logger.log(
+        `Shipment ${shipmentId} — provider ${providerKey} cannot cancel pickup → NOT_REQUIRED.`,
+      );
+      return;
+    }
+
+    // 6. Verify carrierPickupId exists
+    if (!shipment.carrierPickupId) {
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCancelStatus: 'FAILED' as any,
+          carrierCancelError: 'No carrierPickupId on shipment — cannot cancel',
+          carrierCancelErrorClass: 'validation',
+          carrierCancelAttemptedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+      this.logger.warn(`Shipment ${shipmentId} — no carrierPickupId for cancel.`);
+      return;
+    }
+
+    // 7. Circuit breaker check
+    const cbScope = CarrierCircuitBreaker.scopeKey(providerKey);
+    if (!this.circuitBreaker.canRequest(cbScope)) {
+      this.logger.warn(
+        `Circuit breaker OPEN for ${providerKey} — cannot cancel shipment ${shipmentId}`,
+      );
+      throw new RetryableCarrierError(`Circuit breaker open for ${providerKey}`, {
+        providerKey,
+        operation: 'cancelPickup',
+      });
+    }
+
+    // 8. Transition PENDING → IN_PROGRESS
+    await this.db.db
+      .update(shipments)
+      .set({
+        carrierCancelStatus: 'IN_PROGRESS' as any,
+        carrierCancelAttemptedAt: new Date(),
+        carrierCancelIdempotencyKey: `carrier-cancel:${shipmentId}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(shipments.id, shipmentId));
+
+    // 9. Build CancelPickupRequest
+    const cancelRequest: CancelPickupRequest = {
+      carrierPickupId: shipment.carrierPickupId,
+      storeId: shipment.storeId,
+      shipmentId,
+    };
+
+    try {
+      const result = await provider.cancelPickup(cancelRequest);
+
+      // Unsupported result → NOT_REQUIRED
+      if (!result.supported) {
+        await this.db.db
+          .update(shipments)
+          .set({
+            carrierCancelStatus: 'NOT_REQUIRED' as any,
+            carrierCancelAttemptedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(shipments.id, shipmentId));
+        this.logger.log(
+          `Shipment ${shipmentId} — cancelPickup unsupported → NOT_REQUIRED.`,
+        );
+        return;
+      }
+
+      // Success → SUCCEEDED
+      if (result.cancelled) {
+        await this.db.db
+          .update(shipments)
+          .set({
+            carrierCancelStatus: 'SUCCEEDED' as any,
+            carrierCancelError: null,
+            carrierCancelErrorClass: null,
+            carrierCancelAttemptedAt: new Date(),
+            cancelledAt: new Date(),
+            cancellationReason: 'Carrier pickup cancelled via worker',
+            updatedAt: new Date(),
+          })
+          .where(eq(shipments.id, shipmentId));
+
+        this.circuitBreaker.recordSuccess(cbScope);
+        this.logger.log(`Shipment ${shipmentId} — carrier cancel SUCCEEDED.`);
+        return;
+      }
+
+      // Business failure → FAILED (deterministic, no blind retry)
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCancelStatus: 'FAILED' as any,
+          carrierCancelError: (result.reason || 'Carrier cancel failed').slice(0, 2000),
+          carrierCancelErrorClass: 'business_failure',
+          carrierCancelAttemptedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+
+      this.circuitBreaker.recordFailure(cbScope);
+      this.logger.warn(
+        `Shipment ${shipmentId} — carrier cancel FAILED: ${result.reason}`,
+      );
+    } catch (err: any) {
+      this.circuitBreaker.recordFailure(cbScope);
+      const classification = classifyCarrierError(err);
+      const isTimeout = this.isTimeoutError(err);
+
+      // TIMEOUT / INDETERMINATE:
+      //   B3.3.1 marks as FAILED. B3.3.3 will upgrade to UNKNOWN.
+      //   This branch is intentionally isolated so B3.3.3 can replace
+      //   the status assignment without restructuring the method.
+      if (isTimeout) {
+        await this.db.db
+          .update(shipments)
+          .set({
+            carrierCancelStatus: 'FAILED' as any,
+            carrierCancelError: `[TIMEOUT — B3.3.3 will set UNKNOWN] ${classification.safeMessage}`.slice(0, 2000),
+            carrierCancelErrorClass: 'timeout',
+            carrierCancelAttemptedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(shipments.id, shipmentId));
+        this.logger.warn(
+          `Shipment ${shipmentId} — cancel timeout (indeterminate), marked FAILED. ` +
+          `B3.3.3 will upgrade to UNKNOWN.`,
+        );
+        return;
+      }
+
+      // TERMINAL / UNSUPPORTED:
+      //   Auth, validation, 404, business failure, malformed response, etc.
+      //   B3.3.1 behavior preserved — FAILED, no re-throw.
+      if (classification.decision === 'terminal' || classification.decision === 'unsupported') {
+        await this.db.db
+          .update(shipments)
+          .set({
+            carrierCancelStatus: 'FAILED' as any,
+            carrierCancelError: classification.safeMessage.slice(0, 2000),
+            carrierCancelErrorClass: classification.decision,
+            carrierCancelAttemptedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(shipments.id, shipmentId));
+
+        this.logger.error(
+          `Shipment ${shipmentId} — cancel terminal error (${classification.decision}): ${classification.safeMessage}`,
+        );
+        return;
+      }
+
+      // RETRYABLE (retry / backoff):
+      //   B3.3.2 — increment carrierCancelRetries, persist safe error,
+      //   set status back to PENDING, re-throw for handleFailure() →
+      //   CarrierRetryPolicy → outbox PENDING + nextAttemptAt.
+      //   Follows the same pattern as handleCreate() retryable path.
+      await this.db.db
+        .update(shipments)
+        .set({
+          carrierCancelStatus: 'PENDING' as any,
+          carrierCancelError: classification.safeMessage.slice(0, 2000),
+          carrierCancelErrorClass: classification.decision,
+          carrierCancelRetries: (shipment.carrierCancelRetries || 0) + 1,
+          carrierCancelAttemptedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipmentId));
+
+      this.logger.warn(
+        `Shipment ${shipmentId} — cancel retryable error (${classification.decision}), ` +
+        `retries: ${(shipment.carrierCancelRetries || 0) + 1}. Re-throwing for outbox retry.`,
+      );
+      throw err;
+    }
   }
 
   /**
