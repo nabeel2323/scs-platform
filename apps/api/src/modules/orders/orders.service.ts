@@ -1078,6 +1078,10 @@ export class OrdersService {
               status: 'CANCELLED',
               cancelledAt: new Date(),
               cancellationReason: reason,
+              // M7.3-B.3.3.1: initial carrier-cancel status so the worker
+              // can consume the event asynchronously.
+              carrierCancelStatus: 'PENDING',
+              carrierCancelIdempotencyKey: `carrier-cancel:${shipmentId}`,
               updatedAt: new Date(),
             })
             .where(eq(shipments.id, shipmentId));
@@ -1092,6 +1096,19 @@ export class OrdersService {
             notes: reason,
           });
         }
+
+        // 4b. Carrier cancellation outbox event (M7.3-B.3.3.1).
+        // Created atomically inside the cancellation transaction so the
+        // worker can asynchronously call the external carrier's CancelPickup.
+        // The worker checks provider capability and carrierPickupId.
+        await this.outbox.publish(
+          'shipping.carrier.cancel',
+          shipmentId,
+          { shipmentId },
+          { storeId: order['storeId'] },
+          null,
+          tx,
+        );
       }
 
       // 5. Order status history with correct actorType
