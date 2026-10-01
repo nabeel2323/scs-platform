@@ -12,7 +12,7 @@
  *   B3321-PG-08  lease recovery works for retrying cancellation
  *   B3321-PG-09  concurrent workers: exactly one processes the event
  *   B3321-PG-10  retryable failure sets carrierCancelStatus = PENDING
- *   B3321-PG-11  timeout remains FAILED (no retry)
+ *   B3321-PG-11  timeout → UNKNOWN, reconciliation scheduled (B.3.3.3)
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
@@ -483,9 +483,9 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     expect(termRow.rows[0].carrier_cancel_status).toBe('FAILED');
   });
 
-  // ── B3321-PG-11: Timeout remains FAILED (no retry) ─────────────────────
+  // ── B3321-PG-11: Timeout → UNKNOWN (B.3.3.3 indeterminate outcome) ────
 
-  it('B3321-PG-11: timeout → FAILED, no retry counter increment', async () => {
+  it('B3321-PG-11: timeout → UNKNOWN, reconciliation scheduled', async () => {
     const provider = new TimeoutErrorProvider();
     const worker = createWorkerWithProvider(dbService, provider);
 
@@ -496,7 +496,7 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     });
 
     const row = await pool.query(`SELECT carrier_cancel_status, carrier_cancel_retries, carrier_cancel_error_class FROM shipments WHERE id = $1`, [shipmentId]);
-    expect(row.rows[0].carrier_cancel_status).toBe('FAILED');
+    expect(row.rows[0].carrier_cancel_status).toBe('UNKNOWN');
     expect(row.rows[0].carrier_cancel_retries).toBe(0);
     expect(row.rows[0].carrier_cancel_error_class).toBe('timeout');
   });
