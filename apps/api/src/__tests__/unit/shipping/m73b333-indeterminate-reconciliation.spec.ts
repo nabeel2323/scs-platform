@@ -211,7 +211,13 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     expect(mockDb.db.update).toHaveBeenCalled();
   });
 
-  it('B333-U-11b: tracking confirmed PICKUP_CANCELLED → SUCCEEDED', async () => {
+  it('B333-U-11b: PICKUP_CANCELLED is NOT definitive evidence → deferred (M7.3-B.3.4 BD-3.4-09/C7)', async () => {
+    // M7.3-B.3.4 supersedes the original B.3.3.3 expectation for this case.
+    // The Aramex status mapper has no PICKUP_CANCELLED equivalent (SH012 ->
+    // CANCELLED is the only cancellation code), so the reconciliation branch was
+    // unreachable in production and was removed per locked decision BD-3.4-09/C7.
+    // A synthetic PICKUP_CANCELLED must therefore fall through to the
+    // conservative attempt-based path — it must NEVER resolve to SUCCEEDED.
     const { service } = createServiceWithMocks({ trackingStatus: 'PICKUP_CANCELLED' });
 
     const shipment = {
@@ -224,7 +230,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     };
 
     const result = await service.reconcileCancelShipment(shipment);
-    expect(result.outcome).toBe('cancel_succeeded');
+    expect(result.outcome).toBe('cancel_deferred');
+    expect(result.outcome).not.toBe('cancel_succeeded');
   });
 
   it('B333-U-12: tracking returns non-cancel status → deferred (not SUCCEEDED)', async () => {

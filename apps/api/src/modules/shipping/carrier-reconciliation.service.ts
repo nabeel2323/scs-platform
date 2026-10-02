@@ -60,7 +60,15 @@ export interface ReconciliationResult {
 export class CarrierReconciliationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CarrierReconciliationService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
-  private running = false;
+  /**
+   * M7.3-B.3.4 (BD-3.4-10 / F-02): separate process-local mutexes.
+   * Previously a single shared `running` flag made create reconciliation
+   * block cancel reconciliation (and vice versa) within one process.
+   * Cross-process safety is still guaranteed by FOR UPDATE SKIP LOCKED;
+   * these flags only prevent overlapping cycles on the same instance.
+   */
+  private runningCreate = false;
+  private runningCancel = false;
 
   /** Reconciliation interval: 10 minutes (configurable). */
   private readonly intervalMs: number;
@@ -150,8 +158,8 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    * process the same shipment as a normal candidate.
    */
   async reconcile(): Promise<ReconciliationResult[]> {
-    if (this.running) return [];
-    this.running = true;
+    if (this.runningCreate) return [];
+    this.runningCreate = true;
 
     const results: ReconciliationResult[] = [];
 
@@ -201,7 +209,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     } catch (err: any) {
       this.logger.error(`Reconciliation cycle error: ${err?.message}`);
     } finally {
-      this.running = false;
+      this.runningCreate = false;
     }
 
     return results;
@@ -353,8 +361,8 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    * as the create reconciliation path.
    */
   async reconcileCancel(): Promise<ReconciliationResult[]> {
-    if (this.running) return [];
-    this.running = true;
+    if (this.runningCancel) return [];
+    this.runningCancel = true;
 
     const results: ReconciliationResult[] = [];
 
@@ -395,7 +403,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     } catch (err: any) {
       this.logger.error(`Cancel reconciliation cycle error: ${err?.message}`);
     } finally {
-      this.running = false;
+      this.runningCancel = false;
     }
 
     return results;
@@ -464,7 +472,13 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
           const status = (trackingInfo.status || '').toUpperCase();
           // Only verified cancellation statuses resolve to SUCCEEDED.
           // Without verified Aramex cancellation codes, this path is conservative.
-          if (status === 'CANCELLED' || status === 'PICKUP_CANCELLED') {
+          //
+          // M7.3-B.3.4 (BD-3.4-09 / C7): the PICKUP_CANCELLED branch was removed.
+          // The Aramex status mapper produces no PICKUP_CANCELLED equivalent
+          // (SH012 -> CANCELLED is the only cancellation code), so that condition
+          // was unreachable via the tracking path. It is NOT replaced with an
+          // invented carrier code — per the Aramex evidence rule.
+          if (status === 'CANCELLED') {
             await this.resolveCancelSucceeded(shipment);
             return { shipmentId, outcome: 'cancel_succeeded', detail: `Tracking: ${status}` };
           }
