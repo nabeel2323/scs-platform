@@ -52,6 +52,45 @@ export const CARRIER_STATUS_ORDER: readonly string[] = [
 const TERMINAL_STATUSES = new Set(['DELIVERED', 'CANCELLED', 'COMPLETED']);
 
 /**
+ * M7.3-B.3.4 (C6 / BD-3.4-05): carrier cancel statuses for which an incoming
+ * carrier DELIVERED is an anomaly rather than a normal progression.
+ *
+ * CASE A — 'SUCCEEDED' / 'NOT_REQUIRED' are already excluded from polling by the
+ *          B.3.3.3 C5 guard, so they never reach this check.
+ * CASE B — these three statuses mean SCS has begun/finished a cancellation whose
+ *          carrier-side outcome is cancelled-or-unknown; a carrier DELIVERED while
+ *          the shipment is in one of these states is DELIVERED_AFTER_CANCEL.
+ */
+export const DELIVERED_AFTER_CANCEL_STATUSES: readonly string[] = [
+  'UNKNOWN',
+  'RECONCILIATION_REQUIRED',
+  'FAILED',
+] as const;
+
+/**
+ * M7.3-B.3.4 (§3): cancel statuses for which normal tracking behavior is preserved.
+ * A shipment with no cancellation in flight must still advance tracking state,
+ * invoke the existing delivery bridge, and keep existing inventory settlement behavior.
+ */
+export const NORMAL_TRACKING_CANCEL_STATUSES: readonly (string | null)[] = [
+  null,
+  'PENDING',
+  'IN_PROGRESS',
+] as const;
+
+/**
+ * Decide whether a carrier DELIVERED must be treated as a delivered-after-cancel
+ * exception instead of a normal delivery progression.
+ *
+ * Type predicate: a true result also proves the status is non-null.
+ */
+export function isDeliveredAfterCancel(
+  carrierCancelStatus: string | null,
+): carrierCancelStatus is string {
+  return DELIVERED_AFTER_CANCEL_STATUSES.includes(carrierCancelStatus ?? '');
+}
+
+/**
  * Check if a status transition is valid (forward-only).
  */
 export function canTransition(currentStatus: string | null, incomingStatus: string): boolean {
@@ -217,6 +256,28 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       const trackingInfo = await provider.getTrackingInfo(shipment.carrierTrackingId);
       this.circuitBreaker.recordSuccess(cbScope);
 
+      // ── M7.3-B.3.4 (C6 / BD-3.4-04 / BD-3.4-05): DELIVERED_AFTER_CANCEL ──
+      // A carrier DELIVERED on a shipment whose cancellation is UNKNOWN,
+      // RECONCILIATION_REQUIRED or FAILED is an operational anomaly, not a
+      // delivery. SCS cancellation stays authoritative: we record an exception
+      // event and a recovery token only — we never advance carrier_status_mapped,
+      // never invoke the order delivery bridge, never mutate shipment.status and
+      // never settle inventory. Shipments already SUCCEEDED/NOT_REQUIRED are
+      // excluded upstream by the C5 guard and never reach this branch.
+      //
+      // Detected straight off the carrier-reported status and BEFORE the
+      // no-events short-circuit, so an anomaly can never be missed because the
+      // provider returned a status without a detailed event list. Raw carrier
+      // events are still persisted below (existing behavior — they never advance
+      // state). The shipment row comes from raw SQL (`UPDATE ... RETURNING *`),
+      // so its keys are snake_case here.
+      const cancelStatus = (shipment.carrier_cancel_status ?? null) as string | null;
+      let deliveredAfterCancel = false;
+      if (trackingInfo?.status === 'DELIVERED' && isDeliveredAfterCancel(cancelStatus)) {
+        deliveredAfterCancel = true;
+        await this.handleDeliveredAfterCancel(shipment, providerKey, cancelStatus);
+      }
+
       if (!trackingInfo || !trackingInfo.events.length) {
         // No new events
         await this.db.db
@@ -233,7 +294,12 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
       // Update shipment status if advanced
       const latestStatus = trackingInfo.status;
-      if (latestStatus && canTransition(shipment.carrierStatusMapped, latestStatus)) {
+
+      if (
+        !deliveredAfterCancel &&
+        latestStatus &&
+        canTransition(shipment.carrierStatusMapped, latestStatus)
+      ) {
         await this.db.db
           .update(shipments)
           .set({
@@ -271,6 +337,84 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         `Tracking poll failed for shipment ${shipment.id}: ${err?.message}`,
       );
     }
+  }
+
+  /**
+   * M7.3-B.3.4 (C6): record a delivered-after-cancel exception.
+   *
+   * Operational visibility ONLY — no order mutation, no shipment.status mutation,
+   * no delivery bridge invocation, no carrier_status_mapped advance, no inventory
+   * SALE. SCS cancellation remains authoritative.
+   *
+   * Idempotent under repeated carrier DELIVERED polls:
+   *   - the exception event carries a deterministic `external_event_id`, so the
+   *     UNIQUE index `uq_shipment_events_external_id` (migration 0046) turns a
+   *     re-insert into a PG 23505 no-op — the same mechanism tracking dedup
+   *     already relies on. No new index or schema is introduced.
+   *   - the recovery token is written with `IS DISTINCT FROM`, so a repeat poll
+   *     affects zero rows and cannot re-stamp a token an operator has cleared.
+   */
+  private async handleDeliveredAfterCancel(
+    shipment: any,
+    providerKey: string,
+    cancelStatus: string,
+  ): Promise<void> {
+    const shipmentId = shipment.id as string;
+    // Deterministic per shipment + anomaly: stable across polls => idempotent dedup.
+    const exceptionId = `dac-${shipmentId}`;
+
+    this.logger.warn(
+      `Shipment ${shipmentId} — carrier reports DELIVERED after SCS cancellation ` +
+      `(carrier_cancel_status=${cancelStatus}). Recording DELIVERED_AFTER_CANCEL exception; ` +
+      `order state, shipment status and inventory are NOT modified.`,
+    );
+
+    // 1. Append the exception event (admin-visible audit record).
+    try {
+      await this.db.db.insert(shipmentEvents).values({
+        id: randomUUID(),
+        shipmentId,
+        eventType: 'CARRIER_TRACKING',
+        actorType: 'CARRIER',
+        notes: 'Carrier reports DELIVERED after SCS cancellation',
+        metadata: {
+          carrierStatus: 'DELIVERED',
+          providerKey,
+          source: 'tracking_poll',
+          carrierCancelStatus: cancelStatus,
+          exception: 'DELIVERED_AFTER_CANCEL',
+        },
+        externalEventId: exceptionId,
+        carrierEventCode: 'DELIVERED_AFTER_CANCEL',
+      });
+    } catch (err: any) {
+      if (err?.code !== '23505') throw err;
+      this.logger.debug(
+        `Delivered-after-cancel exception already recorded for shipment ${shipmentId}`,
+      );
+    }
+
+    // 2. Raise the recovery token so the shipment surfaces in the admin
+    //    recovery queue. last_carrier_sync_at was already stamped by the atomic
+    //    claim in poll(), so the poll throttle remains intact.
+    await this.db.db
+      .update(shipments)
+      .set({
+        recoveryStatus: 'DELIVERED_AFTER_CANCEL' as any,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(shipments.id, shipmentId),
+          sql`${shipments.recoveryStatus} IS DISTINCT FROM 'DELIVERED_AFTER_CANCEL'`,
+        ),
+      );
+
+    // 3. Intentionally NOT performed:
+    //      - ordersService.processCarrierDelivery()
+    //      - carrier_status_mapped / carrier_status_raw advance
+    //      - shipment.status mutation
+    //      - order status mutation / inventory SALE settlement
   }
 
   /**
