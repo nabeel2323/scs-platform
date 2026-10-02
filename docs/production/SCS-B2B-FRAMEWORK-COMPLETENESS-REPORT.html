@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="SCS Platform B2B Framework Completeness Report — consolidated audit, feature completeness matrix, API/UI parity analysis and recommended roadmap for non-technical stakeholders. Baseline M7.3-B.5 (develop 5c6649d).">
+<title>B2B Framework Completeness Report — SCS Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1240px; --sidebar:290px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:78ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:toc}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.88rem;border-left:3px solid transparent}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  nav.toc a.active{background:#e8f0f3;border-left-color:var(--brand);font-weight:600}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem;scroll-margin-top:1rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  section > h2 .num{color:var(--accent);margin-right:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  pre{background:#0F3340;color:#e8f0f3;border-radius:8px;padding:1rem 1.2rem;overflow:auto;font-size:.84rem;line-height:1.5}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.86rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600;position:sticky;top:0}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:normal;word-break:break-word}
+  .tbl-wrap{overflow-x:auto}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .kpi{font-size:1.7rem;font-weight:800;color:var(--brand)}
+  .kpi-sub{font-size:.82rem;color:var(--muted)}
+  .muted{color:var(--muted)} .small{font-size:.85rem}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.25rem 0}
+  .legend{display:flex;flex-wrap:wrap;gap:.8rem;margin:.4rem 0 .6rem;font-size:.8rem;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:.35rem}
+  .flow{display:flex;flex-direction:column;align-items:stretch;gap:0;margin:1rem auto;max-width:760px}
+  .flow .node{border:1px solid var(--line);border-left:4px solid var(--brand);background:#fbfcfd;border-radius:8px;padding:.6rem .9rem}
+  .flow .node.gate{border-left-color:var(--accent)}
+  .flow .node.done{border-left-color:var(--ok)}
+  .flow .node h4{margin:.05rem 0 .25rem}
+  .flow .arr{align-self:center;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:11px solid var(--brand);margin:.28rem 0}
+  .flow .branches{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-top:.3rem}
+  @media(max-width:760px){.flow .branches{grid-template-columns:1fr}}
+  .ev{font-family:var(--mono);font-size:.74rem;color:var(--muted);display:block;margin-top:.25rem;word-break:break-all}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){.layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none} .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}}
+  @media print{nav.toc{display:none} .layout{display:block} section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>B2B Framework Completeness Report</h1>
+    <p class="sub">A consolidated, stakeholder-readable view of the SCS Platform: what is built and verified, what is partially built, what is missing, how well the user interfaces represent the backend, and the recommended path to a coherent, production-ready B2B platform. This document merges the four audit deliverables (completeness audit, feature matrix, API/UI parity matrix, roadmap) into one narrative.</p>
+    <div class="meta">
+      <span>Audit date: 2026-10-02</span>
+      <span>Baseline: M7.3-B.5 (RTS + Reconciliation) — CLOSED / PASS</span>
+      <span>Branch: develop</span>
+      <span>HEAD: 5c6649d</span>
+      <span>Migrations: 0001–0050</span>
+      <span>Type: READ-ONLY audit — no code changed</span>
+    </div>
+  </div>
+</header>
+<div class="layout">
+<nav class="toc" aria-label="Table of contents">
+  <h2>Contents</h2>
+  <ol id="toc-list">
+    <li><a href="#sec-1">1. Executive Summary</a></li>
+    <li><a href="#sec-2">2. Verified Baseline</a></li>
+    <li><a href="#sec-3">3. The Platform at a Glance</a></li>
+    <li><a href="#sec-4">4. What Is Strong Today</a></li>
+    <li><a href="#sec-5">5. The Three Structural Deficits</a></li>
+    <li><a href="#sec-6">6. Domain-by-Domain Scorecard</a></li>
+    <li><a href="#sec-7">7. Feature Completeness Matrix</a></li>
+    <li><a href="#sec-8">8. API ↔ UI Parity Analysis</a></li>
+    <li><a href="#sec-9">9. Cross-Domain Gaps</a></li>
+    <li><a href="#sec-10">10. Master Gap Register</a></li>
+    <li><a href="#sec-11">11. Security, Testing &amp; Quality</a></li>
+    <li><a href="#sec-12">12. UX &amp; Internationalization</a></li>
+    <li><a href="#sec-13">13. Recommended Roadmap</a></li>
+    <li><a href="#sec-14">14. Dependency Graph</a></li>
+    <li><a href="#sec-15">15. Product Decisions Required</a></li>
+    <li><a href="#sec-16">16. B2B Completion Checklist</a></li>
+    <li><a href="#sec-17">17. Strategic Conclusion</a></li>
+    <li><a href="#sec-18">18. Method &amp; Evidence</a></li>
+  </ol>
+</nav>
+<main id="main">
+
+<section id="sec-1">
+  <h2><span class="num">1.</span>Executive Summary</h2>
+  <p>The SCS platform today is a <strong>verified multi-merchant B2B wholesale marketplace core</strong>: identity and access control, organizations, a deep catalog (taxonomy, canonical products, merchant offers), quantity-tier pricing, search, a multi-supplier cart, a 16-state order lifecycle with master/sub-order splitting, inventory with reservation semantics, promotions, reviews and disputes, notifications, analytics and audit — plus a substantial shipping and delivery backbone (shipping methods and zones, Aramex carrier integration, delivery exceptions, retries, cancellation, and return-to-sender workflow) delivered through the M7.2/M7.3 milestone series.</p>
+  <p>Engineering quality is high where milestones have formally closed: every milestone from M7.2.1 through M7.3-B.5 carries a four-gate evidence chain (architecture audit → decision lock → implementation → independent runtime verification against a real database). 1,634 regression tests plus PostgreSQL integration suites pass; concurrency and tenant-isolation properties are verified at runtime, not assumed.</p>
+  <div class="callout crit">
+    <strong class="label">Measured as a complete B2B framework, three structural deficits stand out</strong>
+    <p><strong>1. A financial void.</strong> There is no payments capability at all — the payments module is an empty directory, no provider integration, no refunds, no invoices, no credit accounts. Checkout today is effectively offline/cash-on-delivery. The authoritative plan assigns this to Phase 3, which has not started.</p>
+    <p><strong>2. Shipping operations are invisible to humans.</strong> The entire, fully-verified shipping-operations backend — shipment creation/cancellation/labels, delivery-exception handling and retries, the complete return-to-sender (RTS) workflow, carrier credentials and the carrier recovery queue — has <strong>no user interface anywhere</strong>. Operations staff cannot run delivery operations without calling the API directly.</p>
+    <p><strong>3. Classic B2B procurement capabilities are absent.</strong> No request-for-quotation (RFQ) workflows, no order approvals or spending limits, no customer-specific price resolution (database columns exist but are unused), no buyer address book, no post-delivery returns (audited, not yet built), no email channel, and an English-only interface despite Arabic support in backend search.</p>
+  </div>
+  <div class="callout">
+    <strong class="label">Verdict</strong>
+    <p>The platform is a strong <em>transactional marketplace foundation</em> with verified integrity — but it is <strong>not yet a complete B2B framework</strong>. The next coherent steps are: (a) expose the already-built shipping/RTS operations through user interfaces, (b) close the returns loop, (c) build the financial layer (payments → refunds → reconciliation), then (d) decide which classic B2B procurement capabilities (RFQ, contract pricing, credit) are in scope.</p>
+  </div>
+  <div class="grid c4">
+    <div class="card"><h4>API endpoints</h4><div class="kpi">~290</div><div class="kpi-sub">23 controllers</div></div>
+    <div class="card"><h4>Database tables</h4><div class="kpi">69</div><div class="kpi-sub">50 migrations</div></div>
+    <div class="card"><h4>UI surfaces</h4><div class="kpi">109</div><div class="kpi-sub">39 web + 38 admin + 32 mobile screens</div></div>
+    <div class="card"><h4>API tests</h4><div class="kpi">~1,911</div><div class="kpi-sub">111 spec files; web/admin/mobile: 0/1/6</div></div>
+  </div>
+</section>
+
+<section id="sec-2">
+  <h2><span class="num">2.</span>Verified Baseline</h2>
+  <p>Every audit claim is anchored to a verified repository state. The working tree contains only documentation files; no code was modified by this audit.</p>
+  <table>
+    <thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>Branch</td><td><code>develop</code></td><td><code>git branch --show-current</code></td></tr>
+      <tr><td>HEAD commit</td><td><code>5c6649dc2334e278c808b44c558b020db7e6db7b</code> — exactly the M7.3-B.5 closure baseline</td><td><code>git rev-parse HEAD</code></td></tr>
+      <tr><td>Commits after B.5</td><td><span class="pill p-ok">NONE</span></td><td><code>git log --oneline</code></td></tr>
+      <tr><td>Working tree</td><td>Clean except untracked documentation files (release records and this audit's deliverables)</td><td><code>git status --porcelain</code></td></tr>
+      <tr><td>Migrations</td><td>0001–0050; latest <code>0050_delivery_exceptions.sql</code></td><td><code>infra/drizzle/migrations/</code></td></tr>
+      <tr><td>Functionality added after B.5</td><td><span class="pill p-ok">NONE</span> — nothing implemented beyond the closed release</td><td>git history</td></tr>
+    </tbody>
+  </table>
+  <h3>Status taxonomy used throughout this report</h3>
+  <div class="legend">
+    <span><span class="pill p-ok">COMPLETE</span> works end-to-end within defined scope</span>
+    <span><span class="pill p-info">BACKEND ONLY</span> built &amp; verified, but no UI consumes it</span>
+    <span><span class="pill p-warn">PARTIAL</span> some layers exist; journey incomplete</span>
+    <span><span class="pill p-brand">PLANNED</span> explicitly scheduled in authoritative docs</span>
+    <span><span class="pill p-err">NOT IMPLEMENTED</span> confirmed absent</span>
+    <span><span class="pill p-muted">OUT OF SCOPE</span> documented exclusion/deferral</span>
+  </div>
+  <h3>Released vs. planned</h3>
+  <table>
+    <thead><tr><th>Category</th><th>Items</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Formally completed</strong> (release-closed)</td><td>Phase 1–5 marketplace capabilities; M6 catalog/offer series; M7.1 hardening; M7.2 shipping/delivery series; M7.3-A; M7.3-B through B.5 (cancellation, delivery exceptions, retries, carrier cancellation, RTS)</td></tr>
+      <tr><td><strong>Implemented but not released</strong></td><td>Nothing — HEAD equals the B.5 closure</td></tr>
+      <tr><td><strong>Audited but not implemented</strong></td><td><strong>M7.3-C Returns</strong> (inventory return-to-stock + RTS physical handling) — pre-implementation audit complete, verdict GO WITH CONDITIONS (8 conditions)</td></tr>
+      <tr><td><strong>Planned</strong> (authoritative)</td><td>M7.3-D Refunds, M7.3-E buyer dispute flow, M7.3-F notification expansion; Phase 3 Payments &amp; Settlement; Phases 4–7 (B2C, advertising, AI, infrastructure incl. regulated trade credit)</td></tr>
+      <tr><td><strong>Missing / requires decision</strong></td><td>RFQ/quotations, purchase-order approvals, spending limits, invoices, buyer address book, email channel, Arabic/RTL interface</td></tr>
+    </tbody>
+  </table>
+</section>
+<section id="sec-3">
+  <h2><span class="num">3.</span>The Platform at a Glance</h2>
+  <h3>Architecture topology</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Component</th><th>Technology</th><th>Serves</th><th>Surface</th></tr></thead>
+    <tbody>
+      <tr><td><strong>API</strong> (<code>apps/api</code>)</td><td>NestJS 10, Drizzle ORM, PostgreSQL, Redis, Socket.IO, S3</td><td>All clients</td><td>15 active modules; <code>payments</code>, <code>delivery</code>, <code>ads</code>, <code>ai</code> are empty directories; <code>support</code> is a stub</td></tr>
+      <tr><td><strong>Web app</strong> (<code>apps/web</code>, port 3100)</td><td>Next.js (App Router)</td><td>BUYER, MERCHANT_OWNER, MERCHANT_STAFF</td><td>39 pages (buyer + merchant segments)</td></tr>
+      <tr><td><strong>Admin console</strong> (<code>apps/admin</code>, port 3200)</td><td>Next.js (App Router)</td><td>SUPER_ADMIN, ADMIN, MODERATOR</td><td>38 pages, 22 navigation items, permission-filtered</td></tr>
+      <tr><td><strong>Mobile app</strong> (<code>mobile/</code>)</td><td>Flutter</td><td>BUYER, MERCHANT_OWNER/STAFF, driver (scaffolding)</td><td>32 screens</td></tr>
+      <tr><td><strong>Shared packages</strong></td><td><code>contracts</code>, <code>env</code>, <code>event-types</code>, <code>ui-kit</code></td><td>All apps</td><td>Monorepo (pnpm + turbo)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">Note: <code>apps/scs-platform-b2-test</code> is a full repository copy used as a test sandbox and is excluded from all counts. Roles are strictly partitioned: admin roles use only the admin console; buyer/merchant roles use only web and mobile.</p>
+  <h3>People and permissions model</h3>
+  <ul class="tight">
+    <li><strong>6 seeded roles:</strong> SUPER_ADMIN, ADMIN, MODERATOR, MERCHANT_OWNER, MERCHANT_STAFF, BUYER.</li>
+    <li><strong>~117 permission keys</strong> guarding <strong>197 endpoints</strong>; SUPER_ADMIN bypasses role checks; tenant isolation enforced server-side and verified by dedicated security test suites.</li>
+    <li><strong>DRIVER</strong> exists as scaffolding only (tables, endpoints, a mobile screen) but is <em>not a seeded role</em> — a provisioning decision is required before driver operations go live.</li>
+  </ul>
+</section>
+
+<section id="sec-4">
+  <h2><span class="num">4.</span>What Is Strong Today</h2>
+  <p>These capabilities are complete <em>and</em> user-facing — the workflow runs end-to-end from screen to database and back, with tests behind it.</p>
+  <div class="grid c2">
+    <div class="card"><h4>Identity &amp; access</h4><p class="small">Dual login (one-time-code + password), token rotation with theft remediation, device trust, session management, organization switching — across all three apps.</p></div>
+    <div class="card"><h4>Organizations &amp; roles</h4><p class="small">Organization CRUD, member management, update-request review, invite codes, role/permission model with verified tenant isolation.</p></div>
+    <div class="card"><h4>Catalog depth</h4><p class="small">Categories, brands, attributes and product types (with a visual schema builder and conditional rules), products and variants, media pipeline, canonical product deduplication (GTIN/EAN/MPN), moderation, data-quality dashboards.</p></div>
+    <div class="card"><h4>Merchant offers</h4><p class="small">Full offer lifecycle (draft → proposed → active, approve/reject/suspend), offer comparison for buyers, immutable price snapshots at checkout.</p></div>
+    <div class="card"><h4>Search &amp; discovery</h4><p class="small">Full-text search with typo tolerance and Arabic normalization, dynamic attribute-driven filters, price/brand/category facets, product comparison, shareable URLs.</p></div>
+    <div class="card"><h4>Cart &amp; ordering</h4><p class="small">Multi-supplier cart, idempotent checkout (no duplicate orders), master order split into per-store sub-orders, 16-state order lifecycle, merchant accept/partial-accept/reject, buyer cancellation and reorder, status timelines everywhere.</p></div>
+    <div class="card"><h4>Inventory</h4><p class="small">Store and warehouse stock, adjustments, transfers, bulk updates, automatic reserve-on-accept / release-on-cancel / sale-on-delivery, low-stock alerts, movement ledger with CSV export — concurrency verified under 100-way races.</p></div>
+    <div class="card"><h4>Pricing &amp; promotions</h4><p class="small">Price lists with quantity tiers and validity windows, one shared price resolver for product page, cart and checkout (no price disagreements), promotions with checkout redemption.</p></div>
+    <div class="card"><h4>Import &amp; export</h4><p class="small">Excel catalog import pipeline (parse → validate → resolve → plan → execute) in both admin and merchant surfaces, template generator, import history, product and inventory CSV exports.</p></div>
+    <div class="card"><h4>Governance &amp; audit</h4><p class="small">Merchant verification queue, offer governance, dispute resolution console, KPIs, analytics, a complete audit-log viewer, and an event outbox for integrations.</p></div>
+    <div class="card"><h4>Delivery backbone (backend)</h4><p class="small">Aramex carrier integration with webhooks, delivery exceptions with retry, carrier-cancellation reconciliation with recovery queue, and a verified three-state return-to-sender workflow — <em>awaiting its user interface (see next section)</em>.</p></div>
+    <div class="card"><h4>Merchant verification &amp; onboarding</h4><p class="small">Registration wizard, document upload with secure presigned storage, admin review queue, store/warehouse setup — a complete path from registration to selling.</p></div>
+  </div>
+</section>
+
+<section id="sec-5">
+  <h2><span class="num">5.</span>The Three Structural Deficits</h2>
+
+  <h3>Deficit 1 — The financial void <span class="pill p-err">BLOCKING</span></h3>
+  <div class="callout crit">
+    <p>There is <strong>no payments capability at all</strong>. The <code>payments</code> module is an empty directory. No payment provider, no transaction records, no refunds, no invoices, no credit notes, no payment reconciliation. The order lifecycle&rsquo;s <code>PAYMENT_PENDING</code> state exists but is unreachable. Checkout completes without money moving; the buyer UI shows an &ldquo;invoiced on delivery&rdquo; notice, and delivery/tax amounts are currently defaulted to zero at checkout (a documented backend gap).</p>
+    <p><strong>Consequence:</strong> the platform cannot collect revenue, cannot refund cancelled or returned orders, cannot financially close disputes, and cannot issue the invoices B2B buyers require. The authoritative plan assigns all of this to Phase 3, which has not started; refunds are planned as milestone M7.3-D.</p>
+    <span class="ev">Evidence: apps/api/src/modules/payments/ (empty dir); orders.service.ts (PAYMENT_PENDING unreachable); CAPABILITY-MATRIX.md backend gaps BG-2/BG-3; Smart_Commerce_Development_Implementation_Plan.md Phase 3 (line 1380).</span>
+  </div>
+
+  <h3>Deficit 2 — Shipping operations are invisible to humans <span class="pill p-err">BLOCKING</span></h3>
+  <div class="callout crit">
+    <p>The M7.2.3/M7.3 series delivered a substantial, <em>runtime-verified</em> shipping-operations backend — and almost none of it can be reached from any screen:</p>
+    <ul class="tight">
+      <li><strong>~32 operationally-critical endpoints with zero UI:</strong> shipment create/cancel/labels, delivery-exception report and retry (8 canonical exception types), the full RTS workflow (request → approve → reject → complete, plus the LOST direct flow), carrier credentials and configurations, and the carrier recovery queue.</li>
+      <li><strong>Admin console:</strong> 38 pages, none for shipments, exceptions, RTS, or carriers. The order detail page is read-only.</li>
+      <li><strong>Merchant web:</strong> shipping <em>configuration</em> (methods and zones) exists, but no shipment operations, no exception visibility, no RTS actions.</li>
+      <li><strong>Buyers:</strong> see tracking data, but exception and RTS states are not surfaced — a delivery in distress is invisible to both buyer and merchant.</li>
+      <li><strong>Mobile:</strong> only a driver shipment list consumes any of this surface.</li>
+    </ul>
+    <p><strong>Consequence:</strong> the verified B.5 investment is operationally unrealized — staff would need direct API calls to run delivery operations. This is the cheapest high-value gap to close: the backend contracts are stable and verified; only UI work is required.</p>
+    <span class="ev">Evidence: shipment-operations.controller.ts (10 endpoints), carrier-admin.controller.ts (11 endpoints); no /shipments, /exceptions, /carriers pages in apps/admin or apps/web; grep for rts/exception UI controls returns only buyer tracking and config pages.</span>
+  </div>
+
+  <h3>Deficit 3 — Classic B2B procurement capabilities are absent <span class="pill p-warn">PRODUCT DECISIONS REQUIRED</span></h3>
+  <div class="callout warn">
+    <ul class="tight">
+      <li><strong>No RFQ / quotations</strong> — no entity, endpoint, or screen anywhere; also absent from the authoritative plan. Requires a product decision.</li>
+      <li><strong>No order approvals or spending limits</strong> for buyer organizations.</li>
+      <li><strong>Customer-specific pricing is dark:</strong> price lists carry <code>audience</code> (PUBLIC/SEGMENT/CONTRACT) and <code>segment_id</code> columns since migration 0006, but price resolution never uses them and no buyer-segments table exists — the schema anticipated B2B pricing that was never switched on.</li>
+      <li><strong>No buyer address book</strong> — checkout collects a free-text street/city each time; no multi-location delivery for organizational buyers.</li>
+      <li><strong>No post-delivery returns</strong> (RMA, inspection, restock) — scoped and audited as M7.3-C, not yet implemented; the inventory ledger&rsquo;s RETURN movement type sits unused.</li>
+      <li><strong>Communication channels:</strong> SMS sending is a code stub (one-time passcodes ride on it — a launch risk), there is no email channel at all, and WhatsApp is a stub channel.</li>
+      <li><strong>English-only interface:</strong> both web apps hardcode <code>lang="en" dir="ltr"</code>; Arabic exists only in backend search normalization — a market-fit gap for a Saudi B2B platform.</li>
+      <li><strong>Trade credit / payment terms:</strong> intentionally excluded until Phase 7 with regulated partners (documented fence) — not a defect, but stakeholders should know it is not part of the current framework.</li>
+    </ul>
+    <span class="ev">Evidence: repository-wide scans for quote/invoice/credit/return entities (zero hits outside prose); price-resolution.ts (no audience filter); notifications.service.ts line 312 (SMS stub); apps/web|admin/src/app/layout.tsx (lang/dir hardcoded); plan lines 1352, 1384 (credit fences).</span>
+  </div>
+</section>
+<section id="sec-6">
+  <h2><span class="num">6.</span>Domain-by-Domain Scorecard</h2>
+  <p>Twenty business domains assessed against the full chain (UI → API → authorization → logic → database → events → UI). Detail and evidence per domain are in the source audit document, sections 5.1–5.20.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Domain</th><th>Status</th><th>In one sentence</th></tr></thead>
+    <tbody>
+      <tr><td>Organization / Tenant</td><td><span class="pill p-ok">COMPLETE</span></td><td>Orgs, memberships, update requests, and tenant isolation all work; no org-level settings (default currency, credit terms).</td></tr>
+      <tr><td>Customer / Buyer management</td><td><span class="pill p-warn">PARTIAL</span></td><td>Merchant customer directory exists; no segments, no buyer credit view, no buyer-user management within organizations.</td></tr>
+      <tr><td>Catalog</td><td><span class="pill p-ok">COMPLETE</span></td><td>Deep and verified: taxonomy, attributes, product types, canonical products, offers, moderation, data quality.</td></tr>
+      <tr><td>B2B Pricing</td><td><span class="pill p-warn">PARTIAL</span></td><td>Public tiers work everywhere; segment/contract pricing columns exist but resolution ignores them (dark schema).</td></tr>
+      <tr><td>Quotations / RFQ</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>No entity, endpoint, or UI; also absent from the authoritative plan — needs a product decision.</td></tr>
+      <tr><td>Order lifecycle</td><td><span class="pill p-ok">COMPLETE</span></td><td>16-state FSM, master/sub-orders, idempotent checkout; PAYMENT_PENDING unreachable (see Payments).</td></tr>
+      <tr><td>Order management (ops)</td><td><span class="pill p-warn">PARTIAL</span></td><td>Merchant actions full; admin order detail is read-only (no admin interventions, notes, or overrides).</td></tr>
+      <tr><td>Inventory</td><td><span class="pill p-ok">COMPLETE</span></td><td>Ledger, reservations, transfers, low-stock alerts; RETURN movement type reserved but unused until M7.3-C.</td></tr>
+      <tr><td>Fulfillment</td><td><span class="pill p-warn">PARTIAL</span></td><td>Preparing/ready/dispatch states work; no pick lists, packing slips, or partial-shipment splitting.</td></tr>
+      <tr><td>Shipping / Carriers</td><td><span class="pill p-info">BACKEND ONLY</span></td><td>Aramex integration, webhooks, exceptions, retries, reconciliation — no operations UI (~32 endpoints orphaned).</td></tr>
+      <tr><td>Payments</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>Empty module; no provider, transactions, or reconciliation; planned as Phase 3. <strong>Blocking.</strong></td></tr>
+      <tr><td>B2B Credit / AR</td><td><span class="pill p-muted">OUT OF SCOPE</span></td><td>Documented fence until Phase 7 (regulated partners only) — an intentional exclusion, not a gap.</td></tr>
+      <tr><td>Invoicing / Documents</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>No invoices, credit notes, or PDFs anywhere; no PDF library in dependencies.</td></tr>
+      <tr><td>Returns (post-delivery)</td><td><span class="pill p-brand">PLANNED</span></td><td>M7.3-C audited, verdict GO WITH CONDITIONS (8 conditions); not yet implemented.</td></tr>
+      <tr><td>Notifications</td><td><span class="pill p-warn">PARTIAL</span></td><td>In-app + push work; SMS is a stub (OTPs depend on it — launch risk); no email; WhatsApp stub.</td></tr>
+      <tr><td>Reporting / Analytics</td><td><span class="pill p-ok">COMPLETE</span></td><td>Admin KPIs, merchant analytics, offer KPIs/trends, CSV exports.</td></tr>
+      <tr><td>Admin / Operations</td><td><span class="pill p-warn">PARTIAL</span></td><td>Strong governance surfaces; missing shipping ops, payment ops, and admin order actions.</td></tr>
+      <tr><td>Search / Filtering</td><td><span class="pill p-ok">COMPLETE</span></td><td>Typo-tolerant search, Arabic normalization, dynamic facets, comparison.</td></tr>
+      <tr><td>Import / Export / Bulk</td><td><span class="pill p-ok">COMPLETE</span></td><td>Excel import pipeline + CSV exports; verified round-trip integrity.</td></tr>
+      <tr><td>Auditability</td><td><span class="pill p-ok">COMPLETE</span></td><td>Audit logs + viewer, order/shipment event histories, outbox for integrations.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="legend">
+    <span><strong>Distribution:</strong> 8 <span class="pill p-ok">COMPLETE</span> · 6 <span class="pill p-warn">PARTIAL</span> · 1 <span class="pill p-info">BACKEND ONLY</span> · 3 <span class="pill p-err">NOT IMPLEMENTED</span> · 1 <span class="pill p-brand">PLANNED</span> · 1 <span class="pill p-muted">OUT OF SCOPE</span></span>
+  </div>
+</section>
+
+<section id="sec-7">
+  <h2><span class="num">7.</span>Feature Completeness Matrix</h2>
+  <p>All 85 assessed features (F-001–F-085), condensed from the machine-readable CSV. Status columns show the deepest working layer: <strong>Backend</strong> (logic + data), <strong>API</strong>, <strong>UI</strong>, and <strong>E2E</strong> (the full user journey). <em>Doc</em> = documented in authoritative sources. Roles and evidence are folded into each feature row. The canonical machine-readable version remains <code>SCS-B2B-FEATURE-COMPLETENESS-MATRIX.csv</code>.</p>
+  <div class="legend">
+    <span><span class="pill p-ok">C</span> complete</span>
+    <span><span class="pill p-warn">P</span> partial</span>
+    <span><span class="pill p-info">B</span> backend only</span>
+    <span><span class="pill p-brand">PL</span> planned</span>
+    <span><span class="pill p-err">N</span> not implemented</span>
+    <span><span class="pill p-muted">O</span> out of scope</span>
+  </div>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:4rem">ID</th><th style="width:9rem">Domain</th><th>Feature</th><th style="width:2.6rem">Doc</th><th style="width:3.2rem">Back</th><th style="width:3.2rem">API</th><th style="width:3.2rem">UI</th><th style="width:3.2rem">E2E</th><th style="width:6.4rem">Priority</th><th>Notes &amp; evidence</th></tr></thead>
+    <tbody>
+      <tr><td>F-001</td><td>Identity</td><td>OTP login</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Dual auth; mobile+web+admin <span class="ev">auth.controller.ts; CAPABILITY-MATRIX §1</span></td></tr>
+      <tr><td>F-002</td><td>Identity</td><td>Password login + credentials</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Credential setup / change password <span class="ev">auth.controller.ts; profile.controller.ts credentials/*</span></td></tr>
+      <tr><td>F-003</td><td>Identity</td><td>Token refresh + session management</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Rotation + revocation; remediation report <span class="ev">auth.controller.ts refresh; JWT-REFRESH-SECURITY-REMEDIATION-REPORT.md</span></td></tr>
+      <tr><td>F-004</td><td>Identity</td><td>Device trust + management</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Devices register/unregister <span class="ev">profile.controller.ts devices; mobile credential_setup</span></td></tr>
+      <tr><td>F-005</td><td>Organization</td><td>Organization CRUD</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Admin+merchant+mobile UI <span class="ev">organizations.controller.ts; apps/admin/src/app/organizations</span></td></tr>
+      <tr><td>F-006</td><td>Organization</td><td>Org member management</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Buyer web lacks member management (switch only); merchant+mobile complete <span class="ev">organizations.controller.ts members; apps/web/src/app/account/page.tsx</span></td></tr>
+      <tr><td>F-007</td><td>Organization</td><td>Org switching</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>JWT re-issue on switch <span class="ev">auth.controller.ts switch-org; apps/web/src/lib/auth.ts</span></td></tr>
+      <tr><td>F-008</td><td>Organization</td><td>Org update requests + review</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Migration 0022 <span class="ev">admin.controller.ts org-update-requests</span></td></tr>
+      <tr><td>F-009</td><td>Organization</td><td>Org invite codes</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Migration 0016; mobile join flow <span class="ev">organizations.controller.ts join; 0016_org_invite_code.sql</span></td></tr>
+      <tr><td>F-010</td><td>Organization</td><td>Branch hierarchy</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>Documented Phase-1 fence (no multi-branch) <span class="ev">plan line 1352</span></td></tr>
+      <tr><td>F-011</td><td>RBAC</td><td>Roles + permissions model</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>6 seeded roles; ~117 perms; 197 guards <span class="ev">apps/api/src/scripts/seed.ts; apps/api/src/common/guards</span></td></tr>
+      <tr><td>F-012</td><td>RBAC</td><td>Tenant isolation / IDOR protection</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Runtime-verified phase3 + B.5 gate 8 <span class="ev">apps/api/src/common/tenant-scope.ts; __tests__/integration</span></td></tr>
+      <tr><td>F-013</td><td>RBAC</td><td>DRIVER role provisioning</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Endpoints + mobile screen exist; role not seeded; no RBAC entries <span class="ev">orders.controller.ts drivers/shipments; mobile/lib/screens/driver</span></td></tr>
+      <tr><td>F-014</td><td>Customer</td><td>Merchant customer directory</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Web + mobile <span class="ev">merchant.controller.ts merchant/customers; apps/web/src/app/merchant/customers</span></td></tr>
+      <tr><td>F-015</td><td>Customer</td><td>Buyer addresses / multi-location delivery</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">MED</span></td><td>Checkout free-text JSONB address only <span class="ev">apps/web/src/app/checkout/page.tsx; orders.schema.ts deliveryAddress jsonb</span></td></tr>
+      <tr><td>F-016</td><td>Customer</td><td>Customer contacts (multi-contact orgs)</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Contacts attached to orders; no contact entity <span class="ev">apps/api/src/modules/orders/order-identity.ts</span></td></tr>
+      <tr><td>F-017</td><td>Customer</td><td>Customer lifecycle (activate/deactivate)</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Org-level is_active only; no per-customer lifecycle <span class="ev">0021_org_is_active.sql</span></td></tr>
+      <tr><td>F-018</td><td>Catalog</td><td>Category taxonomy CRUD + tree</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Admin UI + facets <span class="ev">catalog.controller.ts categories; apps/admin/src/app/categories</span></td></tr>
+      <tr><td>F-019</td><td>Catalog</td><td>Brands CRUD</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">catalog.controller.ts brands; apps/admin/src/app/brands</span></td></tr>
+      <tr><td>F-020</td><td>Catalog</td><td>Attributes + groups + options</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Migrations 0023 <span class="ev">catalog.taxonomy.controller.ts</span></td></tr>
+      <tr><td>F-021</td><td>Catalog</td><td>Product types + schema builder + conditional rules</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Three-panel builder; publish/readiness/versions/preview <span class="ev">catalog.taxonomy.controller.ts product-types; conditional-rules.service.ts</span></td></tr>
+      <tr><td>F-022</td><td>Catalog</td><td>Products CRUD + media + bulk</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Product studio 6-step + import <span class="ev">catalog.controller.ts products</span></td></tr>
+      <tr><td>F-023</td><td>Catalog</td><td>Variants + variant matrix</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Variant-matrix endpoint + dynamic selector <span class="ev">catalog.controller.ts variants; web PDP VariantSelector</span></td></tr>
+      <tr><td>F-024</td><td>Catalog</td><td>Canonical products + GTIN/EAN/MPN dedup</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Catalog Phase 7 <span class="ev">catalog.controller.ts canonical/*; 0025_canonical_products.sql</span></td></tr>
+      <tr><td>F-025</td><td>Catalog</td><td>Product moderation</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Admin approve/reject <span class="ev">admin.controller.ts products/:id/moderate</span></td></tr>
+      <tr><td>F-026</td><td>Catalog</td><td>Data quality + corrupted variants</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Admin dashboards <span class="ev">catalog.controller.ts admin/data-quality</span></td></tr>
+      <tr><td>F-027</td><td>Offers</td><td>Merchant offer lifecycle FSM</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>DRAFT-PROPOSED-ACTIVE + governance <span class="ev">catalog.offer.controller.ts; 0026_merchant_offers.sql</span></td></tr>
+      <tr><td>F-028</td><td>Offers</td><td>Offer comparison + ranked badges</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>PDP OfferComparisonTable <span class="ev">catalog.offer.controller.ts ranked; apps/web PDP</span></td></tr>
+      <tr><td>F-029</td><td>Offers</td><td>Offer snapshots at checkout</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Immutable; migration 0029 <span class="ev">0029_offer_snapshot.sql; orders.service.ts</span></td></tr>
+      <tr><td>F-030</td><td>Pricing</td><td>Price lists + quantity tiers</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Merchant pricing UI <span class="ev">pricing.controller.ts; apps/web/src/app/merchant/pricing</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:4rem">ID</th><th style="width:9rem">Domain</th><th>Feature</th><th style="width:2.6rem">Doc</th><th style="width:3.2rem">Back</th><th style="width:3.2rem">API</th><th style="width:3.2rem">UI</th><th style="width:3.2rem">E2E</th><th style="width:6.4rem">Priority</th><th>Notes &amp; evidence</th></tr></thead>
+    <tbody>
+      <tr><td>F-031</td><td>Pricing</td><td>Shared price resolution (PDP/cart/checkout)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Priority + validity window + quantity ladder <span class="ev">apps/api/src/modules/pricing/price-resolution.ts</span></td></tr>
+      <tr><td>F-032</td><td>Pricing</td><td>Customer-segment / contract pricing</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">MED</span></td><td>Schema columns dark; no segments table; resolution ignores audience <span class="ev">0006_pricing.sql; price-resolution.ts (no audience filter)</span></td></tr>
+      <tr><td>F-033</td><td>Pricing</td><td>MOQ enforcement</td><td>N</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Tier min_qty approximates price breaks; MOQ not enforced <span class="ev">price-resolution.ts priceForQty</span></td></tr>
+      <tr><td>F-034</td><td>Pricing</td><td>VAT / tax configuration</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Defaulted/zeroed at checkout (backend gap BG-2) <span class="ev">order-pricing.ts; CAPABILITY-MATRIX BG-2</span></td></tr>
+      <tr><td>F-035</td><td>Promotions</td><td>Promotions CRUD + validation + redemption</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Mobile promo entry gap per parity matrix <span class="ev">promotions.controller.ts</span></td></tr>
+      <tr><td>F-036</td><td>Search</td><td>Full-text search + filters + facets</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>FTS + trigram + dynamic attribute facets + Arabic normalization <span class="ev">catalog.controller.ts search; search.service</span></td></tr>
+      <tr><td>F-037</td><td>Search</td><td>Product comparison</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">–</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Max 4 items; URL state <span class="ev">apps/web/src/app/compare</span></td></tr>
+      <tr><td>F-038</td><td>Cart</td><td>Multi-supplier cart + validation + promo</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Offer attribution per line <span class="ev">cart.controller.ts; cart.service.ts</span></td></tr>
+      <tr><td>F-039</td><td>Orders</td><td>Checkout + idempotency</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Key + fingerprint (0033) <span class="ev">orders.controller.ts checkout; 0033_idempotency_fingerprint.sql</span></td></tr>
+      <tr><td>F-040</td><td>Orders</td><td>16-state order FSM + history</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Runtime-verified transitions <span class="ev">orders.service.ts FSM map; CAPABILITY-MATRIX §18</span></td></tr>
+      <tr><td>F-041</td><td>Orders</td><td>Merchant accept / partial / reject</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Optimistic lock + financial recalc <span class="ev">orders.controller.ts accept|partial-accept|reject</span></td></tr>
+      <tr><td>F-042</td><td>Orders</td><td>Order cancellation (buyer + merchant)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>B.5: cancellation wins over RTS; OUT_FOR_DELIVERY cancellable <span class="ev">orders.service.ts cancelOrder; 0048_cancellation_metadata.sql</span></td></tr>
+      <tr><td>F-043</td><td>Orders</td><td>Reorder</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Replays via validated cart path <span class="ev">orders.controller.ts master/:id/reorder</span></td></tr>
+      <tr><td>F-044</td><td>Orders</td><td>Admin order oversight</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Read-only detail; no intervention actions <span class="ev">apps/admin/src/app/orders/[id]/page.tsx</span></td></tr>
+      <tr><td>F-045</td><td>Orders</td><td>Order approval workflows (buyer-side)</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>Not in authoritative plan; product decision PD-2 <span class="ev">repository-wide scan: no approval entities</span></td></tr>
+      <tr><td>F-046</td><td>Payments</td><td>Payment processing (provider + COD)</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">BLOCKING</span></td><td>Module empty; PAYMENT_PENDING unreachable; Phase 3 planned <span class="ev">apps/api/src/modules/payments (empty dir); plan §1380</span></td></tr>
+      <tr><td>F-047</td><td>Payments</td><td>Refunds</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">BLOCKING</span></td><td>M7.3-D planned <span class="ev">M7.3-C audit §3 (B.0 lock §27)</span></td></tr>
+      <tr><td>F-048</td><td>Payments</td><td>Invoices / financial documents</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>No invoice entities; no PDF generation; only prose refs <span class="ev">repo scan: 'invoice' only in 2 test files</span></td></tr>
+      <tr><td>F-049</td><td>Credit / AR</td><td>Trade credit + payment terms</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>Documented P7 fence (regulated partners only) <span class="ev">plan lines 1352, 1384</span></td></tr>
+      <tr><td>F-050</td><td>Inventory</td><td>Stock adjust / transfer / bulk</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Web + mobile <span class="ev">inventory.controller.ts</span></td></tr>
+      <tr><td>F-051</td><td>Inventory</td><td>Reservation semantics (accept/cancel/deliver)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>ADR-0001 timing; concurrency verified <span class="ev">orders.service.ts settleStockForStatus; docs/architecture/ADR-0001</span></td></tr>
+      <tr><td>F-052</td><td>Inventory</td><td>Low-stock alerts</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">inventory.controller.ts check-low-stock</span></td></tr>
+      <tr><td>F-053</td><td>Inventory</td><td>Return-to-stock on returns</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>RETURN type in constraint but unused; M7.3-C audited <span class="ev">0020_stock_movement_constraint.sql; M7.3-C audit</span></td></tr>
+      <tr><td>F-054</td><td>Shipping</td><td>Shipping methods + zones config</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Merchant /merchant/shipping <span class="ev">shipping.controller.ts; apps/web/src/app/merchant/shipping</span></td></tr>
+      <tr><td>F-055</td><td>Shipping</td><td>Carrier integration (Aramex)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-err">BLOCKING</span></td><td>Verified M7.2.3-B.x; no admin carrier console <span class="ev">carrier-admin.controller.ts; apps/api/src/modules/shipping/aramex</span></td></tr>
+      <tr><td>F-056</td><td>Shipping</td><td>Shipment create / cancel / tracking / labels</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-err">BLOCKING</span></td><td>Buyer tracking display only; no ops UI <span class="ev">shipment-operations.controller.ts</span></td></tr>
+      <tr><td>F-057</td><td>Shipping</td><td>Carrier webhooks</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">–</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Token-authenticated (0044) <span class="ev">carrier-webhook.controller.ts</span></td></tr>
+      <tr><td>F-058</td><td>Shipping</td><td>Carrier reconciliation + recovery</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-warn">HIGH</span></td><td>Recovery queue API verified; no UI; no worker <span class="ev">carrier-admin.controller.ts recover|recovery/queue; 0045/0046 migrations</span></td></tr>
+      <tr><td>F-059</td><td>Delivery</td><td>Delivery exceptions (8 types) + retry</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-err">BLOCKING</span></td><td>B.3.x/B.4 verified; invisible in all UIs <span class="ev">shipment-operations.controller.ts exception|retry; 0050_delivery_exceptions.sql</span></td></tr>
+      <tr><td>F-060</td><td>Delivery</td><td>RTS workflow (request/approve/reject/complete/LOST)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-err">BLOCKING</span></td><td>B.5 runtime-verified; zero UI anywhere <span class="ev">shipment-operations.controller.ts rts/*; SCS-M7.3-B.5-RELEASE-CLOSURE.md</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:4rem">ID</th><th style="width:9rem">Domain</th><th>Feature</th><th style="width:2.6rem">Doc</th><th style="width:3.2rem">Back</th><th style="width:3.2rem">API</th><th style="width:3.2rem">UI</th><th style="width:3.2rem">E2E</th><th style="width:6.4rem">Priority</th><th>Notes &amp; evidence</th></tr></thead>
+    <tbody>
+      <tr><td>F-061</td><td>Delivery</td><td>Driver assignment + pickup flow</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Merchant assign-driver UI + mobile driver screen; DRIVER role unprovisioned (F-013) <span class="ev">orders.controller.ts assign-driver|pickup; mobile driver_shipments_screen</span></td></tr>
+      <tr><td>F-062</td><td>Delivery</td><td>Delivery proof</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Table + confirm-delivery; thin UI <span class="ev">0047_delivery_completion.sql; orders.controller.ts confirm-delivery</span></td></tr>
+      <tr><td>F-063</td><td>Returns</td><td>Post-delivery returns (RMA)</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>M7.3-C audited (GO, 8 conditions); distinct from RTS; depends on F-060/F-053 <span class="ev">SCS-M7.3-C-PRE-IMPLEMENTATION-ARCHITECTURE-AUDIT.md</span></td></tr>
+      <tr><td>F-064</td><td>Reviews</td><td>Reviews + trust snapshots</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">reviews.controller.ts</span></td></tr>
+      <tr><td>F-065</td><td>Disputes</td><td>Dispute create / evidence / events / resolve</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Resolution manual (BG-5); no financial lever <span class="ev">disputes.controller.ts</span></td></tr>
+      <tr><td>F-066</td><td>Comms</td><td>Conversations / chat</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">B</span></td><td><span class="pill p-muted">LOW</span></td><td>Schema + API shipped; chat UI documented fast-follow <span class="ev">disputes.controller.ts conversations/*; plan line 1352</span></td></tr>
+      <tr><td>F-067</td><td>Notifications</td><td>In-app notifications + preferences</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">notifications.controller.ts</span></td></tr>
+      <tr><td>F-068</td><td>Notifications</td><td>Push (FCM)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">notifications.service.ts</span></td></tr>
+      <tr><td>F-069</td><td>Notifications</td><td>SMS channel</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">HIGH</span></td><td>sendSms stub; OTP deliverability risk <span class="ev">notifications.service.ts line 312</span></td></tr>
+      <tr><td>F-070</td><td>Notifications</td><td>Email channel</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>No email provider anywhere <span class="ev">apps/api/package.json (no mail deps)</span></td></tr>
+      <tr><td>F-071</td><td>Notifications</td><td>Shipping / RTS event notifications</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">MED</span></td><td>M7.3-F planned <span class="ev">M7.3-C audit §3 (B.0 lock §27)</span></td></tr>
+      <tr><td>F-072</td><td>Analytics</td><td>Event tracking + reading</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Partitioned; retention migration <span class="ev">analytics.controller.ts; 0013/0018 migrations</span></td></tr>
+      <tr><td>F-073</td><td>Analytics</td><td>Business reporting (sales/ops/finance)</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>KPIs only; no sales/ops/finance reports; depends on F-046 <span class="ev">admin.controller.ts kpis; apps/admin/src/app/kpis</span></td></tr>
+      <tr><td>F-074</td><td>Audit</td><td>Audit logs + viewer</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Middleware + admin page <span class="ev">audit module; apps/admin/src/app/audit</span></td></tr>
+      <tr><td>F-075</td><td>Audit</td><td>Outbox event infrastructure</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">–</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Idempotent dispatch; shipment RTS events <span class="ev">audit.schema.ts outboxEvents; OutboxDispatcher</span></td></tr>
+      <tr><td>F-076</td><td>Import / Export</td><td>XLSX catalog import pipeline</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Parse-validate-resolve-plan-execute; template; history <span class="ev">catalog-import.controller.ts</span></td></tr>
+      <tr><td>F-077</td><td>Import / Export</td><td>CSV exports (products / inventory / movements)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">catalog.controller.ts export; inventory.controller.ts export</span></td></tr>
+      <tr><td>F-078</td><td>Import / Export</td><td>Bulk CSV ordering</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>B2B convenience gap; product decision <span class="ev">repo scan: none</span></td></tr>
+      <tr><td>F-079</td><td>Admin</td><td>Verification queue</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">merchant.controller.ts verification; apps/admin/src/app/verification</span></td></tr>
+      <tr><td>F-080</td><td>Admin</td><td>Feature flags management</td><td>Y</td><td><span class="pill p-warn">P</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>Table exists; no controller/UI <span class="ev">migrations; no flags controller found</span></td></tr>
+      <tr><td>F-081</td><td>Platform</td><td>Realtime (websocket) push</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-muted">LOW</span></td><td>Fire-and-forget; not E2E verified (BG-4) <span class="ev">realtime.gateway.ts; CAPABILITY-MATRIX BG-4</span></td></tr>
+      <tr><td>F-082</td><td>Platform</td><td>i18n / Arabic / RTL</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">–</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>Hardcoded lang=en dir=ltr; Arabic only in search normalization <span class="ev">apps/web/src/app/layout.tsx; apps/admin/src/app/layout.tsx</span></td></tr>
+      <tr><td>F-083</td><td>Platform</td><td>Health checks + observability</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">–</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Terminus + pino + OTel + SLO docs <span class="ev">apps/api/src/health.controller.ts; docs/monitoring/slo-and-alerting.md</span></td></tr>
+      <tr><td>F-084</td><td>Support</td><td>Helpdesk / ticketing</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-muted">LOW</span></td><td>Support module is empty stub; product decision <span class="ev">apps/api/src/modules/support/support.module.ts</span></td></tr>
+      <tr><td>F-085</td><td>RFQ</td><td>Quotation / RFQ domain</td><td>N</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-info">MED</span></td><td>Absent from plan and code; product decision PD-1 <span class="ev">repository-wide scan: zero quote/RFQ entities</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">Priorities: <span class="pill p-err">BLOCKING</span> prevents a coherent B2B operation; <span class="pill p-warn">HIGH</span> required for a complete framework; <span class="pill p-info">MED</span> framework quality; <span class="pill p-muted">LOW</span> polish or product-gated. &ldquo;–&rdquo; = not applicable (no UI expected). Full 18-column detail (tenant scope, database support, integration support, test support, gap type, dependencies) is preserved in the CSV.</p>
+</section>
+<section id="sec-8">
+  <h2><span class="num">8.</span>API ↔ UI Parity Analysis</h2>
+  <p>Every API capability was cross-referenced against what users can actually reach. Across <strong>111 endpoint groups</strong>, the verdicts are:</p>
+  <div class="grid c4">
+    <div class="card"><h4>Aligned</h4><div class="kpi">75</div><div class="kpi-sub">backend and UI both work</div></div>
+    <div class="card"><h4>Partial</h4><div class="kpi" style="color:var(--warn)">14</div><div class="kpi-sub">both exist, journey incomplete</div></div>
+    <div class="card"><h4>Backend only</h4><div class="kpi" style="color:var(--info)">16</div><div class="kpi-sub">verified APIs with no UI</div></div>
+    <div class="card"><h4>Missing</h4><div class="kpi" style="color:var(--err)">6</div><div class="kpi-sub">neither backend nor UI</div></div>
+  </div>
+  <h3>Parity case taxonomy</h3>
+  <table>
+    <thead><tr><th style="width:5rem">Case</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><strong>A</strong></td><td>Both backend and UI complete</td></tr>
+      <tr><td><strong>B</strong></td><td>Backend exists, UI missing</td></tr>
+      <tr><td><strong>C</strong></td><td>UI exists, backend missing <em>(none found at critical-path level)</em></td></tr>
+      <tr><td><strong>D</strong></td><td>Both exist, but the journey is incomplete</td></tr>
+      <tr><td><strong>E</strong></td><td>Contract mismatch between UI and API</td></tr>
+      <tr><td><strong>F</strong></td><td>Authorization mismatch</td></tr>
+      <tr><td><strong>G</strong></td><td>State-machine mismatch (UI implies transitions the backend cannot make)</td></tr>
+    </tbody>
+  </table>
+  <h3>Workflow-level verdicts</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Workflow</th><th style="width:8rem">Case</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>Auth / identity / profile</td><td><span class="pill p-ok">A</span></td><td>Dual auth on all apps</td></tr>
+      <tr><td>Org management</td><td><span class="pill p-ok">A</span> <span class="pill p-warn">D</span></td><td>Complete on merchant/admin/mobile; buyer web is switch-only (no member management)</td></tr>
+      <tr><td>Catalog taxonomy, products &amp; offers</td><td><span class="pill p-ok">A</span></td><td>Including admin builders</td></tr>
+      <tr><td>Search &amp; discovery</td><td><span class="pill p-ok">A</span></td><td>&mdash;</td></tr>
+      <tr><td>Cart &amp; checkout</td><td><span class="pill p-ok">A</span> <span class="pill p-err">G</span></td><td>Complete for offline scope; checkout implies a payment that never happens — PAYMENT_PENDING unreachable</td></tr>
+      <tr><td>Buyer orders (list/detail/cancel/reorder/dispute/tracking)</td><td><span class="pill p-ok">A</span></td><td>Tracking renders carrier data read-only</td></tr>
+      <tr><td>Merchant order processing</td><td><span class="pill p-ok">A</span></td><td>Accept / partial / reject / FSM / cancel / assign-driver</td></tr>
+      <tr><td><strong>Shipment operations (create/cancel/labels)</strong></td><td><span class="pill p-info">B</span></td><td>Backend verified; zero UI</td></tr>
+      <tr><td><strong>Delivery exceptions (report/retry)</strong></td><td><span class="pill p-info">B</span></td><td>Backend verified; zero UI; buyers/merchants cannot even <em>see</em> exception state</td></tr>
+      <tr><td><strong>RTS workflow (request/approve/reject/complete/LOST)</strong></td><td><span class="pill p-info">B</span></td><td>B.5 verified; zero UI — operationally invisible</td></tr>
+      <tr><td><strong>Carrier credentials / configurations / recovery</strong></td><td><span class="pill p-info">B</span></td><td>Admin APIs only; zero UI</td></tr>
+      <tr><td>Shipping methods &amp; zones</td><td><span class="pill p-ok">A</span> <span class="pill p-info">B</span></td><td>Merchant self-service exists; admin has no equivalent</td></tr>
+      <tr><td><strong>Payments</strong></td><td><span class="pill p-err">neither</span></td><td>Void on both sides</td></tr>
+      <tr><td><strong>Refunds</strong></td><td><span class="pill p-err">neither</span></td><td>M7.3-D planned</td></tr>
+      <tr><td><strong>Returns (post-delivery)</strong></td><td><span class="pill p-err">neither</span></td><td>M7.3-C audited, not built</td></tr>
+      <tr><td>Pricing lists &amp; tiers</td><td><span class="pill p-ok">A</span></td><td>Merchant; admin reads via offer detail</td></tr>
+      <tr><td>Segment / contract pricing</td><td><span class="pill p-err">E/G</span></td><td>Columns stored; resolution ignores them; no segments admin anywhere</td></tr>
+      <tr><td>Promotions</td><td><span class="pill p-ok">A</span></td><td>Mobile merchant UI missing (see table below)</td></tr>
+      <tr><td>Reviews &amp; disputes</td><td><span class="pill p-ok">A</span></td><td>Resolution lifecycle manual (backend gap BG-5)</td></tr>
+      <tr><td>Notifications</td><td><span class="pill p-ok">A</span> <span class="pill p-warn">D</span></td><td>In-app/push complete; SMS/WhatsApp are stub providers</td></tr>
+      <tr><td>Chat (conversations)</td><td><span class="pill p-info">B</span></td><td>Schema + API shipped; standalone chat UI intentionally deferred (documented)</td></tr>
+      <tr><td>Admin order intervention</td><td><span class="pill p-warn">B/D</span></td><td>Admin detail read-only; backend has no admin-force-transition either — capability undefined</td></tr>
+      <tr><td>Feature flags</td><td><span class="pill p-info">B</span></td><td>Table exists; no controller, no UI</td></tr>
+      <tr><td>Driver delivery flow</td><td><span class="pill p-warn">D</span></td><td>Mobile driver screen + endpoints exist; DRIVER role not seeded; no RBAC entries (documented scaffolding)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout ok">
+    <strong class="label">False-feature scan</strong>
+    <p>No UI that appears complete but is secretly disconnected was detected at critical-path level (consistent with the Phase 5 certification). Two soft cases: (1) the checkout shipping estimate falls back to defaults for unconfigured stores — handled gracefully in UI; (2) merchant offer analytics charts can render from thin data in fresh environments — a data-availability issue, not a false feature.</p>
+  </div>
+  <h3>Partial parity — both sides exist, journey incomplete (14)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Domain</th><th>Endpoint</th><th>Gap</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>Organizations</td><td><code>POST /organizations/join</code></td><td>Web join path thin</td><td>Surface join on web</td></tr>
+      <tr><td>Organizations</td><td><code>/organizations/:id/members</code></td><td>Buyer web has no member UI</td><td>Add buyer-org member management to web</td></tr>
+      <tr><td>Catalog</td><td><code>GET /canonical/match|search|duplicates</code></td><td>Dedup actions partially surfaced</td><td>Complete admin dedup workflow UI</td></tr>
+      <tr><td>Offers</td><td><code>GET /merchant/offers/analytics(+/trend)</code></td><td>Merchant-facing trend thin</td><td>Merchant analytics page</td></tr>
+      <tr><td>Orders</td><td><code>POST /orders/:id/cancel</code></td><td>Merchant web cancel matrix predates B.5 OUT_FOR_DELIVERY rule</td><td>Refresh merchant cancellable-status map to B.5</td></tr>
+      <tr><td>Orders</td><td><code>POST /orders/:id/assign-driver + /pickup</code></td><td>DRIVER role not provisioned</td><td>Seed DRIVER + RBAC entries</td></tr>
+      <tr><td>Orders</td><td><code>GET /orders/master/:id/tracking</code></td><td>Sub-order carrier tracking richer than master view</td><td>Unify tracking surface</td></tr>
+      <tr><td>Orders</td><td><code>GET /drivers/shipments</code></td><td>DRIVER role not provisioned</td><td>Seed DRIVER + RBAC entries</td></tr>
+      <tr><td>Shipping</td><td><code>/v1/shipping/zones + zone-methods</code></td><td>No admin zone oversight</td><td>Admin read-only zones view</td></tr>
+      <tr><td>Shipments</td><td><code>GET /v1/shipments/:id/tracking</code></td><td>Buyer-only read; no ops detail</td><td>Expose in merchant + admin console</td></tr>
+      <tr><td>Promotions</td><td><code>/promotions CRUD + validate + active</code></td><td>Mobile merchant promotions missing</td><td>Mobile parity</td></tr>
+      <tr><td>Disputes</td><td><code>/orders/:orderId/dispute + /disputes*</code></td><td>Resolution has no financial lever (refunds absent)</td><td>M7.3-D/E</td></tr>
+      <tr><td>Admin</td><td><code>GET /admin/orders(+/:id)</code></td><td>No intervention capability (undefined)</td><td>Define admin intervention (G-17)</td></tr>
+      <tr><td>Realtime</td><td><code>/socket.io (gateway)</code></td><td>Not E2E verified (BG-4)</td><td>Websocket E2E coverage</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Backend only — verified APIs no user can reach (16)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Domain</th><th>Endpoint</th><th>Roles</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>Shipping</td><td><code>GET /v1/shipping/providers</code></td><td>ADMIN</td><td>Include in carrier console (R-1)</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/create</code></td><td>MERCHANT_OWNER, ADMIN</td><td>Merchant create-shipment action + admin console</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/cancel</code></td><td>MERCHANT_OWNER, ADMIN</td><td>Same console</td></tr>
+      <tr><td>Shipments</td><td><code>GET /v1/shipments/:id/labels</code></td><td>MERCHANT_OWNER, ADMIN</td><td>Label download in merchant console</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/exception</code></td><td>MERCHANT_OWNER, ADMIN</td><td>Exception console (G-01)</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/retry</code></td><td>MERCHANT_OWNER, ADMIN</td><td>Exception console (G-01)</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/rts</code></td><td>MERCHANT_OWNER, ADMIN</td><td>RTS queue + actions (G-01/G-02)</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/rts/approve</code></td><td>MERCHANT_OWNER (non-LOST), ADMIN</td><td>RTS queue + actions</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/rts/reject</code></td><td>MERCHANT_OWNER, ADMIN</td><td>RTS queue + actions</td></tr>
+      <tr><td>Shipments</td><td><code>POST /v1/shipments/:id/rts/complete</code></td><td>MERCHANT_OWNER, ADMIN</td><td>RTS queue + actions</td></tr>
+      <tr><td>Carrier</td><td><code>/v1/carrier/credentials GET+POST + deactivate</code></td><td>ADMIN</td><td>Carrier console (G-03)</td></tr>
+      <tr><td>Carrier</td><td><code>/v1/carrier/configurations GET+POST+PATCH + deactivate</code></td><td>ADMIN</td><td>Carrier console (G-03)</td></tr>
+      <tr><td>Carrier</td><td><code>POST /v1/carrier/shipments/:id/recover</code></td><td>ADMIN</td><td>Recovery queue UI (G-03)</td></tr>
+      <tr><td>Carrier</td><td><code>GET /v1/carrier/recovery/queue</code></td><td>ADMIN</td><td>Recovery queue UI (G-03)</td></tr>
+      <tr><td>Inventory</td><td><code>POST /inventory/reserve + /release</code></td><td>system/merchant</td><td>Internal service paths exposed — document as internal or hide</td></tr>
+      <tr><td>Comms</td><td><code>/orders/:orderId/conversation + /conversations/:id(/messages + read)</code></td><td>BUYER, MERCHANT_OWNER</td><td>Chat UI deferred (documented) — fast-follow chat UI</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Missing — no API and no UI (6)</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Domain</th><th>Gap</th><th>Recommendation</th></tr></thead>
+    <tbody>
+      <tr><td>Payments</td><td>Payments module empty <span class="pill p-err">BLOCKING</span></td><td>Phase 3 payments (R-3)</td></tr>
+      <tr><td>Refunds</td><td>M7.3-D planned</td><td>Refund automation (R-3 follow-on)</td></tr>
+      <tr><td>Invoices</td><td>No documents at all</td><td>Invoice service post-payments</td></tr>
+      <tr><td>Returns</td><td>M7.3-C audited, not built</td><td>Implement M7.3-C</td></tr>
+      <tr><td>Quotes</td><td>Product decision pending</td><td>Decide RFQ scope (G-14)</td></tr>
+      <tr><td>Feature flags</td><td>Flags table only; no controller/UI</td><td>Flags console (G-21)</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">The 75 fully-aligned endpoint groups (auth, profile, organizations, catalog, offers, taxonomy, requests, import, cart, orders core, inventory core, pricing, reviews, notifications, analytics, admin governance) are enumerated in <code>SCS-B2B-API-UI-PARITY-MATRIX.csv</code>.</p>
+
+  <h3>Who can do what — role / capability matrix</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Capability</th><th>Admin console</th><th>Merchant (web/mobile)</th><th>Buyer (web/mobile)</th><th>Driver</th><th>Complete?</th></tr></thead>
+    <tbody>
+      <tr><td>User / org administration</td><td>Full</td><td>Org self-management</td><td>Switch only</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Verification review</td><td>Full</td><td>Submit</td><td>&mdash;</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Catalog taxonomy</td><td>Full</td><td>Read / use</td><td>Read</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Products / offers</td><td>Govern</td><td>Full CRUD</td><td>Read / order</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Orders</td><td><strong>Read-only</strong></td><td>Full processing</td><td>Track / cancel</td><td>Assigned list</td><td><span class="pill p-warn">GAP</span> admin intervention undefined</td></tr>
+      <tr><td>Inventory</td><td>Read (data-quality)</td><td>Full</td><td>Stock display</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Pricing / promotions</td><td>Read</td><td>Full</td><td>Apply</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td><strong>Shipments / exceptions / RTS</strong></td><td><strong>No UI</strong></td><td><strong>No UI</strong></td><td>Tracking view only</td><td>List only</td><td><span class="pill p-err">INVISIBLE</span></td></tr>
+      <tr><td>Disputes</td><td>Resolve</td><td>View</td><td>Create / evidence</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+      <tr><td>Analytics / KPIs / audit</td><td>Full</td><td>Trend only</td><td>&mdash;</td><td>&mdash;</td><td><span class="pill p-ok">YES</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <ul class="tight">
+    <li>No excessive-privilege or tenant-boundary defects found — verified by phase-3 E2E and B-series gates.</li>
+    <li>DRIVER has endpoints but no seeded role/RBAC entries (documented scaffolding).</li>
+    <li>MERCHANT_STAFF write restrictions are enforced backend-side (403) with UI hiding (documented in the RBAC matrix).</li>
+    <li>Admin shipping-operations permissions exist in guards but are unreachable through any admin screen.</li>
+  </ul>
+</section>
+<section id="sec-9">
+  <h2><span class="num">9.</span>Cross-Domain Gaps</h2>
+  <p>The ten highest-value findings — places where individually-complete domains fail to connect into a working whole.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Gap</th><th>Impact</th><th style="width:8.6rem">Severity</th></tr></thead>
+    <tbody>
+      <tr><td>X-1</td><td><strong>Shipping ops built but invisible.</strong> Exceptions/RTS/carrier-recovery exist in API+DB+events with verified correctness, yet no admin/merchant screen consumes them — operations cannot run delivery ops without direct API calls; the B.5 investment is unrealized.</td><td>BLOCKING for operations</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>X-2</td><td><strong>Order lifecycle ends at COMPLETED with no financial settlement.</strong> Orders, inventory, disputes all assume money moved somehow; the payments module is empty — no refund on cancellation, no COD capture, no reconciliation vs. carrier fees.</td><td>BLOCKING for production revenue</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>X-3</td><td><strong>RTS_COMPLETED does not restock.</strong> The inventory ledger supports RETURN; nothing emits it — stock sold-then-returned vanishes from sellable quantity until manually adjusted (M7.3-C scope, audited).</td><td>HIGH</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>X-4</td><td><strong>Disputes resolve manually with no financial lever.</strong> Dispute resolution cannot trigger a refund or partial refund because refunds do not exist (M7.3-D/E dependency chain).</td><td>HIGH</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>X-5</td><td><strong>Segment/contract pricing columns are orphaned.</strong> The pricing schema anticipates B2B audiences; no segments entity, no resolution logic, no admin — merchants cannot do customer-specific pricing despite the schema.</td><td>MEDIUM</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>X-6</td><td><strong>Buyer identity is phone-only; no email channel.</strong> OTP rides the stubbed SMS path — production OTP delivery itself depends on unimplemented provider wiring.</td><td>HIGH (launch risk)</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>X-7</td><td><strong>Arabic normalized in search but the UI is English/LTR only.</strong> KSA B2B buyers get an English console.</td><td>MEDIUM-HIGH (market fit)</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>X-8</td><td><strong>Rich shipping/RTS events exist (outbox) with no notification consumers.</strong> M7.3-F will need subscribers; today, state changes are silent.</td><td>MEDIUM</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>X-9</td><td><strong>Feature flags table is dark.</strong> No controller/UI — operational toggles unavailable.</td><td>LOW</td><td><span class="pill p-muted">LOW</span></td></tr>
+      <tr><td>X-10</td><td><strong>Driver flow wired to orders but role unprovisioned.</strong> assign-driver + mobile screen exist; DRIVER not seeded — enablement requires a seed/provisioning decision.</td><td>MEDIUM</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="sec-10">
+  <h2><span class="num">10.</span>Master Gap Register</h2>
+  <p>All 25 findings (G-01–G-25) with type and severity. Types: FEATURE / UX / API / DATA / WORKFLOW / SECURITY / ARCHITECTURE / INTEGRATION / TESTING / DOCUMENTATION / OBSERVABILITY / B2B&nbsp;PRODUCT / PERFORMANCE.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th style="width:8rem">Domain</th><th>Gap → desired state</th><th>Impact</th><th style="width:7rem">Depends on</th><th style="width:8rem">Type</th><th style="width:6.4rem">Status</th></tr></thead>
+    <tbody>
+      <tr><td>G-01</td><td>Shipping ops</td><td>No admin shipments/exceptions console → admin UI: list, detail, exception report/retry, RTS queue/actions</td><td>Delivery ops impossible via UI</td><td>none (API ready)</td><td>UX/WORKFLOW</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>G-02</td><td>Shipping ops</td><td>No merchant shipment/exception/RTS UI → merchant UI: create/cancel shipment, labels, exception visibility, RTS request/track</td><td>Merchant cannot run platform-delivery ops</td><td>none</td><td>UX/WORKFLOW</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>G-03</td><td>Shipping ops</td><td>No carrier management UI (credentials/config/recovery) → admin carrier console</td><td>Recovery queue unusable</td><td>none</td><td>UX</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-04</td><td>Payments</td><td>Entire payments capability absent → Phase 3: provider integration, COD capture, payment status</td><td>No revenue path</td><td>product: provider selection</td><td>FEATURE/INTEGRATION</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>G-05</td><td>Refunds</td><td>No refund domain → M7.3-D refund automation tied to disputes/cancellation/returns</td><td>Financial closure impossible</td><td>G-04</td><td>FEATURE/WORKFLOW</td><td><span class="pill p-err">BLOCKING</span></td></tr>
+      <tr><td>G-06</td><td>Returns</td><td>Post-delivery returns absent → return-to-stock, condition/qty recording, RMA flow</td><td>Inventory/financial leak</td><td>B.5 (done)</td><td>FEATURE/WORKFLOW</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-07</td><td>Finance</td><td>No invoices/credit notes/documents → invoice generation (PDF), tax documents</td><td>B2B buyers require invoices</td><td>G-04, product decision</td><td>FEATURE/B2B PRODUCT</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-08</td><td>Pricing</td><td>Segment/contract pricing dark → buyer segments + resolution + admin assignment</td><td>Cannot honor B2B price contracts</td><td>product decision</td><td>DATA/FEATURE</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-09</td><td>Buyer data</td><td>No address book / multi-location → normalized addresses per org with checkout picker</td><td>B2B multi-site delivery unsupported</td><td>none</td><td>DATA/UX</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-10</td><td>Identity</td><td>DRIVER role unprovisioned → seed/provision DRIVER + RBAC entries</td><td>Platform delivery staffing blocked</td><td>product/ops decision</td><td>SECURITY/WORKFLOW</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-11</td><td>Notifications</td><td>SMS provider stub; no email channel → wire SMS provider (OTP-critical); add email</td><td>OTP delivery + B2B comms at risk</td><td>provider selection</td><td>INTEGRATION</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-12</td><td>Notifications</td><td>Shipping/RTS events silent → M7.3-F notification expansion</td><td>Parties unaware of exceptions</td><td>G-01/G-02</td><td>FEATURE</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-13</td><td>i18n</td><td>English-only LTR UI → Arabic + RTL across web/admin/mobile + docs</td><td>KSA market fit</td><td>product decision</td><td>UX</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-14</td><td>B2B product</td><td>No RFQ/quotation → product decision (absent from plan)</td><td>Classic B2B procurement unsupported</td><td>product decision</td><td>B2B PRODUCT</td><td><span class="pill p-info">INFO→HIGH if in scope</span></td></tr>
+      <tr><td>G-15</td><td>B2B product</td><td>No order approvals/spending limits → product decision</td><td>Enterprise buyer governance unsupported</td><td>product decision</td><td>B2B PRODUCT</td><td><span class="pill p-muted">INFO</span></td></tr>
+      <tr><td>G-16</td><td>B2B product</td><td>No credit/terms/AR → out of scope until P7 (documented)</td><td>Trade credit unsupported</td><td>regulated partner (P7)</td><td>B2B PRODUCT</td><td><span class="pill p-muted">INFO</span></td></tr>
+      <tr><td>G-17</td><td>Admin ops</td><td>Admin order intervention undefined/absent → define + build admin cancel/force-transition with audit</td><td>Support cannot intervene</td><td>product decision</td><td>WORKFLOW</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-18</td><td>Testing</td><td>Web/admin/mobile test coverage ~0/1/6 → UI regression suites + E2E (Playwright)</td><td>UI regressions undetectable</td><td>none</td><td>TESTING</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-19</td><td>Analytics</td><td>No business reporting (sales/ops/finance) → merchant + admin report surfaces</td><td>Data-driven ops unsupported</td><td>G-04 (finance)</td><td>FEATURE</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-20</td><td>Docs</td><td>CAPABILITY-MATRIX stale post-M7.2 (dated 2026-09-25) → refresh incl. shipping/RTS/parity</td><td>Governance drift</td><td>none</td><td>DOCUMENTATION</td><td><span class="pill p-muted">LOW</span></td></tr>
+      <tr><td>G-21</td><td>Platform</td><td>Feature flags no management surface → admin flags UI + controller</td><td>Ops toggles unavailable</td><td>none</td><td>FEATURE</td><td><span class="pill p-muted">LOW</span></td></tr>
+      <tr><td>G-22</td><td>Reconciliation</td><td>No reconciliation worker/scheduled jobs → scheduled sweeps of recovery queue + alerting</td><td>Stale carrier drift undetected</td><td>G-03</td><td>ARCHITECTURE/OBSERVABILITY</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-23</td><td>Commerce</td><td>Tax/delivery fee defaulted at checkout (BG-2) → zone-based fee resolution everywhere + VAT config</td><td>Financial accuracy</td><td>G-04</td><td>FEATURE/DATA</td><td><span class="pill p-info">MEDIUM</span></td></tr>
+      <tr><td>G-24</td><td>Checkout</td><td>No bulk/CSV ordering → product decision (B2B convenience)</td><td>Large-order friction</td><td>product decision</td><td>B2B PRODUCT</td><td><span class="pill p-muted">LOW</span></td></tr>
+      <tr><td>G-25</td><td>Support</td><td>Support module empty stub → helpdesk/ticketing or remove</td><td>Undefined</td><td>product decision</td><td>FEATURE</td><td><span class="pill p-muted">LOW</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section id="sec-11">
+  <h2><span class="num">11.</span>Security, Testing &amp; Quality</h2>
+  <h3>Security posture</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Area</th><th style="width:7rem">Status</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Authentication</td><td><span class="pill p-ok">STRONG</span></td><td>Dual OTP+password; JWT access/refresh with rotation &amp; theft remediation; device trust; session revocation</td></tr>
+      <tr><td>RBAC</td><td><span class="pill p-ok">STRONG</span></td><td>Seeded roles/permissions; 197 guarded routes; admin UI permission-filtered; phase-3 E2E</td></tr>
+      <tr><td>Tenant isolation / IDOR</td><td><span class="pill p-ok">VERIFIED</span></td><td>tenant-scope.ts asserts; phase-3 + B.5 gate 8 runtime proof</td></tr>
+      <tr><td>API validation</td><td><span class="pill p-ok">STRONG</span></td><td>ValidationPipe + zod/contracts; RFC 7807 errors</td></tr>
+      <tr><td>Rate limiting / headers / CORS</td><td><span class="pill p-ok">STRONG</span></td><td>@nestjs/throttler; helmet; env-configured CORS</td></tr>
+      <tr><td>Secret management</td><td><span class="pill p-warn">PARTIAL</span></td><td>Env-based; carrier credential fields redacted (B.1 tests); no vault integration documented</td></tr>
+      <tr><td>Webhook authenticity</td><td><span class="pill p-ok">STRONG</span></td><td>Per-provider webhook token (migration 0044)</td></tr>
+      <tr><td>Idempotency</td><td><span class="pill p-ok">STRONG</span></td><td>Checkout key+fingerprint; carrier cancel key; RTS idempotent transitions</td></tr>
+      <tr><td>Concurrency</td><td><span class="pill p-ok">VERIFIED</span></td><td>Optimistic locks; 100-concurrent gates (accept, RTS request/approve/complete); atomic inventory ops</td></tr>
+      <tr><td>Transaction boundaries</td><td><span class="pill p-ok">STRONG</span></td><td>State + event + outbox in a single transaction (B.5 gate 17)</td></tr>
+      <tr><td>Sensitive data exposure</td><td><span class="pill p-ok">STRONG</span></td><td>No card data (no payments); documents via presigned URLs</td></tr>
+      <tr><td>Audit logging</td><td><span class="pill p-ok">STRONG</span></td><td>Middleware + admin viewer</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout warn">
+    <strong class="label">Security findings (not feature gaps)</strong>
+    <ul class="tight">
+      <li><strong>S-1:</strong> Web/admin test coverage near-zero — regressions in permission-filtered UI could escape detection.</li>
+      <li><strong>S-2:</strong> DRIVER endpoints rely on an unseeded scaffolding role — verify the provisioning path before enabling drivers in production.</li>
+      <li><strong>S-3:</strong> Free-text delivery address (no validation/normalization) — fraud/misdelivery hygiene.</li>
+      <li><strong>S-4:</strong> No email verification channel — phone-only identity proofing.</li>
+    </ul>
+  </div>
+  <h3>Testing &amp; quality</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Layer</th><th>State</th></tr></thead>
+    <tbody>
+      <tr><td>API unit + integration</td><td><strong>Strong</strong> — 111 spec files, ~1,911 tests; real-PostgreSQL suites via Testcontainers (B.5: 35 PG tests; 100-concurrent gates)</td></tr>
+      <tr><td>API E2E (phase suites)</td><td>6 files / 236 tests / 4,660 lines (Phase 1–4 era; pre-shipping)</td></tr>
+      <tr><td>TypeScript / build</td><td>0 errors (<code>tsc --noEmit</code>, B.5 gate 23); build PASS (275 files, gate 24)</td></tr>
+      <tr><td>Regression</td><td>88 files / 1,634 tests green (B.5 gate 25)</td></tr>
+      <tr><td>Web tests</td><td><strong>0 files</strong></td></tr>
+      <tr><td>Admin tests</td><td>1 file (<code>management.test.tsx</code>)</td></tr>
+      <tr><td>Mobile tests</td><td>6 files</td></tr>
+      <tr><td>Load testing</td><td>k6 scaffolding (<code>infra/load</code>); M7.1 concurrency results documented</td></tr>
+      <tr><td>Observability</td><td>pino structured logs, OpenTelemetry, SLO/alerting doc</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">Quality gaps: frontend test coverage (web 0, admin 1, mobile 6) is the dominant testing risk; no UI-workflow E2E (Playwright/Cypress) located; the E2E phase suites predate the shipping series (M7.2/M7.3 behavior is covered by PG integration specs instead).</p>
+</section>
+
+<section id="sec-12">
+  <h2><span class="num">12.</span>UX &amp; Internationalization</h2>
+  <p>The Phase-5 gate certified UX states (loading/empty/error/mutation) across critical pages, error differentiation by HTTP status, and permission-filtered navigation — verified consistent with the code (shared LoadingSpinner/ErrorBanner/EmptyState, admin useRequirePerms, sidebar permission filtering). Material UX findings:</p>
+  <ol class="tight">
+    <li><strong>Navigation discoverability <span class="pill p-warn">HIGH</span>:</strong> no navigation path anywhere to shipments, exceptions, RTS, or carrier recovery — because no screens exist.</li>
+    <li><strong>Buyer checkout addresses <span class="pill p-info">MEDIUM</span>:</strong> free-text street/city re-entered per checkout; no saved addresses, no validation, no multi-location delivery for org buyers.</li>
+    <li><strong>Internationalization <span class="pill p-warn">HIGH for KSA market</span>:</strong> both web apps hardcode <code>&lt;html lang="en" dir="ltr"&gt;</code>; no i18n framework or locale resources found; Arabic exists only in backend search normalization and catalog data. RTL, Arabic UI, Arabic documents: <strong>not implemented</strong>.</li>
+    <li><strong>Admin order operations <span class="pill p-info">MEDIUM</span>:</strong> admin order detail is read-only; no intervention UX (consistent with the missing backend capability — an undefined requirement).</li>
+    <li><strong>Exception visibility <span class="pill p-warn">HIGH</span>:</strong> buyers see generic tracking; merchants see order status; neither sees delivery-exception/RTS states — a delivery in distress is invisible to both parties.</li>
+    <li><strong>Responsive/mobile:</strong> dedicated Flutter apps cover buyer + merchant; web responsive behavior Phase-5 certified.</li>
+    <li><strong>Documents:</strong> no downloadable invoice/quote/delivery-note UX (backend absent).</li>
+  </ol>
+  <h3>Data model health</h3>
+  <p>69 tables across 50 migrations with sound conventions (app-generated UUIDs, UTC timestamps, money as minor units + ISO currency, CHECK-constrained statuses). Mature groups: identity/RBAC, merchant, catalog (9 phases), shipping (post-B.5 reconciliation fields), inventory ledger. Watch items: <code>price_lists.segment_id</code> is a dangling reference (no segments table); <code>orders.delivery_address</code> is unnormalized JSONB; the stock ledger's RETURN type is reserved but unused; <code>feature_flags</code> has no management surface. <strong>Absent tables:</strong> payments, payment_transactions, refunds, invoices, credit_notes, quotes, returns/rma, buyer_segments, addresses, credit_accounts, ledger_entries.</p>
+  <h3>Integrations</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Integration</th><th style="width:9rem">State</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Aramex (carrier)</td><td><span class="pill p-ok">LIVE-READY</span></td><td>Create/cancel/track/labels; recovery queue; cancel idempotency key (0049); reconciliation fields; credential separation</td></tr>
+      <tr><td>Carrier webhooks</td><td><span class="pill p-ok">LIVE-READY</span></td><td>Token-authenticated (0044); journaled; per-provider token</td></tr>
+      <tr><td>FCM push</td><td><span class="pill p-ok">WORKING</span></td><td>Device tokens via notifications service</td></tr>
+      <tr><td>SMS</td><td><span class="pill p-err">STUB</span></td><td>Two-provider failover designed; no live call — OTP-critical</td></tr>
+      <tr><td>Email</td><td><span class="pill p-err">NONE</span></td><td>No provider anywhere</td></tr>
+      <tr><td>WhatsApp</td><td><span class="pill p-err">STUB</span></td><td>Template channel only</td></tr>
+      <tr><td>S3 storage</td><td><span class="pill p-ok">WORKING</span></td><td>Presigned up/download (AWS SDK v3)</td></tr>
+      <tr><td>Payment gateway</td><td><span class="pill p-err">NONE</span></td><td>&mdash;</td></tr>
+      <tr><td>Redis caching</td><td><span class="pill p-ok">WORKING</span></td><td>Read-through catalog caches; slow-query wrapper</td></tr>
+      <tr><td>OpenTelemetry</td><td><span class="pill p-ok">WORKING</span></td><td>SDK + auto-instrumentations; env-configured export</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section id="sec-13">
+  <h2><span class="num">13.</span>Recommended Roadmap</h2>
+  <div class="callout">
+    <strong class="label">Nature of this roadmap</strong>
+    <p>Recommendation only — nothing here is implemented by the audit. Every milestone should follow the established four-gate governance pattern: Pre-Implementation Architecture Audit → Business Rules + Architecture Decision Lock → Implementation → Independent Runtime Verification → Release Closure. No UI work package is scheduled before its backend contract is verified-stable.</p>
+  </div>
+  <h3>Roadmap logic</h3>
+  <ol class="tight">
+    <li><strong>Visibility before new behavior</strong> — the B.5-verified shipping/RTS backend is unusable by humans; exposing it (R0) is cheaper and higher-value than any new backend.</li>
+    <li><strong>Close physical loops before financial loops</strong> — returns/restock (R1) complete the goods cycle that refunds (R3) will financially settle.</li>
+    <li><strong>Payments is the financial root</strong> — refunds, invoices, finance console, and dispute closure all depend on it (R2).</li>
+    <li><strong>Commercial depth after the spine is stable</strong> — segment pricing, address book, i18n, reporting (R4) ride on stable order/payment contracts.</li>
+    <li><strong>Product-gated B2B procurement last</strong> — RFQ, approvals, credit require explicit product decisions and, for credit, regulated partners (P7 fence).</li>
+  </ol>
+
+  <h3>Phase R0 — Ship-Ops Visibility <span class="pill p-err">BLOCKING</span> <span class="pill p-brand">proposed M7.3-B.6</span></h3>
+  <p><strong>Objective:</strong> make the verified M7.2.3/M7.3 shipping, exception, RTS, and carrier-recovery capabilities operable by humans. <strong>Prerequisites:</strong> B.5 (done). <strong>Enables:</strong> R1, R6.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R0.1</td><td>Admin Ship-Ops console: shipments list/detail, exception report/retry, RTS queue (approve/reject/complete/LOST), carrier recovery queue</td><td>G-01/G-03: ops cannot run delivery</td><td>none — B.5 contracts verified</td><td>Admin executes full RTS lifecycle + recovery action from UI; permission-filtered nav</td></tr>
+      <tr><td>R0.2</td><td>Merchant delivery ops: create/cancel shipment, labels, exception visibility, RTS request/track</td><td>G-02: merchants cannot run platform delivery</td><td>none</td><td>Merchant completes create → label → exception → RTS-request from web</td></tr>
+      <tr><td>R0.3</td><td>Exception/RTS state surfacing for buyers (tracking detail + status labels)</td><td>F-16.5: delivery distress invisible</td><td>R0.1 states</td><td>Buyer sees exception/RTS states accurately</td></tr>
+      <tr><td>R0.4</td><td>DRIVER provisioning decision + seed/RBAC</td><td>G-10: driver flow unprovisioned</td><td>product/ops decision</td><td>DRIVER role seeded with least-privilege perms, or driver flow formally descoped</td></tr>
+      <tr><td>R0.5</td><td>Playwright critical-path suite (checkout → accept → ship → exception → RTS) + refresh stale CAPABILITY-MATRIX</td><td>G-18/G-20 before UI surface doubles</td><td>none</td><td>Critical ship-ops paths covered in CI; matrix refreshed</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R1 — Returns Loop <span class="pill p-brand">M7.3-C, as audited</span></h3>
+  <p><strong>Objective:</strong> implement the M7.3-C audit scope — inventory return-to-stock + RTS physical handling (condition/quantity recording, physical verification). <strong>Prerequisites:</strong> B.5 (done), four-gate lock per the completed audit. <strong>Enables:</strong> R3 refund linkage.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R1.1</td><td>Return-to-stock on RTS_COMPLETED with RETURN movements</td><td>X-3: sold-then-returned stock leaks</td><td>B.5 (done); R0.2 recommended</td><td>8 audit conditions satisfied; restock atomic with confirmation; ledger correct</td></tr>
+      <tr><td>R1.2</td><td>Return condition + quantity recording</td><td>Audit BD-B5-006 deferral</td><td>R1.1</td><td>Condition/qty persisted + auditable</td></tr>
+      <tr><td>R1.3</td><td>Post-delivery buyer return request (RMA) — if locked into M7.3-C scope per audit conditions</td><td>G-06</td><td>product lock via four-gate process</td><td>Buyer → merchant → receipt → inspection → restock runs E2E</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R2 — Financial Foundation <span class="pill p-err">BLOCKING</span> <span class="pill p-brand">Phase 3 kickoff / M8.1</span></h3>
+  <p><strong>Objective:</strong> give the platform a real money path — payment provider + COD capture + payment status in the order timeline — plus the notification channels production OTP requires. <strong>Prerequisites:</strong> product decisions (provider, COD policy). <strong>Enables:</strong> R3, invoices, R4 reporting, dispute financial closure.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R2.1</td><td>Payment provider integration (hosted SDK; card data never in platform — plan §1380)</td><td>G-04: no revenue path</td><td>PD-1 provider + PCI scope</td><td>Card checkout completes in sandbox; PAYMENT_PENDING reachable; idempotent webhooks</td></tr>
+      <tr><td>R2.2</td><td>COD two-step capture at point of delivery</td><td>Plan Phase 3 core; KSA-relevant</td><td>R2.1 data model</td><td>COD order captured at delivery with audit</td></tr>
+      <tr><td>R2.3</td><td>Fee/VAT correctness (G-23) before money flows</td><td>Currently zeroed (BG-2)</td><td>none</td><td>Financial breakdown equals zone fee + VAT rules</td></tr>
+      <tr><td>R2.4</td><td>SMS provider live wiring + email channel</td><td>G-11: OTP rides a stub today</td><td>PD-2 provider contracts</td><td>OTP delivered via real provider in staging; email channel available for docs</td></tr>
+      <tr><td>R2.5</td><td>Admin finance console v1: payments monitor, reconciliation view</td><td>Plan §1380</td><td>R2.1</td><td>Admin sees payment states + failures</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R3 — Refunds &amp; Dispute Closure <span class="pill p-brand">M7.3-D + M7.3-E alignment</span></h3>
+  <p><strong>Prerequisites:</strong> R2. <strong>Enables:</strong> finance-grade reporting, collections-era features later.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R3.1</td><td>Refund automation (cancellation, RTS, returns) — M7.3-D</td><td>G-05: financial closure impossible</td><td>R2.1</td><td>Cancelled/returned orders refund correctly, incl. partial</td></tr>
+      <tr><td>R3.2</td><td>Dispute resolution financial levers — M7.3-E</td><td>X-4: disputes resolve with no money lever</td><td>R3.1</td><td>Dispute resolution can issue full/partial refund with audit</td></tr>
+      <tr><td>R3.3</td><td>Invoices + credit notes (PDF, VAT-compliant; Arabic/English once R4.3 lands)</td><td>G-07: B2B buyers require documents</td><td>R2.1</td><td>Invoice issued per completed order; credit note per refund</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Phase R4 — Commercial Depth &amp; Market Fit</h3>
+  <p><strong>Prerequisites:</strong> R0–R3 for a stable base; each item is independently schedulable. <strong>Enables:</strong> R5 targeting, enterprise procurement later.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R4.1</td><td>Buyer address book (org-scoped, multi-location, validated)</td><td>G-09: B2B multi-site delivery</td><td>none</td><td>Org buyer selects saved address at checkout</td></tr>
+      <tr><td>R4.2</td><td>Segment pricing activation (segments entity + resolution + admin assignment)</td><td>G-08/X-5: dormant schema</td><td>PD-7 product decision</td><td>Segment member sees contract price at PDP/cart/checkout</td></tr>
+      <tr><td>R4.3</td><td>Arabic + RTL i18n across web/admin/mobile (+ Arabic documents)</td><td>G-13: KSA market fit</td><td>PD-6; translation vendor</td><td>Full buyer+merchant journey in Arabic RTL</td></tr>
+      <tr><td>R4.4</td><td>Reporting v1: merchant sales/orders; admin ops dashboard (exception aging, RTS cycle time)</td><td>G-19</td><td>R2 (finance data)</td><td>Dashboards render correct figures vs. DB</td></tr>
+      <tr><td>R4.5</td><td>Buyer-org member management on web (parity)</td><td>F-006</td><td>none</td><td>Buyer org admin manages members on web</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R5 — Notification Expansion <span class="pill p-brand">M7.3-F</span></h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R5.1</td><td>Event-driven notifications for shipment/RTS/refund/return states (consumes outbox)</td><td>G-12/X-8: state changes silent</td><td>R0 states surfaced; R2.4 channels</td><td>Each lifecycle event notifies the correct party on the chosen channel</td></tr>
+      <tr><td>R5.2</td><td>Org-scoped notification routing (merchant staff, buyer org admins)</td><td>B2B correctness</td><td>R4.5</td><td>Events reach org roles, not just individuals</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R6 — Platform Hardening &amp; Ops Maturity</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
+    <tbody>
+      <tr><td>R6.1</td><td>Reconciliation worker: scheduled recovery-queue sweeps, stale-state detection, alerting</td><td>G-22: drift undetected today</td><td>R0.1/R0.3 console; R2.5</td><td>Stale carrier states auto-detected + alerted</td></tr>
+      <tr><td>R6.2</td><td>Admin order intervention (defined scope: cancel/force-transition with full audit)</td><td>G-17</td><td>PD-8 product decision</td><td>Admin intervention executes with complete audit trail</td></tr>
+      <tr><td>R6.3</td><td>Feature-flag console</td><td>G-21</td><td>none</td><td>Ops toggles flags from UI</td></tr>
+      <tr><td>R6.4</td><td>WebSocket E2E verification + realtime hardening (BG-4)</td><td>LOW</td><td>none</td><td>Order/notification pushes verified E2E</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Phase R7 — Advanced B2B <span class="pill p-warn">product-gated — do not start without explicit product lock</span></h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Gate</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>R7.1</td><td>RFQ / quotation domain (request → quote → negotiate → accept → convert)</td><td>PD-4 (G-14)</td><td>Absent from authoritative plan; large surface; reuse offer/FSM patterns</td></tr>
+      <tr><td>R7.2</td><td>Buyer-side order approvals + spending limits</td><td>PD-5 (G-15)</td><td>Enterprise procurement tier</td></tr>
+      <tr><td>R7.3</td><td>Bulk CSV/Excel ordering + reorder templates</td><td>G-24</td><td>Natural extension of import pipeline patterns</td></tr>
+      <tr><td>R7.4</td><td>Trade credit / payment terms / AR aging</td><td><strong>P7 regulated partners only</strong> (documented fence)</td><td>Do not build in-platform lending</td></tr>
+      <tr><td>R7.5</td><td>Multi-warehouse / branch hierarchy</td><td>PD-9; Phase 7 scope</td><td>Phase-1 fence lifts only with plan revision</td></tr>
+      <tr><td>R7.6</td><td>Chat UI over shipped conversations schema</td><td>documented fast-follow</td><td>Low risk; schema ready</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted">Milestone names M7.3-C/D/E/F are retained where existing roadmap locks already define their scope (C audited; D/E/F named in the B.0 lock §27). New milestones (B.6, M8.x) are proposed identifiers only.</p>
+</section>
+
+<section id="sec-14">
+  <h2><span class="num">14.</span>Dependency Graph</h2>
+  <div class="flow" role="img" aria-label="Roadmap dependency flow: B.5 done, then R0 ship-ops UI, R1 returns and R2 payments in parallel, converging on R3 refunds and dispute closure, then R4 commercial depth, R5 notifications and R6 hardening, finally R7 advanced B2B gated on product decisions">
+    <div class="node done"><h4>B.5 — DONE</h4><p class="small">Cancellation, delivery exceptions, RTS backend (verified, release-closed)</p></div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="branches">
+      <div class="node"><h4>R0 — Ship-Ops UI</h4><p class="small">Admin console, merchant ops, buyer visibility, DRIVER, Playwright (M7.3-B.6)</p></div>
+      <div class="node"><h4>R1 — Returns (M7.3-C)</h4><p class="small">Restock + condition/qty; needs B.5 (done); R0.2 recommended</p></div>
+    </div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="node gate"><h4>R2 — Payments + COD + channels + fee/VAT (M8.1)</h4><p class="small">Financial root; needs PD-1/PD-2 product decisions</p></div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="node"><h4>R3 — Refunds (M7.3-D) → dispute closure (M7.3-E) → invoices</h4><p class="small">R3.1 needs R2.1; R3.2 needs R3.1; R3.3 needs R2.1</p></div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="branches">
+      <div class="node"><h4>R4 — Commercial depth</h4><p class="small">Addresses, segments, i18n/RTL, reporting (reporting needs R2)</p></div>
+      <div class="node"><h4>R5 — Notifications (M7.3-F)</h4><p class="small">Consumes outbox events; needs R0 + R2.4</p></div>
+    </div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="node"><h4>R6 — Hardening</h4><p class="small">Reconciliation worker (needs R0.1/R0.3), admin intervention, flags console, WS E2E</p></div>
+    <div class="arr" aria-hidden="true"></div>
+    <div class="node gate"><h4>R7 — Advanced B2B (product-gated)</h4><p class="small">RFQ, approvals, bulk ordering, credit (P7-regulated), multi-warehouse, chat UI</p></div>
+  </div>
+  <h3>Hard dependency rules</h3>
+  <ul class="tight">
+    <li>R1 requires B.5 (satisfied). R1.3 (RMA) additionally requires its four-gate lock.</li>
+    <li>R3.1 requires R2.1. R3.2 requires R3.1. R3.3 requires R2.1.</li>
+    <li>R4.4 (finance reporting) requires R2. R5.1 requires R0 + R2.4.</li>
+    <li>R6.1 requires R0.1/R0.3. R7 items require explicit product locks (R7.4 also requires regulated partners).</li>
+  </ul>
+  <h3>Suggested sequence summary</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">Order</th><th>Milestone (proposed)</th><th>Theme</th><th>Blocks removed</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>M7.3-B.6 (R0)</td><td>Ship-Ops Visibility</td><td>G-01, G-02, G-03, G-10, G-18, G-20</td></tr>
+      <tr><td>2</td><td>M7.3-C (R1)</td><td>Returns + restock</td><td>X-3, G-06</td></tr>
+      <tr><td>3</td><td>M8.1 (R2)</td><td>Payments + channels + fee/VAT</td><td>G-04, G-11, G-23</td></tr>
+      <tr><td>4</td><td>M7.3-D (R3.1)</td><td>Refunds</td><td>G-05</td></tr>
+      <tr><td>5</td><td>M7.3-E (R3.2–3.3)</td><td>Dispute closure + documents</td><td>X-4, G-07</td></tr>
+      <tr><td>6</td><td>M8.2 (R4)</td><td>Commercial depth + i18n + reporting</td><td>G-08, G-09, G-13, G-19</td></tr>
+      <tr><td>7</td><td>M7.3-F (R5)</td><td>Notification expansion</td><td>G-12</td></tr>
+      <tr><td>8</td><td>M8.3 (R6)</td><td>Ops maturity</td><td>G-17, G-21, G-22, BG-4</td></tr>
+      <tr><td>9+</td><td>R7 (product-gated)</td><td>Advanced B2B procurement</td><td>G-14, G-15, G-16, G-24</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section id="sec-15">
+  <h2><span class="num">15.</span>Product Decisions Required</h2>
+  <p>Ten decisions gate the roadmap: it cannot proceed past the listed phase gate without each one. None is answered by code — each needs an explicit product (and in one case regulatory) call, with the current evidence noted.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:3.4rem">#</th><th>Decision</th><th style="width:7rem">Blocks</th><th>Current evidence</th></tr></thead>
+    <tbody>
+      <tr><td>PD-1</td><td>Payment provider + COD policy</td><td>R2.1 / R2.2</td><td>Plan Phase 3 defines the shape; provider unselected</td></tr>
+      <tr><td>PD-2</td><td>SMS + email providers</td><td>R2.4</td><td>notifications.service runs on a stub today</td></tr>
+      <tr><td>PD-3</td><td>DRIVER operating model (provision or descope)</td><td>R0.4</td><td>Role unseeded; mobile driver screen exists</td></tr>
+      <tr><td>PD-4</td><td>RFQ / quotation scope (in / out)</td><td>R7.1</td><td>Absent from the authoritative plan and from code</td></tr>
+      <tr><td>PD-5</td><td>Buyer approvals / spending limits (in / out)</td><td>R7.2</td><td>Absent from the authoritative plan and from code</td></tr>
+      <tr><td>PD-6</td><td>Arabic / RTL scope and timing</td><td>R4.3</td><td>UI hardcoded English / LTR</td></tr>
+      <tr><td>PD-7</td><td>Segment / contract pricing activation</td><td>R4.2</td><td>Schema columns dark since migration 0006</td></tr>
+      <tr><td>PD-8</td><td>Admin order-intervention scope</td><td>R6.2</td><td>Admin order detail is read-only; backend capability undefined</td></tr>
+      <tr><td>PD-9</td><td>Multi-warehouse / branch hierarchy (lift the plan fence?)</td><td>R7.5</td><td>Phase-1 explicit non-goal</td></tr>
+      <tr><td>PD-10</td><td>Trade credit (P7 partner model)</td><td>R7.4</td><td>Documented P7 fence — regulated partners only; no in-platform lending</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="callout warn"><strong>Sequencing note.</strong> PD-3 (DRIVER) and PD-1/PD-2 (payments + channels) are the earliest gates: PD-3 blocks R0.4 inside the very first proposed milestone, and PD-1/PD-2 block the entire financial foundation phase. PD-4, PD-5, PD-9, PD-10 gate only the product-locked R7 tier.</div>
+</section>
+<section id="sec-16">
+  <h2><span class="num">16.</span>B2B Completion Checklist</h2>
+  <p>The audit defines &ldquo;complete&rdquo; explicitly per domain &mdash; a domain is done only when <em>all</em> clauses of its definition hold. This is the yardstick behind every status used in this report.</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th style="width:10.5rem">Domain</th><th>Complete when&hellip;</th><th style="width:9.5rem">Status today</th></tr></thead>
+    <tbody>
+      <tr><td>Organization Management</td><td>Orgs + members + roles + tenant isolation verified (<strong>done</strong>) <em>and</em> buyer-org member management available on every client <em>and</em> (if in scope) branch hierarchy decided.</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>Customer Management</td><td>Merchants can manage customer orgs, contacts, multiple delivery addresses, and lifecycle from UI.</td><td><span class="pill p-warn">Partial — addresses missing</span></td></tr>
+      <tr><td>Catalog</td><td>Taxonomy / products / offers / import / governance verified (<strong>done</strong>).</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Pricing</td><td>Tier pricing verified (<strong>done</strong>) <em>and</em> customer-segment pricing resolves at checkout <em>and</em> MOQ semantics are explicit.</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>Quotation</td><td>Product decides RFQ in/out; if in: RFQ &rarr; quote &rarr; negotiate &rarr; accept &rarr; order conversion with audit.</td><td><span class="pill p-brand">Undecided</span></td></tr>
+      <tr><td>Ordering</td><td>16-state FSM + master/sub orders + idempotency verified (<strong>done</strong>) <em>and</em> payment state participates <em>and</em> admin intervention is defined.</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>Fulfillment</td><td>Merchant / driver delivery verified (<strong>done</strong>) <em>and</em> picking/packing scope decided (currently out of scope — acceptable).</td><td><span class="pill p-ok">Complete (scope accepted)</span></td></tr>
+      <tr><td>Inventory</td><td>Reserve / release / sale verified (<strong>done</strong>) <em>and</em> return-to-stock settles returned quantity (M7.3-C).</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>Shipping</td><td>Carrier integration verified (<strong>done</strong>) <em>and</em> ops consoles expose shipments / exceptions / RTS / recovery <em>and</em> reconciliation is actively monitored.</td><td><span class="pill p-err">Ops consoles missing</span></td></tr>
+      <tr><td>Returns</td><td>Post-delivery RMA &rarr; receipt &rarr; inspection &rarr; restock &rarr; refund runs end-to-end.</td><td><span class="pill p-err">Not started (M7.3-C/D)</span></td></tr>
+      <tr><td>Payments</td><td>Provider payments + COD capture + status-in-timeline + reconciliation run in production.</td><td><span class="pill p-err">Not started (Phase 3)</span></td></tr>
+      <tr><td>Financial</td><td>Invoices / credit notes are issuable and refunds settle disputes / cancellations / returns.</td><td><span class="pill p-err">Not started</span></td></tr>
+      <tr><td>Reporting</td><td>Merchant and admin have sales / ops / finance dashboards.</td><td><span class="pill p-warn">Partial — KPIs only</span></td></tr>
+      <tr><td>Admin</td><td>Governance (<strong>done</strong>) + operations consoles (shipments / finance / settings) exist.</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>UI</td><td>Every verified backend workflow has a discoverable UI path on the correct role's surface (<strong>fails today for shipping ops</strong>) <em>and</em> the i18n/RTL decision is implemented.</td><td><span class="pill p-err">Fails today (ship-ops)</span></td></tr>
+      <tr><td>Security</td><td>Current verified posture (<strong>done</strong>) + DRIVER provisioning resolved + frontend authorization covered by tests.</td><td><span class="pill p-warn">Partial</span></td></tr>
+      <tr><td>Observability</td><td>Logs / traces (<strong>done</strong>) + reconciliation alerting + business metrics exist.</td><td><span class="pill p-warn">Partial</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+<section id="sec-17">
+  <h2><span class="num">17.</span>Strategic Conclusion</h2>
+  <h3>25.1 — Current platform state</h3>
+  <p>A release-governed, integrity-verified B2B marketplace core at M7.3-B.5: identity/RBAC/orgs, deep catalog + offers, tier pricing, search, cart, 16-state orders, inventory, promotions, disputes, notifications (in-app/push), analytics/audit, plus a verified shipping/delivery/cancellation/RTS backend — with 1,634+ green tests and runtime-verified concurrency and tenant isolation. HEAD exactly equals the B.5 closure baseline; no post-B.5 code exists.</p>
+  <h3>25.2 — B2B framework completeness</h3>
+  <div class="grid c3">
+    <div class="card"><h4><span class="pill p-ok">Complete</span></h4><p class="small">Identity/auth, org/RBAC, catalog &amp; offers, search, cart, ordering FSM (delivered scope), inventory (delivered scope), promotions, reviews/disputes (create &rarr; resolve), import/export, admin governance, auditability.</p></div>
+    <div class="card"><h4><span class="pill p-warn">Partial</span></h4><p class="small">Buyer-org UX on web, pricing (segment dark), notifications (channels stubbed), analytics/reporting, admin operations (read-only orders), fulfillment (no pick/pack — out of scope), driver flow (unprovisioned), i18n.</p></div>
+    <div class="card"><h4><span class="pill p-err">Missing</span></h4><p class="small"><strong>Payments (BLOCKING)</strong>, refunds, returns/restock (audited, ready to build), invoices/documents, RFQ/quotations (undocumented), approvals/spend limits (undocumented), credit/AR (documented P7), address book, email channel, Arabic/RTL UI, <strong>ship-ops UI (BLOCKING operational gap)</strong>.</p></div>
+  </div>
+  <h3>25.3 — API/UI parity</h3>
+  <ul class="tight">
+    <li><strong>Backend ahead (severe):</strong> the entire shipping-operations domain (~32 endpoints: shipment ops, exceptions, RTS, carrier admin/recovery) plus conversations/chat and feature flags.</li>
+    <li><strong>UI ahead:</strong> none detected — the Phase 5 gate eliminated fake UI and this audit found no contradictions.</li>
+    <li><strong>Fully aligned:</strong> catalog, offers, ordering, inventory, pricing (merchant), promotions, disputes, notifications (in-app), admin governance.</li>
+    <li><strong>Misaligned:</strong> checkout/payment state (neither side has payments; UI implies offline settlement); segment pricing (schema &harr; behavior); merchant web cancel matrix vs. the B.5 rule change (needs refresh verification).</li>
+  </ul>
+  <h3>25.4 — Critical gaps (must solve before scaling)</h3>
+  <ol class="tight">
+    <li><strong>Ship-ops visibility</strong> (G-01..G-03) — operations cannot run.</li>
+    <li><strong>Payments void</strong> (G-04) — no revenue, no refunds, no finance console.</li>
+    <li><strong>Returns/restock + refunds chain</strong> (G-05/G-06, X-3/X-4) — inventory &amp; financial leakage.</li>
+    <li><strong>Notification deliverability</strong> (G-11) — OTP over stubbed SMS is a launch risk.</li>
+    <li><strong>Frontend test vacuum</strong> (G-18) — regression risk compounds as UI grows.</li>
+  </ol>
+  <h3>25.5 — Recommended roadmap horizons</h3>
+  <ul class="tight">
+    <li><strong>Immediate (now &rarr; +2 milestones):</strong> M7.3-B.6 Ship-Ops UI (+ Playwright net, DRIVER decision) &rarr; M7.3-C Returns.</li>
+    <li><strong>Near-term:</strong> Phase 3 payments (COD + provider), SMS/email wiring, fee/VAT correctness.</li>
+    <li><strong>Medium-term:</strong> M7.3-D refunds, M7.3-E dispute closure, M7.3-F notifications, address book, segment pricing, Arabic/RTL, reporting v1.</li>
+    <li><strong>Long-term (product-gated):</strong> RFQ/quotations, buyer approvals/spend limits, bulk ordering, credit/AR (P7-regulated), multi-warehouse/branch, B2C (Phase 4), Ads (Phase 5), AI (Phase 6).</li>
+  </ul>
+  <div class="callout"><strong>No single score.</strong> This audit intentionally assigns no single percentage score; completeness is multi-dimensional and the populations are stated per metric throughout this report.</div>
+  <h3>Immediate next actions (engineering — no product decisions required)</h3>
+  <ol class="tight">
+    <li><strong>Plan M7.3-B.6 Ship-Ops UI</strong> against the verified <code>v1/shipments</code> + <code>v1/carrier</code> contracts (scope: admin console + merchant ops + exception/RTS visibility for buyers where appropriate).</li>
+    <li><strong>Execute M7.3-C</strong> per its completed audit (8 conditions).</li>
+    <li><strong>Open Phase 3 discovery:</strong> payment provider selection + COD two-step capture design (product decision needed: provider, COD policy).</li>
+    <li><strong>Wire the SMS provider</strong> for OTP deliverability (production launch risk independent of roadmap order).</li>
+    <li><strong>Seed/provision the DRIVER role</strong> or formally descope driver flows (decision).</li>
+    <li><strong>Stand up the Playwright critical-path suite</strong> (checkout &rarr; accept &rarr; ship &rarr; exception &rarr; RTS) before ship-ops UI lands.</li>
+    <li><strong>Refresh CAPABILITY-MATRIX.md</strong> to include the shipping/delivery/RTS surface (documentation debt).</li>
+  </ol>
+</section>
+<section id="sec-18">
+  <h2><span class="num">18.</span>Method &amp; Evidence</h2>
+  <h3>Sources consolidated in this report</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Artifact (docs/production/)</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>SCS-B2B-FRAMEWORK-COMPLETENESS-AUDIT.md</code></td><td>26-section audit: baseline, evidence, findings, gap register, roadmap logic, conclusions (2026-10-02)</td></tr>
+      <tr><td><code>SCS-B2B-FEATURE-COMPLETENESS-MATRIX.csv</code></td><td>85 features (F-001&ndash;F-085) &times; documentation/backend/API/UI/E2E status with evidence paths</td></tr>
+      <tr><td><code>SCS-B2B-API-UI-PARITY-MATRIX.csv</code></td><td>111 API endpoint groups &times; UI surface, roles, authorization, parity status, recommendations</td></tr>
+      <tr><td><code>SCS-B2B-FRAMEWORK-ROADMAP.md</code></td><td>Recommendation-only roadmap R0&ndash;R7, dependency graph, sequence summary, product decisions PD-1&ndash;PD-10</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Baseline under audit: <code>develop</code> @ <code>5c6649dc2334e278c808b44c558b020db7e6db7b</code> (M7.3-B.5 CLOSED/PASS). The repository is the primary source of truth for implementation status; authoritative documentation is the source of intended scope. Every milestone in the roadmap follows the established four-gate pattern: Pre-Implementation Architecture Audit &rarr; Business Rules + Architecture Decision Lock &rarr; Implementation &rarr; Independent Runtime Verification &rarr; Release Closure.</p>
+  <h3>Read-only validation</h3>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>Assertion</th><th style="width:8rem">Result</th></tr></thead>
+    <tbody>
+      <tr><td>Production code modified</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Frontend code modified</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Backend code modified</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Tests modified</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Migrations added</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Schema modified</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Business rules changed</td><td><span class="pill p-ok">NO</span></td></tr>
+      <tr><td>Implementation started</td><td><span class="pill p-ok">NO</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Artifacts created by the audit: the four source files listed above. This consolidated HTML report (<code>SCS-B2B-FRAMEWORK-COMPLETENESS-REPORT.html</code>) was generated from those artifacts for stakeholder reading; it modifies none of them and introduces no new findings.</p>
+  <div class="callout ok"><strong>Closing note.</strong> No recommendation in this report constitutes implementation. The roadmap is a recommendation derived from the read-only audit; it does not modify any code, schema, business rule, or existing milestone lock.</div>
+</section>
+</main>
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('#toc-list a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section[id]'));
+  function onScroll(){
+    var current = sections[0];
+    for (var i=0;i<sections.length;i++){
+      if (sections[i].getBoundingClientRect().top <= 120) current = sections[i];
+    }
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (current && map[current.id]) map[current.id].classList.add('active');
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+})();
+</script>
+</div>
+<footer class="site">
+  <p><strong>SCS Platform — B2B Framework Completeness Report.</strong> Consolidated from: <code>SCS-B2B-FRAMEWORK-COMPLETENESS-AUDIT.md</code>, <code>SCS-B2B-FEATURE-COMPLETENESS-MATRIX.csv</code>, <code>SCS-B2B-API-UI-PARITY-MATRIX.csv</code>, <code>SCS-B2B-FRAMEWORK-ROADMAP.md</code> (all in <code>docs/production/</code>). Read-only audit: no production, frontend, backend, test, migration, or schema changes were made. Repository is the source of truth for implementation status; authoritative documentation is the source of intended scope.</p>
+</footer>
+</body>
+</html>
