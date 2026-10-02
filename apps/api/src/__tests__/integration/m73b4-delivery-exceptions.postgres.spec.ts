@@ -450,31 +450,13 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
     // Open an exception
     await ordersService.reportShipmentException(shipmentId, 'RECIPIENT_UNAVAILABLE', undefined, driverCaller);
 
-    // Cancel the order (order is OUT_FOR_DELIVERY which is cancellable)
+    // M7.3-B.5: OUT_FOR_DELIVERY is now cancellable — cancellation wins over exception
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
-    // OUT_FOR_DELIVERY is not in the cancellable list — let's check
-    // Actually, looking at the code, cancellable = ['PENDING_CONFIRMATION','ACCEPTED','PARTIALLY_ACCEPTED','PREPARING','READY','PAYMENT_PENDING']
-    // OUT_FOR_DELIVERY is NOT cancellable. So we need a different setup.
-    // Let's test with a READY order instead.
-    // Actually, the exception can only be reported when order is OUT_FOR_DELIVERY.
-    // So cancellation can only close exceptions if OUT_FOR_DELIVERY is cancellable.
-    // Let me re-read the lock: "When cancellation succeeds and the shipment has OPEN..."
-    // The cancellation flow checks cancellable statuses. OUT_FOR_DELIVERY is not in the list.
-    // This means the exception closure in cancelOrder is a safety net for edge cases
-    // where the shipment has an exception but the order hasn't reached OUT_FOR_DELIVERY yet.
-    // For this test, we verify the closure code path exists by checking the code.
-    // The integration test for the happy path is covered by the delivery test.
+    await ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST', buyerCaller);
 
-    // Since OUT_FOR_DELIVERY is not in the cancellable list, this test verifies
-    // that the closure code is present and the exception remains OPEN if cancel
-    // is rejected due to order status.
-    await expect(
-      ordersService.cancelOrder(orderId, buyerA, 'CUSTOMER_REQUEST', buyerCaller),
-    ).rejects.toThrow(/Cannot cancel order in OUT_FOR_DELIVERY status/);
-
-    // Exception should still be OPEN (cancel was rejected)
+    // Exception should be CLOSED (cancel succeeded and closed the exception)
     const after = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
-    expect(after.rows[0].exception_status).toBe('OPEN');
+    expect(after.rows[0].exception_status).toBe('CLOSED');
   });
 
   // ─── B4-PG-12: 100 concurrent exception reports → 1 succeeds ─────

@@ -295,7 +295,7 @@ describe('Order Lifecycle Integration', () => {
       expect(result.status).toBe('CANCELLED');
     });
 
-    it.each(['SUBMITTED', 'DELIVERED', 'COMPLETED', 'OUT_FOR_DELIVERY'])(
+    it.each(['SUBMITTED', 'DELIVERED', 'COMPLETED'])(
       'should reject cancel from %s',
       async (status) => {
         const mocks = createStatefulMocks(status);
