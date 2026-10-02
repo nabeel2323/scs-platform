@@ -1059,6 +1059,7 @@ export class OrdersService {
     if (caller) await assertOrderAccessible(this.db, caller, order);
 
     // Can only cancel pre-DELIVERED (SUBMITTED is auto-advance, not user-cancellable)
+    // M7.3-B.5: OUT_FOR_DELIVERY added — cancellation must win over active RTS.
     const cancellable = [
       'PENDING_CONFIRMATION',
       'ACCEPTED',
@@ -1066,6 +1067,7 @@ export class OrdersService {
       'PREPARING',
       'READY',
       'PAYMENT_PENDING',
+      'OUT_FOR_DELIVERY',
     ];
     if (!cancellable.includes(order['status'])) {
       throw new ConflictException(`Cannot cancel order in ${order['status']} status`);
