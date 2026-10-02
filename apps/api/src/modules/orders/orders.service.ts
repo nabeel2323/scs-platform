@@ -883,12 +883,39 @@ export class OrdersService {
     'OTHER', 'DAMAGED', 'LOST',
   ]);
 
+  /**
+   * M7.3-B.5: Exception types that make a shipment RTS-eligible.
+   */
+  private static readonly RTS_ELIGIBLE_EXCEPTION_TYPES = new Set([
+    'RECIPIENT_REFUSED',
+  ]);
+
+  /**
+   * M7.3-B.5: Exception types where merchant cannot approve RTS.
+   */
+  private static readonly RTS_ADMIN_ONLY_EXCEPTION_TYPES = new Set([
+    'LOST', 'DAMAGED',
+  ]);
+
+  /**
+   * M7.3-B.5: All RTS states (for delivery/retry blocking).
+   */
+  private static readonly RTS_ACTIVE_STATES = ['RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED'];
+
+  /**
+   * M7.3-B.5: All exception states that cancellation should close.
+   */
+  private static readonly CANCELLABLE_EXCEPTION_STATES = [
+    'OPEN', 'RETRY_PENDING', 'RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED',
+  ];
+
   private static readonly EXCEPTION_TRANSITIONS: Record<string, string[]> = {
     'OPEN': ['RETRY_PENDING', 'RESOLVED', 'CLOSED', 'RTS_PENDING'],
     'RETRY_PENDING': ['OPEN', 'CLOSED'],
     'RESOLVED': [],
     'CLOSED': [],
-    'RTS_PENDING': ['RTS_COMPLETED'],
+    'RTS_PENDING': ['RTS_IN_PROGRESS', 'OPEN'],
+    'RTS_IN_PROGRESS': ['RTS_COMPLETED'],
     'RTS_COMPLETED': ['CLOSED'],
   };
 
@@ -1130,9 +1157,9 @@ export class OrdersService {
           tx,
         );
 
-        // 4c. M7.3-B.4: Close any open/retry-pending exception inside the
-        // SAME cancellation transaction. Cancellation is authoritative —
-        // no cancelled shipment may remain retryable.
+        // 4c. M7.3-B.4 + M7.3-B.5: Close any open/retry-pending/RTS exception
+        // inside the SAME cancellation transaction. Cancellation is authoritative —
+        // no cancelled shipment may remain retryable or in RTS.
         const exceptionFlip = await tx
           .update(shipments)
           .set({
@@ -1142,19 +1169,23 @@ export class OrdersService {
           })
           .where(and(
             eq(shipments.id, shipmentId),
-            inArray(shipments.exceptionStatus, ['OPEN', 'RETRY_PENDING']),
+            inArray(shipments.exceptionStatus, OrdersService.CANCELLABLE_EXCEPTION_STATES),
           ))
-          .returning({ id: shipments.id });
+          .returning({ id: shipments.id, exceptionStatus: shipments.exceptionStatus });
 
         if (exceptionFlip.length > 0) {
+          const prevExc = (exceptionFlip[0] as any).exceptionStatus as string;
+          const rtsCancelled = OrdersService.RTS_ACTIVE_STATES.includes(prevExc);
           await tx.insert(shipmentEvents).values({
             id: crypto.randomUUID(),
             shipmentId,
             eventType: 'DELIVERY_EXCEPTION_CLOSED',
             actorUserId: userId,
             actorType,
-            notes: 'Closed: order cancelled',
-            metadata: { reason },
+            notes: rtsCancelled
+              ? `Closed: order cancelled (RTS cancelled, was ${prevExc})`
+              : 'Closed: order cancelled',
+            metadata: { reason, previousExceptionStatus: prevExc },
           });
         }
       }
@@ -1645,7 +1676,16 @@ export class OrdersService {
     // M7.3-B.4: Atomic delivery transaction — order flip, attempt counting,
     // exception resolution, stock settlement, shipment update, events, outbox.
     const shipmentId = shipment['id'] as string;
-    const hasOpenException = (shipment as any)['exceptionStatus'] === 'OPEN';
+
+    // M7.3-B.5: Block delivery when RTS is active.
+    const excStatus = (shipment as any)['exceptionStatus'] as string | null;
+    if (excStatus && excStatus !== 'OPEN' && excStatus !== 'RESOLVED') {
+      throw new ConflictException(
+        `Delivery blocked: RTS active (status: ${excStatus})`,
+      );
+    }
+
+    const hasOpenException = excStatus === 'OPEN';
 
     await this.db.db.transaction(async (tx) => {
       // 1. Atomic optimistic lock on order status
@@ -2029,6 +2069,652 @@ export class OrdersService {
       exceptionStatus: 'RETRY_PENDING',
       deliveryAttempts: attempts,
       maxDeliveryAttempts: maxAttempts,
+    };
+  }
+
+  // ── M7.3-B.5: RTS lifecycle methods ─────────────────────────────────────
+
+  /**
+   * Request RTS (Return to Sender).
+   * POST /v1/shipments/:id/rts
+   *
+   * Transition: OPEN → RTS_PENDING
+   *
+   * Authorization: MERCHANT (own store), ADMIN.
+   * LOST exception: ADMIN only.
+   *
+   * Idempotency:
+   *   Already RTS_PENDING with same context → 200 (return existing)
+   *   Different RTS context → 409
+   */
+  async requestRTS(
+    shipmentId: string,
+    notes: string | undefined,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization: merchant or admin only (no driver, no buyer)
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot request RTS`);
+    }
+
+    // 2. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 3. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    // 4. Shipment must not be CANCELLED
+    if ((shipment.status as string) === 'CANCELLED') {
+      throw new ConflictException('Cannot request RTS: shipment is CANCELLED');
+    }
+
+    // 5. Load order — must be OUT_FOR_DELIVERY
+    const order = await this.getOrder(shipment.orderId);
+    const orderStatus = order['status'] as string;
+    if (orderStatus === 'CANCELLED' || ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
+      throw new ConflictException(
+        `Cannot request RTS: order is ${orderStatus}`,
+      );
+    }
+
+    const exceptionType = (shipment as any)['exceptionType'] as string;
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+
+    // 6. Idempotency: already RTS_PENDING → return existing
+    if (exceptionStatus === 'RTS_PENDING') {
+      return {
+        shipmentId,
+        exceptionStatus: 'RTS_PENDING',
+        exceptionType,
+        idempotent: true,
+      };
+    }
+
+    // 7. If already in further RTS state → 409
+    if (exceptionStatus && OrdersService.RTS_ACTIVE_STATES.includes(exceptionStatus)) {
+      throw new ConflictException(
+        `Cannot request RTS: shipment is already in ${exceptionStatus}`,
+      );
+    }
+
+    // 8. Exception must be OPEN
+    if (exceptionStatus !== 'OPEN') {
+      throw new ConflictException(
+        `Cannot request RTS: exception status is ${exceptionStatus || 'none'}, expected OPEN`,
+      );
+    }
+
+    // 9. RTS eligibility check
+    const attempts = (shipment as any)['deliveryAttempts'] as number;
+    const maxAttempts = (shipment as any)['maxDeliveryAttempts'] as number;
+    const isRefused = exceptionType === 'RECIPIENT_REFUSED';
+    const isMaxAttempts = attempts >= maxAttempts;
+    const isLost = exceptionType === 'LOST';
+
+    if (!isRefused && !isMaxAttempts && !isLost) {
+      throw new ConflictException(
+        `RTS not eligible: exception type ${exceptionType} with ${attempts}/${maxAttempts} attempts`,
+      );
+    }
+
+    // 10. LOST: ADMIN only
+    if (isLost && !privileged) {
+      throw new ForbiddenException('LOST exception RTS requires ADMIN authority');
+    }
+
+    // 11. Atomic transition: OPEN → RTS_PENDING
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      // Re-verify order status inside transaction (BD-B4-007 / CR-04)
+      const orderCheck = await tx.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { status: true },
+      });
+      if (!orderCheck || ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])) {
+        throw new ConflictException(
+          'Order status changed before RTS could be recorded',
+        );
+      }
+
+      // Optimistic lock: OPEN → RTS_PENDING
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'RTS_PENDING',
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'OPEN'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'Exception status already changed — concurrent RTS request rejected',
+        );
+      }
+
+      // Shipment event
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_REQUESTED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: notes || `RTS requested for ${exceptionType}`,
+        metadata: { exceptionType, requestedBy: actorType },
+      });
+
+      // Outbox event
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.rts_requested',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType, notes },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'RTS_PENDING',
+      exceptionType,
+      requestedBy: actorType,
+      requestedAt: now.toISOString(),
+      idempotent: false,
+    };
+  }
+
+  /**
+   * Approve RTS.
+   * POST /v1/shipments/:id/rts/approve
+   *
+   * Transition: RTS_PENDING → RTS_IN_PROGRESS
+   *
+   * Authorization: ADMIN (any), MERCHANT (own store, non-LOST/DAMAGED).
+   *
+   * LOST special flow: ADMIN can request + approve atomically.
+   */
+  async approveRTS(
+    shipmentId: string,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot approve RTS`);
+    }
+
+    // 2. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 3. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string;
+
+    // 4. Idempotency: already RTS_IN_PROGRESS → return existing
+    if (exceptionStatus === 'RTS_IN_PROGRESS') {
+      return {
+        shipmentId,
+        exceptionStatus: 'RTS_IN_PROGRESS',
+        exceptionType,
+        idempotent: true,
+      };
+    }
+
+    // 5. Must be RTS_PENDING
+    if (exceptionStatus !== 'RTS_PENDING') {
+      throw new ConflictException(
+        `Cannot approve RTS: exception status is ${exceptionStatus || 'none'}, expected RTS_PENDING`,
+      );
+    }
+
+    // 6. LOST/DAMAGED: ADMIN only
+    if (OrdersService.RTS_ADMIN_ONLY_EXCEPTION_TYPES.has(exceptionType) && !privileged) {
+      throw new ForbiddenException(
+        `${exceptionType} exception RTS approval requires ADMIN authority`,
+      );
+    }
+
+    // 7. Atomic transition: RTS_PENDING → RTS_IN_PROGRESS
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'RTS_IN_PROGRESS',
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'RTS_PENDING'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'RTS status already changed — concurrent approval rejected',
+        );
+      }
+
+      // Shipment event
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_APPROVED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: `RTS approved for ${exceptionType}`,
+        metadata: { exceptionType, approvedBy: actorType },
+      });
+
+      // Outbox event
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.rts_approved',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'RTS_IN_PROGRESS',
+      exceptionType,
+      approvedBy: actorType,
+      approvedAt: now.toISOString(),
+      idempotent: false,
+    };
+  }
+
+  /**
+   * Reject RTS.
+   * POST /v1/shipments/:id/rts/reject
+   *
+   * Transition: RTS_PENDING → OPEN
+   *
+   * Authorization: MERCHANT (own store), ADMIN.
+   * Notes are mandatory.
+   * No outbox event for rejection.
+   */
+  async rejectRTS(
+    shipmentId: string,
+    notes: string,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot reject RTS`);
+    }
+
+    // 2. Notes are mandatory
+    if (!notes?.trim()) {
+      throw new BadRequestException('Rejection notes are mandatory');
+    }
+
+    // 3. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 4. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string;
+
+    // 5. Must be RTS_PENDING
+    if (exceptionStatus !== 'RTS_PENDING') {
+      throw new ConflictException(
+        `Cannot reject RTS: exception status is ${exceptionStatus || 'none'}, expected RTS_PENDING`,
+      );
+    }
+
+    // 6. Atomic transition: RTS_PENDING → OPEN
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'OPEN',
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'RTS_PENDING'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'RTS status already changed — concurrent rejection rejected',
+        );
+      }
+
+      // Shipment event (no outbox event for rejection per spec)
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_REJECTED',
+        actorUserId: caller.sub,
+        actorType,
+        notes,
+        metadata: { exceptionType, rejectedBy: actorType, reason: notes },
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'OPEN',
+      exceptionType,
+      rejectedBy: actorType,
+      rejectedAt: now.toISOString(),
+    };
+  }
+
+  /**
+   * Complete RTS (physical return confirmed).
+   * POST /v1/shipments/:id/rts/complete
+   *
+   * Transition: RTS_IN_PROGRESS → RTS_COMPLETED
+   *
+   * Authorization: MERCHANT (own store), ADMIN.
+   * NO inventory movement.
+   *
+   * Idempotency:
+   *   Already RTS_COMPLETED → 200 (return existing)
+   */
+  async completeRTS(
+    shipmentId: string,
+    notes: string | undefined,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot complete RTS`);
+    }
+
+    // 2. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 3. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string;
+
+    // 4. Idempotency: already RTS_COMPLETED → return existing
+    if (exceptionStatus === 'RTS_COMPLETED') {
+      return {
+        shipmentId,
+        exceptionStatus: 'RTS_COMPLETED',
+        exceptionType,
+        idempotent: true,
+      };
+    }
+
+    // 5. Must be RTS_IN_PROGRESS
+    if (exceptionStatus !== 'RTS_IN_PROGRESS') {
+      throw new ConflictException(
+        `Cannot complete RTS: exception status is ${exceptionStatus || 'none'}, expected RTS_IN_PROGRESS`,
+      );
+    }
+
+    // 6. Atomic transition: RTS_IN_PROGRESS → RTS_COMPLETED
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'RTS_COMPLETED',
+          exceptionResolvedAt: now,
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'RTS_IN_PROGRESS'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'RTS status already changed — concurrent completion rejected',
+        );
+      }
+
+      // Shipment event
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_COMPLETED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: notes || 'Physical return confirmed',
+        metadata: { exceptionType, completedBy: actorType },
+      });
+
+      // Outbox event
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.rts_completed',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType, notes },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'RTS_COMPLETED',
+      exceptionType,
+      completedBy: actorType,
+      completedAt: now.toISOString(),
+      idempotent: false,
+    };
+  }
+
+  /**
+   * Admin LOST RTS direct flow.
+   * Admin requests + immediately approves atomically.
+   * Result: OPEN → RTS_PENDING → RTS_IN_PROGRESS in one TX.
+   */
+  async requestAndApproveLostRTS(
+    shipmentId: string,
+    investigationNotes: string,
+    caller: CallerContext,
+  ) {
+    // 1. Must be ADMIN
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged) {
+      throw new ForbiddenException('LOST RTS direct flow requires ADMIN authority');
+    }
+
+    // 2. Investigation notes mandatory
+    if (!investigationNotes?.trim()) {
+      throw new BadRequestException('Investigation notes are mandatory for LOST RTS');
+    }
+
+    // 3. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 4. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    // 5. Shipment must not be CANCELLED
+    if ((shipment.status as string) === 'CANCELLED') {
+      throw new ConflictException('Cannot request LOST RTS: shipment is CANCELLED');
+    }
+
+    // 6. Exception must be OPEN with LOST type
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string;
+
+    if (exceptionType !== 'LOST') {
+      throw new ConflictException(
+        `LOST RTS direct flow requires LOST exception, got ${exceptionType}`,
+      );
+    }
+
+    if (exceptionStatus !== 'OPEN') {
+      throw new ConflictException(
+        `Cannot request LOST RTS: exception status is ${exceptionStatus || 'none'}, expected OPEN`,
+      );
+    }
+
+    // 7. Load order
+    const order = await this.getOrder(shipment.orderId);
+    const orderStatus = order['status'] as string;
+    if (orderStatus === 'CANCELLED' || ['DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
+      throw new ConflictException(
+        `Cannot request LOST RTS: order is ${orderStatus}`,
+      );
+    }
+
+    // 8. Atomic: OPEN → RTS_PENDING → RTS_IN_PROGRESS
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      // Re-verify order inside TX
+      const orderCheck = await tx.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { status: true },
+      });
+      if (!orderCheck || ['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes((orderCheck as any)['status'])) {
+        throw new ConflictException(
+          'Order status changed before LOST RTS could be recorded',
+        );
+      }
+
+      // OPEN → RTS_PENDING
+      const pendingFlip = await tx
+        .update(shipments)
+        .set({ exceptionStatus: 'RTS_PENDING', updatedAt: now })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'OPEN'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (pendingFlip.length === 0) {
+        throw new ConflictException(
+          'Exception status already changed — concurrent LOST RTS rejected',
+        );
+      }
+
+      // RTS_PENDING → RTS_IN_PROGRESS
+      const approvedFlip = await tx
+        .update(shipments)
+        .set({ exceptionStatus: 'RTS_IN_PROGRESS', updatedAt: now })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'RTS_PENDING'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (approvedFlip.length === 0) {
+        throw new ConflictException(
+          'RTS status changed during LOST flow — concurrent operation rejected',
+        );
+      }
+
+      // Shipment events: RTS_REQUESTED + RTS_APPROVED
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_REQUESTED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: investigationNotes,
+        metadata: { exceptionType: 'LOST', requestedBy: actorType, investigationNotes },
+      });
+
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'RTS_APPROVED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: `LOST RTS auto-approved by admin: ${investigationNotes}`,
+        metadata: { exceptionType: 'LOST', approvedBy: actorType, autoApproved: true },
+      });
+
+      // Outbox events: shipment.rts_requested + shipment.rts_approved
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.rts_requested',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType: 'LOST', investigationNotes },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.rts_approved',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType: 'LOST', autoApproved: true },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'RTS_IN_PROGRESS',
+      exceptionType: 'LOST',
+      requestedBy: actorType,
+      approvedBy: actorType,
+      investigationNotes,
+      requestedAt: now.toISOString(),
+      approvedAt: now.toISOString(),
     };
   }
 
@@ -2906,7 +3592,14 @@ export class OrdersService {
     // M7.3-B.4: Atomic carrier delivery transaction — order flip, exception
     // resolution, stock settlement, shipment update, events, outbox.
     const shipmentId = shipment['id'] as string;
-    const hasOpenException = (shipment as any)['exceptionStatus'] === 'OPEN';
+
+    // M7.3-B.5: Block carrier delivery when RTS is active.
+    const carrierExcStatus = (shipment as any)['exceptionStatus'] as string | null;
+    if (carrierExcStatus && carrierExcStatus !== 'OPEN' && carrierExcStatus !== 'RESOLVED') {
+      return false; // Carrier delivery blocked by RTS — idempotent no-op
+    }
+
+    const hasOpenException = carrierExcStatus === 'OPEN';
 
     await this.db.db.transaction(async (tx) => {
       // 1. Atomic optimistic lock on order status

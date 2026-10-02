@@ -285,6 +285,10 @@ export class ShipmentOperationsController {
     return { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
   }
 
+  private isAdminRole(role: string | null | undefined): boolean {
+    return ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(role || '');
+  }
+
   // ── POST /v1/shipments/:id/exception ─────────────────────────────────────
   // M7.3-B.4: Report a delivery exception.
 
@@ -322,6 +326,85 @@ export class ShipmentOperationsController {
   ) {
     const caller = this.toCallerContext(user);
     return this.ordersService.authorizeShipmentRetry(id, caller);
+  }
+
+  // ── POST /v1/shipments/:id/rts ───────────────────────────────────────────
+  // M7.3-B.5: Request Return to Sender.
+
+  @Post(':id/rts')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(201)
+  async requestRTS(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { notes?: string },
+  ) {
+    const caller = this.toCallerContext(user);
+
+    // LOST special flow: ADMIN can request+approve atomically
+    if (body?.notes && this.isAdminRole(caller.role)) {
+      const shipment = await this.db.db.query.shipments.findFirst({
+        where: eq(shipments.id, id),
+      });
+      if (shipment && (shipment as any)['exceptionType'] === 'LOST') {
+        return this.ordersService.requestAndApproveLostRTS(
+          id, body.notes, caller,
+        );
+      }
+    }
+
+    return this.ordersService.requestRTS(id, body?.notes, caller);
+  }
+
+  // ── POST /v1/shipments/:id/rts/approve ────────────────────────────────────
+  // M7.3-B.5: Approve RTS.
+
+  @Post(':id/rts/approve')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(200)
+  async approveRTS(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+    return this.ordersService.approveRTS(id, caller);
+  }
+
+  // ── POST /v1/shipments/:id/rts/reject ─────────────────────────────────────
+  // M7.3-B.5: Reject RTS.
+
+  @Post(':id/rts/reject')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(200)
+  async rejectRTS(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { notes: string },
+  ) {
+    if (!body?.notes?.trim()) {
+      throw new BadRequestException('Rejection notes are mandatory');
+    }
+    const caller = this.toCallerContext(user);
+    return this.ordersService.rejectRTS(id, body.notes, caller);
+  }
+
+  // ── POST /v1/shipments/:id/rts/complete ───────────────────────────────────
+  // M7.3-B.5: Complete RTS (physical return confirmed).
+
+  @Post(':id/rts/complete')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(200)
+  async completeRTS(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { notes?: string },
+  ) {
+    const caller = this.toCallerContext(user);
+    return this.ordersService.completeRTS(id, body?.notes, caller);
   }
 
   /**
