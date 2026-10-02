@@ -401,8 +401,8 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     // Merchant cannot request LOST RTS
     await expect(ordersService.requestRTS(shipmentId, 'Investigation', merchantCaller)).rejects.toThrow(/ADMIN/);
 
-    // Admin can request LOST RTS (direct flow)
-    const result = await ordersService.requestRTS(shipmentId, 'Investigation notes', adminCaller);
+    // Admin can request LOST RTS (direct flow — atomic request+approve)
+    const result = await ordersService.requestAndApproveLostRTS(shipmentId, 'Investigation notes', adminCaller);
     expect(result.exceptionStatus).toBe('RTS_IN_PROGRESS'); // Direct flow goes to IN_PROGRESS
   });
 
@@ -643,7 +643,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     await ordersService.requestRTS(shipmentId, undefined, merchantCaller);
 
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await ordersService.cancelOrder(orderId, 'Changed mind', merchantA, caller);
+    await ordersService.cancelOrder(orderId, merchantA, 'CUSTOMER_REQUEST', caller);
 
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
     expect(row.rows[0].exception_status).toBe('CLOSED');
@@ -658,7 +658,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     await ordersService.approveRTS(shipmentId, adminCaller);
 
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await ordersService.cancelOrder(orderId, 'Changed mind', merchantA, caller);
+    await ordersService.cancelOrder(orderId, merchantA, 'CUSTOMER_REQUEST', caller);
 
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
     expect(row.rows[0].exception_status).toBe('CLOSED');
@@ -674,7 +674,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     await ordersService.completeRTS(shipmentId, undefined, merchantCaller);
 
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await ordersService.cancelOrder(orderId, 'Changed mind', merchantA, caller);
+    await ordersService.cancelOrder(orderId, merchantA, 'CUSTOMER_REQUEST', caller);
 
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
     expect(row.rows[0].exception_status).toBe('CLOSED');
@@ -774,7 +774,8 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     const { shipmentId } = await createOrderOutForDelivery(
       pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA, driverA,
     );
-    await setShipmentException(pool, shipmentId, 'RECIPIENT_REFUSED');
+    // Use service method to create the DELIVERY_EXCEPTION event in shipment_events
+    await ordersService.reportShipmentException(shipmentId, 'RECIPIENT_REFUSED', undefined, driverCaller);
 
     await ordersService.requestRTS(shipmentId, undefined, merchantCaller);
     await ordersService.approveRTS(shipmentId, adminCaller);
@@ -893,7 +894,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
 
     // Cancel the order
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await ordersService.cancelOrder(orderId, 'Changed mind', merchantA, caller);
+    await ordersService.cancelOrder(orderId, merchantA, 'CUSTOMER_REQUEST', caller);
 
     // RTS should be closed
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
