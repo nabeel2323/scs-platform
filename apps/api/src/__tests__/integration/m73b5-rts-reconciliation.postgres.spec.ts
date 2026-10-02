@@ -283,7 +283,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
       [offerA, storeA, productId, variantA],
     );
     await pool.query(
-      `INSERT INTO inventory_items (id, warehouse_id, variant_id, quantity_available, quantity_reserved)
+      `INSERT INTO inventory_items (id, warehouse_id, variant_id, qty_on_hand, qty_reserved)
        VALUES ($1, $2, $3, 100, 0)`,
       [randomUUID(), warehouseA, variantA],
     );
@@ -689,7 +689,7 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
 
     // Get inventory before RTS
     const invBefore = await pool.query(
-      `SELECT quantity_available, quantity_reserved FROM inventory_items WHERE variant_id = $1`,
+      `SELECT qty_on_hand, qty_reserved FROM inventory_items WHERE variant_id = $1`,
       [variantA],
     );
 
@@ -699,12 +699,12 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
 
     // Get inventory after RTS
     const invAfter = await pool.query(
-      `SELECT quantity_available, quantity_reserved FROM inventory_items WHERE variant_id = $1`,
+      `SELECT qty_on_hand, qty_reserved FROM inventory_items WHERE variant_id = $1`,
       [variantA],
     );
 
-    expect(invAfter.rows[0].quantity_available).toBe(invBefore.rows[0].quantity_available);
-    expect(invAfter.rows[0].quantity_reserved).toBe(invBefore.rows[0].quantity_reserved);
+    expect(invAfter.rows[0].qty_on_hand).toBe(invBefore.rows[0].qty_on_hand);
+    expect(invAfter.rows[0].qty_reserved).toBe(invBefore.rows[0].qty_reserved);
   });
 
   // ── B5-PG-27: Order status unchanged during RTS ──────────────────────
