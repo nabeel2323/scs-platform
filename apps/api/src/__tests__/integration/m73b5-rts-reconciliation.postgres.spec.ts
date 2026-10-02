@@ -133,9 +133,9 @@ async function setShipmentException(
 ) {
   await pool.query(
     `UPDATE shipments SET exception_status = 'OPEN', exception_type = $1,
-     exception_notes = $1, exception_at = NOW(), delivery_attempts = $2,
+     exception_notes = $5, exception_at = NOW(), delivery_attempts = $2,
      max_delivery_attempts = $3 WHERE id = $4`,
-    [exceptionType, deliveryAttempts, maxDeliveryAttempts, shipmentId],
+    [exceptionType, deliveryAttempts, maxDeliveryAttempts, shipmentId, exceptionType],
   );
 }
 
