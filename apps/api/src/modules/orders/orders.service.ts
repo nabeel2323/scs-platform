@@ -872,6 +872,26 @@ export class OrdersService {
     'CARRIER_PROBLEM', 'SYSTEM_ERROR', 'ADMINISTRATIVE', 'OTHER',
   ]);
 
+  // ── M7.3-B.4: Delivery Exception Constants ──────────────────
+
+  private static readonly EXCEPTION_TYPES = new Set([
+    'RECIPIENT_UNAVAILABLE', 'RECIPIENT_REFUSED', 'WRONG_ADDRESS',
+    'DAMAGED', 'LOST', 'CARRIER_EXCEPTION', 'DRIVER_EXCEPTION', 'OTHER',
+  ]);
+
+  private static readonly EXCEPTION_NOTE_REQUIRED = new Set([
+    'OTHER', 'DAMAGED', 'LOST',
+  ]);
+
+  private static readonly EXCEPTION_TRANSITIONS: Record<string, string[]> = {
+    'OPEN': ['RETRY_PENDING', 'RESOLVED', 'CLOSED', 'RTS_PENDING'],
+    'RETRY_PENDING': ['OPEN', 'CLOSED'],
+    'RESOLVED': [],
+    'CLOSED': [],
+    'RTS_PENDING': ['RTS_COMPLETED'],
+    'RTS_COMPLETED': ['CLOSED'],
+  };
+
   // ── M7.3-B.2: Actor Resolution ──────────────────────────────
 
   private resolveActorType(caller?: CallerContext): string {
@@ -1109,6 +1129,34 @@ export class OrdersService {
           null,
           tx,
         );
+
+        // 4c. M7.3-B.4: Close any open/retry-pending exception inside the
+        // SAME cancellation transaction. Cancellation is authoritative —
+        // no cancelled shipment may remain retryable.
+        const exceptionFlip = await tx
+          .update(shipments)
+          .set({
+            exceptionStatus: 'CLOSED',
+            exceptionResolvedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(shipments.id, shipmentId),
+            inArray(shipments.exceptionStatus, ['OPEN', 'RETRY_PENDING']),
+          ))
+          .returning({ id: shipments.id });
+
+        if (exceptionFlip.length > 0) {
+          await tx.insert(shipmentEvents).values({
+            id: crypto.randomUUID(),
+            shipmentId,
+            eventType: 'DELIVERY_EXCEPTION_CLOSED',
+            actorUserId: userId,
+            actorType,
+            notes: 'Closed: order cancelled',
+            metadata: { reason },
+          });
+        }
       }
 
       // 5. Order status history with correct actorType
@@ -1594,39 +1642,92 @@ export class OrdersService {
     // Verify driver ownership
     await this.assertDriverOwnership(shipment, userId);
 
-    // Atomic optimistic lock
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ status: 'DELIVERED', updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
-      .returning({ id: orders.id });
+    // M7.3-B.4: Atomic delivery transaction — order flip, attempt counting,
+    // exception resolution, stock settlement, shipment update, events, outbox.
+    const shipmentId = shipment['id'] as string;
+    const hasOpenException = (shipment as any)['exceptionStatus'] === 'OPEN';
 
-    if (flipResult.length === 0) {
-      throw new ConflictException('Order status already changed — concurrent delivery rejected');
-    }
+    await this.db.db.transaction(async (tx) => {
+      // 1. Atomic optimistic lock on order status
+      const flipResult = await tx
+        .update(orders)
+        .set({ status: 'DELIVERED', updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+        .returning({ id: orders.id });
 
-    // Settle stock (SALE movement)
-    await this.settleStockForStatus(orderId, 'DELIVERED', userId);
+      if (flipResult.length === 0) {
+        throw new ConflictException('Order status already changed — concurrent delivery rejected');
+      }
 
-    // Update shipment
-    await this.db.db
-      .update(shipments)
-      .set({ status: 'DELIVERED', deliveredAt: new Date(), updatedAt: new Date() })
-      .where(eq(shipments.id, shipment['id']));
+      // 2. Settle stock (SALE movement) inside the same transaction
+      await this.settleStockForStatus(orderId, 'DELIVERED', userId, tx);
 
-    // Shipment event
-    await this.db.db.insert(shipmentEvents).values({
-      id: crypto.randomUUID(),
-      shipmentId: shipment['id'],
-      eventType: 'DELIVERED',
-      actorUserId: userId,
-      actorType: 'DRIVER',
-    });
+      // 3. Update shipment: DELIVERED + increment delivery_attempts (M7.3-B.4)
+      const shipmentUpdate: Record<string, any> = {
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+        deliveryAttempts: sql`${shipments.deliveryAttempts} + 1`,
+        updatedAt: new Date(),
+      };
 
-    // Order status history
-    await this.recordStatusChange(orderId, order['status'], 'DELIVERED', userId, 'DRIVER');
-    await this.outbox.publish('order.fulfillment.delivered', orderId, {
-      orderId, storeId: order['storeId'],
+      // M7.3-B.4: Auto-resolve open exception on successful delivery
+      if (hasOpenException) {
+        shipmentUpdate['exceptionStatus'] = 'RESOLVED';
+        shipmentUpdate['exceptionResolvedAt'] = new Date();
+      }
+
+      await tx.update(shipments).set(shipmentUpdate).where(eq(shipments.id, shipmentId));
+
+      // 4. Shipment event: DELIVERED
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'DELIVERED',
+        actorUserId: userId,
+        actorType: 'DRIVER',
+      });
+
+      // 5. M7.3-B.4: Exception resolution event (if applicable)
+      if (hasOpenException) {
+        await tx.insert(shipmentEvents).values({
+          id: crypto.randomUUID(),
+          shipmentId,
+          eventType: 'DELIVERY_EXCEPTION_RESOLVED',
+          actorUserId: userId,
+          actorType: 'DRIVER',
+          notes: 'Auto-resolved: delivery confirmed by driver',
+          metadata: { resolvedBy: 'delivery', exceptionType: (shipment as any)['exceptionType'] },
+        });
+
+        await tx.insert(outboxEvents).values({
+          id: crypto.randomUUID(),
+          eventType: 'shipment.delivery_exception_resolved',
+          aggregateId: shipmentId,
+          payload: { shipmentId, orderId, resolution: 'delivery' },
+          metadata: { storeId: order['storeId'] },
+          status: 'PENDING',
+        });
+      }
+
+      // 6. Order status history
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: order['status'] as string,
+        toStatus: 'DELIVERED',
+        changedBy: userId,
+        actorType: 'DRIVER',
+      });
+
+      // 7. Outbox: order delivered
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'order.fulfillment.delivered',
+        aggregateId: orderId,
+        payload: { orderId, storeId: order['storeId'] },
+        metadata: {},
+        status: 'PENDING',
+      });
     });
 
     this.realtime?.server?.to(`order:${orderId}`).emit('order:updated', { orderId, status: 'DELIVERED' });
@@ -1643,6 +1744,322 @@ export class OrdersService {
     await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
 
     return this.getOrder(orderId);
+  }
+
+  // ── M7.3-B.4: Delivery Exception Lifecycle ──────────────────────
+
+  /**
+   * Report a delivery exception on a shipment.
+   *
+   * POST /v1/shipments/:id/exception
+   *
+   * Authorization:
+   *   DRIVER  — assigned shipments only
+   *   MERCHANT — own-store shipments
+   *   ADMIN   — any shipment
+   *
+   * Idempotency:
+   *   Same exception type already OPEN → 200 (return existing)
+   *   Different exception type OPEN → 409
+   *
+   * Concurrency:
+   *   Atomic optimistic claim: UPDATE WHERE exception_status IS NULL
+   *   If order has already transitioned past OUT_FOR_DELIVERY, exception is rejected.
+   */
+  async reportShipmentException(
+    shipmentId: string,
+    exceptionType: string,
+    notes: string | undefined,
+    caller: CallerContext,
+  ) {
+    // 1. Validate exception type
+    if (!OrdersService.EXCEPTION_TYPES.has(exceptionType)) {
+      throw new BadRequestException(
+        `Invalid exception type: ${exceptionType}. Allowed: ${[...OrdersService.EXCEPTION_TYPES].join(', ')}`,
+      );
+    }
+
+    // 2. Notes required for certain types
+    if (OrdersService.EXCEPTION_NOTE_REQUIRED.has(exceptionType) && !notes?.trim()) {
+      throw new BadRequestException(
+        `Exception type ${exceptionType} requires explanatory notes`,
+      );
+    }
+
+    // 3. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 4. Authorization
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    // 5. Load order — must be OUT_FOR_DELIVERY
+    const order = await this.getOrder(shipment.orderId);
+    if ((order['status'] as string) !== 'OUT_FOR_DELIVERY') {
+      throw new ConflictException(
+        `Cannot report exception: order is ${order['status']}, expected OUT_FOR_DELIVERY`,
+      );
+    }
+
+    // 6. Shipment must not be in terminal state
+    const shipmentStatus = shipment.status as string;
+    if (['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(shipmentStatus)) {
+      throw new ConflictException(
+        `Cannot report exception: shipment is ${shipmentStatus}`,
+      );
+    }
+
+    // 7. Idempotency — same type already OPEN → return existing
+    if ((shipment as any)['exceptionStatus'] === 'OPEN' &&
+        (shipment as any)['exceptionType'] === exceptionType) {
+      return {
+        shipmentId,
+        exceptionStatus: 'OPEN',
+        exceptionType,
+        exceptionNotes: (shipment as any)['exceptionNotes'],
+        exceptionAt: (shipment as any)['exceptionAt'],
+        deliveryAttempts: (shipment as any)['deliveryAttempts'],
+        idempotent: true,
+      };
+    }
+
+    // 8. Different exception already OPEN → 409
+    if ((shipment as any)['exceptionStatus'] === 'OPEN') {
+      throw new ConflictException(
+        `Shipment already has open exception: ${(shipment as any)['exceptionType']}`,
+      );
+    }
+
+    // 9. Atomic transaction: claim exception slot
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      // Re-verify order status inside transaction (BD-B4-007 / CR-04)
+      const orderCheck = await tx.query.orders.findFirst({
+        where: eq(orders.id, shipment.orderId),
+        columns: { status: true },
+      });
+      if (!orderCheck || (orderCheck as any)['status'] !== 'OUT_FOR_DELIVERY') {
+        throw new ConflictException(
+          'Order status changed before exception could be recorded',
+        );
+      }
+
+      // Optimistic lock: claim NULL → OPEN
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'OPEN',
+          exceptionType,
+          exceptionNotes: notes || null,
+          exceptionAt: now,
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          sql`${shipments.exceptionStatus} IS NULL`,
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'Exception slot already claimed — concurrent report rejected',
+        );
+      }
+
+      // Shipment event
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'DELIVERY_EXCEPTION',
+        actorUserId: caller.sub,
+        actorType,
+        notes: notes || exceptionType,
+        metadata: { exceptionType },
+      });
+
+      // Outbox event
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.delivery_exception',
+        aggregateId: shipmentId,
+        payload: { shipmentId, orderId: shipment.orderId, exceptionType, notes },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'OPEN',
+      exceptionType,
+      exceptionNotes: notes || null,
+      exceptionAt: now.toISOString(),
+      deliveryAttempts: (shipment as any)['deliveryAttempts'],
+      idempotent: false,
+    };
+  }
+
+  /**
+   * Authorize a delivery retry.
+   *
+   * POST /v1/shipments/:id/retry
+   *
+   * Authorization: MERCHANT, ADMIN only (DRIVER cannot authorize retry).
+   *
+   * Preconditions:
+   *   exception_status = OPEN
+   *   delivery_attempts < max_delivery_attempts
+   *   shipment not CANCELLED
+   *   order not CANCELLED or terminal
+   *
+   * Transition: OPEN → RETRY_PENDING (optimistic lock)
+   */
+  async authorizeShipmentRetry(
+    shipmentId: string,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization: merchant or admin only
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot authorize delivery retry`);
+    }
+
+    // 2. Load shipment
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    // 3. Tenant check
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    // 4. Exception must be OPEN
+    if ((shipment as any)['exceptionStatus'] !== 'OPEN') {
+      throw new ConflictException(
+        `Cannot retry: exception status is ${(shipment as any)['exceptionStatus'] || 'none'}, expected OPEN`,
+      );
+    }
+
+    // 5. Max attempts check
+    const attempts = (shipment as any)['deliveryAttempts'] as number;
+    const maxAttempts = (shipment as any)['maxDeliveryAttempts'] as number;
+    if (attempts >= maxAttempts) {
+      throw new ConflictException(
+        `Maximum delivery attempts reached (${attempts}/${maxAttempts})`,
+      );
+    }
+
+    // 6. Shipment must not be CANCELLED
+    if ((shipment.status as string) === 'CANCELLED') {
+      throw new ConflictException('Cannot retry: shipment is CANCELLED');
+    }
+
+    // 7. Order must not be CANCELLED or terminal
+    const order = await this.getOrder(shipment.orderId);
+    const orderStatus = order['status'] as string;
+    if (['CANCELLED', 'DELIVERED', 'COMPLETED', 'DISPUTED'].includes(orderStatus)) {
+      throw new ConflictException(
+        `Cannot retry: order is ${orderStatus}`,
+      );
+    }
+
+    // 8. Idempotency: already RETRY_PENDING → 409
+    // (handled by optimistic lock below)
+
+    // 9. Atomic transition: OPEN → RETRY_PENDING
+    const actorType = this.resolveActorType(caller);
+    const now = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      const flipResult = await tx
+        .update(shipments)
+        .set({
+          exceptionStatus: 'RETRY_PENDING',
+          updatedAt: now,
+        })
+        .where(and(
+          eq(shipments.id, shipmentId),
+          eq(shipments.exceptionStatus, 'OPEN'),
+        ))
+        .returning({ id: shipments.id });
+
+      if (flipResult.length === 0) {
+        throw new ConflictException(
+          'Exception status already changed — concurrent retry rejected',
+        );
+      }
+
+      // Shipment event
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'DELIVERY_RETRY_REQUESTED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: `Retry authorized (attempt ${attempts + 1}/${maxAttempts})`,
+        metadata: { attemptNumber: attempts + 1, maxAttempts },
+      });
+
+      // Outbox event
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.delivery_retry_requested',
+        aggregateId: shipmentId,
+        payload: {
+          shipmentId,
+          orderId: shipment.orderId,
+          attemptNumber: attempts + 1,
+          maxAttempts,
+        },
+        metadata: { storeId: shipment.storeId },
+        status: 'PENDING',
+      });
+    });
+
+    return {
+      shipmentId,
+      exceptionStatus: 'RETRY_PENDING',
+      deliveryAttempts: attempts,
+      maxDeliveryAttempts: maxAttempts,
+    };
+  }
+
+  /**
+   * Verify the caller can access a shipment for exception operations.
+   * Driver: must be assigned. Merchant: must match store org. Admin: bypass.
+   */
+  private async assertShipmentAccessibleForException(
+    shipment: any,
+    caller: CallerContext,
+  ): Promise<void> {
+    const privileged = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (privileged) return;
+
+    // Driver check: must be assigned to this shipment
+    if (caller.role === 'DRIVER') {
+      if (shipment.assignedDriverId !== caller.sub) {
+        throw new ForbiddenException('Driver is not assigned to this shipment');
+      }
+      return;
+    }
+
+    // Merchant check: store must belong to caller's org
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, shipment.storeId),
+      columns: { orgId: true },
+    });
+    if (!store) throw new NotFoundException('Store not found for shipment');
+    if (store.orgId !== caller.activeOrg) {
+      throw new ForbiddenException('Shipment does not belong to your organization');
+    }
   }
 
   /**
@@ -2486,44 +2903,89 @@ export class OrdersService {
     const shipment = await this.getShipmentByOrderId(orderId);
     if (!shipment) return false;
 
-    // Use the driver fulfillment path (no driver ownership check for carrier)
-    // We replicate the core logic here to avoid the driver check
-    const flipResult = await this.db.db
-      .update(orders)
-      .set({ status: 'DELIVERED', updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
-      .returning({ id: orders.id });
+    // M7.3-B.4: Atomic carrier delivery transaction — order flip, exception
+    // resolution, stock settlement, shipment update, events, outbox.
+    const shipmentId = shipment['id'] as string;
+    const hasOpenException = (shipment as any)['exceptionStatus'] === 'OPEN';
 
-    if (flipResult.length === 0) return false; // Lost the race
+    await this.db.db.transaction(async (tx) => {
+      // 1. Atomic optimistic lock on order status
+      const flipResult = await tx
+        .update(orders)
+        .set({ status: 'DELIVERED', updatedAt: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+        .returning({ id: orders.id });
 
-    // Settle stock (SALE movement) — idempotent via ledger netting
-    await this.settleStockForStatus(orderId, 'DELIVERED');
+      if (flipResult.length === 0) return; // Lost the race — idempotent no-op
 
-    // Update shipment
-    await this.db.db
-      .update(shipments)
-      .set({ status: 'DELIVERED', deliveredAt: new Date(), updatedAt: new Date() })
-      .where(eq(shipments.id, shipment['id']));
+      // 2. Settle stock (SALE movement) inside the same transaction
+      await this.settleStockForStatus(orderId, 'DELIVERED', undefined, tx);
 
-    // Shipment event
-    await this.db.db.insert(shipmentEvents).values({
-      id: crypto.randomUUID(),
-      shipmentId: shipment['id'],
-      eventType: 'DELIVERED',
-      actorType: 'CARRIER',
-      notes: `Carrier delivery via ${source}`,
-    });
+      // 3. Update shipment: DELIVERED + resolve open exception if present
+      const shipmentUpdate: Record<string, any> = {
+        status: 'DELIVERED',
+        deliveredAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    // Order status history
-    await this.recordStatusChange(
-      orderId, order['status'] as string, 'DELIVERED', null, 'CARRIER',
-    );
+      // M7.3-B.4 BD-B4-007: Carrier delivery wins when order is non-terminal.
+      // Auto-resolve the open exception.
+      if (hasOpenException) {
+        shipmentUpdate['exceptionStatus'] = 'RESOLVED';
+        shipmentUpdate['exceptionResolvedAt'] = new Date();
+      }
 
-    // Outbox event
-    await this.outbox.publish('order.fulfillment.delivered', orderId, {
-      orderId,
-      storeId: order['storeId'],
-      source,
+      await tx.update(shipments).set(shipmentUpdate).where(eq(shipments.id, shipmentId));
+
+      // 4. Shipment event: DELIVERED
+      await tx.insert(shipmentEvents).values({
+        id: crypto.randomUUID(),
+        shipmentId,
+        eventType: 'DELIVERED',
+        actorType: 'CARRIER',
+        notes: `Carrier delivery via ${source}`,
+      });
+
+      // 5. M7.3-B.4: Exception resolution event (if applicable)
+      if (hasOpenException) {
+        await tx.insert(shipmentEvents).values({
+          id: crypto.randomUUID(),
+          shipmentId,
+          eventType: 'DELIVERY_EXCEPTION_RESOLVED',
+          actorType: 'CARRIER',
+          notes: 'Auto-resolved: carrier delivery confirmed',
+          metadata: { resolvedBy: 'carrier', exceptionType: (shipment as any)['exceptionType'], source },
+        });
+
+        await tx.insert(outboxEvents).values({
+          id: crypto.randomUUID(),
+          eventType: 'shipment.delivery_exception_resolved',
+          aggregateId: shipmentId,
+          payload: { shipmentId, orderId, resolution: 'carrier_delivery', source },
+          metadata: { storeId: order['storeId'] },
+          status: 'PENDING',
+        });
+      }
+
+      // 6. Order status history
+      await tx.insert(orderStatusHistory).values({
+        id: crypto.randomUUID(),
+        orderId,
+        fromStatus: order['status'] as string,
+        toStatus: 'DELIVERED',
+        changedBy: null,
+        actorType: 'CARRIER',
+      });
+
+      // 7. Outbox: order delivered
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'order.fulfillment.delivered',
+        aggregateId: orderId,
+        payload: { orderId, storeId: order['storeId'], source },
+        metadata: {},
+        status: 'PENDING',
+      });
     });
 
     // Realtime

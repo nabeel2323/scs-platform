@@ -18,6 +18,7 @@ import {
   generateIdempotencyKey, CancelShipmentResult, TrackingInfo,
 } from './shipping.types';
 import { CallerContext } from '../../common/tenant-scope';
+import { OrdersService } from '../orders/orders.service';
 
 /**
  * ShipmentOperationsController — M7.2.3-A shipment lifecycle API.
@@ -39,6 +40,7 @@ export class ShipmentOperationsController {
   constructor(
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
+    private readonly ordersService: OrdersService,
   ) {}
 
   // ── POST /v1/shipments/:id/create ──────────────────────────────────────
@@ -281,6 +283,45 @@ export class ShipmentOperationsController {
 
   private toCallerContext(user: JwtPayload): CallerContext {
     return { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+  }
+
+  // ── POST /v1/shipments/:id/exception ─────────────────────────────────────
+  // M7.3-B.4: Report a delivery exception.
+
+  @Post(':id/exception')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(200)
+  async reportException(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { exceptionType: string; notes?: string },
+  ) {
+    if (!body?.exceptionType) {
+      throw new BadRequestException('exceptionType is required');
+    }
+    const caller = this.toCallerContext(user);
+    return this.ordersService.reportShipmentException(
+      id,
+      body.exceptionType,
+      body.notes,
+      caller,
+    );
+  }
+
+  // ── POST /v1/shipments/:id/retry ─────────────────────────────────────────
+  // M7.3-B.4: Authorize a delivery retry.
+
+  @Post(':id/retry')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:write')
+  @HttpCode(200)
+  async authorizeRetry(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+    return this.ordersService.authorizeShipmentRetry(id, caller);
   }
 
   /**

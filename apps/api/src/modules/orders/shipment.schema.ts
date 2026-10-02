@@ -85,12 +85,24 @@ export const shipments = pgTable('shipments', {
   carrierCancelRetries: integer('carrier_cancel_retries').notNull().default(0),
   carrierCancelAttemptedAt: timestamp('carrier_cancel_attempted_at', { withTimezone: true }),
   carrierCancelIdempotencyKey: varchar('carrier_cancel_idempotency_key', { length: 120 }),
+  // M7.3-B.4 delivery exception state (0050) — exception FSM on shipments.
+  // The shipment is the aggregate root for delivery exceptions.
+  // exception_status: NULL → OPEN → RETRY_PENDING / RESOLVED / CLOSED / RTS_PENDING
+  // exception_type: one of 8 canonical types (RECIPIENT_UNAVAILABLE, etc.)
+  // RTS states (RTS_PENDING, RTS_COMPLETED) are schema-compatible only; logic in B.5.
+  exceptionStatus: varchar('exception_status', { length: 24 }),
+  exceptionType: varchar('exception_type', { length: 30 }),
+  exceptionNotes: text('exception_notes'),
+  exceptionAt: timestamp('exception_at', { withTimezone: true }),
+  exceptionResolvedAt: timestamp('exception_resolved_at', { withTimezone: true }),
+  deliveryAttempts: integer('delivery_attempts').notNull().default(0),
+  maxDeliveryAttempts: integer('max_delivery_attempts').notNull().default(3),
 });
 
 export const shipmentEvents = pgTable('shipment_events', {
   id: uuid('id').primaryKey(),
   shipmentId: uuid('shipment_id').notNull().references(() => shipments.id),
-  eventType: varchar('event_type', { length: 24 }).notNull(),
+  eventType: varchar('event_type', { length: 40 }).notNull(),
   actorUserId: uuid('actor_user_id').references(() => users.id),
   actorType: varchar('actor_type', { length: 16 }).notNull().default('MERCHANT'),
   locationText: varchar('location_text', { length: 300 }),
