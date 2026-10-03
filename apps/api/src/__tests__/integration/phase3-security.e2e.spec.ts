@@ -68,7 +68,8 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
   SUPER_ADMIN: 69,
-  ADMIN: 45,
+  // M7.3-B.6: seed-pg.ts grants ADMIN fulfillment:shipments:read (ADMIN 45 -> 46).
+  ADMIN: 46,
   MODERATOR: 21,
   MERCHANT_OWNER: 31,
   MERCHANT_STAFF: 25,

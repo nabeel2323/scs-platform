@@ -23,6 +23,7 @@ const MERCHANT_NAV = [
   { href: '/merchant', label: 'Dashboard', exact: true },
   { href: '/merchant/catalog', label: 'Catalog' },
   { href: '/merchant/orders', label: 'Orders' },
+  { href: '/merchant/deliveries', label: 'Deliveries' },
   { href: '/merchant/inventory', label: 'Inventory' },
   { href: '/merchant/pricing', label: 'Pricing' },
   { href: '/merchant/offers', label: 'Offers' },

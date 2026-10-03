@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Param, Body, Query, UseGuards, HttpCode,
   NotFoundException, BadRequestException,
 } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc, asc, or, inArray, sql, ilike } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import {
@@ -14,11 +14,29 @@ import { shipments, shipmentEvents } from '../orders/shipment.schema';
 import { shipmentLabels } from './shipping.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { stores } from '../merchant/merchant.schema';
+import { orders } from '../orders/orders.schema';
 import {
   generateIdempotencyKey, CancelShipmentResult, TrackingInfo,
 } from './shipping.types';
 import { CallerContext } from '../../common/tenant-scope';
 import { OrdersService } from '../orders/orders.service';
+
+/** Query parameters accepted by the shipment list read model. */
+interface ShipmentListQuery {
+  status?: string;
+  exceptionStatus?: string;
+  exceptionType?: string;
+  carrierCreateStatus?: string;
+  recoveryStatus?: string;
+  storeId?: string;
+  orderId?: string;
+  scope?: string;
+  search?: string;
+  sortBy?: string;
+  sortDir?: string;
+  limit?: string;
+  offset?: string;
+}
 
 /**
  * ShipmentOperationsController — M7.2.3-A shipment lifecycle API.
@@ -34,7 +52,7 @@ import { OrdersService } from '../orders/orders.service';
  *     external HTTP calls synchronously.
  *   - Carrier creation goes through the outbox → ShippingCarrierWorker.
  */
-@Controller('v1/shipments')
+@Controller('shipments')
 @UseGuards(JwtAuthGuard)
 export class ShipmentOperationsController {
   constructor(
@@ -279,7 +297,219 @@ export class ShipmentOperationsController {
     };
   }
 
+  // ── M7.3-B.6 read models: shipments list + detail ───────────────────────
+  // These were the one genuine blocking gap for the Ship-Ops consoles: the
+  // B.5-verified backend exposed per-`:id` operations but no way to enumerate
+  // shipments into a queue (shipments list, exception queue, RTS queue).
+  // Additive read-only surface; reuses the existing tenant helpers.
+
+  /** Shipment statuses that represent an in-flight Return-to-Sender cycle. */
+  private static readonly RTS_STATES = ['RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED'];
+
+  /** Sortable columns for the list endpoint (whitelisted to avoid injection). */
+  private static readonly SORTABLE: Record<string, any> = {
+    createdAt: shipments.createdAt,
+    updatedAt: shipments.updatedAt,
+    status: shipments.status,
+    exceptionStatus: shipments.exceptionStatus,
+    exceptionType: shipments.exceptionType,
+    exceptionAt: shipments.exceptionAt,
+    carrierCreateStatus: shipments.carrierCreateStatus,
+    deliveryAttempts: shipments.deliveryAttempts,
+  };
+
+  // ── GET /v1/shipments ─────────────────────────────────────────
+  // Tenant-scoped shipment list. Platform staff (ADMIN/SUPER_ADMIN/MODERATOR)
+  // see all; merchant callers are scoped to their active org's stores.
+
+  @Get()
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:read')
+  async listShipments(
+    @CurrentUser() user: JwtPayload,
+    @Query() q: ShipmentListQuery,
+  ) {
+    const caller = this.toCallerContext(user);
+    const conditions: any[] = [];
+
+    // Tenant scope: privileged roles bypass; everyone else is store-scoped.
+    if (!this.isPrivilegedRole(caller.role)) {
+      if (!caller.activeOrg) {
+        return { data: [], total: 0, limit: 0, offset: 0 };
+      }
+      const storeRows = await this.db.db.query.stores.findMany({
+        where: eq(stores.orgId, caller.activeOrg),
+        columns: { id: true },
+      });
+      if (storeRows.length === 0) {
+        return { data: [], total: 0, limit: 0, offset: 0 };
+      }
+      conditions.push(inArray(shipments.storeId, storeRows.map((s) => s.id)));
+    }
+
+    // Exact-match status filters.
+    if (q.status) conditions.push(eq(shipments.status, q.status));
+    if (q.exceptionStatus) conditions.push(eq(shipments.exceptionStatus, q.exceptionStatus));
+    if (q.exceptionType) conditions.push(eq(shipments.exceptionType, q.exceptionType));
+    if (q.carrierCreateStatus) conditions.push(eq(shipments.carrierCreateStatus, q.carrierCreateStatus));
+    if (q.recoveryStatus) conditions.push(eq(shipments.recoveryStatus, q.recoveryStatus));
+    if (q.storeId) conditions.push(eq(shipments.storeId, q.storeId));
+    if (q.orderId) conditions.push(eq(shipments.orderId, q.orderId));
+
+    // Queue scopes.
+    if (q.scope === 'rts') {
+      conditions.push(inArray(shipments.exceptionStatus, ShipmentOperationsController.RTS_STATES));
+    } else if (q.scope === 'exceptions') {
+      // Active (unresolved, non-RTS) delivery exceptions.
+      conditions.push(
+        sql`${shipments.exceptionStatus} is not null`,
+        sql`${shipments.exceptionStatus} not in ('CLOSED', 'RESOLVED', 'RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED')`,
+      );
+    } else if (q.scope === 'recovery') {
+      conditions.push(
+        or(
+          inArray(shipments.carrierCreateStatus, ['PENDING', 'IN_PROGRESS', 'FAILED', 'RECOVERY_REQUIRED']),
+          inArray(shipments.carrierCancelStatus, ['UNKNOWN', 'RECONCILIATION_REQUIRED']),
+        ) as any,
+      );
+    }
+
+    // Free-text search over identity + carrier references + store name.
+    // NOTE: shipments.id is a UUID; PostgreSQL has no ILIKE (~~*) for uuid, so
+    // the id is cast to text before the pattern match. Other columns are text.
+    if (q.search) {
+      const term = `%${q.search.replace(/[\\%_]/g, '\\$&')}%`;
+      conditions.push(
+        or(
+          sql`${shipments.id}::text ilike ${term}`,
+          ilike(shipments.carrierTrackingId, term),
+          ilike(shipments.carrierShipmentId, term),
+          ilike(stores.displayName, term),
+        ) as any,
+      );
+    }
+
+    const sortField = ShipmentOperationsController.SORTABLE[q.sortBy || 'updatedAt'] || shipments.updatedAt;
+    const sortFn = q.sortDir === 'asc' ? asc : desc;
+    const limit = Math.min(parseInt(q.limit || '25', 10) || 25, 100);
+    const offset = Math.max(parseInt(q.offset || '0', 10) || 0, 0);
+
+    const where = conditions.length ? and(...conditions) : undefined;
+
+    const rows = await this.db.db
+      .select({
+        id: shipments.id,
+        orderId: shipments.orderId,
+        storeId: shipments.storeId,
+        status: shipments.status,
+        assignedDriverId: shipments.assignedDriverId,
+        pickedUpAt: shipments.pickedUpAt,
+        outForDeliveryAt: shipments.outForDeliveryAt,
+        deliveredAt: shipments.deliveredAt,
+        cancelledAt: shipments.cancelledAt,
+        createdAt: shipments.createdAt,
+        updatedAt: shipments.updatedAt,
+        carrierTrackingId: shipments.carrierTrackingId,
+        carrierShipmentId: shipments.carrierShipmentId,
+        shippingProviderKey: shipments.shippingProviderKey,
+        carrierStatusMapped: shipments.carrierStatusMapped,
+        carrierCreateStatus: shipments.carrierCreateStatus,
+        carrierCreateErrorClass: shipments.carrierCreateErrorClass,
+        carrierCreateRetries: shipments.carrierCreateRetries,
+        carrierCancelStatus: shipments.carrierCancelStatus,
+        recoveryStatus: shipments.recoveryStatus,
+        exceptionStatus: shipments.exceptionStatus,
+        exceptionType: shipments.exceptionType,
+        exceptionAt: shipments.exceptionAt,
+        deliveryAttempts: shipments.deliveryAttempts,
+        maxDeliveryAttempts: shipments.maxDeliveryAttempts,
+        storeName: stores.displayName,
+        orderStatus: orders.status,
+      })
+      .from(shipments)
+      .leftJoin(stores, eq(shipments.storeId, stores.id))
+      .leftJoin(orders, eq(shipments.orderId, orders.id))
+      .where(where)
+      .orderBy(sortFn(sortField), desc(shipments.id))
+      .limit(limit)
+      .offset(offset);
+
+    const countRows = await this.db.db
+      .select({ total: sql<number>`count(*)::integer` })
+      .from(shipments)
+      .leftJoin(stores, eq(shipments.storeId, stores.id))
+      .where(where);
+
+    const total = Number(countRows[0]?.total ?? 0);
+    return { data: rows, total, limit, offset };
+  }
+
+  // ── GET /v1/shipments/:id ──────────────────────────────────────
+  // Shipment detail: header + carrier/exception/RTS state + events timeline
+  // + labels. Tenant-checked via the shared assertShipmentAccessible helper.
+
+  @Get(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:read')
+  async getShipmentDetail(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, id),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+
+    await this.assertShipmentAccessible(shipment, caller);
+
+    const [store, order, events, labels] = await Promise.all([
+      this.db.db.query.stores.findFirst({ where: eq(stores.id, shipment.storeId) }),
+      this.db.db.query.orders.findFirst({ where: eq(orders.id, shipment.orderId) }),
+      this.db.db.query.shipmentEvents.findMany({
+        where: eq(shipmentEvents.shipmentId, id),
+        orderBy: [asc(shipmentEvents.sequence)],
+      }),
+      this.db.db.query.shipmentLabels.findMany({
+        where: eq(shipmentLabels.shipmentId, id),
+      }),
+    ]);
+
+    return {
+      shipment,
+      store: store ? { id: store.id, displayName: store.displayName, slug: store.slug, orgId: store.orgId } : null,
+      order: order ? { id: order.id, status: order.status, storeId: order.storeId, buyerId: order['buyerId'] } : null,
+      events: events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        actorType: e.actorType,
+        actorUserId: e.actorUserId,
+        locationText: e.locationText,
+        notes: e.notes,
+        carrierEventCode: e.carrierEventCode,
+        sequence: e.sequence,
+        createdAt: e.createdAt,
+      })),
+      labels: labels.map((l) => ({
+        id: l.id,
+        labelNumber: l.labelNumber,
+        storageKey: l.storageKey,
+        mimeType: l.mimeType,
+        trackingUrl: l.trackingUrl,
+        isVoid: l.isVoid,
+        labelType: l.labelType,
+        createdAt: l.createdAt,
+      })),
+    };
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  private isPrivilegedRole(role: string | null | undefined): boolean {
+    return ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(role || '');
+  }
+
 
   private toCallerContext(user: JwtPayload): CallerContext {
     return { sub: user.sub, role: user.role, activeOrg: user.activeOrg };

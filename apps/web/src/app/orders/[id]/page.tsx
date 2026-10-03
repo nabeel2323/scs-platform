@@ -12,6 +12,8 @@ import {
   fetchDisputeEvents,
   submitDisputeEvidence,
   fetchTracking,
+  buyerDeliveryNote,
+  buyerEventLabel,
   confirmDelivery,
   ReorderResult,
   StatusHistoryEntry,
@@ -562,16 +564,30 @@ export default function OrderDetailPage() {
                       {ts.shipment.deliveredAt && ` · Delivered`}
                     </div>
                   )}
+                  {ts.shipment?.exceptionStatus && (() => {
+                    const note = buyerDeliveryNote(ts.shipment!.exceptionStatus!);
+                    if (!note) return null;
+                    const active = ts.shipment.exceptionStatus === 'OPEN' || ts.shipment.exceptionStatus === 'RETRY_PENDING' || ts.shipment.exceptionStatus?.startsWith('RTS_');
+                    return (
+                      <div role="status" style={{ fontSize: 12, marginBottom: 8, padding: '6px 10px', borderRadius: 8, background: active ? '#fffbeb' : '#f0fdf4', border: `1px solid ${active ? '#fcd34d' : '#bbf7d0'}`, color: active ? '#92400e' : '#166534' }}>
+                        {note}
+                      </div>
+                    );
+                  })()}
                   <div style={{ paddingLeft: 8, borderLeft: `2px solid ${colors.border}` }}>
-                    {ts.events.map((ev, idx) => (
+                    {/* M7.3-B.6: use buyer-safe event labels; internal events (RTS_*) return null and are not rendered. */}
+                    {ts.events
+                      .map((ev) => ({ ev, label: buyerEventLabel(ev.eventType) }))
+                      .filter(({ label }) => label !== null)
+                      .map(({ ev, label }, idx, visible) => (
                       <div key={idx} style={{ padding: '4px 0 4px 12px', fontSize: 12, position: 'relative' }}>
-                        <div style={{ position: 'absolute', left: -5, top: 8, width: 8, height: 8, borderRadius: '50%', background: idx === ts.events.length - 1 ? '#065f46' : '#d1d5db' }} />
-                        <div style={{ fontWeight: 600, color: colors.brand[700] }}>{ev.eventType.replace(/_/g, ' ')}</div>
+                        <div style={{ position: 'absolute', left: -5, top: 8, width: 8, height: 8, borderRadius: '50%', background: idx === visible.length - 1 ? '#065f46' : '#d1d5db' }} />
+                        <div style={{ fontWeight: 600, color: colors.brand[700] }}>{label}</div>
                         <div style={{ color: colors.muted, fontSize: 11 }}>{formatDate(ev.createdAt)} · {ev.actorType}</div>
                         {ev.notes && <div style={{ color: '#374151', fontSize: 11, marginTop: 1 }}>{ev.notes}</div>}
                       </div>
                     ))}
-                    {ts.events.length === 0 && (
+                    {ts.events.filter((ev) => buyerEventLabel(ev.eventType) !== null).length === 0 && (
                       <div style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic' }}>No tracking events yet</div>
                     )}
                   </div>

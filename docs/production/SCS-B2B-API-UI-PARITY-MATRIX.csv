@@ -1,0 +1,114 @@
+domain,api_endpoint,method,backend_capability,frontend_route,frontend_component,ui_action,roles,authorization,workflow,state,parity_status,gap,recommendation
+Auth,/auth/otp/request,POST,Request OTP,/auth/login + /login,LoginForm,request code,"ALL",public,login,none,ALIGNED,,
+Auth,/auth/otp/verify,POST,Verify OTP + issue tokens,/auth/login + /login,LoginForm,verify,"ALL",public,login,none,ALIGNED,,
+Auth,/auth/login/password,POST,Password login,/auth/login,LoginForm,login,"ALL",public,login,none,ALIGNED,,
+Auth,/auth/login/device-check,POST,Trusted device check,/auth/login,LoginFlow,auto,"ALL",public,login,none,ALIGNED,,
+Auth,/auth/refresh,POST,Rotate tokens,all apps,authFetch/interceptor,auto,"ALL",refresh token,session,none,ALIGNED,,
+Auth,/auth/logout,POST,Revoke session,all apps,AccountMenu,logout,"ALL",authenticated,session,none,ALIGNED,,
+Auth,/auth/switch-org,POST,Switch org context,/account + /merchant/organization,OrgSwitcher,switch,"ALL",authenticated,org context,none,ALIGNED,,
+Profile,/me,GET+PATCH,Profile read/update,/account; /profile (mobile),ProfileForm,view+edit,"ALL",authenticated,profile,none,ALIGNED,,
+Profile,/me/devices GET+POST+DELETE,*,Device management,/account,DeviceList,manage,"ALL",authenticated,devices,none,ALIGNED,,
+Profile,/me/credentials/*,POST,Setup/change password,/profile/credentials + /account,CredentialsForm,setup+change,"ALL",authenticated,security,none,ALIGNED,,
+Profile,/me/sessions GET+DELETE,*,Session list + revoke,/profile/sessions + /account,SessionList,revoke,"ALL",authenticated,security,none,ALIGNED,,
+Profile,/me/favorites,GET+POST+DELETE,Favorites,/favorites,FavoritesList,toggle,BUYER,authenticated (buyer),favorites,none,ALIGNED,,
+Profile,/me/saved-suppliers,GET+POST+DELETE,Saved suppliers,/saved-suppliers,SupplierList,toggle,BUYER,authenticated (buyer),suppliers,none,ALIGNED,,
+Organizations,/organizations POST+GET/:id+PATCH,*,Org create/read/update,/merchant/organization; admin /organizations/[id]; mobile,OrgForm,manage,"MERCHANT_OWNER,ADMIN",org member/owner + admin perms,org admin,active,ALIGNED,,
+Organizations,/organizations/join,POST,Join via invite,mobile org_detail; (web partial),JoinForm,join,"ALL",authenticated,org join,none,PARTIAL,web join path thin,surface join on web
+Organizations,/organizations/:id/members,GET+POST+DELETE,Member management,/merchant/organization; admin; mobile,MemberTable,add+remove,"MERCHANT_OWNER,ADMIN",org owner/admin perms,members,none,PARTIAL,buyer web has no member UI,add buyer-org member management to web
+Organizations,/organizations/:id/member-lookup,GET,Member lookup,merchant org page,MemberLookup,search,"MERCHANT_OWNER",org perms,members,none,ALIGNED,,
+Organizations,/organizations/:id/update-requests,GET+POST,Org change requests,merchant org page,UpdateRequestForm,submit,"MERCHANT_OWNER",org owner,org update,pending,ALIGNED,,
+Organizations,/roles,GET,List roles,admin users page,RoleSelect,view,ADMIN,admin:users:read,rbac,none,ALIGNED,,
+Merchant,/stores POST+GET+PATCH,*,Store management,/merchant/store; admin merchants/[id],StoreForm,manage,"MERCHANT_OWNER,ADMIN(read)",merchant perms + admin,store admin,active,ALIGNED,,
+Merchant,/stores/:storeId/warehouses,GET+POST + /warehouses/:id PATCH,Warehouse management,/merchant/warehouses,WarehouseForm,manage,"MERCHANT_OWNER",merchant perms,warehouses,active,ALIGNED,,
+Merchant,/documents + presign endpoints,*,Verification document upload,/merchant/register + admin verification,DocUploader,upload+view,"MERCHANT_OWNER,ADMIN",merchant perms + admin review,verification,pending,ALIGNED,,
+Merchant,/stores/:storeId/verify + /verification/*,*,Verification queue + review,admin /verification/[id],VerificationReview,review,ADMIN,merchant:verification:review,verification,FSM,ALIGNED,,
+Merchant,/merchant/customers,GET,Customer directory,/merchant/customers; mobile,CustomerTable,view,"MERCHANT_OWNER,MERCHANT_STAFF",merchant perms,customers,none,ALIGNED,,
+Catalog,/categories CRUD + tree,*,Category management,admin /categories(+[id]); facets,CategoryManager,CRUD,ADMIN,catalog:categories:write,taxonomy,active,ALIGNED,,
+Catalog,/brands CRUD,*,Brand management,admin /brands(+[id]); facets,BrandManager,CRUD,ADMIN,catalog:brands:manage,taxonomy,active,ALIGNED,,
+Catalog,/products CRUD + bulk + export,*,Product management,/merchant/catalog + product-studio; admin /products,ProductStudio+ManagementPage,CRUD+bulk+export,"MERCHANT_OWNER,ADMIN",merchant perms + moderation,catalog,moderated,ALIGNED,,
+Catalog,/products/:id/media + reorder + presign,*,Media pipeline,product-studio step5,MediaManager,upload+reorder,"MERCHANT_OWNER",merchant perms,catalog,none,ALIGNED,,
+Catalog,/products/:productId/variants + bulk + matrix,*,Variant management,product-studio step3; PDP selector,VariantEditor,CRUD,"MERCHANT_OWNER,BUYER(read)",merchant perms,catalog,none,ALIGNED,,
+Catalog,/search + /search/facets + categories/brands,GET,Discovery search,/search; mobile search,SearchPageClient,search+filter,"BUYER,all",public,discovery,none,ALIGNED,,
+Catalog,/canonical/match|search|duplicates,GET,Canonical dedup,admin data-quality; product-studio,DedupTools,match,"MERCHANT_OWNER,ADMIN",merchant+admin perms,catalog hygiene,none,PARTIAL,dedup actions partially surfaced,complete admin dedup workflow UI
+Catalog,/stores/:storeId/imports + /imports/:id/*,*,Legacy CSV import,merchant import page,ImportWizard,import,"MERCHANT_OWNER",merchant perms,import,FSM,ALIGNED,,
+Catalog,/admin/data-quality + /admin/corrupted-variants,GET,Data quality views,admin /data-quality,DQDashboard,view,ADMIN,catalog:product-types:manage,governance,none,ALIGNED,,
+Offers,/products/:productId/offers + /ranked,GET,Offer listing/comparison,PDP; admin offers/[id],OfferComparisonTable,view,"BUYER,all",public,commerce,none,ALIGNED,,
+Offers,/merchant/offers GET+POST + pricing PATCH,*,Offer management,/merchant/offers; mobile offer_create,OfferForm,create+price,"MERCHANT_OWNER",merchant perms,offers,FSM,ALIGNED,,
+Offers,/merchant/offers/:id/propose + /withdraw,POST,Offer lifecycle,/merchant/offers,OfferActions,propose+withdraw,"MERCHANT_OWNER",merchant perms,offers,FSM,ALIGNED,,
+Offers,/admin/offers/:id/approve|reject|suspend|activate,POST,Offer governance,admin /offers/[id],GovernanceActions,govern,ADMIN,catalog:offers:govern,governance,FSM,ALIGNED,,
+Offers,/merchant/offers/analytics(+ /trend),GET,Offer analytics,admin offers-trend; offers-kpis,OfferCharts,view,ADMIN,admin:kpis:read,analytics,none,PARTIAL,merchant-facing trend thin,merchant analytics page
+Taxonomy,/attributes + /admin/attributes CRUD,*,Attribute management,admin /attributes(+[id]),AttributeManager,CRUD,ADMIN,catalog:attributes:manage,taxonomy,active,ALIGNED,,
+Taxonomy,/attribute-groups,GET+POST,Attribute groups,admin /attribute-groups,GroupManager,manage,ADMIN,catalog:attributes:manage,taxonomy,active,ALIGNED,,
+Taxonomy,/product-types + /admin/product-types/*,*,Product type builder,admin /product-types/[id],TypeBuilder,build+publish,ADMIN,catalog:product-types:manage,taxonomy,versioned,ALIGNED,,
+Requests,/merchant/requests + /admin/requests approve/reject,*,Catalog requests,/merchant/requests; admin /requests,RequestQueue,submit+review,"MERCHANT_OWNER,ADMIN",merchant perms + admin,catalog requests,FSM,ALIGNED,,
+Import,/admin/catalog-imports upload|list|preview|execute|errors|report|template|export,*,XLSX import center,admin /catalog-import(+[id]); merchant /merchant/import,ImportCenter,run imports,"ADMIN,MERCHANT_OWNER",catalog:import:execute/imports:manage,import,FSM,ALIGNED,,
+Cart,/cart GET + items POST/PATCH/DELETE + validate + promo,*,Cart management,/cart; mobile cart,CartPage,manage,BUYER,authenticated (buyer),cart,none,ALIGNED,,
+Orders,/checkout,POST,Idempotent checkout,/checkout; mobile checkout,CheckoutPage,place order,BUYER,authenticated (buyer),ordering,FSM,ALIGNED,,
+Orders,/orders GET + /orders/:id + /orders/master/:id,GET,Order lists + details,/orders(+[id]); /merchant/orders(+[id]); admin /orders(+[id]); mobile,OrderPages,view,"BUYER,MERCHANT_OWNER,ADMIN",tenant-scoped + admin read,ordering,FSM,ALIGNED,,
+Orders,/orders/:id/history,GET,Status history,order detail timelines,OrderTimeline,view,"BUYER,MERCHANT_OWNER,ADMIN",tenant-scoped,ordering,FSM,ALIGNED,,
+Orders,/orders/:id/accept + /partial-accept + /reject,POST,Merchant acceptance,/merchant/orders/[id]; mobile,AcceptActions,accept+partial+reject,"MERCHANT_OWNER,MERCHANT_STAFF",merchant perms (own store),fulfillment,FSM,ALIGNED,,
+Orders,/orders/:id/cancel,POST,Order cancellation,/orders/[id]; /merchant/orders/[id],CancelDialog,cancel,"BUYER,MERCHANT_OWNER",tenant-scoped; B.5 rules,cancellation,FSM,PARTIAL,merchant web cancel matrix predates B.5 OUT_FOR_DELIVERY rule,refresh merchant cancellable-status map to B.5
+Orders,/orders/:id/prepare|ready|out-for-delivery|deliver,POST,Merchant FSM transitions,/merchant/orders/[id],TransitionButtons,advance,"MERCHANT_OWNER",merchant perms,fulfillment,FSM,ALIGNED,,
+Orders,/orders/:id/assign-driver + /pickup,POST,Driver assignment + pickup,/merchant/orders (assign); mobile driver (pickup); admin+merchant ship-ops consoles (view),AssignDriver+DriverActions+ShipOps consoles,assign+pickup+view,"MERCHANT_OWNER,DRIVER",merchant perms + DRIVER (seeded in seed-pg.ts),delivery,FSM,PARTIAL,DRIVER seeded + mobile-operational; no web driver console/onboarding (deferred by B.6 decision),document DRIVER web provisioning delta (future milestone)
+Orders,/orders/:id/confirm-delivery,POST,Delivery confirmation,order detail,ConfirmDelivery,confirm,"MERCHANT_OWNER,BUYER",tenant-scoped,delivery,FSM,ALIGNED,,
+Orders,/orders/:id/items/:itemId/confirm,POST,Item confirmation,merchant order detail,ItemConfirm,confirm,"MERCHANT_OWNER",merchant perms,fulfillment,FSM,ALIGNED,,
+Orders,/orders/:id/status,POST,Generic transition,mobile merchant,TransitionButtons,advance,"MERCHANT_OWNER",merchant perms,fulfillment,FSM,ALIGNED,,
+Orders,/orders/master/:id/reorder,POST,Reorder,/orders/[id],ReorderButton,reorder,BUYER,authenticated (buyer),ordering,none,ALIGNED,,
+Orders,/orders/master/:id/tracking,GET,Master tracking,/orders/[id],TrackingPanel,view,BUYER,tenant-scoped,delivery,none,ALIGNED,,buyer projection hardened: server-side RTS event filter + buyerEventLabel defense-in-depth (SCS-M7.3-B.6-BUYER-PROJECTION-RE-VERIFICATION.md)
+Orders,/drivers/shipments,GET,Driver shipment list,mobile driver_shipments_screen (web deferred),DriverShipments,view,DRIVER,fulfillment:shipments:read (DRIVER seeded in seed-pg.ts),delivery,none,PARTIAL,DRIVER role seeded + mobile surface only; no web driver console,add web driver console (future milestone)
+Shipping,/v1/shipping/methods CRUD + deactivate,*,Shipping method config,/merchant/shipping,MethodsManager,CRUD,"MERCHANT_OWNER",merchant perms,shipping config,active,ALIGNED,,
+Shipping,/v1/shipping/zones + zone-methods,*,Delivery zone config,/merchant/shipping,ZonesManager,CRUD,"MERCHANT_OWNER",merchant perms,shipping config,active,PARTIAL,no admin zone oversight,admin read-only zones view
+Shipping,/v1/shipping/estimate,GET,Checkout shipping estimate,/checkout,EstimateLoader,auto,BUYER,authenticated,checkout,none,ALIGNED,,
+Shipping,/v1/shipping/providers,GET,List carrier providers,admin /carrier (provider data via credentials/configs),CarrierConsole,view,ADMIN,admin:carrier:read,carrier admin,none,PARTIAL,carrier console added but provider catalog not enumerated as a dedicated list,surface provider registry in carrier console
+Shipments,/v1/shipments,GET,Shipment list read model (queue/filter/search),admin /shipments; /merchant/deliveries,ShipmentsConsole+MerchantDeliveriesPage,view+filter,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:read (tenant-scoped),shipping ops,none,ALIGNED,,
+Shipments,/v1/shipments/:id,GET,Shipment detail read model (header+events+labels),admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,view+operate,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:read,shipping ops,none,ALIGNED,,
+Shipments,/v1/shipments/:id/create,POST,Create carrier shipment,admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,queue carrier create,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write,shipping ops,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/cancel,POST,Cancel carrier shipment (indeterminate-safe),admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,cancel,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write,shipping ops,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/tracking,GET,Carrier tracking,/orders/[id] (buyer); admin /shipments/[id]; /merchant/deliveries/[id],TrackingPanel+ShipmentDetailConsole+MerchantDeliveryDetailPage,view,"BUYER,MERCHANT_OWNER,ADMIN",tenant-scoped + fulfillment:shipments:read,delivery,none,ALIGNED,,
+Shipments,/v1/shipments/:id/labels,GET,"Shipping label metadata + carrier tracking URL (delivered inline via GET /v1/shipments/:id detail read model)","admin /shipments/[id]; /merchant/deliveries/[id]",ShipmentDetailConsole+MerchantDeliveryDetailPage,"view labels + open carrier tracking URL","MERCHANT_OWNER,ADMIN","fulfillment:shipments:read (detail model; dedicated presigned /labels route not separately consumed)",shipping ops,none,ALIGNED,,"native label view via detail.labels[].trackingUrl; the dedicated GET /v1/shipments/:id/labels presigned route is unwired - add if in-app PDF download required"
+Shipments,/v1/shipments/:id/exception,POST,Report delivery exception,admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,report exception,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write,exceptions,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/retry,POST,Retry delivery,admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,authorize retry,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write,exceptions,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/rts,POST,Request RTS,admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,request RTS,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write (B.5 authz),RTS,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/rts/approve,POST,Approve RTS,admin /shipments/[id],ShipmentDetailConsole,approve RTS,"MERCHANT_OWNER(non-LOST),ADMIN",fulfillment:shipments:write (B.5 authz),RTS,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/rts/reject,POST,Reject RTS (notes),admin /shipments/[id],ShipmentDetailConsole,reject RTS,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write (B.5 authz),RTS,FSM,ALIGNED,,
+Shipments,/v1/shipments/:id/rts/complete,POST,Confirm physical return,admin /shipments/[id]; /merchant/deliveries/[id],ShipmentDetailConsole+MerchantDeliveryDetailPage,complete RTS,"MERCHANT_OWNER,ADMIN",fulfillment:shipments:write (B.5 authz),RTS,FSM,ALIGNED,,
+Carrier,/v1/carrier/credentials GET+POST + deactivate,*,Carrier credential admin,admin /carrier (read),CarrierConsole,view credentials,ADMIN,admin:carrier:read,carrier admin,active,PARTIAL,read visibility only; credential create/deactivate not surfaced (B.6 = visibility),add credential write actions to carrier console
+Carrier,/v1/carrier/configurations GET+POST+PATCH + deactivate,*,Carrier configuration admin,admin /carrier (read),CarrierConsole,view configurations,ADMIN,admin:carrier:read,carrier admin,active,PARTIAL,read visibility only; config write not surfaced (B.6 = visibility),add config write actions to carrier console
+Carrier,/v1/carrier/shipments/:id/recover,POST,Recover failed carrier op,admin /carrier; admin /shipments/[id],CarrierConsole+ShipmentDetailConsole,reconcile shipment,ADMIN,admin:shipping:recovery,reconciliation,FSM,ALIGNED,,
+Carrier,/v1/carrier/recovery/queue,GET,Recovery queue,admin /carrier; admin /shipments (scope=recovery),CarrierConsole+ShipmentsConsole,view recovery queue,ADMIN,admin:shipping:recovery,reconciliation,none,ALIGNED,,
+Carrier,/v1/webhooks/carrier/:providerKey(/:token),POST,Carrier status webhooks,N/A,N/A,N/A,system,webhook token,webhooks,none,ALIGNED,machine-only,
+Inventory,/stores/:storeId/inventory + /inventory/warehouse/:id + /variant/:id,GET,Inventory views,/merchant/inventory; mobile,InventoryTable,view,"MERCHANT_OWNER",merchant perms,inventory,none,ALIGNED,,
+Inventory,/inventory POST + /inventory/:id PATCH,*,Inventory item management,/merchant/inventory,InventoryForm,manage,"MERCHANT_OWNER",merchant perms,inventory,none,ALIGNED,,
+Inventory,/inventory/adjust + /bulk-adjust + /transfer,POST,Stock operations,/merchant/inventory; mobile,AdjustDialogs,adjust+transfer,"MERCHANT_OWNER",merchant perms,inventory,ledger,ALIGNED,,
+Inventory,/inventory/reserve + /release,POST,Manual reserve/release,NONE (internal use),N/A,N/A,system/merchant,merchant perms,inventory,ledger,BACKEND_ONLY,internal service paths exposed,document as internal or hide
+Inventory,/inventory/:id/movements + exports,GET,Movements ledger + CSV,/merchant/inventory,MovementsTable+Export,view+export,"MERCHANT_OWNER,ADMIN(read)",merchant perms,inventory,ledger,ALIGNED,,
+Inventory,/inventory/low-stock + check-low-stock,GET+POST,Low stock alerts,/merchant/inventory,LowStockBanner,view,"MERCHANT_OWNER",merchant perms,inventory,none,ALIGNED,,
+Pricing,/price-lists CRUD + tiers CRUD,*,Price list management,/merchant/pricing,PricingManager,CRUD,"MERCHANT_OWNER",merchant perms,pricing,active,ALIGNED,,
+Pricing,/variants/:variantId/pricing,GET,Variant pricing view,/merchant/pricing; PDP,PriceDisplay,view,"MERCHANT_OWNER,BUYER",merchant perms + public,pricing,none,ALIGNED,,
+Pricing,/resolve-price,GET,Price resolution,PDP + cart (server),PriceResolver,auto,"BUYER,all",public,pricing,none,ALIGNED,,
+Promotions,/promotions CRUD + validate + active,*,Promotion management,/merchant/promotions; checkout promo,PromotionManager+PromoInput,CRUD+apply,"MERCHANT_OWNER,BUYER(apply)",merchant perms,promotions,active,PARTIAL,mobile merchant promotions missing,mobile parity
+Promotions,/offers/nearby,GET,Nearby offers,mobile home,NearbySection,view,BUYER,authenticated,discovery,none,ALIGNED,,
+Reviews,/orders/:orderId/review + /stores/:id/reviews + /reviews/:id + /trust/*,*,Reviews + trust,/reviews; store pages,ReviewForm+List,write+view,"BUYER,all read",tenant-scoped,reviews,none,ALIGNED,,
+Disputes,/orders/:orderId/dispute + /disputes* + evidence + response + resolve,*,Dispute lifecycle,/orders/[id]; /reviews; admin /disputes/[id],DisputeFlow,create+evidence+resolve,"BUYER,ADMIN(resolve)",tenant-scoped + support:disputes:resolve,disputes,FSM,PARTIAL,resolution has no financial lever (refunds absent),M7.3-D/E
+Comms,/orders/:orderId/conversation + /conversations/:id(/messages + read),*,Order conversations,NONE (standalone chat),NONE,NONE,"BUYER,MERCHANT_OWNER",tenant-scoped,comms,none,BACKEND_ONLY,chat UI deferred (documented),fast-follow chat UI
+Notifications,/notifications GET + read/unread + read-all + unread-count,*,Notification center,/notifications; mobile,NotificationList,view+mark,"ALL",authenticated,notifications,none,ALIGNED,,
+Notifications,/notification-preferences GET+PATCH,*,Preferences,/account; mobile,PreferenceToggles,set,"ALL",authenticated,notifications,none,ALIGNED,,
+Notifications,/device-tokens POST+DELETE,*,Push device registration,mobile (auto),DeviceRegistrar,auto,"ALL",authenticated,push,none,ALIGNED,,
+Analytics,/analytics/track + /track/batch,POST,Event tracking,all clients (auto),Tracker,auto,"ALL",authenticated,analytics,none,ALIGNED,,
+Analytics,/analytics/events + /activity,GET,Event reading,admin /analytics,AnalyticsDashboard,view,ADMIN,analytics:read,analytics,none,ALIGNED,,
+Admin,/admin/users + assign-role + roles DELETE,*,User administration,admin /users(+[id]),UserManager,manage,ADMIN,admin:users:*,admin,none,ALIGNED,,
+Admin,/admin/organizations + deactivate,*,Org administration,admin /organizations(+[id]),OrgManager,manage+deactivate,ADMIN,admin:organizations:read,admin,active,ALIGNED,,
+Admin,/admin/org-update-requests + review,*,Org change review,admin organizations,ReviewActions,review,ADMIN,admin perms,admin,pending,ALIGNED,,
+Admin,/admin/merchants + /verifications + /verification-queue,GET,Merchant oversight,admin /merchants(+[id]) + /verification,MerchantViews,view,ADMIN,admin:merchants:read,governance,none,ALIGNED,,
+Admin,/admin/products + moderate + media-previews,*,Product moderation,admin /products(+[id]),ModerationActions,moderate,ADMIN,admin:merchants:read,governance,moderated,ALIGNED,,
+Admin,/admin/orders + /admin/orders/:id,GET,Order oversight (read-only),admin /orders(+[id]),OrderDetail,view,ADMIN,admin:orders:read,oversight,FSM,PARTIAL,no intervention capability (undefined),define admin intervention (G-17)
+Admin,/admin/kpis + /offers/kpis + /offers/trend,GET,KPIs,admin /kpis + /offers-kpis + /offers-trend,KpiDashboards,view,ADMIN,admin:kpis:read,analytics,none,ALIGNED,,
+Admin,/admin/audit-logs,GET,Audit log,admin /audit,AuditTable,view,ADMIN,admin:audit:read,audit,none,ALIGNED,,
+Admin,/admin/categories + /admin/brands + /admin/offers + /admin/disputes(+:id),GET,Governance lists,admin pages,ManagementPage,view,ADMIN,various admin perms,governance,none,ALIGNED,,
+Payments,(none),(none),NO PAYMENT API,/checkout implies payment,N/A,N/A,ALL,N/A,payment,FSM,MISSING,payments module empty (BLOCKING),Phase 3 payments (R-3)
+Refunds,(none),(none),NO REFUND API,NONE,N/A,N/A,ALL,N/A,refunds,FSM,MISSING,M7.3-D planned,refund automation (R-3 follow-on)
+Invoices,(none),(none),NO INVOICE API,NONE,N/A,N/A,ALL,N/A,finance,none,MISSING,no documents at all,invoice service post-payments
+Returns,(none),(none),NO RETURNS API,NONE,N/A,N/A,"BUYER,MERCHANT_OWNER",N/A,returns,FSM,MISSING,M7.3-C audited not built,implement M7.3-C
+Quotes,(none),(none),NO RFQ API,NONE,N/A,N/A,"BUYER,MERCHANT_OWNER",N/A,quotation,FSM,MISSING,product decision pending,decide RFQ scope (G-14)
+FeatureFlags,(none),(none),flags table only,NONE,N/A,N/A,ADMIN,N/A,ops,none,MISSING,no controller/UI,flags console (G-21)
+Realtime,/socket.io (gateway),WS,Order+notification push,/orders/[id]; /notifications,watchOrder+onNotification,auto,"ALL",authenticated WS,realtime,none,PARTIAL,not E2E verified (BG-4),WS E2E coverage

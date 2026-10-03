@@ -48,7 +48,7 @@ import { stores } from '../merchant/merchant.schema';
  *   - Recovery does not expose credentials.
  *   - Recovery creates a controlled reconciliation request (not a blind retry).
  */
-@Controller('v1/carrier')
+@Controller('carrier')
 @UseGuards(JwtAuthGuard)
 export class CarrierAdminController {
   private readonly logger = new Logger(CarrierAdminController.name);

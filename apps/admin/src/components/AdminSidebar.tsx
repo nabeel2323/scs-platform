@@ -16,6 +16,8 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] },
   { href: '/users', label: 'Users', icon: <IconUsers size={18} />, perms: ['admin:users:read'] },
   { href: '/orders', label: 'Orders', icon: <IconPackage size={18} />, perms: ['admin:orders:read'] },
+  { href: '/shipments', label: 'Ship Operations', icon: <IconBox size={18} />, perms: ['fulfillment:shipments:read'] },
+  { href: '/carrier', label: 'Carrier & Recovery', icon: <IconSettings size={18} />, perms: ['admin:carrier:read'] },
   { href: '/merchants', label: 'Merchants', icon: <IconStore size={18} />, perms: ['admin:merchants:read'] },
   { href: '/organizations', label: 'Organizations', icon: <IconBuilding size={18} />, perms: ['admin:users:read'] },
   { href: '/verification', label: 'Verification', icon: <IconShield size={18} />, perms: ['merchant:verification:review'] },

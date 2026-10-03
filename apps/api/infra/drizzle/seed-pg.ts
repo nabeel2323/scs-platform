@@ -186,6 +186,9 @@ const ROLES: RoleDef[] = [
       // M7.2.3-A carrier admin read access
       'admin:carrier:read',
       'fulfillment:shipments:write',
+      // M7.3-B.6: Ship-Ops console needs to enumerate/read shipments
+      // (list + detail read model), not just mutate them.
+      'fulfillment:shipments:read',
       // M7.2.3-C carrier recovery
       'admin:shipping:recovery',
     ],
