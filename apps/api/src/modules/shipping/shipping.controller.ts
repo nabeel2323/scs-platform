@@ -43,7 +43,7 @@ import {
  *     DELETE /v1/shipping/zones/:zoneId/methods/:methodId — detach method from zone
  *     GET    /v1/shipping/methods/:methodId/zones     — zones that offer this method
  */
-@Controller('v1/shipping')
+@Controller('shipping')
 @UseGuards(JwtAuthGuard)
 export class ShippingController {
   constructor(private readonly shippingService: ShippingService) {}

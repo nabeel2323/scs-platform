@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Source | `SCS-B2B-FRAMEWORK-COMPLETENESS-AUDIT.md` (2026-10-02) |
-| Baseline | `develop` @ `5c6649dc2334e278c808b44c558b020db7e6db7b` (M7.3-B.5 CLOSED/PASS) |
+| Baseline | `develop` @ `d554fd7425664590bceed757facf9a293389f334` (M7.3-B.6 CLOSED/PASS) |
 | Nature | RECOMMENDATION ONLY — nothing herein is implemented by the audit |
 | Governance | Every milestone should follow the established four-gate pattern: Pre-Implementation Architecture Audit → Business Rules + Architecture Decision Lock → Implementation → Independent Runtime Verification → Release Closure |
 
@@ -25,9 +25,11 @@ No UI work package is scheduled before its backend contract is verified-stable.
 
 ---
 
-## 2. Phase R0 — Ship-Ops Visibility (proposed M7.3-B.6)
+## 2. Phase R0 — Ship-Ops Visibility (M7.3-B.6) — CLOSED / PASS
 
 **Objective:** make the verified M7.2.3/M7.3 shipping, exception, RTS, and carrier-recovery capabilities operable by humans.
+
+**Status:** CLOSED / PASS — independently runtime-verified and release-closed (2026-10-03). All work packages delivered. Playwright 5/5, API JSON buyer projection verified, tenant isolation verified, full regression suite green.
 
 | ID | Work Package | Why Now | Dependencies | API | UI | DB | Integration | Testing | Exit Criteria |
 |----|--------------|---------|--------------|-----|----|----|-------------|---------|---------------|
@@ -37,7 +39,7 @@ No UI work package is scheduled before its backend contract is verified-stable.
 | R0.4 | DRIVER provisioning decision + seed/RBAC | MEDIUM G-10: driver flow unprovisioned | product/ops decision | seed script | none | seed data | none | integration | DRIVER role seeded with least-privilege perms or driver flow formally descoped |
 | R0.5 | Playwright critical-path suite (checkout→accept→ship→exception→RTS) + refresh stale CAPABILITY-MATRIX | HIGH G-18/G-20 before UI surface doubles | none | none | tests | none | none | E2E suite green in CI | critical ship-ops paths covered; matrix refreshed |
 
-**Prerequisites:** B.5 (done). **Enables:** R1 (RTS actions must exist in UI for return-to-stock operations), R6 (reconciliation UI hooks).
+**Prerequisites:** B.5 (done). **Enables:** R1 (RTS actions must exist in UI for return-to-stock operations), R6 (reconciliation UI hooks). **Closure:** `docs/production/SCS-M7.3-B.6-RELEASE-CLOSURE.md`.
 
 ---
 
@@ -178,7 +180,7 @@ Hard dependency rules:
 
 | Order | Milestone (proposed) | Theme | Blocks removed |
 |-------|----------------------|-------|----------------|
-| 1 | M7.3-B.6 (R0) | Ship-Ops Visibility | G-01, G-02, G-03, G-10, G-18, G-20 |
+| 1 | M7.3-B.6 (R0) | Ship-Ops Visibility | G-01, G-02, G-03, G-10, G-18, G-20 | — **CLOSED / PASS** |
 | 2 | M7.3-C (R1) | Returns + restock | X-3, G-06 |
 | 3 | M8.1 (R2) | Payments + channels + fee/VAT | G-04, G-11, G-23 |
 | 4 | M7.3-D (R3.1) | Refunds | G-05 |
@@ -188,7 +190,7 @@ Hard dependency rules:
 | 8 | M8.3 (R6) | Ops maturity | G-17, G-21, G-22, BG-4 |
 | 9+ | R7 (product-gated) | Advanced B2B procurement | G-14, G-15, G-16, G-24 |
 
-Milestone names M7.3-C/D/E/F are retained where the existing roadmap locks already define their scope (C audited; D/E/F named in the B.0 lock §27). New milestones (B.6, M8.x) are proposed identifiers only.
+Milestone names M7.3-C/D/E/F are retained where the existing roadmap locks already define their scope (C audited; D/E/F named in the B.0 lock §27). M7.3-B.6 (R0) is CLOSED / PASS; new milestones (M8.x) are proposed identifiers only.
 
 ---
 

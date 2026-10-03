@@ -903,6 +903,19 @@ export class OrdersService {
   private static readonly RTS_ACTIVE_STATES = ['RTS_PENDING', 'RTS_IN_PROGRESS', 'RTS_COMPLETED'];
 
   /**
+   * M7.3-B.6: Internal shipment event types that must NOT be exposed through
+   * the buyer tracking projection. These are operational admin/carrier workflow
+   * events; the buyer sees the corresponding state via buyerDeliveryNote() on
+   * the shipment's exceptionStatus field instead.
+   */
+  private static readonly BUYER_INTERNAL_EVENT_TYPES = new Set([
+    'RTS_REQUESTED',
+    'RTS_APPROVED',
+    'RTS_REJECTED',
+    'RTS_COMPLETED',
+  ]);
+
+  /**
    * M7.3-B.5: All exception states that cancellation should close.
    */
   private static readonly CANCELLABLE_EXCEPTION_STATES = [
@@ -2789,13 +2802,23 @@ export class OrdersService {
           pickedUpAt: shipment['pickedUpAt'],
           outForDeliveryAt: shipment['outForDeliveryAt'],
           deliveredAt: shipment['deliveredAt'],
+          // M7.3-B.6: surface the operational delivery-exception / RTS state so
+          // the buyer sees accurate status. This is a buyer-safe projection only
+          // (no internal admin fields such as carrier error detail).
+          exceptionStatus: shipment['exceptionStatus'] ?? null,
+          exceptionType: shipment['exceptionType'] ?? null,
         } : null,
-        events: events.map((e) => ({
-          eventType: e['eventType'],
-          actorType: e['actorType'],
-          createdAt: e['createdAt'],
-          notes: e['notes'],
-        })),
+        // M7.3-B.6: filter internal operational event types (RTS_*) from the
+        // buyer tracking projection. The buyer already sees the overall RTS
+        // state via exceptionStatus + buyerDeliveryNote().
+        events: events
+          .filter((e) => !OrdersService.BUYER_INTERNAL_EVENT_TYPES.has(e['eventType']))
+          .map((e) => ({
+            eventType: e['eventType'],
+            actorType: e['actorType'],
+            createdAt: e['createdAt'],
+            notes: e['notes'],
+          })),
       });
     }
 

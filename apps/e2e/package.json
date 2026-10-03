@@ -1,0 +1,16 @@
+{
+  "name": "@scs/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart Commerce — Playwright end-to-end suites (M7.3-B.6 Ship-Ops Visibility)",
+  "scripts": {
+    "test": "playwright test",
+    "test:shipops": "playwright test tests/ship-ops-flow.spec.ts",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "@types/node": "^20.16.0",
+    "typescript": "^5.5.4"
+  }
+}

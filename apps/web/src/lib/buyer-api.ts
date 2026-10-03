@@ -795,6 +795,9 @@ export interface TrackingShipment {
     pickedUpAt: string | null;
     outForDeliveryAt: string | null;
     deliveredAt: string | null;
+    // M7.3-B.6: buyer-safe operational delivery-exception / RTS projection.
+    exceptionStatus?: string | null;
+    exceptionType?: string | null;
   } | null;
   events: TrackingEvent[];
 }
@@ -809,6 +812,56 @@ export async function fetchTracking(masterOrderId: string): Promise<TrackingInfo
   const res = await authFetch(`${API_URL}/v1/orders/master/${masterOrderId}/tracking`);
   if (!res.ok) throw await ApiError.from(res, `Tracking failed (${res.status})`);
   return res.json();
+}
+
+/**
+ * M7.3-B.6 — Buyer-safe translation of a shipment's delivery-exception / RTS
+ * state into a plain-language status note. Internal admin fields (carrier error
+ * detail, retry authorisation, reconciliation) are intentionally not surfaced.
+ * Returns null for states that carry no buyer-facing meaning (CLOSED / unknown).
+ */
+export function buyerDeliveryNote(exceptionStatus: string): string | null {
+  switch (exceptionStatus) {
+    case 'OPEN': return 'There\u2019s a delivery issue with this shipment \u2014 our team is working to resolve it.';
+    case 'RETRY_PENDING': return 'A redelivery is being arranged for this shipment.';
+    case 'RESOLVED': return 'The delivery issue has been resolved.';
+    case 'RTS_PENDING': return 'This shipment is scheduled to be returned to the seller.';
+    case 'RTS_IN_PROGRESS': return 'This shipment is on its way back to the seller.';
+    case 'RTS_COMPLETED': return 'This shipment has been returned to the seller.';
+    default: return null; // CLOSED and unknown states are not shown to buyers.
+  }
+}
+
+/**
+ * M7.3-B.6 — Defense-in-depth: map shipment tracking event types to buyer-safe
+ * human-readable labels. Returns null for internal operational events (RTS_*)
+ * and any unknown type, so the UI must not render them.
+ *
+ * The primary data boundary is enforced server-side (getTracking filters
+ * internal events). This function provides a second layer of protection in
+ * case the API contract changes or a caller bypasses the filter.
+ */
+export function buyerEventLabel(eventType: string): string | null {
+  switch (eventType) {
+    case 'PREPARING': return 'Order being prepared';
+    case 'READY': return 'Ready for pickup';
+    case 'ASSIGNED': return 'Driver assigned';
+    case 'PICKED_UP': return 'Picked up';
+    case 'OUT_FOR_DELIVERY': return 'Out for delivery';
+    case 'DELIVERED': return 'Delivered';
+    case 'DELIVERY_EXCEPTION': return 'Delivery issue reported';
+    case 'DELIVERY_EXCEPTION_RESOLVED': return 'Delivery issue resolved';
+    case 'DELIVERY_EXCEPTION_CLOSED': return 'Delivery issue closed';
+    case 'DELIVERY_RETRY_REQUESTED': return 'Redelivery being arranged';
+    case 'CANCELLED': return 'Cancelled';
+    // Internal operational events — never shown to buyers.
+    case 'RTS_REQUESTED':
+    case 'RTS_APPROVED':
+    case 'RTS_REJECTED':
+    case 'RTS_COMPLETED':
+      return null;
+    default: return null;
+  }
 }
 
 // ── Favorites / Wishlist ─────────────────────────────────────

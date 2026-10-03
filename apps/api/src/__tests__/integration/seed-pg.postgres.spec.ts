@@ -141,7 +141,8 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
     expect(byRole.get('SUPER_ADMIN')).toBe(69);
-    expect(byRole.get('ADMIN')).toBe(45);
+    // M7.3-B.6: seed-pg.ts grants ADMIN fulfillment:shipments:read (ADMIN 45 -> 46).
+    expect(byRole.get('ADMIN')).toBe(46);
     expect(byRole.get('MODERATOR')).toBe(21);
     expect(byRole.get('MERCHANT_OWNER')).toBe(31);
     expect(byRole.get('MERCHANT_STAFF')).toBe(25);

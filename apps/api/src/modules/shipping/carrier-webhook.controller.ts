@@ -53,7 +53,7 @@ import { shipments } from '../orders/shipment.schema';
  *   - Configurable via WEBHOOK_THROTTLE_TTL_MS and WEBHOOK_THROTTLE_LIMIT env vars.
  *   - Rate limiting fires BEFORE HMAC verification to prevent brute-force attacks.
  */
-@Controller('v1/webhooks/carrier')
+@Controller('webhooks/carrier')
 export class CarrierWebhookController {
   private readonly logger = new Logger(CarrierWebhookController.name);
 
