@@ -913,6 +913,24 @@ export class OrdersService {
     'RTS_APPROVED',
     'RTS_REJECTED',
     'RTS_COMPLETED',
+    // M7.3-C: the inventory return-to-stock consequence is an internal operational
+    // event; buyers must never see RETURN_PROCESSED or its raw return metadata.
+    'RETURN_PROCESSED',
+  ]);
+
+  /**
+   * M7.3-C: locked return-condition vocabulary. GOOD returns release the
+   * reservation and become sellable again; DAMAGED/DEFECTIVE/UNSALEABLE release
+   * the reservation and are then written off (ADJUST-out), never returning to
+   * sellable availability.
+   */
+  private static readonly RETURN_CONDITIONS = new Set([
+    'GOOD', 'DAMAGED', 'DEFECTIVE', 'UNSALEABLE',
+  ]);
+
+  /** M7.3-C: conditions that require a write-off ADJUST-out after the RELEASE. */
+  private static readonly RETURN_WRITEOFF_CONDITIONS = new Set([
+    'DAMAGED', 'DEFECTIVE', 'UNSALEABLE',
   ]);
 
   /**
@@ -2731,6 +2749,413 @@ export class OrdersService {
       requestedAt: now.toISOString(),
       approvedAt: now.toISOString(),
     };
+  }
+
+  /**
+   * M7.3-C: authoritative return ledger view for one order.
+   *
+   * Derives, per (orderId, inventoryItemId), the reserved quantity (magnitude of
+   * the original RESERVE movements) and the cumulative quantity already returned
+   * by prior M7.3-C return RELEASE movements (identified by metadata.return).
+   * The warehouse/origin is resolved from the RESERVE movement's inventory item,
+   * never from shipments.storeId (BCF-005 / CI-04). Runs against the supplied
+   * runner so the same computation is used for the pre-tx read model and inside
+   * the write transaction.
+   */
+  private async buildReturnLedgerView(runner: any, orderId: string) {
+    const items = await runner.query.orderItems.findMany({
+      where: eq(orderItems.orderId, orderId),
+    });
+    const itemById = new Map<string, any>();
+    for (const it of items) itemById.set(it['id'], it);
+
+    const reserveRows = await runner
+      .select({ inventoryItemId: stockMovements.inventoryItemId, quantity: stockMovements.quantity })
+      .from(stockMovements)
+      .where(and(
+        eq(stockMovements.referenceType, 'ORDER'),
+        eq(stockMovements.referenceId, orderId),
+        eq(stockMovements.movementType, 'RESERVE'),
+      ));
+
+    const refIds = [...new Set(reserveRows.map((r: any) => r.inventoryItemId))] as string[];
+    const invRows = refIds.length
+      ? await runner
+          .select({ id: inventoryItems.id, variantId: inventoryItems.variantId, warehouseId: inventoryItems.warehouseId })
+          .from(inventoryItems)
+          .where(inArray(inventoryItems.id, refIds))
+      : [];
+    const invById = new Map<string, any>();
+    for (const r of invRows) invById.set(r.id, r);
+
+    // variant -> the inventory item this order reserved from (single origin per
+    // line, since reserveStock breaks at the first in-stock warehouse).
+    const invIdByVariant = new Map<string, string>();
+    const reservedByInv = new Map<string, number>();
+    for (const rr of reserveRows) {
+      const inv = invById.get(rr.inventoryItemId);
+      if (!inv) continue;
+      if (!invIdByVariant.has(inv.variantId)) invIdByVariant.set(inv.variantId, inv.id);
+      reservedByInv.set(rr.inventoryItemId, (reservedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0));
+    }
+
+    // Cumulative already-returned per inventory item: only M7.3-C return
+    // RELEASE movements (metadata.return present), never cancellation RELEASEs.
+    const returnRows = await runner
+      .select({ inventoryItemId: stockMovements.inventoryItemId, quantity: stockMovements.quantity })
+      .from(stockMovements)
+      .where(and(
+        eq(stockMovements.referenceType, 'ORDER'),
+        eq(stockMovements.referenceId, orderId),
+        eq(stockMovements.movementType, 'RELEASE'),
+        sql`${stockMovements.metadata}->'return' is not null`,
+      ));
+    const returnedByInv = new Map<string, number>();
+    for (const rr of returnRows) {
+      returnedByInv.set(rr.inventoryItemId, (returnedByInv.get(rr.inventoryItemId) ?? 0) + Math.abs(rr.quantity ?? 0));
+    }
+
+    return { itemById, invById, invIdByVariant, reservedByInv, returnedByInv };
+  }
+
+  /**
+   * M7.3-C: read model for the "Record Return" form (merchant/admin only).
+   * GET /v1/shipments/:id/return-eligibility
+   *
+   * Returns per-line reserved/returned/remaining quantities and the
+   * server-resolved warehouse/inventoryItemId (read-only, never client
+   * editable). Guarded by fulfillment:shipments:return so buyers/drivers can
+   * never reach it (internal origin data).
+   */
+  async getReturnEligibility(shipmentId: string, caller: CallerContext) {
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot view return eligibility`);
+    }
+
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string | null;
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, shipment.orderId),
+      columns: { id: true, status: true },
+    });
+    const orderStatus = order ? order['status'] : null;
+    const eligible =
+      exceptionStatus === 'RTS_COMPLETED' &&
+      exceptionType !== 'LOST' &&
+      orderStatus !== 'CANCELLED';
+
+    const view = await this.buildReturnLedgerView(this.db.db, shipment.orderId);
+    const lines: Array<Record<string, unknown>> = [];
+    for (const [itemId, it] of view.itemById) {
+      const invId = view.invIdByVariant.get(it['variantId']);
+      if (!invId) continue; // line never reserved (no origin) — not returnable
+      const inv = view.invById.get(invId);
+      const reserved = view.reservedByInv.get(invId) ?? 0;
+      const returned = view.returnedByInv.get(invId) ?? 0;
+      lines.push({
+        orderItemId: itemId,
+        variantId: it['variantId'],
+        sku: it['sku'],
+        title: it['title'],
+        orderedQuantity: it['quantity'],
+        inventoryItemId: invId,
+        warehouseId: inv ? inv.warehouseId : null,
+        reservedQuantity: reserved,
+        returnedQuantity: returned,
+        remainingQuantity: Math.max(reserved - returned, 0),
+      });
+    }
+
+    return {
+      shipmentId,
+      orderId: shipment.orderId,
+      storeId: shipment.storeId,
+      exceptionStatus,
+      exceptionType,
+      orderStatus,
+      eligible,
+      lines,
+    };
+  }
+
+  /**
+   * M7.3-C: record the physical RTS return (pre-SALE return-to-stock).
+   * POST /v1/shipments/:id/return
+   *
+   * Locked semantics (see SCS-M7.3-C lock):
+   *   GOOD         → RELEASE +k  (qty_reserved ↓, qty_on_hand unchanged)
+   *   non-sellable → RELEASE +k  THEN  ADJUST -k (qty_on_hand ↓, write-off)
+   *   LOST         → rejected before any movement (BCF-003)
+   *
+   * Uses RELEASE only — never RETURN/CANCEL (CI-01). Reuses settleStockForStatus
+   * unchanged: the return RELEASE carries referenceType='ORDER' so a later
+   * cancellation nets it out and releases only the remainder (CI-07/ACF-003).
+   * Idempotent by operation fingerprint (CI-06); cumulative-capped per line from
+   * the ledger under FOR UPDATE (CI-05); deterministic row-lock order (CI-11);
+   * movement + shipment event + outbox atomic (CI-09).
+   */
+  async recordReturn(
+    shipmentId: string,
+    inputLines: Array<{ orderItemId: string; quantity: number; condition: string }>,
+    caller: CallerContext,
+  ) {
+    // 1. Authorization (role gating, mirrors completeRTS; DRIVER/BUYER denied)
+    const allowedRoles = [
+      'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT_MANAGER',
+      'ADMIN', 'SUPER_ADMIN', 'MODERATOR',
+    ];
+    const privileged = ['ADMIN', 'SUPER_ADMIN', 'MODERATOR'].includes(caller.role || '');
+    if (!privileged && !allowedRoles.includes(caller.role || '')) {
+      throw new ForbiddenException(`Role ${caller.role} cannot record returns`);
+    }
+
+    // 2. Validate request shape (locked condition vocabulary, quantity >= 1)
+    if (!Array.isArray(inputLines) || inputLines.length === 0) {
+      throw new BadRequestException('At least one return line is required');
+    }
+    const norm: Array<{ orderItemId: string; quantity: number; condition: string }> = [];
+    for (const ln of inputLines) {
+      const orderItemId = typeof ln?.orderItemId === 'string' ? ln.orderItemId : '';
+      const condition = typeof ln?.condition === 'string' ? ln.condition : '';
+      const quantity = ln?.quantity;
+      if (!orderItemId) throw new BadRequestException('orderItemId is required for each return line');
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new BadRequestException('Return quantity must be an integer >= 1');
+      }
+      if (!OrdersService.RETURN_CONDITIONS.has(condition)) {
+        throw new BadRequestException(`Invalid return condition '${condition}'`);
+      }
+      norm.push({ orderItemId, quantity, condition });
+    }
+
+    // 3. Load shipment + tenant check
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+    await this.assertShipmentAccessibleForException(shipment, caller);
+
+    // 4. Preconditions (§17 / BCF-003): LOST rejected first, then state, then order
+    const exceptionStatus = (shipment as any)['exceptionStatus'] as string | null;
+    const exceptionType = (shipment as any)['exceptionType'] as string | null;
+    if (exceptionType === 'LOST') {
+      throw new ConflictException(
+        'Cannot restock a LOST shipment via /return — cancellation is the sole release authority',
+      );
+    }
+    if (exceptionStatus !== 'RTS_COMPLETED') {
+      throw new ConflictException(
+        `Cannot record return: exception status is ${exceptionStatus || 'none'}, expected RTS_COMPLETED`,
+      );
+    }
+    const order = await this.db.db.query.orders.findFirst({
+      where: eq(orders.id, shipment.orderId),
+      columns: { id: true, status: true },
+    });
+    if (!order) throw new NotFoundException('Order not found for shipment');
+    if (order['status'] === 'CANCELLED') {
+      throw new ConflictException('Cannot record return: order is CANCELLED');
+    }
+
+    const orderId = shipment.orderId;
+    const storeId = shipment.storeId;
+    const actorType = this.resolveActorType(caller);
+    const fingerprint = this.computeReturnFingerprint(norm);
+
+    return this.db.db.transaction(async (tx) => {
+      // 3/6. Authoritative ledger view inside the transaction. This pre-lock read is
+      // used only to resolve each requested line → origin inventoryItemId/warehouseId
+      // (stable, derived from RESERVE movements). The VOLATILE cumulative cap is
+      // re-evaluated from a FRESH post-lock view below (CI-05 concurrency refresh).
+      let view = await this.buildReturnLedgerView(tx, orderId);
+
+      // Resolve each requested line → origin inventoryItemId/warehouseId
+      const resolved: Array<{
+        orderItemId: string; inventoryItemId: string; warehouseId: string | null;
+        quantity: number; condition: string; writtenOff: boolean;
+      }> = [];
+      const requestedByInv = new Map<string, number>();
+      for (const ln of norm) {
+        const it = view.itemById.get(ln.orderItemId);
+        if (!it) throw new BadRequestException(`Order item ${ln.orderItemId} does not belong to this shipment`);
+        const invId = view.invIdByVariant.get(it['variantId']);
+        if (!invId) throw new ConflictException(`No reservation found for order item ${ln.orderItemId}`);
+        const inv = view.invById.get(invId);
+        resolved.push({
+          orderItemId: ln.orderItemId,
+          inventoryItemId: invId,
+          warehouseId: inv ? inv.warehouseId : null,
+          quantity: ln.quantity,
+          condition: ln.condition,
+          writtenOff: OrdersService.RETURN_WRITEOFF_CONDITIONS.has(ln.condition),
+        });
+        requestedByInv.set(invId, (requestedByInv.get(invId) ?? 0) + ln.quantity);
+      }
+
+      // 5. Deterministic row locks (CI-11): SELECT ... FOR UPDATE ORDER BY id
+      const lockedInvIds = [...requestedByInv.keys()].sort();
+      for (const invId of lockedInvIds) {
+        await tx
+          .select({ id: inventoryItems.id })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, invId))
+          .for('update');
+      }
+
+      // CI-05 concurrency refresh: the inventory-row FOR UPDATE locks above are now
+      // held. Under READ COMMITTED any prior concurrent return has already committed
+      // by the time this tx acquires the lock, so re-reading the ledger here yields a
+      // fresh snapshot that already includes those committed RELEASE movements. The
+      // cumulative cap below MUST be validated against this post-lock view — reusing
+      // the pre-lock snapshot lets parallel returns each observe returned=0 and
+      // together release beyond the reserved quantity (the reproduced over-release).
+      view = await this.buildReturnLedgerView(tx, orderId);
+
+      // 10/§23. Idempotency replay AFTER locks (CI-06): identical fingerprint →
+      //        return the original result, no new movement/event/outbox.
+      const priorEvent = await tx
+        .select({ id: shipmentEvents.id, metadata: shipmentEvents.metadata })
+        .from(shipmentEvents)
+        .where(and(
+          eq(shipmentEvents.shipmentId, shipmentId),
+          eq(shipmentEvents.eventType, 'RETURN_PROCESSED'),
+          sql`${shipmentEvents.metadata}->'return'->>'fingerprint' = ${fingerprint}`,
+        ))
+        .limit(1);
+      if (priorEvent.length > 0) {
+        const prior = priorEvent[0]!;
+        const ret = (prior.metadata as any)?.['return'] ?? {};
+        return {
+          shipmentId,
+          orderId,
+          idempotent: true,
+          linesReturned: ret['lines'] ?? [],
+          returnEventId: prior.id,
+        };
+      }
+
+      // 9. Cumulative cap (CI-05 / BCF-004): requested <= reserved − returned
+      for (const [invId, req] of requestedByInv) {
+        const reserved = view.reservedByInv.get(invId) ?? 0;
+        const returned = view.returnedByInv.get(invId) ?? 0;
+        const remaining = reserved - returned;
+        if (req > remaining) {
+          throw new ConflictException(
+            `Over-return: requested ${req}, remaining returnable ${remaining} for inventory item ${invId}`,
+          );
+        }
+      }
+
+      const returnBlock = { shipmentId, fingerprint, actorType };
+      const now = new Date();
+      const performedBy = caller.sub ?? null;
+
+      // 8a. RELEASE first (CI-01/CI-02): qty_reserved ↓, qty_on_hand unchanged
+      for (const L of resolved) {
+        await tx
+          .update(inventoryItems)
+          .set({
+            qtyReserved: sql`GREATEST(${inventoryItems.qtyReserved} - ${L.quantity}, 0)`,
+            updatedAt: now,
+          })
+          .where(eq(inventoryItems.id, L.inventoryItemId));
+
+        await tx.insert(stockMovements).values({
+          id: crypto.randomUUID(),
+          inventoryItemId: L.inventoryItemId,
+          movementType: 'RELEASE',
+          quantity: L.quantity,
+          referenceType: 'ORDER',
+          referenceId: orderId,
+          performedBy,
+          reason: `Reservation released on RTS return (order ${orderId})`,
+          metadata: { return: { ...returnBlock, orderItemId: L.orderItemId, inventoryItemId: L.inventoryItemId, warehouseId: L.warehouseId, quantity: L.quantity, condition: L.condition, writtenOff: L.writtenOff } },
+        });
+      }
+
+      // 8b. ADJUST-out for non-sellable AFTER all releases (CI-02): qty_on_hand ↓
+      for (const L of resolved.filter((x) => x.writtenOff)) {
+        await tx
+          .update(inventoryItems)
+          .set({
+            qtyOnHand: sql`GREATEST(${inventoryItems.qtyOnHand} - ${L.quantity}, 0)`,
+            updatedAt: now,
+          })
+          .where(eq(inventoryItems.id, L.inventoryItemId));
+
+        await tx.insert(stockMovements).values({
+          id: crypto.randomUUID(),
+          inventoryItemId: L.inventoryItemId,
+          movementType: 'ADJUST',
+          quantity: -L.quantity,
+          performedBy,
+          reason: `Write-off of ${L.condition} returned unit(s) (order ${orderId})`,
+          metadata: { return: { ...returnBlock, orderItemId: L.orderItemId, inventoryItemId: L.inventoryItemId, warehouseId: L.warehouseId, quantity: L.quantity, condition: L.condition, writtenOff: true } },
+        });
+      }
+
+      // 9. Shipment event + outbox, atomic with movements (ACF-001/CI-09)
+      const linesReturned = resolved.map((L) => ({
+        orderItemId: L.orderItemId,
+        inventoryItemId: L.inventoryItemId,
+        warehouseId: L.warehouseId,
+        quantity: L.quantity,
+        condition: L.condition,
+        writtenOff: L.writtenOff,
+      }));
+      const totalUnits = linesReturned.reduce((a, l) => a + l.quantity, 0);
+      const returnEventId = crypto.randomUUID();
+
+      await tx.insert(shipmentEvents).values({
+        id: returnEventId,
+        shipmentId,
+        eventType: 'RETURN_PROCESSED',
+        actorUserId: caller.sub,
+        actorType,
+        notes: `Recorded return of ${totalUnits} unit(s)`,
+        metadata: { return: { ...returnBlock, lines: linesReturned } },
+      });
+
+      await tx.insert(outboxEvents).values({
+        id: crypto.randomUUID(),
+        eventType: 'shipment.return_processed',
+        aggregateId: shipmentId,
+        payload: {
+          shipmentId,
+          orderId,
+          storeId,
+          lines: linesReturned.map((l) => ({ orderItemId: l.orderItemId, quantity: l.quantity, condition: l.condition })),
+        },
+        metadata: { storeId, fingerprint },
+        status: 'PENDING',
+      });
+
+      return { shipmentId, orderId, idempotent: false, linesReturned, returnEventId };
+    });
+  }
+
+  /**
+   * M7.3-C: operation fingerprint for return idempotency, mirroring
+   * computeCheckoutFingerprint. SHA-256 over the sorted request lines
+   * `orderItemId:quantity:condition` (BCF-006).
+   */
+  private computeReturnFingerprint(
+    lines: Array<{ orderItemId: string; quantity: number; condition: string }>,
+  ): string {
+    const sorted = [...lines].sort((a, b) => a.orderItemId.localeCompare(b.orderItemId));
+    const payload = sorted.map((l) => `${l.orderItemId}:${l.quantity}:${l.condition}`).join(',');
+    return createHash('sha256').update(payload).digest('hex').slice(0, 64);
   }
 
   /**

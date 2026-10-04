@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | Source | `SCS-B2B-FRAMEWORK-COMPLETENESS-AUDIT.md` (2026-10-02) |
-| Baseline | `develop` @ `d554fd7425664590bceed757facf9a293389f334` (M7.3-B.6 CLOSED/PASS) |
+| Baseline | `develop` @ `229949f934f6bfe447d4bce600a84fcbfe4dc365` (M7.3-C CLOSED/PASS) |
 | Nature | RECOMMENDATION ONLY — nothing herein is implemented by the audit |
 | Governance | Every milestone should follow the established four-gate pattern: Pre-Implementation Architecture Audit → Business Rules + Architecture Decision Lock → Implementation → Independent Runtime Verification → Release Closure |
 
@@ -43,17 +43,19 @@ No UI work package is scheduled before its backend contract is verified-stable.
 
 ---
 
-## 3. Phase R1 — Returns Loop (M7.3-C, as audited)
+## 3. Phase R1 — Returns Loop (M7.3-C) — CLOSED / PASS
 
 **Objective:** implement the M7.3-C audit scope — inventory return-to-stock + RTS physical handling (return condition/quantity recording, physical verification).
 
+**Status:** CLOSED / PASS — independently runtime-verified and release-closed (2026-10-04). 23/23 live HTTP, 10/10 concurrency (CI-05 fixed), 30/30 Playwright browser executions (VR-UI-01 refuted), 91/91 PostgreSQL regressions, 26/26 unit tests, 6/6 typecheck/build. No migration, no FSM change.
+
 | ID | Work Package | Why Now | Dependencies | API | UI | DB | Integration | Testing | Exit Criteria |
 |----|--------------|---------|--------------|-----|----|----|-------------|---------|---------------|
-| R1.1 | Return-to-stock on RTS_COMPLETED with RETURN movements | HIGH X-3: sold-then-returned stock leaks | B.5 (done); R0.2 recommended | extend completeRTS path | merchant/admin confirmation (from R0) | possible migration (condition/qty columns) | none | PG integration + concurrency | 8 audit conditions satisfied; restock atomic with confirmation; ledger correct |
-| R1.2 | Return condition + quantity recording | audit BD-B5-006 deferral | R1.1 | RTS complete payload | R0 console fields | as above | none | unit + PG | condition/qty persisted + auditable |
-| R1.3 | Post-delivery buyer return request (RMA) — if locked into M7.3-C scope per audit conditions | HIGH G-06 | product lock via four-gate process | new returns endpoints | buyer request + merchant/admin handling | returns tables | none | PG integration | buyer→merchant→receipt→inspection→restock runs E2E |
+| R1.1 | Return-to-stock on RTS_COMPLETED with RETURN movements **CLOSED** | HIGH X-3: sold-then-returned stock leaks | B.5 (done); R0.2 recommended | `POST /v1/shipments/:id/return` | merchant ReturnPanel + admin shipment console return action | none (no migration) | none | PG integration + concurrency + Playwright | 8 audit conditions satisfied; restock atomic with confirmation; ledger correct; CI-05 fixed |
+| R1.2 | Return condition + quantity recording **CLOSED** | audit BD-B5-006 deferral | R1.1 | RTS complete payload | R0 console fields | as above | none | unit + PG | condition/qty persisted + auditable |
+| R1.3 | Post-delivery buyer return request (RMA) — NOT in M7.3-C scope | HIGH G-06 | product lock via four-gate process | new returns endpoints | buyer request + merchant/admin handling | returns tables | none | PG integration | Deferred — F-063 separate scope |
 
-**Prerequisites:** B.5 (done), four-gate lock per the completed M7.3-C audit. **Enables:** R3 refund linkage (returns financially settle only after refunds exist).
+**Prerequisites:** B.5 (done), four-gate lock per the completed M7.3-C audit. **Enables:** R3 refund linkage (returns financially settle only after refunds exist). **Closure:** `docs/production/SCS-M7.3-C-RELEASE-CLOSURE.md`.
 
 ---
 
@@ -181,7 +183,7 @@ Hard dependency rules:
 | Order | Milestone (proposed) | Theme | Blocks removed |
 |-------|----------------------|-------|----------------|
 | 1 | M7.3-B.6 (R0) | Ship-Ops Visibility | G-01, G-02, G-03, G-10, G-18, G-20 | — **CLOSED / PASS** |
-| 2 | M7.3-C (R1) | Returns + restock | X-3, G-06 |
+| 2 | M7.3-C (R1) | Returns + restock | X-3, G-06 | — **CLOSED / PASS** |
 | 3 | M8.1 (R2) | Payments + channels + fee/VAT | G-04, G-11, G-23 |
 | 4 | M7.3-D (R3.1) | Refunds | G-05 |
 | 5 | M7.3-E (R3.2–3.3) | Dispute closure + documents | X-4, G-07 |

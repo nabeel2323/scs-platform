@@ -67,12 +67,15 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 69,
-  // M7.3-B.6: seed-pg.ts grants ADMIN fulfillment:shipments:read (ADMIN 45 -> 46).
-  ADMIN: 46,
-  MODERATOR: 21,
-  MERCHANT_OWNER: 31,
-  MERCHANT_STAFF: 25,
+  SUPER_ADMIN: 70,
+  // M7.3-B.6: ADMIN had fulfillment:shipments:read (46). M7.3-C adds fulfillment:shipments:return (46 -> 47).
+  ADMIN: 47,
+  // M7.3-C: MODERATOR gains fulfillment:shipments:read + fulfillment:shipments:return (21 -> 23).
+  MODERATOR: 23,
+  // M7.3-C: MERCHANT_OWNER gains fulfillment:shipments:return (31 -> 32).
+  MERCHANT_OWNER: 32,
+  // M7.3-C: MERCHANT_STAFF gains fulfillment:shipments:return (25 -> 26).
+  MERCHANT_STAFF: 26,
   BUYER: 6,
   DRIVER: 6,
 };
@@ -275,9 +278,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 69', async () => {
+    it('total permission count is 70', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(69);
+      expect(res.rows[0].cnt).toBe(70);
     });
 
     it('SUPER_ADMIN has every permission', async () => {

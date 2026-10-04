@@ -108,7 +108,7 @@ Admin,/admin/categories + /admin/brands + /admin/offers + /admin/disputes(+:id),
 Payments,(none),(none),NO PAYMENT API,/checkout implies payment,N/A,N/A,ALL,N/A,payment,FSM,MISSING,payments module empty (BLOCKING),Phase 3 payments (R-3)
 Refunds,(none),(none),NO REFUND API,NONE,N/A,N/A,ALL,N/A,refunds,FSM,MISSING,M7.3-D planned,refund automation (R-3 follow-on)
 Invoices,(none),(none),NO INVOICE API,NONE,N/A,N/A,ALL,N/A,finance,none,MISSING,no documents at all,invoice service post-payments
-Returns,(none),(none),NO RETURNS API,NONE,N/A,N/A,"BUYER,MERCHANT_OWNER",N/A,returns,FSM,MISSING,M7.3-C audited not built,implement M7.3-C
+Returns,/v1/shipments/:id/return + /return-eligibility,POST+GET,Physical return recording (GOOD/DAMAGED/DEFECTIVE/UNSALEABLE/LOST) + eligibility read,/merchant/deliveries/[id] ReturnPanel; admin /shipments/[id] return action,ReturnPanel+ShipmentDetailConsole,"record return (condition+qty); eligibility read","MERCHANT_OWNER,ADMIN",fulfillment:shipments:return (tenant-scoped),returns,ledger,ALIGNED,,M7.3-C CLOSED/PASS; buyer-safe projection (warehouseId/inventoryItemId/fingerprint hidden); concurrency: lock→recompute→cap→write
 Quotes,(none),(none),NO RFQ API,NONE,N/A,N/A,"BUYER,MERCHANT_OWNER",N/A,quotation,FSM,MISSING,product decision pending,decide RFQ scope (G-14)
 FeatureFlags,(none),(none),flags table only,NONE,N/A,N/A,ADMIN,N/A,ops,none,MISSING,no controller/UI,flags console (G-21)
 Realtime,/socket.io (gateway),WS,Order+notification push,/orders/[id]; /notifications,watchOrder+onNotification,auto,"ALL",authenticated WS,realtime,none,PARTIAL,not E2E verified (BG-4),WS E2E coverage

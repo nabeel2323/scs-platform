@@ -19,6 +19,8 @@ import { useAdminMutation } from '../../../components/EntityActions';
 import {
   ShipDetail,
   EXCEPTION_TYPES,
+  RETURN_CONDITIONS,
+  type ReturnEligibility,
 } from '../../../lib/shipops';
 import {
   AdminDetailHeader,
@@ -145,6 +147,7 @@ function ShipmentDetailConsole({ id }: { id: string }) {
             </AdminDetailSection>
             <ExceptionActionsPanel id={id} exceptionStatus={exceptionStatus} exceptionType={exceptionType} onDone={detail.reload} />
             <RtsActionsPanel id={id} exceptionStatus={exceptionStatus} exceptionType={exceptionType} onDone={detail.reload} />
+            <ReturnActionsPanel id={id} exceptionStatus={exceptionStatus} exceptionType={exceptionType} onDone={detail.reload} />
           </>
         )}
 
@@ -316,7 +319,91 @@ function RtsActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
   );
 }
 
-// ── Carrier create / cancel / recover actions ────────────────
+// ── M7.3-C: inventory return (record return) actions ─────────
+function ReturnActionsPanel({ id, exceptionStatus, exceptionType, onDone }: {
+  id: string; exceptionStatus: string | null; exceptionType: string | null; onDone: () => void;
+}) {
+  const { hasAccess } = useRequirePerms(['fulfillment:shipments:return']);
+  const eligible = exceptionStatus === 'RTS_COMPLETED' && exceptionType !== 'LOST';
+  const elig = useAdminResource<ReturnEligibility>(
+    hasAccess && eligible ? `shipments/${encodeURIComponent(id)}/return-eligibility` : null,
+    hasAccess && eligible,
+  );
+  const action = useAdminMutation(onDone);
+  const [qtys, setQtys] = useState<Record<string, number>>({});
+  const [conds, setConds] = useState<Record<string, string>>({});
+
+  if (!hasAccess || !eligible) return null;
+
+  const e = elig.data;
+  const active = e && e.eligible ? e.lines.filter((l) => l.remainingQuantity > 0) : [];
+
+  const submit = () => {
+    const lines = active
+      .map((ln) => ({
+        orderItemId: ln.orderItemId,
+        quantity: Number(qtys[ln.orderItemId] ?? ln.remainingQuantity) || 0,
+        condition: conds[ln.orderItemId] ?? 'GOOD',
+      }))
+      .filter((l) => l.quantity >= 1);
+    if (lines.length === 0) return;
+    action.run(`shipments/${encodeURIComponent(id)}/return`, 'POST', { lines });
+  };
+
+  return (
+    <AdminDetailSection title="Inventory return (record return)">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {elig.loading && <span style={{ fontSize: 13, color: '#5b6b74' }}>Loading eligible lines…</span>}
+        {elig.error && <ActionError error={elig.error} />}
+        {e && !e.eligible && <span style={{ fontSize: 13, color: '#5b6b74' }}>This shipment is not eligible for return (requires RTS completed, not LOST, order not cancelled).</span>}
+        {e && e.eligible && active.length === 0 && <span style={{ fontSize: 13, color: '#5b6b74' }}>All reserved units have already been returned.</span>}
+        {e && e.eligible && active.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f7fafb', textAlign: 'left' }}>
+                  {['Item', 'Reserved', 'Returned', 'Remaining', 'Quantity', 'Condition', 'Warehouse'].map((h) => (
+                    <th key={h} style={{ padding: '6px 8px', fontWeight: 600, color: '#0f3340', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {active.map((ln) => (
+                  <tr key={ln.orderItemId} style={{ borderTop: '1px solid #eef3f5' }}>
+                    <td style={{ padding: '6px 8px' }}>{ln.title || ln.sku}</td>
+                    <td style={{ padding: '6px 8px' }}>{ln.reservedQuantity}</td>
+                    <td style={{ padding: '6px 8px' }}>{ln.returnedQuantity}</td>
+                    <td style={{ padding: '6px 8px' }}>{ln.remainingQuantity}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <input
+                        type="number" min={0} max={ln.remainingQuantity}
+                        value={qtys[ln.orderItemId] ?? ln.remainingQuantity}
+                        onChange={(ev) => setQtys((p) => ({ ...p, [ln.orderItemId]: Math.max(0, Math.min(ln.remainingQuantity, Number(ev.target.value) || 0)) }))}
+                        style={{ ...field, width: 72 }}
+                      />
+                    </td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <select value={conds[ln.orderItemId] ?? 'GOOD'} onChange={(ev) => setConds((p) => ({ ...p, [ln.orderItemId]: ev.target.value }))} style={field}>
+                        {RETURN_CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '6px 8px' }}><span style={{ color: '#8a97a0' }}>{ln.warehouseId ? ln.warehouseId.slice(0, 8) : '—'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: 12 }}>
+              <button type="button" disabled={action.busy} style={{ ...btn, background: '#1b7a4b', borderColor: '#1b7a4b', color: '#fff' }} onClick={submit}>Submit return</button>
+            </div>
+          </div>
+        )}
+        <ActionError error={action.error} />
+      </div>
+    </AdminDetailSection>
+  );
+}
+
+// ── Carrier create / cancel / recover actions ──────────────────
 function CarrierActionsPanel({ id, carrierCreateStatus, cancelled, recoverable, onDone }: {
   id: string; carrierCreateStatus: string | null; cancelled: boolean; recoverable: boolean; onDone: () => void;
 }) {

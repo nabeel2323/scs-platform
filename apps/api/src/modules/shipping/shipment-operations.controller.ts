@@ -637,6 +637,80 @@ export class ShipmentOperationsController {
     return this.ordersService.completeRTS(id, body?.notes, caller);
   }
 
+  // ── GET /v1/shipments/:id/return-eligibility ──────────────────────────────
+  // M7.3-C: read model backing the "Record Return" form — per-line reserved /
+  // returned / remaining quantities plus the server-resolved warehouse origin.
+  // Guarded by the dedicated return permission (not just read) because it
+  // exposes internal inventoryItemId/warehouseId. Buyers/drivers never reach it.
+
+  @Get(':id/return-eligibility')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:return')
+  async getReturnEligibility(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+    return this.ordersService.getReturnEligibility(id, caller);
+  }
+
+  // ── POST /v1/shipments/:id/return ─────────────────────────────────────────
+  // M7.3-C: record the physical RTS return (pre-SALE return-to-stock).
+
+  @Post(':id/return')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:shipments:return')
+  @HttpCode(200)
+  async recordReturn(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: any,
+  ) {
+    const caller = this.toCallerContext(user);
+    const lines = this.validateReturnBody(body);
+    return this.ordersService.recordReturn(id, lines, caller);
+  }
+
+  /**
+   * Validate the /return request body. Only line intent is trusted
+   * (orderItemId + quantity + condition). Any attempt to supply a
+   * server-controlled inventory/warehouse/price field is rejected (400) rather
+   * than trusted — the server resolves origin from the original RESERVE.
+   */
+  private validateReturnBody(
+    body: any,
+  ): Array<{ orderItemId: string; quantity: number; condition: string }> {
+    if (!body || !Array.isArray(body.lines) || body.lines.length === 0) {
+      throw new BadRequestException('Request must include a non-empty lines[] array');
+    }
+    const allowed = new Set(['orderItemId', 'quantity', 'condition']);
+    const forbidden = new Set([
+      'warehouseId', 'inventoryItemId', 'qtyOnHand', 'qtyReserved', 'qtyAvailable',
+      'price', 'unitPriceMinor', 'storeId', 'orderId', 'referenceId', 'movementType',
+      'idempotencyKey', 'fingerprint',
+    ]);
+    const out: Array<{ orderItemId: string; quantity: number; condition: string }> = [];
+    for (const raw of body.lines) {
+      if (!raw || typeof raw !== 'object') {
+        throw new BadRequestException('Each return line must be an object');
+      }
+      for (const key of Object.keys(raw)) {
+        if (forbidden.has(key)) {
+          throw new BadRequestException(`Field '${key}' is server-controlled and must not be supplied`);
+        }
+        if (!allowed.has(key)) {
+          throw new BadRequestException(`Unexpected field '${key}' in return line`);
+        }
+      }
+      out.push({
+        orderItemId: raw.orderItemId,
+        quantity: raw.quantity,
+        condition: raw.condition,
+      });
+    }
+    return out;
+  }
+
   /**
    * Assert the caller can access a shipment.
    * Platform staff bypass; merchant users must match the store's org.

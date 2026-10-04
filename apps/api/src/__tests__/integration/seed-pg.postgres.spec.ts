@@ -43,9 +43,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 69 permissions seeded (M7.2.3-C added admin:shipping:recovery).
-      expect(result.permissionsTotal).toBe(69);
-      expect(result.newPermissions).toBe(69);
+      // 70 permissions seeded (M7.3-C added fulfillment:shipments:return).
+      expect(result.permissionsTotal).toBe(70);
+      expect(result.newPermissions).toBe(70);
 
       // 7 roles seeded (M7.1 added DRIVER).
       expect(result.rolesTotal).toBe(7);
@@ -53,7 +53,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(69);
+      expect(permCount.rows[0].cnt).toBe(70);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -80,7 +80,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(69);
+      expect(permCount.rows[0].cnt).toBe(70);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -121,7 +121,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(69);
+      expect(permCount.rows[0].cnt).toBe(70);
     } finally {
       client.release();
     }
@@ -140,12 +140,13 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(69);
-    // M7.3-B.6: seed-pg.ts grants ADMIN fulfillment:shipments:read (ADMIN 45 -> 46).
-    expect(byRole.get('ADMIN')).toBe(46);
-    expect(byRole.get('MODERATOR')).toBe(21);
-    expect(byRole.get('MERCHANT_OWNER')).toBe(31);
-    expect(byRole.get('MERCHANT_STAFF')).toBe(25);
+    expect(byRole.get('SUPER_ADMIN')).toBe(70);
+    // M7.3-C: ADMIN gains fulfillment:shipments:return (46 -> 47).
+    expect(byRole.get('ADMIN')).toBe(47);
+    // M7.3-C: MODERATOR gains read + return (21 -> 23).
+    expect(byRole.get('MODERATOR')).toBe(23);
+    expect(byRole.get('MERCHANT_OWNER')).toBe(32);
+    expect(byRole.get('MERCHANT_STAFF')).toBe(26);
     expect(byRole.get('BUYER')).toBe(6);
     expect(byRole.get('DRIVER')).toBe(6);
   });

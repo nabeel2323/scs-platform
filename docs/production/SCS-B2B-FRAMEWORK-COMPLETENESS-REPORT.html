@@ -90,12 +90,12 @@
     <h1>B2B Framework Completeness Report</h1>
     <p class="sub">A consolidated, stakeholder-readable view of the SCS Platform: what is built and verified, what is partially built, what is missing, how well the user interfaces represent the backend, and the recommended path to a coherent, production-ready B2B platform. This document merges the four audit deliverables (completeness audit, feature matrix, API/UI parity matrix, roadmap) into one narrative.</p>
     <div class="meta">
-      <span>Audit date: 2026-10-02</span>
-      <span>Baseline: M7.3-B.6 (Ship-Ops Visibility) — CLOSED / PASS</span>
+      <span>Audit date: 2026-10-04</span>
+      <span>Baseline: M7.3-C (Returns) — CLOSED / PASS</span>
       <span>Branch: develop</span>
-      <span>HEAD: d554fd7 (B.6 independently runtime-verified, release-closed)</span>
+      <span>HEAD: 229949f (M7.3-C Returns CLOSED/PASS)</span>
       <span>Migrations: 0001–0050</span>
-      <span>Next: M7.3-C Fresh Architecture Audit</span>
+      <span>Next: M7.3-D Fresh Architecture Audit</span>
     </div>
   </div>
 </header>
@@ -137,7 +137,7 @@
   </div>
   <div class="callout">
     <strong class="label">Verdict</strong>
-    <p>The platform is a strong <em>transactional marketplace foundation</em> with verified integrity — but it is <strong>not yet a complete B2B framework</strong>. Step (a) — exposing the already-built shipping/RTS operations through user interfaces — was <strong>delivered and verified by M7.3-B.6</strong> (CLOSED / PASS). The next coherent steps are: (b) close the returns loop (M7.3-C), (c) build the financial layer (payments → refunds → reconciliation), then (d) decide which classic B2B procurement capabilities (RFQ, contract pricing, credit) are in scope.</p>
+    <p>The platform is a strong <em>transactional marketplace foundation</em> with verified integrity — but it is <strong>not yet a complete B2B framework</strong>. Step (a) — exposing the already-built shipping/RTS operations through user interfaces — was <strong>delivered and verified by M7.3-B.6</strong> (CLOSED / PASS). Step (b) — closing the returns loop with correct inventory consequences — was <strong>delivered and verified by M7.3-C</strong> (CLOSED / PASS). The next coherent steps are: (c) build the financial layer (payments → refunds → reconciliation), then (d) decide which classic B2B procurement capabilities (RFQ, contract pricing, credit) are in scope.</p>
   </div>
   <div class="grid c4">
     <div class="card"><h4>API endpoints</h4><div class="kpi">~292</div><div class="kpi-sub">23 controllers (+2 shipment read models in B.6)</div></div>
@@ -174,8 +174,8 @@
   <table>
     <thead><tr><th>Category</th><th>Items</th></tr></thead>
     <tbody>
-      <tr><td><strong>Formally completed</strong> (release-closed)</td><td>Phase 1–5 marketplace capabilities; M6 catalog/offer series; M7.1 hardening; M7.2 shipping/delivery series; M7.3-A; M7.3-B through B.5 (cancellation, delivery exceptions, retries, carrier cancellation, RTS); <strong>M7.3-B.6</strong> Ship-Ops Visibility (CLOSED / PASS — independently runtime-verified)</td></tr>
-      <tr><td><strong>Audited but not implemented</strong></td><td><strong>M7.3-C Returns</strong> (inventory return-to-stock + RTS physical handling) — pre-implementation audit complete, verdict GO WITH CONDITIONS (8 conditions)</td></tr>
+      <tr><td><strong>Formally completed</strong> (release-closed)</td><td>Phase 1–5 marketplace capabilities; M6 catalog/offer series; M7.1 hardening; M7.2 shipping/delivery series; M7.3-A; M7.3-B through B.5 (cancellation, delivery exceptions, retries, carrier cancellation, RTS); <strong>M7.3-B.6</strong> Ship-Ops Visibility (CLOSED / PASS — independently runtime-verified); <strong>M7.3-C</strong> Returns — Inventory Return-to-Stock + RTS Physical Handling (CLOSED / PASS — independently runtime-verified, 30/30 Playwright, 23/23 HTTP, 10/10 concurrency)</td></tr>
+      <tr><td><strong>Audited but not implemented</strong></td><td>(none — M7.3-C moved to completed)</td></tr>
       <tr><td><strong>Planned</strong> (authoritative)</td><td>M7.3-D Refunds, M7.3-E buyer dispute flow, M7.3-F notification expansion; Phase 3 Payments &amp; Settlement; Phases 4–7 (B2C, advertising, AI, infrastructure incl. regulated trade credit)</td></tr>
       <tr><td><strong>Missing / requires decision</strong></td><td>RFQ/quotations, purchase-order approvals, spending limits, invoices, buyer address book, email channel, Arabic/RTL interface</td></tr>
     </tbody>
@@ -254,7 +254,7 @@
       <li><strong>No order approvals or spending limits</strong> for buyer organizations.</li>
       <li><strong>Customer-specific pricing is dark:</strong> price lists carry <code>audience</code> (PUBLIC/SEGMENT/CONTRACT) and <code>segment_id</code> columns since migration 0006, but price resolution never uses them and no buyer-segments table exists — the schema anticipated B2B pricing that was never switched on.</li>
       <li><strong>No buyer address book</strong> — checkout collects a free-text street/city each time; no multi-location delivery for organizational buyers.</li>
-      <li><strong>No post-delivery returns</strong> (RMA, inspection, restock) — scoped and audited as M7.3-C, not yet implemented; the inventory ledger&rsquo;s RETURN movement type sits unused.</li>
+      <li><strong>No post-delivery buyer-initiated returns (RMA)</strong> — RTS physical return-to-stock was <strong>delivered by M7.3-C</strong> (CLOSED / PASS); however, buyer-initiated post-delivery RMA (inspect → restock → refund) remains unimplemented. The inventory ledger&rsquo;s RETURN movement type is now used for RTS returns.</li>
       <li><strong>Communication channels:</strong> SMS sending is a code stub (one-time passcodes ride on it — a launch risk), there is no email channel at all, and WhatsApp is a stub channel.</li>
       <li><strong>English-only interface:</strong> both web apps hardcode <code>lang="en" dir="ltr"</code>; Arabic exists only in backend search normalization — a market-fit gap for a Saudi B2B platform.</li>
       <li><strong>Trade credit / payment terms:</strong> intentionally excluded until Phase 7 with regulated partners (documented fence) — not a defect, but stakeholders should know it is not part of the current framework.</li>
@@ -276,13 +276,14 @@
       <tr><td>Quotations / RFQ</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>No entity, endpoint, or UI; also absent from the authoritative plan — needs a product decision.</td></tr>
       <tr><td>Order lifecycle</td><td><span class="pill p-ok">COMPLETE</span></td><td>16-state FSM, master/sub-orders, idempotent checkout; PAYMENT_PENDING unreachable (see Payments).</td></tr>
       <tr><td>Order management (ops)</td><td><span class="pill p-warn">PARTIAL</span></td><td>Merchant actions full; admin order detail is read-only (no admin interventions, notes, or overrides).</td></tr>
-      <tr><td>Inventory</td><td><span class="pill p-ok">COMPLETE</span></td><td>Ledger, reservations, transfers, low-stock alerts; RETURN movement type reserved but unused until M7.3-C.</td></tr>
+      <tr><td>Inventory</td><td><span class="pill p-ok">COMPLETE</span></td><td>Ledger, reservations, transfers, low-stock alerts; RETURN movements now emitted by M7.3-C (RELEASE for GOOD; RELEASE+ADJUST write-off for DAMAGED/DEFECTIVE/UNSALEABLE).</td></tr>
       <tr><td>Fulfillment</td><td><span class="pill p-warn">PARTIAL</span></td><td>Preparing/ready/dispatch states work; no pick lists, packing slips, or partial-shipment splitting.</td></tr>
       <tr><td>Shipping / Carriers</td><td><span class="pill p-ok">COMPLETE</span></td><td>Shipment/exception/RTS/recovery operations are now surfaced in admin + merchant consoles with buyer visibility (M7.3-B.6); carrier credential/config write CRUD and provider catalog remain UI gaps; runtime verification pending.</td></tr>
       <tr><td>Payments</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>Empty module; no provider, transactions, or reconciliation; planned as Phase 3. <strong>Blocking.</strong></td></tr>
       <tr><td>B2B Credit / AR</td><td><span class="pill p-muted">OUT OF SCOPE</span></td><td>Documented fence until Phase 7 (regulated partners only) — an intentional exclusion, not a gap.</td></tr>
       <tr><td>Invoicing / Documents</td><td><span class="pill p-err">NOT IMPLEMENTED</span></td><td>No invoices, credit notes, or PDFs anywhere; no PDF library in dependencies.</td></tr>
-      <tr><td>Returns (post-delivery)</td><td><span class="pill p-brand">PLANNED</span></td><td>M7.3-C audited, verdict GO WITH CONDITIONS (8 conditions); not yet implemented.</td></tr>
+      <tr><td>Returns (RTS physical)</td><td><span class="pill p-ok">COMPLETE</span></td><td>M7.3-C CLOSED/PASS — POST /v1/shipments/:id/return + merchant ReturnPanel + admin shipment console; 30/30 Playwright, 23/23 HTTP, 10/10 concurrency; buyer-safe projection.</td></tr>
+            <tr><td>Returns (post-delivery RMA)</td><td><span class="pill p-brand">PLANNED</span></td><td>F-063 — buyer-initiated RMA distinct from RTS returns; not in M7.3-C scope.</td></tr>
       <tr><td>Notifications</td><td><span class="pill p-warn">PARTIAL</span></td><td>In-app + push work; SMS is a stub (OTPs depend on it — launch risk); no email; WhatsApp stub.</td></tr>
       <tr><td>Reporting / Analytics</td><td><span class="pill p-ok">COMPLETE</span></td><td>Admin KPIs, merchant analytics, offer KPIs/trends, CSV exports.</td></tr>
       <tr><td>Admin / Operations</td><td><span class="pill p-warn">PARTIAL</span></td><td>Strong governance surfaces incl. M7.3-B.6 Ship-Ops &amp; Carrier consoles; still missing payment ops and admin order intervention.</td></tr>
@@ -371,7 +372,7 @@
       <tr><td>F-050</td><td>Inventory</td><td>Stock adjust / transfer / bulk</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Web + mobile <span class="ev">inventory.controller.ts</span></td></tr>
       <tr><td>F-051</td><td>Inventory</td><td>Reservation semantics (accept/cancel/deliver)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>ADR-0001 timing; concurrency verified <span class="ev">orders.service.ts settleStockForStatus; docs/architecture/ADR-0001</span></td></tr>
       <tr><td>F-052</td><td>Inventory</td><td>Low-stock alerts</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td><span class="ev">inventory.controller.ts check-low-stock</span></td></tr>
-      <tr><td>F-053</td><td>Inventory</td><td>Return-to-stock on returns</td><td>Y</td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-err">N</span></td><td><span class="pill p-warn">HIGH</span></td><td>RETURN type in constraint but unused; M7.3-C audited <span class="ev">0020_stock_movement_constraint.sql; M7.3-C audit</span></td></tr>
+      <tr><td>F-053</td><td>Inventory</td><td>Return-to-stock on returns</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>M7.3-C CLOSED/PASS; GOOD=RELEASE; DAMAGED/DEFECTIVE/UNSALEABLE=RELEASE+ADJUST; LOST=409; lock→recompute→cap→write; fingerprint idempotency; buyer-safe projection <span class="ev">orders.service.ts recordReturn; shipment-operations.controller.ts /return; apps/web ReturnPanel; apps/e2e/tests/m73c-return-flow.spec.ts; SCS-M7.3-C-RELEASE-CLOSURE.md</span></td></tr>
       <tr><td>F-054</td><td>Shipping</td><td>Shipping methods + zones config</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>Merchant /merchant/shipping <span class="ev">shipping.controller.ts; apps/web/src/app/merchant/shipping</span></td></tr>
       <tr><td>F-055</td><td>Shipping</td><td>Carrier integration (Aramex)</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-warn">P</span></td><td><span class="pill p-info">MED</span></td><td>Verified M7.2.3-B.x; B.6 added admin /carrier console (credential/config/recovery visibility); credential/config write CRUD deferred <span class="ev">carrier-admin.controller.ts; apps/admin/src/app/carrier/page.tsx</span></td></tr>
       <tr><td>F-056</td><td>Shipping</td><td>Shipment create / cancel / tracking / labels</td><td>Y</td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-ok">C</span></td><td><span class="pill p-muted">LOW</span></td><td>B.6 admin /shipments(+[id]) + merchant /merchant/deliveries(+[id]) consoles; new GET /v1/shipments read model <span class="ev">shipment-operations.controller.ts; apps/admin/src/app/shipments; apps/web/src/app/merchant/deliveries</span></td></tr>
@@ -458,7 +459,8 @@
       <tr><td>Shipping methods &amp; zones</td><td><span class="pill p-ok">A</span> <span class="pill p-info">B</span></td><td>Merchant self-service exists; admin has no equivalent</td></tr>
       <tr><td><strong>Payments</strong></td><td><span class="pill p-err">neither</span></td><td>Void on both sides</td></tr>
       <tr><td><strong>Refunds</strong></td><td><span class="pill p-err">neither</span></td><td>M7.3-D planned</td></tr>
-      <tr><td><strong>Returns (post-delivery)</strong></td><td><span class="pill p-err">neither</span></td><td>M7.3-C audited, not built</td></tr>
+      <tr><td><strong>Returns (RTS physical)</strong></td><td><span class="pill p-ok">A</span> <span class="pill p-info">M</span></td><td>M7.3-C CLOSED/PASS — merchant return action + admin return operation verified; buyer-safe projection</td></tr>
+            <tr><td><strong>Returns (post-delivery RMA)</strong></td><td><span class="pill p-err">neither</span></td><td>Planned — not in M7.3-C verified scope</td></tr>
       <tr><td>Pricing lists &amp; tiers</td><td><span class="pill p-ok">A</span></td><td>Merchant; admin reads via offer detail</td></tr>
       <tr><td>Segment / contract pricing</td><td><span class="pill p-err">E/G</span></td><td>Columns stored; resolution ignores them; no segments admin anywhere</td></tr>
       <tr><td>Promotions</td><td><span class="pill p-ok">A</span></td><td>Mobile merchant UI missing (see table below)</td></tr>
@@ -518,7 +520,8 @@
       <tr><td>Payments</td><td>Payments module empty <span class="pill p-err">BLOCKING</span></td><td>Phase 3 payments (R-3)</td></tr>
       <tr><td>Refunds</td><td>M7.3-D planned</td><td>Refund automation (R-3 follow-on)</td></tr>
       <tr><td>Invoices</td><td>No documents at all</td><td>Invoice service post-payments</td></tr>
-      <tr><td>Returns</td><td>M7.3-C audited, not built</td><td>Implement M7.3-C</td></tr>
+      <tr><td>Returns (RTS physical)</td><td>M7.3-C CLOSED/PASS</td><td>Return-to-stock + condition/qty recording verified</td></tr>
+            <tr><td>Returns (post-delivery RMA)</td><td>Planned — not in M7.3-C scope</td><td>Future milestone (M7.3-D or later)</td></tr>
       <tr><td>Quotes</td><td>Product decision pending</td><td>Decide RFQ scope (G-14)</td></tr>
       <tr><td>Feature flags</td><td>Flags table only; no controller/UI</td><td>Flags console (G-21)</td></tr>
     </tbody>
@@ -560,7 +563,7 @@
     <tbody>
       <tr><td>X-1</td><td><strong>Shipping ops were built but invisible — resolved by M7.3-B.6.</strong> Exceptions/RTS/carrier-recovery existed in API+DB+events with verified correctness but had no consuming UI; M7.3-B.6 added the admin Ship-Ops console, the merchant delivery console and a buyer-safe exception/RTS projection in tracking. Residual: carrier credential/config <em>write</em> CRUD and provider-catalog enumeration remain deferred.</td><td>Was BLOCKING for operations — now closed</td><td><span class="pill p-ok">CLOSED</span></td></tr>
       <tr><td>X-2</td><td><strong>Order lifecycle ends at COMPLETED with no financial settlement.</strong> Orders, inventory, disputes all assume money moved somehow; the payments module is empty — no refund on cancellation, no COD capture, no reconciliation vs. carrier fees.</td><td>BLOCKING for production revenue</td><td><span class="pill p-err">BLOCKING</span></td></tr>
-      <tr><td>X-3</td><td><strong>RTS_COMPLETED does not restock.</strong> The inventory ledger supports RETURN; nothing emits it — stock sold-then-returned vanishes from sellable quantity until manually adjusted (M7.3-C scope, audited).</td><td>HIGH</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>X-3</td><td><strong>RTS_COMPLETED restock — resolved by M7.3-C.</strong> The inventory ledger RETURN movement is now emitted by <code>recordReturn</code> on physical return processing; GOOD → RELEASE, DAMAGED/DEFECTIVE/UNSALEABLE → RELEASE+ADJUST. Concurrency: lock → recompute → cap → write.</td><td>Was stock-leak — now closed</td><td><span class="pill p-ok">CLOSED</span></td></tr>
       <tr><td>X-4</td><td><strong>Disputes resolve manually with no financial lever.</strong> Dispute resolution cannot trigger a refund or partial refund because refunds do not exist (M7.3-D/E dependency chain).</td><td>HIGH</td><td><span class="pill p-warn">HIGH</span></td></tr>
       <tr><td>X-5</td><td><strong>Segment/contract pricing columns are orphaned.</strong> The pricing schema anticipates B2B audiences; no segments entity, no resolution logic, no admin — merchants cannot do customer-specific pricing despite the schema.</td><td>MEDIUM</td><td><span class="pill p-info">MEDIUM</span></td></tr>
       <tr><td>X-6</td><td><strong>Buyer identity is phone-only; no email channel.</strong> OTP rides the stubbed SMS path — production OTP delivery itself depends on unimplemented provider wiring.</td><td>HIGH (launch risk)</td><td><span class="pill p-warn">HIGH</span></td></tr>
@@ -585,7 +588,7 @@
       <tr><td>G-03</td><td>Shipping ops</td><td>Carrier management UI (credentials/config/recovery) → admin /carrier console added by M7.3-B.6 (recovery queue + read visibility); credential/config write CRUD still to surface</td><td>Recovery queue now usable via UI</td><td>none</td><td>UX</td><td><span class="pill p-warn">PARTIAL</span></td></tr>
       <tr><td>G-04</td><td>Payments</td><td>Entire payments capability absent → Phase 3: provider integration, COD capture, payment status</td><td>No revenue path</td><td>product: provider selection</td><td>FEATURE/INTEGRATION</td><td><span class="pill p-err">BLOCKING</span></td></tr>
       <tr><td>G-05</td><td>Refunds</td><td>No refund domain → M7.3-D refund automation tied to disputes/cancellation/returns</td><td>Financial closure impossible</td><td>G-04</td><td>FEATURE/WORKFLOW</td><td><span class="pill p-err">BLOCKING</span></td></tr>
-      <tr><td>G-06</td><td>Returns</td><td>Post-delivery returns absent → return-to-stock, condition/qty recording, RMA flow</td><td>Inventory/financial leak</td><td>B.5 (done)</td><td>FEATURE/WORKFLOW</td><td><span class="pill p-warn">HIGH</span></td></tr>
+      <tr><td>G-06</td><td>Returns</td><td>Post-delivery returns: RTS physical handling <strong>delivered by M7.3-C</strong> (condition/qty recording, return-to-stock, concurrency-safe); post-delivery buyer RMA flow remains planned (not in M7.3-C verified scope)</td><td>RTS physical: closed; RMA: inventory/financial leak until future milestone</td><td>B.5 (done)</td><td>FEATURE/WORKFLOW</td><td><span class="pill p-ok">CLOSED</span> <span class="pill p-info">RMA PLANNED</span></td></tr>
       <tr><td>G-07</td><td>Finance</td><td>No invoices/credit notes/documents → invoice generation (PDF), tax documents</td><td>B2B buyers require invoices</td><td>G-04, product decision</td><td>FEATURE/B2B PRODUCT</td><td><span class="pill p-warn">HIGH</span></td></tr>
       <tr><td>G-08</td><td>Pricing</td><td>Segment/contract pricing dark → buyer segments + resolution + admin assignment</td><td>Cannot honor B2B price contracts</td><td>product decision</td><td>DATA/FEATURE</td><td><span class="pill p-info">MEDIUM</span></td></tr>
       <tr><td>G-09</td><td>Buyer data</td><td>No address book / multi-location → normalized addresses per org with checkout picker</td><td>B2B multi-site delivery unsupported</td><td>none</td><td>DATA/UX</td><td><span class="pill p-info">MEDIUM</span></td></tr>
@@ -724,15 +727,15 @@
   </table>
   </div>
 
-  <h3>Phase R1 — Returns Loop <span class="pill p-brand">M7.3-C, as audited</span></h3>
-  <p><strong>Objective:</strong> implement the M7.3-C audit scope — inventory return-to-stock + RTS physical handling (condition/quantity recording, physical verification). <strong>Prerequisites:</strong> B.5 (done), four-gate lock per the completed audit. <strong>Enables:</strong> R3 refund linkage.</p>
+  <h3>Phase R1 — Returns Loop <span class="pill p-ok">M7.3-C — CLOSED / PASS</span></h3>
+  <p><strong>Objective:</strong> implement the M7.3-C audit scope — inventory return-to-stock + RTS physical handling (condition/quantity recording, physical verification). <strong>Status:</strong> CLOSED / PASS — 23/23 HTTP, 10/10 concurrency, 12/12 contract, 6/6 invariants, 30/30 Playwright, 91/91 PG, 26/26 unit, 6/6 typecheck/build. <strong>Prerequisites:</strong> B.5 (done), four-gate lock per the completed audit. <strong>Enables:</strong> R3 refund linkage.</p>
   <div class="tbl-wrap">
   <table>
     <thead><tr><th style="width:3.4rem">ID</th><th>Work package</th><th>Why now</th><th>Depends on</th><th>Exit criteria</th></tr></thead>
     <tbody>
-      <tr><td>R1.1</td><td>Return-to-stock on RTS_COMPLETED with RETURN movements</td><td>X-3: sold-then-returned stock leaks</td><td>B.5 (done); R0.2 recommended</td><td>8 audit conditions satisfied; restock atomic with confirmation; ledger correct</td></tr>
-      <tr><td>R1.2</td><td>Return condition + quantity recording</td><td>Audit BD-B5-006 deferral</td><td>R1.1</td><td>Condition/qty persisted + auditable</td></tr>
-      <tr><td>R1.3</td><td>Post-delivery buyer return request (RMA) — if locked into M7.3-C scope per audit conditions</td><td>G-06</td><td>product lock via four-gate process</td><td>Buyer → merchant → receipt → inspection → restock runs E2E</td></tr>
+      <tr><td>R1.1</td><td>Return-to-stock on RTS_COMPLETED with RETURN movements <span class="pill p-ok">CLOSED</span></td><td>X-3: sold-then-returned stock leaks</td><td>B.5 (done); R0.2 recommended</td><td>8 audit conditions satisfied; restock atomic with confirmation; ledger correct — M7.3-C CLOSED/PASS</td></tr>
+      <tr><td>R1.2</td><td>Return condition + quantity recording <span class="pill p-ok">CLOSED</span></td><td>Audit BD-B5-006 deferral</td><td>R1.1</td><td>Condition/qty persisted + auditable — M7.3-C CLOSED/PASS</td></tr>
+      <tr><td>R1.3</td><td>Post-delivery buyer return request (RMA) — <span class="pill p-info">NOT in M7.3-C verified scope</span></td><td>G-06</td><td>product lock via four-gate process</td><td>Planned for a future milestone; buyer → merchant → receipt → inspection → restock</td></tr>
     </tbody>
   </table>
   </div>
