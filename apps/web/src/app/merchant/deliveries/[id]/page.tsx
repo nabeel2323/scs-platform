@@ -20,6 +20,8 @@ import {
   ShipDetail, getShipmentDetail, createCarrierShipment, cancelShipment,
   reportException, retryShipment, requestRTS, completeRTS,
   EXCEPTION_TYPES, exceptionLabel, isRtsStatus,
+  getReturnEligibility, recordReturn, RETURN_CONDITIONS,
+  ReturnEligibility,
 } from '../../../../lib/shipops';
 import { PageHeader, Breadcrumb } from '@scs/ui-kit';
 import { StatusBadge, LoadingSpinner, ErrorBanner, formatDate } from '../../../../components/Shared';
@@ -81,6 +83,9 @@ export default function MerchantDeliveryDetailPage() {
   const canRetry = s.exceptionStatus === 'OPEN' || s.exceptionStatus === 'RETRY_PENDING';
   const canRequestRts = s.exceptionStatus === 'OPEN' || s.exceptionStatus === 'RETRY_PENDING' || s.exceptionStatus === 'RTS_PENDING';
   const canCompleteRts = s.exceptionStatus === 'RTS_IN_PROGRESS';
+  // M7.3-C: physical return can only be recorded once RTS is completed and the
+  // shipment is not LOST (LOST is released only by cancellation).
+  const canRecordReturn = s.exceptionStatus === 'RTS_COMPLETED' && s.exceptionType !== 'LOST';
 
   const labels = detail.labels ?? [];
   const events = [...(detail.events ?? [])].sort((a, b) => a.sequence - b.sequence);
@@ -166,6 +171,11 @@ export default function MerchantDeliveryDetailPage() {
           {s.status === 'CANCELLED' && <p style={hint}>This delivery was cancelled{s.cancelledAt ? ` on ${formatDate(s.cancelledAt)}` : ''}.</p>}
         </section>
 
+        {/* M7.3-C: Record Return (inventory return-to-stock) */}
+        {canRecordReturn && (
+          <ReturnPanel shipmentId={s.id} onDone={load} />
+        )}
+
         {/* Labels */}
         <section style={card}>
           <h2 style={h2}>Labels</h2>
@@ -235,6 +245,122 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Muted({ children }: { children: React.ReactNode }) {
   return <span style={{ color: '#8a97a0' }}>{children}</span>;
+}
+
+/**
+ * M7.3-C — Record Return panel. Lists the shipment's reserved lines with the
+ * server-resolved warehouse (read-only, never a selector), collects per-line
+ * return quantity + condition, and submits the locked /return contract. Supports
+ * repeated partial returns until each line's reserved quantity is exhausted.
+ */
+function ReturnPanel({ shipmentId, onDone }: { shipmentId: string; onDone: () => void }) {
+  const [elig, setElig] = useState<ReturnEligibility | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [result, setResult] = useState('');
+  const [qtys, setQtys] = useState<Record<string, number>>({});
+  const [conds, setConds] = useState<Record<string, string>>({});
+
+  const reload = useCallback(() => {
+    setLoading(true);
+    setLoadErr('');
+    getReturnEligibility(shipmentId)
+      .then((e) => {
+        setElig(e);
+        const q: Record<string, number> = {};
+        const c: Record<string, string> = {};
+        for (const ln of e.lines) { q[ln.orderItemId] = ln.remainingQuantity; c[ln.orderItemId] = 'GOOD'; }
+        setQtys(q);
+        setConds(c);
+      })
+      .catch((err: any) => setLoadErr(err?.message || 'Failed to load return eligibility'))
+      .finally(() => setLoading(false));
+  }, [shipmentId]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  if (loading) {
+    return <section style={card}><h2 style={h2}>Record return</h2><p style={hint}>Loading eligible lines…</p></section>;
+  }
+  if (loadErr) {
+    return <section style={card}><h2 style={h2}>Record return</h2><ErrorBanner message={loadErr} onRetry={reload} /></section>;
+  }
+  if (!elig || !elig.eligible) return null;
+
+  const activeLines = elig.lines.filter((ln) => ln.remainingQuantity > 0);
+
+  const submit = async () => {
+    const lines = activeLines
+      .map((ln) => ({ orderItemId: ln.orderItemId, quantity: Number(qtys[ln.orderItemId]) || 0, condition: conds[ln.orderItemId] || 'GOOD' }))
+      .filter((l) => l.quantity >= 1);
+    if (lines.length === 0) { setActionError('Enter at least one return quantity'); return; }
+    setBusy(true);
+    setActionError('');
+    setResult('');
+    try {
+      const res = await recordReturn(shipmentId, lines);
+      setResult(res.idempotent
+        ? 'Return already recorded (idempotent replay).'
+        : `Recorded return of ${res.linesReturned.reduce((a, l) => a + l.quantity, 0)} unit(s).`);
+      onDone();
+      reload();
+    } catch (e: any) {
+      setActionError(e?.message || 'Return failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section style={card}>
+      <h2 style={h2}>Record return</h2>
+      <p style={hint}>Physical return confirmed (RTS completed). The warehouse is resolved from the original reservation and shown read-only.</p>
+      {actionError && <div role="alert" style={alert}>{actionError}</div>}
+      {result && <div style={{ ...hint, color: '#1b7a4b' }}>{result}</div>}
+      {activeLines.length === 0 ? (
+        <p style={hint}>All reserved units for this shipment have already been returned.</p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={table}>
+            <thead>
+              <tr style={theadRow}>
+                {['Item', 'Reserved', 'Returned', 'Remaining', 'Quantity', 'Condition', 'Warehouse'].map((h) => <th key={h} style={th}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {activeLines.map((ln) => (
+                <tr key={ln.orderItemId} style={tr}>
+                  <td style={td}>{ln.title || ln.sku}</td>
+                  <td style={td}>{ln.reservedQuantity}</td>
+                  <td style={td}>{ln.returnedQuantity}</td>
+                  <td style={td}>{ln.remainingQuantity}</td>
+                  <td style={td}>
+                    <input
+                      type="number" min={0} max={ln.remainingQuantity}
+                      value={qtys[ln.orderItemId] ?? 0}
+                      onChange={(e) => setQtys((prev) => ({ ...prev, [ln.orderItemId]: Math.max(0, Math.min(ln.remainingQuantity, Number(e.target.value) || 0)) }))}
+                      style={{ ...input, width: 72 }}
+                    />
+                  </td>
+                  <td style={td}>
+                    <select value={conds[ln.orderItemId] ?? 'GOOD'} onChange={(e) => setConds((prev) => ({ ...prev, [ln.orderItemId]: e.target.value }))} style={input}>
+                      {RETURN_CONDITIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </td>
+                  <td style={td}><Muted>{ln.warehouseId ? ln.warehouseId.slice(0, 8) : '—'}</Muted></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: 12 }}>
+            <button disabled={busy} onClick={submit} style={primaryBtn}>Submit return</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #d9e2e6', borderRadius: 10, padding: '16px 18px' };

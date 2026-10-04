@@ -100,6 +100,9 @@ const PERMISSIONS: string[] = [
   'fulfillment:shipments:pickup',
   'fulfillment:shipments:deliver',
   'fulfillment:shipments:write',
+  // M7.3-C: inventory return-to-stock (RTS physical return) — distinct write
+  // permission; must NOT be inferred from fulfillment:shipments:read/write.
+  'fulfillment:shipments:return',
   // Shipping & Delivery (M7.2)
   'merchant:shipping:read',
   'merchant:shipping:write',
@@ -128,7 +131,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 69
+    permissions: PERMISSIONS, // all 70
   },
   {
     key: 'ADMIN',
@@ -189,6 +192,8 @@ const ROLES: RoleDef[] = [
       // M7.3-B.6: Ship-Ops console needs to enumerate/read shipments
       // (list + detail read model), not just mutate them.
       'fulfillment:shipments:read',
+      // M7.3-C: record RTS physical return-to-stock (any store, admin scope).
+      'fulfillment:shipments:return',
       // M7.2.3-C carrier recovery
       'admin:shipping:recovery',
     ],
@@ -226,6 +231,9 @@ const ROLES: RoleDef[] = [
       'merchant:pricing:read',
       'support:disputes:write',
       'analytics:track',
+      // M7.3-C: platform staff may record RTS physical returns across stores.
+      'fulfillment:shipments:read',
+      'fulfillment:shipments:return',
     ],
   },
   {
@@ -267,6 +275,8 @@ const ROLES: RoleDef[] = [
       'fulfillment:drivers:write',
       // M7.2.3-A carrier shipment operations
       'fulfillment:shipments:write',
+      // M7.3-C: record RTS physical return-to-stock (own store only).
+      'fulfillment:shipments:return',
       'admin:carrier:read',
       'analytics:track',
     ],
@@ -306,6 +316,8 @@ const ROLES: RoleDef[] = [
       'analytics:track',
       // M7.2.3-A carrier shipment operations
       'fulfillment:shipments:write',
+      // M7.3-C: record RTS physical return-to-stock (own store only).
+      'fulfillment:shipments:return',
       'admin:carrier:read',
     ],
   },

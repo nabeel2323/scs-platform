@@ -196,6 +196,47 @@ export function completeRTS(id: string, notes?: string) {
   });
 }
 
+// ── M7.3-C: inventory return-to-stock (RTS physical return) ───
+
+export interface ReturnEligibilityLine {
+  orderItemId: string;
+  variantId: string;
+  sku: string;
+  title: string;
+  orderedQuantity: number;
+  inventoryItemId: string;
+  warehouseId: string | null;
+  reservedQuantity: number;
+  returnedQuantity: number;
+  remainingQuantity: number;
+}
+
+export interface ReturnEligibility {
+  shipmentId: string;
+  orderId: string;
+  storeId: string;
+  exceptionStatus: string | null;
+  exceptionType: string | null;
+  orderStatus: string | null;
+  eligible: boolean;
+  lines: ReturnEligibilityLine[];
+}
+
+export const RETURN_CONDITIONS = ['GOOD', 'DAMAGED', 'DEFECTIVE', 'UNSALEABLE'] as const;
+
+export function getReturnEligibility(id: string): Promise<ReturnEligibility> {
+  return adminRequest(`shipments/${encodeURIComponent(id)}/return-eligibility`);
+}
+
+export function recordReturn(
+  id: string,
+  lines: Array<{ orderItemId: string; quantity: number; condition: string }>,
+) {
+  return adminRequest(`shipments/${encodeURIComponent(id)}/return`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lines }),
+  });
+}
+
 // ── Carrier admin + recovery ─────────────────────────────────
 
 export function listCarrierCredentials(orgId: string): Promise<{ credentials: CarrierCredential[] }> {

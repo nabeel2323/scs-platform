@@ -1,1273 +1,572 @@
-# SCS-M7.3-C — Business Rules + Architecture Decision Lock
+# SCS-M7.3-C — BUSINESS RULES + ARCHITECTURE DECISION LOCK
 
-## Returns (Inventory Return-to-Stock + RTS Physical Handling)
+## Returns — Inventory Return-to-Stock + RTS Physical Handling
 
 | Field | Value |
 |-------|-------|
 | Milestone | M7.3-C |
 | Phase | Business Rules + Architecture Decision Lock |
 | Status | **LOCKED** |
-| Baseline | `develop` @ `5c6649dc2334e278c808b44c558b020db7e6db7b` |
-| Predecessor Audit | SCS-M7.3-C-PRE-IMPLEMENTATION-ARCHITECTURE-AUDIT.md (GO WITH CONDITIONS, 8 conditions) |
+| Baseline | `develop` @ `229949f934f6bfe447d4bce600a84fcbfe4dc365` (verified, clean tree) |
+| Authoritative Input | docs/production/SCS-M7.3-C-FRESH-ARCHITECTURE-AUDIT.md (GO WITH CONDITIONS) |
+| Supersedes | SCS-M7.3-C-BUSINESS-RULES-ARCHITECTURE-LOCK.md (B.5 `5c6649d`) — **NOT authoritative** |
 | Parent Lock | SCS-M7.3-B-BUSINESS-RULES-ARCHITECTURE-LOCK.md (LOCKED) |
-| Previous Milestone | M7.3-B.5 — CLOSED / PASS |
-| Next Phase | M7.3-C — Implementation |
-| Implementation | STRICTLY FORBIDDEN IN THIS PHASE |
+| Predecessor Milestone | M7.3-B.6 — CLOSED / PASS |
+| Business Decisions | 8/8 resolved (BCF-001 … BCF-008) |
+| Architecture Decisions | 12/12 resolved (ACF-001 … ACF-012) |
+| Migration | **NONE** |
+| Implementation | **AUTHORIZED** (specification only in this phase — no code written here) |
+| Next Gate | M7.3-C — Implementation |
 
 ---
 
 ## 1. Lock Identity
 
-This document converts the findings of the M7.3-C Pre-Implementation Architecture Audit into formally locked business rules and architecture decisions that serve as the authoritative specification for M7.3-C implementation.
+This document converts the fresh, post-B.6 architecture audit into a formally locked, implementation-ready specification for M7.3-C. It is the **sole authoritative** M7.3-C decision baseline. The earlier B.5-based lock is superseded in full (see §31); its implementation authorization is **void**.
 
-**Audit verdict inherited:** GO WITH CONDITIONS (8 conditions)
+All 8 open business decisions and 12 architecture decisions surfaced by the audit are resolved here with **no TBDs**. Every resolution is grounded in code verified against `229949f`. This phase writes **no** code, tests, migrations, endpoints, or UI — only this specification.
 
-**All eight conditions are incorporated and resolved in this lock.**
-
-**Business objective:** When an RTS reaches the point at which the physical return is confirmed, the inventory system must accurately reflect the returned goods — recording the return quantity, condition, and warehouse destination — without modifying the order FSM, carrier integrations, or financial settlement.
+**Business objective (revised):** When an RTS confirms the physical return of **pre-SALE** goods, the inventory ledger must release the outstanding reservation (and, for non-sellable conditions, write the units off), recording quantity, condition, and warehouse — **without inflating `qty_on_hand`,** without touching the order/master/shipment/exception FSMs, carrier integrations, or financial settlement.
 
 ---
 
 ## 2. Authoritative Documents
 
-| Document | Role | Status |
-|----------|------|--------|
-| SCS-M7.3-B-BUSINESS-RULES-ARCHITECTURE-LOCK.md | Parent lock | LOCKED |
-| SCS-M7.3-C-PRE-IMPLEMENTATION-ARCHITECTURE-AUDIT.md | Primary input — audit findings | COMPLETE |
-| SCS-M7.3-B.5-BUSINESS-RULES-ARCHITECTURE-LOCK.md | Predecessor lock — RTS foundation | LOCKED |
-| SCS-M7.3-B.5-RELEASE-CLOSURE.md | Predecessor closure | CLOSED / PASS |
+| Document | Role | Baseline | Status |
+|----------|------|----------|--------|
+| SCS-M7.3-C-FRESH-ARCHITECTURE-AUDIT.md | Primary input to this lock | `229949f` | Authoritative input |
+| This document | The locked M7.3-C specification | `229949f` | LOCKED |
+| SCS-M7.3-B-BUSINESS-RULES-ARCHITECTURE-LOCK.md | Parent lock (cancellation/RTS precedence) | — | LOCKED |
+| SCS-M7.3-B.6-RELEASE-CLOSURE.md | Predecessor closure | `d554fd7` docs / HEAD `229949f` | CLOSED / PASS |
+| SCS-M7.3-C-PRE-IMPLEMENTATION-ARCHITECTURE-AUDIT.md | Historical audit | `5c6649d` | Traceability only |
+| SCS-M7.3-C-BUSINESS-RULES-ARCHITECTURE-LOCK.md (previous) | Historical lock | `5c6649d` | **SUPERSEDED** |
 
 ---
 
-## 3. Business Objective
+## 3. Current Baseline
 
-When delivery exceptions reach a terminal failure point and the RTS lifecycle confirms the physical return of goods, M7.3-C records the inventory consequence: a RETURN movement that restores `qty_on_hand`, tracks return condition and quantity, and emits events for downstream consumption — without modifying the order FSM, carrier integrations, or financial settlement.
+```text
+branch:        develop
+HEAD:          229949f934f6bfe447d4bce600a84fcbfe4dc365
+working tree:  CLEAN
+```
+
+`229949f` is the B.6 **code** commit (child of the docs-only `d554fd7`). The B.6 server change relevant to M7.3-C is confined to buyer-projection filtering (`BUYER_INTERNAL_EVENT_TYPES`, L911-916) and read surfaces (`shipment-operations.controller.ts` GET list/detail); it altered **no** inventory, settlement, reservation, or RTS-transition logic. The RTS/exception FSM and the inventory ledger behave as audited.
+
+Do **not** revert to `5c6649d` or reuse its lock.
 
 ---
 
-## 4. Scope
+## 4. Superseded Historical Decisions
+
+The historical lock's inventory model rests on `RETURN = +qty_on_hand`. Verified against `229949f`, that premise is invalid for in-scope RTS returns (§8). Disposition of each historical decision:
+
+| Historical | Disposition | Replaced by |
+|------------|-------------|-------------|
+| BD-C0-001 (no order FSM change) | **RETAINED** | BCF/ACF-012 |
+| BD-C0-002 (separate explicit endpoint) | **RETAINED** | ACF-002 |
+| BD-C0-003 (LOST no movement) | **RETAINED + sharpened** | BCF-003 |
+| BD-C0-004 (DAMAGED → RETURN +qty_on_hand) | **REVOKED** | BCF-001 + BCF-002 |
+| BD-C0-005 (cancellation nets RETURN) | **SUPERSEDED** (RETURN not used; RELEASE already nets) | BCF-001 + ACF-003 |
+| BD-C0-006 (partial item-level) | **RETAINED as decided model** | BCF-004 |
+| BD-C0-007 (qty in movements.quantity) | **RETAINED** | BCF-004 |
+| BD-C0-008 (condition in metadata) | **RETAINED** | ACF-004 |
+| ADR-C0-001/002/003 | RETAINED (endpoint / no-migration / reservation-traced warehouse) | ACF-002 / §26 / BCF-005 |
+
+---
+
+## 5. Business Objective
+
+Record the physical consequence of a completed pre-SALE RTS in the inventory ledger correctly and idempotently, expose it as an explicit operator action, keep it invisible to buyers, and leave financial refund automation to M7.3-D.
+
+---
+
+## 6. Scope
 
 ### IN SCOPE
-
-1. Return-to-stock inventory movement (RETURN type)
-2. Return quantity tracking (per item)
-3. Return condition recording (GOOD / DAMAGED / DEFECTIVE / UNSALEABLE)
-4. Warehouse routing (trace original reservation)
-5. RTS physical handling (return after RTS completion)
-6. LOST exception return handling (no physical return)
-7. DAMAGED exception return handling (condition-based)
-8. Partial return support (item-level)
-9. Shipment events for return audit trail
-10. Outbox events for downstream consumers (M7.3-D)
-11. Authorization (merchant own-store, admin any)
-12. Tenant isolation
-13. Optimistic concurrency on return operations
-14. Transactional atomicity (return + events in same TX)
-15. Cancellation interaction (net RETURN in RELEASE calculation)
+1. Pre-SALE physical RTS return handling (movement semantics).
+2. Return quantity (per line).
+3. Return condition (controlled vocabulary).
+4. Correct warehouse resolution from the original reservation.
+5. Reservation release + condition-driven write-off.
+6. LOST protection (never restock a lost shipment).
+7. Partial / item-level return.
+8. Return idempotency.
+9. Concurrency (cancellation-wins; serialized returns).
+10. Shipment return events.
+11. Outbox events for M7.3-D.
+12. Buyer-projection protection for new events.
+13. Admin/merchant authorization + new write permission name.
+14. Tenant isolation.
+15. B.6 console integration (contract only).
 
 ### OUT OF SCOPE
-
-| Item | Deferred To |
-|------|------------|
-| Financial refund processing | M7.3-D |
-| Buyer-initiated returns | M7.3-E |
-| Post-delivery returns (no RTS/exception) | Future |
-| Carrier return shipping | N/A |
-| Return shipping labels | N/A |
-| Return authorization (RMA) workflow | N/A |
-| Order FSM changes | N/A — explicitly preserved |
-| Master-order FSM changes | N/A — explicitly preserved |
-| New database migration | N/A — existing schema sufficient |
-| Reconciliation worker | N/A |
-| Scheduled reconciliation | N/A |
-| Automatic redelivery | N/A |
-| Photo evidence | N/A |
-| Notification expansion | M7.3-F |
+See §28 (Scope Exclusions) — enumerated exhaustively there.
 
 ---
 
-## 5. Out-of-Scope Boundary
+## 7. Locked Business Rules (summary)
 
 ```text
-M7.3-C does NOT implement refunds.
-M7.3-C does NOT implement buyer-initiated returns.
-M7.3-C does NOT change the order FSM.
-M7.3-C does NOT change the master-order FSM.
-M7.3-C does NOT add a new order status.
-M7.3-C does NOT add a new exception FSM state.
-M7.3-C does NOT create a new migration.
-M7.3-C does NOT interact with carriers.
-M7.3-C does NOT implement automatic redelivery.
-M7.3-C does NOT implement photo evidence.
-M7.3-C does NOT expand notifications.
+RULE-1  Return operates ONLY on a shipment whose exception_status = RTS_COMPLETED.
+RULE-2  Return is pre-SALE: qty_on_hand is NEVER incremented by the return itself.
+RULE-3  Physical return of GOOD goods = RELEASE the outstanding reservation.
+RULE-4  Physical return of non-sellable goods = RELEASE, then ADJUST-out the unit(s).
+RULE-5  LOST creates NO inventory movement; /return MUST reject a LOST shipment.
+RULE-6  Warehouse is server-resolved from the original RESERVE movement; never client-supplied.
+RULE-7  Return is idempotent by operation fingerprint; replays never double-release.
+RULE-8  Cancellation always wins over / runs after return without double-release (ledger netting).
+RULE-9  No order/master/shipment/exception FSM state is added or changed.
+RULE-10 Every new internal return event is hidden from the buyer projection.
+RULE-11 No migration; condition + quantity live in existing stock_movements columns.
 ```
 
 ---
 
-## 6. Business Decisions
+## 8. BCF-001 Resolution — Movement Semantics
 
-### BD-C0-001: Order Status on Return (resolves OBD-001)
+> What inventory movement represents the physical return of a pre-SALE RTS shipment?
 
-```text
-Status: LOCKED
-Rule: Return-to-stock does NOT change the order status.
-      The order FSM is NOT extended. No RETURNED status is introduced.
-      The order remains in its current status (typically OUT_FOR_DELIVERY)
-      throughout the RTS and return lifecycle.
-      Master-order status is NOT affected by return-to-stock.
-      Return-to-stock is a shipment/inventory concern, not an order concern.
-      Buyer visibility: The buyer sees the order as OUT_FOR_DELIVERY (unchanged).
-      Cancellation eligibility: The order remains cancellable until it reaches
-      a terminal state (DELIVERED, COMPLETED, CANCELLED, etc.).
-      Partial return does not change order status.
-      Full return does not change order status.
-Rationale: Adding a new order status would cascade into master-order aggregation,
-      buyer visibility, cancellation logic, and reporting. The shipment is the
-      aggregate root for delivery exceptions and RTS; return is a consequence
-      of the shipment-level RTS completion.
-Source: Audit OBD-001; B.5 lock (order remains OUT_FOR_DELIVERY during RTS)
-```
+**LOCKED: Option A — RELEASE semantics.** Option C (RETURN `+qty_on_hand`) is **explicitly rejected** for M7.3-C.
 
-### BD-C0-002: Return Trigger (resolves OBD-002 / ADR-C0-001)
+Verified premise: an RTS shipment is at `OUT_FOR_DELIVERY`; SALE fires **only** at `DELIVERED` ([settleStockForStatus L3144-3146](file:///c:/TAIF/scs-platform/apps/api/src/modules/orders/orders.service.ts#L3144-L3146)), so at RTS time `qty_reserved` still holds the units and `qty_on_hand` was never decremented. Incrementing `qty_on_hand` would double-count.
+
+Counter effects of the locked return movement (GOOD):
 
 ```text
-Status: LOCKED
-Rule: Return-to-stock is a SEPARATE explicit operation after RTS completion.
-      It is NOT an automatic side-effect of completeRTS().
-      It is NOT an asynchronous outbox-driven action.
-
-      New endpoint: POST /v1/shipments/:id/return
-      Prerequisites: exception_status = RTS_COMPLETED, order NOT CANCELLED.
-      When inventory changes: Inside the return endpoint's transaction.
-      If inventory return fails: The entire return TX rolls back; RTS remains
-        RTS_COMPLETED but no RETURN movement exists. Operator retries.
-      Condition/quantity: Supplied in the return request body.
-      Idempotency: If RETURN movements already exist for the shipment with
-        matching reference, return 200 with existing data (no duplicate).
-
-      Rationale: Separating RTS confirmation from inventory return allows:
-      (a) Condition/quantity input at return time (not at RTS completion),
-      (b) LOST exceptions to complete RTS without physical return,
-      (c) Operational flexibility (goods may be confirmed returned but not
-        yet processed into inventory).
-      The outbox event shipment.rts_completed signals downstream that a
-      return is pending.
-
-Source: Audit OBD-002, ADR-C0-001
+qty_reserved:  GREATEST(qty_reserved - returnedQty, 0)     // decremented
+qty_on_hand:   unchanged
+qty_available: increases (generated column = qty_on_hand - qty_reserved)
+movement:      stock_movements(movement_type='RELEASE', quantity=+returnedQty,
+               referenceType='ORDER', referenceId=orderId, inventoryItemId=<origin>)
 ```
 
-### BD-C0-003: LOST Return Behavior (resolves OBD-003)
+**RETURN vocabulary is NOT used by M7.3-C.** The DB `RETURN`/`CANCEL` types (`0020` CHECK) remain reserved for the later post-delivery RMA milestone, where a genuine SALE-first sequence makes `RETURN = +qty_on_hand` correct.
 
-```text
-Status: LOCKED
-Rule: LOST RTS completion does NOT create a RETURN movement.
-      LOST RTS completion does NOT create a RELEASE movement.
-      LOST means the package is confirmed unrecoverable; no physical return occurs.
-
-      Stock disposition for LOST:
-      - If order is later cancelled: cancelOrder() RELEASEs reserved stock normally.
-      - If order is never cancelled: stock remains reserved until operational
-        decision (cancel or manual adjustment).
-      - M7.3-C does NOT auto-release LOST stock. The order cancellation is the
-        authoritative mechanism for releasing reserved stock.
-
-      Double-counting prevention:
-      - LOST creates zero inventory movements.
-      - Therefore no RETURN + RELEASE double-count is possible.
-      - Cancellation's settleStockForStatus() sees no RETURN to net; RELEASE
-        proceeds normally.
-
-      Rationale: LOST packages do not physically return. Creating a RETURN
-      movement for goods that never arrive would inflate qty_on_hand.
-      Auto-releasing at RTS completion would preempt the cancellation authority
-      and could race with a later cancellation.
-
-Source: Audit OBD-003, R-02 (HIGH risk)
-```
-
-### BD-C0-004: DAMAGED Disposition (resolves OBD-004)
-
-```text
-Status: LOCKED
-Rule: DAMAGED goods that physically return ARE recorded as RETURN movements
-      that increment qty_on_hand. The return condition is recorded in
-      stock_movements.metadata JSONB.
-
-      Condition vocabulary (controlled, 4 values):
-        GOOD       — sellable, no damage
-        DAMAGED    — physical damage, may be sellable at discount
-        DEFECTIVE  — functional defect, not sellable as-is
-        UNSALEABLE — cannot be sold, requires write-off or disposal
-
-      Condition rules:
-      - Condition is per item (each order item line gets its own condition).
-      - Condition is REQUIRED in the return request.
-      - If caller does not supply condition: 400 Bad Request.
-      - Condition is immutable once recorded (stock_movements is append-only).
-      - Mixed conditions in one return: YES (different items can have different conditions).
-      - Who can choose condition: MERCHANT or ADMIN (whoever performs the return).
-
-      Inventory effect:
-      - ALL returned goods increment qty_on_hand regardless of condition.
-      - Condition is tracked in metadata for M7.3-D to consume.
-      - M7.3-D (refunds) can use condition to determine refund eligibility
-        and write-off decisions.
-
-      Rationale: Physically returned goods are in the warehouse regardless of
-      condition. Not incrementing qty_on_hand would create a phantom inventory
-      shortage. The condition metadata provides the information M7.3-D needs
-      without complicating the inventory model.
-
-Source: Audit OBD-004, R-03
-```
-
-### BD-C0-005: Return vs Cancellation (resolves OBD-005)
-
-```text
-Status: LOCKED
-Rule: Cancellation authority is preserved. The interaction is defined as:
-
-      Scenario A — Cancellation commits first:
-        Winner: CANCELLATION.
-        Order: → CANCELLED.
-        Exception: RTS closed (RTS_COMPLETED → CLOSED).
-        Inventory: RELEASE movement (normal cancellation settlement).
-        Return: NOT possible (order is CANCELLED, return endpoint rejects).
-        RETURN created: NO. RELEASE created: YES.
-
-      Scenario B — Return-to-stock commits first:
-        Winner: RETURN is recorded; cancellation can still proceed.
-        Order: Remains OUT_FOR_DELIVERY (return does not change order status).
-        Exception: Remains RTS_COMPLETED (return does not change exception).
-        Inventory: RETURN movement (+qty_on_hand).
-        Subsequent cancellation: RELEASE is NET of RETURN.
-          settleStockForStatus() is extended to subtract RETURN quantities
-          from the outstanding reservation calculation.
-        RETURN created: YES. RELEASE created: only for un-returned quantity.
-
-      Scenario C — Concurrent:
-        Both TXs compete for SELECT FOR UPDATE on inventory_items rows.
-        Whichever TX locks first commits. The other TX sees the committed
-        state and behaves deterministically per scenarios A or B.
-
-      Scenario D — Cancellation starts while return is executing:
-        If return TX commits first: cancellation sees RETURN, nets it.
-        If cancellation TX commits first: return TX sees order CANCELLED → 409.
-
-      Scenario E — Cancellation after physical return (days later):
-        Same as Scenario B. settleStockForStatus() nets RETURN.
-        RELEASE = max(0, reserved - already_released - returned).
-
-      CRITICAL: settleStockForStatus() netting extension:
-        Current:  outstanding = RESERVE - RELEASE - SALE
-        Extended: outstanding = RESERVE - RELEASE - SALE - RETURN
-        This ensures RELEASE never exceeds what is still physically reserved
-        after accounting for returns.
-
-      Invariant: For any order item, the sum of RELEASE + RETURN quantities
-        never exceeds the original RESERVE quantity.
-
-Source: Audit OBD-005, R-01 (HIGH risk)
-```
-
-### BD-C0-006: Partial Return (resolves OBD-006)
-
-```text
-Status: LOCKED
-Rule: M7.3-C supports item-level partial return.
-      A return request specifies which order items and how many of each.
-      Maximum return quantity per item = order_items.qty_confirmed (or quantity
-        if not yet confirmed) minus sum of existing RETURN quantities for that item.
-      Duplicate requests: Idempotent — if RETURN movements already exist matching
-        the request, return 200 with existing data.
-      Mixed item conditions: YES — each item line has its own condition.
-      Inventory movements: One RETURN movement per item line per return.
-      Refund implications: M7.3-D will use stock_movements RETURN data to
-        determine refund eligibility. M7.3-C does not process refunds.
-
-Source: Audit OBD-006
-```
-
-### BD-C0-007: Return Quantity (resolves OBD-007)
-
-```text
-Status: LOCKED
-Rule: Return quantity is supplied explicitly by the caller in the request body.
-      It is NOT derived from order_items automatically.
-      It is NOT stored as a dedicated column on order_items.
-      It IS stored in stock_movements.quantity (positive integer).
-      It IS tracked per item via stock_movements.reference_id = orderItemId.
-
-      Authoritative source of total returned quantity:
-        SELECT COALESCE(SUM(quantity), 0) FROM stock_movements
-        WHERE reference_type = 'RETURN' AND reference_id = :orderItemId
-
-      Invariant: 0 < returned_quantity <= eligible_quantity
-        where eligible_quantity = qty_confirmed (or quantity) - already_returned
-
-      Duplicate prevention: Idempotency check compares requested quantities
-        against existing RETURN movements. If all match → 200 (already done).
-        If any differ → 409 Conflict.
-
-Source: Audit OBD-007
-```
-
-### BD-C0-008: Return Condition Recording (resolves OBD-008)
-
-```text
-Status: LOCKED
-Rule: Return condition is recorded in stock_movements.metadata JSONB.
-      NOT a dedicated shipment column.
-      NOT a separate return table.
-
-      Storage location: stock_movements.metadata
-      Key: "returnCondition"
-      Value: one of "GOOD", "DAMAGED", "DEFECTIVE", "UNSALEABLE"
-
-      Additional metadata keys:
-        "returnOrderId": orderId
-        "returnShipmentId": shipmentId
-        "returnExceptionType": exceptionType (RECIPIENT_REFUSED, DAMAGED, etc.)
-        "returnPerformedBy": actorType (MERCHANT, ADMIN)
-
-      Rationale for JSONB metadata over dedicated column:
-      - stock_movements is append-only; metadata is immutable once written.
-      - No migration required (metadata column already exists).
-      - Condition is an attribute of the movement, not of the shipment.
-      - Different items in the same return can have different conditions.
-      - Query by condition is possible via JSONB operators when needed:
-        WHERE metadata->>'returnCondition' = 'DAMAGED'
-      - M7.3-D can query stock_movements to build refund eligibility.
-
-Source: Audit OBD-008
-```
+**Rationale for A over B:** the existing settlement netting already understands `RELEASE` (§17/ACF-003), so choosing RELEASE needs **no** netting change and makes cancellation-vs-return idempotency fall out for free; Option B (`CANCEL`) is ignored by the netting (delta 0) and would require code change plus a double-release proof. Option A is the correctness-preserving minimum.
 
 ---
 
-## 7. RTS Lifecycle
+## 9. BCF-002 Resolution — DAMAGED / DEFECTIVE / UNSALEABLE
 
-The B.5 RTS lifecycle is preserved unchanged:
+**LOCKED: Model A — RELEASE + condition-driven ADJUST-out write-off.**
 
 ```text
-OPEN → RTS_PENDING (requestRTS)
-RTS_PENDING → RTS_IN_PROGRESS (approveRTS)
-RTS_PENDING → OPEN (rejectRTS)
-RTS_IN_PROGRESS → RTS_COMPLETED (completeRTS)
-RTS_COMPLETED → CLOSED (cancellation)
-OPEN → RTS_IN_PROGRESS (requestAndApproveLostRTS — LOST direct flow)
+GOOD:
+    RELEASE only                       → unit returns to sellable availability
+DAMAGED / DEFECTIVE / UNSALEABLE:
+    RELEASE (clear reservation),  THEN
+    ADJUST-out for the returned qty    → qty_on_hand -= returnedQty (write-off; NOT sellable)
 ```
 
-M7.3-C does NOT add any new exception FSM state.
-M7.3-C does NOT modify any existing RTS transition.
-M7.3-C does NOT modify completeRTS() behavior.
+Counter effects for a non-sellable return of `k` units of an item with `qty_on_hand=H`, `qty_reserved=n`:
 
-The return-to-stock action occurs AFTER RTS completion via a separate endpoint.
+```text
+after RELEASE:    qty_reserved = n - k        qty_on_hand = H          available unchanged for these k
+after ADJUST-out: qty_reserved = n - k        qty_on_hand = H - k       available unchanged (k removed from both)
+```
+
+**Hard ordering invariant (evidence-derived):** ADJUST-out MUST follow RELEASE within the same transaction. [adjustStock L271-284](file:///c:/TAIF/scs-platform/apps/api/src/modules/inventory/inventory.service.ts#L271-L284) rejects any negative adjustment that drives `qty_on_hand` below `qty_reserved`. Releasing first lowers the reserved floor so the write-off passes; reversing the order can fail the guard for reserved units.
+
+Rejected alternatives: Model B (metadata-only) would return damaged goods to **sellable** availability — inventory-incorrect. Model C (dedicated non-sellable location) introduces a new inventory model the brief forbids "merely for convenience". Model A preserves correctness with zero new structures.
 
 ---
 
-## 8. Return-to-Stock Lifecycle
+## 10. BCF-003 Resolution — LOST
 
-```text
-Prerequisites:
-  1. Shipment exists with exception_status = RTS_COMPLETED
-  2. Associated order is NOT CANCELLED
-  3. Caller has MERCHANT (own store) or ADMIN role
+**LOCKED:**
 
-Flow:
-  1. Authorization check (role + tenant)
-  2. Load shipment, verify RTS_COMPLETED
-  3. Load order, verify not CANCELLED
-  4. Load order items, validate return quantities
-  5. Idempotency check (existing RETURN movements)
-  6. Resolve warehouse (trace RESERVE movement)
-  7. BEGIN TX
-     a. SELECT FOR UPDATE on inventory_items rows
-     b. For each returned item:
-        - Increment qty_on_hand
-        - Insert RETURN movement with condition metadata
-     c. Insert RETURN_TO_STOCK shipment event
-     d. Insert shipment.return_to_stock outbox event
-  8. COMMIT
-
-Result:
-  - qty_on_hand increased by returned quantities
-  - qty_reserved unchanged (RETURN does not affect reservation)
-  - stock_movements has RETURN rows with condition metadata
-  - shipment_events has RETURN_TO_STOCK audit entry
-  - outbox_events has shipment.return_to_stock for downstream
-```
+- A LOST shipment produces **zero** inventory movement — no RELEASE, no ADJUST, no RETURN.
+- `POST /v1/shipments/:id/return` **MUST reject** a shipment whose `exception_type = 'LOST'` with **409 Conflict**; no event/outbox is emitted on rejection.
+- The LOST reservation **remains outstanding** and is released **only** by order cancellation (cancelOrder → `settleStockForStatus('CANCELLED')`). Cancellation is the sole release authority; no separate LOST terminal operation is introduced in M7.3-C.
+- **Rationale:** LOST goods are unrecoverable — physically restocking would inflate stock; auto-releasing at RTS would race with, and be preempted by, the authoritative cancellation path (RULE-8, parent M7.3-B lock: cancellation always wins).
+- Event representation: LOST is already audited by its RTS events (`RTS_REQUESTED`/`RTS_APPROVED`, L2684-2702). M7.3-C adds no LOST-specific event.
 
 ---
 
-## 9. Inventory Rules
+## 11. BCF-004 Resolution — Full vs Partial Return
 
-### RECIPIENT_REFUSED — Full Return
+**LOCKED: item-level partial return, movement-per-line, migration-free.**
 
-```text
-RETURNABLE: YES
-WAREHOUSE: Original reservation warehouse (traced from RESERVE movement)
-QUANTITY: All items (full order)
-INVENTORY EFFECT: qty_on_hand += quantity (per item)
-MOVEMENT TYPE: RETURN
-QTY_ON_HAND: Increased by returned quantity
-QTY_RESERVED: Unchanged
-CONDITION: GOOD (default for refused — package was not opened)
-AUDIT EVENT: RETURN_TO_STOCK (shipment_events)
-OUTBOX EVENT: shipment.return_to_stock
-```
-
-### LOST — No Physical Return
-
-```text
-RETURNABLE: NO
-WAREHOUSE: N/A
-QUANTITY: N/A
-INVENTORY EFFECT: NONE — no RETURN movement, no RELEASE movement
-MOVEMENT TYPE: N/A
-QTY_ON_HAND: Unchanged
-QTY_RESERVED: Unchanged (remains reserved until order cancellation)
-CONDITION: N/A
-AUDIT EVENT: N/A
-OUTBOX EVENT: N/A
-NOTES: Stock is released when/if the order is cancelled via cancelOrder().
-```
-
-### DAMAGED — Return with Condition
-
-```text
-RETURNABLE: YES
-WAREHOUSE: Original reservation warehouse
-QUANTITY: As specified by caller (partial or full)
-INVENTORY EFFECT: qty_on_hand += quantity
-MOVEMENT TYPE: RETURN
-QTY_ON_HAND: Increased by returned quantity
-QTY_RESERVED: Unchanged
-CONDITION: DAMAGED / DEFECTIVE / UNSALEABLE (caller-supplied, required)
-AUDIT EVENT: RETURN_TO_STOCK
-OUTBOX EVENT: shipment.return_to_stock
-NOTES: Condition recorded in stock_movements.metadata->>'returnCondition'.
-       M7.3-D uses condition for refund/write-off decisions.
-```
-
-### Partial Return
-
-```text
-RETURNABLE: YES (per item)
-WAREHOUSE: Original reservation warehouse (per item)
-QUANTITY: Caller-specified per item (0 < qty <= eligible)
-INVENTORY EFFECT: qty_on_hand += quantity (per returned item)
-MOVEMENT TYPE: RETURN (one per item)
-QTY_ON_HAND: Increased per item
-QTY_RESERVED: Unchanged
-CONDITION: Per item (caller-supplied)
-AUDIT EVENT: RETURN_TO_STOCK (one event, metadata lists all items)
-OUTBOX EVENT: shipment.return_to_stock (one event, payload lists all items)
-```
-
-### Duplicate Return
-
-```text
-RETURNABLE: NO (idempotent)
-BEHAVIOR: If RETURN movements already exist matching the request exactly → 200
-          If quantities differ → 409 Conflict
-INVENTORY: No additional movement created
-```
-
-### Cancellation Before Return
-
-```text
-RETURNABLE: NO
-BEHAVIOR: Return endpoint rejects with 409 (order is CANCELLED)
-INVENTORY: RELEASE already created by cancellation
-```
-
-### Cancellation After Return
-
-```text
-RETURNABLE: N/A (return already completed)
-BEHAVIOR: Cancellation proceeds normally.
-          settleStockForStatus() nets RETURN:
-            outstanding = RESERVE - RELEASE - SALE - RETURN
-          RELEASE = max(0, outstanding)
-INVENTORY: RELEASE only for un-returned quantity.
-           Net effect: reserved stock for returned items is NOT double-released.
-```
+- Each return request carries one entry per line: `{ orderItemId, quantity, condition }`.
+- Per-line `quantity` is written to `stock_movements.quantity` (BD-C0-007 retained).
+- **Maximum returnable per line** = reserved quantity for that line's `inventoryItemId` (magnitude of its `RESERVE` movement) **minus** cumulative already-returned quantity for that same `(orderId, inventoryItemId)`.
+- **Cumulative returned** = Σ of prior return `RELEASE` movements for `(orderId, inventoryItemId)` (identified by `metadata.return`, see ACF-004/ACF-007). Enforced: `cumulative + new ≤ reserved`.
+- Multiple return operations on the same shipment are permitted until every line reaches its cap.
+- Over-return (`new > remaining`) → **409**.
+- Concurrent partial returns on the same inventory item are serialized by `SELECT ... FOR UPDATE` + in-transaction recompute of remaining (ACF-006/ACF-008).
+- No first-class `qty_returned` column is introduced; cumulative state is derived from the append-only ledger (idempotent + race-safe under the FOR UPDATE serialization). A migration is deliberately avoided (§26).
 
 ---
 
-## 10. Order Status Rules
+## 12. BCF-005 Resolution — Warehouse Destination Rule
 
-The order FSM is NOT modified.
+**LOCKED: hard invariant — return destination is resolved from the original reservation, per line.**
 
 ```text
-TRANSITIONS (unchanged):
-  OUT_FOR_DELIVERY → [DELIVERED]
-  DELIVERED → [COMPLETED, DISPUTED]
-  COMPLETED → [DISPUTED]
-  CANCELLED → [] (terminal)
-
-Return-to-stock does NOT trigger any order status transition.
-The order remains OUT_FOR_DELIVERY (or whatever status it was in) after return.
+order → RESERVE movement (referenceType='ORDER', referenceId=orderId)
+      → stock_movements.inventoryItemId
+      → inventory_items.warehouseId   (authoritative destination)
 ```
 
----
-
-## 11. Master-Order Rules
-
-Master-order status is NOT affected by return-to-stock.
-
-`recalculateMasterOrderStatus()` is NOT called after return.
-Master-order aggregation continues to reflect sub-order statuses unchanged.
+- `shipments.storeId` does **not** identify a warehouse; `warehouses` is keyed by `storeId` with **no unique constraint** (multiple warehouses per store, [merchant.schema L36-46](file:///c:/TAIF/scs-platform/apps/api/src/modules/merchant/merchant.schema.ts#L36-L46)).
+- The implementation **MUST NOT**: select the store's first warehouse; select a store default; or accept a client-supplied `warehouseId`/`inventoryItemId`.
+- Multi-line orders that reserved across different warehouses resolve **each line independently** (reservation breaks at the first in-stock warehouse per line, L3056-3099, so origin differs per line).
 
 ---
 
-## 12. LOST Handling
+## 13. BCF-006 Resolution — Return Idempotency / Duplicate Key
 
+**LOCKED: operation-fingerprint idempotency, mirroring the existing `computeCheckoutFingerprint` pattern ([L3286-3309](file:///c:/TAIF/scs-platform/apps/api/src/modules/orders/orders.service.ts#L3286-L3309)).**
+
+- **Line identity** = `shipmentId + orderItemId` (which line).
+- **Operation identity (fingerprint)** = SHA-256 over the sorted request lines `orderItemId:quantity:condition`, recorded in `stock_movements.metadata.return.fingerprint`.
+- Semantics:
+  ```text
+  replay of same shipment + same fingerprint (already present)  → return original result (200), NO new movement/event/outbox
+  same line, DIFFERENT quantity/fingerprint                      → treated as a NEW operation (allowed, capped by BCF-004)
+  same line, multiple distinct valid partial returns             → each carries its own fingerprint; all counted toward cumulative cap
+  concurrent identical requests                                  → FOR UPDATE serializes; loser re-checks fingerprint, then returns original result (no double release)
+  ```
+- The fingerprint rule **must** prevent duplicate inventory release (RULE-7) while not blocking legitimate later partial returns (different fingerprint).
+
+---
+
+## 14. BCF-007 Resolution — Buyer / Post-Delivery RMA
+
+**LOCKED: EXCLUDED from M7.3-C.** Deferred to the later buyer-return/RMA milestone (M7.3-E).
+
+Verified absent in the current repo: buyer return endpoint, RMA schema/table, `RETURNED` order state, buyer return UI. Post-delivery restock is precisely the `RETURN = +qty_on_hand` semantic that is only correct **after** a SALE — out of place for pre-SALE RTS.
+
+Preserved boundary:
 ```text
-LOST RTS completion (RTS_IN_PROGRESS → RTS_COMPLETED):
-  - No RETURN movement created.
-  - No RELEASE movement created.
-  - No inventory effect whatsoever.
-  - Stock remains in its current state (reserved or released).
-
-LOST + subsequent cancellation:
-  - cancelOrder() closes RTS (RTS_COMPLETED → CLOSED).
-  - settleStockForStatus() RELEASEs reserved stock normally.
-  - No RETURN to net (LOST created none).
-  - Standard cancellation inventory behavior.
-
-LOST + package later found:
-  - Out of scope for M7.3-C.
-  - Operational manual adjustment if needed.
-  - M7.3-C does not provide a "reverse the LOST" mechanism.
+M7.3-C:  pre-SALE physical RTS inventory handling (RELEASE / write-off)
+M7.3-E:  post-DELIVERED buyer return + true RETURN / +qty_on_hand semantics
 ```
+No buyer RMA is designed or implemented in M7.3-C.
 
 ---
 
-## 13. DAMAGED Handling
+## 15. BCF-008 Resolution — Return Confirmation Actor
 
-```text
-DAMAGED RTS completion → return endpoint:
-  - Caller supplies condition: DAMAGED, DEFECTIVE, or UNSALEABLE.
-  - RETURN movement increments qty_on_hand.
-  - Condition stored in stock_movements.metadata.
-  - Goods are physically in warehouse but flagged for review.
+**LOCKED authorization model (mirrors `completeRTS` guard, L2480-2497):**
 
-DAMAGED + GOOD condition in same return:
-  - Allowed. Each item line has its own condition.
-  - Separate RETURN movements per item.
+| Actor | Return allowed | Scope |
+|-------|----------------|-------|
+| ADMIN / SUPER_ADMIN / MODERATOR | YES | any store |
+| MERCHANT_OWNER / MERCHANT_STAFF / MERCHANT_MANAGER | YES | own store only |
+| DRIVER | NO | — |
+| BUYER | NO | — |
 
-DAMAGED goods and M7.3-D:
-  - M7.3-D can query stock_movements.metadata->>'returnCondition'
-    to determine refund eligibility or write-off.
-  - M7.3-C does NOT make refund or write-off decisions.
-```
+- Tenant enforcement reuses `assertShipmentAccessibleForException(shipment, caller)` — merchant must match the shipment's store org; admin bypasses; driver/buyer denied.
+- **New, distinct WRITE permission is required:** `fulfillment:shipments:return`. It **must not** be inferred from B.6's `fulfillment:shipments:read` grant. The permission is *named* here; it is seeded only during implementation under this authorization.
+- Actor type for the event is resolved via the existing `resolveActorType` (L937-945) → `MERCHANT` | `ADMIN`.
 
 ---
 
-## 14. Partial Return Rules
+## 16. Architecture Decisions (ACF-001 … ACF-012)
 
-```text
-Partial return is at the order-item level:
-  - Each order_items row can be returned independently.
-  - Quantity per item: 0 < returnQty <= eligibleQty.
-  - eligibleQty = qty_confirmed (or quantity if null) - sum(existing RETURNs).
-
-Example: Order with 3 items (A: qty 5, B: qty 3, C: qty 2)
-  - Return A:3 + B:1 → two RETURN movements, 4 total units.
-  - Later return A:2 + C:2 → two more RETURN movements, 4 total units.
-  - Total returned: A=5, B=1, C=2. Remaining eligible: A=0, B=2, C=0.
-
-Partial return does NOT change order status.
-Partial return does NOT prevent later returns of remaining items.
-Partial return does NOT prevent cancellation of the order.
-```
-
----
-
-## 15. Quantity Rules
-
-```text
-Return quantity invariants:
-  1. returnQty > 0 (must be positive)
-  2. returnQty <= eligibleQty (cannot over-return)
-  3. eligibleQty = orderItem.qtyConfirmed (or .quantity) - totalReturned
-  4. totalReturned = SUM(stock_movements.quantity) WHERE
-       reference_type = 'RETURN' AND reference_id = orderItemId
-  5. SUM(all RETURNs for orderItem) <= orderItem.qtyConfirmed
-
-Duplicate prevention:
-  - Idempotency check: if exact same return already exists → 200.
-  - If quantities differ → 409 Conflict.
-  - stock_movements is append-only; RETURN movements cannot be modified.
-```
+| ID | Decision | Resolution |
+|----|----------|-----------|
+| **ACF-001** | Transaction boundary | Movement(s) + `shipment_events` + `outbox` atomic in one PG TX; `SELECT … FOR UPDATE` on each target `inventory_items` row. Any failure → full rollback. **No partial movement, no orphan event, no orphan outbox.** |
+| **ACF-002** | Explicit endpoint vs auto | Separate `POST /v1/shipments/:id/return`; **never** a side effect of `/rts/complete` (`completeRTS` stays inventory-free, L2475-2573). Condition/qty known only after physical inspection; LOST must not auto-restock. |
+| **ACF-003** | Settlement-netting interaction | **NO change to `settleStockForStatus`.** Return writes `RELEASE` with `referenceType='ORDER'`, which the existing netting (`RESERVE − RELEASE − SALE`, L3161-3172) already subtracts → later cancellation releases only the remainder, idempotently. RETURN/CANCEL semantics unused, so no netting extension required. |
+| **ACF-004** | Condition/disposition model | Vocabulary `GOOD/DAMAGED/DEFECTIVE/UNSALEABLE` in `stock_movements.metadata` (shape §24). Operational meaning bound to BCF-002 (GOOD→sellable; others→written off). |
+| **ACF-005** | Warehouse resolution | Server-resolved from reservation (BCF-005); per line; never client-supplied; never store-first/default. |
+| **ACF-006** | Concurrency | 9-step model §22; race policy **CANCELLATION-WINS** (parent M7.3-B lock). |
+| **ACF-007** | Idempotency | Operation-fingerprint replay semantics (BCF-006). |
+| **ACF-008** | Partial representation | Movement-per-line; cumulative cap enforced by ledger recompute under FOR UPDATE; block `returned > reserved`. |
+| **ACF-009** | Events/outbox + buyer filter | `shipment_events.RETURN_PROCESSED` + `outbox shipment.return_processed`; **MANDATORY** addition to `BUYER_INTERNAL_EVENT_TYPES`. |
+| **ACF-010** | API boundary | Contract §17/§24. |
+| **ACF-011** | UI boundary | Reuse B.6 consoles; additive controls. |
+| **ACF-012** | Order-FSM boundary | No new order/master/shipment/exception state (§26 note; verified `TRANSITIONS` has no RETURNED, L3333-3350). |
 
 ---
 
-## 16. Condition Rules
+## 17. API Contract (locked)
 
-```text
-Condition vocabulary: GOOD | DAMAGED | DEFECTIVE | UNSALEABLE
+New endpoint: `POST /v1/shipments/:id/return`
 
-Rules:
-  - Condition is REQUIRED in the return request body.
-  - Condition is per item (each returned item line has its own).
-  - Condition is immutable (stock_movements.metadata is append-only).
-  - Mixed conditions allowed in one return request.
-  - Who can set condition: MERCHANT or ADMIN (whoever performs the return).
-  - Default condition: NONE — caller must explicitly supply.
-  - Validation: 400 if condition is not in the controlled vocabulary.
-
-Storage:
-  - stock_movements.metadata->>'returnCondition' = 'GOOD' | 'DAMAGED' | etc.
-  - No dedicated column. No migration.
-```
-
----
-
-## 17. Warehouse Rules
-
-```text
-Warehouse resolution rule:
-  Trace the original RESERVE movement for each order item.
-  The RESERVE movement's inventory_item_id identifies the (variant, warehouse)
-  pair. The RETURN goes to the SAME warehouse.
-
-  Implementation:
-    SELECT inventory_item_id FROM stock_movements
-    WHERE reference_type = 'ORDER' AND reference_id = :orderId
-      AND movement_type = 'RESERVE'
-      AND inventory_item_id IS NOT NULL
-
-  This returns the inventory_item_id for each item's reservation.
-  The RETURN movement targets the same inventory_item_id.
-
-Multi-warehouse orders:
-  Each order item may have been reserved from a different warehouse.
-  The return resolves each item independently.
-
-Partial orders:
-  If only some items were accepted/reserved, only those items have
-  RESERVE movements. Unreserved items cannot be returned (no stock to return).
-
-User override:
-  NOT allowed in M7.3-C. The warehouse is determined automatically.
-  Future milestones may add admin override.
-
-Security:
-  The resolved warehouse must belong to the same store as the shipment.
-  Cross-warehouse/cross-store return is rejected.
-```
-
----
-
-## 18. Cancellation Interaction
-
-```text
-Rule: Cancellation is authoritative. Return respects cancellation.
-
-Pre-return check:
-  Return endpoint verifies order.status != 'CANCELLED' before proceeding.
-  If cancelled → 409 "Cannot return: order is cancelled".
-
-settleStockForStatus() extension for cancellation:
-  Current netting:  outstanding = RESERVE - RELEASE - SALE
-  Extended netting: outstanding = RESERVE - RELEASE - SALE - RETURN
-
-  Where RETURN = SUM(stock_movements.quantity) WHERE
-    movement_type = 'RELEASE' ... no, RETURN is a separate type.
-  Specifically: subtract RETURN quantities from outstanding.
-
-  This ensures:
-  - If all items were returned: outstanding = 0, RELEASE = 0.
-  - If some items returned: outstanding = reserved - returned, RELEASE = remainder.
-  - If no items returned: outstanding = reserved, RELEASE = full (normal).
-
-Idempotency:
-  settleStockForStatus() already handles replay safely via netting.
-  Adding RETURN to the net calculation preserves this property.
-```
-
----
-
-## 19. Delivery Interaction
-
-```text
-Return-to-stock requires exception_status = RTS_COMPLETED.
-Delivery is blocked while any RTS state is active (B.5).
-After RTS_COMPLETED, delivery remains blocked (B.5).
-
-Therefore: return-to-stock and delivery cannot race.
-  - If RTS is active: delivery blocked, return may proceed.
-  - If delivery succeeded: exception → RESOLVED, RTS not completable.
-  - If RTS completed: delivery still blocked, return can proceed.
-
-To deliver after RTS: admin must reject RTS first (RTS_PENDING → OPEN),
-then proceed with delivery. Return is not relevant (RTS was rejected).
-```
-
----
-
-## 20. Retry Interaction
-
-```text
-Retry requires exception_status = OPEN.
-RTS states (including RTS_COMPLETED) block retry.
-After RTS completion, retry is not possible.
-After RTS rejection (→ OPEN), retry becomes eligible again.
-Return is only possible after RTS_COMPLETED, so retry and return do not interact.
-```
-
----
-
-## 21. Authorization
-
-| Actor | RTS Completion (B.5) | Return-to-Stock | Condition | Warehouse Override |
-|-------|---------------------|-----------------|-----------|-------------------|
-| ADMIN | Yes (any) | Yes (any store) | Required | Not allowed in M7.3-C |
-| MERCHANT | Yes (own store, non-LOST/DAMAGED approve) | Yes (own store only) | Required | Not allowed in M7.3-C |
-| DRIVER | No | No | N/A | N/A |
-| BUYER | No | No | N/A | N/A |
-
-```text
-Return authorization rules:
-  - MERCHANT can return for own store only (store.orgId = caller.activeOrg).
-  - ADMIN can return for any store (platform staff).
-  - DRIVER has no return authority.
-  - BUYER has no return authority.
-  - Tenant isolation: assertShipmentAccessibleForException() pattern from B.5.
-  - Cross-tenant return → 403/404.
-```
-
----
-
-## 22. Tenant Isolation
-
-```text
-Return endpoint uses the same tenant-scoping pattern as B.5 RTS:
-  1. Load shipment by ID.
-  2. Verify caller has access (ADMIN bypass; MERCHANT store.orgId match).
-  3. Load order via shipment.orderId.
-  4. Verify order's store matches caller's scope.
-  5. Load order items via order.id.
-  6. Resolve warehouse from RESERVE movements.
-  7. Verify warehouse belongs to same store.
-  8. Proceed with return.
-
-Cross-tenant access: Rejected at step 2 or 7.
-IDOR: UUID-based lookups prevent enumeration.
-```
-
----
-
-## 23. API Contract
-
-### POST /v1/shipments/:id/return
-
-```text
-Method:      POST
-Auth:        JwtAuthGuard + PermissionsGuard
-Permission:  fulfillment:shipments:write
-Actors:      MERCHANT (own store), ADMIN
-
-Request Body:
+**Request (trusted = shipment id + line intent only):**
+```json
 {
-  "items": [
-    {
-      "orderItemId": "uuid",
-      "quantity": 2,
-      "condition": "GOOD" | "DAMAGED" | "DEFECTIVE" | "UNSALEABLE"
-    }
-  ],
-  "notes": "optional string"
+  "lines": [
+    { "orderItemId": "uuid", "quantity": 2, "condition": "GOOD" }
+  ]
 }
+```
+- Server **rejects** client-supplied `warehouseId`, `inventoryItemId`, `qtyOnHand`, or price fields (400) — inventory/warehouse are resolved from the reservation.
+- `condition` required per line and must be in the locked vocabulary; `quantity` integer ≥ 1.
 
-Validation:
-  - items: non-empty array
-  - items[].orderItemId: must belong to the shipment's order
-  - items[].quantity: integer, 0 < qty <= eligible
-  - items[].condition: one of 4 controlled values
-  - notes: optional string
-
-State Prerequisites:
-  - exception_status = RTS_COMPLETED
-  - order.status != CANCELLED
-
-Success Response (201 Created):
+**Response (200):**
+```json
 {
   "shipmentId": "uuid",
   "orderId": "uuid",
-  "returnMovements": [
-    {
-      "movementId": "uuid",
-      "orderItemId": "uuid",
-      "inventoryItemId": "uuid",
-      "warehouseId": "uuid",
-      "quantity": 2,
-      "condition": "GOOD"
-    }
+  "idempotent": false,
+  "linesReturned": [
+    { "orderItemId": "uuid", "inventoryItemId": "uuid", "warehouseId": "uuid",
+      "quantity": 2, "condition": "GOOD", "writtenOff": false }
   ],
-  "totalReturned": 2,
-  "performedBy": "MERCHANT",
-  "createdAt": "2026-10-02T..."
+  "returnEventId": "uuid"
 }
-
-Idempotency:
-  - If identical RETURN movements already exist → 200 with existing data.
-  - If quantities differ → 409 Conflict.
-
-Error Cases:
-  400: Invalid condition, quantity <= 0, quantity > eligible, empty items
-  403: Role not authorized
-  404: Shipment not found
-  409: Order cancelled, exception not RTS_COMPLETED, concurrent modification
-  409: Duplicate return with different quantities
-
-Inventory Effects:
-  - qty_on_hand incremented per item
-  - qty_reserved unchanged
-  - RETURN movements created per item
-
-Events:
-  - Shipment event: RETURN_TO_STOCK
-  - Outbox event: shipment.return_to_stock
 ```
+
+**State precondition:** `exception_status = RTS_COMPLETED` **and** `exception_type ≠ 'LOST'` **and** order not `CANCELLED`.
 
 ---
 
-## 24. Idempotency
+## 18. UI Contract (locked — additive on B.6 pages, not built here)
 
-```text
-Duplicate return request (exact match):
-  → 200 OK with existing return data.
-  → No additional RETURN movements created.
-  → No additional events created.
-
-Duplicate return request (different quantities):
-  → 409 Conflict.
-  → No changes made.
-
-Detection method:
-  Query stock_movements for existing RETURN movements with
-  reference_type = 'RETURN' and reference_id IN (orderItemIds).
-  Compare quantities and conditions.
-  If all match → idempotent 200.
-  If any differ → 409.
-```
+- **Merchant:** `apps/web/src/app/merchant/deliveries/[id]` — add a "Record Return" action on eligible (`RTS_COMPLETED`, non-LOST) shipments.
+- **Admin:** `apps/admin/src/app/shipments/[id]` — same action, any store.
+- The form: lists eligible lines with remaining returnable quantity; collects `quantity` + `condition` per line; shows server-resolved warehouse **read-only**; no warehouse selector; renders result + validation/conflict errors.
+- **Buyer:** NO new return controls (return is internal).
+- **Driver/mobile:** NO return operation.
 
 ---
 
-## 25. Transaction Boundaries
+## 19. Authorization (locked)
 
-```text
-Return-to-stock transaction:
-
-  BEGIN TX
-    1. SELECT FOR UPDATE on inventory_items rows (by resolved inventory_item_ids)
-    2. For each returned item:
-       a. UPDATE inventory_items SET qty_on_hand = qty_on_hand + quantity
-       b. INSERT stock_movements (RETURN, +quantity, metadata with condition)
-    3. INSERT shipment_events (RETURN_TO_STOCK)
-    4. INSERT outbox_events (shipment.return_to_stock)
-  COMMIT
-
-All four steps are atomic. Failure in any step rolls back all.
-No nested transactions. No outbox publish outside TX.
-```
+Guard order (mirror `completeRTS`): resolve caller role → require one of `MERCHANT_OWNER/STAFF/MANAGER` or `ADMIN/SUPER_ADMIN/MODERATOR` → require permission `fulfillment:shipments:return` → tenant check via `assertShipmentAccessibleForException`. DRIVER/BUYER → 403. Permissions are not changed by this phase; the new write permission is named for implementation-time seeding.
 
 ---
 
-## 26. Concurrency Rules
+## 20. Tenant Isolation (locked)
 
-### Return vs Return
-
-```text
-Two concurrent return requests on same shipment:
-  - Both TXs compete for SELECT FOR UPDATE on inventory_items.
-  - First TX commits RETURN movements.
-  - Second TX sees existing RETURN movements → idempotent 200 or 409.
-  - Expected: 1 success (201) + 1 idempotent (200) or conflict (409).
-  - PostgreSQL test: 100-concurrent returns.
-```
-
-### Return vs Cancellation
-
-```text
-Concurrent return + cancellation:
-  - Both TXs lock inventory_items via FOR UPDATE.
-  - If return commits first: cancellation sees RETURN, nets it in RELEASE.
-  - If cancellation commits first: return sees order CANCELLED → 409.
-  - No double stock adjustment possible.
-  - PostgreSQL test: 100-concurrent return-vs-cancel.
-```
-
-### Return vs Inventory Adjustment
-
-```text
-Concurrent return + manual adjustment on same inventory item:
-  - SELECT FOR UPDATE serializes.
-  - Both succeed with correct final qty_on_hand.
-  - Standard row-lock pattern (same as reserveStock).
-```
-
-### Return vs Reservation
-
-```text
-Concurrent return + new order reservation on same inventory item:
-  - SELECT FOR UPDATE serializes.
-  - Return increments qty_on_hand; reservation increments qty_reserved.
-  - Both succeed with correct totals.
-```
-
-### RTS Completion + Return vs Delivery
-
-```text
-Cannot race: delivery is blocked while RTS is active (B.5).
-After RTS_COMPLETED, delivery remains blocked.
-Return proceeds independently of delivery.
-```
+- Merchant operations restricted to shipments whose `store_id` belongs to the caller's org, enforced by `assertShipmentAccessibleForException` (L2497/L2740).
+- Admin bypasses store scoping but is still audited (`actorType='ADMIN'`).
+- Inventory items touched are always the org's own (derived from the order's reservation), so no cross-org `inventory_items` row is ever targeted.
+- No new tenant model introduced.
 
 ---
 
-## 27. Database / Schema Decision
+## 21. Inventory Semantics (locked — canonical ledger effects)
+
+For a return of `k` units of `(orderId, inventoryItemId)` reserved quantity `n`:
 
 ```text
-Decision: NO MIGRATION REQUIRED.
+GOOD:
+  inventory_items.qty_reserved = GREATEST(qty_reserved - k, 0)
+  inventory_items.qty_on_hand  = unchanged
+  movement:  RELEASE   quantity = +k   metadata.return{condition:'GOOD', fingerprint}
 
-Rationale:
-  1. RETURN movement type already exists in CHECK constraint (migration 0020).
-  2. stock_movements.metadata (JSONB) stores return condition — no new column.
-  3. shipment_events already accommodates RETURN_TO_STOCK event type
-     (VARCHAR(40), plenty of room).
-  4. outbox_events already accommodates shipment.return_to_stock
-     (VARCHAR(80), plenty of room).
-  5. No new table required.
-  6. No new column on shipments, orders, or inventory_items.
+DAMAGED / DEFECTIVE / UNSALEABLE:
+  (1) RELEASE   qty_reserved = GREATEST(qty_reserved - k, 0);  movement quantity = +k
+  (2) ADJUST    qty_on_hand  = GREATEST(qty_on_hand - k, 0);   movement quantity = -k
+      metadata.return{condition, fingerprint} on both;  ordering (1)→(2) mandatory (BCF-002)
 
-Return condition lives in: stock_movements.metadata->>'returnCondition'
-Return quantity lives in: stock_movements.quantity (positive integer)
-Return reference lives in: stock_movements.reference_type = 'RETURN',
-                           reference_id = orderItemId
-Return audit lives in: shipment_events (RETURN_TO_STOCK event)
-Return downstream lives in: outbox_events (shipment.return_to_stock)
+qty_available (generated): GOOD → +k ; non-sellable → unchanged
+RETURN / CANCEL movement_type: NEVER written by M7.3-C
 ```
 
----
-
-## 28. Event Model
-
-### Shipment Events
-
-| Event Type | When | Actor | Metadata |
-|-----------|------|-------|----------|
-| `RETURN_TO_STOCK` | return endpoint succeeds | MERCHANT/ADMIN | `{ exceptionType, returnedItems: [{orderItemId, quantity, condition}], warehouseId, totalReturned }` |
-
-### Existing Events (unchanged)
-
-| Event Type | When | M7.3-C Impact |
-|-----------|------|---------------|
-| `RTS_REQUESTED` | requestRTS() | No change |
-| `RTS_APPROVED` | approveRTS() | No change |
-| `RTS_COMPLETED` | completeRTS() | No change |
-| `RTS_REJECTED` | rejectRTS() | No change |
-| `DELIVERY_EXCEPTION_CLOSED` | cancelOrder() | No change |
-
-`shipment.rts_completed` IS still emitted by completeRTS(). M7.3-C does not modify it.
+All writes in one TX, each target row locked with `SELECT … FOR UPDATE` before update; the same netting contract that already governs cancellation SALE/RELEASE applies.
 
 ---
 
-## 29. Outbox Model
-
-### New Outbox Event
+## 22. Concurrency (locked — 9-step + cancellation-wins)
 
 ```text
-Event type: shipment.return_to_stock
-Aggregate:  shipmentId
-Payload:
+1. Load + validate shipment state (RTS_COMPLETED, not LOST, order not CANCELLED).
+2. Authorize + tenant-check caller.
+3. Resolve per-line inventoryItemId + warehouseId from the original RESERVE movement.
+4. SELECT ... FOR UPDATE each target inventory_items row (deterministic order by inventoryItemId to avoid deadlock).
+5. Recompute remaining returnable per line from the ledger (reserved − cumulative returned).
+6. Validate new quantities ≤ remaining; else 409 over-return.
+7. Apply RELEASE (+ mandatory ADJUST-out) counter updates.
+8. Insert shipment_events.RETURN_PROCESSED + outbox shipment.return_processed.
+9. Commit atomically.
+```
+
+**CANCELLATION-WINS:**
+- If cancellation commits first → order `CANCELLED`, exception `CLOSED`; a subsequent `/return` fails precondition (RULE-1/§17) → **409**; no release occurs (cancellation already settled).
+- If return commits first → a subsequent cancellation's `settleStockForStatus` recomputes outstanding (already net of the return's RELEASE) and releases **only the remainder** → no double release (ACF-003).
+- Concurrent return vs return vs adjustment serialize on the same FOR UPDATE row locks.
+
+---
+
+## 23. Idempotency (locked)
+
+- Replay of the identical operation (same `shipmentId` + `metadata.return.fingerprint`) → **200 returning the original result**, with `idempotent: true`, and **no** second movement / release / event / outbox.
+- A genuinely different operation (different quantity/condition → different fingerprint) is processed normally, subject to the cumulative cap.
+- The fingerprint is recomputed inside the transaction after the FOR UPDATE lock, so two simultaneous identical requests cannot both insert movements (the second sees the first's fingerprint and short-circuits to the original result).
+
+---
+
+## 24. Events / Outbox (locked names + payload)
+
+Canonical names (use exactly):
+
+```text
+shipment_events.event_type : "RETURN_PROCESSED"   (VARCHAR(40), fits)
+outbox_events.event_type   : "shipment.return_processed"
+```
+
+`shipment_events.metadata.return` (single authoritative shape):
+```json
 {
-  "shipmentId": "uuid",
-  "orderId": "uuid",
-  "storeId": "uuid",
-  "exceptionType": "RECIPIENT_REFUSED",
-  "returnedItems": [
-    {
-      "orderItemId": "uuid",
-      "variantId": "uuid",
-      "inventoryItemId": "uuid",
-      "warehouseId": "uuid",
-      "quantity": 2,
-      "condition": "GOOD"
-    }
-  ],
-  "totalReturned": 2,
-  "performedBy": "MERCHANT",
-  "notes": "optional"
+  "return": {
+    "shipmentId": "uuid",
+    "fingerprint": "sha256hex",
+    "actorType": "MERCHANT | ADMIN",
+    "lines": [
+      { "orderItemId": "uuid", "inventoryItemId": "uuid", "warehouseId": "uuid",
+        "quantity": 2, "condition": "GOOD|DAMAGED|DEFECTIVE|UNSALEABLE",
+        "writtenOff": false }
+    ]
+  }
 }
-Metadata: { storeId }
-Status: PENDING
 ```
 
-### Existing Outbox Events (unchanged)
-
-| Event | When | M7.3-C Impact |
-|-------|------|---------------|
-| `shipment.rts_requested` | requestRTS() | No change |
-| `shipment.rts_approved` | approveRTS() | No change |
-| `shipment.rts_completed` | completeRTS() | No change |
-
-### M7.3-D Interface
-
-M7.3-D (refunds) can consume `shipment.return_to_stock` to determine:
-- Which items were returned
-- Return condition of each item
-- Return quantity of each item
-- Whether refund is eligible
-
-No reverse engineering of inventory movements required.
+`stock_movements.metadata` carries the same `return` block (per-movement, filtered to that line) so cumulative-return counting and idempotency are ledger-derivable. The outbox payload includes `shipmentId`, `orderId`, `storeId`, and the `lines[]` (quantity + condition) — sufficient for M7.3-D refunds **without** M7.3-C implementing any financial effect (milestone boundary preserved).
 
 ---
 
-## 30. Testing Contract
+## 25. Buyer Projection Boundary (mandatory invariant)
 
-### Unit Tests
-
-| Category | Tests |
-|----------|-------|
-| Authorization | DRIVER/BUYER rejected; MERCHANT own-store; ADMIN any |
-| Validation | Condition required, quantity bounds, empty items, invalid condition |
-| Prerequisites | Non-RTS_COMPLETED rejected; cancelled order rejected |
-| Idempotency | Duplicate return → 200; different quantities → 409 |
-
-### PostgreSQL Integration Tests
-
-| Category | Tests |
-|----------|-------|
-| Full return | All items returned, qty_on_hand correct, RETURN movements exist |
-| Partial return | Subset of items, correct quantities |
-| LOST return | No RETURN movement, no RELEASE, no inventory effect |
-| DAMAGED return | RETURN with condition in metadata |
-| Idempotency | Duplicate → 200, no double movement |
-| Warehouse resolution | RETURN goes to original RESERVE warehouse |
-| Concurrency: return vs return | 100-concurrent → 1 success / 99 idempotent |
-| Concurrency: return vs cancel | Return first → cancel nets; Cancel first → return rejected |
-| Concurrency: return vs reserve | FOR UPDATE serializes correctly |
-| Event atomicity | RETURN + event + outbox in same TX |
-| Cancellation after return | settleStockForStatus nets RETURN correctly |
-| Over-return prevention | quantity > eligible → 400 |
-
-### Regression
-
-All previous milestones must remain green:
-- B.1 (concurrency), B.2 (cancellation), B.3.x (carrier), B.3.4 (race closure)
-- B.4 (delivery exceptions), B.5 (RTS lifecycle)
-- Shipping, Orders, Inventory unit suites
-
-### Security
-
-- Authorization for return endpoint
-- Tenant isolation (cross-merchant → 403)
-- IDOR (cross-store → 403/404)
+Because B.6 closed a buyer-projection leak, **every** new internal return event MUST be excluded from the buyer tracking projection. Implementation MUST add `RETURN_PROCESSED` to `BUYER_INTERNAL_EVENT_TYPES` (L911-916) — the set consumed by `getTracking()`. A return event that is not in this set is a **release-blocking defect**. Buyers continue to see only the derived `buyerDeliveryNote()` state; no raw return/RTS event reaches them.
 
 ---
 
-## 31. UI Implications
+## 26. Database / Migration Decision
 
-```text
-M7.3-C is a backend-only milestone.
-No frontend changes are required.
-The return endpoint is available for future UI integration.
-Admin console and merchant dashboard may add return UI in a future milestone.
-```
+**LOCKED: NO MIGRATION.**
+
+The chosen model needs no schema change:
+- Movement type — `RELEASE`/`ADJUST` already permitted (`0020` CHECK L33-35).
+- Quantity — signed `stock_movements.quantity`.
+- Condition + fingerprint + warehouse — `stock_movements.metadata` / `shipment_events.metadata` JSONB.
+- Warehouse — derived from existing `RESERVE` movement `inventoryItemId`.
+- Cumulative enforcement — derived by ledger scan under `FOR UPDATE`, not a first-class column.
+
+Had a DB-enforced `qty_returned` cap or a dedicated `shipment_return_lines` table been required, `0051` would have been specified. They are **not** required; the append-only ledger is the single source of truth, which also keeps settlement netting (§ACF-003) correct. **No `0051` is created in this phase or authorized.**
 
 ---
 
-## 32. Future Milestone Interfaces
+## 27. Testing Contract (mandatory implementation gates)
 
-### M7.3-D (Refunds)
+**Unit** — condition validation (required + vocabulary), quantity validation (≥1, ≤remaining), warehouse resolution from `inventoryItemId`, LOST guard, authorization (merchant own-store / admin any / driver+buyer denied), idempotency (fingerprint replay), movement semantics (GOOD=RELEASE-only; non-sellable=RELEASE+ADJUST; ordering).
+
+**PostgreSQL integration** — actual movement written; `qty_reserved` ↓, `qty_on_hand` unchanged for GOOD / ↓ for non-sellable, `qty_available` generated value observed; full return; partial (multi-line, multi-op); duplicate (fingerprint) returns original with no second release; LOST rejection (409, no movement); DAMAGED/DEFECTIVE/UNSALEABLE write-off; **return/cancellation race both orders**; concurrent returns; return/release race; event atomicity (rollback removes movement + event + outbox together); outbox atomicity; tenant isolation.
+
+**Playwright (after implementation)** — merchant return happy path; admin return path; LOST rejection; buyer does **not** see the internal `RETURN_PROCESSED` event.
+
+Implementation may not be declared complete without the applicable tests.
+
+---
+
+## 28. Scope Exclusions (locked)
 
 ```text
-Interface: outbox event shipment.return_to_stock
-Consumer: Refund service (future)
-Data available: returned items, quantities, conditions, warehouse, store
-Refund eligibility: determined by M7.3-D based on condition + business rules
+1. Financial refunds                      → M7.3-D
+2. Payment-provider interaction           → M7.3-D
+3. Credit notes / financial settlement    → M7.3-D
+4. Buyer post-delivery RMA                → M7.3-E (BCF-007)
+5. Post-DELIVERED restock (RETURN +on_hand)→ M7.3-E
+6. New order / master-order / shipment / exception FSM states  → none (ACF-012)
+7. Carrier return API                     → not modeled
+8. Reconciliation worker                  → not required
+9. Automatic redelivery                   → out
+10. Photo evidence                        → out
+11. Notification expansion                → M7.3-F
+12. Unrelated carrier configuration        → out
 ```
 
-### M7.3-E (Buyer Disputes)
+Scope does not expand silently; any addition requires a fresh lock amendment.
+
+---
+
+## 29. Implementation Conditions (carry into coding phase)
 
 ```text
-Interface: stock_movements with movement_type = 'RETURN'
-Consumer: Dispute service (future)
-Data available: return quantities, conditions, timestamps
-Dispute evidence: RETURN movements prove physical return occurred
+CI-01  Use RELEASE semantics; NEVER write RETURN/CANCEL for RTS return (BCF-001).
+CI-02  Non-sellable write-off MUST order RELEASE before ADJUST-out (adjustStock reserved-floor guard).
+CI-03  Reject /return when exception_type='LOST' (409) before any movement.
+CI-04  Resolve warehouse per line from RESERVE movement inventoryItemId; ignore storeId for routing.
+CI-05  Recompute cumulative return inside the FOR UPDATE transaction; cap at reserved.
+CI-06  Implement operation-fingerprint idempotency mirroring computeCheckoutFingerprint.
+CI-07  Reuse settleStockForStatus unchanged; assert no netting modification is needed (ACF-003).
+CI-08  Add RETURN_PROCESSED to BUYER_INTERNAL_EVENT_TYPES in the same change that emits it.
+CI-09  Emit shipment.return_processed outbox atomically with movement + event.
+CI-10  Enforce authorization via assertShipmentAccessibleForException + new fulfillment:shipments:return.
+CI-11  Deterministic row-lock ordering (sort inventoryItemId) to prevent deadlock.
+CI-12  No migration; no schema change; no seed beyond the permission named here.
 ```
 
 ---
 
-## 33. Architecture Decision Records
+## 30. Risks and Mitigations
 
-### ADR-C0-001: Return Trigger Mechanism
+| ID | Risk | P | I | Mitigation (locked) | Blocking? |
+|----|------|---|---|---------------------|-----------|
+| R-01 | Inventory **inflation** via RETURN +qty_on_hand | H | H | RELEASE semantics (BCF-001); RETURN unused | Resolved |
+| R-02 | Return/cancellation **double release** | H | H | Existing netting subtracts return RELEASE (ACF-003); cancellation-wins precondition (ACF-006) | Resolved |
+| R-03 | **LOST** mis-restock | M | H | Hard 409 guard before any movement (BCF-003) | Resolved |
+| R-04 | **Wrong warehouse** (multi-warehouse) | M | H→L | Server-resolved per line from reservation (BCF-005) | Resolved |
+| R-05 | **Damaged becomes sellable** | M | M | Model A write-off (BCF-002) | Resolved |
+| R-06 | **Over/partial return** inconsistency | M | M | Ledger cumulative cap under FOR UPDATE (BCF-004) | Resolved |
+| R-07 | **Duplicate** return | M | M | Operation fingerprint (BCF-006) | Resolved |
+| R-08 | **Tenant/auth bypass** | L | H | Reuse accessor guard + named write permission (BCF-008) | Resolved |
+| R-09 | **Buyer leak** of return event | M | H | Mandatory BUYER_INTERNAL_EVENT_TYPES addition (§25) | Resolved |
+| R-10 | **Scope creep** into refunds | M | M | Milestone boundary §28; M7.3-C emits events only | Resolved |
 
-```text
-Title: Return-to-stock is a separate explicit endpoint
-Status: LOCKED
-Decision: POST /v1/shipments/:id/return (separate from completeRTS)
-Rationale: Separation of concerns; condition/quantity input at return time;
-           LOST exceptions complete RTS without physical return.
-Alternatives rejected:
-  - Automatic side-effect of completeRTS: rejected (LOST has no physical return)
-  - Async outbox consumer: rejected (eventual consistency unacceptable for inventory)
-```
+All previously-HIGH risks (R-01, R-02, R-03) are addressed by explicit locked rules; none remain blocking.
 
-### ADR-C0-002: Transaction Scope
+---
 
-```text
-Title: Return-to-stock has its own atomic transaction
-Status: LOCKED
-Decision: Return TX contains: FOR UPDATE + inventory mutation + movements + events + outbox
-Rationale: Atomic inventory + events; no divergence possible.
-           Separate from completeRTS TX because they are separate operations.
-Invariant: No state where return movements exist without corresponding
-           inventory update, or vice versa.
-```
-
-### ADR-C0-003: Warehouse Resolution
+## 31. Historical Decision Revocations
 
 ```text
-Title: Return goes to original reservation warehouse
-Status: LOCKED
-Decision: Trace RESERVE movement's inventory_item_id to find warehouse.
-Rationale: Most accurate; no user input needed; prevents wrong-warehouse stock.
-Alternatives rejected:
-  - Store default warehouse: rejected (may differ from reservation source)
-  - Caller-supplied: rejected (security risk, adds complexity)
+REVOKED — Historical BD-C0-004:
+  "DAMAGED RTS → RETURN → +qty_on_hand"
+  is REVOKED for M7.3-C pre-SALE RTS. Replaced by BCF-001 (RELEASE) + BCF-002
+  (RELEASE then ADJUST-out write-off). Incrementing qty_on_hand would inflate
+  stock because the SALE decrement never occurred for an OUT_FOR_DELIVERY order.
+
+SUPERSEDED — Historical BD-C0-005:
+  "cancellation nets RETURN (outstanding = RESERVE − RELEASE − SALE − RETURN)"
+  is SUPERSEDED. RETURN is not used, so the "− RETURN" term is moot; the real
+  interaction is handled automatically because returns write RELEASE, which the
+  existing settleStockForStatus netting already subtracts. No netting change.
+
+VOID — Historical lock authorization:
+  The previous M7.3-C lock's "implementation authorization granted" (against B.5
+  5c6649d) is SUPERSEDED and VOID. An implementation agent MUST treat THIS
+  document (baseline 229949f) as the only authoritative M7.3-C specification.
 ```
 
 ---
 
-## 34. Implementation Conditions
-
-All conditions resolved:
+## 32. Implementation Authorization
 
 ```text
-C-C0-001
-Requirement: Separate return endpoint POST /v1/shipments/:id/return
-Implementation: New method returnToStock() in OrdersService; new route in controller
-Tests: Authorization, validation, full/partial return, idempotency, concurrency
-Affected backend: orders.service.ts, shipment-operations.controller.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-002
-Requirement: settleStockForStatus() nets RETURN in outstanding calculation
-Implementation: Add RETURN to netting: outstanding = RESERVE - RELEASE - SALE - RETURN
-Tests: Cancel after full return, cancel after partial return, cancel without return
-Affected backend: orders.service.ts settleStockForStatus()
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-003
-Requirement: LOST creates no inventory movements
-Implementation: returnToStock() checks exceptionType; if LOST → 400 "LOST returns not supported"
-Tests: LOST return rejected; LOST RTS completion has no inventory effect
-Affected backend: orders.service.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-004
-Requirement: Condition required, 4-value vocabulary, per-item
-Implementation: Validation in returnToStock(); stored in stock_movements.metadata
-Tests: Missing condition → 400; invalid condition → 400; mixed conditions → OK
-Affected backend: orders.service.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-005
-Requirement: Warehouse traced from RESERVE movement
-Implementation: Query stock_movements for RESERVE by orderId; resolve inventory_item_id
-Tests: Correct warehouse; multi-warehouse order; no RESERVE found → error
-Affected backend: orders.service.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-006
-Requirement: Partial return at item level
-Implementation: Accept items[] array; validate each independently
-Tests: Partial return; multiple partial returns; over-return prevention
-Affected backend: orders.service.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-007
-Requirement: Return event + outbox event
-Implementation: RETURN_TO_STOCK shipment event; shipment.return_to_stock outbox
-Tests: Event exists after return; outbox payload correct; atomic with TX
-Affected backend: orders.service.ts
-Migration: NONE
-Blocking: NO — resolved
-
-C-C0-008
-Requirement: Cancellation nets RETURN in settlement
-Implementation: Extend settleStockForStatus() netting to include RETURN type
-Tests: Full return then cancel → RELEASE=0; partial return then cancel → RELEASE=remainder
-Affected backend: orders.service.ts settleStockForStatus()
-Migration: NONE
-Blocking: NO — resolved
+BCF resolved: 8/8   (BCF-001 … BCF-008)
+ACF resolved: 12/12 (ACF-001 … ACF-012)
+Migration:    NONE
+Inventory-inflation premise: REVOKED and corrected
 ```
+
+Every blocking business and architecture decision is explicitly resolved with repository-verified semantics; no TBDs remain.
+
+```text
+M7.3-C BUSINESS RULES + ARCHITECTURE DECISION LOCK
+STATUS: LOCKED
+
+Implementation: AUTHORIZED
+```
+
+Authorization to *begin implementation* is granted **to the next phase only**. This document itself contains **no** code, test, migration, endpoint, or UI change.
 
 ---
 
-## 35. Out-of-Scope Enforcement
+## 33. Next Gate
 
 ```text
-The following are explicitly verified as NOT implemented:
-
-| Check | Enforcement |
-|-------|-------------|
-| No order FSM changes | TRANSITIONS map unchanged |
-| No master-order FSM changes | recalculateMasterOrderStatus not called |
-| No new exception FSM state | EXCEPTION_TRANSITIONS unchanged |
-| No migration | No new file in infra/drizzle/migrations/ |
-| No financial refund | No refund tables, no refund logic |
-| No carrier interaction | No carrier API calls in return flow |
-| No buyer return | No buyer authorization for return endpoint |
-| No notification expansion | No new notification templates |
-| No photo evidence | No image/file upload |
-| No automatic redelivery | No worker or scheduled task |
-| No RMA workflow | No return authorization table |
-```
-
----
-
-## 36. Final Lock Decision
-
-```text
-========================================
-SCS-M7.3-C BUSINESS RULES + ARCHITECTURE LOCK
-========================================
-
-Status: LOCKED
-
-Open Business Decisions: 0
-Open Blocking Architecture Decisions: 0
-Implementation Conditions: ALL RESOLVED (8/8)
-
-Business decisions locked: 8
-  BD-C0-001 through BD-C0-008
-
-Architecture decisions locked: 3
-  ADR-C0-001 through ADR-C0-003
-
-Production Code Modified: NO
-Frontend Code Modified: NO
-Tests Modified: NO
-Migrations Added: NO
-Schema Modified: NO
-Implementation Started: NO
-
-IMPLEMENTATION AUTHORIZATION:
-GRANTED
-
-NEXT STAGE:
 M7.3-C IMPLEMENTATION
-========================================
 ```
+
+Implementation must follow §29 (CI-01…CI-12) and be gated by the §27 testing contract, then proceed to independent runtime verification and release closure per the four-gate sequence. No runtime verification, matrix update, or M7.3-D work begins from this lock.
+
+---
+
+*End of M7.3-C Business Rules + Architecture Decision Lock. Baseline `229949f`; working tree clean; supersedes the B.5-based lock; no production code, tests, migrations, endpoints, or UI modified in this phase.*

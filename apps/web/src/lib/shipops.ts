@@ -110,6 +110,63 @@ export const retryShipment = (id: string) => req(`shipments/${encodeURIComponent
 export const requestRTS = (id: string, notes?: string) => req(`shipments/${encodeURIComponent(id)}/rts`, jsonInit('POST', { notes }));
 export const completeRTS = (id: string, notes?: string) => req(`shipments/${encodeURIComponent(id)}/rts/complete`, jsonInit('POST', { notes }));
 
+// ── M7.3-C: inventory return-to-stock (RTS physical return) ───
+
+export interface ReturnEligibilityLine {
+  orderItemId: string;
+  variantId: string;
+  sku: string;
+  title: string;
+  orderedQuantity: number;
+  inventoryItemId: string;
+  warehouseId: string | null;
+  reservedQuantity: number;
+  returnedQuantity: number;
+  remainingQuantity: number;
+}
+
+export interface ReturnEligibility {
+  shipmentId: string;
+  orderId: string;
+  storeId: string;
+  exceptionStatus: string | null;
+  exceptionType: string | null;
+  orderStatus: string | null;
+  eligible: boolean;
+  lines: ReturnEligibilityLine[];
+}
+
+export interface ReturnResultLine {
+  orderItemId: string;
+  inventoryItemId: string;
+  warehouseId: string | null;
+  quantity: number;
+  condition: string;
+  writtenOff: boolean;
+}
+
+export interface ReturnResult {
+  shipmentId: string;
+  orderId: string;
+  idempotent: boolean;
+  linesReturned: ReturnResultLine[];
+  returnEventId: string;
+}
+
+/** The locked M7.3-C return-condition vocabulary. */
+export const RETURN_CONDITIONS = ['GOOD', 'DAMAGED', 'DEFECTIVE', 'UNSALEABLE'] as const;
+
+export function getReturnEligibility(id: string): Promise<ReturnEligibility> {
+  return req(`shipments/${encodeURIComponent(id)}/return-eligibility`);
+}
+
+export function recordReturn(
+  id: string,
+  lines: Array<{ orderItemId: string; quantity: number; condition: string }>,
+): Promise<ReturnResult> {
+  return req(`shipments/${encodeURIComponent(id)}/return`, jsonInit('POST', { lines }));
+}
+
 /** The 8 canonical delivery exception types. */
 export const EXCEPTION_TYPES = [
   'RECIPIENT_UNAVAILABLE', 'WRONG_ADDRESS', 'RECIPIENT_REFUSED', 'PAYMENT_FAILED',
