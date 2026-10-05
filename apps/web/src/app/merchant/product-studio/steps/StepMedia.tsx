@@ -6,6 +6,10 @@ import { StepCard, Field } from './StepIdentity';
 interface StepMediaProps {
   state: StudioState;
   setState: React.Dispatch<React.SetStateAction<StudioState>>;
+  /** PHASE 4 P6 — Edit mode for media management. */
+  editMode?: boolean;
+  productId?: string;
+  existingMedia?: Array<{ id: string; url: string; displayUrl?: string | null; altText: string | null; sortOrder: number; mediaType: string }>;
 }
 
 export default function StepMedia({ state, setState }: StepMediaProps) {

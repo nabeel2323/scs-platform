@@ -138,9 +138,9 @@ describe('RV-1: Fresh Migration Verification', () => {
     expect(rows.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('0054 migration does NOT exist', async () => {
+  it('0054 migration exists (P6 remediation — store_members)', async () => {
     const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0054'));
-    expect(files).toHaveLength(0);
+    expect(files).toHaveLength(1);
   });
 });
 

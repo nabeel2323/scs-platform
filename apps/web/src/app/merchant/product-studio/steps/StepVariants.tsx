@@ -11,15 +11,56 @@ interface StepVariantsProps {
   setState: React.Dispatch<React.SetStateAction<StudioState>>;
   existingVariants?: ProductVariant[];
   onLoadExistingVariants?: (productId: string) => Promise<ProductVariant[]>;
+  /** PHASE 4 P6 — Edit mode shows existing variants with edit capability. */
+  editMode?: boolean;
+  productId?: string;
+  variantAttributeValues?: Record<string, Record<string, string>>;
 }
 
-export default function StepVariants({ state, setState, existingVariants = [], onLoadExistingVariants }: StepVariantsProps) {
+export default function StepVariants({ state, setState, existingVariants = [], onLoadExistingVariants, editMode, variantAttributeValues }: StepVariantsProps) {
   // When an existing canonical product is selected, load its variants
   useEffect(() => {
     if (state.useExistingProductId && onLoadExistingVariants) {
       onLoadExistingVariants(state.useExistingProductId);
     }
   }, [state.useExistingProductId, onLoadExistingVariants]);
+
+  // ── Edit mode: show existing variants with details ─────────────
+  if (editMode) {
+    return (
+      <StepCard title="Product Variants" subtitle={`This product has ${existingVariants.length} variant(s). You can view their details here.`}>
+        {existingVariants.length === 0 ? (
+          <div style={{ padding: 16, background: '#f7f9fa', borderRadius: 6, textAlign: 'center', color: '#5b6b74' }}>
+            This product has no variants yet.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {existingVariants.map(v => (
+              <div key={v.id} style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 16px', borderRadius: 8, border: '1px solid #e5ecf0', background: '#fff',
+              }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#16232b', fontFamily: 'monospace' }}>{v.sku}</div>
+                  <div style={{ fontSize: 12, color: '#5b6b74' }}>{v.title || 'Untitled variant'}</div>
+                  {v.barcode && <div style={{ fontSize: 11, color: '#5b6b74' }}>Barcode: {v.barcode}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
+                    background: v.isActive ? '#dcfce7' : '#fef2f2',
+                    color: v.isActive ? '#166534' : '#991b1b',
+                  }}>
+                    {v.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </StepCard>
+    );
+  }
 
   // ── Existing product: show variant selector ─────────────────────
   if (state.useExistingProductId) {

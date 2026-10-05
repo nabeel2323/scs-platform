@@ -74,7 +74,15 @@ export interface Product {
   images: unknown[];
   attributes: Record<string, unknown>;
   productTypeId?: string | null;
+  /** PHASE 4 P2 — GTIN identifier */
+  gtin?: string | null;
+  /** PHASE 4 P2 — EAN identifier */
+  ean?: string | null;
+  /** PHASE 4 P2 — MPN identifier */
+  mpn?: string | null;
   createdAt: string;
+  /** PHASE 4 P1 — Optimistic locking timestamp */
+  updatedAt?: string;
   /**
    * Listing-card enrichment (A5-2), present on search results and on a store's
    * product grid: the seller and the cheapest variant price at this product's
@@ -102,7 +110,11 @@ export interface ProductVariant {
   titleAr: string | null;
   unit: string;
   weightGrams: number | null;
+  dimensionsMm?: Record<string, unknown> | null;
   isActive: boolean;
+  combinationKey?: string | null;
+  /** PHASE 4 P1 — Optimistic locking timestamp */
+  updatedAt?: string;
   priceMinor?: number;
   minQty?: number;
   /** Effective tier pricing for this variant, present on product detail (A5-1). */
@@ -1089,6 +1101,10 @@ export interface CreateVariantInput {
   dimensionsMm?: Record<string, unknown>;
   attributes?: Record<string, unknown>;
   images?: string[];
+  /** PHASE 4 P6 — Activate/deactivate variant */
+  isActive?: boolean;
+  /** PHASE 4 P1 — Optimistic locking timestamp (for updates) */
+  updatedAt?: string;
 }
 
 export interface AddMediaInput {
@@ -1961,6 +1977,61 @@ export async function upsertProductAttributeValues(
     body: JSON.stringify({ values }),
   });
   if (!res.ok) throw await ApiError.from(res, `Upsert attribute values failed (${res.status})`);
+  return res.json();
+}
+
+/** PHASE 4 P6 — Fetch PRODUCT-scope typed attribute values for edit mode. */
+export interface TypedAttributeValue {
+  id: string;
+  productId: string;
+  attributeDefinitionId: string;
+  valueText: string | null;
+  valueNumber: number | null;
+  valueBoolean: boolean | null;
+  optionValue: string | null;
+  valueJson: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchProductAttributeValues(productId: string): Promise<TypedAttributeValue[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/attribute-values`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch product attributes failed (${res.status})`);
+  return res.json();
+}
+
+/** PHASE 4 P6 — Fetch VARIANT-scope typed attribute values for edit mode. */
+export interface TypedVariantAttributeValue {
+  id: string;
+  variantId: string;
+  attributeDefinitionId: string;
+  valueText: string | null;
+  valueNumber: number | null;
+  valueBoolean: boolean | null;
+  optionValue: string | null;
+  valueJson: unknown;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchVariantAttributeValues(productId: string, variantId: string): Promise<TypedVariantAttributeValue[]> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch variant attributes failed (${res.status})`);
+  return res.json();
+}
+
+/** PHASE 4 P6 — Replace VARIANT-scope typed attribute values. */
+export async function upsertVariantAttributeValues(
+  productId: string,
+  variantId: string,
+  values: Array<{ attributeDefinitionId: string; valueText?: string; valueNumber?: number; valueBoolean?: boolean; optionValue?: string }>,
+): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/products/${productId}/variants/${variantId}/attribute-values`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Upsert variant attribute values failed (${res.status})`);
   return res.json();
 }
 

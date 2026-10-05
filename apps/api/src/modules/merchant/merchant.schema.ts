@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, char, text, boolean, bigint, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, char, text, boolean, bigint, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { organizations, users } from '../identity/identity.schema';
 
 /**
@@ -80,3 +80,33 @@ export const verificationRequests = pgTable('verification_requests', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Store members (migration 0054_store_members) — explicit user-to-store
+ * membership for Product Studio authorization.  A merchant must be an ACTIVE
+ * member of a product's owning store to edit canonical data through the
+ * Merchant Product Studio.
+ *
+ * Roles:  OWNER | ADMIN | MEMBER
+ * Status: ACTIVE | INACTIVE
+ */
+export const storeMembers = pgTable('store_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  role: varchar('role', { length: 16 }).notNull().default('MEMBER'),
+  status: varchar('status', { length: 12 }).notNull().default('ACTIVE'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  uqStoreMembersStoreUser: uniqueIndex('uq_store_members_store_user')
+    .on(table.storeId, table.userId),
+  idxStoreMembersStore: index('idx_store_members_store')
+    .on(table.storeId),
+  idxStoreMembersUser: index('idx_store_members_user')
+    .on(table.userId),
+}));

@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
-import { stores, warehouses } from '../modules/merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
 import { products, productVariants } from '../modules/catalog/catalog.schema';
 import { inventoryItems } from '../modules/inventory/inventory.schema';
 
@@ -139,6 +139,71 @@ export async function assertOrderAccessible(
   throw new ForbiddenException('You do not have access to this order');
 }
 
+/**
+ * Store-level membership check (migration 0054).
+ *
+ * Verifies that the caller is an ACTIVE member of the specified store.
+ * Privileged roles (SUPER_ADMIN, ADMIN, MODERATOR) bypass this check.
+ *
+ * This helper is ADDITIVE to the existing org-level checks — it does NOT
+ * replace assertStoreInOrg / assertProductInOrg.  Product Studio endpoints
+ * call BOTH: first the org-level check, then this store-level check.
+ *
+ * @throws ForbiddenException if the caller is not an ACTIVE store member
+ */
+export async function assertStoreMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  storeId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const membership = await db.db.query.storeMembers.findFirst({
+    where: and(
+      eq(storeMembers.storeId, storeId),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ),
+    columns: { id: true },
+  });
+
+  if (!membership) {
+    throw new ForbiddenException('You are not authorized for this store');
+  }
+}
+
+/**
+ * Product Studio convenience helper — combines existing org-level check
+ * with store-level membership authorization.
+ *
+ * Flow:
+ *   1. Load product → get storeId
+ *   2. Verify store belongs to caller's org (existing assertProductInOrg)
+ *   3. Verify caller is ACTIVE member of that store (assertStoreMember)
+ *
+ * Privileged roles bypass both checks via isTenantPrivileged.
+ */
+export async function assertProductEditableByMerchant(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  // Load product to get storeId
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this product');
+
+  // Org-level check (preserved)
+  await assertStoreInOrg(db, caller, product.storeId);
+
+  // Store-level membership check (new)
+  await assertStoreMember(db, caller, product.storeId);
+}
 /**
  * Master-order access: the buyer owns it, the caller's org owns one of the
  * sub-order stores, or the caller is platform staff.
