@@ -120,8 +120,8 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     // ── Instantiate services ──────────────────────────────────────
     database = { db } as DatabaseService;
     const conditionalRules = new ConditionalRulesService();
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules);
     taxonomy = new CatalogTaxonomyService(database);
+    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy);
     offerService = new CatalogOfferService(database, audit);
     searchService = new SearchService(database, storage, redis as any);
     promotionsService = new PromotionsService(database);

@@ -82,6 +82,30 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
           return Promise.resolve();
         },
       }),
+      select: () => ({
+        from: (table: any) => ({
+          where: (condition: any) => ({
+            for: (mode: string) => {
+              // Return the product/variant mock if configured, else empty (not found)
+              const row = queries.products?.findFirst ?? queries.productVariants?.findFirst;
+              return Promise.resolve(row ? [row] : []);
+            },
+          }),
+        }),
+      }),
+      // PHASE 3: transaction wrapper — executes callback with the same mock surface
+      transaction: async (fn: (tx: any) => Promise<any>) => {
+        const tx = {
+          query: {
+            attributeDefinitions: q(queries.attributeDefinitions),
+          },
+          select: db.db.select,
+          insert: db.db.insert,
+          update: db.db.update,
+          delete: db.db.delete,
+        };
+        return fn(tx);
+      },
     },
   };
 

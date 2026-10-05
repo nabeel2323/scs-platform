@@ -38,7 +38,7 @@ export type CatalogImportType =
   | 'ATTRIBUTES'
   | 'PRODUCT_TYPES';
 
-export type ImportErrorSeverity = 'ERROR' | 'WARNING';
+export type ImportErrorSeverity = 'ERROR' | 'WARNING' | 'DEPENDENCY';
 
 export const catalogImports = pgTable('catalog_imports', {
   id: uuid('id').primaryKey(),
@@ -54,9 +54,12 @@ export const catalogImports = pgTable('catalog_imports', {
   updatedRows: integer('updated_rows').notNull().default(0),
   unchangedRows: integer('unchanged_rows').notNull().default(0),
   rejectedRows: integer('rejected_rows').notNull().default(0),
+  skippedRows: integer('skipped_rows').notNull().default(0),
   errorCount: integer('error_count').notNull().default(0),
   warningCount: integer('warning_count').notNull().default(0),
   stats: jsonb('stats').notNull().default({}),
+  planSnapshot: jsonb('plan_snapshot'),
+  refsSnapshot: jsonb('refs_snapshot'),
   uploadedBy: uuid('uploaded_by')
     .notNull()
     .references(() => users.id),
@@ -80,6 +83,11 @@ export const catalogImportErrors = pgTable('catalog_import_errors', {
   errorMessage: text('error_message'),
   rawValue: text('raw_value'),
   suggestedFix: text('suggested_fix'),
-  severity: varchar('severity', { length: 10 }).notNull().default('ERROR'),
+  severity: varchar('severity', { length: 12 }).notNull().default('ERROR'),
+  dependency: varchar('dependency', { length: 200 }),
+  rootErrorId: uuid('root_error_id'),
+  normalizedValue: text('normalized_value'),
+  expected: varchar('expected', { length: 500 }),
+  actual: varchar('actual', { length: 500 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

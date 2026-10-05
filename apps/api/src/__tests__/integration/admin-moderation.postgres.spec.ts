@@ -11,6 +11,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { adminTables, AdminTable, listAdminTable } from '../../modules/admin/admin-tables';
 import { AdminService } from '../../modules/admin/admin.service';
 import { CatalogService } from '../../modules/catalog/catalog.service';
+import { CatalogTaxonomyService } from '../../modules/catalog/catalog.taxonomy.service';
 import { MerchantService } from '../../modules/merchant/merchant.service';
 import { products, productMedia, productVariants, categories, brands } from '../../modules/catalog/catalog.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
@@ -46,7 +47,7 @@ describe('admin moderation on PostgreSQL', () => {
     const database = { db } as DatabaseService;
     merchant = new MerchantService(database, { publish: vi.fn() } as any, storage as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any);
-    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any);
+    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, new CatalogTaxonomyService(database));
     await db.insert(organizations).values({ id: orgId, name: 'Fixture organization', type: 'WHOLESALER', country: 'SA' });
     await db.insert(users).values({ id: actorId, fullName: 'Reviewer', phone: '+19999999999' });
     await db.insert(roles).values({ id: roleId, key: 'TEST_MEMBER', name: 'Test member' });

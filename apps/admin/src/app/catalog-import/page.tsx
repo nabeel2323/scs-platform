@@ -7,6 +7,7 @@ import {
   fetchCatalogImports,
   fetchCatalogImportPreview,
   executeCatalogImport,
+  retryCatalogImport,
   fetchCatalogImportErrors,
   downloadCatalogTemplate,
   downloadCatalogImportReport,
@@ -57,7 +58,8 @@ export default function CatalogImportPage() {
   const [preview, setPreview] = useState<CatalogImportPreview | null>(null);
   const [importErrors, setImportErrors] = useState<CatalogImportError[]>([]);
   const [executionResult, setExecutionResult] = useState<{
-    created: number; updated: number; unchanged: number; rejected: number; errors: string[];
+    created: number; updated: number; unchanged: number; rejected: number; skipped?: number;
+    errors: string[]; entityBreakdown?: Record<string, any>; structuredErrors?: any[];
   } | null>(null);
   const [overrides, setOverrides] = useState<ImportOverrides>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +142,20 @@ export default function CatalogImportPage() {
     }
   };
 
+  const handleRetryImport = async (importId: string) => {
+    setError('');
+    setStage('executing');
+    try {
+      const result = await retryCatalogImport(importId);
+      setExecutionResult(result);
+      setStage('result');
+      loadImports();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Retry failed');
+      setStage('dashboard');
+    }
+  };
+
   const handleBackToDashboard = () => {
     setStage('dashboard');
     setCurrentImport(null);
@@ -177,6 +193,7 @@ export default function CatalogImportPage() {
             onDownloadTemplate={downloadCatalogTemplate}
             onExportCatalog={exportCatalog}
             importErrors={importErrors}
+            onRetryImport={handleRetryImport}
           />
         )}
         {stage === 'uploading' && <UploadingStage />}
@@ -202,7 +219,7 @@ export default function CatalogImportPage() {
 
 // ── Dashboard Stage ─────────────────────────────────────────────
 
-function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefresh, onViewErrors, onDownloadReport, onDownloadTemplate, onExportCatalog, importErrors }: {
+function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefresh, onViewErrors, onDownloadReport, onDownloadTemplate, onExportCatalog, importErrors, onRetryImport }: {
   imports: CatalogImport[];
   loading: boolean;
   fileInputRef: React.RefObject<HTMLInputElement>;
@@ -213,6 +230,7 @@ function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefres
   onDownloadTemplate: (type: string) => void;
   onExportCatalog: () => void;
   importErrors: CatalogImportError[];
+  onRetryImport: (id: string) => void;
 }) {
   return (
     <>
@@ -271,21 +289,23 @@ function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefres
                   <th style={thStyle}>Field</th>
                   <th style={thStyle}>Message</th>
                   <th style={thStyle}>Severity</th>
+                  <th style={thStyle}>Dependency</th>
                 </tr>
               </thead>
               <tbody>
                 {importErrors.slice(0, 50).map((e, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #fee2e2' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #fee2e2', background: e.severity === 'DEPENDENCY' ? '#fffbeb' : undefined }}>
                     <td style={tdStyle}>{e.sheet}</td>
                     <td style={tdStyle}>{e.rowNumber}</td>
                     <td style={tdStyle}>{e.entityType}</td>
                     <td style={tdStyle}>{e.field}</td>
                     <td style={tdStyle}>{e.errorMessage}</td>
                     <td style={tdStyle}>
-                      <span style={{ padding: '2px 8px', borderRadius: radii.sm, fontSize: 11, background: e.severity === 'ERROR' ? '#fee2e2' : '#fef3c7', color: e.severity === 'ERROR' ? '#991b1b' : '#92400e' }}>
-                        {e.severity}
+                      <span style={{ padding: '2px 8px', borderRadius: radii.sm, fontSize: 11, background: e.severity === 'ERROR' ? '#fee2e2' : e.severity === 'DEPENDENCY' ? '#fef3c7' : '#e0e7ff', color: e.severity === 'ERROR' ? '#991b1b' : e.severity === 'DEPENDENCY' ? '#92400e' : '#3730a3' }}>
+                        {e.severity === 'DEPENDENCY' ? 'DEPENDENCY' : e.severity}
                       </span>
                     </td>
+                    <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11, color: '#6b7280' }}>{e.dependency || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -340,6 +360,9 @@ function DashboardStage({ imports, loading, fileInputRef, onFileSelect, onRefres
                       )}
                       {(imp.status === 'COMPLETED' || imp.status === 'COMPLETED_WITH_ERRORS') && (
                         <button onClick={() => onDownloadReport(imp.id)} style={btnSmall}>Report</button>
+                      )}
+                      {(imp.status === 'COMPLETED_WITH_ERRORS' || imp.status === 'FAILED') && (
+                        <button onClick={() => onRetryImport(imp.id)} style={{...btnSmall, color: '#92400e', borderColor: '#fde68a'}}>Retry</button>
                       )}
                     </td>
                   </tr>
@@ -554,29 +577,105 @@ function ExecutingStage() {
 // ── Result Stage ────────────────────────────────────────────────
 
 function ResultStage({ result, onBack }: {
-  result: { created: number; updated: number; unchanged: number; rejected: number; errors: string[] };
+  result: { created: number; updated: number; unchanged: number; rejected: number; skipped?: number; errors: string[]; entityBreakdown?: Record<string, any>; structuredErrors?: any[] };
   onBack: () => void;
 }) {
+  const hasIssues = result.rejected > 0 || (result.skipped ?? 0) > 0;
+  const rootErrors = (result.structuredErrors ?? []).filter((e: any) => e.classification === 'ROOT_ERROR');
+  const depErrors = (result.structuredErrors ?? []).filter((e: any) => e.classification === 'DEPENDENCY_ERROR');
+
   return (
     <>
-      <div style={{ padding: '40px 24px', textAlign: 'center', marginBottom: 24, background: result.rejected > 0 ? '#fffbeb' : '#f0fdf4', border: `1px solid ${result.rejected > 0 ? '#fde68a' : '#bbf7d0'}`, borderRadius: radii.lg }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>{result.rejected > 0 ? '⚠️' : '✅'}</div>
+      <div style={{ padding: '40px 24px', textAlign: 'center', marginBottom: 24, background: hasIssues ? '#fffbeb' : '#f0fdf4', border: `1px solid ${hasIssues ? '#fde68a' : '#bbf7d0'}`, borderRadius: radii.lg }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>{hasIssues ? '⚠️' : '✅'}</div>
         <div style={{ ...typeScale.h2, color: colors.ink, marginBottom: 8 }}>
-          Import {result.rejected > 0 ? 'Completed with Issues' : 'Successful'}
+          Import {hasIssues ? 'Completed with Issues' : 'Successful'}
         </div>
         <div style={{ ...typeScale.bodySm, color: colors.muted }}>
           {result.created + result.updated + result.unchanged} rows processed
+          {(result.skipped ?? 0) > 0 && ` · ${result.skipped} skipped (dependency errors)`}
         </div>
+        {rootErrors.length > 0 && (
+          <div style={{ ...typeScale.bodySm, color: '#991b1b', marginTop: 8 }}>
+            {rootErrors.length} root cause{rootErrors.length !== 1 ? 's' : ''}
+            {depErrors.length > 0 && ` · ${depErrors.length} dependent record${depErrors.length !== 1 ? 's' : ''} skipped`}
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
         <SummaryCard label="Created" value={result.created} color="#059669" bg="#d1fae5" />
         <SummaryCard label="Updated" value={result.updated} color="#2563eb" bg="#dbeafe" />
         <SummaryCard label="Unchanged" value={result.unchanged} color="#6b7280" bg="#f3f4f6" />
         <SummaryCard label="Rejected" value={result.rejected} color="#dc2626" bg="#fee2e2" />
+        <SummaryCard label="Skipped" value={result.skipped ?? 0} color="#92400e" bg="#fef3c7" />
       </div>
 
-      {result.errors.length > 0 && (
+      {/* Entity breakdown */}
+      {result.entityBreakdown && Object.keys(result.entityBreakdown).length > 0 && (
+        <div style={{ marginBottom: 24, padding: 16, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md }}>
+          <div style={{ ...typeScale.h4, color: colors.ink, marginBottom: 12 }}>Entity Breakdown</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', ...typeScale.bodySm }}>
+              <thead>
+                <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
+                  <th style={thStyle}>Entity Type</th>
+                  <th style={{...thStyle, textAlign:'right'}}>Created</th>
+                  <th style={{...thStyle, textAlign:'right'}}>Updated</th>
+                  <th style={{...thStyle, textAlign:'right'}}>Unchanged</th>
+                  <th style={{...thStyle, textAlign:'right'}}>Rejected</th>
+                  <th style={{...thStyle, textAlign:'right'}}>Skipped</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(result.entityBreakdown).map(([type, counts]) => (
+                  <tr key={type} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                    <td style={tdStyle}>{type}</td>
+                    <td style={{...tdStyle, textAlign:'right'}}>{(counts as any).created}</td>
+                    <td style={{...tdStyle, textAlign:'right'}}>{(counts as any).updated}</td>
+                    <td style={{...tdStyle, textAlign:'right'}}>{(counts as any).unchanged}</td>
+                    <td style={{...tdStyle, textAlign:'right', color: (counts as any).rejected > 0 ? '#dc2626' : undefined}}>{(counts as any).rejected}</td>
+                    <td style={{...tdStyle, textAlign:'right', color: (counts as any).skipped > 0 ? '#92400e' : undefined}}>{(counts as any).skipped}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Root errors — visually prominent */}
+      {rootErrors.length > 0 && (
+        <div style={{ marginBottom: 16, padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md }}>
+          <div style={{ ...typeScale.h4, color: '#991b1b', marginBottom: 8 }}>Root Errors ({rootErrors.length})</div>
+          {rootErrors.map((e: any, i: number) => (
+            <div key={i} style={{ ...typeScale.bodySm, color: '#991b1b', padding: '6px 0', borderBottom: i < rootErrors.length - 1 ? '1px solid #fecaca' : undefined }}>
+              <strong>[{e.entityType}]</strong> {e.externalKey}: {e.errorMessage}
+              {e.field && <span style={{ color: '#6b7280' }}> (field: {e.field})</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dependency errors — grouped/collapsed */}
+      {depErrors.length > 0 && (
+        <div style={{ marginBottom: 16, padding: 16, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: radii.md }}>
+          <div style={{ ...typeScale.h4, color: '#92400e', marginBottom: 8 }}>Dependent Records Skipped ({depErrors.length})</div>
+          {depErrors.slice(0, 20).map((e: any, i: number) => (
+            <div key={i} style={{ ...typeScale.bodySm, color: '#92400e', padding: '3px 0' }}>
+              {e.entityType} "{e.externalKey}" — depends on {e.dependency}
+            </div>
+          ))}
+          {depErrors.length > 20 && (
+            <div style={{ ...typeScale.bodySm, color: '#92400e', padding: '3px 0', fontStyle: 'italic' }}>
+              …and {depErrors.length - 20} more
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Legacy string errors (fallback) */}
+      {!result.structuredErrors?.length && result.errors.length > 0 && (
         <div style={{ marginBottom: 24, padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.md }}>
           <div style={{ ...typeScale.h4, color: '#991b1b', marginBottom: 8 }}>Execution Errors</div>
           {result.errors.map((e, i) => (

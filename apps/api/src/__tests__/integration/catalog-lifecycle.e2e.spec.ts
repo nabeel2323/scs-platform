@@ -123,8 +123,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     // ── Instantiate services ────────────────────────────────────────
     database = { db } as DatabaseService;
     conditionalRules = new ConditionalRulesService();
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules);
     taxonomy = new CatalogTaxonomyService(database);
+    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy);
     offerService = new CatalogOfferService(database, audit);
     requestsService = new CatalogRequestsService(database, catalog, taxonomy);
     search = new SearchService(database, storage, redis as any);

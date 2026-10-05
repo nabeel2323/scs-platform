@@ -5,6 +5,7 @@ import {
   text,
   boolean,
   integer,
+  numeric,
   bigint,
   jsonb,
   timestamp,
@@ -81,6 +82,7 @@ export const products = pgTable('products', {
   isAvailable: boolean('is_available').notNull().default(false),
   moq: integer('moq').notNull().default(1),
   images: jsonb('images').notNull().default([]),
+  /** @deprecated PHASE 3 — JSONB attributes is LEGACY. Authoritative storage is product_attribute_values. Column retained for backward compat; do NOT read or write. */
   attributes: jsonb('attributes').notNull().default({}),
   metadata: jsonb('metadata').notNull().default({}),
   publishedAt: timestamp('published_at', { withTimezone: true }),
@@ -99,8 +101,9 @@ export const productVariants = pgTable('product_variants', {
   title: varchar('title', { length: 300 }),
   titleAr: varchar('title_ar', { length: 300 }),
   unit: varchar('unit', { length: 30 }).notNull().default('PCS'),
-  weightGrams: integer('weight_grams'),
+  weightGrams: numeric('weight_grams', { precision: 10, scale: 2 }),
   dimensionsMm: jsonb('dimensions_mm').default({}),
+  /** @deprecated PHASE 3 — JSONB attributes is LEGACY. Authoritative storage is variant_attribute_values. Column retained for backward compat; do NOT read or write. */
   attributes: jsonb('attributes').notNull().default({}),
   images: jsonb('images').notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),

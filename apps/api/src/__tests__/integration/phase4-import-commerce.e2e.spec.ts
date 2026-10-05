@@ -183,8 +183,8 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     // ── Instantiate services ──────────────────────────────────────
     database = { db } as DatabaseService;
     const conditionalRules = new ConditionalRulesService();
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules);
     taxonomy = new CatalogTaxonomyService(database);
+    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy);
     offerService = new CatalogOfferService(database, audit);
     const promotionsService = new PromotionsService(database);
     cartService = new CartService(database, promotionsService);

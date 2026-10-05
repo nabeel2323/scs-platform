@@ -20,7 +20,7 @@ import {
 import { enrichProductCards } from './product-card';
 import { imageReferences } from './product-images';
 import { createMediaRefResolver } from './product-card';
-import { productAttributeValues, attributeDefinitions, productTypeAttributes, productTypes, attributeOptions } from './catalog.taxonomy.schema';
+import { productAttributeValues, variantAttributeValues, attributeDefinitions, productTypeAttributes, productTypes, attributeOptions } from './catalog.taxonomy.schema';
 import { organizations } from '../identity/identity.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists, priceTiers } from '../pricing/pricing.schema';
@@ -37,6 +37,7 @@ import {
   type ConditionalRule,
   type AttributeValueMap,
 } from './conditional-rules.service';
+import { CatalogTaxonomyService } from './catalog.taxonomy.service';
 
 /**
  * BFS across the platform category rows to collect every descendant of
@@ -77,6 +78,7 @@ export class CatalogService {
     private readonly storage: StorageService,
     private readonly audit: AuditService,
     private readonly conditionalRules: ConditionalRulesService,
+    private readonly taxonomyService: CatalogTaxonomyService,
   ) {
     // Shared with card enrichment so every surface renders media the same way.
     this.resolveMediaRef = createMediaRefResolver(storage);
@@ -771,6 +773,8 @@ export class CatalogService {
       gtin: input.gtin || null,
       ean: input.ean || null,
       mpn: input.mpn || null,
+      // PHASE 4 P1: Explicit ms-precision updatedAt for optimistic locking round-trip fidelity.
+      updatedAt: new Date(),
     });
 
     // PHASE 9: Audit — product created
@@ -1311,7 +1315,32 @@ export class CatalogService {
     return { valid: true };
   }
 
-  async updateProduct(id: string, input: UpdateProductInput) {
+  // ── PHASE 4 P2 helpers ──────────────────────────────────────
+
+  /** Normalize an identifier: trim whitespace, empty → null. */
+  private normalizeIdentifier(value: string | null | undefined): string | null {
+    if (value == null) return value as null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+
+  /** Check whether a GTIN or EAN already exists on ANOTHER product (excluding self). */
+  private async checkIdentifierUniqueness(
+    field: typeof products.gtin | typeof products.ean,
+    value: string,
+    excludeProductId: string,
+    label: string,
+  ): Promise<void> {
+    const existing = await this.db.db.query.products.findFirst({
+      where: and(eq(field, value), isNull(products.deletedAt)),
+      columns: { id: true },
+    });
+    if (existing && existing.id !== excludeProductId) {
+      throw new BadRequestException(`${label} already exists on another product`);
+    }
+  }
+
+  async updateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
     const product = await this.getProduct(id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -1324,30 +1353,201 @@ export class CatalogService {
       if (input.status === 'ACTIVE') updates['publishedAt'] = new Date();
     }
     if (input.condition !== undefined) updates['condition'] = input.condition;
-    // REMOVED: isAvailable, moq, attributes — these are now offer-owned fields.
-    // Merchants must use the Merchant Offer workflow (merchantOffers) for pricing,
-    // MOQ, availability, and typed attributes (productAttributeValues).
     if (input.images !== undefined) updates['images'] = input.images;
     if (input.categoryId !== undefined) updates['categoryId'] = input.categoryId;
     if (input.brandId !== undefined) updates['brandId'] = input.brandId;
     if (input.slug !== undefined) updates['slug'] = input.slug;
     if (input.metadata !== undefined) updates['metadata'] = input.metadata;
 
+    // ── PHASE 4 P2: Identifier normalization + uniqueness ──
+    if (input.gtin !== undefined) {
+      const normalized = this.normalizeIdentifier(input.gtin);
+      updates['gtin'] = normalized;
+      if (normalized !== null) {
+        await this.checkIdentifierUniqueness(products.gtin, normalized, id, 'GTIN');
+      }
+    }
+    if (input.ean !== undefined) {
+      const normalized = this.normalizeIdentifier(input.ean);
+      updates['ean'] = normalized;
+      if (normalized !== null) {
+        await this.checkIdentifierUniqueness(products.ean, normalized, id, 'EAN');
+      }
+    }
+    if (input.mpn !== undefined) {
+      updates['mpn'] = this.normalizeIdentifier(input.mpn);
+    }
+
+    // ── PHASE 4 P2: Product type change detection ──
+    const currentProductTypeId = (product['productTypeId'] as string | null) ?? null;
+    const isProductTypeChanging =
+      input.productTypeId !== undefined &&
+      (input.productTypeId ?? null) !== currentProductTypeId;
+
+    if (isProductTypeChanging) {
+      const newPtId = input.productTypeId ?? null;
+      // Validate target product type exists (if non-null)
+      if (newPtId !== null) {
+        const pt = await this.db.db.query.productTypes.findFirst({
+          where: eq(productTypes.id, newPtId),
+          columns: { id: true },
+        });
+        if (!pt) throw new NotFoundException('Product type not found');
+      }
+      updates['productTypeId'] = newPtId;
+    }
+
     // Validate attribute completeness before publishing
     if (input.status === 'ACTIVE') {
       await this.validatePublish(id);
     }
 
-    await this.db.db.update(products).set(updates).where(eq(products.id, id));
-    await this.invalidateProductCache(id); // PHASE 8
+    // ── PHASE 4 P2: Transaction path for product type change (BD-06) ──
+    if (isProductTypeChanging) {
+      return this.updateProductWithTypeChange(id, updates, input, clientUpdatedAt, product);
+    }
 
-    // Emit event on publish
+    // ── Standard path (no product type change) ──
+    // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
+    if (clientUpdatedAt !== undefined) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (isNaN(clientDate.getTime())) {
+        throw new BadRequestException('Invalid updatedAt timestamp');
+      }
+
+      const [updated] = await this.db.db.update(products)
+        .set(updates)
+        .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+        .returning();
+
+      if (!updated) {
+        const current = await this.getProduct(id);
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'CONFLICT',
+          currentUpdatedAt: current['updatedAt'],
+        });
+      }
+
+      await this.invalidateProductCache(id);
+      if (input.status === 'ACTIVE') {
+        await this.outbox.publish('catalog.product.published', id, {
+          productId: id,
+          storeId: product['storeId'],
+        });
+        await this.audit.record({
+          actorType: 'MERCHANT',
+          action: 'product.published',
+          resource: 'product',
+          resourceId: id,
+          metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+        });
+      }
+
+      return this.getProduct(id);
+    }
+
+    // Legacy path: no optimistic locking
+    await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    await this.invalidateProductCache(id);
+
     if (input.status === 'ACTIVE') {
       await this.outbox.publish('catalog.product.published', id, {
         productId: id,
         storeId: product['storeId'],
       });
-      // PHASE 9: Audit — product published
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.published',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+      });
+    }
+
+    return this.getProduct(id);
+  }
+
+  /**
+   * PHASE 4 P2: Product type change path — executes inside a transaction
+   * with FOR UPDATE row lock on the product. Checks variant/offer counts
+   * before allowing the type change. Preserves P1 optimistic locking.
+   */
+  private async updateProductWithTypeChange(
+    id: string,
+    updates: Record<string, unknown>,
+    input: UpdateProductInput,
+    clientUpdatedAt: string | undefined,
+    product: Record<string, unknown>,
+  ) {
+    try {
+      await this.db.db.transaction(async (tx) => {
+        // 1. Lock product row exclusively
+        const [locked] = await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, id))
+          .for('update')
+          .limit(1);
+        if (!locked) throw new NotFoundException('Product not found');
+
+        // 2. Guard: variant count must be 0
+        const [vc] = await tx.select({ count: sql<number>`count(*)::int` })
+          .from(productVariants)
+          .where(eq(productVariants.productId, id));
+        if (vc && vc.count > 0) {
+          throw new BadRequestException('Cannot change product type: product has variants');
+        }
+
+        // 3. Guard: ALL merchant offers count must be 0 (not just ACTIVE)
+        const [oc] = await tx.select({ count: sql<number>`count(*)::int` })
+          .from(merchantOffers)
+          .where(eq(merchantOffers.productId, id));
+        if (oc && oc.count > 0) {
+          throw new BadRequestException('Cannot change product type: product has merchant offers');
+        }
+
+        // 4. Perform the update (with or without optimistic locking)
+        if (clientUpdatedAt !== undefined) {
+          const clientDate = new Date(clientUpdatedAt);
+          if (isNaN(clientDate.getTime())) {
+            throw new BadRequestException('Invalid updatedAt timestamp');
+          }
+          const [updated] = await tx.update(products)
+            .set(updates)
+            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+            .returning();
+          if (!updated) {
+            throw new ConflictException({
+              statusCode: 409,
+              message: 'CONFLICT',
+              currentUpdatedAt: (await this.getProduct(id))['updatedAt'],
+            });
+          }
+        } else {
+          await tx.update(products).set(updates).where(eq(products.id, id));
+        }
+      });
+    } catch (err) {
+      // Translate DB unique constraint violations to clean HTTP 400
+      if (err instanceof BadRequestException || err instanceof ConflictException || err instanceof NotFoundException) {
+        throw err;
+      }
+      if (err && typeof err === 'object' && 'code' in err && (err as any).code === '23505') {
+        const constraint = (err as any).constraint;
+        if (constraint === 'uq_products_gtin') throw new BadRequestException('GTIN already exists on another product');
+        if (constraint === 'uq_products_ean') throw new BadRequestException('EAN already exists on another product');
+        throw new BadRequestException('Identifier already exists on another product');
+      }
+      throw err;
+    }
+
+    await this.invalidateProductCache(id);
+
+    if (input.status === 'ACTIVE') {
+      await this.outbox.publish('catalog.product.published', id, {
+        productId: id,
+        storeId: product['storeId'],
+      });
       await this.audit.record({
         actorType: 'MERCHANT',
         action: 'product.published',
@@ -1403,8 +1603,19 @@ export class CatalogService {
     const toggled: string[] = [];
 
     if (ops.create?.length) {
+      // PHASE 4 P2: Acquire FOR SHARE lock before creating variants.
+      // Allows concurrent variant creations; blocks productTypeId changes.
+      await this.db.db.transaction(async (tx) => {
+        await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .for('share')
+          .limit(1);
+      });
+
       for (const input of ops.create) {
         const id = crypto.randomUUID();
+        // PHASE 3: Do NOT write JSONB attributes — use DB default {}
         await this.db.db.insert(productVariants).values({
           id,
           productId,
@@ -1413,11 +1624,25 @@ export class CatalogService {
           title: input.title || null,
           titleAr: input.titleAr || null,
           unit: input.unit || 'PCS',
-          weightGrams: input.weightGrams || null,
+          weightGrams: input.weightGrams != null ? String(input.weightGrams) : null,
           dimensionsMm: input.dimensionsMm || {},
-          attributes: input.attributes || {},
           images: input.images || [],
+          updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
         });
+        // PHASE 3: Write typed attributes if provided
+        if (input.attributes && Object.keys(input.attributes).length > 0) {
+          const typedInput = Object.entries(input.attributes).map(([attributeDefinitionId, value]) => ({
+            attributeDefinitionId,
+            value: value as string | number | boolean | string[] | null,
+          }));
+          try {
+            await this.taxonomyService.setVariantAttributeValues(productId, id, typedInput);
+          } catch (err) {
+            // Roll back this variant if attribute write failed
+            await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+            throw err;
+          }
+        }
         created.push(id);
       }
       // Ensure each newly created variant has at least a base price tier
@@ -1575,23 +1800,71 @@ export class CatalogService {
 
   // ── Variants ─────────────────────────────────────────────────
 
+  /**
+   * Drizzle numeric() columns return strings.  Coerce weight_grams to a
+   * JSON number so API consumers see `{ "weight_grams": 9.7 }` not
+   * `{ "weight_grams": "9.70" }`.  Locked by BD-01 / Phase 1.
+   */
+  private coerceVariantNumeric<V extends { weightGrams?: string | number | null } | undefined>(v: V): V {
+    if (v && v.weightGrams != null) {
+      (v as any).weightGrams = Number(v.weightGrams);
+    }
+    return v;
+  }
+
+  /**
+   * PHASE 3: Create a variant. Attribute input is persisted into
+   * variant_attribute_values (typed) — NOT into the JSONB attributes column.
+   * If attribute persistence fails, the variant creation is rolled back.
+   */
   async createVariant(productId: string, input: CreateVariantInput) {
     const product = await this.getProduct(productId);
     const id = crypto.randomUUID();
 
-    await this.db.db.insert(productVariants).values({
-      id,
-      productId,
-      sku: input.sku,
-      barcode: input.barcode || null,
-      title: input.title || null,
-      titleAr: input.titleAr || null,
-      unit: input.unit || 'PCS',
-      weightGrams: input.weightGrams || null,
-      dimensionsMm: input.dimensionsMm || {},
-      attributes: input.attributes || {},
-      images: input.images || [],
-    });
+    // Convert legacy JSONB-style attributes to typed AttributeValueInput[]
+    const typedAttrInput = input.attributes
+      ? Object.entries(input.attributes).map(([attributeDefinitionId, value]) => ({
+          attributeDefinitionId,
+          value: value as string | number | boolean | string[] | null,
+        }))
+      : [];
+
+    try {
+      // PHASE 4 P2: Transaction with FOR SHARE product-row lock (BD-06).
+      // FOR SHARE allows concurrent variant creations but blocks productTypeId changes.
+      await this.db.db.transaction(async (tx) => {
+        await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .for('share')
+          .limit(1);
+
+        // PHASE 3: Do NOT write JSONB attributes — use DB default {}
+        await tx.insert(productVariants).values({
+          id,
+          productId,
+          sku: input.sku,
+          barcode: input.barcode || null,
+          title: input.title || null,
+          titleAr: input.titleAr || null,
+          unit: input.unit || 'PCS',
+          weightGrams: input.weightGrams != null ? String(input.weightGrams) : null,
+          dimensionsMm: input.dimensionsMm || {},
+          images: input.images || [],
+          updatedAt: new Date(),
+        });
+      });
+
+      // PHASE 3: Write typed attributes transactionally via taxonomy service.
+      // If this fails, roll back the variant creation.
+      if (typedAttrInput.length > 0) {
+        await this.taxonomyService.setVariantAttributeValues(productId, id, typedAttrInput);
+      }
+    } catch (err) {
+      // Roll back: remove the variant if attribute write failed
+      await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+      throw err;
+    }
 
     // Ensure the new variant has at least a base price tier so the cart
     // can resolve a price. Without this, variants created via the catalog
@@ -1602,7 +1875,19 @@ export class CatalogService {
     return this.getVariant(id);
   }
 
-  async updateVariant(productId: string, variantId: string, input: Partial<CreateVariantInput>) {
+  /**
+   * PHASE 3: Update variant scalar fields. Attribute updates are owned by the
+   * dedicated typed endpoint PUT /v1/products/:productId/variants/:variantId/attribute-values.
+   * If a client sends `attributes` here, reject with a clear redirect.
+   */
+  async updateVariant(productId: string, variantId: string, input: Partial<CreateVariantInput>, clientUpdatedAt?: string) {
+    // PHASE 3: Reject attribute mutation via updateVariant — direct to typed endpoint
+    if (input['attributes'] !== undefined) {
+      throw new BadRequestException(
+        'Attribute updates are not supported on this endpoint. Use PUT /v1/products/:productId/variants/:variantId/attribute-values instead.',
+      );
+    }
+
     const product = await this.getProduct(productId);
     const existing = await this.db.db.query.productVariants.findFirst({
       where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
@@ -1615,13 +1900,43 @@ export class CatalogService {
     if (input['title'] !== undefined) updates['title'] = input['title'] || null;
     if (input['titleAr'] !== undefined) updates['titleAr'] = input['titleAr'] || null;
     if (input['unit'] !== undefined) updates['unit'] = input['unit'];
-    if (input['weightGrams'] !== undefined) updates['weightGrams'] = input['weightGrams'] || null;
+    if (input['weightGrams'] !== undefined) updates['weightGrams'] = input['weightGrams'] != null ? String(input['weightGrams']) : null;
 
+    // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
+    if (clientUpdatedAt !== undefined) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (isNaN(clientDate.getTime())) {
+        throw new BadRequestException('Invalid updatedAt timestamp');
+      }
+
+      const [updated] = await this.db.db.update(productVariants)
+        .set(updates)
+        .where(and(
+          eq(productVariants.id, variantId),
+          eq(productVariants.productId, productId),
+          eq(productVariants.updatedAt, clientDate),
+        ))
+        .returning();
+
+      if (!updated) {
+        // Variant was pre-verified to exist → timestamp mismatch is a conflict.
+        const current = await this.getVariant(variantId);
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'CONFLICT',
+          currentUpdatedAt: current['updatedAt'],
+        });
+      }
+
+      return this.coerceVariantNumeric(updated);
+    }
+
+    // Legacy path: no optimistic locking
     const [updated] = await this.db.db.update(productVariants)
       .set(updates)
       .where(eq(productVariants.id, variantId))
       .returning();
-    return updated;
+    return this.coerceVariantNumeric(updated);
   }
 
   async getVariant(id: string) {
@@ -1629,14 +1944,14 @@ export class CatalogService {
       where: eq(productVariants.id, id),
     });
     if (!variant) throw new NotFoundException('Variant not found');
-    return variant;
+    return this.coerceVariantNumeric(variant);
   }
 
   async listVariantsByProduct(productId: string) {
     const variants = await this.db.db.query.productVariants.findMany({
       where: eq(productVariants.productId, productId),
       orderBy: [productVariants.createdAt],
-    });
+    }).then(rows => rows.map(r => this.coerceVariantNumeric(r)));
     // Attach stock status per variant (same shape as getProductDetail)
     // Wrapped in try-catch so test environments with partial mock DBs still work.
     try {
@@ -1678,10 +1993,10 @@ export class CatalogService {
   // ── Variant Matrix ────────────────────────────────────────────
 
   /**
-   * PHASE 7: Build a dimension-based variant matrix for the buyer selector.
+   * PHASE 3: Build a dimension-based variant matrix for the buyer selector.
    * Loads the product type's VARIANT-scope dimensions, extracts distinct options
-   * from existing variants' attributes JSONB, and maps each combination to its
-   * variant row with pricing and stock.
+   * from existing variants' typed attribute values, and maps each combination to
+   * its variant row with pricing and stock.
    */
   async getVariantMatrix(productId: string) {
     const product = await this.getProduct(productId);
@@ -1750,16 +2065,33 @@ export class CatalogService {
     // 5. Load variants with stock enrichment (reuse listVariantsByProduct)
     const enrichedVariants = await this.listVariantsByProduct(productId);
 
-    // 6. Map each variant to a combination entry
+    // 6. Build code → attributeDefinitionId lookup for typed attribute mapping
+    const codeToDefId = new Map<string, string>();
+    for (const dim of variantDims) {
+      const def = defById.get(dim['attributeDefinitionId']);
+      if (def) codeToDefId.set(def['code'], dim['attributeDefinitionId']);
+    }
+
+    // 7. Map each variant to a combination entry using typed attributes
     const combinations = enrichedVariants
       .filter((v: any) => v['isActive'])
       .map((v: any) => {
-        const attrs = (v['attributes'] ?? {}) as Record<string, unknown>;
+        // Typed attributes come as array of { attributeCode, valueText, valueNumber, optionValue }
+        // When no typed attributes exist, v['attributes'] may be the legacy JSONB {} — guard with Array.isArray
+        const rawAttrs = v['attributes'];
+        const typedAttrs = Array.isArray(rawAttrs) ? rawAttrs : [];
+        // Build a map from attributeDefinitionId → resolved display value
+        const attrById = new Map<string, string>();
+        for (const ta of typedAttrs) {
+          const defId = codeToDefId.get(ta.attributeCode);
+          if (defId) {
+            attrById.set(defId, ta.optionValue ?? ta.valueText ?? ta.valueNumber ?? '');
+          }
+        }
         const values: Record<string, string> = {};
         for (const dim of variantDims) {
           const attrId = dim['attributeDefinitionId'];
-          const raw = attrs[attrId];
-          values[attrId] = raw != null ? String(raw) : '';
+          values[attrId] = attrById.get(attrId) ?? '';
         }
         return {
           variantId: v['id'],
@@ -2132,6 +2464,7 @@ export class CatalogService {
       description,
       status: 'DRAFT',
       // MOQ is offer-owned — use column default (1)
+      updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
     });
 
     const variantId = crypto.randomUUID();
@@ -2143,6 +2476,7 @@ export class CatalogService {
       title: name,
       titleAr: nameAr,
       unit,
+      updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
     });
 
     await this.upsertBasePrice(priceListId, variantId, priceMinor);
@@ -2437,6 +2771,16 @@ export interface UpdateProductInput {
   brandId?: string;
   slug?: string;
   metadata?: Record<string, unknown>;
+  /** PHASE 4 P1 — Optimistic locking. Client sends the updatedAt it loaded; server performs conditional update. Omit for legacy behavior. */
+  updatedAt?: string;
+  /** PHASE 4 P2 — Product type (BD-06). Blocked when variants or offers exist. */
+  productTypeId?: string | null;
+  /** PHASE 4 P2 — GTIN identifier (BD-05). varchar(20), unique where not null. */
+  gtin?: string | null;
+  /** PHASE 4 P2 — EAN identifier (BD-05). varchar(20), unique where not null. */
+  ean?: string | null;
+  /** PHASE 4 P2 — MPN identifier (BD-05). varchar(100), not unique. */
+  mpn?: string | null;
 }
 
 export interface CreateVariantInput {
@@ -2447,6 +2791,7 @@ export interface CreateVariantInput {
   unit?: string;
   weightGrams?: number;
   dimensionsMm?: Record<string, unknown>;
+  /** @deprecated PHASE 3 — JSONB attributes are legacy. Accepted for backward compat but persisted into variant_attribute_values (typed), never JSONB. Prefer PUT /v1/products/:productId/variants/:variantId/attribute-values. */
   attributes?: Record<string, unknown>;
   images?: string[];
 }
