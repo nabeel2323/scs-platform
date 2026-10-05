@@ -4,7 +4,7 @@ import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
 import { DeactivateOrganizationDto } from './dto/deactivate-organization.dto';
 import { ReviewOrgUpdateDto } from './dto/review-org-update.dto';
-import { CreateProductInput, UpdateProductInput } from '../catalog/catalog.service';
+import { CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
 import { AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -303,5 +303,90 @@ export class AdminController {
     @Body() body: ModerateProductDto,
   ) {
     return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
+  }
+
+  // ── Admin Variant Management (PHASE 4 P5) ─────────────────────
+
+  /**
+   * P5.1 — Admin variant detail endpoint.
+   * Fixes latent defect: /variants/[id] page expected this route.
+   * Authorization before sensitive lookup (catalog:products:write).
+   */
+  @Get('variants/:id')
+  @RequirePermission('catalog:products:write')
+  async adminGetVariant(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.adminGetVariant(id);
+  }
+
+  /**
+   * P5.2 — Admin variant create endpoint.
+   * Delegates to CatalogService.createVariant() — no assertProductInOrg.
+   * Preserves P2 FOR SHARE locking and Phase 3 typed attribute authority.
+   */
+  @Post('products/:productId/variants')
+  @RequirePermission('catalog:products:write')
+  async adminCreateVariant(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() input: CreateVariantInput,
+  ) {
+    return this.adminService.adminCreateVariant(productId, input);
+  }
+
+  /**
+   * P5.3 — Admin variant edit endpoint.
+   * Preserves P1 optimistic locking via clientUpdatedAt.
+   * No assertProductInOrg — admins are cross-org by design.
+   */
+  @Patch('products/:productId/variants/:variantId')
+  @RequirePermission('catalog:products:write')
+  async adminUpdateVariant(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() input: Partial<CreateVariantInput> & { updatedAt?: string },
+  ) {
+    const { updatedAt: clientUpdatedAt, ...rest } = input;
+    return this.adminService.adminUpdateVariant(productId, variantId, rest, clientUpdatedAt);
+  }
+
+  /**
+   * P5.4 — Admin typed variant attribute endpoint.
+   * Delegates to TaxonomyService.setVariantAttributeValues().
+   * Preserves Phase 3 FOR UPDATE serialization.
+   */
+  @Get('products/:productId/variants/:variantId/attribute-values')
+  @RequirePermission('catalog:products:write')
+  async adminGetVariantAttributeValues(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+  ) {
+    return this.adminService.adminGetVariantAttributeValues(variantId);
+  }
+
+  @Put('products/:productId/variants/:variantId/attribute-values')
+  @RequirePermission('catalog:products:write')
+  async adminSetVariantAttributeValues(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() body: { values: AttributeValueInput[] },
+  ) {
+    return this.adminService.adminSetVariantAttributeValues(productId, variantId, body.values);
+  }
+
+  /**
+   * P5.5 — Admin bulk variant endpoint.
+   * Supports: create, deleteIds, toggleActive.
+   * Backend only — frontend bulk UI is deferred.
+   */
+  @Post('products/:productId/variants/bulk')
+  @RequirePermission('catalog:products:write')
+  async adminBulkVariantOperations(
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: {
+      create?: CreateVariantInput[];
+      deleteIds?: string[];
+      toggleActive?: Array<{ id: string; isActive: boolean }>;
+    },
+  ) {
+    return this.adminService.adminBulkVariantOperations(productId, body);
   }
 }
