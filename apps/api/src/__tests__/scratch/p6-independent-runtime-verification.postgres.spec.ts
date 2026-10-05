@@ -45,7 +45,7 @@ let productTypeId: string;
 let productOwnedByA: string;
 let productNoStore: string;
 let attrDefProduct: string, attrDefVariant: string;
-let auditEvents: any[] = [];
+const auditEvents: any[] = [];
 
 let merchantA: CallerContext;
 let merchantB: CallerContext;

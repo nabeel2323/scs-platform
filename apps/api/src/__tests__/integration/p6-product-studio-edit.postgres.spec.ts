@@ -56,7 +56,7 @@ let productA: string;       // owned by storeA / orgA
 let productNoStore: string; // store_id = NULL
 let attrDefText: string;    // PRODUCT-scope text attribute
 let attrDefVariant: string; // VARIANT-scope text attribute
-let auditLog: Array<{ action: string; resource: string; resourceId: string }> = [];
+const auditLog: Array<{ action: string; resource: string; resourceId: string }> = [];
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();
