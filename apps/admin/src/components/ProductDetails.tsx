@@ -367,16 +367,42 @@ export default function ProductDetails({
         {activeTab === 'variants' && (
           <AdminDetailSection title={`Variants (${value.variants.length})`}>
             {value.variants.length > 0 ? (
-              <AdminRelatedTable
-                columns={variantColumns}
-                data={value.variants as unknown as Record<string, unknown>[]}
-                emptyMessage="No variants found."
-              />
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <Link
+                    href={`/products/${id}/variants/new`}
+                    style={{
+                      padding: '6px 14px', background: '#1e6178', color: '#fff',
+                      borderRadius: 6, fontSize: 13, textDecoration: 'none', fontWeight: 500,
+                    }}
+                  >
+                    + Create Variant
+                  </Link>
+                </div>
+                <AdminRelatedTable
+                  columns={variantColumns}
+                  data={value.variants as unknown as Record<string, unknown>[]}
+                  emptyMessage="No variants found."
+                />
+              </>
             ) : (
-              <AdminEmptyState
-                title="No variants yet"
-                description="This product has no variants configured. Variants are created through Product Studio."
-              />
+              <>
+                <AdminEmptyState
+                  title="No variants yet"
+                  description="This product has no variants. Create the first variant to define product variations like size, color, or configuration."
+                />
+                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                  <Link
+                    href={`/products/${id}/variants/new`}
+                    style={{
+                      padding: '8px 16px', background: '#1e6178', color: '#fff',
+                      borderRadius: 6, fontSize: 13, textDecoration: 'none', fontWeight: 500,
+                    }}
+                  >
+                    Create Variant
+                  </Link>
+                </div>
+              </>
             )}
           </AdminDetailSection>
         )}

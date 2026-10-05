@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CatalogService, CreateProductInput, UpdateProductInput } from '../catalog/catalog.service';
+import { CatalogService, CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
 import { CatalogTaxonomyService, AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
@@ -915,5 +915,77 @@ export class AdminService {
    */
   async adminSetProductAttributeValues(productId: string, values: AttributeValueInput[]) {
     return this.taxonomyService.setProductAttributeValues(productId, values);
+  }
+
+  // ── Admin Variant Management (PHASE 4 P5) ────────────────────
+
+  /**
+   * Admin: get variant detail by ID.
+   * Fixes latent defect — /variants/[id] page expected this endpoint.
+   * Authorization occurs at the controller level (catalog:products:write).
+   */
+  async adminGetVariant(variantId: string) {
+    return this.catalogService.getVariant(variantId);
+  }
+
+  /**
+   * Admin: create a variant on any canonical product.
+   * Delegates to CatalogService.createVariant() — no assertProductInOrg
+   * since admins operate cross-organization by design.
+   * Preserves P2 FOR SHARE locking and Phase 3 typed attribute authority.
+   */
+  async adminCreateVariant(productId: string, input: CreateVariantInput) {
+    return this.catalogService.createVariant(productId, input);
+  }
+
+  /**
+   * Admin: update a variant on any canonical product.
+   * Preserves P1 optimistic locking via clientUpdatedAt.
+   * No assertProductInOrg — admins are cross-org by design.
+   */
+  async adminUpdateVariant(
+    productId: string,
+    variantId: string,
+    input: Partial<CreateVariantInput>,
+    clientUpdatedAt?: string,
+  ) {
+    return this.catalogService.updateVariant(productId, variantId, input, clientUpdatedAt);
+  }
+
+  /**
+   * Admin: replace typed variant attribute values.
+   * Delegates to TaxonomyService.setVariantAttributeValues().
+   * Preserves Phase 3 FOR UPDATE serialization.
+   * JSONB attributes field remains deprecated.
+   */
+  async adminSetVariantAttributeValues(
+    productId: string,
+    variantId: string,
+    values: AttributeValueInput[],
+  ) {
+    return this.taxonomyService.setVariantAttributeValues(productId, variantId, values);
+  }
+
+  /**
+   * Admin: load typed variant attribute values.
+   */
+  async adminGetVariantAttributeValues(variantId: string) {
+    return this.taxonomyService.getVariantAttributeValues(variantId);
+  }
+
+  /**
+   * Admin: bulk variant operations (create, delete, toggle active).
+   * Delegates to CatalogService.bulkVariantOperations().
+   * Preserves existing FOR SHARE locking for bulk create.
+   */
+  async adminBulkVariantOperations(
+    productId: string,
+    ops: {
+      create?: CreateVariantInput[];
+      deleteIds?: string[];
+      toggleActive?: Array<{ id: string; isActive: boolean }>;
+    },
+  ) {
+    return this.catalogService.bulkVariantOperations(productId, ops);
   }
 }
