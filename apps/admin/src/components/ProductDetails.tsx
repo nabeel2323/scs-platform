@@ -50,10 +50,12 @@ type OfferSummary = {
 export function ProductModerationActions({
   id,
   status,
+  updatedAt,
   onDone,
 }: {
   id: string;
   status: string;
+  updatedAt?: string;
   onDone: (decision: string) => void;
 }) {
   const { hasAccess } = useRequirePerms(['admin:merchants:read']);
@@ -68,7 +70,7 @@ export function ProductModerationActions({
     setBusy(true);
     setError('');
     try {
-      await moderateAdminProduct(id, decision);
+      await moderateAdminProduct(id, decision, updatedAt);
       onDone(decision);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Moderation failed');
@@ -311,7 +313,13 @@ export default function ProductDetails({
         entityId={id}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <ProductModerationActions id={id} status={value.status} onDone={handleModeration} />
+            <Link
+              href={`/products/${id}/edit`}
+              style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#1e6178', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              Edit
+            </Link>
+            <ProductModerationActions id={id} status={value.status} updatedAt={value['updatedAt'] as string} onDone={handleModeration} />
             {!fullPage && (
               <Link
                 href={`/products/${id}?returnTo=${encodeURIComponent(returnTo)}`}

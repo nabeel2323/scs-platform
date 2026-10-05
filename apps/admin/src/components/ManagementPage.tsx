@@ -121,6 +121,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
         <button type="button" onClick={list.reload}>Refresh</button>
         {entity === 'categories' && <button type="button" onClick={() => setCreating(true)}>Add category</button>}
         {entity === 'brands' && <button type="button" onClick={() => setCreating(true)}>Add brand</button>}
+        {entity === 'products' && <Link href="/products/new" style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#1e6178', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>Create product</Link>}
       </div>
       <details className={styles['filters']}><summary>Advanced filters</summary>
         <form onSubmit={event => { event.preventDefault(); state.apply(); }}>
@@ -160,7 +161,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
               ) : (
                 <button type="button" data-view onClick={() => open(row)} aria-label={`View ${row['title'] || row['fullName'] || row['displayName'] || row['name'] || row.id}`}>View</button>
               )}
-              {entity === 'products' && <ProductModerationActions id={row.id} status={String(row['status'])} onDone={list.reload} />}
+              {entity === 'products' && <ProductModerationActions id={row.id} status={String(row['status'])} updatedAt={row['updatedAt'] as string | undefined} onDone={list.reload} />}
               {entity === 'offers' && <OfferGovernanceActions record={row} onDone={list.reload} />}
               {entity === 'users' && <UserStatusActions record={row} onDone={list.reload} />}
               <VerificationLink entity={entity} row={row} />

@@ -1,9 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards, HttpCode, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Query, Body, UseGuards, HttpCode, ParseUUIDPipe } from '@nestjs/common';
 import { AdminListInput } from './dto/admin-list-query.dto';
 import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
 import { DeactivateOrganizationDto } from './dto/deactivate-organization.dto';
 import { ReviewOrgUpdateDto } from './dto/review-org-update.dto';
+import { CreateProductInput, UpdateProductInput } from '../catalog/catalog.service';
+import { AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
@@ -254,11 +256,44 @@ export class AdminController {
     return this.adminService.productMediaPreviews(id);
   }
 
+  // ── Admin Product CRUD (PHASE 4 P3) ─────────────────────────
+
+  @Post('products')
+  @RequirePermission('catalog:products:write')
+  async adminCreateProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
+    return this.adminService.adminCreateProduct(input, user.sub);
+  }
+
+  @Patch('products/:id')
+  @RequirePermission('catalog:products:write')
+  async adminUpdateProduct(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: UpdateProductInput & { updatedAt?: string },
+  ) {
+    const { updatedAt: clientUpdatedAt, ...rest } = input;
+    return this.adminService.adminUpdateProduct(id, rest, clientUpdatedAt);
+  }
+
+  @Get('products/:id/attribute-values')
+  @RequirePermission('catalog:products:write')
+  async adminGetProductAttributeValues(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.adminGetProductAttributeValues(id);
+  }
+
+  @Put('products/:id/attribute-values')
+  @RequirePermission('catalog:products:write')
+  async adminSetProductAttributeValues(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { values: AttributeValueInput[] },
+  ) {
+    return this.adminService.adminSetProductAttributeValues(id, body.values);
+  }
+
   @Post('products/:id/moderate')
   @HttpCode(200)
   @RequirePermission('admin:merchants:read')
   async moderateProductPost(@Param('id', ParseUUIDPipe) id: string, @Body() body: ModerateProductDto) {
-    return this.adminService.moderateProduct(id, body.decision, body.reason);
+    return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
   }
 
   @Patch('products/:id/moderate')
@@ -267,6 +302,6 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ModerateProductDto,
   ) {
-    return this.adminService.moderateProduct(id, body.decision, body.reason);
+    return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
   }
 }

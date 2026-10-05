@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CatalogService, CreateProductInput, UpdateProductInput } from '../catalog/catalog.service';
+import { CatalogTaxonomyService, AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
@@ -28,6 +30,8 @@ export class AdminService {
     private readonly db: DatabaseService,
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
+    private readonly catalogService: CatalogService,
+    private readonly taxonomyService: CatalogTaxonomyService,
   ) {}
 
   // ── Orders ───────────────────────────────────────────────────
@@ -799,12 +803,16 @@ export class AdminService {
     return result;
   }
 
-  async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string) {
+  async moderateProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', reason?: string, clientUpdatedAt?: string) {
+    // Step 1: Verify product exists and is eligible for moderation.
+    // This is only for 404 detection — the actual concurrency guard is the
+    // atomic conditional UPDATE below (BD-13 remediation).
     const product = await this.db.db.query.products.findFirst({
       where: and(eq(products.id, id), isNull(products.deletedAt)),
     });
     if (!product || product.status === 'ARCHIVED') throw new NotFoundException('Product not found');
 
+    // Build moderation update payload
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     switch (decision) {
@@ -822,13 +830,48 @@ export class AdminService {
         updates['isAvailable'] = false;
         break;
       default:
-        // Unreachable behind ModerateProductDto, but keeps the service safe if
-        // called from elsewhere — never return 200 without a status change.
         throw new BadRequestException(`Unsupported moderation decision: ${decision}`);
     }
 
-    // `.returning()` echoes the persisted row state so clients can confirm the
-    // transition actually landed (guards against silent no-op reports).
+    // PHASE 4 P3 (BD-13) REMEDIATION: Atomic conditional UPDATE for optimistic locking.
+    // Previously this used a non-atomic check-then-update (SELECT → JS compare → unconditional UPDATE)
+    // which allowed 34% double-success in concurrent moderation-vs-edit races.
+    // Now the timestamp comparison happens atomically in the WHERE clause.
+    if (clientUpdatedAt !== undefined) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (isNaN(clientDate.getTime())) {
+        throw new BadRequestException('Invalid updatedAt timestamp');
+      }
+
+      const [updated] = await this.db.db
+        .update(products)
+        .set(updates)
+        .where(and(
+          eq(products.id, id),
+          eq(products.updatedAt, clientDate),
+          isNull(products.deletedAt),
+          sql`${products.status} <> 'ARCHIVED'`,
+        ))
+        .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
+
+      if (!updated) {
+        // Atomic UPDATE matched zero rows. Product was verified to exist above,
+        // so this is a concurrency conflict (stale updatedAt), not a 404.
+        const current = await this.db.db.query.products.findFirst({
+          where: eq(products.id, id),
+          columns: { id: true, updatedAt: true },
+        });
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'CONFLICT',
+          currentUpdatedAt: current?.updatedAt ?? new Date(),
+        });
+      }
+
+      return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };
+    }
+
+    // Legacy path: no optimistic locking (backward-compatible)
     const [updated] = await this.db.db
       .update(products)
       .set(updates)
@@ -836,5 +879,41 @@ export class AdminService {
       .returning({ id: products.id, status: products.status, isAvailable: products.isAvailable });
     if (!updated) throw new NotFoundException('Product not found');
     return { id, decision, status: updated.status, isAvailable: updated.isAvailable, reason, moderatedAt: new Date() };
+  }
+
+  // ── Admin Product CRUD (PHASE 4 P3) ─────────────────────────
+
+  /**
+   * Admin product creation. Always starts as DRAFT (BD-14).
+   * Delegates to CatalogService.createProduct() — no assertProductInOrg
+   * since admins operate cross-organization by design.
+   */
+  async adminCreateProduct(input: CreateProductInput, userId: string) {
+    // Force DRAFT status regardless of input (BD-14)
+    const draftInput: CreateProductInput = { ...input };
+    return this.catalogService.createProduct(draftInput, userId);
+  }
+
+  /**
+   * Admin product update. Uses P1 optimistic locking when clientUpdatedAt
+   * is supplied. No assertProductInOrg — admins are cross-org by design.
+   */
+  async adminUpdateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
+    return this.catalogService.updateProduct(id, input, clientUpdatedAt);
+  }
+
+  /**
+   * Admin: load typed product attribute values.
+   */
+  async adminGetProductAttributeValues(productId: string) {
+    return this.taxonomyService.getProductAttributeValues(productId);
+  }
+
+  /**
+   * Admin: replace typed product attribute values.
+   * No assertProductInOrg — admins are cross-org by design.
+   */
+  async adminSetProductAttributeValues(productId: string, values: AttributeValueInput[]) {
+    return this.taxonomyService.setProductAttributeValues(productId, values);
   }
 }

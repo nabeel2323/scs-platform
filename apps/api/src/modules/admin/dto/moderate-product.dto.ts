@@ -8,6 +8,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * pattern). Without this, an unrecognized `decision` value would skip every
  * switch branch, bump only `updatedAt`, and return 200 — a fake success that
  * leaves the product in its original status.
+ *
+ * PHASE 4 P3 (BD-13): `updatedAt` enables optimistic locking so moderation
+ * cannot silently overwrite concurrent merchant edits. When provided, the
+ * service performs a conditional update and returns 409 CONFLICT on mismatch.
  */
 export class ModerateProductDto {
   @ApiProperty({ enum: ['APPROVED', 'REJECTED', 'ARCHIVED'] })
@@ -21,4 +25,9 @@ export class ModerateProductDto {
   @IsString()
   @MaxLength(500)
   reason?: string;
+
+  @ApiPropertyOptional({ description: 'PHASE 4 P3 — Client-supplied updatedAt for optimistic locking. When provided, stale values return 409 CONFLICT.' })
+  @IsOptional()
+  @IsString()
+  updatedAt?: string;
 }
