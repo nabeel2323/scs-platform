@@ -1176,6 +1176,7 @@ export interface CatalogImport {
   updatedRows: number;
   unchangedRows: number;
   rejectedRows: number;
+  skippedRows: number;
   errorCount: number;
   warningCount: number;
   stats: Record<string, unknown>;
@@ -1199,6 +1200,11 @@ export interface CatalogImportError {
   rawValue: string | null;
   suggestedFix: string | null;
   severity: string;
+  dependency: string | null;
+  rootErrorId: string | null;
+  normalizedValue: string | null;
+  expected: string | null;
+  actual: string | null;
   createdAt: string;
 }
 
@@ -1276,6 +1282,22 @@ export async function executeCatalogImport(
 export async function fetchCatalogImportErrors(id: string): Promise<CatalogImportError[]> {
   const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/errors`);
   if (!res.ok) throw new Error(`Failed to fetch import errors: ${res.status}`);
+  return res.json();
+}
+
+export async function retryCatalogImport(
+  id: string,
+): Promise<{
+  created: number; updated: number; unchanged: number; rejected: number; skipped: number;
+  errors: string[]; entityBreakdown: Record<string, any>; structuredErrors: any[];
+}> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/retry`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to retry catalog import: ${res.status}`);
+  }
   return res.json();
 }
 

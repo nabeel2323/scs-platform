@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -22,6 +23,7 @@ import {
   CreateImportJobInput,
 } from './catalog.service';
 import { SearchService } from './search.service';
+import { CatalogTaxonomyService, AttributeValueInput } from './catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -44,6 +46,7 @@ export class CatalogController {
     private readonly catalogService: CatalogService,
     private readonly searchService: SearchService,
     private readonly storageService: StorageService,
+    private readonly taxonomyService: CatalogTaxonomyService,
     private readonly db: DatabaseService,
   ) {}
 
@@ -224,7 +227,9 @@ export class CatalogController {
     @Body() input: UpdateProductInput,
   ) {
     await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
-    return this.catalogService.updateProduct(id, input);
+    // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
+    const { updatedAt: clientUpdatedAt, ...rest } = input;
+    return this.catalogService.updateProduct(id, rest, clientUpdatedAt);
   }
 
   @Delete('products/:id')
@@ -233,6 +238,25 @@ export class CatalogController {
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.deleteProduct(id);
+  }
+
+  // ── Product Attributes (typed) ──────────────────────────────
+
+  /**
+   * PHASE 3: Replace all PRODUCT-scope typed attribute values for a product.
+   * Atomic replacement — validates definitions, coerces values, persists typed rows.
+   * Does NOT write JSONB.
+   */
+  @Put('products/:id/attribute-values')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async setProductAttributeValues(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() body: { values: AttributeValueInput[] },
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    return this.taxonomyService.setProductAttributeValues(id, body.values);
   }
 
   // ── Variants ─────────────────────────────────────────────────
@@ -267,10 +291,30 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Param('productId') productId: string,
     @Param('variantId') variantId: string,
-    @Body() input: Partial<CreateVariantInput>,
+    @Body() input: Partial<CreateVariantInput> & { updatedAt?: string },
   ) {
     await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    return this.catalogService.updateVariant(productId, variantId, input);
+    // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
+    const { updatedAt: clientUpdatedAt, ...rest } = input;
+    return this.catalogService.updateVariant(productId, variantId, rest, clientUpdatedAt);
+  }
+
+  /**
+   * PHASE 3: Replace all VARIANT-scope typed attribute values for a variant.
+   * Validates that the variant belongs to the product, coerces values,
+   * persists typed rows, and recomputes combination_key.
+   */
+  @Put('products/:productId/variants/:variantId/attribute-values')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async setVariantAttributeValues(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+    @Body() body: { values: AttributeValueInput[] },
+  ) {
+    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    return this.taxonomyService.setVariantAttributeValues(productId, variantId, body.values);
   }
 
   @Post('products/:productId/variants/bulk')

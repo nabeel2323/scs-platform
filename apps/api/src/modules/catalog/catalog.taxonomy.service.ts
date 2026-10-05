@@ -18,7 +18,7 @@ import {
   type AttributeType,
 } from './catalog.taxonomy.schema';
 import { products, productVariants, categories } from './catalog.schema';
-import { eq, and, ne, isNull, asc, inArray } from 'drizzle-orm';
+import { eq, and, ne, isNull, asc, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 const ATTRIBUTE_TYPES: ReadonlySet<string> = new Set<AttributeType>([
@@ -942,8 +942,21 @@ export class CatalogTaxonomyService {
     attributeIds: string[],
     requiredScope: AttributeScope,
   ): Promise<Array<{ id: string; code: string; type: string; scope: string }>> {
+    return this.loadDefsForScopeFrom(this.db.db, attributeIds, requiredScope);
+  }
+
+  /**
+   * PHASE 3: Transaction-aware variant of loadDefsForScope.
+   * Uses the provided client (transaction or main) so definition reads participate
+   * in the same snapshot as the surrounding DELETE+INSERT.
+   */
+  private async loadDefsForScopeFrom(
+    client: any,
+    attributeIds: string[],
+    requiredScope: AttributeScope,
+  ): Promise<Array<{ id: string; code: string; type: string; scope: string }>> {
     if (attributeIds.length === 0) return [];
-    const defs = await this.db.db.query.attributeDefinitions.findMany({
+    const defs: Array<{ id: string; code: string; type: string; scope: string }> = await client.query.attributeDefinitions.findMany({
       where: inArray(attributeDefinitions.id, attributeIds),
     });
     if (defs.length !== new Set(attributeIds).size) {
@@ -959,33 +972,43 @@ export class CatalogTaxonomyService {
     return defs;
   }
 
-  /** Replace the PRODUCT-scope typed attribute values for a canonical product. */
+  /**
+   * PHASE 3: Replace the PRODUCT-scope typed attribute values for a canonical product.
+   * Concurrency-safe: locks the product row with SELECT ... FOR UPDATE before
+   * DELETE+INSERT to prevent lost updates from concurrent callers.
+   */
   async setProductAttributeValues(productId: string, values: AttributeValueInput[]) {
-    const product = await this.db.db.query.products.findFirst({ where: eq(products.id, productId) });
-    if (!product) throw new NotFoundException('Product not found');
+    return this.db.db.transaction(async (tx) => {
+      // Lock the product row to serialize concurrent attribute writes
+      const [locked] = await tx.select({ id: products.id })
+        .from(products)
+        .where(eq(products.id, productId))
+        .for('update');
+      if (!locked) throw new NotFoundException('Product not found');
 
-    const attrIds = values.map(v => v.attributeDefinitionId);
-    const defs = await this.loadDefsForScope(attrIds, 'PRODUCT');
-    const defById = new Map(defs.map(d => [d.id, d]));
+      const attrIds = values.map(v => v.attributeDefinitionId);
+      const defs = await this.loadDefsForScopeFrom(tx, attrIds, 'PRODUCT');
+      const defById = new Map(defs.map(d => [d.id, d]));
 
-    await this.db.db
-      .delete(productAttributeValues)
-      .where(eq(productAttributeValues.productId, productId));
+      // Atomic DELETE + INSERT within the locked transaction
+      await tx.delete(productAttributeValues)
+        .where(eq(productAttributeValues.productId, productId));
 
-    const now = new Date();
-    const rows = values.map(v => {
-      const def = defById.get(v.attributeDefinitionId)!;
-      return {
-        id: crypto.randomUUID(),
-        productId,
-        attributeDefinitionId: v.attributeDefinitionId,
-        ...this.coerceValue(def, v.value),
-        createdAt: now,
-        updatedAt: now,
-      };
+      const now = new Date();
+      const rows = values.map(v => {
+        const def = defById.get(v.attributeDefinitionId)!;
+        return {
+          id: crypto.randomUUID(),
+          productId,
+          attributeDefinitionId: v.attributeDefinitionId,
+          ...this.coerceValue(def, v.value),
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+      if (rows.length > 0) await tx.insert(productAttributeValues).values(rows);
+      return this.getProductAttributeValues(productId);
     });
-    if (rows.length > 0) await this.db.db.insert(productAttributeValues).values(rows);
-    return this.getProductAttributeValues(productId);
   }
 
   async getProductAttributeValues(productId: string) {
@@ -996,50 +1019,52 @@ export class CatalogTaxonomyService {
   }
 
   /**
-   * Replace the VARIANT-scope typed values for one variant and recompute its
-   * combination key (§19). The variant must belong to the given product; two
-   * variants of the same product resolving to the same key are rejected by the
-   * partial unique index (product_id, combination_key).
+   * PHASE 3: Replace the VARIANT-scope typed values for one variant and recompute its
+   * combination key. Concurrency-safe: locks the variant row with SELECT ... FOR UPDATE
+   * before DELETE+INSERT to prevent lost updates from concurrent callers.
    */
   async setVariantAttributeValues(
     productId: string,
     variantId: string,
     values: AttributeValueInput[],
   ) {
-    const variant = await this.db.db.query.productVariants.findFirst({
-      where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
+    return this.db.db.transaction(async (tx) => {
+      // Lock the variant row to serialize concurrent attribute writes
+      const [locked] = await tx.select({ id: productVariants.id })
+        .from(productVariants)
+        .where(and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)))
+        .for('update');
+      if (!locked) throw new NotFoundException('Variant not found for this product');
+
+      const attrIds = values.map(v => v.attributeDefinitionId);
+      const defs = await this.loadDefsForScopeFrom(tx, attrIds, 'VARIANT');
+      const defById = new Map(defs.map(d => [d.id, d]));
+
+      // Atomic DELETE + INSERT within the locked transaction
+      await tx.delete(variantAttributeValues)
+        .where(eq(variantAttributeValues.variantId, variantId));
+
+      const now = new Date();
+      const rows = values.map(v => {
+        const def = defById.get(v.attributeDefinitionId)!;
+        return {
+          id: crypto.randomUUID(),
+          variantId,
+          attributeDefinitionId: v.attributeDefinitionId,
+          ...this.coerceValue(def, v.value),
+          createdAt: now,
+          updatedAt: now,
+        };
+      });
+      if (rows.length > 0) await tx.insert(variantAttributeValues).values(rows);
+
+      const combinationKey = this.buildCombinationKey(defs, values);
+      await tx.update(productVariants)
+        .set({ combinationKey, updatedAt: now })
+        .where(eq(productVariants.id, variantId));
+
+      return this.getVariantAttributeValues(variantId);
     });
-    if (!variant) throw new NotFoundException('Variant not found for this product');
-
-    const attrIds = values.map(v => v.attributeDefinitionId);
-    const defs = await this.loadDefsForScope(attrIds, 'VARIANT');
-    const defById = new Map(defs.map(d => [d.id, d]));
-
-    await this.db.db
-      .delete(variantAttributeValues)
-      .where(eq(variantAttributeValues.variantId, variantId));
-
-    const now = new Date();
-    const rows = values.map(v => {
-      const def = defById.get(v.attributeDefinitionId)!;
-      return {
-        id: crypto.randomUUID(),
-        variantId,
-        attributeDefinitionId: v.attributeDefinitionId,
-        ...this.coerceValue(def, v.value),
-        createdAt: now,
-        updatedAt: now,
-      };
-    });
-    if (rows.length > 0) await this.db.db.insert(variantAttributeValues).values(rows);
-
-    const combinationKey = this.buildCombinationKey(defs, values);
-    await this.db.db
-      .update(productVariants)
-      .set({ combinationKey, updatedAt: now })
-      .where(eq(productVariants.id, variantId));
-
-    return this.getVariantAttributeValues(variantId);
   }
 
   async getVariantAttributeValues(variantId: string) {

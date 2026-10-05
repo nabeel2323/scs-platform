@@ -16,22 +16,69 @@ import type { ImportPlan, PlanEntry } from './excel-planner.service';
 import type { ResolvedReferences } from './excel-resolver.service';
 
 /**
- * Executes a validated import plan inside a single database transaction.
+ * Executes a validated import plan using 12 ordered per-entity-type
+ * transactions (Phase 2).
  *
- * Inserts/updates entities in dependency order.  On any failure the entire
- * transaction is rolled back — no partial catalog states.
+ * Each entity type runs in its own database transaction.  A failure in one
+ * entity type does NOT poison unrelated entity types.  Dependent entities
+ * are tracked via a dependency graph and marked as DEPENDENCY_ERROR when
+ * their parent entity fails.
  *
- * After execution the plan's pending references (`pending:*`) are replaced
- * with the real UUIDs allocated during insert.
+ * Within each entity-type transaction, SAVEPOINTs provide row-level error
+ * isolation so that one bad row does not abort the entire batch.
  */
+
+// ── Phase 2 execution types ──────────────────────────────────────────
+
+export type ErrorClassification = 'ROOT_ERROR' | 'DEPENDENCY_ERROR';
+
+export interface StructuredError {
+  id: string;
+  classification: ErrorClassification;
+  entityType: string;
+  externalKey: string;
+  sheet?: string;
+  rowNumber?: number;
+  field?: string | null;
+  rawValue?: string | null;
+  normalizedValue?: string | null;
+  errorCode: string;
+  errorMessage: string;
+  expected?: string | null;
+  actual?: string | null;
+  dependency?: string | null;
+  rootErrorId?: string | null;
+  severity: 'ERROR' | 'WARNING' | 'DEPENDENCY';
+}
+
+export interface EntityBatchResult {
+  entityType: string;
+  created: number;
+  updated: number;
+  unchanged: number;
+  rejected: number;
+  skipped: number;
+  errors: StructuredError[];
+}
 
 export interface ExecutionResult {
   created: number;
   updated: number;
   unchanged: number;
   rejected: number;
+  skipped: number;
   errors: string[];
   sources: { created: number; updated: number; unchanged: number };
+  entityBreakdown: Record<string, {
+    created: number;
+    updated: number;
+    unchanged: number;
+    rejected: number;
+    skipped: number;
+  }>;
+  structuredErrors: StructuredError[];
+  /** Internal — excluded from API responses (Map is not JSON-serializable). */
+  entityOutcomes?: Map<string, 'COMMITTED' | 'FAILED' | 'DEPENDENCY_FAILED'>;
 }
 
 /**
@@ -51,6 +98,115 @@ export const VARCHAR_LIMITS: Record<string, Record<string, number>> = {
   variants: { sku: 100, title: 300, titleAr: 300, barcode: 60 },
 };
 
+/**
+ * Dependency graph — maps each entity type to its parent entity types.
+ * Locked by the Business Rules + Architecture Decision Lock.
+ */
+const DEPENDENCY_GRAPH: Record<string, string[]> = {
+  categories: [],
+  brands: [],
+  attribute_groups: [],
+  attributes: [],
+  attribute_options: ['attributes'],
+  product_types: ['categories'],
+  product_type_attributes: ['product_types', 'attributes', 'attribute_groups'],
+  products: ['categories', 'brands', 'product_types'],
+  product_attributes: ['products', 'attributes'],
+  variants: ['products'],
+  variant_attributes: ['variants', 'attributes'],
+  sources: ['products'],
+};
+
+/**
+ * Ordered execution sequence — one transaction per entity type.
+ * Must respect the dependency chain above.
+ */
+const ENTITY_TYPE_ORDER: Array<{
+  key: keyof ImportPlan;
+  type: string;
+}> = [
+  { key: 'categories', type: 'categories' },
+  { key: 'brands', type: 'brands' },
+  { key: 'attributeGroups', type: 'attribute_groups' },
+  { key: 'attributes', type: 'attributes' },
+  { key: 'attributeOptions', type: 'attribute_options' },
+  { key: 'productTypes', type: 'product_types' },
+  { key: 'productTypeAttributes', type: 'product_type_attributes' },
+  { key: 'products', type: 'products' },
+  { key: 'productAttributes', type: 'product_attributes' },
+  { key: 'variants', type: 'variants' },
+  { key: 'variantAttributes', type: 'variant_attributes' },
+  { key: 'sources', type: 'sources' },
+];
+
+/**
+ * Per-entity-type parent-key extractors.
+ * Given an entry, returns the outcome-map keys for its specific parents.
+ * Outcome keys use the format `${parentTypeSingular}:${externalKey}`.
+ */
+function getEntryDependencies(
+  entityType: string,
+  entry: PlanEntry,
+): Array<{ type: string; key: string }> {
+  const d = entry.data;
+  switch (entityType) {
+    case 'categories': {
+      const parentSlug = d['parentSlug'] as string | undefined;
+      return parentSlug ? [{ type: 'category', key: parentSlug }] : [];
+    }
+    case 'attribute_options':
+      return [{ type: 'attribute', key: d['attributeCode'] as string }];
+    case 'product_types':
+      return [{ type: 'category', key: d['categorySlug'] as string }];
+    case 'product_type_attributes':
+      return [
+        { type: 'product_type', key: d['productTypeCode'] as string },
+        { type: 'attribute', key: d['attributeCode'] as string },
+      ];
+    case 'products':
+      return [
+        { type: 'category', key: d['categorySlug'] as string },
+        { type: 'brand', key: d['brandSlug'] as string },
+        { type: 'product_type', key: d['productTypeCode'] as string },
+      ];
+    case 'product_attributes':
+      return [
+        { type: 'product', key: d['productSlug'] as string },
+        { type: 'attribute', key: d['attributeCode'] as string },
+      ];
+    case 'variants':
+      return [{ type: 'product', key: d['productSlug'] as string }];
+    case 'variant_attributes':
+      return [
+        { type: 'variant', key: d['variantSku'] as string },
+        { type: 'attribute', key: d['attributeCode'] as string },
+      ];
+    case 'sources':
+      return [{ type: 'product', key: d['productSlug'] as string }];
+    default:
+      return [];
+  }
+}
+
+/** Singular form of each entity type for outcome-map keys. */
+function singularType(entityType: string): string {
+  const map: Record<string, string> = {
+    categories: 'category',
+    brands: 'brand',
+    attribute_groups: 'attribute_group',
+    attributes: 'attribute',
+    attribute_options: 'attribute_option',
+    product_types: 'product_type',
+    product_type_attributes: 'product_type_attribute',
+    products: 'product',
+    product_attributes: 'product_attribute',
+    variants: 'variant',
+    variant_attributes: 'variant_attribute',
+    sources: 'source',
+  };
+  return map[entityType] ?? entityType;
+}
+
 @Injectable()
 export class ExcelExecutorService {
   private readonly logger = new Logger(ExcelExecutorService.name);
@@ -58,14 +214,13 @@ export class ExcelExecutorService {
   constructor(private readonly db: DatabaseService) {}
 
   /**
-   * Execute the import plan in a transaction.
+   * Execute the import plan using 12 ordered per-entity-type transactions.
+   *
+   * A failure in one entity type does NOT poison unrelated entity types.
+   * Dependent entities are skipped and recorded as DEPENDENCY_ERROR.
    */
   async execute(plan: ImportPlan, refs: ResolvedReferences): Promise<ExecutionResult> {
-    const result: ExecutionResult = { created: 0, updated: 0, unchanged: 0, rejected: 0, errors: [], sources: { created: 0, updated: 0, unchanged: 0 } };
-
-    // Pre-flight: validate all string lengths BEFORE entering the transaction.
-    // A varchar overflow inside a PG transaction aborts the entire transaction,
-    // making all subsequent operations fail with "current transaction is aborted".
+    // Pre-flight: validate all string lengths BEFORE entering any transaction.
     const lengthErrors = this.validateStringLengths(plan);
     if (lengthErrors.length > 0) {
       throw new BadRequestException(
@@ -76,6 +231,15 @@ export class ExcelExecutorService {
     // Track real UUIDs for entities created during this execution
     const realIds: Map<string, string> = new Map();
 
+    // Per-entity outcome map: `${singularType}:${externalKey}` → outcome
+    const entityOutcomes = new Map<string, 'COMMITTED' | 'FAILED' | 'DEPENDENCY_FAILED'>();
+
+    // All structured errors collected across entity types
+    const allErrors: StructuredError[] = [];
+
+    // Per-entity-type batch results
+    const batchResults: EntityBatchResult[] = [];
+
     // Helper to resolve a reference that might be pending
     const resolveId = (key: string, map: Map<string, string>): string | undefined => {
       const id = map.get(key);
@@ -85,256 +249,23 @@ export class ExcelExecutorService {
     };
 
     try {
-      // Use a transaction for atomicity
-      await this.db.db.transaction(async (tx) => {
-        // 1. Categories
-        for (const entry of plan.categories) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const id = await this.upsertCategory(tx, entry, refs, realIds);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:cat:${entry.externalKey}`, id);
-              refs.categoryIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Category ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
+      // Execute each entity type in dependency order — each in its own TX
+      for (const { key, type } of ENTITY_TYPE_ORDER) {
+        const entries = plan[key] as PlanEntry[];
 
-        // 2. Brands
-        for (const entry of plan.brands) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const id = await this.upsertBrand(tx, entry);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:brand:${entry.externalKey}`, id);
-              refs.brandIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Brand ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
+        const batchResult = await this.executeEntityBatch(
+          type, entries, refs, realIds, entityOutcomes, resolveId,
+        );
 
-        // 3. Attribute Groups
-        for (const entry of plan.attributeGroups) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const id = await this.upsertAttributeGroup(tx, entry);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:ag:${entry.externalKey}`, id);
-              refs.attributeGroupIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`AttributeGroup ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 4. Attributes
-        for (const entry of plan.attributes) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const id = await this.upsertAttribute(tx, entry);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:attr:${entry.externalKey}`, id);
-              refs.attributeIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Attribute ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 5. Attribute Options
-        for (const entry of plan.attributeOptions) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
-            if (!attrId) throw new Error(`Attribute "${entry.data['attributeCode']}" not resolved`);
-            await this.insertAttributeOption(tx, entry, attrId);
-            result.created++;
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Option ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 6. Product Types
-        for (const entry of plan.productTypes) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const catSlug = entry.data['categorySlug'] as string | undefined;
-            let catId: string | null | undefined = null;
-            if (catSlug) {
-              catId = resolveId(catSlug, refs.categoryIds);
-              if (!catId) throw new Error(`Category slug "${catSlug}" could not be resolved — ensure the category exists or is included in the workbook`);
-            }
-            // Resolve variant dimension attribute codes → UUIDs
-            const dimCodes = (entry.data['variantDimensions'] as string[]) ?? [];
-            const dimIds = dimCodes
-              .map(code => resolveId(code, refs.attributeIds))
-              .filter((id): id is string => !!id);
-            entry.data['resolvedVariantDimensionIds'] = dimIds;
-            const id = await this.upsertProductType(tx, entry, catId);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:pt:${entry.externalKey}`, id);
-              refs.productTypeIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`ProductType ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 7. Product Type Attributes
-        for (const entry of plan.productTypeAttributes) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
-            const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
-            if (!ptId || !attrId) {
-              result.rejected++;
-              result.errors.push(`PTA ${entry.externalKey}: unresolved reference`);
-              continue;
-            }
-            await this.insertProductTypeAttribute(tx, entry, ptId, attrId);
-            result.created++;
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`PTA ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 8. Products
-        for (const entry of plan.products) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const brandId = resolveId(entry.data['brandSlug'] as string, refs.brandIds);
-            const catId = resolveId(entry.data['categorySlug'] as string, refs.categoryIds);
-            const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
-            if (!brandId) throw new Error(`Brand "${entry.data['brandSlug']}" not resolved`);
-            if (!catId) throw new Error(`Category "${entry.data['categorySlug']}" not resolved`);
-            if (!ptId) throw new Error(`Product type "${entry.data['productTypeCode']}" not resolved`);
-
-            const id = await this.upsertProduct(tx, entry, brandId, catId, ptId);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:prod:${entry.externalKey}`, id);
-              refs.productIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Product ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 9. Product Attributes
-        for (const entry of plan.productAttributes) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
-            const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
-            if (!prodId || !attrId) {
-              result.rejected++;
-              result.errors.push(`PA ${entry.externalKey}: unresolved reference`);
-              continue;
-            }
-            await this.upsertProductAttributeValue(tx, prodId, attrId, entry);
-            result.created++;
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`PA ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 10. Variants
-        for (const entry of plan.variants) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
-            if (!prodId) throw new Error(`Product "${entry.data['productSlug']}" not resolved`);
-            const id = await this.upsertVariant(tx, entry, prodId);
-            if (entry.action === 'CREATE') {
-              realIds.set(`pending:var:${entry.externalKey}`, id);
-              refs.variantIds.set(entry.externalKey, id);
-              result.created++;
-            } else {
-              result.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Variant ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 11. Variant Attributes
-        for (const entry of plan.variantAttributes) {
-          if (entry.action === 'UNCHANGED') { result.unchanged++; continue; }
-          try {
-            const varId = resolveId(entry.data['variantSku'] as string, refs.variantIds);
-            const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
-            if (!varId || !attrId) {
-              result.rejected++;
-              result.errors.push(`VA ${entry.externalKey}: unresolved reference`);
-              continue;
-            }
-            await this.upsertVariantAttributeValue(tx, varId, attrId, entry);
-            result.created++;
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`VA ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-
-        // 12. Sources — tracked separately for the execution report (Phase 13)
-        for (const entry of plan.sources) {
-          if (entry.action === 'UNCHANGED') { result.sources.unchanged++; continue; }
-          try {
-            const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
-            if (!prodId) {
-              result.rejected++;
-              result.errors.push(`Source ${entry.externalKey}: unresolved product reference`);
-              continue;
-            }
-            await this.upsertSource(tx, prodId, entry);
-            if (entry.action === 'CREATE') {
-              result.sources.created++;
-            } else {
-              result.sources.updated++;
-            }
-          } catch (err) {
-            result.rejected++;
-            result.errors.push(`Source ${entry.externalKey}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-      });
+        batchResults.push(batchResult);
+        allErrors.push(...batchResult.errors);
+      }
 
       // Post-transaction: update variant combination keys
       await this.updateCombinationKeys(plan, refs);
 
     } catch (err) {
       this.logger.error(`Import execution failed: ${err instanceof Error ? err.message : String(err)}`);
-      // If a PG string-truncation error escaped pre-flight validation, provide
-      // an actionable message instead of the raw PostgreSQL error.
       if (err instanceof Error && (err as any).code === '22001') {
         throw new BadRequestException(
           'A text field in the workbook exceeds the database column limit. ' +
@@ -345,14 +276,339 @@ export class ExcelExecutorService {
       throw err;
     }
 
+    // Build aggregate result
+    const result: ExecutionResult = {
+      created: 0, updated: 0, unchanged: 0, rejected: 0, skipped: 0,
+      errors: allErrors.map(e =>
+        `[${e.classification}] ${e.entityType} ${e.externalKey}: ${e.errorMessage}` +
+        (e.dependency ? ` (depends on ${e.dependency})` : ''),
+      ),
+      sources: { created: 0, updated: 0, unchanged: 0 },
+      entityBreakdown: {},
+      structuredErrors: allErrors,
+      entityOutcomes,
+    };
+
+    for (const br of batchResults) {
+      result.created += br.created;
+      result.updated += br.updated;
+      result.unchanged += br.unchanged;
+      result.rejected += br.rejected;
+      result.skipped += br.skipped;
+      result.entityBreakdown[br.entityType] = {
+        created: br.created,
+        updated: br.updated,
+        unchanged: br.unchanged,
+        rejected: br.rejected,
+        skipped: br.skipped,
+      };
+      if (br.entityType === 'sources') {
+        result.sources.created = br.created;
+        result.sources.updated = br.updated;
+        result.sources.unchanged = br.unchanged;
+      }
+    }
+
     return result;
+  }
+
+  // ── Phase 2: per-entity-type batch execution ─────────────────────
+
+  /**
+   * Execute all entries of one entity type inside a single DB transaction.
+   * Uses SAVEPOINT per row for row-level error isolation.
+   *
+   * Entries whose parent dependencies failed are skipped WITHOUT attempting
+   * DB operations, and recorded as DEPENDENCY_ERROR.
+   */
+  private async executeEntityBatch(
+    entityType: string,
+    entries: PlanEntry[],
+    refs: ResolvedReferences,
+    realIds: Map<string, string>,
+    entityOutcomes: Map<string, 'COMMITTED' | 'FAILED' | 'DEPENDENCY_FAILED'>,
+    resolveId: (key: string, map: Map<string, string>) => string | undefined,
+  ): Promise<EntityBatchResult> {
+    const batch: EntityBatchResult = {
+      entityType, created: 0, updated: 0, unchanged: 0,
+      rejected: 0, skipped: 0, errors: [],
+    };
+    const sType = singularType(entityType);
+
+    await this.db.db.transaction(async (tx) => {
+      for (const entry of entries) {
+        if (entry.action === 'UNCHANGED') {
+          batch.unchanged++;
+          entityOutcomes.set(`${sType}:${entry.externalKey}`, 'COMMITTED');
+          continue;
+        }
+
+        // Check per-entity dependency failures BEFORE attempting DB work
+        const depFailures = this.resolveDependencyFailures(entityType, entry, entityOutcomes);
+        if (depFailures.length > 0) {
+          batch.skipped++;
+          entityOutcomes.set(`${sType}:${entry.externalKey}`, 'DEPENDENCY_FAILED');
+          const depError: StructuredError = {
+            id: randomUUID(),
+            classification: 'DEPENDENCY_ERROR',
+            entityType,
+            externalKey: entry.externalKey,
+            errorCode: 'DEPENDENCY_ERROR',
+            errorMessage: `Skipped — depends on ${depFailures.map(f => f.depKey).join(', ')} which failed`,
+            dependency: depFailures.map(f => f.depKey).join(', '),
+            rootErrorId: depFailures[0]?.rootErrorId ?? null,
+            severity: 'DEPENDENCY',
+          };
+          batch.errors.push(depError);
+          continue;
+        }
+
+        // Execute row within SAVEPOINT for error isolation
+        const savepointId = randomUUID().replace(/-/g, '').slice(0, 12);
+        try {
+          await tx.execute(sql.raw(`SAVEPOINT sp_${savepointId}`));
+          await this.executeEntityRow(tx, entityType, entry, refs, realIds, resolveId);
+          await tx.execute(sql.raw(`RELEASE SAVEPOINT sp_${savepointId}`));
+
+          // Success — track outcome and update refs
+          entityOutcomes.set(`${sType}:${entry.externalKey}`, 'COMMITTED');
+          if (entry.action === 'CREATE') {
+            batch.created++;
+          } else {
+            batch.updated++;
+          }
+        } catch (err) {
+          await tx.execute(sql.raw(`ROLLBACK TO SAVEPOINT sp_${savepointId}`));
+
+          batch.rejected++;
+          entityOutcomes.set(`${sType}:${entry.externalKey}`, 'FAILED');
+
+          const rootError = this.classifyError(err, entityType, entry, entityOutcomes);
+          entityOutcomes.set(`__root__:${sType}:${entry.externalKey}`, 'FAILED' as any);
+          batch.errors.push(rootError);
+        }
+      }
+    });
+
+    return batch;
+  }
+
+  /**
+   * Check which specific parent entities have failed for a given entry.
+   * Returns an array of dependency failure descriptors (empty = all deps OK).
+   */
+  private resolveDependencyFailures(
+    entityType: string,
+    entry: PlanEntry,
+    entityOutcomes: Map<string, 'COMMITTED' | 'FAILED' | 'DEPENDENCY_FAILED'>,
+  ): Array<{ depKey: string; rootErrorId: string | undefined }> {
+    const deps = getEntryDependencies(entityType, entry);
+    const failures: Array<{ depKey: string; rootErrorId: string | undefined }> = [];
+
+    for (const dep of deps) {
+      if (!dep.key) continue; // skip empty references (caught as unresolved later)
+      const outcome = entityOutcomes.get(`${dep.type}:${dep.key}`);
+      if (outcome === 'FAILED' || outcome === 'DEPENDENCY_FAILED') {
+        // Find the root error ID for this dependency
+        const rootErrorId = this.findRootErrorId(dep.type, dep.key, entityOutcomes);
+        failures.push({ depKey: `${dep.type}:${dep.key}`, rootErrorId });
+      }
+    }
+
+    return failures;
+  }
+
+  /**
+   * Walk up the dependency chain to find the original ROOT_ERROR id.
+   * Falls back to a deterministic synthetic UUID if no explicit root is found.
+   */
+  private findRootErrorId(
+    depType: string,
+    depKey: string,
+    entityOutcomes: Map<string, any>,
+  ): string | undefined {
+    // Check if there's a stored root error id for this entity
+    return entityOutcomes.get(`__rootId__:${depType}:${depKey}`) as string | undefined;
+  }
+
+  /**
+   * Classify a database error into a StructuredError with a stable error code.
+   */
+  private classifyError(
+    err: unknown,
+    entityType: string,
+    entry: PlanEntry,
+    entityOutcomes: Map<string, any>,
+  ): StructuredError {
+    const pgCode = (err as any)?.code as string | undefined;
+    const message = err instanceof Error ? err.message : String(err);
+
+    let errorCode = 'PERSISTENCE_ERROR';
+    if (pgCode) {
+      switch (pgCode) {
+        case '23505': errorCode = 'UNIQUE_VIOLATION'; break;
+        case '23503': errorCode = 'FK_VIOLATION'; break;
+        case '23502': errorCode = 'NOT_NULL_VIOLATION'; break;
+        case '22001': errorCode = 'STRING_TOO_LONG'; break;
+        case '22003': errorCode = 'NUMERIC_OUT_OF_RANGE'; break;
+        case '23514': errorCode = 'CHECK_VIOLATION'; break;
+        case '25P02': errorCode = 'CASCADE_ERROR'; break;
+        default: errorCode = `PG_${pgCode}`; break;
+      }
+    }
+
+    const rootErrorId = randomUUID();
+    const sType = singularType(entityType);
+
+    // Store root error ID so dependents can reference it
+    // (We abuse entityOutcomes for this since it's the shared state map)
+    const structured: StructuredError = {
+      id: rootErrorId,
+      classification: 'ROOT_ERROR',
+      entityType,
+      externalKey: entry.externalKey,
+      errorCode,
+      errorMessage: message,
+      severity: 'ERROR',
+    };
+
+    // Stash the root error ID for dependency lookups
+    (entityOutcomes as any).set(`__rootId__:${sType}:${entry.externalKey}`, rootErrorId);
+
+    return structured;
+  }
+
+  /**
+   * Dispatch a single entity row to the correct upsert method.
+   * This mirrors the original per-entity-type logic from the execute loop.
+   */
+  private async executeEntityRow(
+    tx: any,
+    entityType: string,
+    entry: PlanEntry,
+    refs: ResolvedReferences,
+    realIds: Map<string, string>,
+    resolveId: (key: string, map: Map<string, string>) => string | undefined,
+  ): Promise<void> {
+    switch (entityType) {
+      case 'categories': {
+        const id = await this.upsertCategory(tx, entry, refs, realIds);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:cat:${entry.externalKey}`, id);
+          refs.categoryIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'brands': {
+        const id = await this.upsertBrand(tx, entry);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:brand:${entry.externalKey}`, id);
+          refs.brandIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'attribute_groups': {
+        const id = await this.upsertAttributeGroup(tx, entry);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:ag:${entry.externalKey}`, id);
+          refs.attributeGroupIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'attributes': {
+        const id = await this.upsertAttribute(tx, entry);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:attr:${entry.externalKey}`, id);
+          refs.attributeIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'attribute_options': {
+        const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
+        if (!attrId) throw new Error(`Attribute "${entry.data['attributeCode']}" not resolved`);
+        await this.insertAttributeOption(tx, entry, attrId);
+        break;
+      }
+      case 'product_types': {
+        const catSlug = entry.data['categorySlug'] as string | undefined;
+        let catId: string | null | undefined = null;
+        if (catSlug) {
+          catId = resolveId(catSlug, refs.categoryIds);
+          if (!catId) throw new Error(`Category slug "${catSlug}" could not be resolved`);
+        }
+        const dimCodes = (entry.data['variantDimensions'] as string[]) ?? [];
+        const dimIds = dimCodes
+          .map(code => resolveId(code, refs.attributeIds))
+          .filter((id): id is string => !!id);
+        entry.data['resolvedVariantDimensionIds'] = dimIds;
+        const id = await this.upsertProductType(tx, entry, catId);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:pt:${entry.externalKey}`, id);
+          refs.productTypeIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'product_type_attributes': {
+        const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
+        const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
+        if (!ptId || !attrId) throw new Error(`PTA ${entry.externalKey}: unresolved reference`);
+        await this.insertProductTypeAttribute(tx, entry, ptId, attrId);
+        break;
+      }
+      case 'products': {
+        const brandId = resolveId(entry.data['brandSlug'] as string, refs.brandIds);
+        const catId = resolveId(entry.data['categorySlug'] as string, refs.categoryIds);
+        const ptId = resolveId(entry.data['productTypeCode'] as string, refs.productTypeIds);
+        if (!brandId) throw new Error(`Brand "${entry.data['brandSlug']}" not resolved`);
+        if (!catId) throw new Error(`Category "${entry.data['categorySlug']}" not resolved`);
+        if (!ptId) throw new Error(`Product type "${entry.data['productTypeCode']}" not resolved`);
+        const id = await this.upsertProduct(tx, entry, brandId, catId, ptId);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:prod:${entry.externalKey}`, id);
+          refs.productIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'product_attributes': {
+        const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
+        const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
+        if (!prodId || !attrId) throw new Error(`PA ${entry.externalKey}: unresolved reference`);
+        await this.upsertProductAttributeValue(tx, prodId, attrId, entry);
+        break;
+      }
+      case 'variants': {
+        const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
+        if (!prodId) throw new Error(`Product "${entry.data['productSlug']}" not resolved`);
+        const id = await this.upsertVariant(tx, entry, prodId);
+        if (entry.action === 'CREATE') {
+          realIds.set(`pending:var:${entry.externalKey}`, id);
+          refs.variantIds.set(entry.externalKey, id);
+        }
+        break;
+      }
+      case 'variant_attributes': {
+        const varId = resolveId(entry.data['variantSku'] as string, refs.variantIds);
+        const attrId = resolveId(entry.data['attributeCode'] as string, refs.attributeIds);
+        if (!varId || !attrId) throw new Error(`VA ${entry.externalKey}: unresolved reference`);
+        await this.upsertVariantAttributeValue(tx, varId, attrId, entry);
+        break;
+      }
+      case 'sources': {
+        const prodId = resolveId(entry.data['productSlug'] as string, refs.productIds);
+        if (!prodId) throw new Error(`Source ${entry.externalKey}: unresolved product reference`);
+        await this.upsertSource(tx, prodId, entry);
+        break;
+      }
+      default:
+        throw new Error(`Unknown entity type: ${entityType}`);
+    }
   }
 
   /**
    * Pre-flight check: validates all plan entry string fields against their
-   * database column length constraints.  Runs BEFORE the transaction so that
+   * database column length constraints.  Runs BEFORE any transaction so that
    * violations produce clear, field-level error messages instead of aborting
-   * the entire PostgreSQL transaction with an opaque "value too long" error.
+   * a PostgreSQL transaction with an opaque "value too long" error.
    */
   private validateStringLengths(plan: ImportPlan): string[] {
     const errors: string[] = [];
@@ -448,7 +704,6 @@ export class ExcelExecutorService {
     }
 
     const id = randomUUID();
-    // Upsert on unique(slug) to prevent duplicate-key violation from poisoning the transaction
     await tx.insert(brands).values({
       id,
       slug: d.slug as string,
@@ -470,7 +725,6 @@ export class ExcelExecutorService {
   private async upsertAttribute(tx: any, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Upsert on unique(code) to prevent duplicate-key violation from poisoning the transaction
     await tx.insert(attributeDefinitions).values({
       id,
       code: (d.code as string).slice(0, 80),
@@ -512,7 +766,6 @@ export class ExcelExecutorService {
   private async upsertProductType(tx: any, entry: PlanEntry, categoryId: string | null | undefined): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Use resolved attribute UUIDs for variant dimensions (not codes)
     const variantDimIds = (d.resolvedVariantDimensionIds as string[]) ?? [];
     await tx.insert(productTypes).values({
       id,
@@ -530,8 +783,6 @@ export class ExcelExecutorService {
   private async insertProductTypeAttribute(tx: any, entry: PlanEntry, ptId: string, attrId: string): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Upsert: if (product_type_id, attribute_definition_id) already exists, update in place
-    // to avoid duplicate-key violation that would poison the entire transaction.
     await tx.insert(productTypeAttributes).values({
       id,
       productTypeId: ptId,
@@ -573,12 +824,9 @@ export class ExcelExecutorService {
     }
 
     const id = randomUUID();
-    // Plain INSERT for CREATE actions — planner already verified product doesn't exist.
-    // No onConflictDoUpdate because DB has UNIQUE(store_id, slug) not UNIQUE(slug),
-    // and canonical products have store_id = NULL.
     await tx.insert(products).values({
       id,
-      storeId: null, // Canonical product
+      storeId: null,
       categoryId,
       brandId,
       productTypeId,
@@ -599,8 +847,6 @@ export class ExcelExecutorService {
   private async upsertProductAttributeValue(tx: any, productId: string, attrId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Upsert on unique(product_id, attribute_definition_id) to prevent duplicate-key
-    // violation from poisoning the entire transaction.
     await tx.insert(productAttributeValues).values({
       id,
       productId,
@@ -633,7 +879,8 @@ export class ExcelExecutorService {
       titleAr: (d.titleAr as string) ?? null,
       barcode: (d.barcode as string) ?? null,
       unit: (d.unit as string) ?? 'PCS',
-      weightGrams: (d.weightGrams as number) ?? null,
+      // NUMERIC(10,2) — Drizzle expects string for numeric columns (Phase 1)
+      weightGrams: d.weightGrams != null ? String(d.weightGrams) : null,
     });
     return id;
   }
@@ -641,8 +888,6 @@ export class ExcelExecutorService {
   private async upsertVariantAttributeValue(tx: any, variantId: string, attrId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Upsert on unique(variant_id, attribute_definition_id) to prevent duplicate-key
-    // violation from poisoning the entire transaction.
     await tx.insert(variantAttributeValues).values({
       id,
       variantId,
@@ -670,8 +915,6 @@ export class ExcelExecutorService {
   private async upsertSource(tx: any, productId: string, entry: PlanEntry): Promise<string> {
     const d = entry.data as any;
     const id = randomUUID();
-    // Guard against invalid date strings (empty cells may arrive as '' or null;
-    // new Date('') produces an Invalid Date whose .toISOString() throws).
     let verifiedAt: Date | null = null;
     if (d.verifiedAt) {
       try {
@@ -712,11 +955,9 @@ export class ExcelExecutorService {
       const varId = refs.variantIds.get(sku);
       if (!varId || varId.startsWith('pending:')) continue;
 
-      // Collect this variant's attribute values
       const varAttrs = plan.variantAttributes.filter(va => va.data['variantSku'] === sku);
       if (varAttrs.length === 0) continue;
 
-      // Build sorted key-value pairs for the combination digest
       const pairs: Array<{ attrId: string; value: string }> = [];
       for (const va of varAttrs) {
         const attrId = refs.attributeIds.get(va.data['attributeCode'] as string);
@@ -727,7 +968,6 @@ export class ExcelExecutorService {
 
       if (pairs.length === 0) continue;
 
-      // Sort by attrId and compute SHA-256
       pairs.sort((a, b) => a.attrId.localeCompare(b.attrId));
       const digest = pairs.map(p => `${p.attrId}=${p.value}`).join('|');
       const combinationKey = createHash('sha256').update(digest).digest('hex').slice(0, 64);

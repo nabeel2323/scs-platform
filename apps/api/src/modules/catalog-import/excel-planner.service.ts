@@ -127,7 +127,8 @@ export class ExcelPlannerService {
             nameAr: row['name_ar'],
             description: row['description'],
             parentSlug: row['parent_slug'],
-            sortOrder: row['sort_order'] ? Number(row['sort_order']) : 0,
+            // INTEGER field — parseInt (validator rejects decimals before this point)
+            sortOrder: row['sort_order'] ? parseInt(row['sort_order'], 10) : 0,
           },
         });
       } else {
@@ -276,7 +277,8 @@ export class ExcelPlannerService {
             value,
             valueAr: row['value_ar'],
             label: row['label'],
-            sortOrder: row['sort_order'] ? Number(row['sort_order']) : 0,
+            // INTEGER field — parseInt (validator rejects decimals before this point)
+            sortOrder: row['sort_order'] ? parseInt(row['sort_order'], 10) : 0,
           },
         });
       } else {
@@ -348,7 +350,8 @@ export class ExcelPlannerService {
           groupName: row['group_name'],
           required: row['required']?.toLowerCase() === 'true',
           scope: row['scope'] ?? 'PRODUCT',
-          displayOrder: row['display_order'] ? Number(row['display_order']) : 0,
+          // INTEGER field — parseInt (validator rejects decimals before this point)
+          displayOrder: row['display_order'] ? parseInt(row['display_order'], 10) : 0,
           filterable: row['filterable']?.toLowerCase() === 'true',
           searchable: row['searchable']?.toLowerCase() === 'true',
           visibleInListing: row['visible_in_listing']?.toLowerCase() !== 'false',
@@ -462,6 +465,7 @@ export class ExcelPlannerService {
             titleAr: row['title_ar'],
             barcode: row['barcode'],
             unit: row['unit'] ?? 'PCS',
+            // DECIMAL field — NUMERIC(10,2) in DB, Number() preserves decimal correctly
             weightGrams: row['weight_grams'] ? Number(row['weight_grams']) : null,
           },
         });

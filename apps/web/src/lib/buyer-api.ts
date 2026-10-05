@@ -1067,6 +1067,16 @@ export interface UpdateProductInput {
   brandId?: string;
   slug?: string;
   metadata?: Record<string, unknown>;
+  /** PHASE 4 P1 — Optimistic locking */
+  updatedAt?: string;
+  /** PHASE 4 P2 — Product type (BD-06) */
+  productTypeId?: string | null;
+  /** PHASE 4 P2 — GTIN identifier */
+  gtin?: string | null;
+  /** PHASE 4 P2 — EAN identifier */
+  ean?: string | null;
+  /** PHASE 4 P2 — MPN identifier */
+  mpn?: string | null;
 }
 
 export interface CreateVariantInput {

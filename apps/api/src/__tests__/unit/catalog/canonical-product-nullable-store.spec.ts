@@ -73,6 +73,7 @@ function makeHarness(): Harness {
     storage as any,
     audit as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
+    { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] } as any,
   );
 
   return { svc, inserted };

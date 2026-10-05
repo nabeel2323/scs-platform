@@ -43,6 +43,45 @@ const REQUIRED_HEADERS: Record<string, string[]> = {
   sources: ['product_slug', 'source_type', 'source_url'],
 };
 
+/**
+ * Fields that map to INTEGER database columns.  Decimal values such as "1.5"
+ * must be rejected BEFORE the planner converts them via Number().
+ * Locked by BD-01 / AD-02 (Phase 1 implementation).
+ */
+const INTEGER_FIELDS: Record<string, string[]> = {
+  categories: ['sort_order'],
+  attribute_options: ['sort_order'],
+  product_type_attributes: ['display_order'],
+};
+
+/** Per-field decimal specification (field → range). */
+const DECIMAL_FIELD_SPECS: Record<string, Record<string, { min: number; max: number; allowZero: boolean }>> = {
+  variants: {
+    weight_grams: { min: 0.01, max: 99999999.99, allowZero: false },
+  },
+  product_attributes: {
+    value_number: { min: -99999999.99, max: 99999999.99, allowZero: true },
+  },
+  variant_attributes: {
+    value_number: { min: -99999999.99, max: 99999999.99, allowZero: true },
+  },
+};
+
+/** Enum-constrained fields: sheet → field → allowed values. */
+const ENUM_FIELDS: Record<string, Record<string, Set<string>>> = {
+  products: {
+    status: new Set(['DRAFT', 'ACTIVE', 'ARCHIVED', 'REJECTED', 'APPROVED', 'PENDING']),
+    condition: new Set(['NEW', 'USED', 'REFURBISHED']),
+  },
+  attributes: {
+    type: new Set(['TEXT', 'LONG_TEXT', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'DATETIME', 'SELECT', 'MULTI_SELECT', 'COLOR', 'URL', 'FILE', 'MEASUREMENT', 'CURRENCY']),
+    scope: new Set(['PRODUCT', 'VARIANT', 'OFFER']),
+  },
+  product_type_attributes: {
+    scope: new Set(['PRODUCT', 'VARIANT', 'OFFER']),
+  },
+};
+
 /** Headers that are valid but optional (reference — not enforced). */
 const _OPTIONAL_HEADERS: Record<string, string[]> = {
   categories: ['name_ar', 'description', 'parent_slug', 'sort_order'],
@@ -212,6 +251,11 @@ export class ExcelValidatorService {
     // Validate column length limits — catches varchar overflow BEFORE the
     // executor enters the DB transaction (which would abort the whole tx).
     this.validateColumnLengths(workbook, errors);
+
+    // Phase 1 (BD-01/AD-02): Validate numeric types, integer vs decimal
+    // distinction, enum constraints, and NOT NULL — catches deterministic
+    // persistence failures BEFORE execution.
+    this.validateNumericAndEnumFields(workbook, errors);
 
     // Phase 8: Required attribute completeness — verify that imported products
     // and variants provide values for all required Product Type Attributes.
@@ -778,6 +822,106 @@ export class ExcelValidatorService {
         }
       }
     }
+  }
+
+  // ── Phase 1 (BD-01/AD-02): Numeric, integer, enum, NOT NULL validation ──
+
+  /**
+   * Validates numeric type compatibility, integer vs decimal distinction,
+   * enum constraints, and NOT NULL for fields that map to constrained DB
+   * columns.  Catches deterministic persistence failures at preview time.
+   */
+  private validateNumericAndEnumFields(workbook: ParsedWorkbook, errors: ImportError[]): void {
+    // 1. Integer fields — reject decimal values
+    for (const [entityType, fields] of Object.entries(INTEGER_FIELDS)) {
+      const sheet = workbook.sheets.get(entityType);
+      if (!sheet) continue;
+      for (const row of sheet.rows) {
+        const rn = Number(row['__row_number'] ?? 0);
+        const key = row['slug'] ?? row['code'] ?? row['sku'] ?? row['name'] ?? null;
+        for (const field of fields) {
+          const raw = row[field];
+          if (raw === undefined || raw === null || raw === '') continue; // optional field
+          if (!this.isIntegerString(raw)) {
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'INVALID_INTEGER',
+              `Field "${field}" must be an integer, got "${raw}"`,
+              raw, 'Provide a whole number without decimal point',
+            ));
+          }
+        }
+      }
+    }
+
+    // 2. Decimal fields — reject non-numeric, enforce range
+    for (const [entityType, fieldSpecs] of Object.entries(DECIMAL_FIELD_SPECS)) {
+      const sheet = workbook.sheets.get(entityType);
+      if (!sheet) continue;
+      for (const row of sheet.rows) {
+        const rn = Number(row['__row_number'] ?? 0);
+        const key = row['slug'] ?? row['code'] ?? row['sku'] ?? row['name'] ?? null;
+        for (const [field, spec] of Object.entries(fieldSpecs)) {
+          const raw = row[field];
+          if (raw === undefined || raw === null || raw === '') continue; // nullable field
+          const num = Number(raw);
+          if (isNaN(num) || !isFinite(raw as unknown as number)) {
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'INVALID_NUMERIC',
+              `Field "${field}" must be a valid number, got "${raw}"`,
+              raw, 'Provide a numeric value',
+            ));
+            continue;
+          }
+          if (!spec.allowZero && num === 0) {
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'VALUE_OUT_OF_RANGE',
+              `Field "${field}" must be greater than zero`,
+              raw, 'Provide a positive number',
+            ));
+            continue;
+          }
+          if (num < spec.min || num > spec.max) {
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'VALUE_OUT_OF_RANGE',
+              `Field "${field}" must be between ${spec.min} and ${spec.max}, got ${raw}`,
+              raw, `Provide a value between ${spec.min} and ${spec.max}`,
+            ));
+          }
+        }
+      }
+    }
+
+    // 3. Enum fields — reject invalid enum values
+    for (const [entityType, fieldEnums] of Object.entries(ENUM_FIELDS)) {
+      const sheet = workbook.sheets.get(entityType);
+      if (!sheet) continue;
+      for (const row of sheet.rows) {
+        const rn = Number(row['__row_number'] ?? 0);
+        const key = row['slug'] ?? row['code'] ?? row['sku'] ?? row['name'] ?? null;
+        for (const [field, allowed] of Object.entries(fieldEnums)) {
+          const raw = row[field];
+          if (raw === undefined || raw === null || raw === '') continue; // optional
+          if (!allowed.has(raw.toUpperCase())) {
+            errors.push(this.err(
+              sheet.name, rn, entityType, key, field, 'INVALID_ENUM',
+              `Field "${field}" has invalid value "${raw}". Allowed: ${[...allowed].join(', ')}`,
+              raw, `Use one of: ${[...allowed].join(', ')}`,
+            ));
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns true if the string represents a valid integer (no decimal point).
+   * "1" → true, "1.0" → false, "1.5" → false, "abc" → false
+   */
+  private isIntegerString(value: string): boolean {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    // Must match optional sign + digits only (no decimal point, no exponent)
+    return /^[+-]?\d+$/.test(trimmed);
   }
 
   private err(

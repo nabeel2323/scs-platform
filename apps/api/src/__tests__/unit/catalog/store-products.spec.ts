@@ -81,6 +81,7 @@ function harness(
     { createPresignedGetUrl: async () => null } as never,
     { record: async () => {} } as never,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as never,
+    { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] } as never,
   );
 }
 

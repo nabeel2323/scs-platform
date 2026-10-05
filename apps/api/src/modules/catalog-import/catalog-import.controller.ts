@@ -122,6 +122,20 @@ export class CatalogImportController {
   }
 
   /**
+   * POST /admin/catalog-imports/:id/retry
+   * Retry a failed import without re-uploading the file (Phase 2).
+   */
+  @Post(':id/retry')
+  @RequirePermission('catalog:imports:manage')
+  @RequireRole('ADMIN', 'SUPER_ADMIN')
+  async retry(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.importService.retry(id, user.sub);
+  }
+
+  /**
    * GET /admin/catalog-imports/:id/errors
    * Get row-level validation/import errors.
    */

@@ -12,7 +12,7 @@ import { ExcelParserService, type ParsedWorkbook } from './excel-parser.service'
 import { ExcelValidatorService, type ExistingDataSnapshot, type ImportError } from './excel-validator.service';
 import { ExcelResolverService, type ResolvedReferences } from './excel-resolver.service';
 import { ExcelPlannerService, type ImportPlan, type PlanEntry, type ExistingEntityMap } from './excel-planner.service';
-import { ExcelExecutorService, type ExecutionResult, VARCHAR_LIMITS } from './excel-executor.service';
+import { ExcelExecutorService, type ExecutionResult, type StructuredError, VARCHAR_LIMITS } from './excel-executor.service';
 import { TemplateGeneratorService } from './template-generator.service';
 import { CatalogTaxonomyService } from '../catalog/catalog.taxonomy.service';
 
@@ -148,6 +148,9 @@ export class CatalogImportService {
     const previewPublishability = this.checkPreviewPublishability(workbook, errors);
     this.planCache.set(importId, { plan, refs, errors, previewPublishability });
 
+    // Persist plan + refs snapshots for retry-without-re-upload (Phase 2)
+    await this.persistPlanSnapshot(importId, plan, refs);
+
     // Update import record
     const totalRows = this.countTotalRows(workbook);
     const hardErrors = errors.filter(e => e.severity === 'ERROR');
@@ -212,16 +215,18 @@ export class CatalogImportService {
       // updated so the admin knows which ones can be published immediately.
       const publishability = await this.checkPublishability(plan, refs);
 
-      const status = (result.errors.length > 0 ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED')
+      const hasErrors = result.rejected > 0 || result.skipped > 0 || result.errors.length > 0;
+      const status = (hasErrors ? 'COMPLETED_WITH_ERRORS' : 'COMPLETED')
         .slice(0, CatalogImportService.STATUS_MAX_LEN);
 
       await this.db.db.update(catalogImports).set({
         status,
-        processedRows: result.created + result.updated + result.unchanged + result.rejected,
+        processedRows: result.created + result.updated + result.unchanged + result.rejected + result.skipped,
         createdRows: result.created,
         updatedRows: result.updated,
         unchangedRows: result.unchanged,
         rejectedRows: result.rejected,
+        skippedRows: result.skipped,
         completedAt: new Date(),
         updatedAt: new Date(),
       }).where(eq(catalogImports.id, importId));
@@ -241,16 +246,29 @@ export class CatalogImportService {
         },
       });
 
-      // Clear cache
+      // Store structured execution errors (Phase 2)
+      if (result.structuredErrors?.length) {
+        await this.storeExecutionErrors(importId, result.structuredErrors);
+      }
+
+      // Persist plan + refs for retry support
+      await this.persistPlanSnapshot(importId, plan, refs);
+
+      // Clear in-memory cache
       this.planCache.delete(importId);
 
-      this.logger.log(`Import ${importId} completed: ${result.created} created, ${result.updated} updated`);
+      this.logger.log(`Import ${importId} completed: ${result.created} created, ${result.updated} updated, ${result.rejected} rejected, ${result.skipped} skipped`);
+
+      // Exclude non-serializable Map from API response
+      const { entityOutcomes, ...serializableResult } = result;
       return {
-        ...result,
+        ...serializableResult,
         publishability,
-      };
+      } as Omit<typeof result, 'entityOutcomes'> & { publishability: PublishabilityReport };
     } catch (err) {
       await this.updateStatus(importId, 'FAILED');
+      // Persist plan for retry even on failure
+      await this.persistPlanSnapshot(importId, plan, refs);
       this.logger.error(`Import ${importId} failed: ${err}`);
       throw err;
     }
@@ -391,13 +409,52 @@ export class CatalogImportService {
       { header: 'Field', key: 'field', width: 20 },
       { header: 'Code', key: 'errorCode', width: 20 },
       { header: 'Message', key: 'errorMessage', width: 50 },
-      { header: 'Severity', key: 'severity', width: 10 },
+      { header: 'Severity', key: 'severity', width: 12 },
+      { header: 'Dependency', key: 'dependency', width: 30 },
+      { header: 'Root Error ID', key: 'rootErrorId', width: 38 },
     ];
     for (const e of errors) {
-      sheet.addRow(e);
+      sheet.addRow({
+        sheet: e.sheet,
+        rowNumber: e.rowNumber,
+        entityType: e.entityType,
+        externalKey: e.externalKey,
+        field: e.field,
+        errorCode: e.errorCode,
+        errorMessage: e.errorMessage,
+        severity: e.severity === 'DEPENDENCY' ? 'DEPENDENCY' : e.severity,
+        dependency: (e as any).dependency ?? '',
+        rootErrorId: (e as any).rootErrorId ?? '',
+      });
     }
     const buf = await workbook.xlsx.writeBuffer();
     return Buffer.from(buf);
+  }
+
+  // ── Retry ──────────────────────────────────────────────────────
+
+  /**
+   * Retry a failed import without re-uploading the file.
+   * Re-validates (to rebuild the plan against current DB state) then re-executes.
+   * Already-committed entities are classified as UNCHANGED by the planner.
+   */
+  async retry(importId: string, userId: string): Promise<ImportExecutionResult> {
+    const job = await this.getJobOrThrow(importId);
+    const status = job.status;
+
+    if (status !== 'COMPLETED_WITH_ERRORS' && status !== 'FAILED') {
+      throw new BadRequestException(
+        `Import ${importId} has status "${status}" and cannot be retried. ` +
+        'Only COMPLETED_WITH_ERRORS or FAILED imports can be retried.',
+      );
+    }
+
+    // Re-validate to rebuild plan against current DB state
+    // (entities created in the first attempt will be classified as UNCHANGED)
+    await this.validate(importId);
+
+    // Re-execute with the refreshed plan
+    return this.execute(importId, userId);
   }
 
   // ── Helpers ────────────────────────────────────────────────────
@@ -442,6 +499,66 @@ export class CatalogImportService {
         })),
       );
     }
+  }
+
+  /**
+   * Store structured execution errors (Phase 2 ROOT_ERROR / DEPENDENCY_ERROR).
+   * Clears previous execution errors for this import before inserting.
+   */
+  private async storeExecutionErrors(importId: string, errors: StructuredError[]): Promise<void> {
+    await this.db.db.delete(catalogImportErrors)
+      .where(eq(catalogImportErrors.importId, importId));
+
+    const batchSize = 100;
+    for (let i = 0; i < errors.length; i += batchSize) {
+      const batch = errors.slice(i, i + batchSize);
+      await this.db.db.insert(catalogImportErrors).values(
+        batch.map(e => ({
+          id: e.id,
+          importId,
+          sheet: e.sheet ?? null,
+          rowNumber: e.rowNumber ?? null,
+          entityType: e.entityType,
+          externalKey: e.externalKey,
+          field: e.field ?? null,
+          errorCode: e.errorCode,
+          errorMessage: e.errorMessage,
+          rawValue: e.rawValue ?? null,
+          suggestedFix: null,
+          severity: e.severity,
+          dependency: e.dependency ?? null,
+          rootErrorId: e.rootErrorId ?? null,
+          normalizedValue: e.normalizedValue ?? null,
+          expected: e.expected ?? null,
+          actual: e.actual ?? null,
+        })),
+      );
+    }
+  }
+
+  /**
+   * Persist the import plan and resolved references as JSONB snapshots.
+   * Enables retry-without-re-upload after server restart (Phase 2).
+   */
+  private async persistPlanSnapshot(
+    importId: string,
+    plan: ImportPlan,
+    refs: ResolvedReferences,
+  ): Promise<void> {
+    const refsObj = {
+      categoryIds: Object.fromEntries(refs.categoryIds),
+      brandIds: Object.fromEntries(refs.brandIds),
+      attributeGroupIds: Object.fromEntries(refs.attributeGroupIds),
+      attributeIds: Object.fromEntries(refs.attributeIds),
+      productTypeIds: Object.fromEntries(refs.productTypeIds),
+      productIds: Object.fromEntries(refs.productIds),
+      variantIds: Object.fromEntries(refs.variantIds),
+    };
+    await this.db.db.update(catalogImports).set({
+      planSnapshot: plan as any,
+      refsSnapshot: refsObj as any,
+      updatedAt: new Date(),
+    }).where(eq(catalogImports.id, importId));
   }
 
   private countTotalRows(workbook: ParsedWorkbook): number {
