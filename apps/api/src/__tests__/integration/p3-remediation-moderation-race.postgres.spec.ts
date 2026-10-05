@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { randomUUID } from 'node:crypto';
@@ -19,8 +20,7 @@ import { ConflictException } from '@nestjs/common';
 /**
  * P3-19 Remediation — Moderation concurrency race test.
  *
- * Uses the existing scs-postgres Docker container directly
- * (testcontainers is unavailable due to Docker Desktop port binding issue).
+ * Uses testcontainers for a disposable PostgreSQL instance.
  *
  * Verifies that the atomic conditional UPDATE in moderateProduct()
  * prevents lost updates when moderation and product edits race
@@ -30,6 +30,7 @@ import { ConflictException } from '@nestjs/common';
  * Post-remediation expected: 0/50 double-success
  */
 describe('P3-19 Remediation — Moderation concurrency race', () => {
+  let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let db: DatabaseService['db'];
   let admin: AdminService;
@@ -40,7 +41,8 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
   const actorId = randomUUID();
 
   beforeAll(async () => {
-    pool = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:25433/scs_race_test' });
+    container = await new PostgreSqlContainer('postgres:16-alpine').start();
+    pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers },
     }) as unknown as DatabaseService['db'];
@@ -62,7 +64,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
     await db.insert(stores).values({ id: storeId, orgId, slug: 'race-store', displayName: 'Race Store' });
   }, 120_000);
 
-  afterAll(async () => { await pool?.end(); }, 10_000);
+  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
   it('50 iterations: concurrent moderation vs edit — expects 0 double-success', async () => {
     let doubleSuccess = 0;
