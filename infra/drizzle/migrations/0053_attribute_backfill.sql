@@ -72,6 +72,7 @@ BEGIN
     FROM products p,
          LATERAL jsonb_each(p.attributes) kv
     WHERE p.attributes IS NOT NULL
+      AND jsonb_typeof(p.attributes) = 'object'
       AND p.attributes != '{}'::jsonb
   LOOP
     v_count := v_count + 1;
@@ -224,6 +225,7 @@ BEGIN
     FROM product_variants v,
          LATERAL jsonb_each(v.attributes) kv
     WHERE v.attributes IS NOT NULL
+      AND jsonb_typeof(v.attributes) = 'object'
       AND v.attributes != '{}'::jsonb
   LOOP
     v_count := v_count + 1;

@@ -20,12 +20,31 @@ export interface AdminProduct extends AdminRecord {
   variants: (AdminRecord & { images: unknown })[];
 }
 
+/**
+ * PHASE 4 P3: Structured error thrown by adminRequest on non-2xx responses.
+ * Preserves the HTTP status and parsed body so callers can detect 409 CONFLICT.
+ */
+export class AdminApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'AdminApiError';
+  }
+}
+
 export async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authFetch(`${API_URL}/v1/${path}`, init);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const message = body.detail || body.message || `Request failed (${response.status})`;
-    throw new Error(Array.isArray(message) ? message.join('; ') : message);
+    throw new AdminApiError(
+      Array.isArray(message) ? message.join('; ') : message,
+      response.status,
+      body,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json();
@@ -41,9 +60,11 @@ export function fetchAdminProduct(id: string, signal?: AbortSignal): Promise<Adm
   return adminRequest(`products/${encodeURIComponent(id)}`, { signal });
 }
 
-export function moderateAdminProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED') {
+export function moderateAdminProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', updatedAt?: string) {
+  const payload: Record<string, unknown> = { decision };
+  if (updatedAt) payload['updatedAt'] = updatedAt;
   return adminRequest(`admin/products/${encodeURIComponent(id)}/moderate`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
 }
 
@@ -1516,5 +1537,93 @@ export async function fetchProductTypePublishReadiness(id: string): Promise<Publ
   );
   if (!res.ok) throw new Error(`Failed to fetch publish readiness: ${res.status}`);
   return res.json();
+}
+
+// ── PHASE 4 P3: Admin Product CRUD ────────────────────────────
+
+/** 409 CONFLICT response shape from P1 optimistic locking. */
+export type ProductConflictResponse = {
+  statusCode: 409;
+  message: 'CONFLICT';
+  currentUpdatedAt: string;
+};
+
+/** Admin product create input — mirrors backend CreateProductInput. */
+export interface AdminProductCreateInput {
+  title: string;
+  titleAr?: string;
+  slug?: string;
+  description?: string;
+  descriptionAr?: string;
+  categoryId?: string;
+  brandId?: string;
+  condition?: string;
+  productTypeId?: string;
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+}
+
+/** Admin product edit input — mirrors backend UpdateProductInput. */
+export interface AdminProductEditInput {
+  title?: string;
+  titleAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  status?: string;
+  condition?: string;
+  categoryId?: string;
+  brandId?: string;
+  slug?: string;
+  metadata?: Record<string, unknown>;
+  updatedAt?: string;
+  productTypeId?: string | null;
+  gtin?: string | null;
+  ean?: string | null;
+  mpn?: string | null;
+}
+
+/** PHASE 4 P3: Admin product creation (POST /v1/admin/products). */
+export async function adminCreateProduct(input: AdminProductCreateInput): Promise<AdminProduct> {
+  return adminRequest('admin/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+/** PHASE 4 P3: Admin product update (PATCH /v1/admin/products/:id). */
+export async function adminUpdateProduct(id: string, input: AdminProductEditInput): Promise<AdminProduct> {
+  return adminRequest(`admin/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+/** PHASE 4 P3: Load typed product attribute values. */
+export async function adminGetProductAttributeValues(productId: string): Promise<Array<{
+  id: string;
+  productId: string;
+  attributeDefinitionId: string;
+  valueText: string | null;
+  valueNumber: string | null;
+  valueBoolean: boolean | null;
+  optionValue: string | null;
+  createdAt: string;
+}>> {
+  return adminRequest(`admin/products/${encodeURIComponent(productId)}/attribute-values`);
+}
+
+/** PHASE 4 P3: Replace typed product attribute values. */
+export async function adminSetProductAttributeValues(
+  productId: string,
+  values: Array<{ attributeDefinitionId: string; value?: string | number | boolean | null }>,
+): Promise<unknown> {
+  return adminRequest(`admin/products/${encodeURIComponent(productId)}/attribute-values`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
 }
 

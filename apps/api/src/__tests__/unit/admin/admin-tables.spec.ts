@@ -54,7 +54,7 @@ describe('admin HTTP permission contracts', () => {
     const controller = new AdminController({ moderateProduct } as unknown as AdminService);
     const body = { decision: 'APPROVED' as const, reason: 'Reviewed' };
     expect(await controller.moderateProductPost('id', body)).toEqual(await controller.moderateProduct('id', body));
-    expect(moderateProduct.mock.calls).toEqual([['id', 'APPROVED', 'Reviewed'], ['id', 'APPROVED', 'Reviewed']]);
+    expect(moderateProduct.mock.calls).toEqual([['id', 'APPROVED', 'Reviewed', undefined], ['id', 'APPROVED', 'Reviewed', undefined]]);
     expect(Reflect.getMetadata(METHOD_METADATA, controller.moderateProductPost)).toBe(RequestMethod.POST);
     expect(Reflect.getMetadata(METHOD_METADATA, controller.moderateProduct)).toBe(RequestMethod.PATCH);
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, controller.moderateProductPost)).toBe(200);
