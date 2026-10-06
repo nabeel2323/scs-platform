@@ -429,23 +429,15 @@ export class InventoryService {
       await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
     }
 
+    // P8: Read item inside the transaction with FOR UPDATE to prevent
+    // TOCTOU race with concurrent reserveStock. The availability check
+    // and all mutations happen atomically.
+    // Pre-resolve destination outside the transaction (read-only lookup).
     const item = await this.getItem(input.inventoryItemId);
     if (item['warehouseId'] !== input.fromWarehouseId) {
       throw new BadRequestException('Inventory item does not belong to source warehouse');
     }
 
-    // ADVERSARIAL FIX: respect reserved stock — transferable amount is
-    // on-hand minus reserved, not raw on-hand. Without this check a transfer
-    // could consume stock already promised to an accepted order.
-    const availableForTransfer = item['qtyOnHand'] - item['qtyReserved'];
-    if (availableForTransfer < input.quantity) {
-      throw new BadRequestException(
-        `Insufficient available stock: ${availableForTransfer} available (${item['qtyOnHand']} on hand - ${item['qtyReserved']} reserved) < ${input.quantity} requested`,
-      );
-    }
-    const sourceQty = item['qtyOnHand'] - input.quantity;
-
-    // Pre-resolve destination outside the transaction (read-only)
     const destItem = await this.db.db.query.inventoryItems.findFirst({
       where: and(
         eq(inventoryItems.variantId, item['variantId']),
@@ -454,10 +446,27 @@ export class InventoryService {
     });
     const destId = destItem?.id ?? crypto.randomUUID();
 
-    // ADVERSARIAL FIX: entire transfer is atomic — source decrement, destination
-    // increment, and all four movement rows in one transaction. Without this,
-    // a failure between source and destination writes permanently loses stock.
-    await this.db.db.transaction(async (tx) => {
+    // P8: Atomic transfer with FOR UPDATE on source row.
+    const result = await this.db.db.transaction(async (tx) => {
+      // Lock source row
+      const [locked] = await tx
+        .select({ qtyOnHand: inventoryItems.qtyOnHand, qtyReserved: inventoryItems.qtyReserved })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, input.inventoryItemId))
+        .for('update')
+        .then((rows) => rows);
+
+      if (!locked) throw new NotFoundException('Inventory item not found');
+
+      // P8: Availability check inside the lock (no longer TOCTOU)
+      const availableForTransfer = locked.qtyOnHand - locked.qtyReserved;
+      if (availableForTransfer < input.quantity) {
+        throw new BadRequestException(
+          `Insufficient available stock: ${availableForTransfer} available (${locked.qtyOnHand} on hand - ${locked.qtyReserved} reserved) < ${input.quantity} requested`,
+        );
+      }
+      const sourceQty = locked.qtyOnHand - input.quantity;
+
       // Decrement source
       await tx
         .update(inventoryItems)
@@ -498,6 +507,8 @@ export class InventoryService {
         reason: input.reason || `Transfer from warehouse ${input.fromWarehouseId}`,
         performedBy: input.userId || null,
       });
+
+      return { sourceNewQty: sourceQty, destId, destNewQty: destItem ? destItem['qtyOnHand'] + input.quantity : input.quantity };
     });
 
     // Emit outbox event for notifications / audit (after commit)
@@ -509,7 +520,7 @@ export class InventoryService {
       quantity: input.quantity,
     });
 
-    return { sourceNewQty: sourceQty, destId, destNewQty: destItem ? destItem['qtyOnHand'] + input.quantity : input.quantity };
+    return result;
   }
 
   // ── Movement Export ───────────────────────────────────────────

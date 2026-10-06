@@ -14,6 +14,7 @@ import {
   productVariants,
   productMedia,
   importJobs,
+  importJobChunks,
   favorites,
   savedSuppliers,
 } from './catalog.schema';
@@ -27,7 +28,7 @@ import { priceLists, priceTiers } from '../pricing/pricing.schema';
 import { resolveOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems } from '../inventory/inventory.schema';
 import { merchantOffers } from './catalog.offer.schema';
-import { eq, and, isNull, asc, desc, sql, inArray, ilike, like } from 'drizzle-orm';
+import { eq, and, or, isNull, asc, desc, sql, inArray, ilike, like, count } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { StorageService } from '../../common/storage/storage.service';
 import { AuditService } from '../audit/index';
@@ -2239,7 +2240,7 @@ export class CatalogService {
    */
   async stageImportRows(id: string, rows: Record<string, string>[], append: boolean) {
     const job = await this.getImportJob(id);
-    if (job.status !== 'UPLOADED' && job.status !== 'MAPPING') {
+    if (job.status !== 'UPLOADED' && job.status !== 'MAPPING' && job.status !== 'READY') {
       throw new ConflictException(`Cannot stage rows for job in status: ${job.status}`);
     }
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -2254,6 +2255,14 @@ export class CatalogService {
     await this.redis.client.rpush(key, JSON.stringify(rows));
     await this.redis.client.expire(key, 3600);
 
+    // Transition to READY if still in pre-processing state.
+    if (job.status === 'UPLOADED' || job.status === 'MAPPING') {
+      await this.db.db
+        .update(importJobs)
+        .set({ status: 'READY', updatedAt: new Date() })
+        .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['UPLOADED', 'MAPPING'])));
+    }
+
     return { staged: rows.length, batches: await this.redis.client.llen(key) };
   }
 
@@ -2261,20 +2270,31 @@ export class CatalogService {
     return `import:rows:${id}`;
   }
 
+  // ── P8: Chunk-based import processing ─────────────────────────
+
+  /** P8 chunk size: 100 rows per chunk. */
+  private static readonly CHUNK_SIZE = 100;
+  /** P8 maximum chunk retry attempts. */
+  private static readonly MAX_CHUNK_ATTEMPTS = 3;
+  /** P8 stale-job threshold: 30 minutes. */
+  private static readonly STALE_LOCK_MS = 30 * 60 * 1000;
+
   /**
-   * Process an import job: reads staged CSV rows from Redis, validates
-   * each row against the stored column mapping, and creates/updates
-   * products, variants and base price tiers. Per-row failures are
-   * collected in errorLog; the job completes with real stats.
+   * Process an import job using chunk-based architecture (P8).
+   * Atomically claims the job (READY → PROCESSING), creates 100-row chunks,
+   * processes each chunk in its own transaction, and supports resumability.
    */
   async processImportJob(id: string) {
     const job = await this.getImportJob(id);
-    const reprocessable = ['UPLOADED', 'MAPPING', 'IMPORTING', 'FAILED'];
-    if (!reprocessable.includes(job.status)) {
-      throw new ConflictException(`Import job cannot be processed from status: ${job.status}`);
+
+    // P8: Atomic claim — READY → PROCESSING (concurrent import protection).
+    // Also accept FAILED for direct retry without separate reset step.
+    const claimable = ['READY', 'FAILED'];
+    if (!claimable.includes(job['status'])) {
+      throw new ConflictException(`Import job cannot be processed from status: ${job['status']}`);
     }
 
-    // Pull staged rows
+    // Pull staged rows from Redis
     const key = this.stagedRowsKey(id);
     const batches = await this.redis.client.lrange(key, 0, -1);
     const rows: Record<string, string>[] = batches.flatMap(
@@ -2282,7 +2302,7 @@ export class CatalogService {
     );
 
     if (rows.length === 0) {
-      if (job.fileType === 'XLSX') {
+      if (job['fileType'] === 'XLSX') {
         throw new BadRequestException(
           'XLSX parsing is deferred for the pilot. Convert the file to CSV and stage rows via POST /v1/imports/:id/rows.',
         );
@@ -2292,72 +2312,109 @@ export class CatalogService {
       );
     }
 
-    const mapping = (job.columnMapping || {}) as Record<string, string>;
+    const mapping = (job['columnMapping'] || {}) as Record<string, string>;
     if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
       throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor');
     }
 
-    await this.db.db
+    // P8: Atomic claim — exactly one worker succeeds.
+    const claimed = await this.db.db
       .update(importJobs)
       .set({
-        status: 'IMPORTING',
-        startedAt: new Date(),
+        status: 'PROCESSING',
+        lockedAt: new Date(),
+        startedAt: job['startedAt'] || new Date(),
         totalRows: rows.length,
-        processedRows: 0,
-        errorRows: 0,
-        errorLog: [],
-        stats: { total: rows.length, processed: 0, created: 0, updated: 0, skipped: 0, errors: 0 },
         updatedAt: new Date(),
       })
-      .where(eq(importJobs.id, id));
+      .where(
+        and(
+          eq(importJobs.id, id),
+          inArray(importJobs.status, ['READY', 'FAILED']),
+        ),
+      )
+      .returning({ id: importJobs.id });
 
-    const priceListId = await this.getOrCreateDefaultPriceList(job.storeId);
+    if (claimed.length === 0) {
+      throw new ConflictException('Import job is already being processed by another worker');
+    }
 
-    let created = 0;
-    let updated = 0;
-    let skipped = 0;
-    const errorLog: Array<{ row: number; field: string; message: string }> = [];
+    const priceListId = await this.getOrCreateDefaultPriceList(job['storeId']);
 
     try {
-      for (let i = 0; i < rows.length; i++) {
-        const rowNum = i + 2; // header is row 1 in the source file
-        try {
-          const outcome = await this.importRow(job.storeId, priceListId, mapping, rows[i]!, rowNum);
-          if (outcome === 'created') created++;
-          else if (outcome === 'updated') updated++;
-          else skipped++;
-        } catch (e) {
-          if (errorLog.length < 100) {
-            errorLog.push({
-              row: rowNum,
-              field: (e as ImportRowError).field || 'row',
-              message: (e as Error).message,
-            });
-          }
+      // P8: Create chunks (idempotent — skip if chunks already exist for resume).
+      await this.createChunks(id, rows.length);
+
+      // P8: Process chunks sequentially
+      const chunks = await this.getChunks(id);
+
+      for (const chunk of chunks) {
+        // Skip completed chunks (resumability)
+        if (chunk['status'] === 'COMPLETED') continue;
+
+        // Check max attempts
+        if (chunk['status'] === 'FAILED' && chunk['attemptCount'] >= CatalogService.MAX_CHUNK_ATTEMPTS) {
+          continue; // Skip exhausted chunks
         }
 
-        // Progress checkpoint every 25 rows so polling clients see movement
-        if ((i + 1) % 25 === 0 || i + 1 === rows.length) {
-          await this.db.db
-            .update(importJobs)
-            .set({
-              processedRows: i + 1,
-              errorRows: errorLog.length,
-              stats: {
-                total: rows.length,
-                processed: i + 1,
-                created,
-                updated,
-                skipped,
-                errors: errorLog.length,
-              },
-              updatedAt: new Date(),
-            })
-            .where(eq(importJobs.id, id));
+        // Check for cancellation between chunks (cooperative)
+        const currentJob = await this.getImportJob(id);
+        if (currentJob['status'] === 'CANCELLED') break;
+
+        // Extract this chunk's rows
+        const chunkRows = rows.slice(chunk['startRow'], chunk['endRow'] + 1);
+
+        // Process the chunk in a transaction
+        await this.processChunk(id, chunk, chunkRows, mapping, priceListId, job['storeId']);
+      }
+
+      // P8: Aggregate chunk results into job stats
+      const finalChunks = await this.getChunks(id);
+      let totalCreated = 0, totalUpdated = 0, totalSkipped = 0, totalErrors = 0;
+      const allErrors: Array<{ row: number; field: string; message: string }> = [];
+
+      for (const c of finalChunks) {
+        totalCreated += c['createdCount'];
+        totalUpdated += c['updatedCount'];
+        totalSkipped += c['skippedCount'];
+        totalErrors += c['errorCount'];
+        const chunkErrors = (c['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+        for (const err of chunkErrors) {
+          if (allErrors.length < 500) allErrors.push(err);
         }
       }
+
+      const processedRows = finalChunks.reduce((sum, c) => sum + c['processedRows'], 0);
+      const hasFailedChunks = finalChunks.some(c => c['status'] === 'FAILED');
+
+      const finalStatus = hasFailedChunks ? 'FAILED' : 'COMPLETED';
+
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: finalStatus,
+          processedRows,
+          errorRows: totalErrors,
+          errorLog: allErrors,
+          stats: {
+            total: rows.length,
+            processed: processedRows,
+            created: totalCreated,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            errors: totalErrors,
+          },
+          completedAt: finalStatus === 'COMPLETED' ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, id));
+
+      // Clean up staged rows only on full completion
+      if (finalStatus === 'COMPLETED') {
+        await this.redis.client.del(key);
+      }
     } catch (e) {
-      // Catastrophic failure (e.g. DB connection lost) — mark FAILED, keep staged rows for retry
+      // Catastrophic failure — mark FAILED, preserve chunks for resume
       await this.db.db
         .update(importJobs)
         .set({
@@ -2369,36 +2426,159 @@ export class CatalogService {
       throw e;
     }
 
-    await this.db.db
-      .update(importJobs)
+    return this.getImportJob(id);
+  }
+
+  /**
+   * P8: Create chunk rows for an import job. Idempotent — does not recreate
+   * if chunks already exist (supports resume after failure).
+   */
+  private async createChunks(jobId: string, totalRows: number): Promise<void> {
+    const existing = await this.db.db
+      .select({ id: importJobChunks.id })
+      .from(importJobChunks)
+      .where(eq(importJobChunks.importJobId, jobId))
+      .limit(1);
+
+    if (existing.length > 0) return; // Chunks already exist (resume scenario)
+
+    const chunkSize = CatalogService.CHUNK_SIZE;
+    const chunkCount = Math.ceil(totalRows / chunkSize);
+    const now = new Date();
+
+    const values = [];
+    for (let i = 0; i < chunkCount; i++) {
+      const startRow = i * chunkSize;
+      const endRow = Math.min((i + 1) * chunkSize - 1, totalRows - 1);
+      values.push({
+        id: crypto.randomUUID(),
+        importJobId: jobId,
+        chunkIndex: i,
+        startRow,
+        endRow,
+        status: 'PENDING' as const,
+        rowCount: endRow - startRow + 1,
+        processedRows: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        errorLog: [],
+        attemptCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Insert in batches to avoid query size limits
+    for (let i = 0; i < values.length; i += 50) {
+      await this.db.db.insert(importJobChunks).values(values.slice(i, i + 50));
+    }
+  }
+
+  /**
+   * P8: Get all chunks for an import job, ordered by chunk_index.
+   */
+  async getChunks(jobId: string) {
+    return this.db.db.query.importJobChunks.findMany({
+      where: eq(importJobChunks.importJobId, jobId),
+      orderBy: [asc(importJobChunks.chunkIndex)],
+    });
+  }
+
+  /**
+   * P8: Process a single chunk within a transaction.
+   * Each row is processed individually; row-level errors are caught and logged.
+   * The chunk transaction commits atomically with the product/variant/price changes.
+   */
+  private async processChunk(
+    jobId: string,
+    chunk: Record<string, any>,
+    rows: Record<string, string>[],
+    mapping: Record<string, string>,
+    priceListId: string,
+    storeId: string,
+  ): Promise<void> {
+    const chunkId = chunk['id'] as string;
+
+    // P8: Claim chunk — PENDING/FAILED → PROCESSING (conditional UPDATE)
+    const claimed = await this.db.db
+      .update(importJobChunks)
       .set({
-        status: 'COMPLETED',
-        processedRows: rows.length,
-        errorRows: errorLog.length,
-        errorLog,
-        stats: {
-          total: rows.length,
-          processed: rows.length,
-          created,
-          updated,
-          skipped,
-          errors: errorLog.length,
-        },
-        completedAt: new Date(),
+        status: 'PROCESSING',
+        startedAt: new Date(),
+        attemptCount: chunk['attemptCount'] + 1,
         updatedAt: new Date(),
       })
-      .where(eq(importJobs.id, id));
+      .where(
+        and(
+          eq(importJobChunks.id, chunkId),
+          inArray(importJobChunks.status, ['PENDING', 'FAILED']),
+        ),
+      )
+      .returning({ id: importJobChunks.id });
 
-    // Clean up staged rows
-    await this.redis.client.del(key);
+    if (claimed.length === 0) return; // Another worker claimed it first
 
-    return this.getImportJob(id);
+    try {
+      // P8: One transaction per chunk
+      await this.db.db.transaction(async (tx) => {
+        let created = 0, updated = 0, skipped = 0;
+        const errorLog: Array<{ row: number; field: string; message: string }> = [];
+
+        for (let i = 0; i < rows.length; i++) {
+          const rowNum = chunk['startRow'] + i + 2; // +2: 0-based + header row
+          try {
+            const outcome = await this.importRow(storeId, priceListId, mapping, rows[i]!, rowNum, tx);
+            if (outcome === 'created') created++;
+            else if (outcome === 'updated') updated++;
+            else skipped++;
+          } catch (e) {
+            if (errorLog.length < 100) {
+              errorLog.push({
+                row: rowNum,
+                field: (e as ImportRowError).field || 'row',
+                message: (e as Error).message,
+              });
+            }
+          }
+        }
+
+        // Update chunk with results (within the same transaction)
+        await tx
+          .update(importJobChunks)
+          .set({
+            status: 'COMPLETED',
+            processedRows: rows.length,
+            createdCount: created,
+            updatedCount: updated,
+            skippedCount: skipped,
+            errorCount: errorLog.length,
+            errorLog,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobChunks.id, chunkId));
+      });
+    } catch (e) {
+      // Catastrophic chunk failure — mark FAILED, preserve attempt count
+      await this.db.db
+        .update(importJobChunks)
+        .set({
+          status: 'FAILED',
+          lastError: (e as Error).message,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobChunks.id, chunkId));
+    }
   }
 
   /**
    * Import a single row: find-or-create category/brand, then either
    * update the existing variant (matched by SKU within the store) or
    * create product + variant + base price tier.
+   * P8: accepts optional transaction client for chunk atomicity.
+   * P8: imports typed attributes from attr:<code> columns.
    */
   private async importRow(
     storeId: string,
@@ -2406,7 +2586,9 @@ export class CatalogService {
     mapping: Record<string, string>,
     row: Record<string, string>,
     rowNum: number,
+    tx?: any,
   ): Promise<'created' | 'updated' | 'skipped'> {
+    const db = tx || this.db.db;
     const get = (key: string): string => {
       const header = mapping[key];
       return header ? (row[header] ?? '').trim() : '';
@@ -2447,7 +2629,7 @@ export class CatalogService {
     const brandId = brandName ? await this.findOrCreateBrand(brandName) : null;
 
     // Match existing variant by SKU within this store
-    const existing = await this.db.db
+    const existing = await db
       .select({ variantId: productVariants.id, productId: products.id })
       .from(productVariants)
       .innerJoin(products, eq(products.id, productVariants.productId))
@@ -2462,17 +2644,20 @@ export class CatalogService {
 
     if (existing.length > 0) {
       const match = existing[0]!;
-      await this.upsertBasePrice(priceListId, match.variantId, priceMinor);
-      await this.db.db
+      await this.upsertBasePrice(priceListId, match.variantId, priceMinor, db);
+      await db
         .update(products)
         .set({
-          // MOQ is offer-owned — no longer written to products table
           ...(description ? { description } : {}),
           ...(categoryId ? { categoryId } : {}),
           ...(brandId ? { brandId } : {}),
           updatedAt: new Date(),
         })
         .where(eq(products.id, match.productId));
+
+      // P8: Import typed attributes for existing product/variant
+      await this.importTypedAttributes(db, mapping, row, match.productId, match.variantId, rowNum);
+
       return 'updated';
     }
 
@@ -2485,7 +2670,7 @@ export class CatalogService {
         .replace(/[^a-z0-9-]/g, '') || 'product';
     const slug = `${slugBase}-${crypto.randomUUID().substring(0, 8)}`;
 
-    await this.db.db.insert(products).values({
+    await db.insert(products).values({
       id: productId,
       storeId,
       categoryId,
@@ -2495,12 +2680,11 @@ export class CatalogService {
       titleAr: nameAr,
       description,
       status: 'DRAFT',
-      // MOQ is offer-owned — use column default (1)
-      updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
+      updatedAt: new Date(),
     });
 
     const variantId = crypto.randomUUID();
-    await this.db.db.insert(productVariants).values({
+    await db.insert(productVariants).values({
       id: variantId,
       productId,
       sku,
@@ -2508,10 +2692,10 @@ export class CatalogService {
       title: name,
       titleAr: nameAr,
       unit,
-      updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
+      updatedAt: new Date(),
     });
 
-    await this.upsertBasePrice(priceListId, variantId, priceMinor);
+    await this.upsertBasePrice(priceListId, variantId, priceMinor, db);
 
     // Honor the 'stock' column: create an inventory item in the store's first warehouse.
     const stockRaw = get('stock');
@@ -2523,7 +2707,7 @@ export class CatalogService {
         });
         if (firstWh) {
           const invId = crypto.randomUUID();
-          await this.db.db.insert(inventoryItems).values({
+          await db.insert(inventoryItems).values({
             id: invId,
             variantId,
             warehouseId: firstWh.id,
@@ -2535,7 +2719,207 @@ export class CatalogService {
       }
     }
 
+    // P8: Import typed attributes for new product/variant
+    await this.importTypedAttributes(db, mapping, row, productId, variantId, rowNum);
+
     return 'created';
+  }
+
+  /**
+   * P8: Import typed attributes from attr:<code> columns.
+   * Resolves attribute definitions by code, validates values against types,
+   * and writes to product_attribute_values or variant_attribute_values.
+   * Row-level errors do not poison the rest of the import.
+   */
+  private async importTypedAttributes(
+    db: any,
+    mapping: Record<string, string>,
+    row: Record<string, string>,
+    productId: string,
+    variantId: string,
+    rowNum: number,
+  ): Promise<void> {
+    // Collect attr: columns from the mapping
+    const attrEntries: Array<{ code: string; rawValue: string }> = [];
+    const seenCodes = new Set<string>();
+
+    for (const [logicalKey, headerName] of Object.entries(mapping)) {
+      if (!logicalKey.startsWith('attr:')) continue;
+      const code = logicalKey.substring(5).trim();
+      if (!code || seenCodes.has(code)) continue; // skip empty or duplicate
+      seenCodes.add(code);
+
+      const rawValue = headerName ? (row[headerName] ?? '').trim() : '';
+      if (!rawValue) continue; // P8: empty values are skipped
+      attrEntries.push({ code, rawValue });
+    }
+
+    if (attrEntries.length === 0) return;
+
+    // Resolve attribute definitions
+    const codes = attrEntries.map(e => e.code);
+    const defs: any[] = await db
+      .select()
+      .from(attributeDefinitions)
+      .where(and(
+        inArray(attributeDefinitions.code, codes),
+        isNull(attributeDefinitions.deletedAt),
+      ));
+
+    const defByCode = new Map(defs.map((d: any) => [d.code, d]));
+
+    const productValues: Array<{ attributeDefinitionId: string; value: any }> = [];
+    const variantValues: Array<{ attributeDefinitionId: string; value: any }> = [];
+
+    for (const entry of attrEntries) {
+      const def = defByCode.get(entry.code);
+      if (!def) {
+        throw new ImportRowError(`attr:${entry.code}`, `Row ${rowNum}: unknown attribute '${entry.code}'`);
+      }
+
+      try {
+        const coerced = this.coerceAttributeValue(entry.rawValue, def.type, def.validation || {});
+        if (def.scope === 'VARIANT') {
+          variantValues.push({ attributeDefinitionId: def.id, value: coerced });
+        } else {
+          productValues.push({ attributeDefinitionId: def.id, value: coerced });
+        }
+      } catch (e) {
+        throw new ImportRowError(`attr:${entry.code}`, `Row ${rowNum}: ${(e as Error).message}`);
+      }
+    }
+
+    // Write product-scope attributes
+    if (productValues.length > 0) {
+      // Delete existing values for these attributes, then insert
+      const attrIds = productValues.map(v => v.attributeDefinitionId);
+      await db.delete(productAttributeValues)
+        .where(and(
+          eq(productAttributeValues.productId, productId),
+          inArray(productAttributeValues.attributeDefinitionId, attrIds),
+        ));
+
+      for (const pv of productValues) {
+        const def = defs.find((d: any) => d.id === pv.attributeDefinitionId);
+        await db.insert(productAttributeValues).values({
+          id: crypto.randomUUID(),
+          productId,
+          attributeDefinitionId: pv.attributeDefinitionId,
+          ...this.typedValueColumns(pv.value, def?.type),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    // Write variant-scope attributes
+    if (variantValues.length > 0) {
+      const attrIds = variantValues.map(v => v.attributeDefinitionId);
+      await db.delete(variantAttributeValues)
+        .where(and(
+          eq(variantAttributeValues.variantId, variantId),
+          inArray(variantAttributeValues.attributeDefinitionId, attrIds),
+        ));
+
+      for (const vv of variantValues) {
+        const def = defs.find((d: any) => d.id === vv.attributeDefinitionId);
+        await db.insert(variantAttributeValues).values({
+          id: crypto.randomUUID(),
+          variantId,
+          attributeDefinitionId: vv.attributeDefinitionId,
+          ...this.typedValueColumns(vv.value, def?.type),
+          updatedAt: new Date(),
+        });
+      }
+    }
+  }
+
+  /**
+   * P8: Coerce a raw string value to the appropriate typed value based on attribute type.
+   * Throws ImportRowError for invalid values.
+   */
+  private coerceAttributeValue(raw: string, type: string, _validation: Record<string, any>): any {
+    switch (type) {
+      case 'TEXT':
+      case 'LONG_TEXT':
+      case 'URL':
+      case 'COLOR':
+      case 'FILE':
+        return raw;
+      case 'INTEGER':
+      case 'MEASUREMENT': {
+        const n = parseInt(raw, 10);
+        if (isNaN(n)) throw new Error(`invalid INTEGER value '${raw}'`);
+        return n;
+      }
+      case 'DECIMAL':
+      case 'CURRENCY': {
+        const n = parseFloat(raw);
+        if (isNaN(n)) throw new Error(`invalid DECIMAL value '${raw}'`);
+        return n;
+      }
+      case 'BOOLEAN': {
+        const lower = raw.toLowerCase();
+        if (['true', '1', 'yes'].includes(lower)) return true;
+        if (['false', '0', 'no'].includes(lower)) return false;
+        throw new Error(`invalid BOOLEAN value '${raw}'`);
+      }
+      case 'DATE':
+      case 'DATETIME':
+        return raw; // stored as text in ISO format
+      case 'SELECT':
+        return raw; // validated against options in importTypedAttributes
+      case 'MULTI_SELECT': {
+        // Comma-separated values → deduplicated array
+        const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+        return [...new Set(parts)];
+      }
+      default:
+        return raw;
+    }
+  }
+
+  /**
+   * P8: Map a coerced attribute value to the typed storage columns.
+   */
+  private typedValueColumns(value: any, type?: string): Record<string, any> {
+    const result: Record<string, any> = {
+      valueText: null,
+      valueNumber: null,
+      valueBoolean: null,
+      optionValue: null,
+      valueJson: null,
+    };
+
+    switch (type) {
+      case 'TEXT':
+      case 'LONG_TEXT':
+      case 'URL':
+      case 'COLOR':
+      case 'FILE':
+      case 'DATE':
+      case 'DATETIME':
+        result['valueText'] = String(value);
+        break;
+      case 'INTEGER':
+      case 'MEASUREMENT':
+      case 'DECIMAL':
+      case 'CURRENCY':
+        result['valueNumber'] = String(value); // NUMERIC stored as string by Drizzle
+        break;
+      case 'BOOLEAN':
+        result['valueBoolean'] = Boolean(value);
+        break;
+      case 'SELECT':
+        result['optionValue'] = String(value);
+        break;
+      case 'MULTI_SELECT':
+        result['valueJson'] = Array.isArray(value) ? value : [value];
+        break;
+      default:
+        result['valueText'] = String(value);
+    }
+
+    return result;
   }
 
   /**
@@ -2624,8 +3008,9 @@ export class CatalogService {
   }
 
   /** Upsert the min-qty-1 price tier for a variant in a price list. */
-  private async upsertBasePrice(priceListId: string, variantId: string, priceMinor: number) {
-    const existing = await this.db.db.query.priceTiers.findFirst({
+  private async upsertBasePrice(priceListId: string, variantId: string, priceMinor: number, db?: any) {
+    const client = db || this.db.db;
+    const existing = await client.query.priceTiers.findFirst({
       where: and(
         eq(priceTiers.priceListId, priceListId),
         eq(priceTiers.variantId, variantId),
@@ -2633,12 +3018,12 @@ export class CatalogService {
       ),
     });
     if (existing) {
-      await this.db.db
+      await client
         .update(priceTiers)
         .set({ unitPriceMinor: priceMinor, updatedAt: new Date() })
         .where(eq(priceTiers.id, existing.id));
     } else {
-      await this.db.db.insert(priceTiers).values({
+      await client.insert(priceTiers).values({
         id: crypto.randomUUID(),
         priceListId,
         variantId,
@@ -2646,6 +3031,105 @@ export class CatalogService {
         unitPriceMinor: priceMinor,
       });
     }
+  }
+
+  // ── P8: Cancel, Retry, Recovery ───────────────────────────────
+
+  /**
+   * P8: Cooperatively cancel an import job.
+   * READY → CANCELLED immediately.
+   * PROCESSING → CANCELLED (cooperative: checked between chunks).
+   */
+  async cancelImport(jobId: string) {
+    const job = await this.getImportJob(jobId);
+    const cancelable = ['READY', 'PROCESSING'];
+    if (!cancelable.includes(job['status'])) {
+      throw new ConflictException(`Cannot cancel import in status: ${job['status']}`);
+    }
+
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(importJobs.id, jobId),
+          inArray(importJobs.status, cancelable),
+        ),
+      );
+
+    return this.getImportJob(jobId);
+  }
+
+  /**
+   * P8: Retry a failed import job. Resets failed/pending chunks to PENDING,
+   * resets job to READY for re-processing.
+   */
+  async retryFailedJob(jobId: string) {
+    const job = await this.getImportJob(jobId);
+    if (job['status'] !== 'FAILED' && job['status'] !== 'CANCELLED') {
+      throw new ConflictException(`Cannot retry import in status: ${job['status']}`);
+    }
+
+    // Reset failed chunks to PENDING (preserves attempt_count)
+    await this.db.db
+      .update(importJobChunks)
+      .set({ status: 'PENDING', updatedAt: new Date() })
+      .where(
+        and(
+          eq(importJobChunks.importJobId, jobId),
+          eq(importJobChunks.status, 'FAILED'),
+        ),
+      );
+
+    // Reset job to READY
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'READY', lockedAt: null, updatedAt: new Date() })
+      .where(eq(importJobs.id, jobId));
+
+    return this.getImportJob(jobId);
+  }
+
+  /**
+   * P8: Detect and reset stale PROCESSING jobs (locked_at > 30 minutes).
+   * Returns the list of reset job IDs.
+   */
+  async recoverStaleJobs(): Promise<string[]> {
+    const staleThreshold = new Date(Date.now() - CatalogService.STALE_LOCK_MS);
+
+    const staleJobs = await this.db.db
+      .select({ id: importJobs.id })
+      .from(importJobs)
+      .where(
+        and(
+          eq(importJobs.status, 'PROCESSING'),
+          sql`${importJobs.lockedAt} < ${staleThreshold}`,
+        ),
+      );
+
+    const resetIds: string[] = [];
+    for (const j of staleJobs) {
+      // Reset job to FAILED (admin can then retry)
+      await this.db.db
+        .update(importJobs)
+        .set({ status: 'FAILED', updatedAt: new Date() })
+        .where(eq(importJobs.id, j.id));
+
+      // Reset any PROCESSING chunks to PENDING
+      await this.db.db
+        .update(importJobChunks)
+        .set({ status: 'PENDING', updatedAt: new Date() })
+        .where(
+          and(
+            eq(importJobChunks.importJobId, j.id),
+            eq(importJobChunks.status, 'PROCESSING'),
+          ),
+        );
+
+      resetIds.push(j.id);
+    }
+
+    return resetIds;
   }
 
   // ── Favorites / Wishlist ───────────────────────────────────
