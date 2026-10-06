@@ -22,7 +22,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant Offer API — canonical-product multi-seller offers (§ Merchant Offer).
@@ -133,6 +133,8 @@ export class CatalogOfferController {
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, input.storeId);
+    // P7 Phase 1 — F-SEC-02: require store membership for offer creation.
+    await assertStoreMember(this.db, caller, input.storeId);
     return this.offerService.createOffer(input);
   }
 

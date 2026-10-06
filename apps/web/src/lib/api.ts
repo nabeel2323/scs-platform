@@ -450,3 +450,76 @@ export async function createCatalogRequest(data: {
   if (!res.ok) throw new Error(`Failed to create catalog request: ${res.status}`);
   return res.json();
 }
+
+// ── Store Membership (P7) ──────────────────────────────────────
+
+export interface StoreMember {
+  id: string;
+  storeId: string;
+  userId: string;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchStoreMembers(storeId: string): Promise<StoreMember[]> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members`);
+  if (!res.ok) throw new Error(`Failed to fetch members: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEligibleMembers(storeId: string): Promise<Array<{ id: string; email: string | null; fullName: string }>> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/eligible`);
+  if (!res.ok) throw new Error(`Failed to fetch eligible users: ${res.status}`);
+  return res.json();
+}
+
+export async function addStoreMember(storeId: string, userId: string, role: string): Promise<StoreMember> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, role }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to add member: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function removeStoreMember(storeId: string, userId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to remove member: ${res.status}`);
+  }
+}
+
+export async function changeMemberRole(storeId: string, userId: string, role: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/role`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to change role: ${res.status}`);
+  }
+}
+
+export async function activateMember(storeId: string, userId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/activate`, { method: 'PATCH' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to activate member: ${res.status}`);
+  }
+}
+
+export async function deactivateMember(storeId: string, userId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/stores/${storeId}/members/${userId}/deactivate`, { method: 'PATCH' });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to deactivate member: ${res.status}`);
+  }
+}

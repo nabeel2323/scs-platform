@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProductTypeSchemaDetail, fetchProductTypeSchema, fetchCategories, fetchBrandsAdmin,
   Category, Brand, createProduct, upsertProductAttributeValues, createVariant,
@@ -79,6 +79,26 @@ export function useProductStudio() {
   const [canonicalMatches, setCanonicalMatches] = useState<Product[]>([]);
   const [canonicalSearchResults, setCanonicalSearchResults] = useState<CanonicalProductSummary[]>([]);
   const [existingVariants, setExistingVariants] = useState<ProductVariant[]>([]);
+
+  // P7 Phase 5 — dirty-state tracking for beforeunload protection
+  const initialRef = useRef<string>(JSON.stringify(INITIAL));
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    const current = JSON.stringify(state);
+    setIsDirty(current !== initialRef.current);
+  }, [state]);
+
+  // beforeunload protection (browser refresh, back, close tab)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // Load initial data
   useEffect(() => {
@@ -229,6 +249,9 @@ export function useProductStudio() {
       }
 
       setSuccess('Product saved successfully!');
+      // P7 Phase 5: reset dirty state after successful save
+      initialRef.current = JSON.stringify({ ...INITIAL, productId, storeId: state.storeId });
+      setIsDirty(false);
       return productId;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -270,7 +293,7 @@ export function useProductStudio() {
   return {
     step, setStep, stepIndex, state, setState, update,
     stores, categories, brands,
-    error, setError, saving, success,
+    error, setError, saving, success, isDirty,
     canonicalMatches, searchCanonical,
     canonicalSearchResults, searchCanonicalFreeText,
     existingVariants, loadExistingVariants,

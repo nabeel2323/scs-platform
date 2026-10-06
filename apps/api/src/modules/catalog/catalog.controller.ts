@@ -407,7 +407,14 @@ export class CatalogController {
   @Get('stores/:storeId/products/export')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async exportProducts(@Param('storeId') storeId: string) {
+  async exportProducts(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // P7 Phase 1 — F-SEC-01: require store membership for export.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.exportProductsCsv(storeId);
   }
 
@@ -488,6 +495,10 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Body() input: CreateImportJobInput,
   ) {
+    // P7 Phase 1 — F-SEC-01: require store membership for import.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.createImportJob(storeId, input, user.sub);
   }
 
@@ -506,15 +517,29 @@ export class CatalogController {
   @RequirePermission('merchant:products:write')
   async stageImportRows(
     @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { rows: Record<string, string>[]; append?: boolean },
   ) {
+    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
   }
 
   @Post('imports/:id/process')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async processImportJob(@Param('id') id: string) {
+  async processImportJob(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.processImportJob(id);
   }
 
