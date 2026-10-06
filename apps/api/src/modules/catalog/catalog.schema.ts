@@ -182,6 +182,36 @@ export const importJobs = pgTable('import_jobs', {
     .references(() => users.id),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Import job chunks (migration 0055) — chunked processing for merchant imports.
+ * Each chunk covers up to 100 rows and tracks its own status, counts, and errors.
+ * Completed chunks are never reprocessed; failed chunks can be retried (max 3 attempts).
+ */
+export const importJobChunks = pgTable('import_job_chunks', {
+  id: uuid('id').primaryKey(),
+  importJobId: uuid('import_job_id')
+    .notNull()
+    .references(() => importJobs.id, { onDelete: 'cascade' }),
+  chunkIndex: integer('chunk_index').notNull(),
+  startRow: integer('start_row').notNull(),
+  endRow: integer('end_row').notNull(),
+  status: varchar('status', { length: 16 }).notNull().default('PENDING'),
+  rowCount: integer('row_count').notNull(),
+  processedRows: integer('processed_rows').notNull().default(0),
+  createdCount: integer('created_count').notNull().default(0),
+  updatedCount: integer('updated_count').notNull().default(0),
+  skippedCount: integer('skipped_count').notNull().default(0),
+  errorCount: integer('error_count').notNull().default(0),
+  errorLog: jsonb('error_log').notNull().default([]),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  lastError: text('last_error'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

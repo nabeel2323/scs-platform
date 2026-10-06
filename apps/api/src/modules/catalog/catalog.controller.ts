@@ -543,6 +543,50 @@ export class CatalogController {
     return this.catalogService.processImportJob(id);
   }
 
+  // ── P8: Chunk management, cancellation, retry ────────────────
+
+  @Get('imports/:id/chunks')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:read')
+  async getImportChunks(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return this.catalogService.getChunks(id);
+  }
+
+  @Post('imports/:id/cancel')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async cancelImport(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return this.catalogService.cancelImport(id);
+  }
+
+  @Post('imports/:id/retry')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async retryImportJob(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return this.catalogService.retryFailedJob(id);
+  }
+
   // ── Search ───────────────────────────────────────────────────
 
   @Get('search')
