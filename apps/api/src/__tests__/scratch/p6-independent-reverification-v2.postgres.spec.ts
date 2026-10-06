@@ -276,11 +276,11 @@ afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 // ═══════════════════════════════════════════════════════════════════════
 
 describe('§3 Migration 0054 Verification', () => {
-  it('0054 file exists and 0055 does not', () => {
+  it('0054 file exists and 0055 exists (P8 migration)', () => {
     const files54 = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0054'));
     const files55 = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0055'));
     expect(files54.length).toBe(1);
-    expect(files55.length).toBe(0);
+    expect(files55.length).toBe(1);
   });
 
   it('store_members table exists with correct columns', async () => {
