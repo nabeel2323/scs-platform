@@ -10,7 +10,7 @@ const log: string[] = [];
 
 function ok(id: string, name: string, ev: string) { pass++; log.push(`PASS|${id}|${name}|${ev}`); console.log(`  ✅ ${id}: ${name}`); }
 function no(id: string, name: string, ev: string) { fail++; log.push(`FAIL|${id}|${name}|${ev}`); console.log(`  ❌ ${id}: ${name} — ${ev}`); }
-function blk(id: string, name: string, ev: string) { blocked++; log.push(`BLOCKED|${id}|${name}|${ev}`); console.log(`  ⛔ ${id}: ${name} — ${ev}`); }
+function _blk(id: string, name: string, ev: string) { blocked++; log.push(`BLOCKED|${id}|${name}|${ev}`); console.log(`  ⛔ ${id}: ${name} — ${ev}`); }
 
 function uid() { return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }); }
 
@@ -208,8 +208,8 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; DELETE FROM store_members WHERE id=_tid; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET status='INACTIVE' WHERE id=_tid; END $$; COMMIT;`,
       IT);
-    sA.zero===0 ? ok('CONC-A','Remove vs Deactivate',`${IT}it: ${sA.succ}ok ${sA.conf}conflict ${sA.zero}zero-owner`)
-                 : no('CONC-A','Remove vs Deactivate',`${sA.zero} zero-owner states!`);
+    if (sA.zero === 0) ok('CONC-A','Remove vs Deactivate',`${IT}it: ${sA.succ}ok ${sA.conf}conflict ${sA.zero}zero-owner`);
+    else no('CONC-A','Remove vs Deactivate',`${sA.zero} zero-owner states!`);
 
     // B: deactivate vs demote (single owner)
     console.log(`  Scenario B: deactivate vs demote (${IT} iter)...`);
@@ -217,8 +217,8 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET status='INACTIVE' WHERE store_id=$1 AND user_id=$2; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET role='ADMIN' WHERE store_id=$1 AND user_id=$2; END $$; COMMIT;`,
       IT);
-    sB.zero===0 ? ok('CONC-B','Deactivate vs Demote',`${IT}it: ${sB.succ}ok ${sB.conf}conflict ${sB.zero}zero-owner`)
-                 : no('CONC-B','Deactivate vs Demote',`${sB.zero} zero-owner states!`);
+    if (sB.zero === 0) ok('CONC-B','Deactivate vs Demote',`${IT}it: ${sB.succ}ok ${sB.conf}conflict ${sB.zero}zero-owner`);
+    else no('CONC-B','Deactivate vs Demote',`${sB.zero} zero-owner states!`);
 
     // C: remove vs demote (single owner)
     console.log(`  Scenario C: remove vs demote (${IT} iter)...`);
@@ -226,8 +226,8 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; DELETE FROM store_members WHERE store_id=$1 AND user_id=$2; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET role='ADMIN' WHERE store_id=$1 AND user_id=$2; END $$; COMMIT;`,
       IT);
-    sC.zero===0 ? ok('CONC-C','Remove vs Demote',`${IT}it: ${sC.succ}ok ${sC.conf}conflict ${sC.zero}zero-owner`)
-                 : no('CONC-C','Remove vs Demote',`${sC.zero} zero-owner states!`);
+    if (sC.zero === 0) ok('CONC-C','Remove vs Demote',`${IT}it: ${sC.succ}ok ${sC.conf}conflict ${sC.zero}zero-owner`);
+    else no('CONC-C','Remove vs Demote',`${sC.zero} zero-owner states!`);
 
     // D: 2x remove (two owners)
     console.log(`  Scenario D: 2x remove (${IT} iter)...`);
@@ -235,8 +235,8 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; DELETE FROM store_members WHERE id=_tid; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; DELETE FROM store_members WHERE id=_tid; END $$; COMMIT;`,
       IT);
-    sD.zero===0 ? ok('CONC-D','2x Remove',`${IT}it: ${sD.succ}ok ${sD.conf}conflict ${sD.nf}notfound ${sD.zero}zero-owner`)
-                 : no('CONC-D','2x Remove',`${sD.zero} zero-owner states!`);
+    if (sD.zero === 0) ok('CONC-D','2x Remove',`${IT}it: ${sD.succ}ok ${sD.conf}conflict ${sD.nf}notfound ${sD.zero}zero-owner`);
+    else no('CONC-D','2x Remove',`${sD.zero} zero-owner states!`);
 
     // E: 2x deactivate (two owners)
     console.log(`  Scenario E: 2x deactivate (${IT} iter)...`);
@@ -244,8 +244,8 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET status='INACTIVE' WHERE id=_tid; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET status='INACTIVE' WHERE id=_tid; END $$; COMMIT;`,
       IT);
-    sE.zero===0 ? ok('CONC-E','2x Deactivate',`${IT}it: ${sE.succ}ok ${sE.conf}conflict ${sE.nf}notfound ${sE.zero}zero-owner`)
-                 : no('CONC-E','2x Deactivate',`${sE.zero} zero-owner states!`);
+    if (sE.zero === 0) ok('CONC-E','2x Deactivate',`${IT}it: ${sE.succ}ok ${sE.conf}conflict ${sE.nf}notfound ${sE.zero}zero-owner`);
+    else no('CONC-E','2x Deactivate',`${sE.zero} zero-owner states!`);
 
     // F: 2x role change (two owners)
     console.log(`  Scenario F: 2x role change (${IT} iter)...`);
@@ -253,15 +253,15 @@ async function main() {
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET role='ADMIN' WHERE id=_tid; END $$; COMMIT;`,
       `BEGIN; DO $$ DECLARE _cnt int; _tid uuid; BEGIN SELECT count(*) INTO _cnt FROM store_members WHERE store_id=$1 AND role='OWNER' AND status='ACTIVE'; SELECT id INTO _tid FROM store_members WHERE store_id=$1 AND user_id=$2 AND role='OWNER' AND status='ACTIVE'; IF _tid IS NULL THEN RAISE EXCEPTION '404 not found'; END IF; IF _cnt<=1 THEN RAISE EXCEPTION '409 last owner'; END IF; UPDATE store_members SET role='ADMIN' WHERE id=_tid; END $$; COMMIT;`,
       IT);
-    sF.zero===0 ? ok('CONC-F','2x Role Change',`${IT}it: ${sF.succ}ok ${sF.conf}conflict ${sF.nf}notfound ${sF.zero}zero-owner`)
-                 : no('CONC-F','2x Role Change',`${sF.zero} zero-owner states!`);
+    if (sF.zero === 0) ok('CONC-F','2x Role Change',`${IT}it: ${sF.succ}ok ${sF.conf}conflict ${sF.nf}notfound ${sF.zero}zero-owner`);
+    else no('CONC-F','2x Role Change',`${sF.zero} zero-owner states!`);
 
     // ── §7 TENANT ISOLATION ───────────────────────────────────────────
     console.log('\n── §7 Tenant Isolation ──');
     const iso = async (label:string, store:string, user:string, expect:number) => {
       const r = await c.query("SELECT * FROM store_members WHERE store_id=$1 AND user_id=$2 AND status='ACTIVE'",[store,user]);
-      r.rows.length===expect ? ok(label,`${label}`,`${r.rows.length} rows (expect ${expect})`)
-                              : no(label,`${label}`,`${r.rows.length} rows (expect ${expect})`);
+      if (r.rows.length === expect) ok(label,`${label}`,`${r.rows.length} rows (expect ${expect})`);
+      else no(label,`${label}`,`${r.rows.length} rows (expect ${expect})`);
     };
     await iso('ISO-01',stA,uOwnA,1); // A member → A = ALLOW
     await iso('ISO-02',stB,uOwnA,0); // A member → B = DENY
