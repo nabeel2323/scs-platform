@@ -1430,6 +1430,14 @@ export class CatalogService {
       }
 
       await this.invalidateProductCache(id);
+      // PHASE 4 P6: Audit — product updated by merchant
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.updated',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
+      });
       if (input.status === 'ACTIVE') {
         await this.outbox.publish('catalog.product.published', id, {
           productId: id,
@@ -1450,6 +1458,14 @@ export class CatalogService {
     // Legacy path: no optimistic locking
     await this.db.db.update(products).set(updates).where(eq(products.id, id));
     await this.invalidateProductCache(id);
+    // PHASE 4 P6: Audit — product updated by merchant
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'product.updated',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
+    });
 
     if (input.status === 'ACTIVE') {
       await this.outbox.publish('catalog.product.published', id, {
@@ -1928,6 +1944,14 @@ export class CatalogService {
         });
       }
 
+      // PHASE 4 P6: Audit — variant updated by merchant
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'variant.updated',
+        resource: 'variant',
+        resourceId: variantId,
+        metadata: { productId, fields: Object.keys(updates) },
+      });
       return this.coerceVariantNumeric(updated);
     }
 
@@ -1936,6 +1960,14 @@ export class CatalogService {
       .set(updates)
       .where(eq(productVariants.id, variantId))
       .returning();
+    // PHASE 4 P6: Audit — variant updated by merchant
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'variant.updated',
+      resource: 'variant',
+      resourceId: variantId,
+      metadata: { productId, fields: Object.keys(updates) },
+    });
     return this.coerceVariantNumeric(updated);
   }
 

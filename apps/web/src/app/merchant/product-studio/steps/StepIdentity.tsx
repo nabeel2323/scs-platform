@@ -15,11 +15,13 @@ interface StepIdentityProps {
   onSearchCanonical: (query: { gtin?: string; ean?: string; mpn?: string; title?: string }) => Promise<Product[]>;
   canonicalSearchResults?: CanonicalProductSummary[];
   onSearchCanonicalFreeText?: (params: { search?: string; brandId?: string; categoryId?: string }) => Promise<CanonicalProductSummary[]>;
+  /** PHASE 4 P6 — Edit mode disables immutable fields and hides canonical search. */
+  editMode?: boolean;
 }
 
 export default function StepIdentity({
   state, setState, stores, categories, brands, productTypes, canonicalMatches, onSearchCanonical,
-  canonicalSearchResults = [], onSearchCanonicalFreeText,
+  canonicalSearchResults = [], onSearchCanonicalFreeText, editMode,
 }: StepIdentityProps) {
   const [searching, setSearching] = useState(false);
   const [freeTextQuery, setFreeTextQuery] = useState('');
@@ -60,9 +62,9 @@ export default function StepIdentity({
   };
 
   return (
-    <StepCard title="Product Identity" subtitle="Choose category, brand, product type, and basic info. Search by GTIN/EAN/MPN to find existing products.">
+    <StepCard title={editMode ? 'Product Identity' : 'Product Identity'} subtitle={editMode ? 'Edit product details. Store and product type cannot be changed.' : 'Choose category, brand, product type, and basic info. Search by GTIN/EAN/MPN to find existing products.'}>
       <Field label="Store *">
-        <select value={state.storeId} onChange={e => setState(prev => ({ ...prev, storeId: e.target.value }))}>
+        <select value={state.storeId} onChange={e => setState(prev => ({ ...prev, storeId: e.target.value }))} disabled={editMode}>
           <option value="">Select store…</option>
           {stores.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
         </select>
@@ -82,7 +84,7 @@ export default function StepIdentity({
           </select>
         </Field>
         <Field label="Product Type">
-          <select value={state.productTypeId} onChange={e => setState(prev => ({ ...prev, productTypeId: e.target.value }))}>
+          <select value={state.productTypeId} onChange={e => setState(prev => ({ ...prev, productTypeId: e.target.value }))} disabled={editMode}>
             <option value="">Select product type…</option>
             {productTypes.filter(pt => !state.categoryId || pt.categoryId === state.categoryId)
               .map(pt => <option key={pt.id} value={pt.id}>{pt.name} (v{pt.version})</option>)}
@@ -90,7 +92,8 @@ export default function StepIdentity({
         </Field>
       </div>
 
-      {/* Identifier search */}
+      {/* Identifier search — hidden in edit mode */}
+      {!editMode && (
       <div style={{ padding: 12, background: '#f7f9fa', borderRadius: 8, border: '1px solid #e5ecf0' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#16232b', marginBottom: 8 }}>Find Existing Product (optional)</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
@@ -120,8 +123,10 @@ export default function StepIdentity({
           </div>
         )}
       </div>
+      )}
 
-      {/* Free-text canonical product search (Existing Product Selector) */}
+      {/* Free-text canonical product search — hidden in edit mode */}
+      {!editMode && (
       <div style={{ padding: 12, background: '#f0f4ff', borderRadius: 8, border: '1px solid #c7d2fe' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: '#1e1b4b', marginBottom: 8 }}>Search Existing Canonical Products</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'end' }}>
@@ -163,8 +168,9 @@ export default function StepIdentity({
           </div>
         )}
       </div>
+      )}
 
-      {state.useExistingProductId && (
+      {state.useExistingProductId && !editMode && (
         <div style={{ padding: 10, background: '#eaf5ef', color: '#1b7a4b', borderRadius: 6, fontSize: 12 }}>
           ✓ Using existing canonical product. You will create a merchant offer for it.
         </div>

@@ -11,9 +11,11 @@ interface StepReviewProps {
   categories: Category[];
   brands: Brand[];
   completenessScore: number;
+  /** PHASE 4 P6 — Edit mode review. */
+  editMode?: boolean;
 }
 
-export default function StepReview({ state, stores, categories, brands, completenessScore }: StepReviewProps) {
+export default function StepReview({ state, stores, categories, brands, completenessScore, editMode }: StepReviewProps) {
   const storeName = stores.find(s => s.id === state.storeId)?.displayName ?? '—';
   const categoryName = categories.find(c => c.id === state.categoryId)?.name ?? '—';
   const brandName = brands.find(b => b.id === state.brandId)?.name ?? '—';
@@ -22,13 +24,13 @@ export default function StepReview({ state, stores, categories, brands, complete
   const totalAttrs = state.productTypeSchema?.attributes.filter((a: ProductTypeSchemaAttribute) => a.definition?.scope === 'PRODUCT').length ?? 0;
 
   return (
-    <StepCard title="Review & Publish" subtitle="Verify all information before saving.">
+    <StepCard title={editMode ? 'Review & Update' : 'Review & Publish'} subtitle={editMode ? 'Verify all information before updating.' : 'Verify all information before saving.'}>
       {/* Completeness score */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 16, background: '#f7f9fa', borderRadius: 8 }}>
         <CompletenessScore score={completenessScore} />
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#16232b' }}>
-            {state.productId ? 'Updating existing product' : 'Creating new product'}
+            {editMode ? 'Updating existing product' : (state.productId ? 'Updating existing product' : 'Creating new product')}
           </div>
           <div style={{ fontSize: 11, color: '#5b6b74' }}>
             {state.useExistingProductId ? 'Based on existing canonical product' : 'New canonical product'}

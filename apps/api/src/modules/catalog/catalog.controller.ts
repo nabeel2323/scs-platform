@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   CatalogService,
@@ -35,7 +36,8 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertProductInOrg } from '../../common/tenant-scope';
+import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg } from '../../common/tenant-scope';
+import { AuditService } from '../audit/index';
 /**
  * Catalog API — categories, brands, products, variants, media, imports.
  */
@@ -48,6 +50,7 @@ export class CatalogController {
     private readonly storageService: StorageService,
     private readonly taxonomyService: CatalogTaxonomyService,
     private readonly db: DatabaseService,
+    private readonly audit: AuditService,
   ) {}
 
   // ── Categories ───────────────────────────────────────────────
@@ -192,6 +195,15 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async createProduct(@CurrentUser() user: JwtPayload, @Body() input: CreateProductInput) {
+    // P6 remediation: verify store membership before creating product.
+    // Merchants must specify a valid storeId and be ACTIVE members of that store.
+    const storeId = input.storeId;
+    if (!storeId) {
+      throw new ForbiddenException('A storeId is required to create a product');
+    }
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.createProduct(input, user.sub);
   }
 
@@ -226,7 +238,7 @@ export class CatalogController {
     @Param('id') id: string,
     @Body() input: UpdateProductInput,
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
     return this.catalogService.updateProduct(id, rest, clientUpdatedAt);
@@ -236,11 +248,26 @@ export class CatalogController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.deleteProduct(id);
   }
 
   // ── Product Attributes (typed) ──────────────────────────────
+
+  /**
+   * PHASE 4 P6: Read PRODUCT-scope typed attribute values for a product.
+   * Used by Product Studio edit mode to load existing attribute values.
+   */
+  @Get('products/:id/attribute-values')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async getProductAttributeValues(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ) {
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    return this.taxonomyService.getProductAttributeValues(id);
+  }
 
   /**
    * PHASE 3: Replace all PRODUCT-scope typed attribute values for a product.
@@ -255,8 +282,17 @@ export class CatalogController {
     @Param('id') id: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
-    return this.taxonomyService.setProductAttributeValues(id, body.values);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    const result = await this.taxonomyService.setProductAttributeValues(id, body.values);
+    // PHASE 4 P6: Audit — product attributes updated
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'attribute.updated',
+      resource: 'product_attribute_values',
+      resourceId: id,
+      metadata: { productId: id, attributeCount: body.values.length },
+    });
+    return result;
   }
 
   // ── Variants ─────────────────────────────────────────────────
@@ -275,7 +311,7 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: CreateVariantInput,
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.createVariant(productId, input);
   }
 
@@ -293,10 +329,26 @@ export class CatalogController {
     @Param('variantId') variantId: string,
     @Body() input: Partial<CreateVariantInput> & { updatedAt?: string },
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     // PHASE 4 P1: Extract optimistic-locking timestamp from body before passing to service.
     const { updatedAt: clientUpdatedAt, ...rest } = input;
     return this.catalogService.updateVariant(productId, variantId, rest, clientUpdatedAt);
+  }
+
+  /**
+   * PHASE 4 P6: Read VARIANT-scope typed attribute values for a variant.
+   * Used by Product Studio edit mode to load existing variant attribute values.
+   */
+  @Get('products/:productId/variants/:variantId/attribute-values')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async getVariantAttributeValues(
+    @CurrentUser() user: JwtPayload,
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+  ) {
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    return this.taxonomyService.getVariantAttributeValues(variantId);
   }
 
   /**
@@ -313,8 +365,17 @@ export class CatalogController {
     @Param('variantId') variantId: string,
     @Body() body: { values: AttributeValueInput[] },
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    return this.taxonomyService.setVariantAttributeValues(productId, variantId, body.values);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    const result = await this.taxonomyService.setVariantAttributeValues(productId, variantId, body.values);
+    // PHASE 4 P6: Audit — variant attributes updated
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'attribute.updated',
+      resource: 'variant_attribute_values',
+      resourceId: variantId,
+      metadata: { productId, variantId, attributeCount: body.values.length },
+    });
+    return result;
   }
 
   @Post('products/:productId/variants/bulk')
@@ -329,7 +390,7 @@ export class CatalogController {
       toggleActive?: Array<{ id: string; isActive: boolean }>;
     },
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.bulkVariantOperations(productId, body);
   }
 
@@ -346,7 +407,14 @@ export class CatalogController {
   @Get('stores/:storeId/products/export')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async exportProducts(@Param('storeId') storeId: string) {
+  async exportProducts(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // P7 Phase 1 — F-SEC-01: require store membership for export.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.exportProductsCsv(storeId);
   }
 
@@ -363,7 +431,7 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() body: { order: string[] },
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.reorderMedia(productId, body.order);
   }
 
@@ -377,7 +445,7 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Body() input: AddMediaInput,
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.addMedia(productId, input);
   }
 
@@ -394,7 +462,7 @@ export class CatalogController {
     @Param('productId') productId: string,
     @Param('mediaId') mediaId: string,
   ) {
-    await assertProductInOrg(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.removeMedia(productId, mediaId);
   }
 
@@ -427,6 +495,10 @@ export class CatalogController {
     @CurrentUser() user: JwtPayload,
     @Body() input: CreateImportJobInput,
   ) {
+    // P7 Phase 1 — F-SEC-01: require store membership for import.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.createImportJob(storeId, input, user.sub);
   }
 
@@ -445,15 +517,29 @@ export class CatalogController {
   @RequirePermission('merchant:products:write')
   async stageImportRows(
     @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { rows: Record<string, string>[]; append?: boolean },
   ) {
+    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
   }
 
   @Post('imports/:id/process')
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:products:write')
-  async processImportJob(@Param('id') id: string) {
+  async processImportJob(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    // P7 Phase 1 — F-SEC-01: resolve storeId from persisted import job.
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.processImportJob(id);
   }
 

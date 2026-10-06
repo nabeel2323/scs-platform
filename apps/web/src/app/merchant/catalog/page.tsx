@@ -305,6 +305,9 @@ export default function MerchantCatalogPage() {
                           <td style={td}>{new Date(p.createdAt).toLocaleDateString()}</td>
                           <td style={td}>
                             <div style={{ display: 'flex', gap: 6 }}>
+                              <Link href={`/merchant/product-studio/${p.id}/edit`}>
+                                <button type="button" style={{ ...ghostBtn, fontSize: 12, padding: '4px 10px' }}>Edit</button>
+                              </Link>
                               <button onClick={() => handleDeleteProduct(p.id, p.title)} style={deleteBtn}>Delete</button>
                             </div>
                           </td>
