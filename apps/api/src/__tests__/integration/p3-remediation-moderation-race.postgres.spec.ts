@@ -56,7 +56,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
 
     const database = { db } as DatabaseService;
     const taxonomyService = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService);
+    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService, {} as any, {} as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any, catalog, taxonomyService);
 
     await db.insert(organizations).values({ id: orgId, name: 'Race Org', type: 'WHOLESALER', country: 'SA' });

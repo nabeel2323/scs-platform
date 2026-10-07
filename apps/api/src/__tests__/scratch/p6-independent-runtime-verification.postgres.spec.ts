@@ -67,6 +67,8 @@ beforeAll(async () => {
     { record: async (evt: any) => { auditEvents.push(evt); } } as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomyService,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
 
   orgX = randomUUID(); orgY = randomUUID();

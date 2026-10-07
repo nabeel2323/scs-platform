@@ -39,6 +39,8 @@ import {
   type AttributeValueMap,
 } from './conditional-rules.service';
 import { CatalogTaxonomyService } from './catalog.taxonomy.service';
+import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
+import { ImportValidationService, type ImportError } from './import-validation.service';
 
 /**
  * BFS across the platform category rows to collect every descendant of
@@ -80,6 +82,8 @@ export class CatalogService {
     private readonly audit: AuditService,
     private readonly conditionalRules: ConditionalRulesService,
     private readonly taxonomyService: CatalogTaxonomyService,
+    private readonly xlsxParser: MerchantXlsxParserService,
+    private readonly importValidation: ImportValidationService,
   ) {
     // Shared with card enrichment so every surface renders media the same way.
     this.resolveMediaRef = createMediaRefResolver(storage);
@@ -2434,6 +2438,173 @@ export class CatalogService {
     });
   }
 
+  // ── P10 Remediation: upload, header detection, unified row source ──
+
+  /** Maximum import file size: 25 MB (aligned with the parser + spec §3). */
+  private static readonly MAX_IMPORT_BYTES = 25 * 1024 * 1024;
+
+  /** Bucket the import file is stored in / read from. */
+  private importBucket(): string {
+    return process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+  }
+
+  /**
+   * P10 Remediation (R2): Build a suggested column mapping from the workbook's
+   * detected (normalized) headers. Standard product fields match by normalized
+   * equality then containment; `attr:<code>` headers pass through so typed
+   * attributes stay supported. Pure — no DB/storage access.
+   */
+  buildSuggestedMapping(headers: string[]): Record<string, string> {
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9_:]/g, '');
+    const targets = [
+      'name', 'nameAr', 'sku', 'barcode', 'category', 'brand',
+      'unit', 'priceMinor', 'moq', 'description', 'stock',
+    ];
+    const mapping: Record<string, string> = {};
+    for (const target of targets) {
+      const t = norm(target);
+      const exact = headers.find((h) => norm(h) === t);
+      const match = exact ?? headers.find((h) => norm(h).includes(t));
+      if (match) mapping[target] = match;
+    }
+    for (const h of headers) {
+      if (h.startsWith('attr:')) mapping[h] = h;
+    }
+    return mapping;
+  }
+
+  /**
+   * P10 Remediation (R1): Persist the uploaded import file bytes to the job's
+   * server-derived storageKey via the storage abstraction (never a client key),
+   * validate type + 25 MB size, and for XLSX parse the workbook to surface
+   * detected headers + a suggested mapping. Read-only for catalog data.
+   */
+  async uploadImportFile(id: string, buffer: Buffer, contentType?: string) {
+    const job = await this.getImportJob(id);
+
+    if (buffer.length === 0) {
+      throw new BadRequestException('EMPTY_FILE: The uploaded file is empty.');
+    }
+    if (buffer.length > CatalogService.MAX_IMPORT_BYTES) {
+      throw new BadRequestException(
+        `FILE_TOO_LARGE: ${(buffer.length / 1024 / 1024).toFixed(1)} MB exceeds the 25 MB limit.`,
+      );
+    }
+
+    const ext = (job.fileName || '').toLowerCase().split('.').pop();
+    if (ext !== 'csv' && ext !== 'xlsx') {
+      throw new BadRequestException(
+        `UNSUPPORTED_FILE_TYPE: Only .csv and .xlsx files are accepted (got ".${ext ?? ''}").`,
+      );
+    }
+
+    await this.storage.putObject({
+      bucket: this.importBucket(),
+      key: job.storageKey,
+      body: buffer,
+      contentType: contentType || 'application/octet-stream',
+    });
+
+    let detectedHeaders: string[] = [];
+    let columnMapping = (job.columnMapping || {}) as Record<string, string>;
+
+    if (ext === 'xlsx') {
+      // Parsing enforces the workbook security limits (macro/row/col/cell size).
+      const parsed = await this.xlsxParser.parse(buffer, job.fileName);
+      detectedHeaders = parsed.headers;
+      // Auto-map only when nothing is mapped yet, so re-upload is non-destructive.
+      if (Object.keys(columnMapping).length === 0) {
+        columnMapping = this.buildSuggestedMapping(parsed.headers);
+      }
+    }
+
+    await this.db.db
+      .update(importJobs)
+      .set({ fileSize: buffer.length, columnMapping, updatedAt: new Date() })
+      .where(eq(importJobs.id, id));
+
+    return {
+      id,
+      storageKey: job.storageKey,
+      fileType: ext === 'xlsx' ? 'XLSX' : 'CSV',
+      detectedHeaders,
+      columnMapping,
+    };
+  }
+
+  /**
+   * P10 Remediation (R2): Persist an explicit column mapping chosen in the Map
+   * Columns UI. Requires name/sku/priceMinor; advances UPLOADED → MAPPING so a
+   * preview can run.
+   */
+  async updateImportMapping(id: string, mapping: Record<string, string>) {
+    const job = await this.getImportJob(id);
+    if (!mapping || typeof mapping !== 'object') {
+      throw new BadRequestException('columnMapping must be an object.');
+    }
+    if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
+      throw new BadRequestException(
+        'Column mapping must include at least: name, sku, priceMinor.',
+      );
+    }
+    await this.db.db
+      .update(importJobs)
+      .set({
+        columnMapping: mapping,
+        status: job.status === 'UPLOADED' ? 'MAPPING' : job.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(importJobs.id, id));
+    return this.getImportJob(id);
+  }
+
+  /**
+   * P10 Remediation (R1): Read the stored import file as a Buffer. A missing
+   * object yields a structured FILE_NOT_UPLOADED 4xx — never an opaque 500.
+   */
+  private async readImportFileBuffer(job: Record<string, any>): Promise<Buffer> {
+    const bucket = this.importBucket();
+    const present = await this.storage.exists(bucket, job['storageKey']);
+    if (!present) {
+      throw new BadRequestException(
+        'FILE_NOT_UPLOADED: The import file has not been uploaded yet. Re-upload the file, then preview again.',
+      );
+    }
+    const obj = await this.storage.getObject(bucket, job['storageKey']);
+    const body = obj.Body as any;
+    if (!body) {
+      throw new BadRequestException('FILE_NOT_UPLOADED: Stored import file is empty.');
+    }
+    if (Buffer.isBuffer(body)) return body;
+    if (body instanceof Uint8Array) return Buffer.from(body);
+    const chunks: Uint8Array[] = [];
+    for await (const c of body as AsyncIterable<Uint8Array>) chunks.push(c);
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * P10 Remediation (R3): The single authoritative row source for BOTH preview
+   * and processing so the two phases never disagree.
+   * - XLSX: parse the stored workbook (rows keyed by normalized header).
+   * - CSV : read rows staged in Redis (rows keyed by original header).
+   */
+  private async resolveJobRows(
+    job: Record<string, any>,
+  ): Promise<Record<string, string | null>[]> {
+    if ((job['fileType'] || 'CSV') === 'XLSX') {
+      const buffer = await this.readImportFileBuffer(job);
+      const parsed = await this.xlsxParser.parse(buffer, job['fileName']);
+      return parsed.rows;
+    }
+    const key = this.stagedRowsKey(job['id']);
+    const batches = await this.redis.client.lrange(key, 0, -1);
+    const rows: Record<string, string | null>[] = [];
+    for (const b of batches) {
+      for (const r of JSON.parse(b) as Record<string, string>[]) rows.push({ ...r });
+    }
+    return rows;
+  }
+
   /**
    * Stage parsed CSV rows for an import job.
    * Clients parse the file locally and upload rows in batches
@@ -2496,23 +2667,18 @@ export class CatalogService {
       throw new ConflictException(`Import job cannot be processed from status: ${job['status']}`);
     }
 
-    // Pull staged rows from Redis
-    const key = this.stagedRowsKey(id);
-    const batches = await this.redis.client.lrange(key, 0, -1);
-    const rows: Record<string, string>[] = batches.flatMap(
-      (b) => JSON.parse(b) as Record<string, string>[],
-    );
+    // P10 Remediation (R3): unified row source so processing reads exactly the
+    // rows preview validated — XLSX from object storage, CSV from Redis staging.
+    const rows = (await this.resolveJobRows(job)) as Record<string, string>[];
 
     if (rows.length === 0) {
-      if (job['fileType'] === 'XLSX') {
-        throw new BadRequestException(
-          'XLSX parsing is deferred for the pilot. Convert the file to CSV and stage rows via POST /v1/imports/:id/rows.',
-        );
-      }
       throw new BadRequestException(
-        'No staged rows found. Upload parsed CSV rows via POST /v1/imports/:id/rows before processing.',
+        job['fileType'] === 'XLSX'
+          ? 'No data rows found in the uploaded workbook.'
+          : 'No staged rows found. Upload parsed CSV rows via POST /v1/imports/:id/rows before processing.',
       );
     }
+    const key = this.stagedRowsKey(id);
 
     const mapping = (job['columnMapping'] || {}) as Record<string, string>;
     if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
@@ -3290,6 +3456,187 @@ export class CatalogService {
       .where(eq(importJobs.id, jobId));
 
     return this.getImportJob(jobId);
+  }
+
+  // ── P10: Preview & Error Reporting ─────────────────────────────
+
+  /**
+   * P10: Preview an import job — parse the uploaded file and validate rows
+   * without creating any catalog records. Read-only with respect to domain data.
+   *
+   * For XLSX: reads file from object storage, parses server-side.
+   * For CSV: validates already-staged rows from Redis.
+   *
+   * State transition: MAPPING → PREVIEWING → READY (or FAILED on fatal error).
+   */
+  async previewImportJob(id: string): Promise<Record<string, unknown>> {
+    const job = await this.getImportJob(id);
+
+    const previewable = ['MAPPING', 'READY', 'UPLOADED'];
+    if (!previewable.includes(job.status)) {
+      throw new ConflictException(`Cannot preview import in status: ${job.status}`);
+    }
+
+    // Transition to PREVIEWING
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'PREVIEWING', updatedAt: new Date() })
+      .where(and(eq(importJobs.id, id), inArray(importJobs.status, previewable)));
+
+    try {
+      const mapping = (job.columnMapping || {}) as Record<string, string>;
+      let rows: Record<string, string | null>[] = [];
+      let detectedHeaders: string[] = [];
+      let fileType = job.fileType || 'CSV';
+
+      if (fileType === 'XLSX') {
+        // P10 Remediation (R1/R3): read the stored workbook through the shared
+        // row source; a missing object yields a structured FILE_NOT_UPLOADED
+        // 4xx instead of an opaque 500.
+        const buffer = await this.readImportFileBuffer(job);
+        const parsed = await this.xlsxParser.parse(buffer, job.fileName);
+        rows = parsed.rows;
+        detectedHeaders = parsed.headers;
+        fileType = 'XLSX';
+      } else {
+        // CSV: read staged rows from Redis
+        const key = this.stagedRowsKey(id);
+        const allBatches = await this.redis.client.lrange(key, 0, -1);
+        for (const batch of allBatches) {
+          const parsed = JSON.parse(batch) as Record<string, string>[];
+          rows.push(...parsed.map(r => {
+            const converted: Record<string, string | null> = {};
+            for (const [k, v] of Object.entries(r)) converted[k] = v;
+            return converted;
+          }));
+        }
+        detectedHeaders = Object.values(mapping).filter((v): v is string => !!v);
+      }
+
+      // Validate rows (read-only)
+      const result = await this.importValidation.validateRows(job.storeId, mapping, rows, 1);
+
+      // Store preview results
+      const previewErrors = result.errors.slice(0, 5000); // Cap stored errors
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: result.errorCount > 0 && result.validRows === 0 ? 'FAILED' : 'READY',
+          totalRows: result.totalRows,
+          errorRows: result.errorCount,
+          errorLog: previewErrors as any,
+          stats: {
+            totalRows: result.totalRows,
+            validRows: result.validRows,
+            errorCount: result.errorCount,
+            warningCount: result.warningCount,
+            previewedAt: new Date().toISOString(),
+          } as any,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, id));
+
+      return {
+        totalRows: result.totalRows,
+        validRows: result.validRows,
+        errorCount: result.errorCount,
+        warningCount: result.warningCount,
+        errors: previewErrors.slice(0, 500), // Return first 500 in response
+        sampleRows: result.sampleRows,
+        columnMapping: mapping,
+        fileType,
+        detectedHeaders,
+      };
+    } catch (err) {
+      // Distinguish a precondition failure (file not uploaded) — which is
+      // retryable and must NOT mark the job FAILED — from a genuinely malformed
+      // workbook, which is recorded as a fatal preview failure.
+      if (
+        err instanceof BadRequestException &&
+        !err.message.startsWith('FILE_NOT_UPLOADED')
+      ) {
+        await this.db.db
+          .update(importJobs)
+          .set({
+            status: 'FAILED',
+            errorLog: [{ rowNumber: 0, field: 'file', errorCode: 'MALFORMED_FILE', severity: 'ERROR', message: err.message, suggestedFix: 'Re-check the workbook: only .xlsx (no macros) within 25 MB, with a header row and at least one data row.' }] as any,
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobs.id, id));
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * P10: Generate a downloadable CSV error report for an import job.
+   * Combines preview errors (import_jobs.errorLog) and processing errors
+   * (import_job_chunks.errorLog) into a single deterministic CSV.
+   */
+  async getErrorReport(id: string): Promise<string> {
+    const job = await this.getImportJob(id);
+
+    const BOM = '\uFEFF';
+    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\n';
+    const allErrors: ImportError[] = [];
+
+    // Collect preview errors from import_jobs.errorLog
+    const previewErrors = (job.errorLog || []) as ImportError[];
+    for (const e of previewErrors) {
+      if (e.rowNumber !== undefined && e.field) {
+        allErrors.push(e);
+      }
+    }
+
+    // Collect processing errors from chunks
+    const chunks = await this.getChunks(id);
+    for (const chunk of chunks) {
+      const chunkErrors = (chunk['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+      for (const ce of chunkErrors) {
+        allErrors.push({
+          rowNumber: ce.row,
+          field: ce.field || 'row',
+          errorCode: 'PROCESSING_ERROR',
+          severity: 'ERROR',
+          message: ce.message,
+          suggestedFix: null,
+        });
+      }
+    }
+
+    // Sort deterministically: row_number ASC, field ASC
+    allErrors.sort((a, b) => {
+      if (a.rowNumber !== b.rowNumber) return a.rowNumber - b.rowNumber;
+      return a.field.localeCompare(b.field);
+    });
+
+    // Cap at 50,000 rows
+    const capped = allErrors.slice(0, 50000);
+
+    // Build CSV
+    const lines: string[] = [BOM + headerLine];
+    for (const e of capped) {
+      const row = [
+        String(e.rowNumber),
+        this.csvEscape(e.field),
+        this.csvEscape(e.errorCode),
+        this.csvEscape(e.severity),
+        this.csvEscape(e.message),
+        this.csvEscape(e.suggestedFix || ''),
+      ].join(',');
+      lines.push(row);
+    }
+
+    return lines.join('\n');
+  }
+
+  /** Escape a value for CSV output. */
+  private csvEscape(value: string): string {
+    if (!value) return '';
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return '"' + value.replace(/"/g, '""') + '"';
+    }
+    return value;
   }
 
   /**

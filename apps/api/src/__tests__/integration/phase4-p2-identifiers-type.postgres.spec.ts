@@ -60,6 +60,8 @@ function makeCatalogService(database: DatabaseService, taxonomy: any) {
     { record: async () => {} } as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomy,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
 }
 

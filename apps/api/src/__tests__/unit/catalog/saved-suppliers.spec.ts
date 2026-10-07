@@ -49,6 +49,8 @@ function createService(mocks: ReturnType<typeof createMocks>) {
     { record: async () => {} } as never,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as never,
     { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] } as never,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
 }
 

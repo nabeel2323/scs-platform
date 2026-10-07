@@ -9,7 +9,7 @@ import { PageHeader } from '@scs/ui-kit';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 
-const STEPS = ['Upload File', 'Map Columns', 'Validation', 'Import Progress', 'Review'] as const;
+const STEPS = ['Upload File', 'Map Columns', 'Validation', 'Preview', 'Import Progress', 'Review'] as const;
 
 /** Default column mapping targets for product imports. */
 const TARGET_COLUMNS = [
@@ -118,11 +118,18 @@ export default function ImportWizardPage() {
   const [validRows, setValidRows] = useState(0);
   const [stockPreview, setStockPreview] = useState<{ totalRows: number; rowsWithStock: number; totalStock: number } | null>(null);
 
-  // Step 4: Progress
+  // Step 4: Preview (P10)
+  const [previewData, setPreviewData] = useState<{
+    totalRows: number; validRows: number; errorCount: number; warningCount: number;
+    errors: Array<{ rowNumber: number; field: string; errorCode: string; severity: string; message: string; suggestedFix?: string | null }>;
+    sampleRows: Record<string, string>[]; detectedHeaders: string[];
+  } | null>(null);
+
+  // Step 5: Progress
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
   const [progress, setProgress] = useState(0);
 
-  // Step 5: Review
+  // Step 6: Review
   const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
 
   // Auto-resolve store on mount
@@ -229,74 +236,96 @@ export default function ImportWizardPage() {
     setFile(selected);
     setError(null);
 
-    // Parse CSV client-side for column detection
     if (ext === 'csv') {
+      // Parse CSV client-side for column detection
       const reader = new FileReader();
       reader.onload = (ev) => {
         const text = ev.target?.result as string;
         parseCsvFile(text);
       };
       reader.readAsText(selected.slice(0, 10000)); // Read first 10KB for header detection
+    } else {
+      // XLSX: headers detected server-side during Preview step
+      setDetectedHeaders([]);
+      setColumnMapping({});
     }
   };
 
-  const handleUpload = async () => {
-    if (!file || !storeId) {
-      setError('Please select a file and enter your store ID.');
-      return;
+  /** Create the import job (metadata) once and return it. */
+  const ensureJob = async (): Promise<ImportJob> => {
+    if (importJob) return importJob;
+    if (!file || !storeId) throw new Error('Please select a file and a store.');
+    const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+    const res = await authFetch(`${API_URL}/v1/stores/${storeId}/imports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: isXlsx ? 'XLSX' : 'CSV',
+        fileSize: file.size,
+        // XLSX mapping is derived server-side after upload; CSV auto-maps client-side.
+        columnMapping: isXlsx ? {} : columnMapping,
+      }),
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => null);
+      throw new Error(b?.detail || b?.message || `Create import job failed: ${res.status}`);
     }
-    setLoading(true);
-    setError(null);
+    const job = (await res.json()) as ImportJob;
+    setImportJob(job);
+    return job;
+  };
 
+  /** Compute the CSV stock preview (informational). */
+  const computeStockPreview = async () => {
+    if (!file || !file.name.toLowerCase().endsWith('.csv')) return;
     try {
-      // Create import job via API
-      const res = await authFetch(`${API_URL}/v1/stores/${storeId}/imports`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.name.endsWith('.xlsx') ? 'XLSX' : 'CSV',
-          fileSize: file.size,
-          columnMapping,
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-      const job = await res.json();
-      setImportJob(job);
-
-      // Move to validation step
-      setStep(2);
-      // Compute stock preview from the uploaded file
-      if (file) {
-        try {
-          const allRows = await parseAllRows(file);
-          const stockCol = columnMapping['stock'] || Object.keys(columnMapping).find(k => k === 'stock');
-          const mappedHeaders = detectedHeaders;
-          // Find the actual header that maps to 'stock'
-          const stockHeader = stockCol || mappedHeaders.find(h => h.toLowerCase().includes('stock'));
-          let rowsWithStock = 0;
-          let totalStock = 0;
-          if (stockHeader) {
-            for (const row of allRows) {
-              const val = row[stockHeader];
-              if (val) {
-                const qty = parseInt(val, 10);
-                if (!isNaN(qty) && qty > 0) {
-                  rowsWithStock++;
-                  totalStock += qty;
-                }
-              }
-            }
+      const allRows = await parseAllRows(file);
+      const stockHeader =
+        columnMapping['stock'] || detectedHeaders.find((h) => h.toLowerCase().includes('stock'));
+      let rowsWithStock = 0;
+      let totalStock = 0;
+      if (stockHeader) {
+        for (const row of allRows) {
+          const val = row[stockHeader];
+          if (val) {
+            const qty = parseInt(val, 10);
+            if (!isNaN(qty) && qty > 0) { rowsWithStock++; totalStock += qty; }
           }
-          setStockPreview({ totalRows: allRows.length, rowsWithStock, totalStock });
-        } catch {
-          setStockPreview(null);
         }
       }
-      // Simulate validation results (in production, server validates)
-      setValidationErrors([]);
-      setValidRows(0);
+      setStockPreview({ totalRows: allRows.length, rowsWithStock, totalStock });
+    } catch {
+      setStockPreview(null);
+    }
+  };
+
+  /** R1/R2 — Step 0 → Step 1: create the job; for XLSX upload bytes + detect headers. */
+  const goToMapping = async () => {
+    if (!file || !storeId) { setError('Please select a file and a store.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const job = await ensureJob();
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        const upRes = await authFetch(`${API_URL}/v1/imports/${job.id}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: file,
+        });
+        if (!upRes.ok) {
+          const b = await upRes.json().catch(() => null);
+          throw new Error(b?.detail || b?.message || `Upload failed: ${upRes.status}`);
+        }
+        const data = await upRes.json();
+        setDetectedHeaders(data.detectedHeaders || []);
+        if (data.columnMapping && Object.keys(data.columnMapping).length > 0) {
+          setColumnMapping(data.columnMapping);
+        }
+      } else {
+        await computeStockPreview();
+      }
+      setStep(1);
     } catch (e) {
       setError(`${e}`);
     } finally {
@@ -304,80 +333,172 @@ export default function ImportWizardPage() {
     }
   };
 
+  /** R2 — Step 1 → Step 2: persist the chosen mapping (UPLOADED → MAPPING). */
+  const persistMappingAndValidate = async () => {
+    if (!importJob) { setError('Import job not created.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/mapping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ columnMapping }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Save mapping failed: ${res.status}`);
+      }
+      setStep(2);
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** R3 — stage all CSV rows server-side BEFORE preview so counts are real. */
+  const stageCsvRows = async () => {
+    if (!file || !importJob) return;
+    if (file.name.toLowerCase().endsWith('.xlsx')) return; // XLSX reads from storage
+    const rows = await parseAllRows(file);
+    if (rows.length === 0) throw new Error('No data rows found in the file.');
+    const BATCH = 200;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const stageRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/rows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: batch, append: i > 0 }),
+      });
+      if (!stageRes.ok) {
+        const b = await stageRes.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Failed to stage rows: ${stageRes.status}`);
+      }
+    }
+  };
+
+  /** R3 — Step 2 → Step 3: stage CSV rows first, then run the read-only preview. */
+  const handlePreview = async () => {
+    if (!importJob) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await stageCsvRows();
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/preview`, { method: 'POST' });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Preview failed: ${res.status}`);
+      }
+      const data = await res.json();
+      setPreviewData(data);
+      setValidRows(data.validRows ?? 0);
+      setValidationErrors(
+        (data.errors || [])
+          .filter((e: any) => e.severity === 'ERROR')
+          .map((e: any) => ({ row: e.rowNumber, field: e.field, message: e.message })),
+      );
+      setStep(3);
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Step 3 → Step 4: trigger processing (rows already staged/uploaded). */
   const handleStartImport = async () => {
     if (!importJob) return;
     setLoading(true);
     setError(null);
+    const jobId = importJob.id;
 
-    // Poll import job status
+    const finalize = (job: any, cancelled = false) => {
+      setImportJob(job);
+      setImportStats({
+        created: job.stats?.created ?? 0,
+        updated: job.stats?.updated ?? 0,
+        skipped: job.stats?.skipped ?? 0,
+        errors: job.stats?.errors ?? 0,
+      });
+      if (cancelled) setError('Import cancelled.');
+      else if (job.status === 'FAILED') setError('Import completed with errors.');
+      setStep(5);
+    };
+
+    // Poll job lifecycle. R5: the backend PROCESSING state (not IMPORTING).
     const pollInterval = setInterval(async () => {
       try {
-        const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}`);
-        if (res.ok) {
-          const job = await res.json();
-          setImportJob(job);
-
-          if (job.status === 'IMPORTING') {
-            setProgress(job.stats?.processed ? Math.round((job.stats.processed / (job.stats.total || 1)) * 100) : 50);
-          } else if (job.status === 'COMPLETED') {
-            clearInterval(pollInterval);
-            setProgress(100);
-            setImportStats({
-              created: job.stats?.created ?? 0,
-              updated: job.stats?.updated ?? 0,
-              skipped: job.stats?.skipped ?? 0,
-              errors: job.stats?.errors ?? 0,
-            });
-            setStep(4);
-          } else if (job.status === 'FAILED') {
-            clearInterval(pollInterval);
-            setError('Import failed. Please check your file and try again.');
-            setStep(4);
-          }
+        const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
+        if (!res.ok) return;
+        const job = await res.json();
+        setImportJob(job);
+        if (job.status === 'PROCESSING') {
+          const total = job.totalRows || job.stats?.total || 0;
+          const done = job.processedRows ?? job.stats?.processed ?? 0;
+          setProgress(total ? Math.round((done / total) * 100) : 0);
+        } else if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+          clearInterval(pollInterval);
+          setProgress(job.status === 'COMPLETED' ? 100 : 0);
+          finalize(job);
+        } else if (job.status === 'CANCELLED') {
+          clearInterval(pollInterval);
+          finalize(job, true);
         }
       } catch {
         // Polling error — ignore and retry
       }
-    }, 2000);
+    }, 1500);
 
     try {
-      // Parse the full CSV client-side and stage rows on the server
-      if (!file || !file.name.toLowerCase().endsWith('.csv')) {
-        throw new Error('Only CSV files are supported in the pilot. Convert XLSX to CSV and try again.');
-      }
-      const rows = await parseAllRows(file);
-      if (rows.length === 0) {
-        throw new Error('No data rows found in the file.');
-      }
-
-      // Stage rows in batches to stay under request size limits
-      const BATCH = 400;
-      for (let i = 0; i < rows.length; i += BATCH) {
-        const batch = rows.slice(i, i + BATCH);
-        const stageRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/rows`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: batch, append: i > 0 }),
-        });
-        if (!stageRes.ok) throw new Error(`Failed to stage rows: ${stageRes.status}`);
-      }
-
-      // Trigger server-side processing
-      const processRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/process`, {
-        method: 'POST',
-      });
+      const processRes = await authFetch(`${API_URL}/v1/imports/${jobId}/process`, { method: 'POST' });
       if (!processRes.ok) {
         clearInterval(pollInterval);
-        const body = await processRes.json().catch(() => null);
-        throw new Error(body?.message || `Import processing failed: ${processRes.status}`);
+        const b = await processRes.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Import processing failed: ${processRes.status}`);
       }
-
-      setStep(3);
+      // Processing is synchronous server-side; the poll will settle the terminal state.
+      setStep(4);
     } catch (e) {
       clearInterval(pollInterval);
       setError(`${e}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /** R5 — request cooperative cancellation of a RUNNING/READY job. */
+  const handleCancel = async () => {
+    if (!importJob) return;
+    setError(null);
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/cancel`, { method: 'POST' });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Cancel failed: ${res.status}`);
+      }
+      // Poll loop (still active) observes the CANCELLED terminal state.
+    } catch (e) {
+      setError(`${e}`);
+    }
+  };
+
+  /** P10: Download the full error report as CSV. */
+  const handleDownloadErrors = async () => {
+    if (!importJob) return;
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/errors`);
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      // Preserve the backend's exact bytes (incl. the UTF-8 BOM). res.text()
+      // would strip the leading BOM, breaking the §8 error-report contract.
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `import-errors-${importJob.id.substring(0, 8)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(`Failed to download error report: ${e}`);
     }
   };
 
@@ -462,15 +583,15 @@ export default function ImportWizardPage() {
               Download Template
             </button>
             <button
-              onClick={() => { if (file && detectedHeaders.length > 0) setStep(1); else if (file) setStep(1); }}
-              disabled={!file || !storeId}
+              onClick={goToMapping}
+              disabled={!file || !storeId || loading}
               style={{
                 padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600,
                 backgroundColor: file && storeId ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
                 cursor: file && storeId ? 'pointer' : 'not-allowed',
               }}
             >
-              Next: Map Columns →
+              {loading ? 'Preparing…' : 'Next: Map Columns →'}
             </button>
           </div>
         </div>
@@ -527,8 +648,8 @@ export default function ImportWizardPage() {
             <button onClick={() => setStep(0)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
               ← Back
             </button>
-            <button onClick={handleUpload} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
-              {loading ? 'Uploading...' : 'Validate File →'}
+            <button onClick={persistMappingAndValidate} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
+              {loading ? 'Saving…' : 'Save Mapping →'}
             </button>
           </div>
         </div>
@@ -539,9 +660,9 @@ export default function ImportWizardPage() {
         <div>
           <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>Validation Passed</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Mapping Saved</div>
             <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
-              {validRows} rows ready to import{validationErrors.length > 0 ? ` · ${validationErrors.length} rows with errors` : ''}
+              {detectedHeaders.length} columns detected{file ? ` from ${file.name}` : ''} — run the preview to validate rows.
             </div>
           </div>
 
@@ -573,7 +694,7 @@ export default function ImportWizardPage() {
               {validationErrors.length > 50 && (
                 <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center' }}>
                   Showing first 50 of {validationErrors.length} errors.
-                  <a href="#" style={{ color: '#174A5B' }}> Download full report</a>
+                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>Download full report</button>
                 </div>
               )}
             </div>
@@ -593,15 +714,117 @@ export default function ImportWizardPage() {
             <button onClick={() => setStep(1)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
               ← Back
             </button>
-            <button onClick={handleStartImport} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
+            <button onClick={handlePreview} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
+              {loading ? 'Validating...' : 'Preview & Validate →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Preview & Validate (P10) */}
+      {step === 3 && previewData && (
+        <div>
+          <div style={{ padding: 24, backgroundColor: previewData.errorCount === 0 ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${previewData.errorCount === 0 ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{previewData.errorCount === 0 ? '✅' : '⚠️'}</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>
+              {previewData.errorCount === 0 ? 'Preview Passed — No Errors' : `${previewData.errorCount} Errors Found`}
+            </div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+              {previewData.totalRows} total rows · {previewData.validRows} valid{previewData.warningCount > 0 ? ` · ${previewData.warningCount} warnings` : ''}
+            </div>
+          </div>
+
+          {previewData.detectedHeaders.length > 0 && (
+            <div style={{ padding: '12px 16px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#1E40AF' }}>
+              <strong>Detected columns ({previewData.detectedHeaders.length}):</strong> {previewData.detectedHeaders.slice(0, 15).join(', ')}{previewData.detectedHeaders.length > 15 ? ` +${previewData.detectedHeaders.length - 15} more` : ''}
+            </div>
+          )}
+
+          {(previewData.errorCount > 0 || previewData.warningCount > 0) && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '8px 12px', backgroundColor: previewData.errorCount > 0 ? '#FEF2F2' : '#FFFBEB', fontWeight: 600, fontSize: 13, color: previewData.errorCount > 0 ? '#B3372F' : '#92400E', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Issues — {previewData.errorCount} error(s), {previewData.warningCount} warning(s)</span>
+                {previewData.errorCount > 0 && (
+                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: '#fff', border: '1px solid #174A5B', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 10px' }}>Download Error Report</button>
+                )}
+              </div>
+              <div style={{ maxHeight: 250, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB' }}>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Row</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Field</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Code</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Severity</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Message</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Suggested Fix</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.errors.slice(0, 100).map((err, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '6px 12px' }}>{err.rowNumber}</td>
+                        <td style={{ padding: '6px 12px' }}>{err.field}</td>
+                        <td style={{ padding: '6px 12px', fontFamily: 'monospace', fontSize: 11 }}>{err.errorCode}</td>
+                        <td style={{ padding: '6px 12px' }}>
+                          <span style={{ fontWeight: 600, fontSize: 10, padding: '1px 6px', borderRadius: 4, backgroundColor: err.severity === 'ERROR' ? '#FEE2E2' : '#FEF3C7', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.severity}</span>
+                        </td>
+                        <td style={{ padding: '6px 12px', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.message}</td>
+                        <td style={{ padding: '6px 12px', color: '#666' }}>{err.suggestedFix || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {previewData.errors.length >= 100 && (
+                <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center', backgroundColor: '#F9FAFB' }}>
+                  Showing the first {previewData.errors.length >= 100 ? 100 : previewData.errors.length} of {previewData.errorCount + previewData.warningCount} issues — download the report for the full list.
+                </div>
+              )}
+            </div>
+          )}
+
+          {previewData.sampleRows && previewData.sampleRows.length > 0 && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '8px 12px', backgroundColor: '#F0FDF4', fontWeight: 600, fontSize: 13, color: '#166534', borderBottom: '1px solid #BBF7D0' }}>
+                Sample Valid Rows ({previewData.sampleRows.length})
+              </div>
+              <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB' }}>
+                      {Object.keys(previewData.sampleRows[0] || {}).map(k => (
+                        <th key={k} style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{k}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.sampleRows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        {Object.values(row).map((v, j) => (
+                          <td key={j} style={{ padding: '4px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={() => setStep(2)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
+              ← Back
+            </button>
+            <button onClick={handleStartImport} disabled={loading || previewData.errorCount > 0} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: previewData.errorCount > 0 ? '#D1D5DB' : '#174A5B', color: 'white', border: 'none', cursor: previewData.errorCount > 0 ? 'not-allowed' : 'pointer' }}>
               {loading ? 'Starting...' : 'Start Import →'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Import Progress */}
-      {step === 3 && (
+      {/* Step 5: Import Progress */}
+      {step === 4 && (
         <div>
           <div style={{ padding: 32, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
@@ -624,12 +847,23 @@ export default function ImportWizardPage() {
                 Job ID: {importJob.id.substring(0, 8)}... · Status: {importJob.status}
               </div>
             )}
+
+            {importJob && (importJob.status === 'PROCESSING' || importJob.status === 'READY' || importJob.status === 'IMPORTING') && (
+              <div style={{ marginTop: 20 }}>
+                <button
+                  onClick={handleCancel}
+                  style={{ padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, backgroundColor: '#fff', color: '#B3372F', border: '1px solid #B3372F', cursor: 'pointer' }}
+                >
+                  Cancel Import
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Step 5: Review */}
-      {step === 4 && (
+      {/* Step 6: Review */}
+      {step === 5 && (
         <div>
           {importStats ? (
             <>
@@ -672,7 +906,7 @@ export default function ImportWizardPage() {
               Go to Catalog
             </button>
             <button
-              onClick={() => { setStep(0); setFile(null); setImportJob(null); setImportStats(null); setProgress(0); setValidationErrors([]); }}
+              onClick={() => { setStep(0); setFile(null); setImportJob(null); setImportStats(null); setProgress(0); setValidationErrors([]); setPreviewData(null); }}
               style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}
             >
               Import Another File

@@ -144,6 +144,8 @@ beforeAll(async () => {
     { record: async () => {} } as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomy,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
   await applyMigrations(pool);
 

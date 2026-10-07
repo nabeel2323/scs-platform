@@ -268,7 +268,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
     executor = new ExcelExecutorService(database);
     templateGen = new TemplateGeneratorService(database, validationService);
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy);
+    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any);
   }, 180_000);
 
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
