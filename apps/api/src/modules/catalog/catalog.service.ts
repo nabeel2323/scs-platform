@@ -1726,60 +1726,262 @@ export class CatalogService {
   }
 
   /**
-   * Export products for a store as CSV rows.
-   * Columns: title, titleAr, sku, priceMinor, category, brand, status, description
+   * P9: Export products for a store as CSV.
+   *
+   * Format: flat CSV, one row per variant.
+   * Fixed columns: title, titleAr, description, category, brand, status,
+   *                sku, barcode, variantTitle, unit, priceMinor
+   * Dynamic columns: attr:<code> for each typed attribute.
+   *
+   * Batch-fetches all related data to avoid N+1 queries.
+   * Attribute column ordering is deterministic (product-type display_order, then code ASC).
+   * Serialization is compatible with the P8 import pipeline (coerceAttributeValue).
    */
   async exportProductsCsv(storeId: string) {
+    // 1. Fetch all non-deleted products for the store
     const prods = await this.db.db.query.products.findMany({
       where: and(eq(products.storeId, storeId), isNull(products.deletedAt)),
       orderBy: [desc(products.createdAt)],
     });
 
-    const header = 'title,titleAr,sku,priceMinor,category,brand,status,description';
+    if (prods.length === 0) {
+      return 'title,titleAr,description,category,brand,status,sku,barcode,variantTitle,unit,priceMinor';
+    }
+
+    const productIds = prods.map(p => p.id);
+
+    // 2. Batch-fetch variants, categories, brands, product-scope attributes
+    const variantsQuery = this.db.db.query.productVariants.findMany({
+      where: and(
+        inArray(productVariants.productId, productIds),
+        eq(productVariants.isActive, true),
+      ),
+      orderBy: [asc(productVariants.createdAt)],
+    });
+    const categoriesQuery = this.db.db.select({ id: categories.id, name: categories.name })
+      .from(categories)
+      .where(inArray(categories.id, prods.map(p => p.categoryId).filter(Boolean) as string[]));
+    const brandsQuery = this.db.db.select({ id: brands.id, name: brands.name })
+      .from(brands)
+      .where(inArray(brands.id, prods.map(p => p.brandId).filter(Boolean) as string[]));
+    const productAttrsQuery = this.db.db.query.productAttributeValues.findMany({
+      where: inArray(productAttributeValues.productId, productIds),
+    });
+    const [allVariants, categoryRows, brandRows, allProductAttrs] = await Promise.all([
+      variantsQuery, categoriesQuery, brandsQuery, productAttrsQuery,
+    ]);
+
+    // 3. Batch-fetch variant-scope data (depends on variant IDs from step 2)
+    const variantIds = allVariants.map(v => v.id);
+    const variantIdParam = variantIds.length > 0 ? variantIds : ['00000000-0000-0000-0000-000000000000'];
+    const [allVariantAttrs, allPriceTiers] = await Promise.all([
+      // Variant-scope typed attributes
+      this.db.db.query.variantAttributeValues.findMany({
+        where: inArray(variantAttributeValues.variantId, variantIdParam),
+      }),
+      // Base price tiers (min_qty=1) for all variants
+      this.db.db.query.priceTiers.findMany({
+        where: and(
+          inArray(priceTiers.variantId, variantIdParam),
+          eq(priceTiers.minQty, 1),
+        ),
+      }),
+    ]);
+
+    // 3. Build lookup maps
+    const variantsByProduct = new Map<string, typeof allVariants[number][]>();
+    for (const v of allVariants) {
+      const list = variantsByProduct.get(v.productId) ?? [];
+      list.push(v);
+      variantsByProduct.set(v.productId, list);
+    }
+
+    const categoryById = new Map<string, string>();
+    for (const c of categoryRows) categoryById.set(c.id, c.name);
+
+    const brandById = new Map<string, string>();
+    for (const b of brandRows) brandById.set(b.id, b.name);
+
+    const priceByVariant = new Map<string, string>();
+    for (const t of allPriceTiers) priceByVariant.set(t.variantId, String(t.unitPriceMinor));
+
+    // Product attributes: productId → Map<attrDefId, rawValue>
+    const productAttrsByProduct = new Map<string, Map<string, string>>();
+    for (const pa of allProductAttrs) {
+      const m = productAttrsByProduct.get(pa.productId) ?? new Map();
+      m.set(pa.attributeDefinitionId, this.serializeAttributeValue(pa));
+      productAttrsByProduct.set(pa.productId, m);
+    }
+
+    // Variant attributes: variantId → Map<attrDefId, rawValue>
+    const variantAttrsByVariant = new Map<string, Map<string, string>>();
+    for (const va of allVariantAttrs) {
+      const m = variantAttrsByVariant.get(va.variantId) ?? new Map();
+      m.set(va.attributeDefinitionId, this.serializeAttributeValue(va));
+      variantAttrsByVariant.set(va.variantId, m);
+    }
+
+    // 4. Determine attribute columns deterministically
+    const attrColumns = await this.determineExportAttributeColumns(productIds);
+
+    // 5. Build CSV
+    const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+    const fixedHeader = ['title', 'titleAr', 'description', 'category', 'brand', 'status', 'sku', 'barcode', 'variantTitle', 'unit', 'priceMinor'];
+    const attrHeader = attrColumns.map(c => `attr:${c.code}`);
+    const header = [...fixedHeader, ...attrHeader].join(',');
+
     const rows: string[] = [header];
 
     for (const p of prods) {
-      const [variants, labels] = await Promise.all([
-        this.db.db.query.productVariants.findMany({
-          where: eq(productVariants.productId, p['id']),
-          limit: 1,
-        }),
-        this.db.db
-          .select({ categoryName: categories.name, brandName: brands.name })
-          .from(products)
-          .leftJoin(categories, eq(products.categoryId, categories.id))
-          .leftJoin(brands, eq(products.brandId, brands.id))
-          .where(eq(products.id, p['id'])),
-      ]);
+      const variants = variantsByProduct.get(p.id) ?? [];
+      const catName = p.categoryId ? (categoryById.get(p.categoryId) ?? '') : '';
+      const brandName = p.brandId ? (brandById.get(p.brandId) ?? '') : '';
+      const prodAttrMap = productAttrsByProduct.get(p.id) ?? new Map();
 
-      let priceMinor = '';
-      const variant = variants[0];
-      if (variant) {
-        const tier = await this.db.db.query.priceTiers.findFirst({
-          where: and(eq(priceTiers.variantId, variant['id']), eq(priceTiers.minQty, 1)),
-        });
-        if (tier) priceMinor = String(tier['unitPriceMinor']);
+      if (variants.length === 0) {
+        // Product with no active variants → one row with empty variant fields
+        const fixedCols = [
+          esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
+          esc(catName), esc(brandName), p.status,
+          '', '', '', '', '',
+        ];
+        const attrCols = attrColumns.map(c => esc(prodAttrMap.get(c.id) ?? ''));
+        rows.push([...fixedCols, ...attrCols].join(','));
+      } else {
+        for (const v of variants) {
+          const price = priceByVariant.get(v.id) ?? '';
+          const varAttrMap = variantAttrsByVariant.get(v.id) ?? new Map();
+
+          const fixedCols = [
+            esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
+            esc(catName), esc(brandName), p.status,
+            esc(v.sku), esc(v.barcode ?? ''), esc(v.title ?? ''), esc(v.unit),
+            price,
+          ];
+
+          // Merge product + variant attrs; variant takes precedence for same code
+          const attrCols = attrColumns.map(c => {
+            const val = varAttrMap.get(c.id) ?? prodAttrMap.get(c.id) ?? '';
+            return esc(val);
+          });
+
+          rows.push([...fixedCols, ...attrCols].join(','));
+        }
       }
-
-      const cat = labels[0]?.['categoryName'] ?? '';
-      const brand = labels[0]?.['brandName'] ?? '';
-      const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
-
-      rows.push(
-        [
-          esc(p['title']),
-          esc(p['titleAr'] ?? ''),
-          esc(variant?.['sku'] ?? ''),
-          priceMinor,
-          esc(cat),
-          esc(brand),
-          p['status'],
-          esc(p['description'] ?? ''),
-        ].join(','),
-      );
     }
 
     return rows.join('\n');
+  }
+
+  /**
+   * P9: Serialize a typed attribute value row back to its CSV string representation.
+   * Compatible with the P8 import coerceAttributeValue() deserialization.
+   */
+  private serializeAttributeValue(row: { valueText: string | null; valueNumber: string | null; valueBoolean: boolean | null; optionValue: string | null; valueJson: any }): string {
+    if (row.valueText != null) return row.valueText;
+    if (row.valueNumber != null) return String(row.valueNumber);
+    if (row.valueBoolean != null) return row.valueBoolean ? 'true' : 'false';
+    if (row.optionValue != null) return row.optionValue;
+    if (row.valueJson != null) {
+      // MULTI_SELECT: stored as JSON array → serialize as sorted, deduplicated comma-separated
+      const arr = Array.isArray(row.valueJson) ? row.valueJson : [row.valueJson];
+      return [...new Set(arr.map(String))].sort().join(',');
+    }
+    return '';
+  }
+
+  /**
+   * P9: Determine the ordered list of attribute columns for the export CSV.
+   *
+   * Ordering rule:
+   * 1. Attributes associated with the store's product types, ordered by display_order ASC
+   * 2. Remaining attributes (not in any product type) ordered by code ASC
+   * Only includes attributes that actually have values in the exported products.
+   */
+  private async determineExportAttributeColumns(
+    productIds: string[],
+  ): Promise<Array<{ id: string; code: string }>> {
+    if (productIds.length === 0) return [];
+
+    // Find attribute definition IDs that have values in these products (either scope)
+    const productIdList = sql.join(productIds.map(id => sql`${id}`), sql`, `);
+    const attrDefsInScope = await this.db.db.execute(sql`
+      SELECT DISTINCT ad.id, ad.code
+      FROM attribute_definitions ad
+      WHERE ad.deleted_at IS NULL
+        AND (
+          EXISTS (
+            SELECT 1 FROM product_attribute_values pav
+            WHERE pav.attribute_definition_id = ad.id
+              AND pav.product_id IN (${productIdList})
+          )
+          OR EXISTS (
+            SELECT 1 FROM variant_attribute_values vav
+            JOIN product_variants pv ON pv.id = vav.variant_id
+            WHERE vav.attribute_definition_id = ad.id
+              AND pv.product_id IN (${productIdList})
+          )
+        )
+    `);
+    const defRows = (attrDefsInScope as any).rows ?? attrDefsInScope;
+    if (defRows.length === 0) return [];
+
+    const defById = new Map<string, string>();
+    for (const r of defRows) defById.set(r.id, r.code);
+    const attrDefIds = [...defById.keys()];
+
+    // Find product types used by these products
+    const usedTypeRows = await this.db.db.execute(sql`
+      SELECT DISTINCT pt.id
+      FROM product_types pt
+      JOIN products p ON p.product_type_id = pt.id
+      WHERE p.id IN (${productIdList}) AND p.deleted_at IS NULL
+    `);
+    const typeIds: string[] = ((usedTypeRows as any).rows ?? usedTypeRows).map((r: any) => r.id);
+
+    // Get product_type_attributes ordering for these types
+    let typeAttrOrder: Array<{ attrId: string; displayOrder: number }> = [];
+    if (typeIds.length > 0) {
+      const ptaRows = await this.db.db.query.productTypeAttributes.findMany({
+        where: and(
+          inArray(productTypeAttributes.productTypeId, typeIds),
+          inArray(productTypeAttributes.attributeDefinitionId, attrDefIds),
+        ),
+        columns: {
+          attributeDefinitionId: true,
+          displayOrder: true,
+        },
+        orderBy: [asc(productTypeAttributes.displayOrder)],
+      });
+      // Deduplicate: keep the first (lowest display_order) occurrence per attribute
+      const seen = new Set<string>();
+      for (const r of ptaRows) {
+        if (!seen.has(r.attributeDefinitionId)) {
+          typeAttrOrder.push({ attrId: r.attributeDefinitionId, displayOrder: r.displayOrder });
+          seen.add(r.attributeDefinitionId);
+        }
+      }
+    }
+
+    const typeAttrIds = new Set(typeAttrOrder.map(t => t.attrId));
+
+    // Sort: type-associated attrs by display_order, then remaining by code ASC
+    const result: Array<{ id: string; code: string }> = [];
+
+    // First: type-associated attributes in display_order
+    for (const ta of typeAttrOrder) {
+      const code = defById.get(ta.attrId);
+      if (code) result.push({ id: ta.attrId, code });
+    }
+
+    // Then: remaining attributes sorted by code
+    const remainingCodes = [...defById.entries()]
+      .filter(([id]) => !typeAttrIds.has(id))
+      .map(([id, code]) => ({ id, code }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    result.push(...remainingCodes);
+    return result;
   }
 
   /**

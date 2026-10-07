@@ -94,13 +94,29 @@ function SearchPageContent() {
       // Send categoryId to API only when exactly one is selected (backward compatible);
       // multi-category is handled client-side after the API returns results.
       const categoryId = selectedCategories.length === 1 ? selectedCategories[0] : undefined;
+      // P9: map UI sort values to server sort values
+      const serverSort = sort === 'price-asc' ? 'price_asc' as const
+        : sort === 'price-desc' ? 'price_desc' as const
+        : sort === 'newest' ? 'newest' as const
+        : sort === 'title-asc' ? 'name' as const
+        : undefined;
+      // P9: validate price inputs before sending to API
+      const minNum = priceMin ? parseFloat(priceMin) : NaN;
+      const maxNum = priceMax ? parseFloat(priceMax) : NaN;
+      const hasPriceError = (priceMin && isNaN(minNum)) || (priceMax && isNaN(maxNum))
+        || (priceMin && minNum < 0) || (priceMax && maxNum < 0)
+        || (priceMin && priceMax && !isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum);
       const res = await searchProducts({
         q: query || undefined,
         categoryId,
         brandId: selectedBrand || undefined,
-        limit: limit + 20, // fetch extra for client-side filtering
+        limit,
         offset,
         attrFilters: Object.keys(selectedAttrFilters).length > 0 ? selectedAttrFilters : undefined,
+        priceMin: !hasPriceError && priceMin && !isNaN(minNum) ? minNum : undefined,
+        priceMax: !hasPriceError && priceMax && !isNaN(maxNum) ? maxNum : undefined,
+        availability: inStockOnly ? 'inStock' as const : undefined,
+        sort: serverSort,
       });
       setResults(res.items || []);
       setTotal(res.total || 0);
@@ -112,7 +128,7 @@ function SearchPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters]);
+  }, [query, selectedCategories, selectedBrand, page, limit, selectedAttrFilters, priceMin, priceMax, inStockOnly, sort]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -159,12 +175,12 @@ function SearchPageContent() {
     inStockOnly,
   ].filter(Boolean).length;
 
-  // Client-side filtering, validation, and sorting
-  const { displayedResults, filteredCount, priceErrorMsg } = useMemo(() => {
+  // Client-side filtering (multi-category + verified only — P9 price/availability/sort are server-side)
+  const { displayedResults, priceErrorMsg } = useMemo(() => {
     let filtered = [...results];
     let errorMsg = '';
 
-    // Validate price inputs
+    // Validate price inputs (for UI feedback only — actual filtering is server-side)
     const minNum = priceMin ? parseFloat(priceMin) : NaN;
     const maxNum = priceMax ? parseFloat(priceMax) : NaN;
     if (priceMin && isNaN(minNum)) errorMsg = 'Invalid minimum price';
@@ -175,53 +191,18 @@ function SearchPageContent() {
       errorMsg = 'Minimum exceeds maximum';
     }
 
-    // Price filter (client-side since API doesn't support it)
-    // Only filter when no validation error — prices are compared in minor units
-    if (!errorMsg && priceMin && !isNaN(minNum)) {
-      const minVal = Math.round(minNum * 100);
-      filtered = filtered.filter(p => p.priceFromMinor != null && p.priceFromMinor >= minVal);
-    }
-    if (!errorMsg && priceMax && !isNaN(maxNum)) {
-      const maxVal = Math.round(maxNum * 100);
-      filtered = filtered.filter(p => p.priceFromMinor != null && p.priceFromMinor <= maxVal);
-    }
-
     // Multi-category filter (client-side when >1 selected; API handles 0 or 1)
     if (selectedCategories.length > 1) {
       filtered = filtered.filter(p => p.categoryId && selectedCategories.includes(p.categoryId));
     }
 
-    // Verified only
+    // Verified only (client-side — not a P9 concern)
     if (verifiedOnly) {
       filtered = filtered.filter(p => p.store?.verificationStatus === 'VERIFIED');
     }
 
-    // In stock only
-    if (inStockOnly) {
-      filtered = filtered.filter(p => p.isAvailable);
-    }
-
-    // Sort
-    switch (sort) {
-      case 'price-asc':
-        filtered.sort((a, b) => (a.priceFromMinor ?? Infinity) - (b.priceFromMinor ?? Infinity));
-        break;
-      case 'price-desc':
-        filtered.sort((a, b) => (b.priceFromMinor ?? 0) - (a.priceFromMinor ?? 0));
-        break;
-      case 'newest':
-        filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-      case 'title-asc':
-        filtered.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      default:
-        // featured = default order from API
-        break;
-    }
-
-    return { displayedResults: filtered.slice(0, limit), filteredCount: filtered.length, priceErrorMsg: errorMsg };
-  }, [results, priceMin, priceMax, selectedCategories, verifiedOnly, inStockOnly, sort, limit]);
+    return { displayedResults: filtered.slice(0, limit), priceErrorMsg: errorMsg };
+  }, [results, priceMin, priceMax, selectedCategories, verifiedOnly, limit]);
 
   const handleAddToCart = async (product: Product) => {
     setCartError('');
@@ -321,7 +302,6 @@ function SearchPageContent() {
               <>
                 <span style={{ fontWeight: 600, color: colors.brand[700] }}>{total.toLocaleString()}</span> result{total !== 1 ? 's' : ''}
                 {query && <> for "<strong style={{ color: colors.brand[700] }}>{query}</strong>"</>}
-                {filteredCount < total && !loading && <span style={{ marginLeft: 8, color: colors.brand[500], fontWeight: 500 }}>({filteredCount} shown after filters)</span>}
               </>
             ) : !loading && <span>No results found</span>}
           </div>

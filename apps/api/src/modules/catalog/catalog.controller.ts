@@ -11,6 +11,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   CatalogService,
@@ -598,11 +599,53 @@ export class CatalogController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('attrFilters') attrFiltersRaw?: string,
+    @Query('priceMin') priceMinRaw?: string,
+    @Query('priceMax') priceMaxRaw?: string,
+    @Query('availability') availability?: string,
+    @Query('sort') sort?: string,
   ) {
     let attributeFilters: Record<string, string[]> | undefined;
     if (attrFiltersRaw) {
       try { attributeFilters = JSON.parse(attrFiltersRaw); } catch { /* ignore malformed */ }
     }
+
+    // P9: validate and convert price parameters (major → minor units)
+    let priceMin: number | undefined;
+    let priceMax: number | undefined;
+    if (priceMinRaw != null && priceMinRaw !== '') {
+      const parsed = parseFloat(priceMinRaw);
+      if (isNaN(parsed) || parsed < 0) {
+        throw new BadRequestException('priceMin must be a non-negative number');
+      }
+      priceMin = Math.round(parsed * 100);
+    }
+    if (priceMaxRaw != null && priceMaxRaw !== '') {
+      const parsed = parseFloat(priceMaxRaw);
+      if (isNaN(parsed) || parsed < 0) {
+        throw new BadRequestException('priceMax must be a non-negative number');
+      }
+      priceMax = Math.round(parsed * 100);
+    }
+    if (priceMin != null && priceMax != null && priceMin > priceMax) {
+      throw new BadRequestException('priceMin must not exceed priceMax');
+    }
+
+    // P9: validate availability
+    if (availability != null && availability !== '' && availability !== 'inStock') {
+      throw new BadRequestException(`Invalid availability value '${availability}'. Supported: inStock`);
+    }
+
+    // P9: validate sort
+    const validSorts = ['price_asc', 'price_desc', 'newest', 'name'] as const;
+    type SortValue = typeof validSorts[number];
+    let sortValue: SortValue | undefined;
+    if (sort != null && sort !== '') {
+      if (!validSorts.includes(sort as SortValue)) {
+        throw new BadRequestException(`Invalid sort value '${sort}'. Supported: ${validSorts.join(', ')}`);
+      }
+      sortValue = sort as SortValue;
+    }
+
     return this.searchService.search(q, {
       storeId,
       categoryId,
@@ -610,6 +653,10 @@ export class CatalogController {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
       attributeFilters,
+      priceMin,
+      priceMax,
+      availability: availability === 'inStock' ? 'inStock' : undefined,
+      sort: sortValue,
     });
   }
 
