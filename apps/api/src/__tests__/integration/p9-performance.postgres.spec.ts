@@ -6,7 +6,6 @@
  *
  * Requires: Docker (testcontainers).
  */
-// @ts-nocheck
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
@@ -183,10 +182,10 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     return {
       label,
       times,
-      min: times[0],
-      median: times[Math.floor(times.length / 2)],
-      p95: times[Math.floor(times.length * 0.95)],
-      max: times[times.length - 1],
+      min: times[0]!,
+      median: times[Math.floor(times.length / 2)]!,
+      p95: times[Math.floor(times.length * 0.95)]!,
+      max: times[times.length - 1]!,
     };
   }
 

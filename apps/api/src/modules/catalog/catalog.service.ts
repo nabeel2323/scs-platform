@@ -1940,7 +1940,7 @@ export class CatalogService {
     const typeIds: string[] = ((usedTypeRows as any).rows ?? usedTypeRows).map((r: any) => r.id);
 
     // Get product_type_attributes ordering for these types
-    let typeAttrOrder: Array<{ attrId: string; displayOrder: number }> = [];
+    const typeAttrOrder: Array<{ attrId: string; displayOrder: number }> = [];
     if (typeIds.length > 0) {
       const ptaRows = await this.db.db.query.productTypeAttributes.findMany({
         where: and(
