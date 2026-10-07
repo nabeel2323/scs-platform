@@ -6,7 +6,7 @@ import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-m
 import { products, productVariants, brands, categories } from './catalog.schema';
 import { searchQueries } from './search.schema';
 import { attributeDefinitions, productTypeAttributes, productAttributeValues, productTypes } from './catalog.taxonomy.schema';
-import { eq, and, isNull, or, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, isNull, or, sql, desc, asc, inArray } from 'drizzle-orm';
 import { createMediaRefResolver, enrichProductCards } from './product-card';
 import crypto from 'node:crypto';
 
@@ -51,17 +51,63 @@ export class SearchService {
       // PHASE 6: attribute filter via EXISTS subquery
       const attrSql = this.buildAttributeFilterSql(options?.attributeFilters);
 
+      // P9: price range filter (EXISTS — semantically equivalent to MIN check)
+      // P9: price range filter
+      if (options?.priceMin != null || options?.priceMax != null) {
+        const priceConditions = [sql`mo.product_id = ${products.id}`, sql`mo.status = 'ACTIVE'`, sql`mo.base_price_minor IS NOT NULL`];
+        if (options?.priceMin != null) priceConditions.push(sql`mo.base_price_minor >= ${options.priceMin}`);
+        if (options?.priceMax != null) priceConditions.push(sql`mo.base_price_minor <= ${options.priceMax}`);
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM merchant_offers mo
+          WHERE ${sql.join(priceConditions, sql` AND `)}
+        )`);
+      }
+
+      // P9: availability filter
+      if (options?.availability === 'inStock') {
+        conditions.push(sql`EXISTS (
+          SELECT 1
+          FROM merchant_offers mo
+          JOIN product_variants pv ON pv.product_id = mo.product_id
+          JOIN inventory_items ii ON ii.variant_id = pv.id
+          JOIN warehouses w ON w.id = ii.warehouse_id AND w.store_id = mo.store_id
+          WHERE mo.product_id = ${products.id}
+            AND mo.status = 'ACTIVE'
+            AND ii.qty_on_hand > 0
+        )`);
+      }
+
+      // P9: sort order
+      const allConditions = [...conditions, ...(attrSql ? [attrSql] : [])];
+      let orderByExpr: ReturnType<typeof sql>;
+      switch (options?.sort) {
+        case 'price_asc':
+          orderByExpr = sql`(SELECT MIN(mo.base_price_minor) FROM merchant_offers mo WHERE mo.product_id = ${products.id} AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL) ASC NULLS LAST, ${desc(products.createdAt)}, ${sql`${products.id} ASC`}`;
+          break;
+        case 'price_desc':
+          orderByExpr = sql`(SELECT MIN(mo.base_price_minor) FROM merchant_offers mo WHERE mo.product_id = ${products.id} AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL) DESC NULLS LAST, ${desc(products.createdAt)}, ${sql`${products.id} ASC`}`;
+          break;
+        case 'newest':
+          orderByExpr = sql`${desc(products.createdAt)}, ${sql`${products.id} ASC`}`;
+          break;
+        case 'name':
+          orderByExpr = sql`${asc(products.title)}, ${sql`${products.id} ASC`}`;
+          break;
+        default:
+          orderByExpr = sql`${desc(products.createdAt)}`;
+      }
+
       const [rows, countResult] = await Promise.all([
         this.db.db.query.products.findMany({
-          where: and(...conditions, ...(attrSql ? [attrSql] : [])),
-          orderBy: [desc(products.createdAt)],
+          where: and(...allConditions),
+          orderBy: [orderByExpr as any],
           limit,
           offset,
         }),
         this.db.db
           .select({ count: sql<number>`count(*)` })
           .from(products)
-          .where(and(...conditions, ...(attrSql ? [attrSql] : []))),
+          .where(and(...allConditions)),
       ]);
 
       const total = Number(countResult[0]?.count ?? 0);
@@ -170,6 +216,47 @@ export class SearchService {
 
     // Use raw SQL for trigram similarity + FTS
     const attrFilterSql = this.buildRawAttrFilter(options?.attributeFilters);
+
+    // P9: build additional filter fragments for the raw SQL path
+    const extraFilters: ReturnType<typeof sql>[] = [];
+    if (options?.priceMin != null || options?.priceMax != null) {
+      let priceSql = sql`AND EXISTS (SELECT 1 FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL`;
+      if (options?.priceMin != null) priceSql = sql`${priceSql} AND mo.base_price_minor >= ${options.priceMin}`;
+      if (options?.priceMax != null) priceSql = sql`${priceSql} AND mo.base_price_minor <= ${options.priceMax}`;
+      priceSql = sql`${priceSql})`;
+      extraFilters.push(priceSql);
+    }
+    if (options?.availability === 'inStock') {
+      extraFilters.push(sql`AND EXISTS (
+        SELECT 1 FROM merchant_offers mo
+        JOIN product_variants pv ON pv.product_id = mo.product_id
+        JOIN inventory_items ii ON ii.variant_id = pv.id
+        JOIN warehouses w ON w.id = ii.warehouse_id AND w.store_id = mo.store_id
+        WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND ii.qty_on_hand > 0
+      )`);
+    }
+    const extraFiltersSql = extraFilters.length > 0 ? sql.join(extraFilters, sql` `) : sql``;
+
+    // P9: sort expression for text-query path (replaces default sim_score ordering
+    // when an explicit sort is requested)
+    let textSortExpr: ReturnType<typeof sql>;
+    switch (options?.sort) {
+      case 'price_asc':
+        textSortExpr = sql`(SELECT MIN(mo.base_price_minor) FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL) ASC NULLS LAST, p.created_at DESC, p.id ASC`;
+        break;
+      case 'price_desc':
+        textSortExpr = sql`(SELECT MIN(mo.base_price_minor) FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL) DESC NULLS LAST, p.created_at DESC, p.id ASC`;
+        break;
+      case 'newest':
+        textSortExpr = sql`p.created_at DESC, p.id ASC`;
+        break;
+      case 'name':
+        textSortExpr = sql`p.title ASC, p.id ASC`;
+        break;
+      default:
+        textSortExpr = sql`sim_score DESC, p.created_at DESC`;
+    }
+
     const [results, countResult] = await Promise.all([
       this.db.db.execute(sql`
         SELECT p.*, 
@@ -183,12 +270,13 @@ export class SearchService {
           ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
           ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
           ${attrFilterSql}
+          ${extraFiltersSql}
           AND (
             to_tsvector('simple', normalize_arabic(COALESCE(p.title, ''))) @@ plainto_tsquery('simple', normalize_arabic(${query}))
             OR similarity(normalize_arabic(p.title), normalize_arabic(${query})) > 0.3
             OR normalize_arabic(p.title) ILIKE '%' || normalize_arabic(${query}) || '%'
           )
-        ORDER BY sim_score DESC, p.created_at DESC
+        ORDER BY ${textSortExpr}
         LIMIT ${limit}
         OFFSET ${offset}
       `),
@@ -200,6 +288,7 @@ export class SearchService {
           ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
           ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
           ${attrFilterSql}
+          ${extraFiltersSql}
           AND (
             to_tsvector('simple', normalize_arabic(COALESCE(p.title, ''))) @@ plainto_tsquery('simple', normalize_arabic(${query}))
             OR similarity(normalize_arabic(p.title), normalize_arabic(${query})) > 0.3
@@ -442,6 +531,14 @@ export interface SearchOptions {
   attributeFilters?: Record<string, string[]>;
   /** When true, include facet aggregation in the response (default true). */
   includeFacets?: boolean;
+  /** P9: price range filter — in minor currency units (halalas). */
+  priceMin?: number;
+  /** P9: price range filter — in minor currency units (halalas). */
+  priceMax?: number;
+  /** P9: availability filter. */
+  availability?: 'inStock';
+  /** P9: sort order. */
+  sort?: 'price_asc' | 'price_desc' | 'newest' | 'name';
 }
 
 export interface FacetEntry {

@@ -324,6 +324,10 @@ export async function searchProducts(params: {
   limit?: number;
   offset?: number;
   attrFilters?: Record<string, string[]>;
+  priceMin?: number;
+  priceMax?: number;
+  availability?: 'inStock';
+  sort?: 'price_asc' | 'price_desc' | 'newest' | 'name';
 }): Promise<SearchResult> {
   const qs = new URLSearchParams();
   if (params.q) qs.set('q', params.q);
@@ -333,6 +337,10 @@ export async function searchProducts(params: {
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.offset) qs.set('offset', String(params.offset));
   if (params.attrFilters && Object.keys(params.attrFilters).length > 0) qs.set('attrFilters', JSON.stringify(params.attrFilters));
+  if (params.priceMin != null) qs.set('priceMin', String(params.priceMin));
+  if (params.priceMax != null) qs.set('priceMax', String(params.priceMax));
+  if (params.availability) qs.set('availability', params.availability);
+  if (params.sort) qs.set('sort', params.sort);
   const res = await authFetch(`${API_URL}/v1/search?${qs}`);
   if (!res.ok) throw await ApiError.from(res, `Search failed (${res.status})`);
   return res.json();
