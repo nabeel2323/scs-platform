@@ -82,6 +82,8 @@ function harness(
     { record: async () => {} } as never,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as never,
     { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] } as never,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
 }
 

@@ -9,12 +9,14 @@ import { CatalogOfferService } from './catalog.offer.service';
 import { CatalogRequestsService } from './catalog.requests.service';
 import { SearchService } from './search.service';
 import { ConditionalRulesService } from './conditional-rules.service';
+import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
+import { ImportValidationService } from './import-validation.service';
 import { AuditModule } from '../audit/index';
 
 @Module({
   imports: [AuditModule],
   controllers: [CatalogController, CatalogTaxonomyController, CatalogOfferController, CatalogRequestsController],
-  providers: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService],
-  exports: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService],
+  providers: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService, MerchantXlsxParserService, ImportValidationService],
+  exports: [CatalogService, CatalogTaxonomyService, CatalogOfferService, CatalogRequestsService, SearchService, ConditionalRulesService, MerchantXlsxParserService, ImportValidationService],
 })
 export class CatalogModule {}

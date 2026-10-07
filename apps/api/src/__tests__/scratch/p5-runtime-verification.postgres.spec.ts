@@ -64,6 +64,8 @@ beforeAll(async () => {
     { record: async () => {} } as any,  // AuditService
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,  // ConditionalRulesService
     taxonomyService,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
   adminService = new AdminService(
     db,

@@ -8,6 +8,8 @@ import {
   Param,
   Body,
   Query,
+  Req,
+  Res,
   UseGuards,
   ParseUUIDPipe,
   ForbiddenException,
@@ -504,13 +506,30 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/imports')
-  async listImportJobs(@Param('storeId') storeId: string) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:read')
+  async listImportJobs(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.listImportJobsByStore(storeId);
   }
 
   @Get('imports/:id')
-  async getImportJob(@Param('id') id: string) {
-    return this.catalogService.getImportJob(id);
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:read')
+  async getImportJob(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return job;
   }
 
   @Post('imports/:id/rows')
@@ -527,6 +546,41 @@ export class CatalogController {
     await assertStoreInOrg(this.db, caller, job.storeId);
     await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.stageImportRows(id, body.rows || [], body.append !== false);
+  }
+
+  @Post('imports/:id/upload')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async uploadImportFile(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Req() req: any,
+  ) {
+    // P10 Remediation (R1/R11): store scope is resolved from the persisted job,
+    // never from the client. Bytes arrive as a raw octet-stream body (no multer
+    // dependency, no client-supplied storage key) and are capped at 25 MB.
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    const buffer = await readRawBody(req, 25 * 1024 * 1024);
+    const contentType = req.headers['content-type'] as string | undefined;
+    return this.catalogService.uploadImportFile(id, buffer, contentType);
+  }
+
+  @Post('imports/:id/mapping')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async updateImportMapping(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { columnMapping: Record<string, string> },
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return this.catalogService.updateImportMapping(id, body.columnMapping || {});
   }
 
   @Post('imports/:id/process')
@@ -586,6 +640,42 @@ export class CatalogController {
     await assertStoreInOrg(this.db, caller, job.storeId);
     await assertStoreMember(this.db, caller, job.storeId);
     return this.catalogService.retryFailedJob(id);
+  }
+
+  // ── P10: Preview & Error Reporting ────────────────────────────
+
+  @Post('imports/:id/preview')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async previewImportJob(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    return this.catalogService.previewImportJob(id);
+  }
+
+  @Get('imports/:id/errors')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:read')
+  async getImportErrors(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: any,
+  ) {
+    const job = await this.catalogService.getImportJob(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, job.storeId);
+    await assertStoreMember(this.db, caller, job.storeId);
+    const csv = await this.catalogService.getErrorReport(id);
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="import-errors-${id}.csv"`,
+    });
+    res.send(csv);
   }
 
   // ── Search ───────────────────────────────────────────────────
@@ -741,4 +831,53 @@ export class CatalogController {
   findCorruptedVariants() {
     return this.catalogService.findCorruptedVariants();
   }
+}
+
+/**
+ * P10 Remediation (R1): Read a raw request body into a Buffer without a multipart
+ * dependency (multer is not installed). Express' JSON / urlencoded parsers skip
+ * `application/octet-stream`, so the stream is still live here. Rejects bodies
+ * larger than `maxBytes` with a structured BadRequest (clean 4xx, never an
+ * opaque 500). Guards against hangs when the stream already ended.
+ */
+function readRawBody(req: any, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const declared = Number(req.headers['content-length'] || 0);
+    if (declared > maxBytes) {
+      reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+      return;
+    }
+    // If a body parser already consumed the stream, fall back to what it buffered.
+    if (req.body && Buffer.isBuffer(req.body)) {
+      resolve(req.body);
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let settled = false;
+    req.on('data', (c: Buffer) => {
+      total += c.length;
+      if (total > maxBytes) {
+        if (!settled) {
+          settled = true;
+          reject(new BadRequestException(`FILE_TOO_LARGE: exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB limit.`));
+        }
+        req.removeAllListeners();
+        return;
+      }
+      chunks.push(Buffer.from(c));
+    });
+    req.on('end', () => {
+      if (!settled) {
+        settled = true;
+        resolve(Buffer.concat(chunks));
+      }
+    });
+    req.on('error', (e: Error) => {
+      if (!settled) {
+        settled = true;
+        reject(e);
+      }
+    });
+  });
 }

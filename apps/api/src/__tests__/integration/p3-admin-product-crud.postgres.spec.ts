@@ -65,7 +65,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
 
     const database = { db } as DatabaseService;
     taxonomyService = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService);
+    catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService, {} as any, {} as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any, catalog, taxonomyService);
 
     // Seed organizations

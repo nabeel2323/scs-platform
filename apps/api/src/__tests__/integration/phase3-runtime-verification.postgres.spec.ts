@@ -69,6 +69,8 @@ function makeServices(pool: Pool) {
     { record: async () => {} } as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomy,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
   return { db, database, taxonomy, catalog };
 }

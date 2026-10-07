@@ -76,6 +76,8 @@ beforeAll(async () => {
     { record: async (evt: any) => { auditLog.push(evt); } } as any,
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,  // ConditionalRulesService
     taxonomyService,
+    {} as any, // MerchantXlsxParserService
+    {} as any, // ImportValidationService
   );
 
   // ── Seed orgs + stores ──────────────────────────────────────────
