@@ -125,6 +125,7 @@ describe('P10 — MerchantXlsxParserService', () => {
 
   it('A02c: rejects row count exceeding 50K', async () => {
     // Build a workbook with 50,002 data rows (exceeds limit)
+    // NOTE: ExcelJS writeBuffer is slow for 50K+ rows on CI runners
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Data');
     ws.addRow(['Name', 'SKU']);
@@ -132,17 +133,19 @@ describe('P10 — MerchantXlsxParserService', () => {
     const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
     await expect(parser.parse(buf, 'big.xlsx')).rejects.toThrow('Maximum is 50000');
-  });
+  }, 30_000);
 
   // ── P10-A03: File type rejection ─────────────────────────────────────
 
   it('A03a: rejects .xlsm (macro-enabled)', async () => {
-    const buf = await buildXlsx(['Name'], [['Test']]);
+    // Extension check fires before any workbook parsing, so a dummy buffer suffices
+    const buf = Buffer.alloc(100);
     await expect(parser.parse(buf, 'macro.xlsm')).rejects.toThrow('Macro-enabled');
   });
 
   it('A03b: rejects non-xlsx extensions', async () => {
-    const buf = await buildXlsx(['Name'], [['Test']]);
+    // Extension check fires before any workbook parsing, so a dummy buffer suffices
+    const buf = Buffer.alloc(100);
     await expect(parser.parse(buf, 'data.csv')).rejects.toThrow('Unsupported file type');
   });
 
