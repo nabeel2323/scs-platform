@@ -85,10 +85,36 @@ export const products = pgTable('products', {
   /** @deprecated PHASE 3 — JSONB attributes is LEGACY. Authoritative storage is product_attribute_values. Column retained for backward compat; do NOT read or write. */
   attributes: jsonb('attributes').notNull().default({}),
   metadata: jsonb('metadata').notNull().default({}),
+  // P11 governance columns (migration 0056)
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by').references(() => users.id),
+  rejectionReason: text('rejection_reason'),
   publishedAt: timestamp('published_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Product Moderation ledger (migration 0056).
+ * Append-only audit trail for every product governance transition.
+ * Application code must NEVER update or delete historical records.
+ */
+export const productModeration = pgTable('product_moderation', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 16 }).notNull(),
+  fromStatus: varchar('from_status', { length: 16 }),
+  toStatus: varchar('to_status', { length: 16 }).notNull(),
+  actorUserId: uuid('actor_user_id')
+    .notNull()
+    .references(() => users.id),
+  actorRole: varchar('actor_role', { length: 16 }).notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const productVariants = pgTable('product_variants', {

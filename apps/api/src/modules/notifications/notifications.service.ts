@@ -144,6 +144,47 @@ export class NotificationsService implements OnModuleInit {
         body: `Your requested changes to ${data['orgName'] || 'your organization'} were not approved. ${data['notes'] ? 'Notes: ' + data['notes'] : 'Please review and resubmit.'}`,
       }),
     },
+    // P11 Product Governance notifications
+    'product.submitted': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Product Submitted for Review',
+        body: `Product "${data['productTitle'] || ''}" has been submitted for review.`,
+      }),
+    },
+    'product.approved': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP', 'PUSH'],
+      render: (data) => ({
+        title: 'Product Approved',
+        body: `Your product "${data['productTitle'] || ''}" has been approved. You can now publish it.`,
+      }),
+    },
+    'product.rejected': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP', 'PUSH', 'SMS'],
+      render: (data) => ({
+        title: 'Product Rejected',
+        body: `Your product "${data['productTitle'] || ''}" was rejected. ${data['reason'] ? 'Reason: ' + data['reason'] : 'Please review and resubmit.'}`,
+      }),
+    },
+    'product.published': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Product Published',
+        body: `Your product "${data['productTitle'] || ''}" is now live and visible to buyers.`,
+      }),
+    },
+    'product.rereview': {
+      type: 'TRANSACTIONAL',
+      channels: ['IN_APP'],
+      render: (data) => ({
+        title: 'Product Sent for Re-review',
+        body: `Your product "${data['productTitle'] || ''}" has been sent back for review due to content changes.`,
+      }),
+    },
     'promo.applied': {
       type: 'PROMOTIONAL',
       channels: ['IN_APP', 'PUSH'],

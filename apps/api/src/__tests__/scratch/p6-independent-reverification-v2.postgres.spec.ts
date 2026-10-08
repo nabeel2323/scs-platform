@@ -101,7 +101,8 @@ beforeAll(async () => {
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomyService,
     {} as any, // MerchantXlsxParserService
-    {} as any, // ImportValidationService
+    {} as any, // ImportValidationService,
+    {} as any, // ProductGovernanceService
   );
 
   // ── Seed roles ──────────────────────────────────────────────────

@@ -125,7 +125,7 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     searchService = new SearchService(database, storage, redis);
     const taxonomyService = new CatalogTaxonomyService(database);
     const conditionalRules = new ConditionalRulesService();
-    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any);
+    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any, {} as any);
 
     // Store A
     const a = await createStoreOrg(pool, roleById, 'A');

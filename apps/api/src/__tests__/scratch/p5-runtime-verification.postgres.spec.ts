@@ -65,7 +65,8 @@ beforeAll(async () => {
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,  // ConditionalRulesService
     taxonomyService,
     {} as any, // MerchantXlsxParserService
-    {} as any, // ImportValidationService
+    {} as any, // ImportValidationService,
+    {} as any, // ProductGovernanceService
   );
   adminService = new AdminService(
     db,
@@ -73,6 +74,7 @@ beforeAll(async () => {
     {} as any,  // notifications
     catalogService,
     taxonomyService,
+    {} as any, // governance
   );
 
   // Seed org + store

@@ -42,7 +42,7 @@ export class SearchService {
       const offset = options?.offset || 0;
       const conditions = [
         isNull(products.deletedAt),
-        eq(products.status, 'ACTIVE'),
+        eq(products.status, 'PUBLISHED'),
       ];
       if (options?.storeId) conditions.push(eq(products.storeId, options.storeId));
       if (options?.categoryId) conditions.push(eq(products.categoryId, options.categoryId));
@@ -162,7 +162,7 @@ export class SearchService {
       // The other two paths filter on status = 'ACTIVE'; the fast path must too,
       // otherwise scanning the SKU of a DRAFT or SUSPENDED listing exposes it to
       // any buyer who happens to have its code.
-      if (product && !product['deletedAt'] && product['status'] === 'ACTIVE') {
+      if (product && !product['deletedAt'] && (product['status'] === 'PUBLISHED' || product['status'] === 'ACTIVE')) {
         // A5-2 residual: use the same explicit projection as the other two
         // paths so no client can depend on `matchedVariant` being present.
         return {
@@ -211,7 +211,7 @@ export class SearchService {
     if (options?.status) {
       conditions.push(eq(products.status, options.status));
     } else {
-      conditions.push(eq(products.status, 'ACTIVE'));
+      conditions.push(eq(products.status, 'PUBLISHED'));
     }
 
     // Use raw SQL for trigram similarity + FTS
@@ -266,7 +266,7 @@ export class SearchService {
           ) AS sim_score
         FROM products p
         WHERE p.deleted_at IS NULL
-          AND p.status = 'ACTIVE'
+          AND (p.status = 'PUBLISHED' OR p.status = 'ACTIVE')
           ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
           ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
           ${attrFilterSql}
@@ -284,7 +284,7 @@ export class SearchService {
         SELECT count(*) AS total
         FROM products p
         WHERE p.deleted_at IS NULL
-          AND p.status = 'ACTIVE'
+          AND (p.status = 'PUBLISHED' OR p.status = 'ACTIVE')
           ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
           ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
           ${attrFilterSql}

@@ -68,7 +68,8 @@ function makeService(mockDb: any) {
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, // ConditionalRulesService
     { setProductAttributeValues: vi.fn(), setVariantAttributeValues: vi.fn() } as any, // TaxonomyService
     {} as any, // MerchantXlsxParserService
-    {} as any, // ImportValidationService
+    {} as any, // ImportValidationService,
+    {} as any, // ProductGovernanceService
   );
 }
 

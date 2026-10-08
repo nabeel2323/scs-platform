@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { useProductStudioEdit, EditLoadStatus } from '../../../../../hooks/useProductStudioEdit';
 import { type Step, type StudioState, STEPS } from '../../../../../hooks/useProductStudio';
-import { ProductTypeSummary, fetchProductTypes } from '../../../../../lib/buyer-api';
+import { ProductTypeSummary, fetchProductTypes, submitProductForReview, withdrawProductFromReview, publishProduct, unpublishProduct } from '../../../../../lib/buyer-api';
 import { PageHeader } from '@scs/ui-kit';
 import ProgressIndicator from '../../components/ProgressIndicator';
 import StepIdentity from '../../steps/StepIdentity';
@@ -37,6 +37,7 @@ export default function ProductStudioEditPage() {
   } = studio;
 
   const [productTypes, setProductTypes] = useState<ProductTypeSummary[]>([]);
+  const [governanceLoading, setGovernanceLoading] = useState<string | null>(null);
 
   // Load product types
   useEffect(() => {
@@ -131,6 +132,22 @@ export default function ProductStudioEditPage() {
 
   if (!state) return null;
 
+  // P11: Governance status banner
+  const productStatus = (state as any).status || 'DRAFT';
+  const rejectionReason = (state as any).rejectionReason;
+  const isReadOnly = productStatus === 'SUBMITTED' || productStatus === 'UNDER_REVIEW';
+
+  const statusConfig: Record<string, { label: string; color: string; bg: string; icon: string; message: string }> = {
+    DRAFT: { label: 'Draft', color: '#5b6b74', bg: '#f1f5f9', icon: '📝', message: 'This product is a draft. You can edit and submit it for review.' },
+    SUBMITTED: { label: 'Submitted', color: '#92400e', bg: '#fef3c7', icon: '📤', message: 'This product has been submitted for review. Editing is disabled.' },
+    UNDER_REVIEW: { label: 'Under Review', color: '#1e40af', bg: '#dbeafe', icon: '🔍', message: 'This product is currently under review. Editing is disabled.' },
+    APPROVED: { label: 'Approved', color: '#166534', bg: '#dcfce7', icon: '✅', message: 'This product is approved. Editing high-risk fields will send it back for review.' },
+    PUBLISHED: { label: 'Published', color: '#166534', bg: '#dcfce7', icon: '🌐', message: 'This product is live. Editing will unpublish it and send it for re-review.' },
+    REJECTED: { label: 'Rejected', color: '#991b1b', bg: '#fef2f2', icon: '❌', message: 'This product was rejected. Fix the issues and resubmit.' },
+  };
+  const defaultStatus: { label: string; color: string; bg: string; icon: string; message: string } = { label: 'Draft', color: '#5b6b74', bg: '#f1f5f9', icon: '📝', message: 'This product is a draft. You can edit and submit it for review.' };
+  const statusInfo: { label: string; color: string; bg: string; icon: string; message: string } = statusConfig[productStatus] !== undefined ? statusConfig[productStatus] : defaultStatus;
+
   return (
     <div style={{ minHeight: '100vh', background: '#f7f9fa' }}>
       <PageHeader
@@ -150,8 +167,79 @@ export default function ProductStudioEditPage() {
         }
       />
 
+      {/* P11: Governance Status Banner */}
+      <div style={{
+        padding: '12px 16px', background: statusInfo.bg, borderBottom: `2px solid ${statusInfo.color}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>{statusInfo.icon}</span>
+          <div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: statusInfo.color }}>{statusInfo.label}</span>
+            <span style={{ fontSize: 12, color: statusInfo.color, marginLeft: 8 }}>{statusInfo.message}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          {productStatus === 'DRAFT' && (
+            <button type="button" disabled={!!governanceLoading}
+              onClick={async () => { setGovernanceLoading('submit'); setError(''); try { await submitProductForReview(productId); router.refresh(); } catch (e: any) { setError(e?.message || 'Submit failed'); } finally { setGovernanceLoading(null); } }}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#0f3340', color: '#fff', fontWeight: 600, fontSize: 12 }}>
+              {governanceLoading === 'submit' ? 'Submitting…' : 'Submit for Review'}
+            </button>
+          )}
+          {productStatus === 'SUBMITTED' && (
+            <button type="button" disabled={!!governanceLoading}
+              onClick={async () => { setGovernanceLoading('withdraw'); setError(''); try { await withdrawProductFromReview(productId); router.refresh(); } catch (e: any) { setError(e?.message || 'Withdraw failed'); } finally { setGovernanceLoading(null); } }}
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #d9e2e6', cursor: 'pointer', background: '#fff', color: '#5b6b74', fontWeight: 600, fontSize: 12 }}>
+              {governanceLoading === 'withdraw' ? 'Withdrawing…' : 'Withdraw'}
+            </button>
+          )}
+          {productStatus === 'REJECTED' && (
+            <button type="button" disabled={!!governanceLoading}
+              onClick={async () => { setGovernanceLoading('resubmit'); setError(''); try { await submitProductForReview(productId); router.refresh(); } catch (e: any) { setError(e?.message || 'Resubmit failed'); } finally { setGovernanceLoading(null); } }}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#0f3340', color: '#fff', fontWeight: 600, fontSize: 12 }}>
+              {governanceLoading === 'resubmit' ? 'Resubmitting…' : 'Resubmit for Review'}
+            </button>
+          )}
+          {productStatus === 'APPROVED' && (
+            <button type="button" disabled={!!governanceLoading}
+              onClick={async () => { setGovernanceLoading('publish'); setError(''); try { await publishProduct(productId); router.refresh(); } catch (e: any) { setError(e?.message || 'Publish failed'); } finally { setGovernanceLoading(null); } }}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#fff', fontWeight: 600, fontSize: 12 }}>
+              {governanceLoading === 'publish' ? 'Publishing…' : 'Publish Now'}
+            </button>
+          )}
+          {productStatus === 'PUBLISHED' && (
+            <button type="button" disabled={!!governanceLoading}
+              onClick={async () => { setGovernanceLoading('unpublish'); setError(''); try { await unpublishProduct(productId); router.refresh(); } catch (e: any) { setError(e?.message || 'Unpublish failed'); } finally { setGovernanceLoading(null); } }}
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #d9e2e6', cursor: 'pointer', background: '#fff', color: '#5b6b74', fontWeight: 600, fontSize: 12 }}>
+              {governanceLoading === 'unpublish' ? 'Unpublishing…' : 'Unpublish'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* P11: Rejection Reason */}
+      {productStatus === 'REJECTED' && rejectionReason && (
+        <div style={{
+          padding: '12px 16px', background: '#fef2f2', borderBottom: '1px solid #fecaca',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', marginBottom: 4 }}>Rejection Reason</div>
+          <div style={{ fontSize: 13, color: '#7f1d1d' }}>{rejectionReason}</div>
+        </div>
+      )}
+
+      {/* P11: Read-only overlay for SUBMITTED/UNDER_REVIEW */}
+      {isReadOnly && (
+        <div style={{
+          padding: '10px 16px', background: '#fffbeb', borderBottom: '1px solid #fde68a',
+          fontSize: 12, color: '#92400e', textAlign: 'center', fontWeight: 600,
+        }}>
+          Editing is disabled while this product is {statusInfo.label.toLowerCase()}.
+        </div>
+      )}
+
       {/* Progress Indicator */}
-      <ProgressIndicator currentStep={step} onStepClick={setStep} stepIndex={editStepIndex} />
+      <ProgressIndicator currentStep={step} onStepClick={isReadOnly ? (/* istanbul ignore next */ (_s: Step) => {}) : setStep} stepIndex={editStepIndex} />
 
       {/* Step Content */}
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
@@ -249,16 +337,16 @@ export default function ProductStudioEditPage() {
 
         {/* Navigation */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, gap: 12 }}>
-          <button type="button" onClick={editGoPrev} disabled={editStepIndex === 0}
+          <button type="button" onClick={editGoPrev} disabled={editStepIndex === 0 || isReadOnly}
             style={{
               padding: '10px 20px', borderRadius: 6, border: '1px solid #d9e2e6',
-              cursor: editStepIndex === 0 ? 'not-allowed' : 'pointer',
-              opacity: editStepIndex === 0 ? 0.5 : 1, background: '#fff',
+              cursor: (editStepIndex === 0 || isReadOnly) ? 'not-allowed' : 'pointer',
+              opacity: (editStepIndex === 0 || isReadOnly) ? 0.5 : 1, background: '#fff',
             }}>
             Previous
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
-            {step === 'review' ? (
+            {!isReadOnly && step === 'review' ? (
               <button type="button" onClick={async () => {
                 const pid = await handleSaveProduct();
                 if (pid) {
@@ -268,12 +356,12 @@ export default function ProductStudioEditPage() {
                 style={{ padding: '10px 24px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#22c55e', color: '#fff', fontWeight: 600 }}>
                 {saving ? 'Saving…' : 'Update Product'}
               </button>
-            ) : (
+            ) : !isReadOnly ? (
               <button type="button" onClick={editGoNext}
                 style={{ padding: '10px 20px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#0f3340', color: '#fff', fontWeight: 600 }}>
                 Next
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>

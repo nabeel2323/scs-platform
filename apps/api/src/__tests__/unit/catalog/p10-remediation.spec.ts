@@ -117,6 +117,7 @@ function makeService(opts: {
     {} as any,
     parser,
     validation,
+    {} as any, // governance
   );
 
   return { svc, storage, job, updated };
