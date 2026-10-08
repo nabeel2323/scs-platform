@@ -67,7 +67,7 @@ async function createStoreOrg(
 
 async function createProduct(pool: Pool, storeId: string, title: string, variantSkus: string[]): Promise<{ productId: string; variantIds: string[] }> {
   const productId = randomUUID();
-  await pool.query(`INSERT INTO products (id, store_id, title, title_ar, slug, status, created_at, updated_at) VALUES ($1, $2, $3, $3, $4, 'ACTIVE', NOW(), NOW())`, [productId, storeId, title, `slug-${productId.slice(0, 8)}`]);
+  await pool.query(`INSERT INTO products (id, store_id, title, title_ar, slug, status, created_at, updated_at) VALUES ($1, $2, $3, $3, $4, 'PUBLISHED', NOW(), NOW())`, [productId, storeId, title, `slug-${productId.slice(0, 8)}`]);
   const variantIds: string[] = [];
   for (const sku of variantSkus) {
     const vid = randomUUID();

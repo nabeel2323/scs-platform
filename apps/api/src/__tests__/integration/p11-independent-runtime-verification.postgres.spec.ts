@@ -171,12 +171,11 @@ describe('P11 Independent Runtime Verification', () => {
       expect(idx).toBeDefined();
     });
 
-    it('DEFECT: idx_products_governance_status index NOT created by migration 0056', async () => {
-      // Migration 0056 only creates idx_product_moderation_product_id and
-      // idx_product_moderation_created_at_desc. The governance status index
-      // on products(status) is MISSING — recorded as P3 defect in verification report.
+    it('idx_products_governance_status index created by migration 0057 (D-1 fix)', async () => {
+      // Migration 0057 creates idx_products_governance_status on products(status).
+      // D-1 defect (missing index) has been remediated.
       const idx = await one(pool, `SELECT indexname FROM pg_indexes WHERE indexname = 'idx_products_governance_status'`);
-      expect(idx).toBeUndefined(); // confirms defect: index does not exist
+      expect(idx).toBeDefined();
     });
 
     it('ACTIVE → PUBLISHED data migration: no ACTIVE products remain', async () => {

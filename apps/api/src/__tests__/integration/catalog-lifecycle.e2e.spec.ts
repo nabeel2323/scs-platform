@@ -426,8 +426,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario F — Buyer search', () => {
     beforeAll(async () => {
-      // Publish the product so search can find it
-      await catalog.updateProduct(productId, { status: 'ACTIVE' });
+      // Publish the product so search can find it (PUBLISHED required for buyer visibility)
+      await catalog.updateProduct(productId, { status: 'PUBLISHED' });
     });
 
     it('finds Laptop Pro X via text search', async () => {
