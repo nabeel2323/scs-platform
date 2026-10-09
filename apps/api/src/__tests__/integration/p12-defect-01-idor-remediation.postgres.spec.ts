@@ -144,6 +144,7 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
   });
 
   afterAll(async () => {
+    if (!pool) return;
     await pool.query('BEGIN');
     try {
       await pool.query(`DELETE FROM payment_records WHERE id = ANY($1::uuid[])`, [[paymentA.id, paymentB.id]]);

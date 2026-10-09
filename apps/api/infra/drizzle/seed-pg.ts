@@ -138,7 +138,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 70
+    permissions: PERMISSIONS, // all 76
   },
   {
     key: 'ADMIN',
