@@ -126,9 +126,10 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
       );
 
       // Admin role membership
+      const adminMemberId = randomUUID();
       await q(pool,
-        `INSERT INTO organization_members (org_id, user_id, role_id) VALUES ($1, $2, (SELECT id FROM roles WHERE key='ADMIN'))`,
-        [orgAId, adminId],
+        `INSERT INTO organization_members (id, org_id, user_id, role_id) VALUES ($1, $2, $3, (SELECT id FROM roles WHERE key='ADMIN'))`,
+        [adminMemberId, orgAId, adminId],
       );
 
       // Master orders
