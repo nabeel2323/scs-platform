@@ -68,14 +68,14 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
   SUPER_ADMIN: 76,
-  // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 53).
-  ADMIN: 53,
-  // P12: MODERATOR unchanged (25). M7.3-C had 23; recount from seed = 25.
-  MODERATOR: 25,
+  // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 52).
+  ADMIN: 52,
+  // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
+  MODERATOR: 23,
   // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
   MERCHANT_OWNER: 34,
-  // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 30).
-  MERCHANT_STAFF: 30,
+  // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
+  MERCHANT_STAFF: 28,
   BUYER: 6,
   DRIVER: 6,
 };

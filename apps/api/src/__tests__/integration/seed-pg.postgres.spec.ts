@@ -141,14 +141,14 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
     expect(byRole.get('SUPER_ADMIN')).toBe(76);
-    // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 53).
-    expect(byRole.get('ADMIN')).toBe(53);
-    // P12: MODERATOR recount from seed = 25.
-    expect(byRole.get('MODERATOR')).toBe(25);
+    // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 52).
+    expect(byRole.get('ADMIN')).toBe(52);
+    // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
+    expect(byRole.get('MODERATOR')).toBe(23);
     // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
     expect(byRole.get('MERCHANT_OWNER')).toBe(34);
-    // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 30).
-    expect(byRole.get('MERCHANT_STAFF')).toBe(30);
+    // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
+    expect(byRole.get('MERCHANT_STAFF')).toBe(28);
     expect(byRole.get('BUYER')).toBe(6);
     expect(byRole.get('DRIVER')).toBe(6);
   });
