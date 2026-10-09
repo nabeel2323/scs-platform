@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PaymentsService } from '../../modules/payments/payments.service';
@@ -34,16 +35,30 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
   let payments: PaymentsService;
   let pool: Pool;
 
-  // Test data
-  const orgA = { id: '' };
-  const orgB = { id: '' };
-  const storeA = { id: '', orgId: '' };
-  const storeB = { id: '', orgId: '' };
-  const buyerA = { id: '' };
-  const buyerB = { id: '' };
-  const admin = { id: '', orgId: '' };
-  const paymentA = { id: '', orderId: '' };
-  const paymentB = { id: '', orderId: '' };
+  // Test data — pre-generate UUIDs (tables have no DEFAULT for id)
+  const orgAId = randomUUID();
+  const orgBId = randomUUID();
+  const storeAId = randomUUID();
+  const storeBId = randomUUID();
+  const buyerAId = randomUUID();
+  const buyerBId = randomUUID();
+  const adminId = randomUUID();
+  const masterOrderAId = randomUUID();
+  const masterOrderBId = randomUUID();
+  const orderAId = randomUUID();
+  const orderBId = randomUUID();
+  const paymentAId = randomUUID();
+  const paymentBId = randomUUID();
+
+  const orgA = { id: orgAId };
+  const orgB = { id: orgBId };
+  const storeA = { id: storeAId, orgId: orgAId };
+  const storeB = { id: storeBId, orgId: orgBId };
+  const buyerA = { id: buyerAId };
+  const buyerB = { id: buyerBId };
+  const admin = { id: adminId, orgId: orgAId };
+  const paymentA = { id: paymentAId, orderId: orderAId };
+  const paymentB = { id: paymentBId, orderId: orderBId };
 
   beforeAll(async () => {
     // 1. Start PostgreSQL container
@@ -92,93 +107,47 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
     // 6. Seed test data
     await pool.query('BEGIN');
     try {
-      // Create organizations
-      const orgARes = await pool.query(
-        `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
-        ['Org A - DEFECT-01'],
+      // Organizations (type + country are NOT NULL)
+      await q(pool,
+        `INSERT INTO organizations (id, type, name, country) VALUES ($1,'WHOLESALER','Org A - DEFECT-01','SY'),($2,'WHOLESALER','Org B - DEFECT-01','SY')`,
+        [orgAId, orgBId],
       );
-      orgA.id = orgARes.rows[0].id;
 
-      const orgBRes = await pool.query(
-        `INSERT INTO organizations (name) VALUES ($1) RETURNING id`,
-        ['Org B - DEFECT-01'],
+      // Stores (slug is NOT NULL + UNIQUE, display_name is NOT NULL)
+      await q(pool,
+        `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1,$2,'store-a-def01','Store A - DEFECT-01','ACTIVE'),($3,$4,'store-b-def01','Store B - DEFECT-01','ACTIVE')`,
+        [storeAId, orgAId, storeBId, orgBId],
       );
-      orgB.id = orgBRes.rows[0].id;
 
-      // Create stores
-      const storeARes = await pool.query(
-        `INSERT INTO stores (org_id, name, status) VALUES ($1, $2, 'ACTIVE') RETURNING id, org_id`,
-        [orgA.id, 'Store A - DEFECT-01'],
+      // Users (phone is NOT NULL + UNIQUE)
+      await q(pool,
+        `INSERT INTO users (id, phone, email, full_name) VALUES ($1,'+96310000001','buyer-a-defect01@test.com','Buyer A'),($2,'+96310000002','buyer-b-defect01@test.com','Buyer B'),($3,'+96310000003','admin-defect01@test.com','Admin User')`,
+        [buyerAId, buyerBId, adminId],
       );
-      storeA.id = storeARes.rows[0].id;
-      storeA.orgId = storeARes.rows[0].org_id;
 
-      const storeBRes = await pool.query(
-        `INSERT INTO stores (org_id, name, status) VALUES ($1, $2, 'ACTIVE') RETURNING id, org_id`,
-        [orgB.id, 'Store B - DEFECT-01'],
-      );
-      storeB.id = storeBRes.rows[0].id;
-      storeB.orgId = storeBRes.rows[0].org_id;
-
-      // Create buyers
-      const buyerARes = await pool.query(
-        `INSERT INTO users (email, full_name) VALUES ($1, $2) RETURNING id`,
-        ['buyer-a-defect01@test.com', 'Buyer A'],
-      );
-      buyerA.id = buyerARes.rows[0].id;
-
-      const buyerBRes = await pool.query(
-        `INSERT INTO users (email, full_name) VALUES ($1, $2) RETURNING id`,
-        ['buyer-b-defect01@test.com', 'Buyer B'],
-      );
-      buyerB.id = buyerBRes.rows[0].id;
-
-      // Create admin (in Org A)
-      const adminRes = await pool.query(
-        `INSERT INTO users (email, full_name) VALUES ($1, $2) RETURNING id`,
-        ['admin-defect01@test.com', 'Admin User'],
-      );
-      admin.id = adminRes.rows[0].id;
-      admin.orgId = orgA.id;
-
-      await pool.query(
+      // Admin role membership
+      await q(pool,
         `INSERT INTO organization_members (org_id, user_id, role_id) VALUES ($1, $2, (SELECT id FROM roles WHERE key='ADMIN'))`,
-        [orgA.id, admin.id],
+        [orgAId, adminId],
       );
 
-      // Create orders
-      const masterOrderARes = await pool.query(
-        `INSERT INTO master_orders (buyer_id, status) VALUES ($1, 'CONFIRMED') RETURNING id`,
-        [buyerA.id],
+      // Master orders
+      await q(pool,
+        `INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'CONFIRMED'),($3,$4,'CONFIRMED')`,
+        [masterOrderAId, buyerAId, masterOrderBId, buyerBId],
       );
-      const orderARes = await pool.query(
-        `INSERT INTO orders (master_order_id, buyer_id, store_id, status, subtotal_minor, delivery_fee_minor, tax_minor, total_minor, currency, fulfillment_method) VALUES ($1, $2, $3, 'PAYMENT_PENDING', 50000, 5000, 0, 55000, 'SYP', 'COURIER') RETURNING id`,
-        [masterOrderARes.rows[0].id, buyerA.id, storeA.id],
-      );
-      paymentA.orderId = orderARes.rows[0].id;
 
-      const masterOrderBRes = await pool.query(
-        `INSERT INTO master_orders (buyer_id, status) VALUES ($1, 'CONFIRMED') RETURNING id`,
-        [buyerB.id],
+      // Sub-orders
+      await q(pool,
+        `INSERT INTO orders (id, master_order_id, buyer_id, store_id, status, subtotal_minor, delivery_fee_minor, tax_minor, total_minor, currency, fulfillment_method) VALUES ($1,$2,$3,$4,'PAYMENT_PENDING',50000,5000,0,55000,'SYP','COURIER'),($5,$6,$7,$8,'PAYMENT_PENDING',60000,5000,0,65000,'SYP','COURIER')`,
+        [orderAId, masterOrderAId, buyerAId, storeAId, orderBId, masterOrderBId, buyerBId, storeBId],
       );
-      const orderBRes = await pool.query(
-        `INSERT INTO orders (master_order_id, buyer_id, store_id, status, subtotal_minor, delivery_fee_minor, tax_minor, total_minor, currency, fulfillment_method) VALUES ($1, $2, $3, 'PAYMENT_PENDING', 60000, 5000, 0, 65000, 'SYP', 'COURIER') RETURNING id`,
-        [masterOrderBRes.rows[0].id, buyerB.id, storeB.id],
-      );
-      paymentB.orderId = orderBRes.rows[0].id;
 
-      // Create payments
-      const paymentARes = await pool.query(
-        `INSERT INTO payment_records (order_id, provider_key, payment_method, status, amount_minor, currency, idempotency_key) VALUES ($1, 'manual', 'BANK_TRANSFER', 'AWAITING_VERIFICATION', 55000, 'SYP', $2) RETURNING id`,
-        [paymentA.orderId, `test-defect01-a-${Date.now()}`],
+      // Payments
+      await q(pool,
+        `INSERT INTO payment_records (id, order_id, provider_key, payment_method, status, amount_minor, currency, idempotency_key) VALUES ($1,$2,'manual','BANK_TRANSFER','AWAITING_VERIFICATION',55000,'SYP',$3),($4,$5,'manual','CASH_ON_DELIVERY','AWAITING_PAYMENT',65000,'SYP',$6)`,
+        [paymentAId, orderAId, `test-defect01-a-${Date.now()}`, paymentBId, orderBId, `test-defect01-b-${Date.now()}`],
       );
-      paymentA.id = paymentARes.rows[0].id;
-
-      const paymentBRes = await pool.query(
-        `INSERT INTO payment_records (order_id, provider_key, payment_method, status, amount_minor, currency, idempotency_key) VALUES ($1, 'manual', 'CASH_ON_DELIVERY', 'AWAITING_PAYMENT', 65000, 'SYP', $2) RETURNING id`,
-        [paymentB.orderId, `test-defect01-b-${Date.now()}`],
-      );
-      paymentB.id = paymentBRes.rows[0].id;
 
       await pool.query('COMMIT');
     } catch (e) {
