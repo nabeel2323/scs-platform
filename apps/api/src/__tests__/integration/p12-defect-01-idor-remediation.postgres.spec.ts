@@ -33,6 +33,11 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
   const paymentB = { id: '', orderId: '' };
 
   beforeAll(async () => {
+    // Ensure S3 env vars are present for AppModule bootstrap (CI has no .env).
+    process.env['S3_ENDPOINT'] ??= 'http://localhost:9000';
+    process.env['S3_ACCESS_KEY'] ??= 'minioadmin';
+    process.env['S3_SECRET_KEY'] ??= 'minioadmin';
+
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
