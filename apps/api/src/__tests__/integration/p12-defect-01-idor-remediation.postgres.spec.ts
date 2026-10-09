@@ -8,15 +8,28 @@
  * - Privileged admin retains access
  * - Events and refunds not leaked
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
-import { Test } from '@nestjs/testing';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { PaymentsService } from '../../modules/payments/payments.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { AppModule } from '../../app.module';
-import { CallerContext } from '../../common/tenant-scope';
+import { PaymentProviderRegistry } from '../../modules/payments/payments.provider-registry';
+import { ManualVerificationProvider } from '../../modules/payments/manual-verification.provider';
+import * as schema from '../../drizzle/schema';
+import type { CallerContext } from '../../common/tenant-scope';
+
+const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
+const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+
+async function q(pool: Pool, text: string, params?: any[]) {
+  return pool.query(text, params);
+}
 
 describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
+  let container: StartedPostgreSqlContainer;
   let db: DatabaseService;
   let payments: PaymentsService;
   let pool: Pool;
@@ -33,24 +46,50 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
   const paymentB = { id: '', orderId: '' };
 
   beforeAll(async () => {
-    // Ensure S3 env vars are present for AppModule bootstrap (CI has no .env).
-    process.env['S3_ENDPOINT'] ??= 'http://localhost:9000';
-    process.env['S3_ACCESS_KEY'] ??= 'minioadmin';
-    process.env['S3_SECRET_KEY'] ??= 'minioadmin';
-
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    db = moduleRef.get<DatabaseService>(DatabaseService);
-    payments = moduleRef.get<PaymentsService>(PaymentsService);
-
+    // 1. Start PostgreSQL container
+    container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
     pool = new Pool({
-      connectionString: process.env['DATABASE_URL'],
-      max: 5,
+      connectionString: container.getConnectionUri(),
+      max: 10,
     });
 
-    // Seed test data
+    // 2. Run migrations
+    const files = fs.readdirSync(MIGRATIONS_DIR)
+      .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+      .sort();
+
+    await q(pool, `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    for (const file of files) {
+      const sqlText = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
+      await q(pool, 'BEGIN');
+      try {
+        await pool.query(sqlText);
+        await q(pool, `INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await q(pool, 'COMMIT');
+      } catch (e: any) {
+        await q(pool, 'ROLLBACK');
+        throw new Error(`Migration ${file} failed: ${e.message}`);
+      }
+    }
+
+    // 3. Seed RBAC
+    const client = await pool.connect();
+    try {
+      const { seedPlatformRbac } = await import('../../../infra/drizzle/seed-pg');
+      await seedPlatformRbac(client);
+    } finally { client.release(); }
+
+    // 4. Drizzle wiring
+    const drizzleDb = drizzle(pool, { schema }) as any;
+    db = { db: drizzleDb } as unknown as DatabaseService;
+
+    // 5. Service construction
+    const registry = new PaymentProviderRegistry();
+    registry.register(new ManualVerificationProvider());
+    const outboxMock = { publish: vi.fn().mockResolvedValue(undefined) } as any;
+    payments = new PaymentsService(db, outboxMock, registry);
+
+    // 6. Seed test data
     await pool.query('BEGIN');
     try {
       // Create organizations
@@ -146,26 +185,12 @@ describe('P12 DEFECT-01 — GET /v1/payments/:id IDOR Regression', () => {
       await pool.query('ROLLBACK');
       throw e;
     }
-  });
+  }, 180_000);
 
   afterAll(async () => {
-    if (!pool) return;
-    await pool.query('BEGIN');
-    try {
-      await pool.query(`DELETE FROM payment_records WHERE id = ANY($1::uuid[])`, [[paymentA.id, paymentB.id]]);
-      await pool.query(`DELETE FROM orders WHERE id = ANY($1::uuid[])`, [[paymentA.orderId, paymentB.orderId]]);
-      await pool.query(`DELETE FROM master_orders WHERE buyer_id = ANY($1::uuid[])`, [[buyerA.id, buyerB.id]]);
-      await pool.query(`DELETE FROM organization_members WHERE user_id = ANY($1::uuid[])`, [[admin.id]]);
-      await pool.query(`DELETE FROM users WHERE id = ANY($1::uuid[])`, [[buyerA.id, buyerB.id, admin.id]]);
-      await pool.query(`DELETE FROM stores WHERE id = ANY($1::uuid[])`, [[storeA.id, storeB.id]]);
-      await pool.query(`DELETE FROM organizations WHERE id = ANY($1::uuid[])`, [[orgA.id, orgB.id]]);
-      await pool.query('COMMIT');
-    } catch (e) {
-      await pool.query('ROLLBACK');
-      throw e;
-    }
-    await pool.end();
-  });
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   it('D01-01: buyer can read own payment', async () => {
     const caller: CallerContext = { sub: buyerA.id, role: 'BUYER', activeOrg: null };
