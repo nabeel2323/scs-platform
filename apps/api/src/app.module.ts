@@ -23,6 +23,7 @@ import { OutboxModule } from './common/outbox/outbox.module';
 import { StorageModule } from './common/storage/storage.module';
 import { CatalogImportModule } from './modules/catalog-import/catalog-import.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
     AdminModule,
     CatalogImportModule,
     ShippingModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
 })

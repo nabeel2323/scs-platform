@@ -51,6 +51,9 @@ interface OrderDetail {
   createdAt: string;
   items: OrderItem[];
   financialBreakdown: any;
+  // P12: Payment fields
+  paymentMethod?: string;
+  paymentStatus?: string;
 }
 
 export default function OrderDetailPage() {
@@ -383,6 +386,23 @@ export default function OrderDetailPage() {
                 // Say so rather than let a SAR-looking number pass for a record.
                 <div style={{ fontSize: 11, color: '#92400e', marginTop: 8 }}>
                   {currencyCaveat}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* P12: Payment Info — buyer-visible payment status only */}
+          {order.paymentMethod && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Payment</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                <div><span style={{ color: colors.muted }}>Method:</span> <strong>{order.paymentMethod.replace(/_/g, ' ')}</strong></div>
+                <div><span style={{ color: colors.muted }}>Status:</span> <strong>{(order.paymentStatus || order.status).replace(/_/g, ' ')}</strong></div>
+              </div>
+              {order.paymentMethod === 'BANK_TRANSFER' && order.paymentStatus === 'AWAITING_PAYMENT' && (
+                <div style={{ marginTop: 12, padding: '10px 12px', background: '#eff6ff', borderRadius: radii.sm, fontSize: 12, color: '#1e40af' }}>
+                  Please upload your bank transfer receipt to complete payment verification.
+                  Go to <strong>Account → Payments</strong> to submit your proof.
                 </div>
               )}
             </div>

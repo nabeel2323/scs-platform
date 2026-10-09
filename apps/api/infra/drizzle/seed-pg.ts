@@ -117,6 +117,13 @@ const PERMISSIONS: string[] = [
   'admin:carrier:write',
   // Carrier recovery (M7.2.3-C)
   'admin:shipping:recovery',
+  // P12: Payment domain permissions
+  'admin:payments:verify',
+  'admin:payments:read',
+  'admin:refunds:approve',
+  'admin:settlements:write',
+  'admin:settlements:read',
+  'merchant:orders:read',
 ];
 
 // ─── Platform roles ──────────────────────────────────────────────────────────
@@ -196,6 +203,12 @@ const ROLES: RoleDef[] = [
       'fulfillment:shipments:return',
       // M7.2.3-C carrier recovery
       'admin:shipping:recovery',
+      // P12: Payment verification, refund approval, settlement oversight
+      'admin:payments:verify',
+      'admin:payments:read',
+      'admin:refunds:approve',
+      'admin:settlements:write',
+      'admin:settlements:read',
     ],
   },
   {
@@ -279,6 +292,9 @@ const ROLES: RoleDef[] = [
       'fulfillment:shipments:return',
       'admin:carrier:read',
       'analytics:track',
+      // P12: Merchant settlement & payment read access
+      'merchant:orders:read',
+      'admin:settlements:read',
     ],
   },
   {
@@ -319,6 +335,9 @@ const ROLES: RoleDef[] = [
       // M7.3-C: record RTS physical return-to-stock (own store only).
       'fulfillment:shipments:return',
       'admin:carrier:read',
+      // P12: Merchant staff settlement read access
+      'merchant:orders:read',
+      'admin:settlements:read',
     ],
   },
   {
