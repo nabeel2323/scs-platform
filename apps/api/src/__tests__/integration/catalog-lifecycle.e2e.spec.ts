@@ -124,7 +124,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     database = { db } as DatabaseService;
     conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any);
+    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
     offerService = new CatalogOfferService(database, audit);
     requestsService = new CatalogRequestsService(database, catalog, taxonomy);
     search = new SearchService(database, storage, redis as any);
@@ -426,8 +426,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario F — Buyer search', () => {
     beforeAll(async () => {
-      // Publish the product so search can find it
-      await catalog.updateProduct(productId, { status: 'ACTIVE' });
+      // Publish the product so search can find it (PUBLISHED required for buyer visibility)
+      await catalog.updateProduct(productId, { status: 'PUBLISHED' });
     });
 
     it('finds Laptop Pro X via text search', async () => {

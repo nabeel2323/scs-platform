@@ -41,6 +41,7 @@ import {
 import { CatalogTaxonomyService } from './catalog.taxonomy.service';
 import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
 import { ImportValidationService, type ImportError } from './import-validation.service';
+import { ProductGovernanceService, HIGH_RISK_FIELDS } from './product-governance.service';
 
 /**
  * BFS across the platform category rows to collect every descendant of
@@ -84,6 +85,7 @@ export class CatalogService {
     private readonly taxonomyService: CatalogTaxonomyService,
     private readonly xlsxParser: MerchantXlsxParserService,
     private readonly importValidation: ImportValidationService,
+    private readonly governance: ProductGovernanceService,
   ) {
     // Shared with card enrichment so every surface renders media the same way.
     this.resolveMediaRef = createMediaRefResolver(storage);
@@ -1347,6 +1349,35 @@ export class CatalogService {
 
   async updateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
     const product = await this.getProduct(id);
+    const currentStatus = product['status'] as string;
+
+    // ── P11 Edit Governance ──
+    // Block edits on products under review or submitted
+    if (currentStatus === 'SUBMITTED' || currentStatus === 'UNDER_REVIEW') {
+      throw new ConflictException({
+        statusCode: 409,
+        message: `Cannot edit product in ${currentStatus} status. ${currentStatus === 'SUBMITTED' ? 'Withdraw first.' : 'Wait for review to complete.'}`,
+        currentStatus,
+      });
+    }
+
+    // Detect high-risk field changes for re-review trigger
+    const changedFields = new Set<string>();
+    if (input.title !== undefined) changedFields.add('title');
+    if (input.titleAr !== undefined) changedFields.add('titleAr');
+    if (input.description !== undefined) changedFields.add('description');
+    if (input.descriptionAr !== undefined) changedFields.add('descriptionAr');
+    if (input.categoryId !== undefined) changedFields.add('categoryId');
+    if (input.brandId !== undefined) changedFields.add('brandId');
+    if (input.productTypeId !== undefined) changedFields.add('productTypeId');
+    if (input.gtin !== undefined) changedFields.add('gtin');
+    if (input.ean !== undefined) changedFields.add('ean');
+    if (input.mpn !== undefined) changedFields.add('mpn');
+    if (input.images !== undefined) changedFields.add('images');
+
+    const hasHighRiskChanges = Array.from(changedFields).some(f => HIGH_RISK_FIELDS.has(f));
+    const needsReReview = hasHighRiskChanges && (currentStatus === 'APPROVED' || currentStatus === 'PUBLISHED');
+
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.title !== undefined) updates['title'] = input.title;
@@ -1420,6 +1451,37 @@ export class CatalogService {
         throw new BadRequestException('Invalid updatedAt timestamp');
       }
 
+      // P11: If re-review is needed, wrap in transaction with governance trigger
+      if (needsReReview) {
+        return this.db.db.transaction(async (tx) => {
+          const [updated] = await tx.update(products)
+            .set(updates)
+            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+            .returning();
+
+          if (!updated) {
+            const current = await tx.query.products.findFirst({
+              where: eq(products.id, id),
+              columns: { id: true, updatedAt: true },
+            });
+            throw new ConflictException({
+              statusCode: 409,
+              message: 'CONFLICT',
+              currentUpdatedAt: current?.updatedAt ?? new Date(),
+            });
+          }
+
+          // Trigger re-review (APPROVED/PUBLISHED → UNDER_REVIEW)
+          await this.governance.triggerReReviewIfNeeded(
+            tx, id, changedFields, false, false,
+            product['storeId'] || 'system', 'MERCHANT',
+          );
+
+          await this.invalidateProductCache(id);
+          return this.getProduct(id);
+        });
+      }
+
       const [updated] = await this.db.db.update(products)
         .set(updates)
         .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
@@ -1443,7 +1505,7 @@ export class CatalogService {
         resourceId: id,
         metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
       });
-      if (input.status === 'ACTIVE') {
+      if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
         await this.outbox.publish('catalog.product.published', id, {
           productId: id,
           storeId: product['storeId'],
@@ -1461,6 +1523,18 @@ export class CatalogService {
     }
 
     // Legacy path: no optimistic locking
+    if (needsReReview) {
+      return this.db.db.transaction(async (tx) => {
+        await tx.update(products).set(updates).where(eq(products.id, id));
+        await this.governance.triggerReReviewIfNeeded(
+          tx, id, changedFields, false, false,
+          product['storeId'] || 'system', 'MERCHANT',
+        );
+        await this.invalidateProductCache(id);
+        return this.getProduct(id);
+      });
+    }
+
     await this.db.db.update(products).set(updates).where(eq(products.id, id));
     await this.invalidateProductCache(id);
     // PHASE 4 P6: Audit — product updated by merchant
@@ -1472,7 +1546,7 @@ export class CatalogService {
       metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
     });
 
-    if (input.status === 'ACTIVE') {
+    if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
       await this.outbox.publish('catalog.product.published', id, {
         productId: id,
         storeId: product['storeId'],
@@ -2998,7 +3072,7 @@ export class CatalogService {
 
     // Match existing variant by SKU within this store
     const existing = await db
-      .select({ variantId: productVariants.id, productId: products.id })
+      .select({ variantId: productVariants.id, productId: products.id, status: products.status })
       .from(productVariants)
       .innerJoin(products, eq(products.id, productVariants.productId))
       .where(
@@ -3012,16 +3086,53 @@ export class CatalogService {
 
     if (existing.length > 0) {
       const match = existing[0]!;
+
+      // P11: Check governance eligibility
+      const eligibility = await this.governance.checkImportEligibility(match.productId);
+      if (!eligibility.eligible) {
+        // Product is SUBMITTED or UNDER_REVIEW — skip this row
+        throw new ImportRowError('status', `Row ${rowNum}: product is ${eligibility.currentStatus} and cannot be modified by import`);
+      }
+
       await this.upsertBasePrice(priceListId, match.variantId, priceMinor, db);
-      await db
-        .update(products)
-        .set({
-          ...(description ? { description } : {}),
-          ...(categoryId ? { categoryId } : {}),
-          ...(brandId ? { brandId } : {}),
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, match.productId));
+
+      // Detect high-risk field changes for re-review trigger
+      const importChangedFields = new Set<string>();
+      if (description) importChangedFields.add('description');
+      if (categoryId) importChangedFields.add('categoryId');
+      if (brandId) importChangedFields.add('brandId');
+
+      const hasHighRiskImportChanges = Array.from(importChangedFields).some(f => HIGH_RISK_FIELDS.has(f));
+      const needsImportReReview = hasHighRiskImportChanges && eligibility.action === 're-review';
+
+      if (needsImportReReview) {
+        // Wrap in transaction with governance trigger
+        const txClient = tx || this.db.db;
+        await txClient
+          .update(products)
+          .set({
+            ...(description ? { description } : {}),
+            ...(categoryId ? { categoryId } : {}),
+            ...(brandId ? { brandId } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, match.productId));
+
+        await this.governance.triggerReReviewIfNeeded(
+          txClient, match.productId, importChangedFields, false, false,
+          'system', 'SYSTEM',
+        );
+      } else {
+        await db
+          .update(products)
+          .set({
+            ...(description ? { description } : {}),
+            ...(categoryId ? { categoryId } : {}),
+            ...(brandId ? { brandId } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, match.productId));
+      }
 
       // P8: Import typed attributes for existing product/variant
       await this.importTypedAttributes(db, mapping, row, match.productId, match.variantId, rowNum);

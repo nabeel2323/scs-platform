@@ -61,6 +61,7 @@ describe('P5 — Admin Variant Management', () => {
       {} as any, // notifications
       mockCatalogService as any,
       mockTaxonomyService as any,
+      {} as any, // governance
     );
   });
 

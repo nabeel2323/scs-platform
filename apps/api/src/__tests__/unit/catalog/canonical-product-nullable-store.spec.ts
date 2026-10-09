@@ -75,7 +75,8 @@ function makeHarness(): Harness {
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     { setVariantAttributeValues: async () => [], setProductAttributeValues: async () => [] } as any,
     {} as any, // MerchantXlsxParserService
-    {} as any, // ImportValidationService
+    {} as any, // ImportValidationService,
+    {} as any, // ProductGovernanceService
   );
 
   return { svc, inserted };

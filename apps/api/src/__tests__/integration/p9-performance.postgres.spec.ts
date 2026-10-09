@@ -81,7 +81,7 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     searchService = new SearchService(database, storage, redis);
     const taxonomyService = new CatalogTaxonomyService(database);
     const conditionalRules = new ConditionalRulesService();
-    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any);
+    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any, {} as any);
 
     // Create store org
     const orgId = randomUUID();

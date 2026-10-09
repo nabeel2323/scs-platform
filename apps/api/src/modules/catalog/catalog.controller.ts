@@ -41,6 +41,7 @@ import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
 import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg } from '../../common/tenant-scope';
 import { AuditService } from '../audit/index';
+import { ProductGovernanceService } from './product-governance.service';
 /**
  * Catalog API — categories, brands, products, variants, media, imports.
  */
@@ -54,6 +55,7 @@ export class CatalogController {
     private readonly taxonomyService: CatalogTaxonomyService,
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
+    private readonly governance: ProductGovernanceService,
   ) {}
 
   // ── Categories ───────────────────────────────────────────────
@@ -253,6 +255,119 @@ export class CatalogController {
   async deleteProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.deleteProduct(id);
+  }
+
+  // ── P11 Product Governance (Merchant) ─────────────────────────
+
+  /**
+   * P11: Submit a product for review.
+   * DRAFT/REJECTED → SUBMITTED
+   */
+  @Post('merchant/products/:id/submit')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async submitProduct(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { storeId: string; updatedAt?: string },
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, body.storeId);
+    await assertStoreMember(this.db, caller, body.storeId);
+    return this.governance.submitProduct({
+      productId: id,
+      storeId: body.storeId,
+      actorUserId: user.sub,
+      actorRole: user.role || 'MERCHANT',
+      clientUpdatedAt: body.updatedAt,
+    });
+  }
+
+  /**
+   * P11: Withdraw a submitted product from review.
+   * SUBMITTED → DRAFT
+   */
+  @Post('merchant/products/:id/withdraw')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async withdrawProduct(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { storeId: string; updatedAt?: string },
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, body.storeId);
+    await assertStoreMember(this.db, caller, body.storeId);
+    return this.governance.withdrawProduct({
+      productId: id,
+      storeId: body.storeId,
+      actorUserId: user.sub,
+      actorRole: user.role || 'MERCHANT',
+      clientUpdatedAt: body.updatedAt,
+    });
+  }
+
+  /**
+   * P11: Publish an approved product.
+   * APPROVED → PUBLISHED
+   */
+  @Post('merchant/products/:id/publish')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async publishProduct(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { storeId: string; updatedAt?: string },
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, body.storeId);
+    await assertStoreMember(this.db, caller, body.storeId);
+    return this.governance.publishProduct({
+      productId: id,
+      storeId: body.storeId,
+      actorUserId: user.sub,
+      actorRole: user.role || 'MERCHANT',
+      clientUpdatedAt: body.updatedAt,
+    });
+  }
+
+  /**
+   * P11: Unpublish a published product.
+   * PUBLISHED → APPROVED
+   */
+  @Post('merchant/products/:id/unpublish')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:write')
+  async unpublishProduct(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { storeId: string; updatedAt?: string },
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, body.storeId);
+    await assertStoreMember(this.db, caller, body.storeId);
+    return this.governance.unpublishProduct({
+      productId: id,
+      storeId: body.storeId,
+      actorUserId: user.sub,
+      actorRole: user.role || 'MERCHANT',
+      clientUpdatedAt: body.updatedAt,
+    });
+  }
+
+  /**
+   * P11: Get moderation history for a product (merchant view).
+   * Only the owning store's members can access it.
+   */
+  @Get('merchant/products/:id/moderation-history')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:products:read')
+  async getMerchantModerationHistory(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await assertProductEditableByMerchant(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
+    return this.governance.getModerationHistory(id);
   }
 
   // ── Product Attributes (typed) ──────────────────────────────

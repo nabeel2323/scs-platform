@@ -3,6 +3,7 @@ import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CatalogService, CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
 import { CatalogTaxonomyService, AttributeValueInput } from '../catalog/catalog.taxonomy.service';
+import { ProductGovernanceService } from '../catalog/product-governance.service';
 import { orders, orderItems, orderStatusHistory } from '../orders/orders.schema';
 import { stores, warehouses, businessDocuments, verificationRequests } from '../merchant/merchant.schema';
 import { users, organizations, organizationMembers, organizationUpdateRequests, roles, permissions, rolePermissions } from '../identity/identity.schema';
@@ -32,6 +33,7 @@ export class AdminService {
     private readonly notifications: NotificationsService,
     private readonly catalogService: CatalogService,
     private readonly taxonomyService: CatalogTaxonomyService,
+    private readonly governance: ProductGovernanceService,
   ) {}
 
   // ── Orders ───────────────────────────────────────────────────
@@ -987,5 +989,58 @@ export class AdminService {
     },
   ) {
     return this.catalogService.bulkVariantOperations(productId, ops);
+  }
+
+  // ── P11 Product Governance (Admin) ─────────────────────────────
+
+  /**
+   * P11: Start reviewing a submitted product.
+   * SUBMITTED → UNDER_REVIEW
+   */
+  async startProductReview(productId: string, actorUserId: string, actorRole: string, clientUpdatedAt?: string) {
+    return this.governance.startReview(productId, actorUserId, actorRole, clientUpdatedAt);
+  }
+
+  /**
+   * P11: Approve or reject a product under review.
+   * UNDER_REVIEW → APPROVED | REJECTED
+   */
+  async moderateProductP11(
+    productId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    reason: string | undefined,
+    actorUserId: string,
+    actorRole: string,
+    clientUpdatedAt: string,
+  ) {
+    return this.governance.moderateProduct({
+      productId,
+      decision,
+      reason,
+      actorUserId,
+      actorRole,
+      clientUpdatedAt,
+    });
+  }
+
+  /**
+   * P11: Get the moderation queue for admins.
+   */
+  async getModerationQueue(options: {
+    status?: string;
+    categoryId?: string;
+    storeId?: string;
+    limit?: number;
+    offset?: number;
+    sort?: string;
+  }) {
+    return this.governance.getModerationQueue(options);
+  }
+
+  /**
+   * P11: Get moderation history for a product (admin view).
+   */
+  async getAdminModerationHistory(productId: string) {
+    return this.governance.getModerationHistory(productId);
   }
 }

@@ -68,3 +68,28 @@ export const merchantOffers = pgTable('merchant_offers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * P11 D-3 Remediation — Offer review state snapshot (migration 0057).
+ *
+ * Preserves each offer's isAvailable state before re-review suspension.
+ * On approval, offers are restored to their snapshot state (not blindly to true).
+ * On rejection, offers remain suspended and snapshots persist for potential
+ * future re-review cycles.
+ *
+ * Each review cycle gets a unique review_cycle_id to prevent cross-cycle
+ * state leakage.
+ */
+export const productOfferReviewState = pgTable('product_offer_review_state', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  offerId: uuid('offer_id')
+    .notNull()
+    .references(() => merchantOffers.id, { onDelete: 'cascade' }),
+  previousIsAvailable: boolean('previous_is_available').notNull(),
+  reviewCycleId: uuid('review_cycle_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  restoredAt: timestamp('restored_at', { withTimezone: true }),
+});

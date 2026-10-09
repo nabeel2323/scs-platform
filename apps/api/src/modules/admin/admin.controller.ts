@@ -305,6 +305,78 @@ export class AdminController {
     return this.adminService.moderateProduct(id, body.decision, body.reason, body.updatedAt);
   }
 
+  // ── P11 Product Governance (Admin) ─────────────────────────
+
+  /**
+   * P11: Moderation queue — list products in SUBMITTED/UNDER_REVIEW status.
+   */
+  @Get('products/moderation-queue')
+  @RequirePermission('admin:merchants:read')
+  async getModerationQueue(
+    @Query('status') status?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('storeId') storeId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.adminService.getModerationQueue({
+      status,
+      categoryId,
+      storeId,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+      sort,
+    });
+  }
+
+  /**
+   * P11: Start reviewing a submitted product.
+   * SUBMITTED → UNDER_REVIEW
+   */
+  @Post('products/:id/start-review')
+  @HttpCode(200)
+  @RequirePermission('admin:merchants:read')
+  async startProductReview(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { updatedAt?: string },
+  ) {
+    return this.adminService.startProductReview(id, user.sub, user.role || 'ADMIN', body.updatedAt);
+  }
+
+  /**
+   * P11: P11 governance moderation endpoint.
+   * UNDER_REVIEW → APPROVED | REJECTED
+   * Uses the new governance service with moderation ledger.
+   */
+  @Post('products/:id/p11-moderate')
+  @HttpCode(200)
+  @RequirePermission('admin:merchants:read')
+  async moderateProductP11(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { decision: 'APPROVED' | 'REJECTED'; reason?: string; updatedAt: string },
+  ) {
+    return this.adminService.moderateProductP11(
+      id,
+      body.decision,
+      body.reason,
+      user.sub,
+      user.role || 'ADMIN',
+      body.updatedAt,
+    );
+  }
+
+  /**
+   * P11: Get moderation history for a product (admin view).
+   */
+  @Get('products/:id/moderation-history')
+  @RequirePermission('admin:merchants:read')
+  async getAdminModerationHistory(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getAdminModerationHistory(id);
+  }
+
   // ── Admin Variant Management (PHASE 4 P5) ─────────────────────
 
   /**

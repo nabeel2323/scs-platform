@@ -61,7 +61,8 @@ function makeCatalogService(database: DatabaseService, taxonomy: any) {
     { evaluate: () => ({ effects: new Map(), errors: [] }) } as any,
     taxonomy,
     {} as any, // MerchantXlsxParserService
-    {} as any, // ImportValidationService
+    {} as any, // ImportValidationService,
+    {} as any, // ProductGovernanceService
   );
 }
 

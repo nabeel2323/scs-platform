@@ -2252,3 +2252,42 @@ export async function fetchShippingEstimate(storeId: string, subtotal: number, c
   if (!res.ok) throw await ApiError.from(res, `Shipping estimate failed (${res.status})`);
   return res.json();
 }
+
+// ── P11: Product Governance ────────────────────────────────────
+
+export interface ModerationHistoryEntry {
+  id: string;
+  action: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actorUserId: string;
+  actorRole: string;
+  reason: string | null;
+  createdAt: string;
+}
+
+export async function submitProductForReview(productId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/submit`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Submit failed (${res.status})`);
+}
+
+export async function withdrawProductFromReview(productId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/withdraw`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Withdraw failed (${res.status})`);
+}
+
+export async function publishProduct(productId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/publish`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Publish failed (${res.status})`);
+}
+
+export async function unpublishProduct(productId: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/unpublish`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Unpublish failed (${res.status})`);
+}
+
+export async function fetchModerationHistory(productId: string): Promise<ModerationHistoryEntry[]> {
+  const res = await authFetch(`${API_URL}/v1/merchant/products/${productId}/moderation-history`);
+  if (!res.ok) throw await ApiError.from(res, `Moderation history failed (${res.status})`);
+  return res.json();
+}

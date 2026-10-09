@@ -78,6 +78,7 @@ beforeAll(async () => {
     taxonomyService,
     {} as any, // MerchantXlsxParserService
     {} as any, // ImportValidationService
+    {} as any, // ProductGovernanceService
   );
 
   // ── Seed orgs + stores ──────────────────────────────────────────
