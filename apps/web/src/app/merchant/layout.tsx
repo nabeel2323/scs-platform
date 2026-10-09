@@ -32,6 +32,7 @@ const MERCHANT_NAV = [
   { href: '/merchant/warehouses', label: 'Warehouses' },
   { href: '/merchant/import', label: 'Import' },
   { href: '/merchant/promotions', label: 'Promotions' },
+  { href: '/merchant/returns', label: 'Returns' },
   { href: '/merchant/organization', label: 'Organization' },
 ];
 

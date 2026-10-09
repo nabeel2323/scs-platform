@@ -24,6 +24,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { CatalogImportModule } from './modules/catalog-import/catalog-import.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     CatalogImportModule,
     ShippingModule,
     PaymentsModule,
+    ReturnsModule,
   ],
   controllers: [HealthController],
 })

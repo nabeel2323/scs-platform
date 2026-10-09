@@ -19,7 +19,7 @@ export interface CallerContext {
 }
 
 /** Platform staff manage any tenant's objects. */
-const BYPASS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'];
+const BYPASS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'SYSTEM'];
 
 /**
  * Object-level tenant scoping (audit A3-1). Functional permission keys answer

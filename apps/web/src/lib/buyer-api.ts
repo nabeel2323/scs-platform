@@ -2292,3 +2292,164 @@ export async function fetchModerationHistory(productId: string): Promise<Moderat
   if (!res.ok) throw await ApiError.from(res, `Moderation history failed (${res.status})`);
   return res.json();
 }
+
+// ── P13 Returns ────────────────────────────────────────────────
+
+export interface ReturnRequest {
+  id: string;
+  subOrderId: string;
+  paymentRecordId: string;
+  buyerId: string;
+  refundId: string | null;
+  status: string;
+  reason: string;
+  description: string | null;
+  evidenceUrls: string[];
+  requestedRefundMinor: number;
+  actualRefundMinor: number | null;
+  shippingTrackingNumber: string | null;
+  shippingNotes: string | null;
+  merchantNotes: string | null;
+  inspectionCondition: string | null;
+  inspectionNotes: string | null;
+  inspectedBy: string | null;
+  inspectedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: ReturnRequestItem[];
+  events: ReturnRequestEvent[];
+}
+
+export interface ReturnRequestItem {
+  id: string;
+  returnRequestId: string;
+  orderItemId: string;
+  quantity: number;
+  condition: string | null;
+  inventoryItemId: string | null;
+}
+
+export interface ReturnRequestEvent {
+  id: string;
+  returnRequestId: string;
+  eventType: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actorId: string | null;
+  actorType: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+export async function fetchMyReturns(status?: string): Promise<ReturnRequest[]> {
+  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await authFetch(`${API_URL}/v1/returns/my${params}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch returns failed (${res.status})`);
+  return res.json();
+}
+
+export async function fetchReturn(returnId: string): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/returns/${returnId}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch return failed (${res.status})`);
+  return res.json();
+}
+
+export async function createReturn(input: {
+  subOrderId: string;
+  reason: string;
+  description?: string;
+  evidenceUrls?: string[];
+  lines: Array<{ orderItemId: string; quantity: number }>;
+}): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/returns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Create return failed (${res.status})`);
+  return res.json();
+}
+
+export async function cancelReturn(returnId: string): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/returns/${returnId}/cancel`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Cancel return failed (${res.status})`);
+  return res.json();
+}
+
+export async function markReturnShipped(
+  returnId: string,
+  trackingNumber?: string,
+  notes?: string,
+): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/returns/${returnId}/shipped`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ trackingNumber, notes }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Mark shipped failed (${res.status})`);
+  return res.json();
+}
+
+// ── Merchant Returns ───────────────────────────────────────────
+
+export async function fetchMerchantReturns(storeId: string, status?: string): Promise<ReturnRequest[]> {
+  const params = new URLSearchParams({ storeId });
+  if (status) params.set('status', status);
+  const res = await authFetch(`${API_URL}/v1/merchant/returns?${params}`);
+  if (!res.ok) throw await ApiError.from(res, `Fetch merchant returns failed (${res.status})`);
+  return res.json();
+}
+
+export async function approveReturn(returnId: string, notes?: string): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Approve return failed (${res.status})`);
+  return res.json();
+}
+
+export async function rejectReturn(returnId: string, notes: string): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Reject return failed (${res.status})`);
+  return res.json();
+}
+
+export async function receiveReturn(returnId: string): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/receive`, { method: 'POST' });
+  if (!res.ok) throw await ApiError.from(res, `Receive return failed (${res.status})`);
+  return res.json();
+}
+
+export async function inspectReturn(
+  returnId: string,
+  condition: string,
+  notes?: string,
+): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/inspect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ condition, notes }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Inspect return failed (${res.status})`);
+  return res.json();
+}
+
+export async function rejectReturnAfterInspection(
+  returnId: string,
+  notes?: string,
+): Promise<ReturnRequest> {
+  const res = await authFetch(`${API_URL}/v1/merchant/returns/${returnId}/reject-inspection`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Reject after inspection failed (${res.status})`);
+  return res.json();
+}
