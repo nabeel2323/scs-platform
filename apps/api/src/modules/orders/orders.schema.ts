@@ -66,6 +66,9 @@ export const orders = pgTable('orders', {
   cancellationActorType: varchar('cancellation_actor_type', { length: 16 }),
   cancellationActorId: uuid('cancellation_actor_id'),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  // P12: Payment tracking on orders (nullable for legacy pre-P12 orders)
+  paymentMethod: varchar('payment_method', { length: 24 }),
+  paymentStatus: varchar('payment_status', { length: 30 }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [cartLoading, setCartLoading] = useState(true);
   const [storeSelections, setStoreSelections] = useState<Map<string, StoreSelection>>(new Map());
   const [estimatesLoading, setEstimatesLoading] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH_ON_DELIVERY');
 
   useEffect(() => {
     fetchCart()
@@ -132,6 +133,7 @@ export default function CheckoutPage() {
         idempotencyKey,
         shippingSelections: multiStore || storeSelections.size > 0 ? shippingSelections : undefined,
         fulfillmentMethod: !multiStore ? storeSelections.values().next().value?.fulfillmentMethod || 'PLATFORM_DELIVERY' : undefined,
+        paymentMethod,
       });
       const subOrders = result?.subOrders || [];
       const onlySubOrder = subOrders.length === 1 ? subOrders[0] : undefined;
@@ -227,8 +229,33 @@ export default function CheckoutPage() {
               <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
                 Final amounts are confirmed per supplier. Delivery fees and VAT are added per supplier.
               </p>
-              <div style={{ marginTop: 12, padding: '10px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm, ...typeScale.bodySm, color: colors.brand[700] }}>
-                <strong>Payment:</strong> invoiced on delivery (pilot) — no online payment at this step.
+              <div style={{ marginTop: 12, padding: '10px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm }}>
+                <div style={{ ...typeScale.label, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>Payment Method</div>
+                {[
+                  { key: 'CASH_ON_DELIVERY', label: 'Cash on Delivery', desc: 'Pay when your order arrives' },
+                  { key: 'BANK_TRANSFER', label: 'Bank Transfer', desc: 'Transfer to platform account, upload receipt' },
+                  { key: 'VOUCHER', label: 'Voucher', desc: 'Use platform voucher (requires balance)' },
+                  { key: 'DIGITAL', label: 'Digital Payment', desc: 'Coming soon — not yet available', disabled: true },
+                ].map(opt => (
+                  <label key={opt.key} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
+                    cursor: opt.disabled ? 'not-allowed' : 'pointer', opacity: opt.disabled ? 0.5 : 1,
+                  }}>
+                    <input type="radio" name="paymentMethod" value={opt.key} checked={paymentMethod === opt.key}
+                      onChange={() => !opt.disabled && setPaymentMethod(opt.key)} disabled={!!opt.disabled}
+                      style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ ...typeScale.body, fontWeight: 500, color: colors.brand[700] }}>{opt.label}</div>
+                      <div style={{ ...typeScale.bodySm, color: colors.muted }}>{opt.desc}</div>
+                    </div>
+                  </label>
+                ))}
+                {paymentMethod === 'BANK_TRANSFER' && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#fffde7', borderRadius: radii.sm, ...typeScale.bodySm, color: '#6d4c00' }}>
+                    After placing the order you will receive bank details and a reference number.
+                    Upload your transfer receipt from the order page within 72 hours.
+                  </div>
+                )}
               </div>
             </Card>
 

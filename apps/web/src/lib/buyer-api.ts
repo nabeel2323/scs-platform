@@ -501,6 +501,7 @@ export async function checkout(input: {
   idempotencyKey?: string;
   fulfillmentMethod?: string;
   shippingSelections?: Array<{ storeId: string; fulfillmentMethod: string; shippingMethodId?: string }>;
+  paymentMethod?: string;
 }): Promise<MasterOrder> {
   const res = await authFetch(`${API_URL}/v1/checkout`, {
     method: 'POST',

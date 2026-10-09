@@ -27,6 +27,8 @@ const navItems: { href: string; label: string; icon: React.ReactNode; perms: str
   { href: '/attribute-groups', label: 'Attr. Groups', icon: <IconFilter size={18} />, perms: ['catalog:attributes:manage'] },
   { href: '/product-types', label: 'Product Types', icon: <IconStar size={18} />, perms: ['catalog:product-types:manage'] },
   { href: '/disputes', label: 'Disputes', icon: <IconScale size={18} />, perms: ['support:disputes:resolve'] },
+  { href: '/payments', label: 'Payments', icon: <IconShield size={18} />, perms: ['admin:payments:read'] },
+  { href: '/settlements', label: 'Settlements', icon: <IconBarChart size={18} />, perms: ['admin:settlements:read'] },
   { href: '/products', label: 'Products', icon: <IconBox size={18} />, perms: ['admin:merchants:read'] },
   { href: '/offers', label: 'Offers', icon: <IconBox size={18} />, perms: ['catalog:offers:govern'] },
   { href: '/requests', label: 'Requests', icon: <IconClipboard size={18} />, perms: ['catalog:categories:write'] },

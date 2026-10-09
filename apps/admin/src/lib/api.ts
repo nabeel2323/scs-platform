@@ -1627,3 +1627,108 @@ export async function adminSetProductAttributeValues(
   });
 }
 
+// ── P12: Payments & Financials ────────────────────────────────────
+
+export interface AdminPayment extends AdminRecord {
+  orderId: string;
+  paymentMethod: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+  confirmedAmountMinor: number | null;
+  receiptUrl: string | null;
+  receiptReference: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminRefund extends AdminRecord {
+  paymentRecordId: string;
+  amountMinor: number;
+  currency: string;
+  status: string;
+  reason: string;
+  approvedBy: string | null;
+  createdAt: string;
+}
+
+export interface AdminSettlement extends AdminRecord {
+  subOrderId: string;
+  merchantStoreId: string;
+  paymentRecordId: string;
+  grossMinor: number;
+  refundMinor: number;
+  commissionMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export async function fetchAdminPayments(params?: {
+  status?: string;
+  paymentMethod?: string;
+}): Promise<AdminPayment[]> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.paymentMethod) sp.set('paymentMethod', params.paymentMethod);
+  const qs = sp.toString();
+  return adminRequest(`admin/payments${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchPaymentVerificationQueue(): Promise<AdminPayment[]> {
+  return adminRequest('admin/payments/verification-queue');
+}
+
+export async function verifyPayment(
+  paymentId: string,
+  decision: 'CONFIRMED' | 'REJECTED',
+  notes?: string,
+  verifiedAmountMinor?: number,
+): Promise<AdminPayment> {
+  return adminRequest(`admin/payments/${encodeURIComponent(paymentId)}/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, notes, verifiedAmountMinor }),
+  });
+}
+
+export async function approveRefund(refundId: string): Promise<AdminRefund> {
+  return adminRequest(`admin/refunds/${encodeURIComponent(refundId)}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function fetchStalePayments(): Promise<AdminPayment[]> {
+  return adminRequest('admin/payments/stale');
+}
+
+export async function calculateSettlement(subOrderId: string): Promise<AdminSettlement> {
+  return adminRequest(`admin/settlements/${encodeURIComponent(subOrderId)}/calculate`, {
+    method: 'POST',
+  });
+}
+
+export async function markSettlementPaid(
+  settlementId: string,
+  input?: { paymentReference?: string; notes?: string },
+): Promise<AdminSettlement> {
+  return adminRequest(`admin/settlements/${encodeURIComponent(settlementId)}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input || {}),
+  });
+}
+
+export async function fetchAdminSettlements(params?: {
+  storeId?: string;
+  status?: string;
+}): Promise<AdminSettlement[]> {
+  const sp = new URLSearchParams();
+  if (params?.storeId) sp.set('storeId', params.storeId);
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  return adminRequest(`admin/settlements${qs ? `?${qs}` : ''}`);
+}
+

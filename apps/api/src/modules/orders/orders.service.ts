@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   InternalServerErrorException,
   Optional,
+  Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
@@ -17,6 +18,8 @@ import {
   orderStatusHistory,
 } from './orders.schema';
 import { shipments, shipmentEvents } from './shipment.schema';
+import { paymentRecords } from '../payments/payments.schema';
+import { PaymentsService } from '../payments/payments.service';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
@@ -66,6 +69,8 @@ import {
  */
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
@@ -86,6 +91,8 @@ export class OrdersService {
     // construct the service by hand keep compiling. When absent, checkout
     // falls back to the legacy global fulfillment-method / delivery-fee path.
     @Optional() private readonly shipping?: ShippingService,
+    // P12: Payment integration. Optional so existing specs keep compiling.
+    @Optional() private readonly payments?: PaymentsService,
   ) {}
 
   // ── Checkout ─────────────────────────────────────────────────
@@ -368,15 +375,22 @@ export class OrdersService {
     }
 
     // ── CHECKOUT TRANSACTION ──────────────────────────────────────────────
-    // All writes (master order, sub-orders, items, financials, status history,
-    // cart conversion) are atomic. If any step fails, everything rolls back.
-    // TRANSACTION FOUNDATION: Idempotency race protection — if two concurrent
-    // requests arrive with the same key, the unique constraint on idempotency_key
-    // prevents duplicate inserts. We catch the violation and return the existing order.
+    // All writes (master order, sub-orders, items, financials, payment records,
+    // status history, cart conversion) are atomic. If any step fails, everything
+    // rolls back. TRANSACTION FOUNDATION: Idempotency race protection — if two
+    // concurrent requests arrive with the same key, the unique constraint on
+    // idempotency_key prevents duplicate inserts.
     const masterId = crypto.randomUUID();
     const subOrderIds: string[] = [];
     const subOrderData: { id: string; storeId: string; totalMinor: number; itemCount: number }[] = [];
     let grandTotalMinor = 0;
+
+    // P12: Resolve payment method (default to CASH_ON_DELIVERY for legacy compat)
+    const paymentMethod = input.paymentMethod || 'CASH_ON_DELIVERY';
+    const validPaymentMethods = ['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER', 'DIGITAL'];
+    if (!validPaymentMethods.includes(paymentMethod)) {
+      throw new BadRequestException(`Invalid payment method: ${paymentMethod}`);
+    }
 
     try {
     await this.db.db.transaction(async (tx) => {
@@ -421,6 +435,8 @@ export class OrdersService {
           taxMinor: fin.taxMinor,
           totalMinor: fin.totalMinor,
           currency: currencyByStore.get(storeId) ?? null,
+          paymentMethod,
+          paymentStatus: paymentMethod === 'CASH_ON_DELIVERY' ? 'AWAITING_PAYMENT' : (paymentMethod === 'VOUCHER' ? 'AWAITING_VERIFICATION' : 'CREATED'),
           slaAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
           metadata: storeSelection.shippingMethodId
             ? { shippingMethodId: storeSelection.shippingMethodId }
@@ -461,6 +477,18 @@ export class OrdersService {
           commissionMinor: fin.commissionMinor,
           merchantNetMinor: fin.merchantNetMinor,
         });
+
+        // P12: Create payment record per sub-order (inside checkout transaction)
+        if (this.payments) {
+          await this.payments.createPaymentInTransaction(
+            tx,
+            subOrderId,
+            fin.totalMinor,
+            currencyByStore.get(storeId) || 'SYP',
+            paymentMethod as any,
+            input.idempotencyKey ? `${input.idempotencyKey}:${storeId}` : crypto.randomUUID(),
+          );
+        }
 
         // Inline status history write (uses tx, not this.db.db)
         await tx.insert(orderStatusHistory).values({
@@ -541,9 +569,33 @@ export class OrdersService {
       }
     }
 
-    // Auto-advance all sub-orders: SUBMITTED → PENDING_CONFIRMATION
+    // P12: Post-checkout payment gating — payment method determines order FSM path.
+    // COD: auto-advance to PENDING_CONFIRMATION (merchant can accept immediately).
+    // BANK_TRANSFER: transition to PAYMENT_PENDING (buyer must submit proof first).
     for (const sub of subOrderData) {
-      await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
+      if (paymentMethod === 'BANK_TRANSFER') {
+        // Bank transfer: SUBMITTED → PAYMENT_PENDING (awaiting buyer proof)
+        await this.db.db
+          .update(orders)
+          .set({ status: 'PAYMENT_PENDING', updatedAt: new Date() })
+          .where(eq(orders.id, sub.id));
+        await this.recordStatusChange(
+          sub.id, 'SUBMITTED', 'PAYMENT_PENDING', input.buyerId, 'SYSTEM',
+          'Awaiting bank transfer proof upload',
+        );
+        // Transition payment record: CREATED → AWAITING_PAYMENT
+        if (this.payments) {
+          try {
+            const pay = await this.payments.getPaymentForOrder(sub.id);
+            if (pay && pay.status === 'CREATED') {
+              await this.payments.transitionToAwaitingVerification(pay.id, input.buyerId);
+            }
+          } catch { /* best-effort — payment record already created in tx */ }
+        }
+      } else {
+        // COD / VOUCHER / default: auto-advance to PENDING_CONFIRMATION
+        await this.autoAdvanceToPendingConfirmation(sub.id, input.buyerId, sub.storeId);
+      }
     }
 
     // ── Merchant alerting (best-effort side effects of a committed order) ──
@@ -768,11 +820,13 @@ export class OrdersService {
       })
       .where(eq(orders.id, orderId));
 
-    // Keep the financial breakdown in sync with the new totals
+    // P12: Financial immutability guard — if payment is already confirmed
+    // (finalizedAt set), the breakdown MUST NOT be mutated. The difference
+    // between confirmed and partial amounts is handled via refund instead.
     const existingBreakdown = await this.db.db.query.orderFinancialBreakdown.findFirst({
       where: eq(orderFinancialBreakdown.orderId, orderId),
     });
-    if (existingBreakdown) {
+    if (existingBreakdown && !(existingBreakdown as any).finalizedAt) {
       await this.db.db
         .update(orderFinancialBreakdown)
         .set({
@@ -839,6 +893,31 @@ export class OrdersService {
       storeId: order['storeId'],
       reason,
     });
+
+    // P12: If payment was already confirmed, auto-create refund for buyer.
+    // Merchant rejection after payment confirmation means the buyer is owed money.
+    if (this.payments) {
+      try {
+        const payment = await this.payments.getPaymentForOrder(orderId);
+        if (payment && ['CONFIRMED', 'PARTIALLY_REFUNDED'].includes(payment.status)) {
+          const refundableAmount = Number(payment.confirmedAmountMinor || payment.amountMinor);
+          if (refundableAmount > 0) {
+            await this.payments.requestRefund(
+              payment.id,
+              refundableAmount,
+              'MERCHANT_REJECTION',
+              order['buyerId'] as string,
+              { sub: order['buyerId'] as string, role: 'BUYER', activeOrg: null } as any,
+              { idempotencyKey: `reject-refund:${orderId}:${Date.now()}` },
+            );
+          }
+        }
+      } catch (err) {
+        this.logger.warn(
+          `[P12] Auto-refund after merchant rejection failed (non-fatal): ${(err as Error)?.message}`,
+        );
+      }
+    }
 
     // M7.3-A: Recalculate master order status after rejection
     await this.recalculateMasterOrderStatus(order['masterOrderId'] as string);
@@ -1098,6 +1177,7 @@ export class OrdersService {
       'PREPARING',
       'READY',
       'PAYMENT_PENDING',
+      'PAYMENT_CONFIRMED',
       'OUT_FOR_DELIVERY',
     ];
     if (!cancellable.includes(order['status'])) {
@@ -1269,6 +1349,16 @@ export class OrdersService {
           null,
           tx,
         );
+      }
+
+      // 8. P12: Cancel associated payment record (if non-terminal)
+      if (this.payments) {
+        try {
+          const payment = await this.payments.getPaymentForOrder(orderId);
+          if (payment && !['CONFIRMED', 'EXPIRED', 'CANCELLED', 'REFUNDED'].includes(payment.status)) {
+            await this.payments.cancelPayment(payment.id, userId, tx);
+          }
+        } catch { /* best-effort — order cancellation is authoritative */ }
       }
     });
 
@@ -3758,7 +3848,7 @@ export class OrdersService {
   private static readonly TRANSITIONS: Record<string, string[]> = {
     DRAFT: ['SUBMITTED'],
     SUBMITTED: ['PENDING_CONFIRMATION'], // auto-advance
-    PENDING_CONFIRMATION: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'], // merchant
+    PENDING_CONFIRMATION: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED', 'PAYMENT_PENDING'], // merchant + P12 payment gate
     ACCEPTED: ['PREPARING', 'CANCELLED'],
     PARTIALLY_ACCEPTED: ['PREPARING', 'CANCELLED'],
     PREPARING: ['READY', 'CANCELLED'],
@@ -3768,7 +3858,8 @@ export class OrdersService {
     OUT_FOR_DELIVERY: ['DELIVERED'],
     DELIVERED: ['COMPLETED', 'DISPUTED'], // disputes ≤72h
     COMPLETED: ['DISPUTED'], // disputes ≤72h
-    PAYMENT_PENDING: ['PREPARING', 'CANCELLED'], // P3 prepay
+    PAYMENT_PENDING: ['PAYMENT_CONFIRMED', 'CANCELLED'], // P12 payment gate
+    PAYMENT_CONFIRMED: ['ACCEPTED', 'PARTIALLY_ACCEPTED', 'REJECTED', 'CANCELLED'], // P12 post-payment merchant decision
     CANCELLED: [],
     REJECTED: [],
     DISPUTED: [],
@@ -4163,6 +4254,8 @@ export interface CheckoutInput {
   fulfillmentMethod?: string;
   /** M7.2.2: Per-store shipping selections (preferred over global fulfillmentMethod). */
   shippingSelections?: ShippingSelection[];
+  /** P12: Payment method for this checkout (applied to all sub-orders). */
+  paymentMethod?: string;
 }
 
 /**

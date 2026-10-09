@@ -23,3 +23,4 @@ export * from '../modules/reviews/reviews.schema';
 export * from '../modules/reviews/support.schema';
 export * from '../modules/notifications/notifications.schema';
 export * from '../modules/shipping/shipping.schema';
+export * from '../modules/payments/payments.schema';

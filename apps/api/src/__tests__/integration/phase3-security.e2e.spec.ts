@@ -67,15 +67,15 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 70,
-  // M7.3-B.6: ADMIN had fulfillment:shipments:read (46). M7.3-C adds fulfillment:shipments:return (46 -> 47).
-  ADMIN: 47,
-  // M7.3-C: MODERATOR gains fulfillment:shipments:read + fulfillment:shipments:return (21 -> 23).
+  SUPER_ADMIN: 76,
+  // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 52).
+  ADMIN: 52,
+  // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
   MODERATOR: 23,
-  // M7.3-C: MERCHANT_OWNER gains fulfillment:shipments:return (31 -> 32).
-  MERCHANT_OWNER: 32,
-  // M7.3-C: MERCHANT_STAFF gains fulfillment:shipments:return (25 -> 26).
-  MERCHANT_STAFF: 26,
+  // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
+  MERCHANT_OWNER: 34,
+  // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
+  MERCHANT_STAFF: 28,
   BUYER: 6,
   DRIVER: 6,
 };
@@ -278,9 +278,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 70', async () => {
+    it('total permission count is 76', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(70);
+      expect(res.rows[0].cnt).toBe(76);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
@@ -321,13 +321,14 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       expect(res.rows[0].cnt).toBe(0);
     });
 
-    it('MERCHANT_OWNER does NOT have admin:* permissions (except carrier read)', async () => {
+    it('MERCHANT_OWNER does NOT have admin:* permissions (except carrier read and settlements read)', async () => {
       const res = await pool.query(
         `SELECT p.key FROM role_permissions rp
          JOIN roles r ON r.id = rp.role_id
          JOIN permissions p ON p.id = rp.permission_id
          WHERE r.key = 'MERCHANT_OWNER' AND p.key LIKE 'admin:%'
-           AND p.key != 'admin:carrier:read'`,
+           AND p.key != 'admin:carrier:read'
+           AND p.key != 'admin:settlements:read'`,
       );
       expect(res.rows.length).toBe(0);
     });
