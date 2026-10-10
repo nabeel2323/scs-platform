@@ -402,8 +402,8 @@ describe('P6-VR §24 Migration', () => {
   it('MIG-A: 0054 exists (P6 remediation)', () => {
     expect(fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0054')).length).toBe(1);
   });
-  it('MIG-B: latest is 0058 (P12 payment financial architecture migration)', () => {
+  it('MIG-B: latest is 0059 (P13 return requests migration)', () => {
     const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort();
-    expect(files[files.length - 1]).toMatch(/^0058/);
+    expect(files[files.length - 1]).toMatch(/^0059/);
   });
 });

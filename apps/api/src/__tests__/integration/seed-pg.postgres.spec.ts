@@ -43,9 +43,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 76 permissions seeded (P12 added 6 payment/settlement permissions).
-      expect(result.permissionsTotal).toBe(76);
-      expect(result.newPermissions).toBe(76);
+      // 78 permissions seeded (P12 added 6 payment/settlement; P13 added 2 return-oversight).
+      expect(result.permissionsTotal).toBe(78);
+      expect(result.newPermissions).toBe(78);
 
       // 7 roles seeded (M7.1 added DRIVER).
       expect(result.rolesTotal).toBe(7);
@@ -53,7 +53,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(76);
+      expect(permCount.rows[0].cnt).toBe(78);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -80,7 +80,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(76);
+      expect(permCount.rows[0].cnt).toBe(78);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(7);
@@ -121,7 +121,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(76);
+      expect(permCount.rows[0].cnt).toBe(78);
     } finally {
       client.release();
     }
@@ -140,9 +140,9 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(76);
-    // P12: ADMIN gains admin:payments:verify, admin:payments:read, admin:refunds:approve, admin:settlements:write, admin:settlements:read (47 -> 52).
-    expect(byRole.get('ADMIN')).toBe(52);
+    expect(byRole.get('SUPER_ADMIN')).toBe(78);
+    // P13: ADMIN gains admin:returns:read, admin:returns:write (52 -> 54).
+    expect(byRole.get('ADMIN')).toBe(54);
     // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
     expect(byRole.get('MODERATOR')).toBe(23);
     // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).

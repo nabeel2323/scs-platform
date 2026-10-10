@@ -82,6 +82,9 @@ export const refunds = pgTable('refunds', {
   requestedBy: uuid('requested_by').references(() => users.id),
   approvedBy: uuid('approved_by').references(() => users.id),
   providerRefundStatus: varchar('provider_refund_status', { length: 40 }),
+  // P13: link to originating return request / dispute (nullable)
+  returnRequestId: uuid('return_request_id'),
+  disputeId: uuid('dispute_id'),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { disputes, disputeEvents, conversations, messages } from './support.schema';
 import { orders } from '../orders/orders.schema';
+import { paymentRecords, refunds } from '../payments/payments.schema';
 import { eq, and, desc, or } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import { PaymentsService } from '../payments/payments.service';
+import { CallerContext, isTenantPrivileged } from '../../common/tenant-scope';
 
 /**
  * Disputes service — dispute workflow and order-linked conversations.
@@ -17,6 +20,7 @@ export class DisputesService {
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
+    @Optional() private readonly payments?: PaymentsService,
   ) {}
 
   // ── Disputes ─────────────────────────────────────────────────
@@ -146,32 +150,98 @@ export class DisputesService {
     return this.getDispute(disputeId);
   }
 
-  async resolveDispute(disputeId: string, adminUserId: string, resolution: string) {
+  async resolveDispute(
+    disputeId: string,
+    adminUserId: string,
+    resolution: string,
+    caller?: CallerContext,
+    refundInput?: { amountMinor: number; reason?: string; returnRequestId?: string },
+  ) {
     const dispute = await this.getDispute(disputeId);
 
-    await this.db.db
-      .update(disputes)
-      .set({
-        status: 'RESOLVED',
+    if (caller && !isTenantPrivileged(caller)) {
+      throw new BadRequestException('Only admins can resolve disputes');
+    }
+
+    // P13: a resolved/closed dispute is never re-resolved — prevents duplicate refunds
+    // and preserves the original resolution as the audit record.
+    if (dispute['status'] === 'RESOLVED' || dispute['status'] === 'CLOSED') {
+      throw new ConflictException(`Dispute is already ${dispute['status']}`);
+    }
+
+    let refundResult: any = null;
+
+    // If refund requested, create via P12 path
+    if (refundInput && this.payments) {
+      const payment = await this.db.db.query.paymentRecords.findFirst({
+        where: eq(paymentRecords.orderId, dispute['orderId']),
+      });
+      if (!payment) throw new NotFoundException('No payment found for this order');
+
+      const idempotencyKey = `dispute-refund:${disputeId}`;
+
+      // P13 recovery: if a previous attempt committed the refund but failed before
+      // finishing the dispute transition, reuse it instead of hitting the
+      // unique idempotency-key constraint (which would make the dispute unresolvable).
+      const existingRefund = await this.db.db.query.refunds.findFirst({
+        where: eq(refunds.idempotencyKey, idempotencyKey),
+      });
+
+      refundResult = existingRefund
+        ? {
+            refundId: existingRefund.id,
+            amountMinor: Number(existingRefund.amountMinor),
+            status: existingRefund.status,
+          }
+        : await this.payments.requestRefund(
+            payment.id,
+            refundInput.amountMinor,
+            refundInput.reason || 'PRODUCT_NOT_AS_DESCRIBED',
+            dispute['raisedBy'],
+            { sub: adminUserId, role: 'ADMIN' },
+            {
+              idempotencyKey,
+              notes: `Dispute ${disputeId} resolution refund`,
+            },
+          );
+    }
+
+    await this.db.db.transaction(async (tx) => {
+      // P13: link the refund back to this dispute inside the resolution transaction
+      if (refundResult) {
+        await tx
+          .update(refunds)
+          .set({ disputeId, updatedAt: new Date() })
+          .where(eq(refunds.id, refundResult.refundId));
+      }
+
+      await tx
+        .update(disputes)
+        .set({
+          status: 'RESOLVED',
+          resolution,
+          resolvedBy: adminUserId,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+          ...(refundInput?.returnRequestId ? { returnRequestId: refundInput.returnRequestId } : {}),
+        })
+        .where(eq(disputes.id, disputeId));
+
+      await tx.insert(disputeEvents).values({
+        id: crypto.randomUUID(),
+        disputeId,
+        actorId: adminUserId,
+        eventType: 'RESOLVED',
+        body: resolution,
+        metadata: refundResult ? { refundId: refundResult.refundId, amountMinor: refundResult.amountMinor } : {},
+      });
+
+      await this.outbox.publish('dispute.resolved', disputeId, {
+        disputeId,
+        orderId: dispute['orderId'],
         resolution,
-        resolvedBy: adminUserId,
-        resolvedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(disputes.id, disputeId));
-
-    await this.db.db.insert(disputeEvents).values({
-      id: crypto.randomUUID(),
-      disputeId,
-      actorId: adminUserId,
-      eventType: 'RESOLVED',
-      body: resolution,
-    });
-
-    await this.outbox.publish('dispute.resolved', disputeId, {
-      disputeId,
-      orderId: dispute['orderId'],
-      resolution,
+        refundId: refundResult?.refundId ?? null,
+      }, {}, null, tx);
     });
 
     return this.getDispute(disputeId);

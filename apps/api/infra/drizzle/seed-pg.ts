@@ -123,6 +123,9 @@ const PERMISSIONS: string[] = [
   'admin:refunds:approve',
   'admin:settlements:write',
   'admin:settlements:read',
+  // P13: Return oversight permissions
+  'admin:returns:read',
+  'admin:returns:write',
   'merchant:orders:read',
 ];
 
@@ -138,7 +141,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 76
+    permissions: PERMISSIONS, // all 78 (P13 added admin:returns:read/write)
   },
   {
     key: 'ADMIN',
@@ -209,6 +212,9 @@ const ROLES: RoleDef[] = [
       'admin:refunds:approve',
       'admin:settlements:write',
       'admin:settlements:read',
+      // P13: Return oversight
+      'admin:returns:read',
+      'admin:returns:write',
     ],
   },
   {

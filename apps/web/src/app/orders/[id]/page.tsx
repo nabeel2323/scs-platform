@@ -15,6 +15,7 @@ import {
   buyerDeliveryNote,
   buyerEventLabel,
   confirmDelivery,
+  createReturn,
   ReorderResult,
   StatusHistoryEntry,
   OrderItem,
@@ -89,6 +90,14 @@ export default function OrderDetailPage() {
   // M7.3-A: confirm delivery
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState('');
+
+  // P13: buyer-initiated return request
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnDesc, setReturnDesc] = useState('');
+  const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnError, setReturnError] = useState('');
 
   useEffect(() => {
     if (authLoading) return;
@@ -199,6 +208,9 @@ export default function OrderDetailPage() {
   const canCancel = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'].includes(order.status);
   const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
   const canDispute = ['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status) && !disputeResult;
+  // P13: returns require a delivered/completed sub-order (backend also enforces
+  // payment eligibility and the return window, surfacing errors in the form).
+  const canReturn = ['DELIVERED', 'COMPLETED'].includes(order.status);
   // M7.3-A: buyer can confirm delivery when order is DELIVERED
   const canConfirmDelivery = order.status === 'DELIVERED';
 
@@ -425,6 +437,11 @@ export default function OrderDetailPage() {
                 Raise Dispute
               </button>
             )}
+            {canReturn && !showReturn && (
+              <button onClick={() => { setShowReturn(true); setReturnError(''); }} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: colors.brand[700], border: `1px solid ${colors.brand[300]}`, borderRadius: 6, cursor: 'pointer' }}>
+                Return Items
+              </button>
+            )}
           </div>
           {/* A4-7: reorder is per-line — some items may no longer be purchasable,
               so say what happened instead of dropping the buyer on an empty cart. */}
@@ -456,6 +473,67 @@ export default function OrderDetailPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: colors.err, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>
                 <button onClick={() => setShowCancel(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 4, cursor: 'pointer' }}>Back</button>
+              </div>
+            </div>
+          )}
+
+          {/* P13: return creation form */}
+          {showReturn && (
+            <div data-testid="return-form" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>Request a Return</div>
+              {returnError && <div role="alert" style={{ fontSize: 12, color: '#991b1b', marginBottom: 8, background: '#fef2f2', padding: '6px 10px', borderRadius: 4 }}>{returnError}</div>}
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Reason *</label>
+                {/* BD-P13-REASON-001: values are the shared REFUND_REASONS vocabulary */}
+                <select data-testid="return-reason" value={returnReason} onChange={e => setReturnReason(e.target.value)} style={{ width: '100%', padding: 8, border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}>
+                  <option value="">Select a reason…</option>
+                  <option value="PRODUCT_NOT_AS_DESCRIBED">Item defective, damaged or not as described</option>
+                  <option value="CUSTOMER_REQUEST">No longer needed</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Quantity per item *</label>
+                {(order.items || []).map((it: OrderItem, idx: number) => (
+                  <div key={it.id} data-testid={`return-line-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12 }}>
+                    <span style={{ flex: 1, color: '#374151' }}>{it.title || it.sku} × {it.quantity}</span>
+                    <input
+                      data-testid={`return-qty-${idx}`}
+                      type="number" min={0} max={it.quantity} value={returnQty[it.id] ?? 0}
+                      onChange={e => setReturnQty(prev => ({ ...prev, [it.id]: Math.max(0, Math.min(it.quantity, Number(e.target.value) || 0)) }))}
+                      style={{ width: 64, padding: '4px 6px', border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 12 }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Description (optional)</label>
+                <textarea data-testid="return-desc" value={returnDesc} onChange={e => setReturnDesc(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  data-testid="return-submit"
+                  onClick={async () => {
+                    if (!returnReason) { setReturnError('Please select a reason.'); return; }
+                    const lines = Object.entries(returnQty).filter(([, q]) => q > 0).map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
+                    if (lines.length === 0) { setReturnError('Select at least one item to return.'); return; }
+                    setReturnSubmitting(true);
+                    setReturnError('');
+                    try {
+                      const ret = await createReturn({ subOrderId: orderId, reason: returnReason, description: returnDesc || undefined, lines });
+                      router.push(`/returns/${ret.id}`);
+                    } catch (err: any) {
+                      setReturnError(err.message || 'Return request failed');
+                    } finally {
+                      setReturnSubmitting(false);
+                    }
+                  }}
+                  disabled={returnSubmitting}
+                  style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: returnSubmitting ? 0.6 : 1 }}
+                >
+                  {returnSubmitting ? 'Submitting…' : 'Submit Return'}
+                </button>
+                <button onClick={() => setShowReturn(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer' }}>Back</button>
               </div>
             </div>
           )}

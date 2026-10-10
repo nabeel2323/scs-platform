@@ -21,6 +21,8 @@ export const disputes = pgTable('disputes', {
   resolution: text('resolution'),
   resolvedBy: uuid('resolved_by').references(() => users.id),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  // P13: link to return request (nullable FK, added by migration 0059)
+  returnRequestId: uuid('return_request_id'),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
