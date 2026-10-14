@@ -15,6 +15,9 @@ interface ReturnRow {
   requestedRefundMinor: number;
   actualRefundMinor: number | null;
   createdAt: string;
+  escalatedAt: string | null;
+  escalationDeadline: string | null;
+  responsibilityCategory: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -22,6 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   RECEIVED: '#06b6d4', INSPECTED: '#6366f1', REFUND_PENDING: '#f97316',
   REFUNDED: '#22c55e', MERCHANT_REJECTED: '#ef4444', CANCELLED: '#6b7280',
   EXPIRED: '#6b7280', REJECTED_AFTER_INSPECTION: '#ef4444', REFUND_FAILED: '#ef4444',
+  ESCALATED: '#dc2626',
 };
 
 function fmtDate(s: string) {
@@ -88,6 +92,7 @@ export default function AdminReturnsPage() {
           <option value="REFUNDED">Refunded</option>
           <option value="CANCELLED">Cancelled</option>
           <option value="EXPIRED">Expired</option>
+          <option value="ESCALATED">Escalated</option>
         </select>
       </div>
 
@@ -107,7 +112,7 @@ export default function AdminReturnsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.06)' }}>
-                {['Status', 'Reason', 'Order', 'Refund', 'Created'].map((h) => (
+                {['Status', 'Reason', 'Order', 'Refund', 'Escalated', 'Deadline', 'Created', 'Action'].map((h) => (
                   <th key={h} style={{
                     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
                     color: 'rgba(255,255,255,0.7)', borderBottom: '1px solid rgba(255,255,255,0.1)',
@@ -140,7 +145,23 @@ export default function AdminReturnsPage() {
                     {(Number(ret.requestedRefundMinor) / 100).toFixed(2)}
                   </td>
                   <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.6)' }}>
+                    {ret.escalatedAt ? fmtDate(ret.escalatedAt) : '—'}
+                  </td>
+                  <td style={{ padding: '10px 14px', color: ret.escalationDeadline && new Date(ret.escalationDeadline) < new Date() ? '#ef4444' : 'rgba(255,255,255,0.6)' }}>
+                    {ret.escalationDeadline ? fmtDate(ret.escalationDeadline) : '—'}
+                  </td>
+                  <td style={{ padding: '10px 14px', color: 'rgba(255,255,255,0.6)' }}>
                     {fmtDate(ret.createdAt)}
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {ret.status === 'ESCALATED' && (
+                      <Link href={`/returns/${ret.id}?resolve=1`} style={{
+                        padding: '4px 10px', borderRadius: radii.md, fontSize: 11, fontWeight: 600,
+                        background: '#dc2626', color: '#fff', textDecoration: 'none',
+                      }}>
+                        Resolve
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

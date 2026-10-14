@@ -28,6 +28,9 @@ import { PaymentsService } from '../../modules/payments/payments.service';
 import { PaymentProviderRegistry } from '../../modules/payments/payments.provider-registry';
 import { ManualVerificationProvider } from '../../modules/payments/manual-verification.provider';
 import { ReturnsService } from '../../modules/returns/returns.service';
+import { BusinessCalendarService } from '../../modules/returns/business-calendar.service';
+import { CommissionReversalService } from '../../modules/returns/commission-reversal.service';
+import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
 import { DisputesService } from '../../modules/reviews/disputes.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
@@ -44,6 +47,7 @@ import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema'
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, paymentEvents, refunds, settlementRecords } from '../../modules/payments/payments.schema';
 import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
+import { commissionReversals, settlementAdjustments, settlementAdjustmentApprovals } from '../../modules/returns/financial.schema';
 import { disputes, disputeEvents } from '../../modules/reviews/support.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
@@ -180,6 +184,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
         outboxEvents,
         paymentRecords, paymentEvents, refunds, settlementRecords,
         returnRequests, returnRequestItems, returnRequestEvents,
+        commissionReversals,
+        settlementAdjustments, settlementAdjustmentApprovals,
         disputes, disputeEvents,
       },
     }) as unknown as DatabaseService['db'];
@@ -212,7 +218,10 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
     const database = { db } as DatabaseService;
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
-    returnsService = new ReturnsService(database, outbox, paymentsService);
+    const calendarService = new BusinessCalendarService(database);
+    const commissionReversalService = new CommissionReversalService(database, outbox);
+    const settlementAdjService = new SettlementAdjustmentService(database, outbox);
+    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService);
     disputesService = new DisputesService(database, outbox, paymentsService);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
@@ -569,7 +578,8 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     // Now the refund succeeds and the return completes
     await paymentsService.approveRefund(refundId, adminA, adminCaller);
     const refunded = await returnsService.transitionReturn(pendingRet.id, 'REFUNDED', adminCaller);
-    expect(refunded.status).toBe('REFUNDED');
+    expect(refunded).toBeDefined();
+    expect(refunded!.status).toBe('REFUNDED');
 
     const rows = await pool.query(
       `SELECT status, gross_minor::int AS gross, refund_minor::int AS refund, net_minor::int AS net

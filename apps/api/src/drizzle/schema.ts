@@ -25,3 +25,5 @@ export * from '../modules/notifications/notifications.schema';
 export * from '../modules/shipping/shipping.schema';
 export * from '../modules/payments/payments.schema';
 export * from '../modules/returns/returns.schema';
+export * from '../modules/returns/business-calendar.schema';
+export * from '../modules/returns/financial.schema';

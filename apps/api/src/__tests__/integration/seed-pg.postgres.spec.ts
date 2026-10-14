@@ -43,25 +43,27 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 78 permissions seeded (P12 added 6 payment/settlement; P13 added 2 return-oversight).
-      expect(result.permissionsTotal).toBe(78);
-      expect(result.newPermissions).toBe(78);
+      // 87 permissions seeded (P12 added 6 payment/settlement; P13 added 2 return-oversight;
+      // P13 Phase 3 added 9 financial-correctness: admin:commission:* x2, admin:adjustments:* x3,
+      // admin:reconciliation:* x2, finance:approvals:* x2).
+      expect(result.permissionsTotal).toBe(87);
+      expect(result.newPermissions).toBe(87);
 
-      // 7 roles seeded (M7.1 added DRIVER).
-      expect(result.rolesTotal).toBe(7);
-      expect(result.newRoles).toBe(7);
+      // 8 roles seeded (M7.1 added DRIVER; P13 Phase 3 added FINANCE approver).
+      expect(result.rolesTotal).toBe(8);
+      expect(result.newRoles).toBe(8);
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(78);
+      expect(permCount.rows[0].cnt).toBe(87);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
-      expect(roleCount.rows[0].cnt).toBe(7);
+      expect(roleCount.rows[0].cnt).toBe(8);
             
       // Verify role keys exist.
       const roles = await pool.query(`SELECT key, name FROM roles ORDER BY key`);
       expect(roles.rows.map((r: { key: string }) => r.key)).toEqual([
-        'ADMIN', 'BUYER', 'DRIVER', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MODERATOR', 'SUPER_ADMIN',
+        'ADMIN', 'BUYER', 'DRIVER', 'FINANCE', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'MODERATOR', 'SUPER_ADMIN',
       ]);
     } finally {
       client.release();
@@ -80,10 +82,10 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(78);
+      expect(permCount.rows[0].cnt).toBe(87);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
-      expect(roleCount.rows[0].cnt).toBe(7);
+      expect(roleCount.rows[0].cnt).toBe(8);
             
       // Mapping count is stable.
       const mappingCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM role_permissions');
@@ -121,7 +123,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(78);
+      expect(permCount.rows[0].cnt).toBe(87);
     } finally {
       client.release();
     }
@@ -132,7 +134,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
       SELECT r.key AS role, COUNT(rp.permission_id)::int AS permission_count
       FROM roles r
       LEFT JOIN role_permissions rp ON rp.role_id = r.id
-      WHERE r.key IN ('SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'BUYER', 'DRIVER')
+      WHERE r.key IN ('SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'FINANCE', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'BUYER', 'DRIVER')
       GROUP BY r.id, r.key
       ORDER BY r.key
     `);
@@ -140,11 +142,13 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(78);
-    // P13: ADMIN gains admin:returns:read, admin:returns:write (52 -> 54).
-    expect(byRole.get('ADMIN')).toBe(54);
+    expect(byRole.get('SUPER_ADMIN')).toBe(87);
+    // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
+    expect(byRole.get('ADMIN')).toBe(61);
     // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
     expect(byRole.get('MODERATOR')).toBe(23);
+    // P13 Phase 3: FINANCE approver role (13 keys).
+    expect(byRole.get('FINANCE')).toBe(13);
     // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
     expect(byRole.get('MERCHANT_OWNER')).toBe(34);
     // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).

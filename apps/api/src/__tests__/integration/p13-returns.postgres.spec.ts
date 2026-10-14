@@ -39,6 +39,9 @@ import { PaymentsService } from '../../modules/payments/payments.service';
 import { PaymentProviderRegistry } from '../../modules/payments/payments.provider-registry';
 import { ManualVerificationProvider } from '../../modules/payments/manual-verification.provider';
 import { ReturnsService } from '../../modules/returns/returns.service';
+import { BusinessCalendarService } from '../../modules/returns/business-calendar.service';
+import { CommissionReversalService } from '../../modules/returns/commission-reversal.service';
+import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -54,6 +57,9 @@ import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema'
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, refunds, settlementRecords } from '../../modules/payments/payments.schema';
 import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
+import { commissionReversals } from '../../modules/returns/financial.schema';
+import { settlementAdjustments, settlementAdjustmentApprovals } from '../../modules/returns/financial.schema';
+import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
@@ -172,6 +178,9 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
         outboxEvents,
         paymentRecords, refunds, settlementRecords,
         returnRequests, returnRequestItems, returnRequestEvents,
+        commissionReversals,
+        settlementAdjustments, settlementAdjustmentApprovals,
+        businessCalendars, businessCalendarHolidays, businessCalendarAudit,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -205,7 +214,10 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     const paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
     database = { db } as DatabaseService;
     ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
-    returnsService = new ReturnsService(database, outbox, paymentsService);
+    const calendarService = new BusinessCalendarService(database);
+    const commissionReversalService = new CommissionReversalService(database, outbox);
+    const settlementAdjService = new SettlementAdjustmentService(database, outbox);
+    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
@@ -329,24 +341,28 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
     // 2. Merchant approves
     const approved = await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    expect(approved.status).toBe('MERCHANT_APPROVED');
+    expect(approved).toBeDefined();
+    expect(approved!.status).toBe('MERCHANT_APPROVED');
 
     // 3. Buyer ships
     const shipped = await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
       trackingNumber: 'TRK-12345',
     });
-    expect(shipped.status).toBe('BUYER_SHIPPED');
+    expect(shipped).toBeDefined();
+    expect(shipped!.status).toBe('BUYER_SHIPPED');
 
     // 4. Merchant receives
     const received = await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
-    expect(received.status).toBe('RECEIVED');
+    expect(received).toBeDefined();
+    expect(received!.status).toBe('RECEIVED');
 
     // 5. Merchant inspects (GOOD)
     const inspected = await returnsService.transitionReturn(ret.id, 'INSPECTED', merchantCaller, {
       condition: 'GOOD',
       notes: 'Item in good condition',
     });
-    expect(inspected.status).toBe('INSPECTED');
+    expect(inspected).toBeDefined();
+    expect(inspected!.status).toBe('INSPECTED');
 
     // 6. Verify inventory restoration: RELEASE + RETURN
     const movements = await pool.query(
@@ -395,7 +411,8 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     const rejected = await returnsService.transitionReturn(ret.id, 'MERCHANT_REJECTED', merchantCaller, {
       notes: 'Item was used beyond return policy',
     });
-    expect(rejected.status).toBe('MERCHANT_REJECTED');
+    expect(rejected).toBeDefined();
+    expect(rejected!.status).toBe('MERCHANT_REJECTED');
 
     // Event logged
     const events = await pool.query(
@@ -424,7 +441,8 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     }, buyerCaller);
 
     const cancelled = await returnsService.transitionReturn(ret.id, 'CANCELLED', buyerCaller);
-    expect(cancelled.status).toBe('CANCELLED');
+    expect(cancelled).toBeDefined();
+    expect(cancelled!.status).toBe('CANCELLED');
   }, 30_000);
 
   // ── LC-P13-04: DAMAGED inspection (write-off) ──────────────────
@@ -757,5 +775,319 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     const afterCount = parseInt(afterMov.rows[0].count, 10);
     // Should have exactly 2 new movements (RELEASE + RETURN for GOOD condition)
     expect(afterCount - beforeCount).toBe(2);
+  }, 30_000);
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  PHASE 2: ESCALATION & ADMIN RESOLUTION TESTS
+  // ═══════════════════════════════════════════════════════════════════
+
+  it('P2-01: escalation lifecycle — REQUESTED → ESCALATED → admin APPROVE → MERCHANT_APPROVED', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    // 1. Create return
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    expect(ret.status).toBe('REQUESTED');
+
+    // 2. Escalate (simulates worker detecting SLA expiry)
+    const escalated = await returnsService.escalateReturn(ret.id);
+    expect(escalated!.status).toBe('ESCALATED');
+
+    // 3. Verify deadline persistence
+    const dbRow = await pool.query(
+      `SELECT escalated_at, escalation_deadline FROM return_requests WHERE id = $1`,
+      [ret.id],
+    );
+    expect(dbRow.rows[0].escalated_at).not.toBeNull();
+    expect(dbRow.rows[0].escalation_deadline).not.toBeNull();
+    const deadline = new Date(dbRow.rows[0].escalation_deadline);
+    const escalatedAt = new Date(dbRow.rows[0].escalated_at);
+    // Deadline must be after escalation (3 business days of working time)
+    expect(deadline.getTime()).toBeGreaterThan(escalatedAt.getTime());
+
+    // 4. Admin resolves — APPROVE
+    const resolved = await returnsService.resolveEscalation(
+      ret.id, 'APPROVE', 'MERCHANT', adminCaller, 'Approved after review',
+    );
+    expect(resolved.status).toBe('MERCHANT_APPROVED');
+
+    // 5. Verify resolution audit
+    const resolvedRow = await pool.query(
+      `SELECT resolved_by, resolved_at, responsibility_category FROM return_requests WHERE id = $1`,
+      [ret.id],
+    );
+    expect(resolvedRow.rows[0].resolved_by).toBe(buyerA);
+    expect(resolvedRow.rows[0].responsibility_category).toBe('MERCHANT');
+
+    // 6. Verify outbox event
+    const outbox = await pool.query(
+      `SELECT event_type FROM outbox_events WHERE aggregate_id = $1 AND event_type LIKE 'return.%' ORDER BY created_at`,
+      [ret.id],
+    );
+    const eventTypes = outbox.rows.map((r: any) => r.event_type);
+    expect(eventTypes).toContain('return.escalated');
+    expect(eventTypes).toContain('return.admin_approve');
+  }, 30_000);
+
+  it('P2-02: admin REJECT resolution → MERCHANT_REJECTED', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'CUSTOMER_REQUEST',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.escalateReturn(ret.id);
+
+    const resolved = await returnsService.resolveEscalation(
+      ret.id, 'REJECT', 'BUYER_REMORSE', adminCaller, 'Not eligible',
+    );
+    expect(resolved.status).toBe('MERCHANT_REJECTED');
+  }, 30_000);
+
+  it('P2-03: admin CANCEL resolution → CANCELLED', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'CUSTOMER_REQUEST',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.escalateReturn(ret.id);
+
+    const resolved = await returnsService.resolveEscalation(
+      ret.id, 'CANCEL', null, adminCaller, 'Cancelled by admin',
+    );
+    expect(resolved.status).toBe('CANCELLED');
+  }, 30_000);
+
+  it('P2-04: ESCALATED return counts as active — prevents duplicate', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id, quantity FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+    const orderedQty = orderItemsRes.rows[0].quantity as number;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: orderedQty }],
+    }, buyerCaller);
+
+    // Escalate it
+    await returnsService.escalateReturn(ret.id);
+
+    // Try creating a second return for the same sub-order — should fail
+    await expect(
+      returnsService.createReturnRequest({
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      }, buyerCaller),
+    ).rejects.toThrow(/cumulative return|active return/i);
+  }, 30_000);
+
+  it('P2-05: invalid responsibility category rejected during resolution', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.escalateReturn(ret.id);
+
+    await expect(
+      returnsService.resolveEscalation(
+        ret.id, 'APPROVE', 'INVALID_CATEGORY', adminCaller,
+      ),
+    ).rejects.toThrow(/invalid responsibility category/i);
+  }, 30_000);
+
+  it('P2-06: cannot resolve a non-escalated return', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    // Still in REQUESTED — not escalated
+    expect(ret.status).toBe('REQUESTED');
+
+    await expect(
+      returnsService.resolveEscalation(ret.id, 'APPROVE', 'MERCHANT', adminCaller),
+    ).rejects.toThrow(/only ESCALATED/i);
+  }, 30_000);
+
+  it('P2-07: concurrent escalation — exactly one succeeds', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+
+    // Fire 3 concurrent escalation attempts
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 3 }, () => returnsService.escalateReturn(ret.id)),
+    );
+
+    const succeeded = attempts.filter(a => a.status === 'fulfilled');
+    // At most one should have actually transitioned (others are idempotent)
+    // All should return ESCALATED status regardless
+    for (const a of succeeded) {
+      expect((a as PromiseFulfilledResult<any>).value.status).toBe('ESCALATED');
+    }
+
+    // Verify final state
+    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    expect(finalStatus.rows[0].status).toBe('ESCALATED');
+
+    // Verify exactly one ESCALATED event
+    const events = await pool.query(
+      `SELECT event_type FROM return_request_events WHERE return_request_id = $1 AND event_type = 'ESCALATED'`,
+      [ret.id],
+    );
+    expect(events.rows.length).toBe(1);
+  }, 30_000);
+
+  it('P2-08: concurrent admin resolution — exactly one succeeds', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.escalateReturn(ret.id);
+
+    // Fire 3 concurrent resolution attempts
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 3 }, () =>
+        returnsService.resolveEscalation(ret.id, 'APPROVE', 'MERCHANT', adminCaller),
+      ),
+    );
+
+    const succeeded = attempts.filter(a => a.status === 'fulfilled');
+    const rejected = attempts.filter(a => a.status === 'rejected');
+    // Exactly one should succeed
+    expect(succeeded.length).toBe(1);
+    expect(rejected.length).toBe(2);
+
+    // Verify final state
+    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    expect(finalStatus.rows[0].status).toBe('MERCHANT_APPROVED');
+  }, 30_000);
+
+  it('P2-09: escalation is idempotent — already-escalated return returns current state', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+
+    // First escalation
+    await returnsService.escalateReturn(ret.id);
+    // Second escalation — should be idempotent (status !== REQUESTED, returns undefined)
+    const second = await returnsService.escalateReturn(ret.id);
+    // The method returns undefined when already processed (early return)
+    expect(second).toBeUndefined();
+
+    // Verify the return is still ESCALATED in DB
+    const dbRow = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    expect(dbRow.rows[0].status).toBe('ESCALATED');
+
+    // Only one ESCALATED event
+    const events = await pool.query(
+      `SELECT event_type FROM return_request_events WHERE return_request_id = $1 AND event_type = 'ESCALATED'`,
+      [ret.id],
+    );
+    expect(events.rows.length).toBe(1);
+  }, 30_000);
+
+  it('P2-10: merchant can still approve after escalation (FSM allows ESCALATED → MERCHANT_APPROVED)', async () => {
+    const orderId = await createDeliveredOrder(
+      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+    );
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemId = orderItemsRes.rows[0].id as string;
+
+    const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
+    const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
+
+    const ret = await returnsService.createReturnRequest({
+      subOrderId: orderId,
+      reason: 'PRODUCT_NOT_AS_DESCRIBED',
+      lines: [{ orderItemId, quantity: 1 }],
+    }, buyerCaller);
+    await returnsService.escalateReturn(ret.id);
+
+    // Merchant approves even though return is escalated
+    const approved = await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    expect(approved!.status).toBe('MERCHANT_APPROVED');
   }, 30_000);
 });

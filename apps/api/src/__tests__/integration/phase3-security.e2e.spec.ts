@@ -67,11 +67,13 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 78,
-  // P13: ADMIN gains admin:returns:read, admin:returns:write (52 -> 54).
-  ADMIN: 54,
+  SUPER_ADMIN: 87,
+  // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
+  ADMIN: 61,
   // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
   MODERATOR: 23,
+  // P13 Phase 3: Finance Approver role (13 keys).
+  FINANCE: 13,
   // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
   MERCHANT_OWNER: 34,
   // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
@@ -254,12 +256,13 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   // 1. ROLES & PERMISSIONS
   // ═══════════════════════════════════════════════════════════════════
   describe('1. Roles & Permissions', () => {
-    it('all 7 canonical roles exist in the database', async () => {
+    it('all 8 canonical roles exist in the database', async () => {
       const res = await pool.query(`SELECT key FROM roles ORDER BY key`);
       const keys = res.rows.map((r: any) => r.key);
       expect(keys).toContain('SUPER_ADMIN');
       expect(keys).toContain('ADMIN');
       expect(keys).toContain('MODERATOR');
+      expect(keys).toContain('FINANCE');
       expect(keys).toContain('MERCHANT_OWNER');
       expect(keys).toContain('MERCHANT_STAFF');
       expect(keys).toContain('BUYER');
@@ -278,9 +281,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 78', async () => {
+    it('total permission count is 87', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(78);
+      expect(res.rows[0].cnt).toBe(87);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
