@@ -151,7 +151,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 78 (P13 added admin:returns:read/write)
+    permissions: PERMISSIONS, // all 87 (P13 Phase 3 added the 9 financial-correctness keys)
   },
   {
     key: 'ADMIN',

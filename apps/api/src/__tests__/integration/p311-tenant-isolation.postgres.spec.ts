@@ -4,11 +4,12 @@
  * Proves financial data isolation between organizations at the service layer:
  * TISO-01..09: Cross-tenant read/write rejection for all financial services
  *
- * Uses the existing scs-postgres container (port 25433) with a disposable database
- * to avoid testcontainer health-check timeouts under Docker resource pressure.
+ * Each test runs against a disposable PostgreSQL provided by testcontainers,
+ * following the same convention as the other *postgres.spec.ts suites (CI-safe).
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { DatabaseService } from '../../common/database/database.service';
 import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
@@ -40,15 +41,8 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/mig
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 const outbox = { dispatch: vi.fn().mockResolvedValue(undefined), publish: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxDispatcher;
 
-const DISPOSABLE_DB = 'scs_p311_tiso';
-const PG_HOST = process.env['PG_HOST'] ?? 'localhost';
-const PG_PORT = Number(process.env['PG_PORT'] ?? 25433);
-const PG_USER = process.env['PG_USER'] ?? 'scs';
-const PG_PASS = process.env['PG_PASS'] ?? 'scs';
-const BASE_URL = `postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}`;
-
 describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => {
-  let adminPool: Pool;
+  let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let database: DatabaseService;
   let settlementService: SettlementAdjustmentService;
@@ -71,13 +65,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let adjustmentB: string;
 
   beforeAll(async () => {
-    // Create disposable database on existing scs-postgres container
-    adminPool = new Pool({ connectionString: `${BASE_URL}/postgres` });
-    try { await adminPool.query(`DROP DATABASE IF EXISTS "${DISPOSABLE_DB}"`); } catch { /* ignore */ }
-    await adminPool.query(`CREATE DATABASE "${DISPOSABLE_DB}"`);
-    await adminPool.end();
-
-    pool = new Pool({ connectionString: `${BASE_URL}/${DISPOSABLE_DB}` });
+    container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
+    pool = new Pool({ connectionString: container.getConnectionUri() });
     const db = drizzle(pool, {
       schema: {
         products, productVariants, merchantOffers, users, organizations, organizationMembers,
@@ -215,14 +204,11 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
       `INSERT INTO reconciliation_runs (id, period_start, period_end, currency, status, org_id) VALUES ($1, '2026-02-01', '2026-02-28', 'SYP', 'COMPLETED', $2)`,
       [randomUUID(), orgB],
     );
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     await pool?.end();
-    // Drop disposable database
-    const cleanup = new Pool({ connectionString: `${BASE_URL}/postgres` });
-    try { await cleanup.query(`DROP DATABASE IF EXISTS "${DISPOSABLE_DB}"`); } catch { /* ignore */ }
-    await cleanup.end();
+    await container?.stop();
   });
 
   it('TISO-01: listing adjustments scoped by orgId returns only own data', async () => {

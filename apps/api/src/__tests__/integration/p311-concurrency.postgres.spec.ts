@@ -9,10 +9,12 @@
  * - TC-05: Duplicate approval from same user → unique constraint rejects
  * - TC-06: Concurrent reject + approve → row lock serializes, one wins
  *
- * Uses a disposable database on the existing scs-postgres container.
+ * Each test runs against a disposable PostgreSQL provided by testcontainers,
+ * following the same convention as the other *postgres.spec.ts suites (CI-safe).
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { resolve, join } from 'node:path';
 import * as fs from 'node:fs';
@@ -46,18 +48,12 @@ function computeApprovalHash(amountMinor: number, currency: string, reason: stri
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
-// ─── Disposable DB on existing scs-postgres container ───
-const DISPOSABLE_DB = 'scs_p311_concur';
-const PG_HOST = process.env['PG_HOST'] || 'localhost';
-const PG_PORT = Number(process.env['PG_PORT'] || 25433);
-const PG_USER = process.env['PG_USER'] || 'scs';
-const PG_PASS = process.env['PG_PASS'] || 'scs';
-const BASE_URL = `postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}`;
-
+// ─── Disposable DB via testcontainers (same pattern as p13-returns) ───
 const MIGRATIONS_DIR = resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
 describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
+  let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let settlementService: SettlementAdjustmentService;
   let commissionService: CommissionReversalService;
@@ -78,13 +74,8 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
   let adjustmentB: string; // for reject+approve test
 
   beforeAll(async () => {
-    // Create disposable database
-    const adminPool = new Pool({ connectionString: `${BASE_URL}/postgres` });
-    try { await adminPool.query(`DROP DATABASE IF EXISTS "${DISPOSABLE_DB}"`); } catch { /* ignore */ }
-    await adminPool.query(`CREATE DATABASE "${DISPOSABLE_DB}"`);
-    await adminPool.end();
-
-    pool = new Pool({ connectionString: `${BASE_URL}/${DISPOSABLE_DB}` });
+    container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
+    pool = new Pool({ connectionString: container.getConnectionUri() });
     const db = drizzle(pool, {
       schema: {
         products, productVariants, merchantOffers, users, organizations, organizationMembers,
@@ -186,9 +177,7 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
 
   afterAll(async () => {
     await pool?.end();
-    const cleanup = new Pool({ connectionString: `${BASE_URL}/postgres` });
-    try { await cleanup.query(`DROP DATABASE IF EXISTS "${DISPOSABLE_DB}"`); } catch { /* ignore */ }
-    await cleanup.end();
+    await container?.stop();
   });
 
   // ═══════════════════════════════════════════════════════════════
