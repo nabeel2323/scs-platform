@@ -2,12 +2,16 @@
  * P13 Return Expiration Worker
  *
  * Polls for REQUESTED returns whose merchant SLA (expires_at) has passed
- * and transitions them to EXPIRED.
+ * and transitions them to ESCALATED for admin review.
+ *
+ * P13 Phase 2: Changed from EXPIRED (terminal) to ESCALATED (non-terminal)
+ * so that an administrator can explicitly resolve the request instead of
+ * it being silently expired.
  *
  * Multi-instance safe: uses FOR UPDATE SKIP LOCKED for atomic claiming.
- * Crash-safe: if the worker dies between claim and expiration, the row
+ * Crash-safe: if the worker dies between claim and escalation, the row
  * is released and re-claimed by the next cycle.
- * Idempotent: concurrent expiration attempts are handled by the
+ * Idempotent: concurrent escalation attempts are handled by the
  * optimistic status guard.
  */
 
@@ -110,17 +114,16 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       });
       if (!ret) return;
 
-      // Use the service transition with a SYSTEM privileged caller
-      const systemCaller = { sub: 'system', role: 'SYSTEM' as const };
-      await this.returnsService.transitionReturn(ret.id, 'EXPIRED', systemCaller);
-      this.logger.log(`Expired return ${ret.id} (merchant SLA exceeded)`);
+      // P13 Phase 2: escalate to admin review instead of terminal expiry
+      await this.returnsService.escalateReturn(ret.id);
+      this.logger.log(`Escalated return ${ret.id} to admin review (merchant SLA exceeded)`);
     } catch (err: any) {
       // ConflictException means already transitioned — not an error
       if (err?.status === 409 || err?.name === 'ConflictException') {
-        this.logger.debug(`Return expiration skipped (already processed): ${returnId}`);
+        this.logger.debug(`Return escalation skipped (already processed): ${returnId}`);
         return;
       }
-      this.logger.error(`Return expiration failed for ${returnId}: ${err?.message}`);
+      this.logger.error(`Return escalation failed for ${returnId}: ${err?.message}`);
     }
   }
 }

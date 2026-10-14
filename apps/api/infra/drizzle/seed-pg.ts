@@ -126,6 +126,16 @@ const PERMISSIONS: string[] = [
   // P13: Return oversight permissions
   'admin:returns:read',
   'admin:returns:write',
+  // P13 Phase 3: Financial correctness permissions
+  'admin:commission:read',
+  'admin:commission:write',
+  'admin:adjustments:approve',
+  'admin:adjustments:read',
+  'admin:adjustments:write',
+  'admin:reconciliation:read',
+  'admin:reconciliation:write',
+  'finance:approvals:read',
+  'finance:approvals:write',
   'merchant:orders:read',
 ];
 
@@ -215,6 +225,14 @@ const ROLES: RoleDef[] = [
       // P13: Return oversight
       'admin:returns:read',
       'admin:returns:write',
+      // P13 Phase 3: Financial correctness
+      'admin:commission:read',
+      'admin:commission:write',
+      'admin:adjustments:approve',
+      'admin:adjustments:read',
+      'admin:adjustments:write',
+      'admin:reconciliation:read',
+      'admin:reconciliation:write',
     ],
   },
   {
@@ -253,6 +271,26 @@ const ROLES: RoleDef[] = [
       // M7.3-C: platform staff may record RTS physical returns across stores.
       'fulfillment:shipments:read',
       'fulfillment:shipments:return',
+    ],
+  },
+  {
+    key: 'FINANCE',
+    name: 'Finance Approver',
+    permissions: [
+      // P13 Phase 3: Finance-specific approval permissions
+      'finance:approvals:read',
+      'finance:approvals:write',
+      'admin:adjustments:approve',
+      'admin:adjustments:read',
+      'admin:commission:read',
+      'admin:settlements:read',
+      'admin:refunds:approve',
+      'admin:reconciliation:read',
+      'admin:reconciliation:write',
+      'admin:payments:read',
+      'admin:audit:read',
+      'orders:read',
+      'payments:read',
     ],
   },
   {

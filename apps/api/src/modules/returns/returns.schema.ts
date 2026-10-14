@@ -40,6 +40,12 @@ export const returnRequests = pgTable('return_requests', {
   inspectedAt: timestamp('inspected_at', { withTimezone: true }),
   idempotencyKey: varchar('idempotency_key', { length: 120 }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
+  // P13 Phase 2: escalation and responsibility tracking
+  responsibilityCategory: varchar('responsibility_category', { length: 30 }),
+  escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+  escalationDeadline: timestamp('escalation_deadline', { withTimezone: true }),
+  resolvedBy: uuid('resolved_by').references(() => users.id),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   metadata: jsonb('metadata').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

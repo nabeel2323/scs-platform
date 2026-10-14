@@ -14,8 +14,7 @@
  * - All transitions logged to return_request_events (append-only)
  * - Outbox events emitted inside same transaction as state transition
  */
-import {
-  Injectable, NotFoundException, BadRequestException,
+import { Injectable, NotFoundException, BadRequestException,
   ConflictException, ForbiddenException, Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
@@ -23,6 +22,7 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import {
   returnRequests, returnRequestItems, returnRequestEvents,
 } from './returns.schema';
+import { commissionReversals } from './financial.schema';
 import { orders, orderItems, orderFinancialBreakdown } from '../orders/orders.schema';
 import { paymentRecords, refunds, settlementRecords } from '../payments/payments.schema';
 import { shipments } from '../orders/shipment.schema';
@@ -32,6 +32,9 @@ import {
   assertStoreMember, isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { PaymentsService } from '../payments/payments.service';
+import { BusinessCalendarService } from './business-calendar.service';
+import { CommissionReversalService } from './commission-reversal.service';
+import { SettlementAdjustmentService } from './settlement-adjustment.service';
 import { REFUND_REASONS, RefundReason } from '../payments/payments.types';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -52,13 +55,21 @@ const TERMINAL_STATES = new Set([
   'EXPIRED', 'REJECTED_AFTER_INSPECTION',
 ]);
 
+/** Supported responsibility categories for return classification. */
+export const RESPONSIBILITY_CATEGORIES = new Set([
+  'MERCHANT', 'BUYER_REMORSE', 'PLATFORM', 'CARRIER_DAMAGE',
+]);
+
+/** Categories that trigger commission reversal (BD-P13-RESPONSIBILITY). */
+const REVERSAL_CATEGORIES = new Set(['MERCHANT', 'PLATFORM', 'CARRIER_DAMAGE']);
+
 @Injectable()
 export class ReturnsService {
   private readonly logger = new Logger(ReturnsService.name);
 
   /** Locked FSM transition map. */
   private static readonly TRANSITIONS: Record<string, string[]> = {
-    REQUESTED:                 ['MERCHANT_APPROVED', 'MERCHANT_REJECTED', 'CANCELLED', 'EXPIRED'],
+    REQUESTED:                 ['MERCHANT_APPROVED', 'MERCHANT_REJECTED', 'CANCELLED', 'ESCALATED'],
     MERCHANT_APPROVED:         ['BUYER_SHIPPED', 'CANCELLED'],
     BUYER_SHIPPED:             ['RECEIVED'],
     RECEIVED:                  ['INSPECTED'],
@@ -70,12 +81,16 @@ export class ReturnsService {
     CANCELLED:                 [],
     EXPIRED:                   [],
     REJECTED_AFTER_INSPECTION: [],
+    ESCALATED:                 ['MERCHANT_APPROVED', 'MERCHANT_REJECTED', 'CANCELLED'],
   };
 
   constructor(
     private readonly db: DatabaseService,
     private readonly outbox: OutboxDispatcher,
     private readonly payments: PaymentsService,
+    private readonly calendar: BusinessCalendarService,
+    private readonly commissionReversal: CommissionReversalService,
+    private readonly settlementAdj: SettlementAdjustmentService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════════
@@ -210,6 +225,21 @@ export class ReturnsService {
       totalRefundMinor += deliveryRefundMinor;
     }
 
+    // Phase 3 §3.4: Delivery-fee exception for partial returns
+    // If the buyer requests a delivery-fee refund on a partial return
+    // (e.g., carrier damage), the fee is NOT auto-included. Instead,
+    // a settlement adjustment is created for dual-approval review.
+    let deliveryFeeExceptionAdjustmentId: string | null = null;
+    if (!isFullReturn && input.deliveryFeeException) {
+      const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
+      if (deliveryFeeMinor > 0) {
+        // The delivery-fee exception will be created as a settlement adjustment
+        // after the return request is persisted (needs the return ID).
+        // For now, record the intent.
+        deliveryFeeExceptionAdjustmentId = 'PENDING';
+      }
+    }
+
     // Verify refund doesn't exceed confirmed payment
     const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
     const alreadyRefunded = await this.getCumulativeRefundedAmount(payment.id);
@@ -220,6 +250,7 @@ export class ReturnsService {
     }
 
     // 6. Check one active return per sub-order
+    // ESCALATED is non-terminal and counts as active — preserves duplicate prevention.
     const activeReturn = await this.db.db.query.returnRequests.findFirst({
       where: and(
         eq(returnRequests.subOrderId, input.subOrderId),
@@ -281,6 +312,35 @@ export class ReturnsService {
     });
 
     this.logger.log(`Return request ${id} created for order ${input.subOrderId}`);
+
+    // Phase 3 §3.4: Create delivery-fee settlement adjustment for partial-return exceptions.
+    // This is done AFTER the return transaction so the return ID is available.
+    if (deliveryFeeExceptionAdjustmentId === 'PENDING' && input.deliveryFeeException) {
+      try {
+        const deliveryFeeMinor = breakdown?.deliveryFeeMinor ?? order.deliveryFeeMinor ?? 0;
+        const deliveryRefundMinor = deliveryFeeMinor + Math.round(deliveryFeeMinor * vatRate);
+        const adj = await this.settlementAdj.createAdjustment({
+          subOrderId: input.subOrderId,
+          returnRequestId: id,
+          adjustmentType: 'DELIVERY_FEE_EXCEPTION',
+          amountMinor: deliveryRefundMinor,
+          currency: 'SYP',
+          reason: `Delivery-fee exception for partial return: ${input.deliveryFeeException.reason}`,
+          notes: input.deliveryFeeException.reason,
+        }, caller.sub);
+        deliveryFeeExceptionAdjustmentId = adj.id;
+        this.logger.log(
+          `Delivery-fee exception adjustment ${adj.id} created for return ${id}: ` +
+          `${deliveryRefundMinor} SYP (requires dual approval)`,
+        );
+      } catch (err: any) {
+        this.logger.error(
+          `Failed to create delivery-fee exception adjustment for return ${id}: ${err?.message}`,
+        );
+        deliveryFeeExceptionAdjustmentId = null;
+      }
+    }
+
     return this.getReturnRequest(id);
   }
 
@@ -332,6 +392,8 @@ export class ReturnsService {
         return this.markRefundFailed(ret, input);
       case 'EXPIRED':
         return this.expireReturn(ret, caller);
+      case 'ESCALATED':
+        return this.escalateReturn(ret.id);
       default:
         throw new BadRequestException(`Unknown status: ${newStatus}`);
     }
@@ -625,8 +687,21 @@ export class ReturnsService {
         notes: `Refund ${refundRow.id} succeeded for ${refundRow.amountMinor}`,
       });
 
-      // Settlement adjustment
+      // Settlement adjustment (Phase 3: includes commission reversal calculation)
       await this.adjustSettlement(tx, ret, refundRow.amountMinor);
+
+      // Phase 3: Post commission reversal to the dedicated ledger (same tx)
+      const respCat = ret.responsibilityCategory;
+      if (respCat && REVERSAL_CATEGORIES.has(respCat)) {
+        await this.commissionReversal.processCommissionReversal(
+          ret.id, respCat, null, tx,
+        );
+      } else if (!respCat) {
+        this.logger.warn(
+          `Return ${ret.id} refunded without responsibility category — ` +
+          'commission reversal skipped. Ensure inspection or escalation sets the category.',
+        );
+      }
 
       await this.outbox.publish('return.refunded', ret.id, {
         returnRequestId: ret.id, refundId: refundRow.id,
@@ -651,6 +726,162 @@ export class ReturnsService {
     await this.flipReturnStatus(ret.id, ret.status, 'EXPIRED', caller, 'SYSTEM',
       'Merchant SLA exceeded');
     return this.getReturnRequest(ret.id);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // ESCALATION (P13 Phase 2)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Escalate a REQUESTED return whose merchant SLA has expired.
+   * Called by the ReturnExpirationWorker. Transitions to ESCALATED
+   * instead of EXPIRED. Computes and persists the admin review deadline.
+   */
+  async escalateReturn(returnId: string) {
+    const ret = await this.db.db.query.returnRequests.findFirst({
+      where: eq(returnRequests.id, returnId),
+    });
+    if (!ret) throw new NotFoundException('Return request not found');
+    if (ret.status !== 'REQUESTED') return; // already processed — idempotent
+
+    // Calculate admin review deadline using business calendar
+    const escalatedAt = new Date();
+    let escalationDeadline: Date;
+    try {
+      escalationDeadline = await this.calendar.addBusinessDays(escalatedAt, 3);
+    } catch (err: any) {
+      // Calendar misconfiguration — log but do not silently expire
+      this.logger.error(
+        `Cannot calculate escalation deadline for ${returnId}: ${err?.message}. ` +
+        'Business calendar may be missing or misconfigured.',
+      );
+      throw err; // Let the worker retry; do not leave request in false-completed state
+    }
+
+    await this.db.db.transaction(async (tx) => {
+      const flip = await tx
+        .update(returnRequests)
+        .set({
+          status: 'ESCALATED',
+          escalatedAt,
+          escalationDeadline,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(returnRequests.id, returnId),
+          eq(returnRequests.status, 'REQUESTED'),
+        ))
+        .returning({ id: returnRequests.id });
+      if (flip.length === 0) return; // concurrent transition — idempotent
+
+      await tx.insert(returnRequestEvents).values({
+        id: crypto.randomUUID(),
+        returnRequestId: returnId,
+        eventType: 'ESCALATED',
+        fromStatus: 'REQUESTED',
+        toStatus: 'ESCALATED',
+        actorId: null,
+        actorType: 'SYSTEM',
+        notes: `Merchant SLA exceeded. Admin review deadline: ${escalationDeadline.toISOString()}`,
+        metadata: { escalatedAt: escalatedAt.toISOString(), escalationDeadline: escalationDeadline.toISOString() },
+      });
+
+      await this.outbox.publish('return.escalated', returnId, {
+        returnRequestId: returnId,
+        escalatedAt: escalatedAt.toISOString(),
+        escalationDeadline: escalationDeadline.toISOString(),
+      }, {}, null, tx);
+    });
+
+    this.logger.log(`Return ${returnId} escalated to admin review`);
+    return this.getReturnRequest(returnId);
+  }
+
+  /**
+   * Resolve an ESCALATED return request via admin action.
+   * Maps APPROVE → MERCHANT_APPROVED, REJECT → MERCHANT_REJECTED, CANCEL → CANCELLED.
+   */
+  async resolveEscalation(
+    returnId: string,
+    action: 'APPROVE' | 'REJECT' | 'CANCEL',
+    responsibilityCategory: string | null,
+    caller: CallerContext,
+    notes?: string,
+  ) {
+    const ret = await this.db.db.query.returnRequests.findFirst({
+      where: eq(returnRequests.id, returnId),
+    });
+    if (!ret) throw new NotFoundException('Return request not found');
+    if (ret.status !== 'ESCALATED') {
+      throw new ConflictException(
+        `Cannot resolve return in status ${ret.status}; only ESCALATED returns can be resolved`,
+      );
+    }
+
+    // Validate responsibility category
+    if (responsibilityCategory && !RESPONSIBILITY_CATEGORIES.has(responsibilityCategory)) {
+      throw new BadRequestException(
+        `Invalid responsibility category: ${responsibilityCategory}. ` +
+        `Allowed: ${[...RESPONSIBILITY_CATEGORIES].join(', ')}`,
+      );
+    }
+
+    const targetStatus = {
+      APPROVE: 'MERCHANT_APPROVED',
+      REJECT: 'MERCHANT_REJECTED',
+      CANCEL: 'CANCELLED',
+    }[action];
+
+    const resolvedAt = new Date();
+
+    await this.db.db.transaction(async (tx) => {
+      const flip = await tx
+        .update(returnRequests)
+        .set({
+          status: targetStatus,
+          responsibilityCategory: responsibilityCategory || null,
+          resolvedBy: caller.sub,
+          resolvedAt,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(returnRequests.id, returnId),
+          eq(returnRequests.status, 'ESCALATED'),
+        ))
+        .returning({ id: returnRequests.id });
+      if (flip.length === 0) throw new ConflictException('Return status already changed');
+
+      await tx.insert(returnRequestEvents).values({
+        id: crypto.randomUUID(),
+        returnRequestId: returnId,
+        eventType: `ADMIN_${action}`,
+        fromStatus: 'ESCALATED',
+        toStatus: targetStatus,
+        actorId: caller.sub,
+        actorType: 'ADMIN',
+        notes: notes || `Admin resolved escalated return: ${action}`,
+        metadata: {
+          action,
+          responsibilityCategory: responsibilityCategory || null,
+          resolvedAt: resolvedAt.toISOString(),
+        },
+      });
+
+      await this.outbox.publish(
+        `return.admin_${action.toLowerCase()}`,
+        returnId,
+        {
+          returnRequestId: returnId,
+          action,
+          responsibilityCategory: responsibilityCategory || null,
+          resolvedBy: caller.sub,
+        },
+        {}, null, tx,
+      );
+    });
+
+    this.logger.log(`Escalated return ${returnId} resolved: ${action} by ${caller.sub}`);
+    return this.getReturnRequest(returnId);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -736,19 +967,77 @@ export class ReturnsService {
 
     if (!settlement) return;  // no settlement yet; next calculateSettlement picks up refund
 
+    // ── Phase 3: Calculate proportional commission reversal ──────────
+    // The ADJUSTMENT settlement must reflect the commission credit so that
+    // net = gross - refund - commission - fee + reversal is correct.
+    let commissionReversalMinor = 0;
+    const category = ret.responsibilityCategory;
+
+    if (category && REVERSAL_CATEGORIES.has(category)) {
+      const breakdown = await tx.query.orderFinancialBreakdown.findFirst({
+        where: eq(orderFinancialBreakdown.orderId, ret.subOrderId),
+      });
+      if (breakdown && breakdown.commissionMinor > 0) {
+        const originalCommission = breakdown.commissionMinor;
+        const orderNetGoods = breakdown.productsMinor - breakdown.discountMinor;
+
+        if (orderNetGoods > 0) {
+          // Load return items to compute the net-goods basis for this return
+          const items = await tx.query.returnRequestItems.findMany({
+            where: eq(returnRequestItems.returnRequestId, ret.id),
+          });
+          if (items.length > 0) {
+            const orderItemIds = items.map((i: any) => i.orderItemId);
+            const orderItemRows = await tx.query.orderItems.findMany({
+              where: sql`${orderItems.id} IN (${sql.join(orderItemIds.map((id: string) => sql`${id}`), sql`, `)})`,
+            });
+            const orderItemMap: Map<string, any> = new Map(orderItemRows.map((oi: any) => [oi.id, oi]));
+
+            const returnNetGoods = items.reduce((sum: number, item: any) => {
+              const oi = orderItemMap.get(item.orderItemId);
+              if (!oi) return sum;
+              return sum + (Number(oi.unitPriceMinor) * item.quantity);
+            }, 0);
+
+            if (returnNetGoods > 0) {
+              // Cumulative-target proportional reversal, capped at remaining
+              const existingReversals = await tx
+                .select({ total: sql<number>`COALESCE(SUM(reversal_minor), 0)` })
+                .from(commissionReversals)
+                .innerJoin(returnRequests, eq(commissionReversals.returnRequestId, returnRequests.id))
+                .where(eq(returnRequests.subOrderId, ret.subOrderId));
+              const alreadyReversed = existingReversals[0]?.total ?? 0;
+              const remaining = originalCommission - alreadyReversed;
+
+              let raw = Math.floor((originalCommission * returnNetGoods) / orderNetGoods);
+              raw = Math.min(raw, remaining);
+              commissionReversalMinor = Math.max(0, raw);
+            }
+          }
+        }
+      }
+    }
+
     if (['PENDING', 'CALCULATED'].includes(settlement.status)) {
-      // Update in place
+      // Update in place — reduce commission by the reversal amount
       const newRefundMinor = (settlement.refundMinor ?? 0) + refundAmountMinor;
-      const newNetMinor = settlement.grossMinor - newRefundMinor - settlement.commissionMinor - settlement.feeMinor;
+      const newCommissionMinor = settlement.commissionMinor - commissionReversalMinor;
+      const newNetMinor = settlement.grossMinor - newRefundMinor - newCommissionMinor - settlement.feeMinor;
       await tx.update(settlementRecords)
-        .set({ refundMinor: newRefundMinor, netMinor: newNetMinor, updatedAt: new Date() })
+        .set({
+          refundMinor: newRefundMinor,
+          commissionMinor: newCommissionMinor,
+          netMinor: newNetMinor,
+          updatedAt: new Date(),
+        })
         .where(eq(settlementRecords.id, settlement.id));
     } else if (['PAID', 'DUE'].includes(settlement.status)) {
       // Look up store ID from the order (use tx for consistency)
       const orderRow = await tx.query.orders.findFirst({
         where: eq(orders.id, ret.subOrderId), columns: { storeId: true },
       });
-      // Create ADJUSTMENT settlement
+      // Create ADJUSTMENT settlement with commission reversal
+      // net = commissionReversal - refund (the merchant gets commission credit minus the refund debit)
       await tx.insert(settlementRecords).values({
         id: crypto.randomUUID(),
         subOrderId: ret.subOrderId,
@@ -756,13 +1045,16 @@ export class ReturnsService {
         merchantStoreId: orderRow?.storeId ?? ret.storeId ?? '',
         grossMinor: 0,
         refundMinor: refundAmountMinor,
-        commissionMinor: 0,
+        commissionMinor: commissionReversalMinor,
         feeMinor: 0,
-        netMinor: -refundAmountMinor,
+        netMinor: commissionReversalMinor - refundAmountMinor,
         currency: 'SYP',
         status: 'ADJUSTMENT',
         calculatedAt: new Date(),
-        notes: `Post-refund adjustment for return ${ret.id}`,
+        notes: `Post-refund adjustment for return ${ret.id}` +
+          (commissionReversalMinor > 0
+            ? ` (commission reversed: ${commissionReversalMinor}, category: ${category})`
+            : ''),
       });
     }
   }
@@ -799,6 +1091,9 @@ export class ReturnsService {
         if (!isTenantPrivileged(caller)) {
           throw new ForbiddenException('Only admins can expire returns');
         }
+        break;
+      case 'ESCALATED':
+        // System transition — triggered by worker, no caller authorization needed
         break;
       case 'REFUND_PENDING':
       case 'REFUNDED':
@@ -850,7 +1145,7 @@ export class ReturnsService {
         // rejected, expired and inspection-rejected requests release it again.
         inArray(returnRequests.status, [
           'REQUESTED', 'MERCHANT_APPROVED', 'BUYER_SHIPPED', 'RECEIVED',
-          'INSPECTED', 'REFUND_PENDING', 'REFUNDED',
+          'INSPECTED', 'REFUND_PENDING', 'REFUNDED', 'ESCALATED',
         ]),
       ))
       .groupBy(returnRequestItems.orderItemId);
@@ -949,6 +1244,8 @@ export interface CreateReturnInput {
   evidenceUrls?: string[];
   idempotencyKey?: string;
   lines: Array<{ orderItemId: string; quantity: number }>;
+  /** Phase 3 §3.4: request delivery-fee refund on partial return (requires dual approval). */
+  deliveryFeeException?: { reason: string; isCarrierDamage?: boolean };
 }
 
 export interface TransitionInput {

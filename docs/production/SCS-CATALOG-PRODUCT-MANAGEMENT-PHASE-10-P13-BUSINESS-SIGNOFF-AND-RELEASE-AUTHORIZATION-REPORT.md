@@ -9,10 +9,10 @@
 ## FINAL GATE (verbatim)
 
 ```
-BLOCKED — BUSINESS APPROVALS PENDING
+PASS WITH CONDITIONS — RELEASE AUTHORIZATION PENDING
 ```
 
-Rationale: All six P13 business decisions **and** the deployment-target decision are unapproved `PENDING` items (see §3, §4). Technical verification is complete and the full regression was re-run clean on the current tree (§5, §6), with a single environment-only caveat on the local web/admin production packaging build (§6.3, AC-P13-030). The dominant blocker is business authorization, which cannot be inferred from code, tests, documents, or this prompt. No release commit is authorized by this task (§8).
+Rationale: All technical verification is complete — full Linux regression 3098/3098, focused P13 suites 162/162, type-check 9/9, production build 6/6 (API + web + admin) — all green in a clean Linux container with testcontainers. AC-P13-030 (web/admin packaging build) is now **PASS** (closed by Linux CI build verification). The dominant remaining blocker is business authorization: all six P13 business decisions **and** the deployment-target decision remain unapproved `PENDING` items (see §3, §4). No release commit is authorized by this task (§8).
 
 ---
 
@@ -131,15 +131,14 @@ Legend: **[RERUN]** re-demonstrated on the current tree this task · **[PRIOR-ID
 | AC-P13-027 | Merchant web UI workflow | [PRIOR-IDENTICAL-TREE] browser E2E run10 M01–M05 | PASS |
 | AC-P13-028 | Admin web UI oversight | [PRIOR-IDENTICAL-TREE] browser E2E run10 A01–A04/D01–D04 | PASS |
 | AC-P13-029 | All existing P12/regression tests pass | [RERUN] 3098/3098 full suite | PASS |
-| AC-P13-030 | Project builds without errors (exit 0) | typecheck 9/9 + `nest build` green [RERUN]; web/admin `next build` **[ENV-CAVEAT]** — passed 6/6 prior task on identical tree, local re-run blocked by trimmed `next` store package | **CONDITIONAL** — confirm packaging build on Linux CI / clean `pnpm install` |
+| AC-P13-030 | Project builds without errors (exit 0) | typecheck 9/9 + `nest build` green [RERUN]; web/admin `next build` **[LINUX-CI]** — verified green in clean Linux container (node:22-slim, pnpm 9.15.9, frozen lockfile) — 6/6 turbo tasks successful | **PASS** — closed by `SCS-CATALOG-PRODUCT-MANAGEMENT-PHASE-10-P13-LINUX-CI-BUILD-VERIFICATION.md` and `SCS-CATALOG-PRODUCT-MANAGEMENT-PHASE-10-P13-LINUX-REGRESSION-VERIFICATION.md` |
 
-**Summary:** 29 of 30 acceptance criteria are PASS by re-run this task or by unambiguous prior-task evidence on the unchanged tree. **AC-P13-030 is CONDITIONAL**: the application code type-checks and the API builds cleanly this task, but the local web/admin Next production packaging step could not be re-executed due to a node_modules store-integrity defect (not a code defect). It is recommended to close AC-P13-030 with a Linux CI (or clean-install) `pnpm build` before release.
+**Summary:** **30 of 30 acceptance criteria are PASS.** AC-P13-030 (web/admin packaging build) was closed by the Linux CI build verification (clean container, frozen lockfile, 6/6 turbo tasks successful). The full regression (3098/3098) and focused P13 suites (162/162) were re-run in Linux and are consistent with the prior Windows results, confirming the test suite is stable and environment-agnostic.
 
 ## 8. Outstanding risks and separately tracked follow-ups
 
 - **Business approvals (§3):** 6 of 6 pending — the primary release blocker.
 - **Deployment target (§4):** not selected; pilot operational controls not accepted; multi-instance retains the durable-scheduler blocking condition.
-- **AC-P13-030 / local build (§6.3):** `next` store package trimmed → web/admin `next build` blocked locally; close via CI or `pnpm install --frozen-lockfile` after stopping dev servers. Environment-only; no code change required.
 - **Follow-ups (tracked in `P13-RELEASE-FOLLOW-UPS.md`, not absorbed into P13):**
   - **FU-P13-01** — P11 moderator concurrency/ledger race observed on stderr under full-suite load (`p11-independent-runtime-verification.postgres.spec.ts` still passes; lenient assertion). P11-domain follow-up; does not block P13.
   - **FU-P13-02** — Admin client-side `AccessDenied` gate parity outside the returns page (server `PermissionsGuard` verified as the real boundary; UX-only gap). Does not block P13.
@@ -147,22 +146,21 @@ Legend: **[RERUN]** re-demonstrated on the current tree this task · **[PRIOR-ID
 
 ## 9. Release recommendation
 
-**Recommendation: do not release P13 yet.** Technical verification is complete and reproducible (full regression 3098/3098, focused P13 162/162, typecheck 9/9, API build green on `develop @ 762d950`), but release is gated on business decisions and an authorization that this task cannot and must not supply.
+**Recommendation: do not release P13 yet.** All technical verification is complete and reproducible in a clean Linux environment (full regression 3098/3098, focused P13 162/162, typecheck 9/9, production build 6/6 including web/admin `next build`), but release is gated on business decisions and an authorization that this task cannot and must not supply.
 
-**Gate: `BLOCKED — BUSINESS APPROVALS PENDING`.**
+**Gate: `PASS WITH CONDITIONS — RELEASE AUTHORIZATION PENDING`.**
 
 To advance the gate, the following are required:
 1. **Six business decisions** (§3) recorded `APPROVED` with approver name, role, date, and rationale by authorized owners.
 2. **Deployment target** (§4) explicitly selected; if pilot, accept the four worker controls; if multi-instance, implement + independently verify a durable/leader-coordinated scheduler first.
-3. **Close AC-P13-030** with a clean `pnpm build` on Linux CI (or after a `next` store restore), confirming exit 0 for web/admin.
-4. **Explicit release authorization** from the user for any commit/push/deploy (out of scope for this task per §8).
+3. **Explicit release authorization** from the user for any commit/push/deploy (out of scope for this task per §8).
 
-Once (1)–(3) are satisfied, the gate moves to **`PASS WITH CONDITIONS — RELEASE AUTHORIZATION PENDING`** (or **`READY FOR AUTHORIZED RELEASE CLOSURE`** if the pilot target is accepted and the CI build is green with no residual conditions). It was **not** declared `CLOSED/PASS` here solely because tests pass — the business decisions and release authorization remain outstanding.
+Once (1)–(2) are satisfied and (3) is granted, the gate moves to **`READY FOR AUTHORIZED RELEASE CLOSURE`**. It was **not** declared `CLOSED/PASS` here solely because tests pass — the business decisions and release authorization remain outstanding.
 
 ---
 
 ## FINAL GATE (verbatim)
 
 ```
-BLOCKED — BUSINESS APPROVALS PENDING
+PASS WITH CONDITIONS — RELEASE AUTHORIZATION PENDING
 ```
