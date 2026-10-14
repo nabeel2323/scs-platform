@@ -402,8 +402,9 @@ describe('P6-VR §24 Migration', () => {
   it('MIG-A: 0054 exists (P6 remediation)', () => {
     expect(fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0054')).length).toBe(1);
   });
-  it('MIG-B: latest is 0059 (P13 return requests migration)', () => {
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort();
-    expect(files[files.length - 1]).toMatch(/^0059/);
+  it('MIG-B: 0062 exists (P13 Phase 3.1 hardening)', () => {
+    // Existence check (like MIG-A) instead of pinning the "latest" file,
+    // which broke every time a new migration shipped (0057→0058→0059).
+    expect(fs.readdirSync(MIGRATIONS_DIR).filter(f => f.startsWith('0062')).length).toBe(1);
   });
 });
