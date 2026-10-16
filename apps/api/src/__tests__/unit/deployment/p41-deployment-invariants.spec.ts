@@ -446,9 +446,11 @@ describe('P13 Phase 4.1 — environment template carries no secrets', () => {
 describe('P13 Phase 4.1 — the dev-only stack is not silently reused', () => {
   it('keeps docker-compose.dev.yml as infrastructure only', () => {
     const dev = read(COMPOSE_DEV);
-    // The dev file builds no application images; if that changes, the prod-like file's
-    // reason to exist needs re-examining rather than copying.
-    expect(dev).not.toMatch(/dockerfile:/);
+    // The dev file builds no application images (api/web/admin); infrastructure
+    // extensions like a Postgres image with pg_partman are acceptable.
+    expect(dev).not.toMatch(/dockerfile:.*api\.Dockerfile/);
+    expect(dev).not.toMatch(/dockerfile:.*web\.Dockerfile/);
+    expect(dev).not.toMatch(/dockerfile:.*admin\.Dockerfile/);
     expect(dev).not.toMatch(/P13_WORKER_ENABLED/);
   });
 });

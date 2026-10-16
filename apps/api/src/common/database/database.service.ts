@@ -206,9 +206,75 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       } else {
         DatabaseService.logger.log('Seed: RBAC data up-to-date.');
       }
+
+      // 5. Ensure default admin user exists
+      await this.ensureDevAdminUser(client, roleById);
     } catch (err: any) {
       try { await client.query('ROLLBACK'); } catch { /* ignore */ }
       DatabaseService.logger.error(`Seed failed: ${err.message}`);
     }
+  }
+
+  /**
+   * Idempotent: creates the dev admin user (admin@scsp.dev) if it doesn't exist.
+   * Also ensures the Platform organization and org membership exist.
+   */
+  private async ensureDevAdminUser(
+    client: PoolClient,
+    roleById: Map<string, string>,
+  ): Promise<void> {
+    const ADMIN_EMAIL = 'admin@scsp.dev';
+    const ADMIN_PASSWORD = 'Admin@2026!';
+    const ADMIN_PHONE = '+10000000000';
+
+    // Check if admin user already exists
+    const existing = await client.query(`SELECT id FROM users WHERE email = $1`, [ADMIN_EMAIL]);
+    if (existing.rows.length > 0) {
+      DatabaseService.logger.log('Seed: Admin user already exists.');
+      return;
+    }
+
+    // Dynamically import bcrypt (native module)
+    const bcrypt = await import('bcrypt');
+
+    const superAdminRoleId = roleById.get('SUPER_ADMIN');
+    if (!superAdminRoleId) {
+      DatabaseService.logger.warn('Seed: SUPER_ADMIN role not found — skipping admin user creation.');
+      return;
+    }
+
+    // Ensure Platform organization exists
+    let orgId: string;
+    const existingOrg = await client.query(
+      `SELECT id FROM organizations WHERE name = 'SCS Platform Ops' AND type = 'PLATFORM' LIMIT 1`,
+    );
+    if (existingOrg.rows.length > 0) {
+      orgId = existingOrg.rows[0].id;
+    } else {
+      orgId = randomUUID();
+      await client.query(
+        `INSERT INTO organizations (id, name, type, country, verification_status, created_at, updated_at)
+         VALUES ($1, 'SCS Platform Ops', 'PLATFORM', 'SA', 'VERIFIED', NOW(), NOW())`,
+        [orgId],
+      );
+    }
+
+    // Create admin user
+    const userId = randomUUID();
+    const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
+    await client.query(
+      `INSERT INTO users (id, phone, email, full_name, status, password_hash, password_set_at, email_verified_at, created_at, updated_at)
+       VALUES ($1, $2, $3, 'Platform Admin', 'ACTIVE', $4, NOW(), NOW(), NOW(), NOW())`,
+      [userId, ADMIN_PHONE, ADMIN_EMAIL, passwordHash],
+    );
+
+    // Link user to org as SUPER_ADMIN
+    await client.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status, created_at)
+       VALUES ($1, $2, $3, $4, 'ACTIVE', NOW())`,
+      [randomUUID(), orgId, userId, superAdminRoleId],
+    );
+
+    DatabaseService.logger.log(`Seed: Admin user created (admin@scsp.dev / Admin@2026!).`);
   }
 }
