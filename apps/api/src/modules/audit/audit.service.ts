@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../common/database/database.service';
+import { recordOpsCounter } from '../operations/ops-counters';
 import { auditLogs } from './audit.schema';
 
 /**
@@ -65,6 +66,12 @@ export class AuditService {
   /**
    * Appends an audit row. Deliberately never throws: losing an audit entry is
    * a defect, but it must not fail the request that triggered it.
+   *
+   * P13 Phase 4 (alert 9): the non-throwing contract is preserved, so durability
+   * is recovered through observability instead — every outcome increments an ops
+   * counter and the P13 monitor raises a CRITICAL `p13.audit.write_failed` alert
+   * when the failure count is non-zero. A silently lost audit trail therefore
+   * becomes an alert, not an assumption.
    */
   async record(entry: AuditEntry): Promise<void> {
     try {
@@ -80,7 +87,13 @@ export class AuditService {
         ip: AuditService.normalizeIp(entry.ip),
         userAgent: entry.userAgent?.slice(0, USER_AGENT_MAX) ?? null,
       });
+      recordOpsCounter('audit_write_success_total');
     } catch (err) {
+      recordOpsCounter(
+        'audit_write_failures_total',
+        1,
+        `${entry.action}/${entry.resource}: ${err instanceof Error ? err.message : String(err)}`,
+      );
       this.logger.error(
         `Audit write failed (${entry.action} ${entry.resource}): ${err instanceof Error ? err.message : String(err)}`,
       );

@@ -5,12 +5,19 @@
  * approval hash binding, idempotency and authorization rules.
  *
  * Phase 3.1 changes:
- * - ALL adjustments get fxStatus=BLOCKED_FX (no FX provider exists)
+ * - ALL adjustments get fxStatus=BLOCKED (no FX provider exists)
  * - Dual approval always required (threshold cannot be evaluated)
  * - Creator cannot be ANY approver for dual-approval
  * - Approval hash includes adjustmentType
  * - BLOCKED_FX state added to state machine
- * - Posting blocked when fxStatus is BLOCKED_FX
+ * - Posting blocked when fx_status is BLOCKED or PENDING_REVIEW
+ *
+ * Phase 4 correction: `fx_status` and `status` are two different vocabularies.
+ * migration 0061 constrains fx_status to NOT_REQUIRED | RESOLVED | BLOCKED |
+ * PENDING_REVIEW, while BLOCKED_FX is a legal *status*. This mirror previously
+ * used 'BLOCKED_FX' for both, which is what let the service write an illegal
+ * fx_status value without any unit test failing (the constraint is only visible
+ * against a real PostgreSQL — see the Phase 4 HTTP authorization spec).
  */
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
@@ -26,9 +33,9 @@ function computeApprovalHash(
   return crypto.createHash('sha256').update(payload).digest('hex');
 }
 
-/** Phase 3.1: ALL adjustments get BLOCKED_FX — no FX provider exists. */
-function determineFxStatus(_currency: string): 'BLOCKED_FX' {
-  return 'BLOCKED_FX';
+/** Phase 3.1: ALL adjustments are blocked on FX — no FX provider exists. */
+function determineFxStatus(_currency: string): 'BLOCKED' {
+  return 'BLOCKED';
 }
 
 /** Phase 3.1: Dual approval always required (threshold cannot be evaluated). */
@@ -61,9 +68,9 @@ function isFullyApproved(
   return total >= 1;
 }
 
-/** Phase 3.1: Can post? Only if fxStatus is NOT blocked. */
+/** Phase 3.1: Can post? Allow-listed on the FX position, fail-closed otherwise. */
 function canPost(fxStatus: string): boolean {
-  return fxStatus !== 'BLOCKED_FX';
+  return fxStatus === 'RESOLVED' || fxStatus === 'NOT_REQUIRED';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -71,22 +78,33 @@ function canPost(fxStatus: string): boolean {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('Settlement Adjustment — FX Safety (Phase 3.1)', () => {
-  it('SYP currency → fxStatus = BLOCKED_FX (no FX provider)', () => {
-    expect(determineFxStatus('SYP')).toBe('BLOCKED_FX');
+  it('SYP currency → fxStatus = BLOCKED (no FX provider)', () => {
+    expect(determineFxStatus('SYP')).toBe('BLOCKED');
   });
 
-  it('non-SYP currency → fxStatus = BLOCKED_FX (no FX provider)', () => {
-    expect(determineFxStatus('USD')).toBe('BLOCKED_FX');
-    expect(determineFxStatus('EUR')).toBe('BLOCKED_FX');
-    expect(determineFxStatus('TRY')).toBe('BLOCKED_FX');
+  it('non-SYP currency → fxStatus = BLOCKED (no FX provider)', () => {
+    expect(determineFxStatus('USD')).toBe('BLOCKED');
+    expect(determineFxStatus('EUR')).toBe('BLOCKED');
+    expect(determineFxStatus('TRY')).toBe('BLOCKED');
   });
 
-  it('BLOCKED_FX → dual approval always required', () => {
-    expect(requiresDualApproval('BLOCKED_FX')).toBe(true);
+  it('fxStatus is always a value the schema CHECK allows', () => {
+    const allowed = new Set(['NOT_REQUIRED', 'RESOLVED', 'BLOCKED', 'PENDING_REVIEW']);
+    for (const currency of ['SYP', 'USD', 'EUR', 'TRY']) {
+      expect(allowed.has(determineFxStatus(currency))).toBe(true);
+    }
   });
 
-  it('BLOCKED_FX → posting is blocked', () => {
-    expect(canPost('BLOCKED_FX')).toBe(false);
+  it('BLOCKED → dual approval always required', () => {
+    expect(requiresDualApproval('BLOCKED')).toBe(true);
+  });
+
+  it('BLOCKED → posting is blocked', () => {
+    expect(canPost('BLOCKED')).toBe(false);
+  });
+
+  it('PENDING_REVIEW → posting is blocked', () => {
+    expect(canPost('PENDING_REVIEW')).toBe(false);
   });
 
   it('RESOLVED → posting is allowed', () => {
@@ -253,11 +271,18 @@ describe('Settlement Adjustment — Self-Dealing Prevention (Phase 3.1)', () => 
 });
 
 describe('Settlement Adjustment — Posting Guard (Phase 3.1)', () => {
-  it('cannot post when fxStatus is BLOCKED_FX', () => {
-    expect(canPost('BLOCKED_FX')).toBe(false);
+  it('cannot post when fx_status is BLOCKED', () => {
+    expect(canPost('BLOCKED')).toBe(false);
   });
 
-  it('can post when fxStatus is RESOLVED', () => {
+  it('cannot post on an fx_status the schema does not define (fail closed)', () => {
+    // 'BLOCKED_FX' is a *status* value; a row carrying it in fx_status is data
+    // corruption and must never be posted.
+    expect(canPost('BLOCKED_FX')).toBe(false);
+    expect(canPost('')).toBe(false);
+  });
+
+  it('can post when fx_status is RESOLVED', () => {
     expect(canPost('RESOLVED')).toBe(true);
   });
 });

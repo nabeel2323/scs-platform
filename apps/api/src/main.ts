@@ -6,12 +6,22 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { assertJwtConfig } from './config/env-gate';
+import { assertJwtConfig, assertProductionConfig } from './config/env-gate';
 
 async function bootstrap() {
   // Fail fast on insecure JWT configuration (API-B7) before creating the app,
   // binding a port, or opening any DB/Redis connections.
   assertJwtConfig();
+
+  // P13 Phase 4.1: refuse to boot a deployed process that would silently fall back to
+  // the development PostgreSQL/Redis endpoints, and refuse one whose alert webhook is
+  // set but undeliverable. No-op outside production-like NODE_ENV. Returns a
+  // non-sensitive summary, so the channel can be logged without the URL.
+  const alertSink = assertProductionConfig();
+  new Logger('Bootstrap').log(
+    `P13 alert channel: ${alertSink.channel}` +
+      (alertSink.configured ? '' : ' (no webhook configured — alerts are persisted and logged only)'),
+  );
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
@@ -92,6 +102,13 @@ async function bootstrap() {
 
   // ── WebSocket adapter ──────────────────────────────────────
   app.useWebSocketAdapter(new IoAdapter(app));
+
+  // ── Graceful shutdown ──────────────────────────────────────
+  // Nest does NOT run `onModuleDestroy`/`onApplicationShutdown` on SIGTERM/SIGINT
+  // unless this is enabled. The P13 worker releases its lease in `onModuleDestroy`,
+  // so without this a container stop would leave `worker_leases` pointing at a dead
+  // holder and a standby could only take over after the TTL expired.
+  app.enableShutdownHooks();
 
   // ── Start ──────────────────────────────────────────────────
   const port = Number(process.env['PORT'] || process.env['API_PORT'] || 3000);

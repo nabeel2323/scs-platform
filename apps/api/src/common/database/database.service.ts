@@ -3,6 +3,7 @@ import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as fs from 'node:fs';
 import * as schema from '../../drizzle/schema';
+import { resolveDatabaseUrl } from '../../config/env-gate';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
@@ -10,9 +11,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   public db!: NodePgDatabase<typeof schema>;
 
   async onModuleInit() {
-    const connectionString =
-      process.env['DATABASE_URL'] ||
-      'postgresql://scs:scs_dev_2026@127.0.0.1:15432/scs_platform';
+    // Resolved through the production config gate (P13 Phase 4.1, finding F-4): the
+    // development DSN is used only in development/test, and a deployed process that
+    // has no DATABASE_URL refuses to boot instead of silently aiming at a local box.
+    const connectionString = resolveDatabaseUrl({
+      nodeEnv: process.env['NODE_ENV'],
+      url: process.env['DATABASE_URL'],
+    });
 
     const sslCaFile = process.env['PGSSLROOTCERT'];
 

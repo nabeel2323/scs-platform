@@ -54,6 +54,9 @@ export const featureFlags = pgTable('feature_flags', {
   key: varchar('key', { length: 80 }).primaryKey(),
   enabled: boolean('enabled').notNull().default(false),
   description: varchar('description', { length: 300 }),
+  // P13 Phase 4 (0063): toggle changes must be attributable.
+  updatedBy: uuid('updated_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

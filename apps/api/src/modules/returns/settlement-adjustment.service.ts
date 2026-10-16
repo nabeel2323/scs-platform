@@ -21,7 +21,7 @@
  *
  * FX safety (§3.3):
  *   - No authoritative FX provider exists. No hardcoded exchange rates.
- *   - fxStatus = 'BLOCKED_FX' for ALL adjustments (threshold cannot be evaluated).
+ *   - fxStatus = 'BLOCKED' for ALL adjustments (threshold cannot be evaluated).
  *   - Posting is blocked until fxStatus is resolved to 'RESOLVED' by an admin
  *     with access to an authoritative rate.
  *   - Threshold evaluation inputs and evidence are persisted in fx_evidence.
@@ -98,7 +98,7 @@ export class SettlementAdjustmentService {
    * Create a new settlement adjustment in DRAFT state.
    *
    * FX safety: Since no authoritative FX provider exists, ALL adjustments
-   * are created with fxStatus='BLOCKED_FX' and requiresDualApproval=true.
+   * are created with fxStatus='BLOCKED' and requiresDualApproval=true.
    * The $10 USD-equivalent threshold cannot be evaluated without a rate.
    */
   async createAdjustment(
@@ -130,9 +130,15 @@ export class SettlementAdjustmentService {
     }
 
     // FX safety: No authoritative FX provider exists.
-    // ALL adjustments are BLOCKED_FX — threshold cannot be evaluated.
+    // ALL adjustments are blocked on FX — the threshold cannot be evaluated.
     // Dual approval is always required as a safe default.
-    const fxStatus = 'BLOCKED_FX';
+    //
+    // `fx_status` is constrained by migration 0061 to
+    // NOT_REQUIRED | RESOLVED | BLOCKED | PENDING_REVIEW. 'BLOCKED_FX' is a
+    // *status* (state-machine) value, not an FX value: writing it here violated
+    // the CHECK constraint, so no adjustment could ever be created, and the
+    // monitor's posted-without-FX invariant (Phase 4 alert 7) reads 'BLOCKED'.
+    const fxStatus = 'BLOCKED';
     const requiresDualApproval = true;
 
     // Persist FX evidence for audit trail
@@ -191,7 +197,11 @@ export class SettlementAdjustmentService {
    * Submit a DRAFT adjustment for approval. Transitions to PENDING_APPROVAL.
    */
   async submitForApproval(adjustmentId: string, submittedBy: string, orgId?: string | null) {
-    return this.db.db.transaction(async (tx) => {
+    // BD-P4-ADJ-RESPONSE-001: this must `await`, not `return`. Returning the
+    // transaction promise made the trailing read below dead code, so every
+    // caller (including the admin HTTP endpoint) got an empty representation
+    // even though the transition had committed.
+    await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
       this.assertTransition(adj, 'PENDING_APPROVAL');
 
@@ -243,7 +253,9 @@ export class SettlementAdjustmentService {
       );
     }
 
-    return this.db.db.transaction(async (tx) => {
+    // BD-P4-ADJ-RESPONSE-001: `await` so the approval state is read back after
+    // commit (see submitForApproval).
+    await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
 
       if (adj.status !== 'PENDING_APPROVAL') {
@@ -390,7 +402,9 @@ export class SettlementAdjustmentService {
    * unless an admin has explicitly resolved the FX status.
    */
   async postAdjustment(adjustmentId: string, postedBy: string, orgId?: string | null) {
-    return this.db.db.transaction(async (tx) => {
+    // BD-P4-ADJ-RESPONSE-001: `await` so the posted adjustment is read back
+    // after commit (see submitForApproval).
+    await this.db.db.transaction(async (tx) => {
       const adj = await this.lockAdjustment(tx, adjustmentId, orgId);
       if (adj.status !== 'APPROVED') {
         throw new ConflictException(
@@ -398,10 +412,14 @@ export class SettlementAdjustmentService {
         );
       }
 
-      // FX safety: BLOCKED_FX prevents posting
-      if (adj.fxStatus === 'BLOCKED_FX') {
+      // FX safety: posting is allow-listed, not deny-listed. Only an explicitly
+      // resolved FX position (or one the schema marked NOT_REQUIRED) may post;
+      // BLOCKED, PENDING_REVIEW, NULL or any unexpected value stays blocked.
+      // This mirrors the Phase 4 monitor's invariant (alert 7) and satisfies §7:
+      // adjustments without an authoritative FX source stay blocked.
+      if (adj.fxStatus !== 'RESOLVED' && adj.fxStatus !== 'NOT_REQUIRED') {
         throw new ConflictException(
-          'Cannot post adjustment: FX status is BLOCKED. ' +
+          `Cannot post adjustment: FX status is ${adj.fxStatus ?? 'NULL'}, not RESOLVED. ` +
           'An admin with access to an authoritative rate must resolve the FX status first.',
         );
       }

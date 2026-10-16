@@ -32,6 +32,9 @@ import {
   assertStoreMember, isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { PaymentsService } from '../payments/payments.service';
+import { stores } from '../merchant/merchant.schema';
+import { PilotControlService } from '../operations/pilot-control.service';
+import { recordOpsCounter } from '../operations/ops-counters';
 import { BusinessCalendarService } from './business-calendar.service';
 import { CommissionReversalService } from './commission-reversal.service';
 import { SettlementAdjustmentService } from './settlement-adjustment.service';
@@ -91,7 +94,22 @@ export class ReturnsService {
     private readonly calendar: BusinessCalendarService,
     private readonly commissionReversal: CommissionReversalService,
     private readonly settlementAdj: SettlementAdjustmentService,
+    private readonly pilot: PilotControlService,
   ) {}
+
+  /**
+   * Resolve the organization that owns a store.
+   * Only consulted while pilot enforcement is active, so the happy path pays
+   * nothing for a control that is off by default.
+   */
+  private async orgForStore(storeId: string | null | undefined): Promise<string | null> {
+    if (!storeId) return null;
+    const row = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+      columns: { orgId: true },
+    });
+    return row?.orgId ?? null;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // CREATE RETURN REQUEST
@@ -114,6 +132,18 @@ export class ReturnsService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.buyerId !== caller.sub) {
       throw new ForbiddenException('You can only create returns for your own orders');
+    }
+
+    // 1b. P13 Phase 4 §6 — pilot entry gate. Runs after ownership and before any
+    // eligibility/financial check, so a non-allowlisted organization cannot even
+    // start a pilot-only workflow. It grants nothing: RBAC has already been
+    // enforced by the guard, and an eligible org still needs the same roles.
+    // When enforcement is inactive (the default) this is a single cheap read.
+    if (await this.pilot.isEnforced()) {
+      await this.pilot.assertEligible(
+        await this.orgForStore(order.storeId),
+        order.storeId ?? null,
+      );
     }
 
     // 2. Eligibility: order status must be DELIVERED or COMPLETED
@@ -715,7 +745,11 @@ export class ReturnsService {
   // ── Mark Refund Failed ────────────────────────────────────────
 
   private async markRefundFailed(ret: any, input?: TransitionInput) {
-    await this.flipReturnStatus(ret.id, ret.status, 'REFUND_FAILED', 
+    // Alert 5 input: the durable signal is the REFUND_FAILED status itself, but
+    // the counter makes repeated failures in one process visible to the monitor
+    // even before they are scanned.
+    recordOpsCounter('refund_operation_failures_total', 1, `return:${ret.id}`);
+    await this.flipReturnStatus(ret.id, ret.status, 'REFUND_FAILED',
       { sub: ret.buyerId, role: 'SYSTEM' } as CallerContext, 'SYSTEM', input?.notes);
     return this.getReturnRequest(ret.id);
   }

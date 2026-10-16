@@ -51,6 +51,20 @@ function fmtDate(s: string) {
   catch { return s; }
 }
 
+/**
+ * Posting is allow-listed on the FX position, mirroring the API guard: only an
+ * explicitly resolved FX — or one the schema marked NOT_REQUIRED — may post.
+ *
+ * `fx_status` is constrained (migration 0061) to NOT_REQUIRED | RESOLVED |
+ * BLOCKED | PENDING_REVIEW, while BLOCKED_FX is a *status* value. The previous
+ * `fxStatus !== 'BLOCKED_FX'` test therefore matched every real row: it offered
+ * the Post button exactly on adjustments the server refuses (409) and hid the
+ * blocked-explanation banner on the rows that are blocked.
+ */
+function canPostFx(fxStatus: string) {
+  return fxStatus === 'RESOLVED' || fxStatus === 'NOT_REQUIRED';
+}
+
 export default function SettlementAdjustmentsPage() {
   useRequirePerms(['admin:adjustments:read']);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
@@ -103,6 +117,7 @@ export default function SettlementAdjustmentsPage() {
           <option value="APPROVED">Approved</option>
           <option value="POSTED">Posted</option>
           <option value="REJECTED">Rejected</option>
+          <option value="FAILED">Failed</option>
           <option value="BLOCKED_FX">Blocked (FX)</option>
         </select>
         <button onClick={load} style={{ background: '#3b82f6', color: '#fff', border: 0, borderRadius: 8, padding: '6px 16px', cursor: 'pointer', fontSize: 13 }}>Refresh</button>
@@ -145,9 +160,9 @@ export default function SettlementAdjustmentsPage() {
                 </div>
               )}
 
-              {adj.fxStatus === 'BLOCKED_FX' && (
+              {!canPostFx(adj.fxStatus) && (
                 <div style={{ background: '#7f1d1d33', border: '1px solid #7f1d1d', borderRadius: 8, padding: 8, fontSize: 11, color: '#fca5a5', marginBottom: 8 }}>
-                  Posting blocked: no authoritative FX rate available. Dual approval required as safe default.
+                  Posting blocked: FX status is {adj.fxStatus}. No authoritative FX rate is configured, so an admin must resolve it before this adjustment can post.
                 </div>
               )}
 
@@ -160,7 +175,7 @@ export default function SettlementAdjustmentsPage() {
                   <button onClick={() => handleAction(adj.id, 'approve')} disabled={acting === adj.id}
                     style={{ background: '#3b82f6', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Approve</button>
                 )}
-                {adj.status === 'APPROVED' && adj.fxStatus !== 'BLOCKED_FX' && (
+                {adj.status === 'APPROVED' && canPostFx(adj.fxStatus) && (
                   <button onClick={() => handleAction(adj.id, 'post')} disabled={acting === adj.id}
                     style={{ background: '#22c55e', color: '#000', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Post</button>
                 )}

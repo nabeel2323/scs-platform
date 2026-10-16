@@ -28,6 +28,9 @@ import { PaymentsService } from '../../modules/payments/payments.service';
 import { PaymentProviderRegistry } from '../../modules/payments/payments.provider-registry';
 import { ManualVerificationProvider } from '../../modules/payments/manual-verification.provider';
 import { ReturnsService } from '../../modules/returns/returns.service';
+import { AuditService } from '../../modules/audit/audit.service';
+import { OpsAlertService } from '../../modules/operations/ops-alert.service';
+import { PilotControlService } from '../../modules/operations/pilot-control.service';
 import { BusinessCalendarService } from '../../modules/returns/business-calendar.service';
 import { CommissionReversalService } from '../../modules/returns/commission-reversal.service';
 import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
@@ -221,7 +224,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
     const settlementAdjService = new SettlementAdjustmentService(database, outbox);
-    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService);
+    // P13 Phase 4: pilot gate is inactive in this suite (no flag, no env mode),
+    // so ReturnsService behaviour is identical to Phase 3.1.1.
+    const pilotService = new PilotControlService(
+      database, new AuditService(database), new OpsAlertService(database),
+    );
+    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService, pilotService);
     disputesService = new DisputesService(database, outbox, paymentsService);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);

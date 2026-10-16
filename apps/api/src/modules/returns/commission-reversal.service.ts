@@ -21,6 +21,7 @@
 import { Injectable, Logger, BadRequestException, ConflictException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { recordOpsCounter } from '../operations/ops-counters';
 import { commissionReversals } from './financial.schema';
 import { returnRequests, returnRequestItems } from './returns.schema';
 import { orders, orderFinancialBreakdown, orderItems } from '../orders/orders.schema';
@@ -166,12 +167,27 @@ export class CommissionReversalService {
     }
 
     const runTx = externalTx ?? this.db.db;
-    await (externalTx
-      ? this.postReversalInTx(externalTx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId)
-      : runTx.transaction(async (tx: any) => {
-          await this.postReversalInTx(tx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId);
-        })
-    );
+    try {
+      await (externalTx
+        ? this.postReversalInTx(externalTx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId)
+        : runTx.transaction(async (tx: any) => {
+            await this.postReversalInTx(tx, reversalId, returnRequestId, ret.refundId, settlement?.id, originalCommission, reversalMinor, responsibilityCategory, idempotencyKey, returnNetGoods, orderNetGoods, originalCommission, createdBy, resolvedOrgId);
+          })
+        );
+    } catch (err) {
+      // Alert 6 input: a reversal that failed for a reason other than the
+      // idempotency conflict is a financial-integrity signal. The error is
+      // rethrown unchanged — observability must not alter the transactional
+      // outcome the caller already depends on.
+      if (!(err instanceof ConflictException)) {
+        recordOpsCounter(
+          'commission_reversal_failures_total',
+          1,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+      throw err;
+    }
 
     this.logger.log(
       `Commission reversal posted: ${reversalMinor} minor (${responsibilityCategory}) ` +
@@ -194,6 +210,10 @@ export class CommissionReversalService {
       where: eq(commissionReversals.idempotencyKey, idempotencyKey),
     });
     if (existing) {
+      // Alert 6 input: a duplicate attempt means the idempotency guard is doing
+      // its job. Counting it is how "retried twice" becomes visible rather than
+      // silently absorbed.
+      recordOpsCounter('commission_reversal_duplicate_attempts_total', 1, idempotencyKey);
       throw new ConflictException(`Commission reversal already exists: ${idempotencyKey}`);
     }
 

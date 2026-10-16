@@ -25,6 +25,7 @@ import { CatalogImportModule } from './modules/catalog-import/catalog-import.mod
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReturnsModule } from './modules/returns/returns.module';
+import { OperationsModule } from './modules/operations/operations.module';
 
 @Module({
   imports: [
@@ -70,6 +71,9 @@ import { ReturnsModule } from './modules/returns/returns.module';
     ShippingModule,
     PaymentsModule,
     ReturnsModule,
+    // P13 Phase 4: worker lease, ops controls, alerting and pilot gate. ReturnsModule
+    // imports it too; Nest dedupes the module so there is exactly one instance.
+    OperationsModule,
   ],
   controllers: [HealthController],
 })
