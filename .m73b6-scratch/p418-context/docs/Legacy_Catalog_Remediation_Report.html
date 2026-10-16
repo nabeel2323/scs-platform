@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legacy Catalog Remediation — Final Report</title>
+<style>
+  :root { --bg: #f8f9fa; --card: #fff; --border: #dee2e6; --text: #212529; --muted: #6c757d; --accent: #0d6efd; --success: #198754; --warning: #fd7e14; --danger: #dc3545; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: .5rem; }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; border-bottom: 2px solid var(--accent); padding-bottom: .3rem; }
+  h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 2rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: 600; color: #fff; }
+  .badge-success { background: var(--success); }
+  .badge-warning { background: var(--warning); }
+  .badge-danger { background: var(--danger); }
+  .badge-info { background: var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin: .75rem 0; font-size: .9rem; }
+  th, td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+  th { background: #e9ecef; font-weight: 600; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .arch-box { background: #f1f3f5; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; font-family: monospace; font-size: .85rem; white-space: pre-wrap; }
+  .verdict { font-size: 1.1rem; padding: 1rem; border-radius: 8px; margin: 1rem 0; }
+  .verdict-go { background: #d1e7dd; border: 1px solid #a3cfbb; color: #0f5132; }
+  code { background: #e9ecef; padding: 1px 4px; border-radius: 3px; font-size: .88em; }
+  ul { padding-left: 1.5rem; }
+  li { margin-bottom: .3rem; }
+  @media (max-width: 768px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Legacy Catalog Remediation — Final Report</h1>
+<div class="meta">SCS Platform &middot; September 2026 &middot; Offer Ownership &amp; Category Governance</div>
+
+<div class="verdict verdict-go">
+  <strong>Production Readiness: GO</strong> — All P1 fixes applied. 655/655 tests pass. TypeScript clean across api/web/admin. No database columns dropped. No breaking changes to orders or cart.
+</div>
+
+<h2>1. Executive Summary</h2>
+<div class="card">
+<p>This remediation enforces the canonical catalog architecture where <strong>MOQ, availability, and pricing belong on <code>merchantOffers</code></strong>, not on the <code>products</code> table. It eliminates the legacy dual-write paths that allowed the Old Product Editor and merchant category CRUD to bypass the governed offer layer.</p>
+<ul>
+  <li><strong>7 work groups</strong> executed across backend, frontend (merchant + admin), search, and tests</li>
+  <li><strong>14 files modified</strong>, <strong>2 files created</strong></li>
+  <li><strong>0 database columns dropped</strong> — all legacy columns retained for historical data</li>
+  <li><strong>655 tests pass</strong> (including 9 new security tests)</li>
+</ul>
+</div>
+
+<h2>2. Before / After Architecture</h2>
+<div class="grid2">
+<div class="card">
+<h3><span class="badge badge-danger">BEFORE</span> Legacy Dual-Write</h3>
+<div class="arch-box">Merchant Console
+├── Old Product Editor ──► products.moq ✗
+│                        products.isAvailable ✗
+│                        products.attributes ✗
+├── "+ Quick Add" ──────► same legacy path
+├── Categories Tab ─────► POST/PATCH/DELETE /categories
+│                        (any merchant can CRUD)
+└── Product Studio ─────► merchantOffers (correct)
+
+Search / Product Card
+└── batch key: storeId|product.moq  ✗
+
+Admin Products
+└── columns: moq, isAvailable  ✗</div>
+</div>
+<div class="card">
+<h3><span class="badge badge-success">AFTER</span> Governed Offer Layer</h3>
+<div class="arch-box">Merchant Console
+├── Old Product Editor ──► REDIRECT → Product Studio / Catalog
+├── "+ Quick Add" ──────── REMOVED
+├── Categories Tab ─────► Read-only + "Request New Category"
+│                        POST /merchant/requests (type: CATEGORY)
+├── Category API ──────── @RequireRole(ADMIN, MODERATOR)
+└── Product Studio ─────► merchantOffers (unchanged)
+
+Backend DTOs
+├── CreateProductInput ── no moq, no attributes
+├── updateProduct() ───── ignores moq/isAvailable/attributes
+└── CSV import/export ─── moq column removed
+
+Search / Product Card
+└── batch key: storeId|1  ✓
+
+Admin Products
+└── columns: title, slug, store, condition, images, status
+    + Merchant Offers section in ProductDetails</div>
+</div>
+</div>
+
+<h2>3. P1 Fixes — Security &amp; Domain Boundary</h2>
+<table>
+<tr><th>#</th><th>Fix</th><th>File(s)</th><th>Status</th></tr>
+<tr><td>1</td><td>Stop writing <code>moq</code> on products in <code>createProduct()</code></td><td><code>catalog.service.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>2</td><td>Stop writing <code>attributes</code> JSONB on products in <code>createProduct()</code></td><td><code>catalog.service.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>3</td><td>Remove <code>moq</code>, <code>isAvailable</code>, <code>attributes</code> writes from <code>updateProduct()</code></td><td><code>catalog.service.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>4</td><td>Clean DTOs: remove offer-owned fields from <code>CreateProductInput</code> / <code>UpdateProductInput</code></td><td><code>catalog.service.ts</code>, <code>buyer-api.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>5</td><td>Restrict category write API to ADMIN/MODERATOR via <code>@RequireRole</code></td><td><code>catalog.controller.ts</code>, <code>roles.guard.ts</code> (new)</td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>6</td><td>Replace Old Product Editor with redirect to Product Studio / Catalog</td><td><code>catalog/product/[id]/page.tsx</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>7</td><td>Remove "+ Quick Add" button from Merchant Catalog</td><td><code>merchant/catalog/page.tsx</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>8</td><td>Remove MOQ/Available columns from merchant product table</td><td><code>merchant/catalog/page.tsx</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>9</td><td>Replace merchant category CRUD with read-only list + request link</td><td><code>merchant/catalog/page.tsx</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>10</td><td>Fix search batch key: use qty=1 instead of product.moq</td><td><code>product-card.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>11</td><td>Fix product detail pricing: use qty=1 instead of product.moq</td><td><code>catalog.service.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>12</td><td>Remove moq/isAvailable from admin product columns and filters</td><td><code>management-tables.ts</code></td><td><span class="badge badge-success">Done</span></td></tr>
+<tr><td>13</td><td>Add Merchant Offers section to admin ProductDetails</td><td><code>ProductDetails.tsx</code></td><td><span class="badge badge-success">Done</span></td></tr>
+</table>
+
+<h2>4. P2 Deprecations — Columns Retained, Writes Stopped</h2>
+<table>
+<tr><th>Column</th><th>Table</th><th>Status</th><th>Notes</th></tr>
+<tr><td><code>moq</code></td><td><code>products</code></td><td><span class="badge badge-warning">Deprecated</span></td><td>New products always get <code>moq=1</code>. CSV import/export no longer writes/reads this column. Offer layer is source of truth.</td></tr>
+<tr><td><code>isAvailable</code></td><td><code>products</code></td><td><span class="badge badge-warning">Deprecated</span></td><td><code>updateProduct()</code> silently ignores this field. Availability is managed via <code>merchantOffers.status</code>.</td></tr>
+<tr><td><code>attributes</code></td><td><code>products</code></td><td><span class="badge badge-warning">Deprecated</span></td><td>New products get <code>attributes: {}</code>. Typed attribute tables (via Product Types) are the canonical source.</td></tr>
+</table>
+
+<h2>5. API Changes</h2>
+<table>
+<tr><th>Endpoint</th><th>Change</th><th>Impact</th></tr>
+<tr><td><code>PATCH /products/:id</code></td><td><code>moq</code>, <code>isAvailable</code>, <code>attributes</code> fields silently ignored</td><td>Low — frontend no longer sends these</td></tr>
+<tr><td><code>POST /products</code></td><td><code>moq</code> and <code>attributes</code> removed from DTO</td><td>Low — TypeScript compile error if sent</td></tr>
+<tr><td><code>POST /categories</code></td><td>Requires ADMIN or MODERATOR role</td><td>Medium — merchants must use <code>POST /merchant/requests</code></td></tr>
+<tr><td><code>PATCH /categories/:id</code></td><td>Requires ADMIN or MODERATOR role</td><td>Medium — same as above</td></tr>
+<tr><td><code>DELETE /categories/:id</code></td><td>Requires ADMIN or MODERATOR role</td><td>Medium — same as above</td></tr>
+<tr><td><code>GET /products/:id/offers</code></td><td>New: admin ProductDetails fetches offers</td><td>None — additive</td></tr>
+</table>
+
+<h2>6. Frontend Changes</h2>
+<table>
+<tr><th>App</th><th>Change</th></tr>
+<tr><td><code>apps/web</code> — Merchant</td><td>Old Product Editor replaced with redirect. "+ Quick Add" removed. MOQ/Available columns removed from product table. Category CRUD replaced with read-only list + request link.</td></tr>
+<tr><td><code>apps/admin</code> — Admin</td><td>Product list: moq/isAvailable columns and filters removed. ProductDetails: Merchant Offers section added, legacy fields omitted from record display.</td></tr>
+</table>
+
+<h2>7. Database Changes</h2>
+<div class="card">
+<p><strong>No migrations required.</strong> All legacy columns (<code>products.moq</code>, <code>products.isAvailable</code>, <code>products.attributes</code>) are retained in the schema. Historical data is preserved. New writes are directed to the correct offer layer.</p>
+</div>
+
+<h2>8. Security Tests</h2>
+<div class="card">
+<p>9 new tests in <code>catalog-remediation-security.spec.ts</code>:</p>
+<table>
+<tr><th>Test</th><th>Verifies</th></tr>
+<tr><td>RolesGuard allows ADMIN</td><td>Admin can manage categories</td></tr>
+<tr><td>RolesGuard allows MODERATOR</td><td>Moderator can manage categories</td></tr>
+<tr><td>RolesGuard allows SUPER_ADMIN</td><td>Super admin bypasses role checks</td></tr>
+<tr><td>RolesGuard rejects MERCHANT_OWNER</td><td>Merchant cannot manage categories (403)</td></tr>
+<tr><td>RolesGuard rejects MERCHANT_STAFF</td><td>Staff cannot manage categories (403)</td></tr>
+<tr><td>RolesGuard rejects BUYER</td><td>Buyer cannot manage categories (403)</td></tr>
+<tr><td>CreateProductInput has no moq/attributes</td><td>DTO boundary enforced at type level</td></tr>
+<tr><td>UpdateProductInput has no moq/isAvailable/attributes</td><td>DTO boundary enforced at type level</td></tr>
+<tr><td>CreateProductInput canonical fields only</td><td>Only product-level fields accepted</td></tr>
+</table>
+</div>
+
+<h2>9. Regression Results</h2>
+<div class="card">
+<table>
+<tr><th>Metric</th><th>Result</th></tr>
+<tr><td>Test files</td><td><strong>47 passed</strong> (47 total)</td></tr>
+<tr><td>Tests</td><td><strong>655 passed</strong> (655 total)</td></tr>
+<tr><td>TypeScript — api</td><td><span class="badge badge-success">Clean</span></td></tr>
+<tr><td>TypeScript — web</td><td><span class="badge badge-success">Clean</span></td></tr>
+<tr><td>TypeScript — admin</td><td><span class="badge badge-success">Clean</span></td></tr>
+<tr><td>Duration</td><td>~78s</td></tr>
+</table>
+</div>
+
+<h2>10. Remaining Items &amp; Future Work</h2>
+<div class="card">
+<ul>
+  <li><strong>Product Studio Edit Mode</strong> — Currently create-only. When edit mode is added, it should operate on product fields only (not offer fields). Offer editing is a separate flow via <code>createMerchantOffer()</code> / <code>updateMerchantOffer()</code>.</li>
+  <li><strong>Column Removal Migration</strong> — After a suitable cooldown period (e.g., 90 days), a migration can drop <code>products.moq</code>, <code>products.isAvailable</code>, and <code>products.attributes</code> once confirmed no code reads them.</li>
+  <li><strong>Offer MOQ on Product Cards</strong> — Currently cards resolve pricing at qty=1. A future enhancement could display the cheapest offer's MOQ alongside the price, fetched from the offer layer.</li>
+  <li><strong>CSV Import MOQ Handling</strong> — Import currently ignores MOQ. Future work could parse offer-level MOQ from CSV and create/update offers accordingly.</li>
+  <li><strong>Mobile App Verification</strong> — Mobile already uses the new architecture (offer layer). No changes needed, but end-to-end verification on mobile is recommended before production deployment.</li>
+</ul>
+</div>
+
+<h2>11. Files Changed</h2>
+<table>
+<tr><th>File</th><th>Action</th><th>Group</th></tr>
+<tr><td><code>apps/api/src/common/guards/current-user.decorator.ts</code></td><td>Added <code>@RequireRole</code> decorator + <code>ROLES_KEY</code></td><td>G3</td></tr>
+<tr><td><code>apps/api/src/common/guards/roles.guard.ts</code></td><td><strong>New file</strong> — RolesGuard implementation</td><td>G3</td></tr>
+<tr><td><code>apps/api/src/modules/catalog/catalog.service.ts</code></td><td>Stopped moq/attributes writes, cleaned DTOs, fixed import/export/pricing</td><td>G3, G4</td></tr>
+<tr><td><code>apps/api/src/modules/catalog/catalog.controller.ts</code></td><td>Added <code>@RequireRole</code> to category write endpoints</td><td>G2</td></tr>
+<tr><td><code>apps/api/src/modules/catalog/product-card.ts</code></td><td>Changed batch key from <code>moq</code> to <code>1</code></td><td>G4</td></tr>
+<tr><td><code>apps/web/src/lib/buyer-api.ts</code></td><td>Cleaned DTOs (removed moq/isAvailable/attributes)</td><td>G3</td></tr>
+<tr><td><code>apps/web/src/app/merchant/catalog/product/[id]/page.tsx</code></td><td>Replaced 727-line editor with redirect component</td><td>G1</td></tr>
+<tr><td><code>apps/web/src/app/merchant/catalog/page.tsx</code></td><td>Removed Quick Add, MOQ/Available columns, category CRUD</td><td>G1, G2</td></tr>
+<tr><td><code>apps/admin/src/lib/management-tables.ts</code></td><td>Removed moq/isAvailable from sorts and filters</td><td>G5</td></tr>
+<tr><td><code>apps/admin/src/components/ProductDetails.tsx</code></td><td>Added Merchant Offers section, omitted legacy fields</td><td>G5</td></tr>
+<tr><td><code>apps/api/src/__tests__/unit/catalog/catalog-remediation-security.spec.ts</code></td><td><strong>New file</strong> — 9 security tests</td><td>G6</td></tr>
+<tr><td><code>apps/api/src/__tests__/unit/catalog/product-card.spec.ts</code></td><td>Updated 2 tests for qty=1 batching</td><td>G6</td></tr>
+</table>
+
+<hr style="margin: 2rem 0;">
+<p style="color: var(--muted); font-size: .85rem;">Generated September 2026 &middot; SCS Platform Legacy Catalog Remediation</p>
+
+</body>
+</html>

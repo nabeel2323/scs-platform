@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Production Catalog Seed — Implementation Report</title>
+<style>
+  :root { --ok: #16a34a; --warn: #ca8a04; --err: #dc2626; --bg: #f8fafc; --card: #fff; --border: #e2e8f0; --text: #0f172a; --muted: #64748b; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
+  .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 2rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+  .badge-ok { background: #dcfce7; color: var(--ok); }
+  .badge-warn { background: #fef9c3; color: var(--warn); }
+  .badge-info { background: #dbeafe; color: #2563eb; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  th { background: #f1f5f9; font-weight: 600; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin: 1rem 0; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; }
+  .stat .num { font-size: 1.8rem; font-weight: 700; color: #2563eb; }
+  .stat .label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .file-tree { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85rem; background: #f1f5f9; padding: 1rem; border-radius: 6px; line-height: 1.8; }
+  .file-tree .new { color: var(--ok); font-weight: 600; }
+  code { font-family: 'Cascadia Code', 'Fira Code', monospace; background: #f1f5f9; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+  .cmd { background: #1e293b; color: #e2e8f0; padding: 0.75rem 1rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin: 0.5rem 0; overflow-x: auto; }
+  .check { color: var(--ok); } .cross { color: var(--err); }
+  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .summary-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<h1>🌱 Production Catalog Seed — Implementation Report</h1>
+<p class="subtitle">Generated: 2026-09-24 &nbsp;|&nbsp; Profile: production + demo &nbsp;|&nbsp; Status: <span class="badge badge-ok">ALL PASS</span></p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>1. Executive Summary</h2>
+<div class="card">
+  <p>A production-quality, repeatable catalog seed-data system has been implemented with <strong>29 real IT products</strong> (laptops, monitors, components, networking, peripherals) across <strong>15 brands</strong> and <strong>23 categories</strong>. The system includes:</p>
+  <ul style="margin: 1rem 0 0 1.5rem;">
+    <li>Typed attribute system with 68 definitions, 93 controlled options, and 16 groups</li>
+    <li>18 product types with 373 type-attribute configurations</li>
+    <li>29 canonical products with 32 variants and 578 typed attribute values</li>
+    <li>Idempotent seed orchestrator (pg Pool, single transaction, upserts)</li>
+    <li>Demo profile with 2 demo stores and ~40 merchant offers</li>
+    <li>Validation script, report generator, and comprehensive test suite</li>
+  </ul>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="num">714</div><div class="label">Tests Passing</div></div>
+  <div class="stat"><div class="num">51</div><div class="label">Test Files</div></div>
+  <div class="stat"><div class="num">0</div><div class="label">TypeScript Errors</div></div>
+  <div class="stat"><div class="num">13</div><div class="label">New Files</div></div>
+  <div class="stat"><div class="num">2,107</div><div class="label">Lines of Code</div></div>
+  <div class="stat"><div class="num">40</div><div class="label">New Tests</div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>2. Seed Data Inventory</h2>
+<div class="card">
+  <h3>Reference Data</h3>
+  <table>
+    <tr><th>Entity</th><th>Count</th><th>Notes</th></tr>
+    <tr><td>Categories</td><td><strong>23</strong></td><td>Hierarchy: Computers & IT → Laptops, Desktops, Monitors, Components, Networking, Peripherals, Printers</td></tr>
+    <tr><td>Brands</td><td><strong>18</strong></td><td>Dell, Lenovo, HP, Apple, ASUS, Acer, MSI, Samsung, LG, TP-Link, Ubiquiti, Logitech, Kingston, WD, Seagate, Intel, AMD, NVIDIA</td></tr>
+    <tr><td>Attribute Groups</td><td><strong>16</strong></td><td>General, Processor, Memory, Storage, Display, Graphics, OS, Connectivity, Ports, Camera & Audio, Keyboard, Battery, Physical, Security, Warranty, Network</td></tr>
+    <tr><td>Attribute Definitions</td><td><strong>68</strong></td><td>TEXT, SELECT, INTEGER, DECIMAL, BOOLEAN types with correct scopes (PRODUCT/VARIANT)</td></tr>
+    <tr><td>Attribute Options</td><td><strong>93</strong></td><td>Controlled vocabularies for SELECT attributes (cpu_family, resolution, panel_type, etc.)</td></tr>
+    <tr><td>Product Types</td><td><strong>18</strong></td><td>laptop, business-laptop, gaming-laptop, workstation-laptop, ultrabook, desktop-pc, monitor, processor, graphics-card, ram-module, ssd, router, network-switch, wireless-ap, keyboard, mouse, headset, webcam</td></tr>
+    <tr><td>Product Type Attributes</td><td><strong>373</strong></td><td>Full configuration: required, filterable, searchable, comparable, scope, displayOrder, groupId</td></tr>
+  </table>
+
+  <h3>Products</h3>
+  <table>
+    <tr><th>Category</th><th>Products</th><th>Variants</th><th>Examples</th></tr>
+    <tr><td>Business Laptops</td><td>7</td><td>8</td><td>Dell Latitude 5450/7450, ThinkPad T14, HP EliteBook 840, ASUS ExpertBook B9, ThinkBook 14, HP ProBook 450</td></tr>
+    <tr><td>Ultrabooks</td><td>3</td><td>4</td><td>Dell XPS 13, MacBook Air M3, ThinkPad X1 Carbon G12</td></tr>
+    <tr><td>Workstation Laptops</td><td>2</td><td>2</td><td>Dell Precision 5690, MacBook Pro 14 M4 Pro</td></tr>
+    <tr><td>Monitors</td><td>3</td><td>3</td><td>Dell U2723QE, LG 27UP850, Samsung ViewFinity S34D</td></tr>
+    <tr><td>Processors</td><td>2</td><td>2</td><td>Intel Core Ultra 7 155H, AMD Ryzen 9 7950X</td></tr>
+    <tr><td>Internal Storage</td><td>2</td><td>2</td><td>Samsung 990 PRO 1TB, WD Black SN850X 2TB</td></tr>
+    <tr><td>Memory</td><td>1</td><td>1</td><td>Kingston FURY Beast DDR5 32GB</td></tr>
+    <tr><td>Graphics Cards</td><td>1</td><td>1</td><td>NVIDIA RTX 4070 Super</td></tr>
+    <tr><td>Access Points</td><td>2</td><td>2</td><td>Ubiquiti U7 Pro, TP-Link EAP670</td></tr>
+    <tr><td>Switches</td><td>2</td><td>2</td><td>Ubiquiti Switch Pro 24 PoE, TP-Link SG3428X</td></tr>
+    <tr><td>Keyboards</td><td>1</td><td>1</td><td>Logitech MX Keys S</td></tr>
+    <tr><td>Mice</td><td>1</td><td>1</td><td>Logitech MX Master 3S</td></tr>
+    <tr><td>Webcams</td><td>1</td><td>1</td><td>Logitech MX Brio</td></tr>
+    <tr><td>Headsets</td><td>1</td><td>1</td><td>Logitech Zone Wireless 2</td></tr>
+    <tr style="font-weight:600; background:#f1f5f9;"><td>Total</td><td>29</td><td>32</td><td></td></tr>
+  </table>
+
+  <h3>Typed Attribute Values</h3>
+  <table>
+    <tr><th>Table</th><th>Rows</th><th>Description</th></tr>
+    <tr><td><code>product_attribute_values</code></td><td><strong>145</strong></td><td>Product-scope: model, series, generation, warranty, max_ram, etc.</td></tr>
+    <tr><td><code>variant_attribute_values</code></td><td><strong>433</strong></td><td>Variant-scope: cpu, ram, storage, display, gpu, connectivity, ports, battery, physical, security</td></tr>
+    <tr style="font-weight:600; background:#f1f5f9;"><td>Total</td><td>578</td><td></td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>3. Files Created</h2>
+<div class="card">
+  <div class="file-tree">
+<span class="new">+</span> apps/api/infra/seed-data/
+    <span class="new">types.ts</span>              (168 lines) — Shared type definitions
+    <span class="new">categories.ts</span>         (51 lines)  — 23 categories in hierarchy
+    <span class="new">brands.ts</span>             (29 lines)  — 18 real IT brands
+    <span class="new">attributes.ts</span>         (303 lines) — 68 attributes + 16 groups + 93 options
+    <span class="new">product-types.ts</span>      (356 lines) — 18 product types + 373 type-attr configs
+    <span class="new">products/laptops.ts</span>   (408 lines) — 12 laptop products, 15 variants
+    <span class="new">products/other.ts</span>     (324 lines) — 17 products (monitors, components, networking, peripherals)
+    <span class="new">products/index.ts</span>     (14 lines)  — Aggregator
+    <span class="new">sources.ts</span>            (65 lines)  — Provenance manifest (29/29 products sourced)
+    <span class="new">validate.ts</span>           (247 lines) — Structural validation (no DB required)
+    <span class="new">report.ts</span>             (142 lines) — Data summary report generator
+<span class="new">+</span> apps/api/infra/drizzle/
+    <span class="new">seed-catalog.ts</span>       (533 lines) — Main orchestrator (pg Pool, transaction, idempotent)
+<span class="new">+</span> apps/api/src/__tests__/unit/catalog/
+    <span class="new">catalog-seed.spec.ts</span>  (275 lines) — 32 unit tests
+<span class="new">+</span> apps/api/src/__tests__/integration/
+    <span class="new">catalog-seed.postgres.spec.ts</span> (226 lines) — 8 integration tests (real PostgreSQL)
+  </div>
+  <p style="margin-top: 0.75rem; color: var(--muted); font-size: 0.85rem;">Modified: <code>apps/api/package.json</code> — added 4 new scripts</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>4. Package.json Commands</h2>
+<div class="card">
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td><code>pnpm db:seed:catalog</code></td><td>Seed production catalog (profile=production)</td></tr>
+    <tr><td><code>pnpm db:seed:catalog:demo</code></td><td>Seed catalog + demo merchant offers (profile=demo)</td></tr>
+    <tr><td><code>pnpm catalog:validate</code></td><td>Validate seed data structure (no DB required)</td></tr>
+    <tr><td><code>pnpm catalog:report</code></td><td>Print seed data summary report</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>5. Test Results</h2>
+<div class="card">
+  <h3>Unit Tests — <code>catalog-seed.spec.ts</code> (32 tests)</h3>
+  <table>
+    <tr><th>Describe Block</th><th>Tests</th><th>Status</th></tr>
+    <tr><td>Categories</td><td>4</td><td><span class="check">✓</span> All pass</td></tr>
+    <tr><td>Brands</td><td>3</td><td><span class="check">✓</span> All pass</td></tr>
+    <tr><td>Attributes</td><td>5</td><td><span class="check">✓</span> All pass</td></tr>
+    <tr><td>Product Types</td><td>5</td><td><span class="check">✓</span> All pass</td></tr>
+    <tr><td>Products</td><td>13</td><td><span class="check">✓</span> All pass</td></tr>
+    <tr><td>Sources</td><td>2</td><td><span class="check">✓</span> All pass</td></tr>
+  </table>
+
+  <h3>Integration Tests — <code>catalog-seed.postgres.spec.ts</code> (8 tests)</h3>
+  <table>
+    <tr><th>Test</th><th>Status</th></tr>
+    <tr><td>Seeds full production catalog with correct counts</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Is idempotent — second run reuses all rows</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Canonical products have store_id NULL</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Variants with attributes have populated combination_key</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Typed attribute values are correctly populated</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Category hierarchy has correct materialized paths</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Product types have resolved variant_dimensions (UUIDs)</td><td><span class="check">✓</span> Pass</td></tr>
+    <tr><td>Demo profile creates merchant offers</td><td><span class="check">✓</span> Pass</td></tr>
+  </table>
+
+  <h3>Full Suite</h3>
+  <div class="summary-row"><span>Total test files</span><span><strong>51 passed</strong></span></div>
+  <div class="summary-row"><span>Total tests</span><span><strong>714 passed</strong></span></div>
+  <div class="summary-row"><span>TypeScript typecheck</span><span><span class="check">✓</span> Clean (0 errors)</span></div>
+  <div class="summary-row"><span>Validation script</span><span><span class="check">✓</span> 0 errors, 0 warnings</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>6. Architecture Compliance</h2>
+<div class="card">
+  <table>
+    <tr><th>Requirement</th><th>Status</th><th>Details</th></tr>
+    <tr><td>Fits existing catalog schema exactly</td><td><span class="check">✓</span></td><td>Uses categories, brands, products, product_variants, attribute_definitions, attribute_options, attribute_groups, product_types, product_type_attributes, product_attribute_values, variant_attribute_values, merchant_offers</td></tr>
+    <tr><td>Canonical products (store_id NULL)</td><td><span class="check">✓</span></td><td>All 29 products have store_id=NULL, linked via product_type_id</td></tr>
+    <tr><td>Typed attribute values (not JSON blob)</td><td><span class="check">✓</span></td><td>578 values across product_attribute_values and variant_attribute_values using value_text, value_number, value_boolean, option_value</td></tr>
+    <tr><td>Idempotent upserts</td><td><span class="check">✓</span></td><td>ON CONFLICT DO UPDATE/NOTHING on all unique constraints; verified by integration test (second run: 0 created, all reused)</td></tr>
+    <tr><td>Single transaction</td><td><span class="check">✓</span></td><td>BEGIN/COMMIT/ROLLBACK wrapping all operations</td></tr>
+    <tr><td>Materialized path hierarchy</td><td><span class="check">✓</span></td><td>Categories computed from parentSlug: /computers-it/laptops/business-laptops</td></tr>
+    <tr><td>Variant combination_key</td><td><span class="check">✓</span></td><td>SHA-256 digest of sorted variant attributes; no duplicates within a product</td></tr>
+    <tr><td>Two profiles (production/demo)</td><td><span class="check">✓</span></td><td>production = catalog only; demo = catalog + 2 stores + ~40 offers</td></tr>
+    <tr><td>No fabricated GTIN/EAN</td><td><span class="check">✓</span></td><td>All GTIN/EAN fields NULL (unverified); MPN from manufacturer datasheets</td></tr>
+    <tr><td>Source provenance</td><td><span class="check">✓</span></td><td>29/29 products have manufacturer source URLs in sources.ts</td></tr>
+    <tr><td>No transactional data</td><td><span class="check">✓</span></td><td>No payment, shipping, returns, or order data</td></tr>
+    <tr><td>Partial unique index for platform categories</td><td><span class="check">✓</span></td><td>uq_categories_platform_slug on categories(slug) WHERE store_id IS NULL</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>7. Data Quality</h2>
+<div class="card">
+  <ul style="margin-left: 1.5rem;">
+    <li><strong>Real products only</strong> — Dell, Lenovo, HP, Apple, ASUS, Samsung, LG, Intel, AMD, NVIDIA, Ubiquiti, TP-Link, Logitech, Kingston, Western Digital</li>
+    <li><strong>Verified specifications</strong> — All specs sourced from manufacturer documentation (URLs in sources.ts)</li>
+    <li><strong>No fabricated identifiers</strong> — GTIN/EAN left NULL; MPN from datasheets only</li>
+    <li><strong>Correct attribute typing</strong> — SELECT for controlled vocabularies, DECIMAL for measurements with units, INTEGER for counts, BOOLEAN for yes/no, TEXT for free-form</li>
+    <li><strong>Proper scope separation</strong> — Product-scope (model, series, warranty) vs Variant-scope (cpu, ram, storage, display, gpu, color)</li>
+    <li><strong>100% source coverage</strong> — Every product has a manufacturer URL and verification date</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2>8. Usage</h2>
+<div class="card">
+  <h3>Seed the catalog (production)</h3>
+  <div class="cmd">pnpm --filter @scs/api db:seed:catalog</div>
+
+  <h3>Seed with demo merchant offers</h3>
+  <div class="cmd">pnpm --filter @scs/api db:seed:catalog:demo</div>
+
+  <h3>Validate seed data (no database required)</h3>
+  <div class="cmd">pnpm --filter @scs/api catalog:validate</div>
+
+  <h3>View data report</h3>
+  <div class="cmd">pnpm --filter @scs/api catalog:report</div>
+</div>
+
+</body>
+</html>

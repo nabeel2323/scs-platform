@@ -1,0 +1,258 @@
+import { ForbiddenException } from '@nestjs/common';
+import { eq, and, inArray } from 'drizzle-orm';
+import { DatabaseService } from './database/database.service';
+import { recordOpsCounter } from '../modules/operations/ops-counters';
+import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
+import { products, productVariants } from '../modules/catalog/catalog.schema';
+import { inventoryItems } from '../modules/inventory/inventory.schema';
+
+/**
+ * Caller context projected from the JWT (sub/role/activeOrg). Object-level
+ * checks run only when a context is supplied; trusted internal calls that do
+ * not forward one (services, outbox handlers, tests) bypass tenant scoping
+ * by design — every HTTP entry point that touches a tenant-owned object MUST
+ * forward the authenticated user.
+ */
+export interface CallerContext {
+  sub: string;
+  role?: string | null;
+  activeOrg?: string | null;
+}
+
+/** Platform staff manage any tenant's objects. */
+const BYPASS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'SYSTEM'];
+
+/**
+ * P13 Phase 4 §8 — organization scope for financial records (settlement
+ * adjustments, commission reversals, reconciliation runs).
+ *
+ * Those services scope their queries "when an orgId is supplied", which is
+ * correct for trusted internal callers but a fail-open at an HTTP boundary: a
+ * token with no `activeOrg` claim would silently widen the query to every
+ * organization, so a guessed UUID would read — or approve — a foreign record.
+ *
+ * This helper closes that hole at the edge, without changing the services:
+ *   - platform staff (BYPASS_ROLES) may act across organizations, which is the
+ *     behaviour p311-tenant-isolation TISO-07 pins as intentional;
+ *   - every other role MUST be pinned to an organization, or the request is
+ *     denied and counted so the P13 monitor can alert on it (alert 8).
+ *
+ * Denials here are unauthorized-financial-operation events, not errors: the
+ * counter is an alert input and the caller's own audit row is written by the
+ * generic audit middleware.
+ */
+export function financialOrgScope(caller: CallerContext): string | null {
+  if (isTenantPrivileged(caller)) return caller.activeOrg ?? null;
+  if (!caller.activeOrg) {
+    recordOpsCounter('financial_isolation_denials_total', 1, 'missing_active_org');
+    throw new ForbiddenException(
+      'An active organization is required to access financial records',
+    );
+  }
+  return caller.activeOrg;
+}
+
+/**
+ * Object-level tenant scoping (audit A3-1). Functional permission keys answer
+ * "what kind of action is allowed"; these helpers answer "does this object
+ * belong to the caller's organization" — cross-tenant access resolves to 403.
+ *
+ * Unlike the legacy OrgScopeGuard, every check here is fail-closed: a missing
+ * resource or unresolved owner denies access instead of allowing it.
+ */
+export function isTenantPrivileged(caller: CallerContext): boolean {
+  return BYPASS_ROLES.includes(caller.role || '');
+}
+
+async function storeOrgId(db: DatabaseService, storeId: string): Promise<string | null> {
+  const store = await db.db.query.stores.findFirst({
+    where: eq(stores.id, storeId),
+    columns: { orgId: true },
+  });
+  return store?.orgId ?? null;
+}
+
+/** Throws unless the store belongs to the caller's active organization. */
+export async function assertStoreInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  storeId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const orgId = await storeOrgId(db, storeId);
+  if (!orgId || orgId !== caller.activeOrg) {
+    throw new ForbiddenException('You do not have access to this store');
+  }
+}
+
+/** variant → product → store → org */
+export async function assertVariantInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  variantId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const variant = await db.db.query.productVariants.findFirst({
+    where: eq(productVariants.id, variantId),
+    columns: { productId: true },
+  });
+  if (!variant) throw new ForbiddenException('You do not have access to this variant');
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, variant.productId),
+    columns: { storeId: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this variant');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this variant');
+  await assertStoreInOrg(db, caller, product.storeId);
+}
+
+/** product → store → org (canonical products with no storeId are denied). */
+export async function assertProductInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this product');
+  await assertStoreInOrg(db, caller, product.storeId);
+}
+
+/** warehouse → store → org */
+export async function assertWarehouseInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  warehouseId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const warehouse = await db.db.query.warehouses.findFirst({
+    where: eq(warehouses.id, warehouseId),
+    columns: { storeId: true },
+  });
+  if (!warehouse) throw new ForbiddenException('You do not have access to this warehouse');
+  await assertStoreInOrg(db, caller, warehouse.storeId);
+}
+
+/** inventory item → warehouse → store → org */
+export async function assertInventoryItemInOrg(
+  db: DatabaseService,
+  caller: CallerContext,
+  itemId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  const item = await db.db.query.inventoryItems.findFirst({
+    where: eq(inventoryItems.id, itemId),
+    columns: { warehouseId: true },
+  });
+  if (!item) throw new ForbiddenException('You do not have access to this inventory item');
+  await assertWarehouseInOrg(db, caller, item.warehouseId);
+}
+
+/**
+ * Sub-order access: the buyer owns it, the caller's org owns the fulfilling
+ * store, or the caller is platform staff.
+ */
+export async function assertOrderAccessible(
+  db: DatabaseService,
+  caller: CallerContext,
+  order: { buyerId?: string | null; storeId?: string | null },
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  if (order.buyerId && order.buyerId === caller.sub) return;
+  if (order.storeId) {
+    const orgId = await storeOrgId(db, order.storeId);
+    if (orgId && orgId === caller.activeOrg) return;
+  }
+  throw new ForbiddenException('You do not have access to this order');
+}
+
+/**
+ * Store-level membership check (migration 0054).
+ *
+ * Verifies that the caller is an ACTIVE member of the specified store.
+ * Privileged roles (SUPER_ADMIN, ADMIN, MODERATOR) bypass this check.
+ *
+ * This helper is ADDITIVE to the existing org-level checks — it does NOT
+ * replace assertStoreInOrg / assertProductInOrg.  Product Studio endpoints
+ * call BOTH: first the org-level check, then this store-level check.
+ *
+ * @throws ForbiddenException if the caller is not an ACTIVE store member
+ */
+export async function assertStoreMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  storeId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const membership = await db.db.query.storeMembers.findFirst({
+    where: and(
+      eq(storeMembers.storeId, storeId),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ),
+    columns: { id: true },
+  });
+
+  if (!membership) {
+    throw new ForbiddenException('You are not authorized for this store');
+  }
+}
+
+/**
+ * Product Studio convenience helper — combines existing org-level check
+ * with store-level membership authorization.
+ *
+ * Flow:
+ *   1. Load product → get storeId
+ *   2. Verify store belongs to caller's org (existing assertProductInOrg)
+ *   3. Verify caller is ACTIVE member of that store (assertStoreMember)
+ *
+ * Privileged roles bypass both checks via isTenantPrivileged.
+ */
+export async function assertProductEditableByMerchant(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  // Load product to get storeId
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (!product.storeId) throw new ForbiddenException('You do not have access to this product');
+
+  // Org-level check (preserved)
+  await assertStoreInOrg(db, caller, product.storeId);
+
+  // Store-level membership check (new)
+  await assertStoreMember(db, caller, product.storeId);
+}
+/**
+ * Master-order access: the buyer owns it, the caller's org owns one of the
+ * sub-order stores, or the caller is platform staff.
+ */
+export async function assertMasterOrderAccessible(
+  db: DatabaseService,
+  caller: CallerContext,
+  master: { buyerId?: string | null },
+  subOrderStoreIds: string[],
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+  if (master.buyerId && master.buyerId === caller.sub) return;
+  if (subOrderStoreIds.length > 0) {
+    const rows = await db.db.query.stores.findMany({
+      where: inArray(stores.id, subOrderStoreIds),
+      columns: { orgId: true },
+    });
+    if (rows.some((r) => r.orgId === caller.activeOrg)) return;
+  }
+  throw new ForbiddenException('You do not have access to this order');
+}

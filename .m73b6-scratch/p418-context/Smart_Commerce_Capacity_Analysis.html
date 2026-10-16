@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Commerce &amp; Supply Platform — Capacity Analysis</title>
+<meta name="description" content="User capacity estimation, infrastructure requirements, and scalability path for the Smart Commerce & Supply Platform (Phases 1–7).">
+<style>
+:root{
+  --brand:#174a5b; --brand-500:#1e6178; --brand-700:#0f3340; --brand-100:#e7f0f3; --brand-050:#f2f7f9;
+  --ink:#16232b; --muted:#5b6b74; --line:#d9e2e6; --bg:#f2f5f6; --surface:#ffffff;
+  --ok:#1b7a4b; --ok-bg:#eaf5ef; --warn:#b45309; --warn-bg:#fdf3e7; --err:#b3372f; --err-bg:#fbeeec;
+  --info:#1d5fa8; --info-bg:#e8f1f9; --code-bg:#0f2b36; --amber:#c98a2d;
+  --font:"Inter","Segoe UI",system-ui,-apple-system,Roboto,"Noto Sans Arabic","Helvetica Neue",Arial,sans-serif;
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,"SFMono-Regular",Menlo,monospace;
+  --radius:10px; --shadow:0 1px 2px rgba(22,35,43,.06),0 4px 14px rgba(22,35,43,.05);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{line-height:1.25;margin:0 0 .5em;font-weight:700;letter-spacing:-.01em}
+p{margin:.5em 0 .9em}
+ul,ol{margin:.4em 0 .9em;padding-inline-start:1.5em}
+li{margin:.28em 0}
+a{color:var(--brand-500)}
+code{font-family:var(--mono);font-size:.86em;background:var(--brand-050);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+pre{background:var(--code-bg);color:#dcebf1;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.8px;line-height:1.55}
+pre code{background:none;border:none;color:inherit;padding:0;white-space:pre}
+strong{font-weight:700}
+.small{font-size:12.8px;color:var(--muted)}
+
+/* ---------- Hero ---------- */
+.hero{background:linear-gradient(140deg,#0c2831 0%,#123c4a 45%,#1e6178 100%);color:#fff;padding:58px 24px 74px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(640px 320px at 88% 12%,rgba(255,255,255,.09),transparent 62%),radial-gradient(520px 300px at 6% 100%,rgba(201,138,45,.16),transparent 60%)}
+.hero-inner{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+.kicker{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#9fc6d4;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 14px;margin-bottom:18px}
+.hero h1{font-size:clamp(28px,4.4vw,44px);color:#fff;margin-bottom:8px}
+.hero .sub{font-size:clamp(16px,2vw,20px);color:#cfe4ec;font-weight:600;margin-bottom:20px}
+.hero .lede{max-width:780px;color:#b9d2dc;font-size:14.5px}
+.meta-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:4px 13px;font-size:12.5px;font-weight:600;color:#e6f1f5}
+.chip.gold{background:rgba(201,138,45,.2);border-color:rgba(201,138,45,.5);color:#f4d9ab}
+
+/* ---------- Layout & TOC ---------- */
+.layout{max-width:1180px;margin:-40px auto 0;display:grid;grid-template-columns:264px minmax(0,1fr);gap:26px;padding:0 24px 72px;position:relative;z-index:2}
+.toc{position:sticky;top:14px;align-self:start;max-height:calc(100vh - 28px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 12px;font-size:13px}
+.toc-title{font-size:11.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:4px 10px 8px}
+.toc a{display:block;color:var(--ink);text-decoration:none;padding:5px 10px;border-radius:6px;line-height:1.35}
+.toc a:hover{background:var(--brand-050)}
+.toc a.active{background:var(--brand);color:#fff;font-weight:600}
+.toc .grp{margin:10px 0 4px;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);padding:4px 10px;border-top:1px solid var(--line);padding-top:10px}
+.toc .grp:first-of-type{border-top:none}
+.toc-toggle{display:none}
+
+/* ---------- Sections ---------- */
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px 34px;margin:0 0 26px;scroll-margin-top:20px}
+.sec>h2{display:flex;align-items:baseline;gap:12px;font-size:23px;color:var(--brand-700);border-bottom:2px solid var(--brand-100);padding-bottom:12px;margin-bottom:16px}
+.sec>h2 .no{font-size:13px;font-weight:800;color:#fff;background:var(--brand);border-radius:6px;padding:3px 9px;letter-spacing:.04em;flex:none;transform:translateY(-2px)}
+.sec h3{font-size:17px;color:var(--brand);margin:26px 0 8px}
+.sec h4{font-size:14.5px;color:var(--ink);margin:18px 0 6px}
+.part-banner{background:linear-gradient(120deg,var(--brand-700),var(--brand-500));color:#fff;border-radius:var(--radius);padding:26px 32px;margin:0 0 26px;box-shadow:var(--shadow)}
+.part-banner h2{font-size:24px;color:#fff;margin:0 0 6px}
+.part-banner p{margin:0;color:#cfe4ec;font-size:14px;max-width:820px}
+
+/* ---------- Tables ---------- */
+.tblwrap{overflow-x:auto;margin:12px 0 18px}
+table{width:100%;border-collapse:collapse;font-size:13.2px;line-height:1.5}
+table.wide{font-size:12.3px}
+th{background:#eaf1f4;color:#123f4b;text-align:start;padding:8px 11px;border:1px solid var(--line);font-weight:700;font-size:12.3px;letter-spacing:.02em}
+td{padding:7px 11px;border:1px solid var(--line);vertical-align:top}
+tbody tr:nth-child(even) td{background:#f8fafb}
+td code, th code{font-size:.92em}
+
+/* ---------- Callouts ---------- */
+.callout{border-radius:8px;padding:13px 17px;margin:15px 0;border-inline-start:4px solid var(--brand);background:var(--brand-100);font-size:14px}
+.callout b:first-child{color:var(--brand-700)}
+.callout.improve{border-color:var(--ok);background:var(--ok-bg)}
+.callout.improve b:first-child{color:var(--ok)}
+.callout.fence{border-color:var(--err);background:var(--err-bg)}
+.callout.fence b:first-child{color:var(--err)}
+.callout.gate{border-color:#123f4b;background:#eaf1f4}
+.callout.gate b:first-child{color:#123f4b}
+.callout.warn{border-color:var(--warn);background:var(--warn-bg)}
+.callout.warn b:first-child{color:var(--warn)}
+
+/* ---------- Stat cards ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:14px 0 18px}
+.stat{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:linear-gradient(180deg,#fff,var(--brand-050))}
+.stat .v{font-size:22px;font-weight:800;color:var(--brand-700);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat .k{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px;line-height:1.4}
+
+/* ---------- Capacity bars ---------- */
+.cap{border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:#fbfdfd;margin:14px 0 6px}
+.cap-title{font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.cap-row{display:grid;grid-template-columns:118px 1fr 170px;gap:12px;align-items:center;margin:7px 0}
+.cap-l{font-size:12.5px;font-weight:700;color:var(--brand-700)}
+.cap-track{position:relative;height:16px;background:#edf2f4;border-radius:4px;overflow:hidden;display:flex}
+.cap-fill{background:var(--brand-500);min-width:3px}
+.cap-tail{background:var(--brand-100);min-width:2px}
+.cap-v{font-size:12px;font-family:var(--mono);color:var(--ink);text-align:end;white-space:nowrap}
+.cap-legend{display:flex;gap:18px;font-size:12px;color:var(--muted);margin-top:12px}
+.cap-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-inline-end:5px}
+
+/* ---------- Cards grid ---------- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin:14px 0}
+.mini{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:#fff}
+.mini b{display:block;color:var(--brand-700);margin-bottom:4px;font-size:14px}
+.mini span{font-size:13px;color:var(--muted)}
+
+/* ---------- Phase cards (scaling ladder) ---------- */
+.phase{border:1px solid var(--line);border-radius:var(--radius);margin:22px 0;background:var(--surface);box-shadow:var(--shadow);overflow:hidden}
+.phase-head{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px 20px;background:linear-gradient(90deg,var(--brand-100),rgba(231,240,243,0))}
+.ph-chip{flex:none;font-weight:800;font-size:13px;color:#fff;background:var(--brand);border-radius:8px;padding:5px 12px;letter-spacing:.03em}
+.ph-chip.st1{background:#5b6b74}.ph-chip.st2{background:#1d5fa8}.ph-chip.st3{background:var(--ok)}.ph-chip.st4{background:var(--brand-500)}.ph-chip.st5{background:var(--amber)}.ph-chip.st6{background:#7a4a9e}.ph-chip.st7{background:var(--brand-700)}
+.phase-head h3{margin:0;font-size:17.5px;color:var(--brand-700)}
+.ph-window{margin-inline-start:auto;flex:none;font-size:12px;font-weight:700;color:var(--brand-700);background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.phase-body{padding:6px 20px 18px}
+.phase-body h4{color:var(--brand);font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 6px}
+
+/* ---------- Flow diagram ---------- */
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;background:var(--brand-050);border:1px dashed var(--line);padding:12px 14px;border-radius:8px;font-size:13px;margin:12px 0}
+.flow .st{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 11px;font-weight:600;color:var(--brand-700);box-shadow:0 1px 2px rgba(22,35,43,.05)}
+.flow .st.key{border-color:var(--brand);background:var(--brand-100)}
+.flow .ar{color:var(--brand-500);font-weight:800}
+
+/* ---------- Misc ---------- */
+.btn{display:inline-block;background:var(--brand);color:#fff;font-weight:700;font-size:13px;border-radius:8px;padding:8px 16px;text-decoration:none}
+.kbd{font-family:var(--mono);font-size:11.5px;background:#fff;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+.tag{display:inline-block;font-size:11px;font-weight:800;border-radius:5px;padding:2px 8px;letter-spacing:.03em;vertical-align:middle}
+.tag.t-ok{background:var(--ok-bg);color:var(--ok)}
+.tag.t-warn{background:var(--warn-bg);color:var(--warn)}
+.tag.t-info{background:var(--info-bg);color:var(--info)}
+.tag.t-mut{background:#eef1f3;color:var(--muted)}
+.toc-foot{margin-top:12px;padding:8px 10px 2px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+footer.pagefoot{background:var(--brand-700);color:#b9d2dc;padding:28px 24px;text-align:center;font-size:13px}
+footer.pagefoot b{color:#fff}
+.divider{border:none;border-top:1px solid var(--line);margin:22px 0}
+.formula{background:var(--brand-050);border:1px dashed var(--line);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:12.8px;margin:12px 0;color:var(--brand-700)}
+
+@media (max-width:1080px){
+  .layout{grid-template-columns:1fr}
+  .toc{position:static;max-height:none;display:none;margin-bottom:22px}
+  .toc.open{display:block}
+  .toc-toggle{display:inline-flex;align-items:center;gap:8px;position:static;margin:0 0 14px;background:var(--brand);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:13.5px;font-family:var(--font);cursor:pointer;box-shadow:var(--shadow)}
+  .layout-inner{display:contents}
+}
+@media (max-width:640px){
+  .sec{padding:22px 18px}
+  .phase-body{padding:4px 14px 16px}
+  .cap-row{grid-template-columns:70px 1fr 110px}
+}
+@media print{
+  .hero{padding:24px;background:#123c4a}
+  .toc,.toc-toggle{display:none!important}
+  .layout{display:block;max-width:none;padding:0}
+  .sec,.phase{box-shadow:none;break-inside:auto}
+  body{background:#fff;font-size:11px}
+  pre{white-space:pre-wrap}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="kicker">Capacity Planning Deliverable · v1.0</span>
+    <h1>Smart Commerce &amp; Supply Platform</h1>
+    <div class="sub">Capacity Analysis — Users, Infrastructure &amp; Scalability Path</div>
+    <p class="lede">How many concurrent wholesalers, retailers, drivers, and consumers the platform supports at each phase; the compute, database, cache, network, and field equipment required to get there; and the ordered path from a redundant monolith to regional Commerce-OS infrastructure — grounded in the Implementation Plan’s architecture decisions, partitioning strategy, and SLO budgets.</p>
+    <div class="meta-chips">
+      <span class="chip">Phases 1–7</span>
+      <span class="chip">Modular Monolith · NestJS · PostgreSQL + PostGIS · Redis</span>
+      <span class="chip">Flutter (4 flavors) · Next.js</span>
+      <span class="chip gold">Sizing policy: ≤ 60% steady utilization</span>
+      <span class="chip">September 2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" id="toc" aria-label="Table of contents">
+    <div class="toc-title">Contents</div>
+    <div class="grp">Analysis</div>
+    <a href="#s1">1 · Method &amp; Global Assumptions</a>
+    <a href="#s2">2 · User Capacity Estimation</a>
+    <a href="#s3">3 · Infrastructure Requirements</a>
+    <a href="#s4">4 · Scalability Path</a>
+    <a href="#s5">5 · Caveats &amp; Quick Reference</a>
+    <div class="grp">Infrastructure Detail</div>
+    <a href="#s3-1">3.1 Compute</a>
+    <a href="#s3-2">3.2 Database</a>
+    <a href="#s3-3">3.3 Caching (Redis)</a>
+    <a href="#s3-4">3.4 Network &amp; CDN</a>
+    <a href="#s3-5">3.5 Field Equipment</a>
+    <a href="#s3-6">3.6 Indicative Cost</a>
+    <div class="grp">Scalability Detail</div>
+    <a href="#s4-1">4.1 Scaling Ladder</a>
+    <a href="#s4-2">4.2 Extraction Triggers</a>
+    <a href="#s4-3">4.3 Retrofit Decisions</a>
+    <a href="#s4-4">4.4 Constraint Analysis</a>
+    <div class="toc-foot">Basis: <i>Smart_Commerce_Platform_Implementation_and_UX_Plan.md / .html</i> — cited as “Plan §n”; original strategy cited as “Source §n”.</div>
+  </nav>
+
+  <main class="content">
+
+  <button class="toc-toggle" onclick="document.getElementById('toc').classList.toggle('open')">☰ Contents</button>
+
+  <div class="part-banner">
+    <h2>Capacity Analysis at a Glance</h2>
+    <p>Design peak concurrency grows from ~250 concurrent users in the Phase 1 pilot to 20,000–50,000 across regional cells in Phase 7 — a ~200× increase absorbed mostly by <b>extraction and regionalization</b>, not by re-architecture. Volumes below are modeling assumptions consistent with the staged, density-first strategy; they must be re-baselined at every KPI phase gate (Plan §6.x, Source §34.2).</p>
+  </div>
+
+  <!-- ================= SECTION 1 ================= -->
+  <section class="sec" id="s1">
+    <h2><span class="no">1</span>Method &amp; Global Assumptions</h2>
+
+    <h3>1.1 Load model per role</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Role</th><th>Session pattern</th><th>API calls / session</th><th>Sustained RPS while active</th><th>Plan basis</th></tr></thead>
+      <tbody>
+        <tr><td>Wholesaler</td><td>3 sessions/day × 18 min</td><td>~60</td><td>0.05–0.1</td><td>§13.1 Command Center — queue-driven, push-triggered opens</td></tr>
+        <tr><td>Retailer</td><td>1.5 sessions/day × 20 min</td><td>~80</td><td>0.1</td><td>§13.2, §14.3</td></tr>
+        <tr><td>Driver</td><td>10 h duty; GPS sampled 5–15 s adaptive; batch upload ~15 s</td><td>batched</td><td>0.07 REST + WS</td><td>§3.7, Improvement I9</td></tr>
+        <tr><td>Consumer</td><td>1.5 sessions/day × 12 min</td><td>~120</td><td>0.15–0.2</td><td>§14.6</td></tr>
+        <tr><td>Admin</td><td>Full workday, dense grids</td><td>high burst</td><td>0.2–0.5</td><td>§13.4</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>1.2 Derived assumptions</h3>
+    <div class="stat-grid">
+      <div class="stat"><div class="v">9 : 1</div><div class="k">Read-to-write ratio; 70–80% of reads served from Redis (Plan §3.3 cache tiers, 60 s–5 m TTL)</div></div>
+      <div class="stat"><div class="v">≤ 60%</div><div class="k">Steady-state utilization target so the §9.3 p95 budgets hold (read &lt; 400 ms · write &lt; 800 ms · search &lt; 300 ms · checkout SLO 99.9%)</div></div>
+      <div class="stat"><div class="v">500–800</div><div class="k">Sustained mixed RPS per NestJS pod (2 vCPU / 4 GB, warm cache); bursts ~1,500</div></div>
+      <div class="stat"><div class="v">10–20k</div><div class="k">Concurrent WebSocket sockets per pod with the Redis adapter (Plan §3.7)</div></div>
+    </div>
+    <ul>
+      <li><b>Peak concentration:</b> B2B load → 30% of daily volume in a 2-hour window (business hours); B2C load → 40% in a 3-hour evening window.</li>
+      <li><b>Concurrency formula (Little’s Law):</b></li>
+    </ul>
+    <div class="formula">Concurrent_peak = Sessions_day × Peak_fraction × Avg_session_min ÷ Peak_window_min</div>
+    <div class="callout"><b>Definitions.</b> “Concurrent user” = distinct authenticated session active within the peak 5-minute window. All trigger metrics are observed via OpenTelemetry (Plan §3.8) and wired into alerting; the authoritative capacity signal is always the live SLO dashboard, not this static model.</div>
+  </section>
+
+  <!-- ================= SECTION 2 ================= -->
+  <section class="sec" id="s2">
+    <h2><span class="no">2</span>User Capacity Estimation</h2>
+
+    <h3>2.1 Headline capacity by phase</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Phase</th><th>Registered (W/R/D/C/A)¹</th><th>DAU</th><th>Peak concurrent (design)</th><th>Orders / day</th><th>Search req / day</th><th>Location updates / day</th><th>Max concurrent (recommended stack)²</th><th>First binding constraint</th></tr></thead>
+      <tbody>
+        <tr><td><b>1 — B2B MVP</b></td><td>200 / 2,000 / – / – / 10</td><td>~700</td><td><b>150–250</b></td><td>600–1,000</td><td>15–25k</td><td>–</td><td><b>~5,000</b></td><td>PG write path at checkout bursts</td></tr>
+        <tr><td><b>2 — Delivery</b></td><td>350 / 5,000 / 120 / – / 15</td><td>~1,700</td><td><b>400–600</b> (+ ~80 drivers on duty)</td><td>2,000–3,000 (≈1,800 delivery jobs)</td><td>50–80k</td><td>0.5–1.0 M points</td><td><b>~10,000</b></td><td><code>driver_locations</code> write IOPS; WS fan-out</td></tr>
+        <tr><td><b>3 — Payments</b></td><td>500 / 8,000 / 250 / – / 20</td><td>~2,900</td><td><b>700–1,200</b></td><td>4,000–6,000</td><td>90–150k</td><td>1–2 M</td><td><b>~15,000</b></td><td>Webhook retry storms; ledger transaction rate</td></tr>
+        <tr><td><b>4 — B2C</b></td><td>700 / 10,000 / 350 / 60k / 30</td><td>~13,000</td><td><b>2,000–4,000</b> (5k campaign spike)</td><td>10,000–15,000</td><td>400–700k</td><td>2–3 M</td><td><b>~25,000</b></td><td>PG full-text search (OpenSearch trigger, Plan §3.4); analytics event volume</td></tr>
+        <tr><td><b>5 — Ads / Analytics</b></td><td>800 / 12,000 / 450 / 120k / 35</td><td>~30,000</td><td><b>4,000–8,000</b></td><td>18,000–25,000</td><td>1.2–2 M</td><td>3–4 M</td><td><b>~40,000</b></td><td>Ad-event firehose (1–2 M impressions/day)</td></tr>
+        <tr><td><b>6 — AI</b></td><td>+150k consumers</td><td>~45,000</td><td><b>6,000–12,000</b></td><td>25,000–40,000</td><td>2–3.5 M</td><td>4–5 M</td><td><b>~50,000</b></td><td>AI Gateway provider quota; batch-scoring windows</td></tr>
+        <tr><td><b>7 — Scale</b></td><td>Multi-city, 500k+</td><td>150k+</td><td><b>20,000–50,000</b> (5–10k per region)</td><td>60,000–120,000</td><td>8–15 M</td><td>8–15 M</td><td><b>100,000+ aggregate</b></td><td>Regional latency; read fan-in — not the PG write path (see §4.4)</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">¹ Wholesalers / Retailers / Drivers / Consumers / Admins. ² Ceiling of the phase’s recommended stack at ≤ 60% utilization; design load sits far below it by intent — capacity headroom is the buffer for the geographic expansion each gate unlocks (Plan §6.x, §10.4).</p>
+
+    <h3>2.2 Design vs. maximum concurrency (visual)</h3>
+    <div class="cap">
+      <div class="cap-title">Peak concurrent users · scale = 100,000 (Phase 7 aggregate)</div>
+      <div class="cap-row"><span class="cap-l">Phase 1</span><div class="cap-track"><div class="cap-fill" style="width:0.25%"></div><div class="cap-tail" style="width:4.75%"></div></div><span class="cap-v">250 / 5,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 2</span><div class="cap-track"><div class="cap-fill" style="width:0.6%"></div><div class="cap-tail" style="width:9.4%"></div></div><span class="cap-v">600 / 10,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 3</span><div class="cap-track"><div class="cap-fill" style="width:1.2%"></div><div class="cap-tail" style="width:13.8%"></div></div><span class="cap-v">1,200 / 15,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 4</span><div class="cap-track"><div class="cap-fill" style="width:4%"></div><div class="cap-tail" style="width:21%"></div></div><span class="cap-v">4,000 / 25,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 5</span><div class="cap-track"><div class="cap-fill" style="width:8%"></div><div class="cap-tail" style="width:32%"></div></div><span class="cap-v">8,000 / 40,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 6</span><div class="cap-track"><div class="cap-fill" style="width:12%"></div><div class="cap-tail" style="width:38%"></div></div><span class="cap-v">12,000 / 50,000</span></div>
+      <div class="cap-row"><span class="cap-l">Phase 7</span><div class="cap-track"><div class="cap-fill" style="width:50%"></div><div class="cap-tail" style="width:50%"></div></div><span class="cap-v">50,000 / 100,000</span></div>
+      <div class="cap-legend">
+        <span><i style="background:var(--brand-500)"></i>Design peak concurrent (business target)</span>
+        <span><i style="background:var(--brand-100)"></i>Headroom to recommended stack maximum</span>
+      </div>
+    </div>
+    <div class="callout improve"><b>Headroom is deliberate.</b> The gap between design load and stack ceiling is not waste — it is the absorption buffer for campaign spikes (Phase 4: 5,000 concurrent during launches), push-triggered merchant bursts (Plan §6.1 SLA timers), and the geographic expansion each phase gate unlocks (Plan §10.4 discipline rules).</div>
+
+    <h3>2.3 Worked examples — how the numbers are derived</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Example</th><th>Derivation</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td><b>Phase 1 concurrency</b></td><td>Sessions/day = 200 W × 3 + 2,000 R × 1.5 × 20% DAU-adjusted ≈ 960. Peak (30%, 2 h window, 18 min avg): 960 × 0.30 × 18 ÷ 120 ≈ 43 baseline <b>+</b> push-triggered bursts (new-order notifications cause immediate merchant opens — Plan §6.1 SLA timers)</td><td><b>150–250 practical peak</b>; peak RPS ≈ 250 × 0.2 ≈ 50 RPS + 5–10× instantaneous bursts — comfortably inside 3 pods (~1,500 RPS sustained)</td></tr>
+        <tr><td><b>Phase 2 location load</b></td><td>80 active drivers × 1 batch / 15 s ≈ 5.3 ingestion RPS; points/day = 80 × 10 h × 3,600 s ÷ 8 s ≈ 360k–1 M; ~100 B/row → 40–100 MB/day held 90 days (Plan §4.11 retention)</td><td><b>4–9 GB rolling</b> in monthly partitions (Plan §3.2)</td></tr>
+        <tr><td><b>Phase 3 webhook load</b></td><td>5,000 orders/day × ~1.5 webhooks = 7,500/day ≈ 0.2 RPS average — but retry storms spike to 50–100 RPS</td><td>Dedicated <b>idempotent webhook consumers</b> (Plan §6.3; Source §30.2 duplicate-webhook scenario)</td></tr>
+        <tr><td><b>Phase 4 consumer concurrency</b></td><td>60k MAU × 15% DAU × 1.5 sessions ≈ 13.5k sessions/day; evening peak (40%, 3 h, 12 min): 13,500 × 0.40 × 12 ÷ 180 ≈ 360 baseline; with MAU growth to 150k and campaign spikes</td><td><b>Design at 2,000–4,000</b>; peak ≈ 600 RPS, ~40% search (≈240 search RPS sustained on a catalog crossing 150k SKUs) — <b>trips the OpenSearch trigger</b> (Plan §3.4)</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ================= SECTION 3 ================= -->
+  <section class="sec" id="s3">
+    <h2><span class="no">3</span>Infrastructure &amp; Equipment Requirements</h2>
+
+    <h3 id="s3-1">3.1 Compute — application tier</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Phase</th><th>NestJS API pods (2 vCPU / 4 GB each)</th><th>Additions</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>3 <span class="tag t-mut">min 2 — blue-green deploys, Plan §2.4</span></td><td>—</td></tr>
+        <tr><td>2</td><td>4–6</td><td>PgBouncer pair (1 vCPU / 1 GB)</td></tr>
+        <tr><td>3</td><td>6–8</td><td>+ 2 webhook / settlement workers (2 vCPU / 4 GB) consuming the outbox queue</td></tr>
+        <tr><td>4</td><td>10–14</td><td>+ event-pipeline service (2–3 pods) + OpenSearch 3 × 4 vCPU / 16 GB + streaming bus (Kafka/Redpanda 3 brokers, or managed)³</td></tr>
+        <tr><td>5</td><td>14–18</td><td>+ ads pipeline service (3 pods) + batch reporting workers; OpenSearch → 3–6 data nodes</td></tr>
+        <tr><td>6</td><td>15–20</td><td>+ AI service (2–4 × 4 vCPU / 8 GB CPU inference, or 1–2 × 24 GB-VRAM GPU if self-hosting embeddings)</td></tr>
+        <tr><td>7</td><td>Regional cells: 8–12 pods per city</td><td>Global control plane; Kubernetes cluster-autoscaler</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">³ <b>Addition beyond the plan:</b> the plan specifies event extraction (§6.4/§6.5) but not the bus technology; Kafka-class streaming is the natural carrier for the outbox dispatcher at this volume.</p>
+
+    <h3 id="s3-2">3.2 Database — PostgreSQL 16 + PostGIS (Plan §3.2)</h3>
+    <div class="tblwrap"><table class="wide">
+      <thead><tr><th>Phase</th><th>Primary instance</th><th>Storage (provisioned)</th><th>IOPS</th><th>Connections</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>4 vCPU / 16 GB + 1 streaming replica</td><td>200 GB</td><td>3–6k (NVMe)</td><td>200 max; direct (3 pods × 20 pool)</td><td>PITR + daily snapshots; quarterly restore drills (§3.9)</td></tr>
+        <tr><td>2</td><td>8 vCPU / 32 GB + replica</td><td>500 GB</td><td>8–12k</td><td>300 via PgBouncer</td><td><code>driver_locations</code> monthly partitions begin</td></tr>
+        <tr><td>3</td><td>8–16 vCPU / 64 GB + replica <span class="tag t-warn">failover becomes mandatory</span></td><td>1 TB</td><td>12k</td><td>300–400</td><td>Append-only ledger; weekly settlement batches run on replica</td></tr>
+        <tr><td>4</td><td>16 vCPU / 64 GB + <b>2 read replicas</b></td><td>2 TB</td><td>12–16k</td><td>400</td><td>Search offloaded to OpenSearch; event pipeline extracted</td></tr>
+        <tr><td>5</td><td>16–32 vCPU / 64–128 GB + 2–3 replicas</td><td>2–4 TB</td><td>16k</td><td>400–500</td><td><code>ad_events</code> extracted; Parquet cold archive (§3.2)</td></tr>
+        <tr><td>6</td><td>32 vCPU / 128 GB + replicas</td><td>4–6 TB</td><td>16k+</td><td>500</td><td>Feature-store reads; A/B assignment lookups</td></tr>
+        <tr><td>7</td><td>Per-region cells, 16–32 vCPU each</td><td>4–10 TB / region</td><td>16k+ / region</td><td>500 / region</td><td>Shard by region + <code>organization_id</code>; Citus optional</td></tr>
+      </tbody>
+    </table></div>
+
+    <h4>Storage math — Phase 4 hot data</h4>
+    <div class="formula">orders 12k/day × ~22 rows × 1.2 KB ≈ 320 MB/day ≈ 115 GB/yr  →  ×2 for indexes/WAL ≈ 230 GB
++ analytics events hot 60 days × 1.5 GB ≈ 90 GB
++ driver_locations 90 days × 250 MB/day ≈ 22 GB
++ backups/WAL 7-day ≈ 150–300 GB
+= ~600–800 GB hot  →  provision 2 TB for 3-year headroom</div>
+
+    <h4>Write IOPS math</h4>
+    <div class="formula">peak orders/hour = 15% of daily → Phase 4: 15,000 × 0.15 ÷ 3,600 = 0.63 orders/s
+× ~35 transactions each (items, history, outbox, financial breakdown, ledger) ≈ 22 tx/s
+× ~15 random IO per indexed transaction ≈ &lt; 1k IOPS from orders</div>
+    <p class="small">The 12–16k provisioning absorbs checkpointing, vacuum, and location writes simultaneously.</p>
+
+    <h4>Connection math — Phase 4</h4>
+    <div class="formula">12 pods × 20 pool = 240 client connections → PgBouncer transaction-mode multiplexes into 60–80 server connections — well under a 400-connection ceiling on 64 GB RAM</div>
+
+    <h3 id="s3-3">3.3 Caching layer — Redis 7 (Plan §3.3)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Phase</th><th>Topology</th><th>Memory</th><th>Dominant key families</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>single node, AOF everysec</td><td>1–2 GB</td><td>sessions (30 d) · OTP (90 s / 15 m) · idempotency (24 h) · product/price caches (60 s–5 m)</td></tr>
+        <tr><td>2</td><td>single + replica</td><td>4 GB</td><td>+ WS presence · dispatch locks · ETA cache</td></tr>
+        <tr><td>3</td><td>single + replica</td><td>4–8 GB</td><td>+ payment correlation / idempotency keys</td></tr>
+        <tr><td>4</td><td>3-node cluster</td><td>3 × 8 GB</td><td>+ consumer sessions · search-result cache · Socket.IO adapter</td></tr>
+        <tr><td>5</td><td>3-node cluster</td><td>3 × 8–16 GB</td><td>+ ad budget-pacing counters · frequency caps</td></tr>
+        <tr><td>6</td><td>3-node cluster</td><td>3 × 16 GB</td><td>+ feature-store hot tables · A/B assignments</td></tr>
+        <tr><td>7</td><td>per-region cluster</td><td>3 × 16 GB / region</td><td>regional cache isolation</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="s3-4">3.4 Network, CDN &amp; object storage</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Phase</th><th>Load-balancer bandwidth</th><th>CDN egress / day</th><th>S3-class storage</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>100 Mbps–1 Gbps</td><td>50–150 GB</td><td>~300 GB media (100k SKUs × 4 images × renditions ≤ 60 KB thumbs — Part II §19)</td></tr>
+        <tr><td>2–3</td><td>1–2 Gbps</td><td>150–300 GB</td><td>0.5–1 TB</td></tr>
+        <tr><td>4</td><td>2–5 Gbps</td><td>0.5–1.5 TB</td><td>2 TB media + ~0.5 TB/yr Parquet archives</td></tr>
+        <tr><td>5–6</td><td>5–10 Gbps</td><td>2–4 TB</td><td>3–5 TB + 1–2 TB/yr Parquet</td></tr>
+        <tr><td>7</td><td>10+ Gbps, multi-region</td><td>8–20 TB</td><td>10 TB+, WAF + DDoS protection</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Presigned direct-to-S3 uploads keep media traffic off the API tier (Plan §3.5); FCM / SMS / Mapbox are SaaS dependencies — the SMS adapter carries multi-provider failover (Plan §3.6, risk R7).</p>
+
+    <h3 id="s3-5">3.5 Specialized field equipment</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Item</th><th>Floor spec</th><th>Quantity trajectory</th><th>Purpose (plan reference)</th></tr></thead>
+      <tbody>
+        <tr><td>Driver smartphone</td><td>Android 8+, 2 GB RAM, 4G, GPS + GLONASS</td><td>P2: 120–150 → P4+: 450+</td><td>Driver app Focus Mode (§13.3); matches the low-end-Android device matrix (§9.1) and &lt; 2.5 s cold-start budget (Part II §19)</td></tr>
+        <tr><td>Vehicle mount + fast charger / power bank</td><td>—</td><td>1 per driver</td><td>GPS-heavy duty cycles (adaptive 5–15 s sampling, I9)</td></tr>
+        <tr><td>Merchant counter tablet</td><td>10", 3 GB RAM</td><td>1 per active wholesaler (200 → 800)</td><td>Order acceptance ≤ 3 taps (§13.1)</td></tr>
+        <tr><td>2D barcode scanner (Bluetooth)</td><td>1D/2D CCD</td><td>1 per wholesaler + ops field kits</td><td>Barcode prefill in product entry (§14.2); pickup verification codes (§14.5)</td></tr>
+        <tr><td>Thermal label printer</td><td>203 dpi</td><td>Optional</td><td>SKU barcode creation during catalog import</td></tr>
+        <tr><td>Ops / dispatch workstation</td><td>Dual 24" monitors, 16 GB RAM</td><td>P2: 2–3, scaling with SLA tiers (§10.2)</td><td>Dispatch console + evidence split-pane (§14.7)</td></tr>
+        <tr><td>KYC capture</td><td>Smartphone camera ≥ 12 MP</td><td>Merchant’s own device</td><td>DocUploader flow (§12.5); no dedicated verification hardware until Phase 6 OCR assist</td></tr>
+        <tr><td>Connectivity floor</td><td>Driver 4G ≥ 5 Mbps; merchant ≥ 10 Mbps</td><td>—</td><td>Offline-tolerant queues (QueuedActionChip §12.5; §13.3)</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="s3-6">3.6 Indicative monthly cost (cloud, planning ranges ±50%)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Phase</th><th>Infrastructure</th><th>Variable SaaS (maps / SMS / LLM tokens)</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>$1.0–2.0k</td><td>$0.2–0.5k</td></tr>
+        <tr><td>2</td><td>$2.5–5k</td><td>$0.5–1.5k <span class="tag t-info">Mapbox grows with tracking</span></td></tr>
+        <tr><td>3</td><td>$4–8k</td><td>+ payment fees (% of GMV, off-book)</td></tr>
+        <tr><td>4</td><td>$10–20k</td><td>$2–5k</td></tr>
+        <tr><td>5</td><td>$18–35k</td><td>$3–8k</td></tr>
+        <tr><td>6</td><td>$25–50k</td><td>+ LLM via AI Gateway (heavily cached, Plan §6.6)</td></tr>
+        <tr><td>7</td><td>$60k+</td><td>Scales with GMV</td></tr>
+      </tbody>
+    </table></div>
+    <p class="small">Costs exclude team scaling (Plan §33 equivalents), payment provider fees, and marketplace promotions; per Source §34.2, a separate financial model follows market selection.</p>
+  </section>
+
+  <!-- ================= SECTION 4 ================= -->
+  <section class="sec" id="s4">
+    <h2><span class="no">4</span>Scalability Path — Phase 1 → Phase 7</h2>
+
+    <h3 id="s4-1">4.1 The scaling ladder</h3>
+    <p>Each rung is a deliberate, reversible step — never a re-architecture. Extraction follows the doctrine of Plan §2.6 rule 5: only on proven scale divergence, team boundary, or fault-isolation need.</p>
+
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st1">STAGE 0</span><h3>Redundant Monolith</h3><span class="ph-window">Phase 1</span></div>
+      <div class="phase-body"><p>2–3 pods behind a load balancer; PG primary + streaming replica; Redis cache tiers. Blue-green deploys from day one (Plan §2.4, §3.3).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st2">STAGE 1</span><h3>Optimize the Single Database</h3><span class="ph-window">Phase 2</span></div>
+      <div class="phase-body"><p>PgBouncer; monthly partitions on <code>driver_locations</code>; partial hot-queue indexes; read offload to the replica (Plan §3.2).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st3">STAGE 2</span><h3>Asynchrony &amp; High Availability</h3><span class="ph-window">Phase 3</span></div>
+      <div class="phase-body"><p>Outbox-driven workers (webhooks, settlement); streaming-replica failover becomes mandatory once money moves (Plan §2.6, §6.3).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st4">STAGE 3</span><h3>First Extractions</h3><span class="ph-window">Phase 4</span></div>
+      <div class="phase-body"><p><b>OpenSearch</b> (search) and the <b>event-pipeline service + warehouse</b> (analytics) move out; Socket.IO scales horizontally via the Redis adapter (Plan §3.4, §6.4, §2.6 rule 5).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st5">STAGE 4</span><h3>Ads Pipeline</h3><span class="ph-window">Phase 5</span></div>
+      <div class="phase-body"><p>Dedicated ad-event ingestion (partitioned <code>ad_events</code> behind its own service); Kafka-class bus carries the outbox dispatcher (Plan §6.5, §4.11).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st6">STAGE 5</span><h3>AI Service</h3><span class="ph-window">Phase 6</span></div>
+      <div class="phase-body"><p>Thin standalone AI service consuming platform events; A/B framework + batch scoring behind the provider-agnostic AI Gateway (Plan §6.6).</p></div>
+    </div>
+    <div class="phase">
+      <div class="phase-head"><span class="ph-chip st7">STAGE 6</span><h3>Regionalization</h3><span class="ph-window">Phase 7</span></div>
+      <div class="phase-body"><p>Per-city cells (API + PG + Redis + OpenSearch per region), global control plane, public API gateway with rate limits, optional Citus-style sharding (Plan §6.7).</p></div>
+    </div>
+
+    <h3 id="s4-2">4.2 Concrete extraction triggers (watched via OpenTelemetry, Plan §3.8)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>Observed metric</th><th>Threshold</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>Search p95 (sustained 1 week)</td><td>&gt; 300 ms</td><td>Deploy OpenSearch — the <code>SearchIndexer</code> port makes this an adapter swap + reindex (Plan §3.4)</td></tr>
+        <tr><td>Active catalog</td><td>&gt; 150k SKUs</td><td>Same as above</td></tr>
+        <tr><td>Analytics + ad events</td><td>&gt; 3–5 M/day</td><td>Extract event pipeline; PG keeps 30–60 days hot, Parquet to warehouse (§3.2, I11)</td></tr>
+        <tr><td>Location batches</td><td>&gt; 300/s or &gt; 20% of DB write IOPS</td><td>Extract location-ingestion service (§2.6 rule 5 first candidate)</td></tr>
+        <tr><td>API replicas</td><td>&gt; 12–16</td><td>Reassess monolith cohesion; module extraction per §2.6 criteria (scale divergence / team boundary / fault isolation)</td></tr>
+        <tr><td>WS sockets per pod / fan-out lag</td><td>&gt; 15k / lag SLO breach</td><td>Dedicated realtime service</td></tr>
+        <tr><td>PG primary CPU</td><td>&gt; 60% sustained</td><td>Vertical step + read offload (holds §9.3 budgets)</td></tr>
+        <tr><td>PG write transactions</td><td>&gt; 1.5–2k/s sustained</td><td>Regional cells / sharding</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="s4-3">4.3 Expensive-to-retrofit decisions and their scalability payoff (Plan §7.2)</h3>
+    <div class="tblwrap"><table>
+      <thead><tr><th>#</th><th>Phase 1 decision</th><th>Scalability payoff</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>User / Organization / Role separation</td><td><code>organization_id</code> becomes the clean <b>tenant/shard key</b> for Phase 7 regional cells — the highest-leverage sharding enabler</td></tr>
+        <tr><td>2</td><td>Master order + sub-orders</td><td>Sub-orders shard and process per supplier in parallel — acceptance, delivery, and settlement all parallelize</td></tr>
+        <tr><td>3</td><td>Price/promotion snapshots + <code>order_financial_breakdown</code></td><td>Ledger scales by <b>append only</b> — no historical reprocessing when settlement parallelizes in Phase 3+</td></tr>
+        <tr><td>4</td><td><code>price_lists.channel</code> + <code>audience</code></td><td>Phase 4’s consumer traffic burst is absorbed with <b>zero pricing-schema migration</b></td></tr>
+        <tr><td>5</td><td>Event taxonomy + transactional outbox</td><td>Every extraction is a <b>new consumer</b>, not a rewrite; warehouse/OpenSearch backfill is a replay of stored events</td></tr>
+        <tr><td>6</td><td>UUIDv7 keys + org scoping</td><td>Time-ordered inserts preserve <b>index locality</b> at high write rates; safe cross-shard routing</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3 id="s4-4">4.4 The honest constraint analysis</h3>
+    <div class="callout"><b>Counter-intuitive finding.</b> The <b>PostgreSQL write path is not the binding constraint</b> through Phase 6: even Phase 7’s peak order load (120k/day × 15% peak hour = 5 orders/s × ~35 tx = ~175 tx/s) fits comfortably inside a 32–64 vCPU instance’s ~2–4k tx/s envelope — <i>provided</i> the event pipeline, ad events, and location ingestion have been extracted per the triggers above.</div>
+    <p><b>The real scaling pressures arrive in this order:</b></p>
+    <div class="flow" style="flex-wrap:nowrap">
+      <span class="st">① Search (P4)</span><span class="ar">→</span>
+      <span class="st">② Event volume (P4–5)</span><span class="ar">→</span>
+      <span class="st">③ Location ingestion (P2–3, flagged early)</span><span class="ar">→</span>
+      <span class="st">④ Read fan-in (replicas, P4+)</span><span class="ar">→</span>
+      <span class="st key">⑤ Regional latency (P7 cells)</span>
+    </div>
+    <p class="small">This is exactly the profile the plan anticipates with its “extract only on proven need” doctrine (§2.6 rule 5) and its explicit Phase 1 fence — <i>no microservices estate</i> (§6.1, Source §21.5, risk R4 “premature complexity”).</p>
+  </section>
+
+  <!-- ================= SECTION 5 ================= -->
+  <section class="sec" id="s5">
+    <h2><span class="no">5</span>Caveats &amp; Quick Reference</h2>
+    <h3>5.1 Caveats</h3>
+    <ol>
+      <li><b>Volumes are assumptions, not forecasts</b> — they encode the plan’s staged density strategy (one area → adjacent areas → cities; Source §14.2). Re-baseline at every phase gate, which already requires performance evidence against the §9.3 budgets.</li>
+      <li><b>Pod / DB throughput figures are planning references</b>; the authoritative signal is the live SLO dashboard (Plan §3.8) — the trigger table in §4.2 is designed to be wired directly into alerting.</li>
+      <li><b>Costs exclude team scaling</b> (Plan §33), payment provider fees, and marketplace promotions; per Source §34.2, a separate financial model follows market selection.</li>
+    </ol>
+    <h3>5.2 Quick reference map</h3>
+    <div class="grid2">
+      <div class="mini"><b>Load model</b><span>Plan §3.3, §3.7, Appendix B (API surface)</span></div>
+      <div class="mini"><b>Partitioning &amp; retention</b><span>Plan §3.2, §4.11</span></div>
+      <div class="mini"><b>Search trigger</b><span>Plan §3.4</span></div>
+      <div class="mini"><b>Extraction doctrine</b><span>Plan §2.6, §6.2–§6.7</span></div>
+      <div class="mini"><b>SLO anchors</b><span>Plan §9.3, Part II §19</span></div>
+      <div class="mini"><b>Sharding enablers</b><span>Plan §7.2</span></div>
+      <div class="mini"><b>Ops staffing</b><span>Plan §10, Source §33</span></div>
+      <div class="mini"><b>Companion artifacts</b><span>Implementation &amp; UX Plan (.md / .html) · Source plan (.html)</span></div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<footer class="pagefoot">
+  <p><b>Smart Commerce &amp; Supply Platform</b> — Capacity Analysis · v1.0 · September 2026</p>
+  <p>Derived from the Technical &amp; Operational Implementation Plan and UI/UX Design Strategy · Source: <i>Smart_Commerce_Supply_Platform_Final_Plan.html</i></p>
+</footer>
+
+<script>
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  function setActive(id){
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (map[id]) map[id].classList.add('active');
+  }
+  if ('IntersectionObserver' in window) {
+    var current = null;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting) {
+          if (current !== e.target.id) { current = e.target.id; setActive(current); }
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+    targets.forEach(function(t){ io.observe(t); });
+  }
+  links.forEach(function(a){
+    a.addEventListener('click', function(){
+      setActive(a.getAttribute('href').slice(1));
+      document.getElementById('toc').classList.remove('open');
+    });
+  });
+})();
+</script>
+</body>
+</html>

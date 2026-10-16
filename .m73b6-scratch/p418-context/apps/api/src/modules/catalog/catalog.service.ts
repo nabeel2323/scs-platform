@@ -1,0 +1,4004 @@
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
+import { DatabaseService } from '../../common/database/database.service';
+import { RedisService } from '../../common/redis/redis.service';
+import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import {
+  categories,
+  brands,
+  products,
+  productVariants,
+  productMedia,
+  importJobs,
+  importJobChunks,
+  favorites,
+  savedSuppliers,
+} from './catalog.schema';
+import { enrichProductCards } from './product-card';
+import { imageReferences } from './product-images';
+import { createMediaRefResolver } from './product-card';
+import { productAttributeValues, variantAttributeValues, attributeDefinitions, productTypeAttributes, productTypes, attributeOptions } from './catalog.taxonomy.schema';
+import { organizations } from '../identity/identity.schema';
+import { stores, warehouses } from '../merchant/merchant.schema';
+import { priceLists, priceTiers } from '../pricing/pricing.schema';
+import { resolveOfferPrices } from '../pricing/price-resolution';
+import { inventoryItems } from '../inventory/inventory.schema';
+import { merchantOffers } from './catalog.offer.schema';
+import { eq, and, or, isNull, asc, desc, sql, inArray, ilike, like, count } from 'drizzle-orm';
+import crypto from 'node:crypto';
+import { StorageService } from '../../common/storage/storage.service';
+import { AuditService } from '../audit/index';
+import { timeQuery, recordCacheHit, recordCacheMiss } from '../../common/query-metrics';
+import {
+  ConditionalRulesService,
+  type ConditionalRule,
+  type AttributeValueMap,
+} from './conditional-rules.service';
+import { CatalogTaxonomyService } from './catalog.taxonomy.service';
+import { MerchantXlsxParserService } from './merchant-xlsx-parser.service';
+import { ImportValidationService, type ImportError } from './import-validation.service';
+import { ProductGovernanceService, HIGH_RISK_FIELDS } from './product-governance.service';
+
+/**
+ * BFS across the platform category rows to collect every descendant of
+ * `rootId`. Used by the category-contents endpoints because the materialized
+ * `categories.path` column is written inconsistently by the importer (see
+ * audit §3 note under the executor path builder), so a graph traversal is
+ * safer than pattern-matching on the path prefix. `all` is expected to be a
+ * small array (platform taxonomy is <200 nodes today), so the O(n²) scan is
+ * fine and avoids an index dependency.
+ */
+function collectDescendantIds(
+  all: ReadonlyArray<{ id: string; parentId: string | null }>,
+  rootId: string,
+): Set<string> {
+  const result = new Set<string>();
+  const queue: string[] = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const node of all) {
+      if (node.parentId === current && !result.has(node.id)) {
+        result.add(node.id);
+        queue.push(node.id);
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * Catalog service — products, variants, categories, brands, media, imports.
+ */
+@Injectable()
+export class CatalogService {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly redis: RedisService,
+    private readonly outbox: OutboxDispatcher,
+    private readonly storage: StorageService,
+    private readonly audit: AuditService,
+    private readonly conditionalRules: ConditionalRulesService,
+    private readonly taxonomyService: CatalogTaxonomyService,
+    private readonly xlsxParser: MerchantXlsxParserService,
+    private readonly importValidation: ImportValidationService,
+    private readonly governance: ProductGovernanceService,
+  ) {
+    // Shared with card enrichment so every surface renders media the same way.
+    this.resolveMediaRef = createMediaRefResolver(storage);
+  }
+
+  /** Convert a stored media reference (URL or object key) to a renderable URL. */
+  private readonly resolveMediaRef: (ref: string | null | undefined) => Promise<string | null>;
+
+  /** Resolve every image reference of one media row (url + thumbUrl). */
+  private async resolveMediaRow<T extends { url: string; thumbUrl: string | null }>(row: T): Promise<T & { displayUrl: string | null; thumbSrc: string | null }> {
+    const [displayUrl, thumbSrc] = await Promise.all([
+      this.resolveMediaRef(row.url),
+      this.resolveMediaRef(row.thumbUrl),
+    ]);
+    return { ...row, displayUrl, thumbSrc };
+  }
+
+  // ── Categories ───────────────────────────────────────────────
+
+  async createCategory(input: CreateCategoryInput) {
+    const id = crypto.randomUUID();
+    const slug =
+      input.slug ||
+      input.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+
+    let path = `/${slug}`;
+    if (input.parentId) {
+      const parent = await this.db.db.query.categories.findFirst({
+        where: eq(categories.id, input.parentId),
+      });
+      if (!parent) throw new NotFoundException('Parent category not found');
+      path = `${parent['path']}${slug}/`;
+    }
+
+    await this.db.db.insert(categories).values({
+      id,
+      storeId: input.storeId || null,
+      parentId: input.parentId || null,
+      path,
+      slug,
+      name: input.name,
+      nameAr: input.nameAr || null,
+      description: input.description || null,
+      imageUrl: input.imageUrl || null,
+      sortOrder: input.sortOrder || 0,
+    });
+
+    return this.getCategory(id);
+  }
+
+  async getCategory(id: string) {
+    const cat = await this.db.db.query.categories.findFirst({
+      where: eq(categories.id, id),
+    });
+    if (!cat) throw new NotFoundException('Category not found');
+    return cat;
+  }
+
+  async listCategories(filters?: { storeId?: string; parentId?: string; isActive?: boolean; all?: boolean }) {
+    const conditions = [];
+    if (filters?.storeId) conditions.push(eq(categories.storeId, filters.storeId));
+    // When `all` is true, skip the parentId filter so the client gets the full
+    // tree in one request. Without `all`, root categories are returned by default.
+    if (!filters?.all) {
+      if (filters?.parentId) conditions.push(eq(categories.parentId, filters.parentId));
+      else conditions.push(isNull(categories.parentId));
+    }
+    if (filters?.isActive !== undefined) conditions.push(eq(categories.isActive, filters.isActive));
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const cats = await this.db.db.query.categories.findMany({
+      where,
+      orderBy: [categories.sortOrder],
+    });
+
+    // M5 remediation: attach per-category canonical product count so the
+    // Admin UI can display accurate counts without a separate request.
+    if (cats.length > 0) {
+      const catIds = cats.map(c => c.id);
+      const countRows = await this.db.db.select({
+        categoryId: products.categoryId,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(products)
+        .where(and(
+          inArray(products.categoryId, catIds),
+          isNull(products.storeId),
+          isNull(products.deletedAt),
+        ))
+        .groupBy(products.categoryId);
+      const countMap = new Map(countRows.map(r => [r.categoryId as string, r.count] as const));
+      return cats.map(c => ({ ...c, productCount: countMap.get(c.id) ?? 0 }));
+    }
+
+    return cats;
+  }
+
+  async updateCategory(id: string, input: UpdateCategoryInput) {
+    const existing = await this.getCategory(id);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (input.name !== undefined) updates['name'] = input.name;
+    if (input.nameAr !== undefined) updates['nameAr'] = input.nameAr;
+    if (input.description !== undefined) updates['description'] = input.description;
+    if (input.imageUrl !== undefined) updates['imageUrl'] = input.imageUrl;
+    if (input.sortOrder !== undefined) updates['sortOrder'] = input.sortOrder;
+    if (input.isActive !== undefined) updates['isActive'] = input.isActive;
+
+    // Reparenting recomputes the materialized path; null clears the parent.
+    // Note: descendants keep their stored paths (admin taxonomy is 2 levels).
+    if (input.parentId !== undefined && input.parentId !== existing['parentId']) {
+      if (input.parentId === id) {
+        throw new BadRequestException('A category cannot be its own parent');
+      }
+      if (input.parentId === null) {
+        updates['parentId'] = null;
+        updates['path'] = `/${existing['slug']}`;
+      } else {
+        const parent = await this.db.db.query.categories.findFirst({
+          where: eq(categories.id, input.parentId),
+        });
+        if (!parent) throw new NotFoundException('Parent category not found');
+        const subtreeRoot = `${existing['path']}/`.replace(/\/+/g, '/');
+        const parentPath = `${parent['path']}/`.replace(/\/+/g, '/');
+        if (parentPath.startsWith(subtreeRoot)) {
+          throw new BadRequestException('Cannot move a category under its own descendant');
+        }
+        updates['parentId'] = input.parentId;
+        updates['path'] = `${parent['path']}${existing['slug']}/`;
+      }
+    }
+
+    await this.db.db.update(categories).set(updates).where(eq(categories.id, id));
+    return this.getCategory(id);
+  }
+
+  async deleteCategory(id: string) {
+    await this.getCategory(id);
+    // FK set-null: children become top-level, products lose their category
+    await this.db.db.delete(categories).where(eq(categories.id, id));
+    return { success: true };
+  }
+
+  /**
+   * PHASE 10: product types associated with a category, so the admin taxonomy
+   * manager can show which templates reference a given node.
+   */
+  async listCategoryProductTypes(categoryId: string) {
+    return this.db.db.query.productTypes.findMany({
+      where: and(eq(productTypes.categoryId, categoryId), eq(productTypes.status, 'PUBLISHED')),
+      orderBy: [asc(productTypes.name)],
+    });
+  }
+
+  // ── Category contents (audit §12, task §4/§5/§21/§23) ────────────
+  //
+  // These methods back the enriched GET /categories/:id, the new
+  // GET /categories/tree, GET /categories/:id/products, and the admin
+  // product-types listing per category. They intentionally do NOT rely on
+  // the materialized `categories.path` column: the current importer writes
+  // path inconsistently for roots vs children (see audit §3 note under the
+  // executor path builder), so traversal here is done via `parentId` over
+  // the small set of platform-level categories (storeId IS NULL).
+
+  /**
+   * Enriched category response per task §5. Adds parent / children /
+   * productTypeCount / directProductCount / descendantProductCount on top
+   * of the raw row so the admin category page can display real contents
+   * rather than frontend assumptions. Existing callers that only read the
+   * raw columns are unaffected because this method returns a superset.
+   */
+  async getCategoryContents(id: string) {
+    const cat = await this.db.db.query.categories.findFirst({
+      where: eq(categories.id, id),
+    });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const platformCats = await this.loadPlatformCategoryNodes();
+    const byId = new Map(platformCats.map(c => [c.id, c] as const));
+    const parentInfo = cat.parentId ? byId.get(cat.parentId) : null;
+    const childNodes = platformCats.filter(c => c.parentId === cat.id);
+    const descendantIds = collectDescendantIds(platformCats, cat.id);
+
+    const directCount = await this.countProductsInCategories([cat.id]);
+    const descendantCount = descendantIds.size > 0
+      ? await this.countProductsInCategories([...descendantIds])
+      : 0;
+
+    // Product-type count for a category = union of
+    //   (a) product types explicitly linked to this category via
+    //       productTypes.categoryId (task §21 relationship), and
+    //   (b) product types referenced by products directly in this category
+    //       or in its descendants (task §4 "what product types does this
+    //       category contain").
+    const linkedTypes = await this.db.db.select({ id: productTypes.id })
+      .from(productTypes)
+      .where(eq(productTypes.categoryId, cat.id));
+    const typesByProducts = await this.db.db.selectDistinct({ productTypeId: products.productTypeId })
+      .from(products)
+      .where(and(
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+        inArray(products.categoryId, [cat.id, ...descendantIds]),
+      ));
+    const typeIdSet = new Set<string>();
+    for (const r of linkedTypes) typeIdSet.add(r.id);
+    for (const r of typesByProducts) if (r.productTypeId) typeIdSet.add(r.productTypeId);
+
+    return {
+      ...cat,
+      parent: parentInfo ? { id: parentInfo.id, slug: parentInfo.slug, name: parentInfo.name } : null,
+      children: childNodes.map(c => ({ id: c.id, slug: c.slug, name: c.name })),
+      productTypeCount: typeIdSet.size,
+      directProductCount: directCount,
+      descendantProductCount: descendantCount,
+    };
+  }
+
+  /**
+   * Full platform category hierarchy with per-node counts. Task §23 requires
+   * the API to return explicit hierarchy (parent / children) rather than
+   * relying on the client to reconstruct from parentSlug = "".
+   */
+  async getCategoryTree() {
+    const nodes = await this.loadPlatformCategoryNodes();
+
+    // One group-by pass for direct product counts across every category.
+    const counts = await this.db.db.select({
+      categoryId: products.categoryId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(products)
+      .where(and(isNull(products.storeId), isNull(products.deletedAt)))
+      .groupBy(products.categoryId);
+    const countByCat = new Map<string, number>(
+      counts.filter(c => c.categoryId != null).map(c => [c.categoryId as string, c.count] as const),
+    );
+
+    type Node = {
+      id: string;
+      slug: string;
+      name: string;
+      nameAr: string | null;
+      sortOrder: number;
+      parentId: string | null;
+      directProductCount: number;
+      descendantProductCount: number;
+      children: Node[];
+    };
+
+    const nodeMap = new Map<string, Node>();
+    for (const c of nodes) {
+      nodeMap.set(c.id, {
+        id: c.id,
+        slug: c.slug,
+        name: c.name,
+        nameAr: c.nameAr,
+        sortOrder: c.sortOrder,
+        parentId: c.parentId,
+        directProductCount: countByCat.get(c.id) ?? 0,
+        descendantProductCount: 0,
+        children: [],
+      });
+    }
+
+    const roots: Node[] = [];
+    for (const c of nodes) {
+      const node = nodeMap.get(c.id)!;
+      if (c.parentId && nodeMap.has(c.parentId)) {
+        nodeMap.get(c.parentId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+
+    // Bottom-up accumulation: descendantProductCount for a node = sum of
+    // (direct + descendant) of each child. Mutates in place; recursion is
+    // bounded by tree depth (admin taxonomy is small).
+    const roll = (node: Node): number => {
+      let sum = 0;
+      for (const child of node.children) sum += roll(child);
+      node.descendantProductCount = sum;
+      return node.directProductCount + sum;
+    };
+    for (const r of roots) roll(r);
+
+    return roots;
+  }
+
+  /**
+   * Products belonging to a category, with direct vs descendant clearly
+   * separated (task §4 "Do not mix these counts without labeling them").
+   */
+  async getCategoryProducts(
+    id: string,
+    opts?: { scope?: 'DIRECT' | 'DESCENDANT' | 'BOTH' },
+  ) {
+    const scope = opts?.scope ?? 'BOTH';
+    const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, id) });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const platformCats = await this.loadPlatformCategoryNodes();
+    const descendantIds = collectDescendantIds(platformCats, cat.id);
+
+    const baseConditions = [isNull(products.storeId), isNull(products.deletedAt)];
+
+    const directRows = scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
+    const descendantRows = scope === 'DIRECT' || descendantIds.size === 0
+      ? []
+      : await this.queryCategoryProductRows(baseConditions, [...descendantIds]);
+
+    return {
+      categoryId: cat.id,
+      categorySlug: cat.slug,
+      scope,
+      direct: scope === 'DESCENDANT' ? [] : directRows,
+      descendant: scope === 'DIRECT' ? [] : descendantRows,
+      directCount: directRows.length,
+      descendantCount: descendantRows.length,
+    };
+  }
+
+  /**
+   * Admin view of Product Types linked to a category, including DRAFT types
+   * (the existing listCategoryProductTypes filters to PUBLISHED and is used
+   * by merchant/buyer surfaces; the admin taxonomy UI needs every status
+   * plus variant and attribute counts per task §6).
+   */
+  async listCategoryProductTypesForAdmin(categoryId: string) {
+    const cat = await this.db.db.query.categories.findFirst({ where: eq(categories.id, categoryId) });
+    if (!cat) throw new NotFoundException('Category not found');
+
+    const pts = await this.db.db.select({
+      id: productTypes.id,
+      code: productTypes.code,
+      name: productTypes.name,
+      nameAr: productTypes.nameAr,
+      description: productTypes.description,
+      status: productTypes.status,
+      version: productTypes.version,
+      publishedAt: productTypes.publishedAt,
+      variantDimensions: productTypes.variantDimensions,
+    })
+      .from(productTypes)
+      .where(eq(productTypes.categoryId, categoryId))
+      .orderBy(asc(productTypes.name));
+
+    if (pts.length === 0) return [];
+
+    const ptIds = pts.map(p => p.id);
+
+    // Variant count = number of variants attached to any product in this
+    // category whose productTypeId matches. Attribute count = PTA rows.
+    const variantCounts = await this.db.db.select({
+      productTypeId: products.productTypeId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(and(
+        inArray(products.productTypeId, ptIds),
+        eq(products.categoryId, categoryId),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ))
+      .groupBy(products.productTypeId);
+    const variantByPt = new Map(variantCounts.map(v => [v.productTypeId as string, v.count] as const));
+
+    const attrCounts = await this.db.db.select({
+      productTypeId: productTypeAttributes.productTypeId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(productTypeAttributes)
+      .where(inArray(productTypeAttributes.productTypeId, ptIds))
+      .groupBy(productTypeAttributes.productTypeId);
+    const attrByPt = new Map(attrCounts.map(a => [a.productTypeId, a.count] as const));
+
+    return pts.map(p => ({
+      ...p,
+      variantCount: variantByPt.get(p.id) ?? 0,
+      attributeCount: attrByPt.get(p.id) ?? 0,
+      publishStatus: p.status === 'PUBLISHED' ? 'PUBLISHED' : p.status === 'DRAFT' ? 'NOT_PUBLISHED' : p.status,
+    }));
+  }
+
+  /** Load the small set of platform-level categories used for tree/count traversal. */
+  private async loadPlatformCategoryNodes() {
+    return this.db.db.select({
+      id: categories.id,
+      parentId: categories.parentId,
+      slug: categories.slug,
+      name: categories.name,
+      nameAr: categories.nameAr,
+      sortOrder: categories.sortOrder,
+    })
+      .from(categories)
+      .where(isNull(categories.storeId))
+      .orderBy(asc(categories.sortOrder));
+  }
+
+  /** Count non-deleted canonical products assigned to any of the given category ids. */
+  private async countProductsInCategories(categoryIds: string[]): Promise<number> {
+    if (categoryIds.length === 0) return 0;
+    const rows = await this.db.db.select({ count: sql<number>`count(*)::int` })
+      .from(products)
+      .where(and(
+        inArray(products.categoryId, categoryIds),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ));
+    return rows[0]?.count ?? 0;
+  }
+
+  /** Fetch a page of products constrained to `oneOfCategoryIds`, joined with the
+   *  brand / product-type / category natural keys needed for the admin table. */
+  private async queryCategoryProductRows(baseConditions: unknown[], oneOfCategoryIds: string[]) {
+    if (oneOfCategoryIds.length === 0) return [];
+    return this.db.db.select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      titleAr: products.titleAr,
+      status: products.status,
+      condition: products.condition,
+      categoryId: products.categoryId,
+      categorySlug: categories.slug,
+      categoryName: categories.name,
+      brandSlug: brands.slug,
+      brandName: brands.name,
+      productTypeCode: productTypes.code,
+      productTypeName: productTypes.name,
+    })
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(productTypes, eq(products.productTypeId, productTypes.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(and(...(baseConditions as never[]), inArray(products.categoryId, oneOfCategoryIds)));
+  }
+
+  /**
+   * Catalog Governance §23: products that use a specific Product Type, so the
+   * admin product-type detail page can show "5 products · 10 variants" and
+   * link to each one.
+   */
+  async getProductsByProductType(productTypeId: string) {
+    const pt = await this.db.db.query.productTypes.findFirst({
+      where: eq(productTypes.id, productTypeId),
+    });
+    if (!pt) throw new NotFoundException('Product type not found');
+
+    const rows = await this.db.db.select({
+      id: products.id,
+      slug: products.slug,
+      title: products.title,
+      titleAr: products.titleAr,
+      status: products.status,
+      condition: products.condition,
+      brandSlug: brands.slug,
+      brandName: brands.name,
+      categorySlug: categories.slug,
+      categoryName: categories.name,
+    })
+      .from(products)
+      .leftJoin(brands, eq(products.brandId, brands.id))
+      .leftJoin(categories, eq(products.categoryId, categories.id))
+      .where(and(
+        eq(products.productTypeId, productTypeId),
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+      ))
+      .orderBy(asc(products.title));
+
+    // Enrich with variant counts
+    const productIds = rows.map(r => r.id);
+    const variantCountMap = new Map<string, number>();
+    if (productIds.length > 0) {
+      const vRows = await this.db.db.select({
+        productId: productVariants.productId,
+        count: sql<number>`count(*)::int`,
+      })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .groupBy(productVariants.productId);
+      for (const r of vRows) variantCountMap.set(r.productId, r.count);
+    }
+
+    return {
+      productTypeId,
+      productTypeCode: pt.code,
+      productTypeName: pt.name,
+      products: rows.map(r => ({
+        ...r,
+        variantCount: variantCountMap.get(r.id) ?? 0,
+      })),
+      totalCount: rows.length,
+      totalVariantCount: rows.reduce((sum, r) => sum + (variantCountMap.get(r.id) ?? 0), 0),
+    };
+  }
+
+  /**
+   * Catalog Governance §26: identify variants with corrupted SKUs matching
+   * the `SKU-[...]` pattern produced by the old useProductStudio.ts bug.
+   * Returns full details so the admin can review before any migration.
+   */
+  async findCorruptedVariants() {
+    const rows = await this.db.db.select({
+      id: productVariants.id,
+      sku: productVariants.sku,
+      title: productVariants.title,
+      productId: productVariants.productId,
+      productSlug: products.slug,
+      productTitle: products.title,
+      createdAt: productVariants.createdAt,
+    })
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(like(productVariants.sku, 'SKU-[%'))
+      .orderBy(productVariants.createdAt);
+
+    // Enrich with variant attribute values so the admin can see what the
+    // variant actually represents before approving a SKU migration.
+    const variantIds = rows.map(r => r.id);
+    const attrMap = new Map<string, Array<{ attributeCode: string; valueText: string | null; valueNumber: string | null; optionValue: string | null }>>();
+    if (variantIds.length > 0) {
+      const { variantAttributeValues } = await import('../catalog/catalog.taxonomy.schema');
+      const { attributeDefinitions } = await import('../catalog/catalog.taxonomy.schema');
+      const vaRows = await this.db.db.select({
+        variantId: variantAttributeValues.variantId,
+        attributeCode: attributeDefinitions.code,
+        valueText: variantAttributeValues.valueText,
+        valueNumber: variantAttributeValues.valueNumber,
+        optionValue: variantAttributeValues.optionValue,
+      })
+        .from(variantAttributeValues)
+        .innerJoin(attributeDefinitions, eq(variantAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .where(inArray(variantAttributeValues.variantId, variantIds));
+      for (const r of vaRows) {
+        if (!attrMap.has(r.variantId)) attrMap.set(r.variantId, []);
+        attrMap.get(r.variantId)!.push({
+          attributeCode: r.attributeCode,
+          valueText: r.valueText,
+          valueNumber: r.valueNumber,
+          optionValue: r.optionValue,
+        });
+      }
+    }
+
+    return {
+      count: rows.length,
+      variants: rows.map(r => ({
+        ...r,
+        attributes: attrMap.get(r.id) ?? [],
+      })),
+    };
+  }
+
+  // ── Brands ───────────────────────────────────────────────────
+
+  async createBrand(input: CreateBrandInput) {
+    const id = crypto.randomUUID();
+    const slug =
+      input.slug ||
+      input.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+
+    await this.db.db.insert(brands).values({
+      id,
+      name: input.name,
+      nameAr: input.nameAr || null,
+      slug,
+      logoUrl: input.logoUrl || null,
+      description: input.description || null,
+    });
+
+    return this.getBrand(id);
+  }
+
+  async getBrand(id: string) {
+    const brand = await this.db.db.query.brands.findFirst({
+      where: eq(brands.id, id),
+    });
+    if (!brand) throw new NotFoundException('Brand not found');
+    return brand;
+  }
+
+  async listBrands(includeInactive = false) {
+    return this.db.db.query.brands.findMany({
+      where: includeInactive ? undefined : eq(brands.isActive, true),
+      orderBy: [brands.name],
+    });
+  }
+
+  /**
+   * PHASE 11: enriched brand list with product count and merchant count
+   * (distinct stores offering products of each brand).
+   */
+  async listBrandsEnriched(includeInactive = false) {
+    const brandRows = await this.db.db.query.brands.findMany({
+      where: includeInactive ? undefined : eq(brands.isActive, true),
+      orderBy: [brands.name],
+    });
+
+    // Correlated counts via raw SQL — avoids N+1 while keeping the query simple.
+    const productCounts = await this.db.db.execute<{
+      brand_id: string;
+      product_count: string;
+    }>(sql`SELECT brand_id, COUNT(*)::text AS product_count FROM products WHERE brand_id IS NOT NULL GROUP BY brand_id`);
+
+    const merchantCounts = await this.db.db.execute<{
+      brand_id: string;
+      merchant_count: string;
+    }>(sql`
+      SELECT p.brand_id, COUNT(DISTINCT mo.store_id)::text AS merchant_count
+      FROM merchant_offers mo
+      JOIN products p ON mo.product_id = p.id
+      WHERE p.brand_id IS NOT NULL
+      GROUP BY p.brand_id
+    `);
+
+    const pcMap = new Map(productCounts.rows.map(r => [r.brand_id, Number(r.product_count)]));
+    const mcMap = new Map(merchantCounts.rows.map(r => [r.brand_id, Number(r.merchant_count)]));
+
+    return brandRows.map(b => ({
+      ...b,
+      productCount: pcMap.get(b.id) ?? 0,
+      merchantCount: mcMap.get(b.id) ?? 0,
+    }));
+  }
+
+  async updateBrand(id: string, input: Partial<CreateBrandInput> & { isActive?: boolean }) {
+    await this.getBrand(id);
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.name !== undefined) {
+      updates['name'] = input.name;
+      updates['slug'] = input.slug || input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
+    if (input.nameAr !== undefined) updates['nameAr'] = input.nameAr || null;
+    if (input.logoUrl !== undefined) updates['logoUrl'] = input.logoUrl || null;
+    if (input.description !== undefined) updates['description'] = input.description || null;
+    if (input.isActive !== undefined) updates['isActive'] = input.isActive;
+    await this.db.db.update(brands).set(updates).where(eq(brands.id, id));
+    return this.getBrand(id);
+  }
+
+  async deactivateBrand(id: string) {
+    return this.updateBrand(id, { isActive: false });
+  }
+
+  // ── Products ─────────────────────────────────────────────────
+
+  async createProduct(input: CreateProductInput, _userId: string) {
+    // PHASE 7: Check for existing canonical product with same identifiers
+    if (input.gtin || input.ean || input.mpn) {
+      const existing = await this.findProductByIdentifiers({
+        gtin: input.gtin, ean: input.ean, mpn: input.mpn,
+      });
+      if (existing) {
+        // Return the match so the caller can attach an offer to it
+        return { ...existing, _dedup: true } as any;
+      }
+    }
+
+    const id = crypto.randomUUID();
+    const slug =
+      input.slug ||
+      `${input.title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')}-${crypto.randomUUID().substring(0, 8)}`;
+
+    await this.db.db.insert(products).values({
+      id,
+      storeId: input.storeId ?? null,
+      categoryId: input.categoryId || null,
+      brandId: input.brandId || null,
+      productTypeId: input.productTypeId || null,
+      slug,
+      title: input.title,
+      titleAr: input.titleAr || null,
+      description: input.description || null,
+      descriptionAr: input.descriptionAr || null,
+      status: 'DRAFT',
+      condition: input.condition || 'NEW',
+      moq: 1, // Deprecated: MOQ is now offer-owned (merchantOffers.moq). Always use default for new products.
+      images: input.images || [],
+      attributes: {}, // Deprecated: attributes JSONB is superseded by typed productAttributeValues. Always empty for new products.
+      gtin: input.gtin || null,
+      ean: input.ean || null,
+      mpn: input.mpn || null,
+      // PHASE 4 P1: Explicit ms-precision updatedAt for optimistic locking round-trip fidelity.
+      updatedAt: new Date(),
+    });
+
+    // PHASE 9: Audit — product created
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      actorId: _userId,
+      action: 'product.created',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: input.storeId ?? null, title: input.title },
+    });
+
+    return this.getProduct(id);
+  }
+
+  /**
+   * PHASE 7: Find an existing canonical product by its identifiers.
+   * Returns the first match by GTIN, EAN, or MPN (in that priority order).
+   * Callers use this during product creation or offer linking to avoid
+   * duplicates and to suggest linking to the existing canonical row.
+   */
+  async findProductByIdentifiers(ids: {
+    gtin?: string | null;
+    ean?: string | null;
+    mpn?: string | null;
+  }): Promise<{ id: string; title: string; slug: string; matched: 'gtin' | 'ean' | 'mpn' } | null> {
+    const { gtin, ean, mpn } = ids;
+    if (!gtin && !ean && !mpn) return null;
+
+    const conditions = [isNull(products.deletedAt)];
+    if (gtin) conditions.push(eq(products.gtin, gtin));
+    else if (ean) conditions.push(eq(products.ean, ean));
+    else if (mpn) conditions.push(eq(products.mpn, mpn));
+
+    const match = await this.db.db.query.products.findFirst({
+      where: and(...conditions),
+      columns: { id: true, title: true, slug: true, gtin: true, ean: true, mpn: true },
+    });
+    if (!match) {
+      // Fallback: try remaining identifiers individually
+      if (gtin && !ean && !mpn) return null;
+      const remaining: Array<{ col: typeof products.gtin | typeof products.ean | typeof products.mpn; val: string; label: 'gtin' | 'ean' | 'mpn' }> = [];
+      if (gtin) remaining.push({ col: products.gtin, val: gtin, label: 'gtin' });
+      if (ean) remaining.push({ col: products.ean, val: ean, label: 'ean' });
+      if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
+      for (const r of remaining) {
+        const found = await this.db.db.query.products.findFirst({
+          where: and(isNull(products.deletedAt), eq(r.col, r.val)),
+          columns: { id: true, title: true, slug: true },
+        });
+        if (found) return { ...found, matched: r.label };
+      }
+      return null;
+    }
+    const matched = gtin ? 'gtin' as const : ean ? 'ean' as const : 'mpn' as const;
+    return { id: match.id, title: match.title, slug: match.slug, matched };
+  }
+
+  /**
+   * VARIANT REMEDIATION: Search canonical products (store_id IS NULL) by
+   * free-text title, brand, category, GTIN/EAN/MPN. Used by the merchant
+   * "Existing Product Selector" so merchants can find and link to canonical
+   * products instead of accidentally creating duplicates.
+   *
+   * Returns product rows enriched with brand name, category name, variant
+   * count, and active offer count.
+   */
+  async searchCanonicalProducts(filters: {
+    search?: string;
+    brandId?: string;
+    categoryId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const limit = Math.min(filters.limit ?? 20, 50);
+    const offset = filters.offset ?? 0;
+    const conditions = [isNull(products.storeId), isNull(products.deletedAt)];
+
+    if (filters.search) {
+      const q = `%${filters.search}%`;
+      conditions.push(
+        // Title match OR identifier match
+        ilike(products.title, q)
+      );
+    }
+    if (filters.brandId) conditions.push(eq(products.brandId, filters.brandId));
+    if (filters.categoryId) conditions.push(eq(products.categoryId, filters.categoryId));
+
+    const rows = await this.db.db
+      .select({
+        id: products.id,
+        title: products.title,
+        titleAr: products.titleAr,
+        slug: products.slug,
+        brandId: products.brandId,
+        categoryId: products.categoryId,
+        gtin: products.gtin,
+        ean: products.ean,
+        mpn: products.mpn,
+        status: products.status,
+        brandName: brands.name,
+        categoryName: categories.name,
+      })
+      .from(products)
+      .leftJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(categories, eq(categories.id, products.categoryId))
+      .where(and(...conditions))
+      .orderBy(desc(products.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Enrich with variant count and active offer count per product.
+    const productIds = rows.map(r => r.id);
+    const variantCounts = new Map<string, number>();
+    const offerCounts = new Map<string, number>();
+
+    if (productIds.length > 0) {
+      const vRows = await this.db.db
+        .select({ productId: productVariants.productId, count: sql<number>`count(*)::int` })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .groupBy(productVariants.productId);
+      for (const r of vRows) variantCounts.set(r.productId, r.count);
+
+      const oRows = await this.db.db
+        .select({ productId: merchantOffers.productId, count: sql<number>`count(*)::int` })
+        .from(merchantOffers)
+        .where(and(
+          inArray(merchantOffers.productId, productIds),
+          eq(merchantOffers.status, 'ACTIVE'),
+        ))
+        .groupBy(merchantOffers.productId);
+      for (const r of oRows) offerCounts.set(r.productId, r.count);
+    }
+
+    return {
+      items: rows.map(r => ({
+        ...r,
+        variantCount: variantCounts.get(r.id) ?? 0,
+        activeOfferCount: offerCounts.get(r.id) ?? 0,
+      })),
+      total: rows.length < limit ? offset + rows.length : offset + limit + 1,
+    };
+  }
+
+  /**
+   * PHASE 7: Find potential duplicate products by matching title + category.
+   * Returns groups of products that likely represent the same canonical item.
+   */
+  /**
+   * PHASE COS-14: Aggregate data-quality metrics for the admin dashboard.
+   * Returns counts of products with common completeness issues.
+   */
+  async getDataQualityMetrics() {
+    const [
+      totalProducts,
+      missingImages,
+      missingDescription,
+      missingCategory,
+      missingBrand,
+      orphanedVariants,
+      incompleteOffers,
+    ] = await Promise.all([
+      // Total active products
+      this.db.db.execute(sql`SELECT COUNT(*)::int AS count FROM products WHERE deleted_at IS NULL AND status = 'ACTIVE'`),
+      // Products with no media entries
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products p
+        WHERE p.deleted_at IS NULL AND p.status = 'ACTIVE'
+        AND NOT EXISTS (SELECT 1 FROM product_media pm WHERE pm.product_id = p.id)
+      `),
+      // Products with null or empty description
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE'
+        AND (description IS NULL OR trim(description) = '')
+      `),
+      // Products without a category
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE' AND category_id IS NULL
+      `),
+      // Products without a brand
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM products
+        WHERE deleted_at IS NULL AND status = 'ACTIVE' AND brand_id IS NULL
+      `),
+      // Orphaned variants (product deleted or inactive)
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM product_variants pv
+        LEFT JOIN products p ON pv.product_id = p.id
+        WHERE p.id IS NULL OR p.deleted_at IS NOT NULL
+      `),
+      // Merchant offers with no active price (base price = 0 or missing)
+      this.db.db.execute(sql`
+        SELECT COUNT(*)::int AS count FROM merchant_offers mo
+        LEFT JOIN LATERAL (
+          SELECT 1 FROM price_tiers pt
+          JOIN price_lists pl ON pt.price_list_id = pl.id
+          WHERE pl.variant_id IN (SELECT id FROM product_variants WHERE product_id = mo.product_id)
+          AND pt.unit_price_minor > 0
+          LIMIT 1
+        ) has_price ON true
+        WHERE has_price.1 IS NULL
+      `),
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extract = (r: any) => {
+      const row = r.rows?.[0];
+      return row ? Number(row['count']) : 0;
+    };
+
+    return {
+      totalProducts: extract(totalProducts),
+      missingImages: extract(missingImages),
+      missingDescription: extract(missingDescription),
+      missingCategory: extract(missingCategory),
+      missingBrand: extract(missingBrand),
+      orphanedVariants: extract(orphanedVariants),
+      incompleteOffers: extract(incompleteOffers),
+    };
+  }
+
+  async findPotentialDuplicates(categoryId?: string, limit = 50) {
+    const conditions = [isNull(products.deletedAt), eq(products.status, 'ACTIVE')];
+    if (categoryId) conditions.push(eq(products.categoryId, categoryId));
+
+    // Group by normalized title + categoryId to find potential dupes
+    const result = await this.db.db.execute(sql`
+      SELECT
+        category_id,
+        lower(trim(title)) as norm_title,
+        count(*)::int as dup_count,
+        array_agg(id) as product_ids,
+        array_agg(distinct store_id) as store_ids
+      FROM products
+      WHERE deleted_at IS NULL
+        AND status = 'ACTIVE'
+        ${categoryId ? sql`AND category_id = ${categoryId}` : sql``}
+      GROUP BY category_id, lower(trim(title))
+      HAVING count(*) > 1
+      ORDER BY dup_count DESC
+      LIMIT ${limit}
+    `);
+    const rows = (result as any).rows ?? result;
+    return (Array.isArray(rows) ? rows : []).map((r: any) => ({
+      categoryId: r.category_id,
+      normalizedTitle: r.norm_title,
+      duplicateCount: Number(r.dup_count),
+      productIds: r.product_ids as string[],
+      storeIds: (r.store_ids ?? []).filter(Boolean) as string[],
+    }));
+  }
+
+  async getProduct(id: string) {
+    const product = await this.db.db.query.products.findFirst({
+      where: and(eq(products.id, id), isNull(products.deletedAt)),
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    return product;
+  }
+
+  /** PHASE 8: Read-through Redis cache for product detail (TTL 5 min). */
+  private static readonly PRODUCT_DETAIL_CACHE_PREFIX = 'product:detail:';
+  private static readonly PRODUCT_DETAIL_TTL_S = 300;
+
+  async getProductDetail(id: string) {
+    // Attempt cache hit
+    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id;
+    try {
+      const cached = await this.redis.client.get(cacheKey);
+      if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
+      recordCacheMiss('product_detail');
+    } catch { recordCacheMiss('product_detail'); }
+
+    const result = await timeQuery(`getProductDetail:${id}`, () => this._getProductDetailUncached(id));
+
+    // Fire-and-forget cache write
+    try {
+      await this.redis.client.set(cacheKey, JSON.stringify(result), 'EX', CatalogService.PRODUCT_DETAIL_TTL_S);
+    } catch { /* non-blocking */ }
+
+    return result;
+  }
+
+  /** Invalidate product detail cache (call on update/delete). */
+  async invalidateProductCache(id: string) {
+    try {
+      await this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id);
+    } catch { /* non-blocking */ }
+  }
+
+  private async _getProductDetailUncached(id: string) {
+    const product = await this.getProduct(id);
+    const productStoreId = product.storeId;
+    const [storeRows, media, variants, labels] = await Promise.all([
+      productStoreId
+        ? this.db.db.select({ id: stores.id, displayName: stores.displayName, name: stores.displayName,
+            slug: stores.slug, currency: stores.currency, status: stores.status,
+            verificationStatus: stores.verificationStatus, orgId: stores.orgId, orgName: organizations.name,
+          }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, productStoreId))
+        : Promise.resolve([] as any[]),
+      this.listMediaByProduct(id),
+      this.listVariantsByProduct(id),
+      this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
+        .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
+        .where(eq(products.id, id)),
+    ]);
+    // A5-1: attach per-variant pricing via the shared resolver so the buyer
+    // detail page and the cart agree on what a unit costs. MOQ is offer-owned;
+    // resolve at quantity=1 for display (cart uses actual offer MOQ).
+    const activeVariants = variants.filter(v => v['isActive']);
+    const variantIds = activeVariants.map(v => v['id']);
+    const pricingMap = variantIds.length > 0 && productStoreId
+      ? await resolveOfferPrices(this.db.db, productStoreId, variantIds, 1, { ladder: true })
+      : new Map();
+    const variantsWithPricing = variants.map(v => ({
+      ...v,
+      pricing: pricingMap.get(v['id']) ?? null,
+    }));
+
+    // Attach stock status per variant: sum available across all store warehouses.
+    // Wrapped in try-catch so test environments with partial mock DBs still work.
+    const allVariantIds = variants.map(v => v['id']);
+    const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+    try {
+      if (allVariantIds.length > 0 && product['storeId']) {
+        const storeWarehouses = await this.db.db.query.warehouses.findMany({
+          where: eq(warehouses.storeId, product['storeId']),
+          columns: { id: true },
+        });
+        if (storeWarehouses.length > 0) {
+          const whIds = storeWarehouses.map(w => w.id);
+          const invRows = await this.db.db.query.inventoryItems.findMany({
+            where: and(
+              inArray(inventoryItems.warehouseId, whIds),
+              inArray(inventoryItems.variantId, allVariantIds),
+            ),
+          });
+          for (const row of invRows) {
+            const vid = row['variantId'];
+            const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+            const available = row['qtyOnHand'] - row['qtyReserved'];
+            stockByVariant[vid] = {
+              totalAvailable: prev.totalAvailable + available,
+              totalOnHand: prev.totalOnHand + row['qtyOnHand'],
+              warehouseCount: prev.warehouseCount + 1,
+            };
+          }
+        }
+      }
+    } catch {
+      // Stock tables may not be available in all environments (e.g. test mocks)
+    }
+    const variantsWithStock = variantsWithPricing.map(v => ({
+      ...v,
+      stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+    }));
+
+    // Resolve storage keys to signed URLs so the buyer page can render
+    // product photos directly; failures degrade to null (placeholder shown).
+    const resolvedMedia = await Promise.all(media.map(m => this.resolveMediaRow(m)));
+
+    // PHASE 5e: structured attribute values for specs display
+    let attributeValues: Array<{ code: string; label: string; value: unknown }> = [];
+    try {
+      const rows = await this.db.db
+        .select({
+          code: attributeDefinitions.code,
+          label: attributeDefinitions.name,
+          valueText: productAttributeValues.valueText,
+          valueNumber: productAttributeValues.valueNumber,
+          valueBoolean: productAttributeValues.valueBoolean,
+          optionValue: productAttributeValues.optionValue,
+          valueJson: productAttributeValues.valueJson,
+        })
+        .from(productAttributeValues)
+        .innerJoin(attributeDefinitions, eq(productAttributeValues.attributeDefinitionId, attributeDefinitions.id))
+        .where(eq(productAttributeValues.productId, id));
+      attributeValues = rows.map(r => ({
+        code: r.code,
+        label: r.label,
+        value: r.valueText ?? r.valueNumber ?? r.valueBoolean ?? r.optionValue ?? r.valueJson ?? null,
+      }));
+    } catch { /* taxonomy tables may not be available in all envs */ }
+
+    return { ...product, ...labels[0], store: storeRows[0] ?? null, media: resolvedMedia, variants: variantsWithStock,
+      attributeValues,
+      imageCount: imageReferences(product.images, media).length };
+  }
+
+  async listProductsByStore(
+    storeId: string,
+    filters?: {
+      status?: string;
+      categoryId?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const conditions = [
+      eq(products.storeId, storeId),
+      isNull(products.deletedAt),
+    ];
+
+    if (filters?.status) {
+      conditions.push(eq(products.status, filters.status));
+    }
+
+    if (filters?.categoryId) {
+      conditions.push(eq(products.categoryId, filters.categoryId));
+    }
+
+    if (filters?.search) {
+      conditions.push(ilike(products.title, `%${filters.search}%`));
+    }
+
+    const where = and(...conditions);
+
+    const limit =
+      typeof filters?.limit === 'number' &&
+      Number.isFinite(filters.limit) &&
+      filters.limit > 0
+        ? Math.min(Math.floor(filters.limit), 500)
+        : undefined;
+
+    const offset =
+      typeof filters?.offset === 'number' &&
+      Number.isFinite(filters.offset) &&
+      filters.offset >= 0
+        ? Math.floor(filters.offset)
+        : undefined;
+
+    // Real COUNT for pagination (not page-size)
+    const [countResult] = await this.db.db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(where);
+
+    const items = await this.db.db.query.products.findMany({
+      where,
+      orderBy: [desc(products.createdAt)],
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    });
+
+    const enrichedItems = await enrichProductCards(this.db.db, items, {
+      resolveImage: ref => this.resolveMediaRef(ref),
+    });
+
+    return {
+      items: enrichedItems,
+      total: countResult?.count ?? 0,
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+    };
+  }
+
+  /**
+   * Validate that a product's attributes satisfy all statically-required and
+   * conditionally-required rules before publication. Throws BadRequestException
+   * with structured error details if validation fails.
+   */
+  async validatePublish(productId: string): Promise<{ valid: true }> {
+    const product = await this.getProduct(productId);
+    const productTypeId = product['productTypeId'] as string | null;
+    if (!productTypeId) return { valid: true };
+
+    // 1. Load the product type's attributes with their rules + required flags
+    const ptaRows = await this.db.db.query.productTypeAttributes.findMany({
+      where: eq(productTypeAttributes.productTypeId, productTypeId),
+    });
+    if (ptaRows.length === 0) return { valid: true };
+
+    // 2. Load current product attribute values
+    const valRows = await this.db.db.query.productAttributeValues.findMany({
+      where: eq(productAttributeValues.productId, productId),
+    });
+    const valuesByAttrId = new Map<string, unknown>();
+    for (const v of valRows) {
+      const val = v.valueText ?? v.valueNumber ?? v.valueBoolean ?? v.optionValue ?? v.valueJson ?? null;
+      valuesByAttrId.set(v.attributeDefinitionId, val);
+    }
+
+    // 3. Collect all conditional rules from the product type attributes
+    const allRules: ConditionalRule[] = [];
+    const allAttrIds: string[] = [];
+    for (const pta of ptaRows) {
+      allAttrIds.push(pta.attributeDefinitionId);
+      const rules = pta.conditionalRules as ConditionalRule[] | null;
+      if (Array.isArray(rules)) allRules.push(...rules);
+    }
+
+    // 4. Evaluate conditional rules
+    const attrValues: AttributeValueMap = valuesByAttrId;
+    const evaluation = this.conditionalRules.evaluate(allRules, attrValues, allAttrIds);
+
+    // 5. Check statically-required PRODUCT-scope attributes have values.
+    // VARIANT-scope and OFFER-scope attributes are validated at their own
+    // layer (variant attribute values, offer attribute values) — they must
+    // not block product publication.
+    const errors: Array<{ attributeId: string; message: string }> = [];
+    for (const pta of ptaRows) {
+      if (pta.required && pta.scope === 'PRODUCT') {
+        const val = valuesByAttrId.get(pta.attributeDefinitionId);
+        if (val === null || val === undefined || val === '') {
+          // Only report if not already reported by conditional evaluation
+          const alreadyReported = evaluation.errors.some(e => e.attributeId === pta.attributeDefinitionId);
+          if (!alreadyReported) {
+            errors.push({
+              attributeId: pta.attributeDefinitionId,
+              message: `Required attribute ${pta.attributeDefinitionId} has no value`,
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Merge conditionally-required errors (only PRODUCT-scope targets)
+    const productScopeAttrIds = new Set(
+      ptaRows.filter(pta => pta.scope === 'PRODUCT').map(pta => pta.attributeDefinitionId),
+    );
+    for (const err of evaluation.errors) {
+      if (productScopeAttrIds.has(err.attributeId)) {
+        errors.push(err);
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Product validation failed: missing required attributes',
+        errors,
+      });
+    }
+
+    return { valid: true };
+  }
+
+  // ── PHASE 4 P2 helpers ──────────────────────────────────────
+
+  /** Normalize an identifier: trim whitespace, empty → null. */
+  private normalizeIdentifier(value: string | null | undefined): string | null {
+    if (value == null) return value as null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+
+  /** Check whether a GTIN or EAN already exists on ANOTHER product (excluding self). */
+  private async checkIdentifierUniqueness(
+    field: typeof products.gtin | typeof products.ean,
+    value: string,
+    excludeProductId: string,
+    label: string,
+  ): Promise<void> {
+    const existing = await this.db.db.query.products.findFirst({
+      where: and(eq(field, value), isNull(products.deletedAt)),
+      columns: { id: true },
+    });
+    if (existing && existing.id !== excludeProductId) {
+      throw new BadRequestException(`${label} already exists on another product`);
+    }
+  }
+
+  async updateProduct(id: string, input: UpdateProductInput, clientUpdatedAt?: string) {
+    const product = await this.getProduct(id);
+    const currentStatus = product['status'] as string;
+
+    // ── P11 Edit Governance ──
+    // Block edits on products under review or submitted
+    if (currentStatus === 'SUBMITTED' || currentStatus === 'UNDER_REVIEW') {
+      throw new ConflictException({
+        statusCode: 409,
+        message: `Cannot edit product in ${currentStatus} status. ${currentStatus === 'SUBMITTED' ? 'Withdraw first.' : 'Wait for review to complete.'}`,
+        currentStatus,
+      });
+    }
+
+    // Detect high-risk field changes for re-review trigger
+    const changedFields = new Set<string>();
+    if (input.title !== undefined) changedFields.add('title');
+    if (input.titleAr !== undefined) changedFields.add('titleAr');
+    if (input.description !== undefined) changedFields.add('description');
+    if (input.descriptionAr !== undefined) changedFields.add('descriptionAr');
+    if (input.categoryId !== undefined) changedFields.add('categoryId');
+    if (input.brandId !== undefined) changedFields.add('brandId');
+    if (input.productTypeId !== undefined) changedFields.add('productTypeId');
+    if (input.gtin !== undefined) changedFields.add('gtin');
+    if (input.ean !== undefined) changedFields.add('ean');
+    if (input.mpn !== undefined) changedFields.add('mpn');
+    if (input.images !== undefined) changedFields.add('images');
+
+    const hasHighRiskChanges = Array.from(changedFields).some(f => HIGH_RISK_FIELDS.has(f));
+    const needsReReview = hasHighRiskChanges && (currentStatus === 'APPROVED' || currentStatus === 'PUBLISHED');
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (input.title !== undefined) updates['title'] = input.title;
+    if (input.titleAr !== undefined) updates['titleAr'] = input.titleAr;
+    if (input.description !== undefined) updates['description'] = input.description;
+    if (input.descriptionAr !== undefined) updates['descriptionAr'] = input.descriptionAr;
+    if (input.status !== undefined) {
+      updates['status'] = input.status;
+      if (input.status === 'ACTIVE') updates['publishedAt'] = new Date();
+    }
+    if (input.condition !== undefined) updates['condition'] = input.condition;
+    if (input.images !== undefined) updates['images'] = input.images;
+    if (input.categoryId !== undefined) updates['categoryId'] = input.categoryId;
+    if (input.brandId !== undefined) updates['brandId'] = input.brandId;
+    if (input.slug !== undefined) updates['slug'] = input.slug;
+    if (input.metadata !== undefined) updates['metadata'] = input.metadata;
+
+    // ── PHASE 4 P2: Identifier normalization + uniqueness ──
+    if (input.gtin !== undefined) {
+      const normalized = this.normalizeIdentifier(input.gtin);
+      updates['gtin'] = normalized;
+      if (normalized !== null) {
+        await this.checkIdentifierUniqueness(products.gtin, normalized, id, 'GTIN');
+      }
+    }
+    if (input.ean !== undefined) {
+      const normalized = this.normalizeIdentifier(input.ean);
+      updates['ean'] = normalized;
+      if (normalized !== null) {
+        await this.checkIdentifierUniqueness(products.ean, normalized, id, 'EAN');
+      }
+    }
+    if (input.mpn !== undefined) {
+      updates['mpn'] = this.normalizeIdentifier(input.mpn);
+    }
+
+    // ── PHASE 4 P2: Product type change detection ──
+    const currentProductTypeId = (product['productTypeId'] as string | null) ?? null;
+    const isProductTypeChanging =
+      input.productTypeId !== undefined &&
+      (input.productTypeId ?? null) !== currentProductTypeId;
+
+    if (isProductTypeChanging) {
+      const newPtId = input.productTypeId ?? null;
+      // Validate target product type exists (if non-null)
+      if (newPtId !== null) {
+        const pt = await this.db.db.query.productTypes.findFirst({
+          where: eq(productTypes.id, newPtId),
+          columns: { id: true },
+        });
+        if (!pt) throw new NotFoundException('Product type not found');
+      }
+      updates['productTypeId'] = newPtId;
+    }
+
+    // Validate attribute completeness before publishing
+    if (input.status === 'ACTIVE') {
+      await this.validatePublish(id);
+    }
+
+    // ── PHASE 4 P2: Transaction path for product type change (BD-06) ──
+    if (isProductTypeChanging) {
+      return this.updateProductWithTypeChange(id, updates, input, clientUpdatedAt, product);
+    }
+
+    // ── Standard path (no product type change) ──
+    // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
+    if (clientUpdatedAt !== undefined) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (isNaN(clientDate.getTime())) {
+        throw new BadRequestException('Invalid updatedAt timestamp');
+      }
+
+      // P11: If re-review is needed, wrap in transaction with governance trigger
+      if (needsReReview) {
+        return this.db.db.transaction(async (tx) => {
+          const [updated] = await tx.update(products)
+            .set(updates)
+            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+            .returning();
+
+          if (!updated) {
+            const current = await tx.query.products.findFirst({
+              where: eq(products.id, id),
+              columns: { id: true, updatedAt: true },
+            });
+            throw new ConflictException({
+              statusCode: 409,
+              message: 'CONFLICT',
+              currentUpdatedAt: current?.updatedAt ?? new Date(),
+            });
+          }
+
+          // Trigger re-review (APPROVED/PUBLISHED → UNDER_REVIEW)
+          await this.governance.triggerReReviewIfNeeded(
+            tx, id, changedFields, false, false,
+            product['storeId'] || 'system', 'MERCHANT',
+          );
+
+          await this.invalidateProductCache(id);
+          return this.getProduct(id);
+        });
+      }
+
+      const [updated] = await this.db.db.update(products)
+        .set(updates)
+        .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+        .returning();
+
+      if (!updated) {
+        const current = await this.getProduct(id);
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'CONFLICT',
+          currentUpdatedAt: current['updatedAt'],
+        });
+      }
+
+      await this.invalidateProductCache(id);
+      // PHASE 4 P6: Audit — product updated by merchant
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.updated',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
+      });
+      if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
+        await this.outbox.publish('catalog.product.published', id, {
+          productId: id,
+          storeId: product['storeId'],
+        });
+        await this.audit.record({
+          actorType: 'MERCHANT',
+          action: 'product.published',
+          resource: 'product',
+          resourceId: id,
+          metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+        });
+      }
+
+      return this.getProduct(id);
+    }
+
+    // Legacy path: no optimistic locking
+    if (needsReReview) {
+      return this.db.db.transaction(async (tx) => {
+        await tx.update(products).set(updates).where(eq(products.id, id));
+        await this.governance.triggerReReviewIfNeeded(
+          tx, id, changedFields, false, false,
+          product['storeId'] || 'system', 'MERCHANT',
+        );
+        await this.invalidateProductCache(id);
+        return this.getProduct(id);
+      });
+    }
+
+    await this.db.db.update(products).set(updates).where(eq(products.id, id));
+    await this.invalidateProductCache(id);
+    // PHASE 4 P6: Audit — product updated by merchant
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'product.updated',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: product['storeId'], fields: Object.keys(updates) },
+    });
+
+    if (input.status === 'ACTIVE' || input.status === 'PUBLISHED') {
+      await this.outbox.publish('catalog.product.published', id, {
+        productId: id,
+        storeId: product['storeId'],
+      });
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.published',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+      });
+    }
+
+    return this.getProduct(id);
+  }
+
+  /**
+   * PHASE 4 P2: Product type change path — executes inside a transaction
+   * with FOR UPDATE row lock on the product. Checks variant/offer counts
+   * before allowing the type change. Preserves P1 optimistic locking.
+   */
+  private async updateProductWithTypeChange(
+    id: string,
+    updates: Record<string, unknown>,
+    input: UpdateProductInput,
+    clientUpdatedAt: string | undefined,
+    product: Record<string, unknown>,
+  ) {
+    try {
+      await this.db.db.transaction(async (tx) => {
+        // 1. Lock product row exclusively
+        const [locked] = await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, id))
+          .for('update')
+          .limit(1);
+        if (!locked) throw new NotFoundException('Product not found');
+
+        // 2. Guard: variant count must be 0
+        const [vc] = await tx.select({ count: sql<number>`count(*)::int` })
+          .from(productVariants)
+          .where(eq(productVariants.productId, id));
+        if (vc && vc.count > 0) {
+          throw new BadRequestException('Cannot change product type: product has variants');
+        }
+
+        // 3. Guard: ALL merchant offers count must be 0 (not just ACTIVE)
+        const [oc] = await tx.select({ count: sql<number>`count(*)::int` })
+          .from(merchantOffers)
+          .where(eq(merchantOffers.productId, id));
+        if (oc && oc.count > 0) {
+          throw new BadRequestException('Cannot change product type: product has merchant offers');
+        }
+
+        // 4. Perform the update (with or without optimistic locking)
+        if (clientUpdatedAt !== undefined) {
+          const clientDate = new Date(clientUpdatedAt);
+          if (isNaN(clientDate.getTime())) {
+            throw new BadRequestException('Invalid updatedAt timestamp');
+          }
+          const [updated] = await tx.update(products)
+            .set(updates)
+            .where(and(eq(products.id, id), eq(products.updatedAt, clientDate)))
+            .returning();
+          if (!updated) {
+            throw new ConflictException({
+              statusCode: 409,
+              message: 'CONFLICT',
+              currentUpdatedAt: (await this.getProduct(id))['updatedAt'],
+            });
+          }
+        } else {
+          await tx.update(products).set(updates).where(eq(products.id, id));
+        }
+      });
+    } catch (err) {
+      // Translate DB unique constraint violations to clean HTTP 400
+      if (err instanceof BadRequestException || err instanceof ConflictException || err instanceof NotFoundException) {
+        throw err;
+      }
+      if (err && typeof err === 'object' && 'code' in err && (err as any).code === '23505') {
+        const constraint = (err as any).constraint;
+        if (constraint === 'uq_products_gtin') throw new BadRequestException('GTIN already exists on another product');
+        if (constraint === 'uq_products_ean') throw new BadRequestException('EAN already exists on another product');
+        throw new BadRequestException('Identifier already exists on another product');
+      }
+      throw err;
+    }
+
+    await this.invalidateProductCache(id);
+
+    if (input.status === 'ACTIVE') {
+      await this.outbox.publish('catalog.product.published', id, {
+        productId: id,
+        storeId: product['storeId'],
+      });
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'product.published',
+        resource: 'product',
+        resourceId: id,
+        metadata: { storeId: product['storeId'], fromStatus: product['status'] },
+      });
+    }
+
+    return this.getProduct(id);
+  }
+
+  async deleteProduct(id: string) {
+    const product = await this.getProduct(id);
+    await this.db.db
+      .update(products)
+      .set({
+        deletedAt: new Date(),
+        isAvailable: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id));
+    await this.invalidateProductCache(id); // PHASE 8
+
+    // PHASE 9: Audit — product soft-deleted
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'product.deleted',
+      resource: 'product',
+      resourceId: id,
+      metadata: { storeId: product['storeId'], title: product['title'] },
+    });
+
+    return { success: true };
+  }
+
+  // ── Bulk Operations ──────────────────────────────────────────
+
+  /**
+   * Bulk variant operations for a single product: create, delete, toggle active.
+   */
+  async bulkVariantOperations(
+    productId: string,
+    ops: {
+      create?: CreateVariantInput[];
+      deleteIds?: string[];
+      toggleActive?: Array<{ id: string; isActive: boolean }>;
+    },
+  ) {
+    const product = await this.getProduct(productId);
+    const created: string[] = [];
+    const deleted: string[] = [];
+    const toggled: string[] = [];
+
+    if (ops.create?.length) {
+      // PHASE 4 P2: Acquire FOR SHARE lock before creating variants.
+      // Allows concurrent variant creations; blocks productTypeId changes.
+      await this.db.db.transaction(async (tx) => {
+        await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .for('share')
+          .limit(1);
+      });
+
+      for (const input of ops.create) {
+        const id = crypto.randomUUID();
+        // PHASE 3: Do NOT write JSONB attributes — use DB default {}
+        await this.db.db.insert(productVariants).values({
+          id,
+          productId,
+          sku: input.sku,
+          barcode: input.barcode || null,
+          title: input.title || null,
+          titleAr: input.titleAr || null,
+          unit: input.unit || 'PCS',
+          weightGrams: input.weightGrams != null ? String(input.weightGrams) : null,
+          dimensionsMm: input.dimensionsMm || {},
+          images: input.images || [],
+          updatedAt: new Date(), // PHASE 4 P1: ms-precision for optimistic locking
+        });
+        // PHASE 3: Write typed attributes if provided
+        if (input.attributes && Object.keys(input.attributes).length > 0) {
+          const typedInput = Object.entries(input.attributes).map(([attributeDefinitionId, value]) => ({
+            attributeDefinitionId,
+            value: value as string | number | boolean | string[] | null,
+          }));
+          try {
+            await this.taxonomyService.setVariantAttributeValues(productId, id, typedInput);
+          } catch (err) {
+            // Roll back this variant if attribute write failed
+            await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+            throw err;
+          }
+        }
+        created.push(id);
+      }
+      // Ensure each newly created variant has at least a base price tier
+      const bulkStoreId = product['storeId'];
+      for (const variantId of created) {
+        if (bulkStoreId) await this.ensureVariantPricing(bulkStoreId, variantId);
+      }
+    }
+
+    if (ops.deleteIds?.length) {
+      await this.db.db
+        .delete(productVariants)
+        .where(and(eq(productVariants.productId, productId), inArray(productVariants.id, ops.deleteIds)));
+      deleted.push(...ops.deleteIds);
+    }
+
+    if (ops.toggleActive?.length) {
+      for (const t of ops.toggleActive) {
+        await this.db.db
+          .update(productVariants)
+          .set({ isActive: t.isActive, updatedAt: new Date() })
+          .where(and(eq(productVariants.id, t.id), eq(productVariants.productId, productId)));
+        toggled.push(t.id);
+      }
+    }
+
+    return { created, deleted, toggled };
+  }
+
+  /**
+   * Bulk product operations: delete (soft), archive, or set to draft.
+   */
+  async bulkProductOperations(
+    storeId: string,
+    ids: string[],
+    action: 'delete' | 'archive' | 'draft',
+  ) {
+    // Verify all products belong to this store
+    const existing = await this.db.db.query.products.findMany({
+      where: and(inArray(products.id, ids), eq(products.storeId, storeId), isNull(products.deletedAt)),
+    });
+    const validIds = existing.map((p) => p['id']);
+    if (validIds.length === 0) return { affected: 0 };
+
+    const now = new Date();
+    if (action === 'delete') {
+      await this.db.db
+        .update(products)
+        .set({ deletedAt: now, isAvailable: false, updatedAt: now })
+        .where(inArray(products.id, validIds));
+    } else if (action === 'archive') {
+      await this.db.db
+        .update(products)
+        .set({ status: 'ARCHIVED', updatedAt: now })
+        .where(inArray(products.id, validIds));
+    } else {
+      await this.db.db
+        .update(products)
+        .set({ status: 'DRAFT', updatedAt: now })
+        .where(inArray(products.id, validIds));
+    }
+
+    return { affected: validIds.length };
+  }
+
+  /**
+   * P9: Export products for a store as CSV.
+   *
+   * Format: flat CSV, one row per variant.
+   * Fixed columns: title, titleAr, description, category, brand, status,
+   *                sku, barcode, variantTitle, unit, priceMinor
+   * Dynamic columns: attr:<code> for each typed attribute.
+   *
+   * Batch-fetches all related data to avoid N+1 queries.
+   * Attribute column ordering is deterministic (product-type display_order, then code ASC).
+   * Serialization is compatible with the P8 import pipeline (coerceAttributeValue).
+   */
+  async exportProductsCsv(storeId: string) {
+    // 1. Fetch all non-deleted products for the store
+    const prods = await this.db.db.query.products.findMany({
+      where: and(eq(products.storeId, storeId), isNull(products.deletedAt)),
+      orderBy: [desc(products.createdAt)],
+    });
+
+    if (prods.length === 0) {
+      return 'title,titleAr,description,category,brand,status,sku,barcode,variantTitle,unit,priceMinor';
+    }
+
+    const productIds = prods.map(p => p.id);
+
+    // 2. Batch-fetch variants, categories, brands, product-scope attributes
+    const variantsQuery = this.db.db.query.productVariants.findMany({
+      where: and(
+        inArray(productVariants.productId, productIds),
+        eq(productVariants.isActive, true),
+      ),
+      orderBy: [asc(productVariants.createdAt)],
+    });
+    const categoriesQuery = this.db.db.select({ id: categories.id, name: categories.name })
+      .from(categories)
+      .where(inArray(categories.id, prods.map(p => p.categoryId).filter(Boolean) as string[]));
+    const brandsQuery = this.db.db.select({ id: brands.id, name: brands.name })
+      .from(brands)
+      .where(inArray(brands.id, prods.map(p => p.brandId).filter(Boolean) as string[]));
+    const productAttrsQuery = this.db.db.query.productAttributeValues.findMany({
+      where: inArray(productAttributeValues.productId, productIds),
+    });
+    const [allVariants, categoryRows, brandRows, allProductAttrs] = await Promise.all([
+      variantsQuery, categoriesQuery, brandsQuery, productAttrsQuery,
+    ]);
+
+    // 3. Batch-fetch variant-scope data (depends on variant IDs from step 2)
+    const variantIds = allVariants.map(v => v.id);
+    const variantIdParam = variantIds.length > 0 ? variantIds : ['00000000-0000-0000-0000-000000000000'];
+    const [allVariantAttrs, allPriceTiers] = await Promise.all([
+      // Variant-scope typed attributes
+      this.db.db.query.variantAttributeValues.findMany({
+        where: inArray(variantAttributeValues.variantId, variantIdParam),
+      }),
+      // Base price tiers (min_qty=1) for all variants
+      this.db.db.query.priceTiers.findMany({
+        where: and(
+          inArray(priceTiers.variantId, variantIdParam),
+          eq(priceTiers.minQty, 1),
+        ),
+      }),
+    ]);
+
+    // 3. Build lookup maps
+    const variantsByProduct = new Map<string, typeof allVariants[number][]>();
+    for (const v of allVariants) {
+      const list = variantsByProduct.get(v.productId) ?? [];
+      list.push(v);
+      variantsByProduct.set(v.productId, list);
+    }
+
+    const categoryById = new Map<string, string>();
+    for (const c of categoryRows) categoryById.set(c.id, c.name);
+
+    const brandById = new Map<string, string>();
+    for (const b of brandRows) brandById.set(b.id, b.name);
+
+    const priceByVariant = new Map<string, string>();
+    for (const t of allPriceTiers) priceByVariant.set(t.variantId, String(t.unitPriceMinor));
+
+    // Product attributes: productId → Map<attrDefId, rawValue>
+    const productAttrsByProduct = new Map<string, Map<string, string>>();
+    for (const pa of allProductAttrs) {
+      const m = productAttrsByProduct.get(pa.productId) ?? new Map();
+      m.set(pa.attributeDefinitionId, this.serializeAttributeValue(pa));
+      productAttrsByProduct.set(pa.productId, m);
+    }
+
+    // Variant attributes: variantId → Map<attrDefId, rawValue>
+    const variantAttrsByVariant = new Map<string, Map<string, string>>();
+    for (const va of allVariantAttrs) {
+      const m = variantAttrsByVariant.get(va.variantId) ?? new Map();
+      m.set(va.attributeDefinitionId, this.serializeAttributeValue(va));
+      variantAttrsByVariant.set(va.variantId, m);
+    }
+
+    // 4. Determine attribute columns deterministically
+    const attrColumns = await this.determineExportAttributeColumns(productIds);
+
+    // 5. Build CSV
+    const esc = (v: string) => `"${(v ?? '').replace(/"/g, '""')}"`;
+    const fixedHeader = ['title', 'titleAr', 'description', 'category', 'brand', 'status', 'sku', 'barcode', 'variantTitle', 'unit', 'priceMinor'];
+    const attrHeader = attrColumns.map(c => `attr:${c.code}`);
+    const header = [...fixedHeader, ...attrHeader].join(',');
+
+    const rows: string[] = [header];
+
+    for (const p of prods) {
+      const variants = variantsByProduct.get(p.id) ?? [];
+      const catName = p.categoryId ? (categoryById.get(p.categoryId) ?? '') : '';
+      const brandName = p.brandId ? (brandById.get(p.brandId) ?? '') : '';
+      const prodAttrMap = productAttrsByProduct.get(p.id) ?? new Map();
+
+      if (variants.length === 0) {
+        // Product with no active variants → one row with empty variant fields
+        const fixedCols = [
+          esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
+          esc(catName), esc(brandName), p.status,
+          '', '', '', '', '',
+        ];
+        const attrCols = attrColumns.map(c => esc(prodAttrMap.get(c.id) ?? ''));
+        rows.push([...fixedCols, ...attrCols].join(','));
+      } else {
+        for (const v of variants) {
+          const price = priceByVariant.get(v.id) ?? '';
+          const varAttrMap = variantAttrsByVariant.get(v.id) ?? new Map();
+
+          const fixedCols = [
+            esc(p.title), esc(p.titleAr ?? ''), esc(p.description ?? ''),
+            esc(catName), esc(brandName), p.status,
+            esc(v.sku), esc(v.barcode ?? ''), esc(v.title ?? ''), esc(v.unit),
+            price,
+          ];
+
+          // Merge product + variant attrs; variant takes precedence for same code
+          const attrCols = attrColumns.map(c => {
+            const val = varAttrMap.get(c.id) ?? prodAttrMap.get(c.id) ?? '';
+            return esc(val);
+          });
+
+          rows.push([...fixedCols, ...attrCols].join(','));
+        }
+      }
+    }
+
+    return rows.join('\n');
+  }
+
+  /**
+   * P9: Serialize a typed attribute value row back to its CSV string representation.
+   * Compatible with the P8 import coerceAttributeValue() deserialization.
+   */
+  private serializeAttributeValue(row: { valueText: string | null; valueNumber: string | null; valueBoolean: boolean | null; optionValue: string | null; valueJson: any }): string {
+    if (row.valueText != null) return row.valueText;
+    if (row.valueNumber != null) return String(row.valueNumber);
+    if (row.valueBoolean != null) return row.valueBoolean ? 'true' : 'false';
+    if (row.optionValue != null) return row.optionValue;
+    if (row.valueJson != null) {
+      // MULTI_SELECT: stored as JSON array → serialize as sorted, deduplicated comma-separated
+      const arr = Array.isArray(row.valueJson) ? row.valueJson : [row.valueJson];
+      return [...new Set(arr.map(String))].sort().join(',');
+    }
+    return '';
+  }
+
+  /**
+   * P9: Determine the ordered list of attribute columns for the export CSV.
+   *
+   * Ordering rule:
+   * 1. Attributes associated with the store's product types, ordered by display_order ASC
+   * 2. Remaining attributes (not in any product type) ordered by code ASC
+   * Only includes attributes that actually have values in the exported products.
+   */
+  private async determineExportAttributeColumns(
+    productIds: string[],
+  ): Promise<Array<{ id: string; code: string }>> {
+    if (productIds.length === 0) return [];
+
+    // Find attribute definition IDs that have values in these products (either scope)
+    const productIdList = sql.join(productIds.map(id => sql`${id}`), sql`, `);
+    const attrDefsInScope = await this.db.db.execute(sql`
+      SELECT DISTINCT ad.id, ad.code
+      FROM attribute_definitions ad
+      WHERE ad.deleted_at IS NULL
+        AND (
+          EXISTS (
+            SELECT 1 FROM product_attribute_values pav
+            WHERE pav.attribute_definition_id = ad.id
+              AND pav.product_id IN (${productIdList})
+          )
+          OR EXISTS (
+            SELECT 1 FROM variant_attribute_values vav
+            JOIN product_variants pv ON pv.id = vav.variant_id
+            WHERE vav.attribute_definition_id = ad.id
+              AND pv.product_id IN (${productIdList})
+          )
+        )
+    `);
+    const defRows = (attrDefsInScope as any).rows ?? attrDefsInScope;
+    if (defRows.length === 0) return [];
+
+    const defById = new Map<string, string>();
+    for (const r of defRows) defById.set(r.id, r.code);
+    const attrDefIds = [...defById.keys()];
+
+    // Find product types used by these products
+    const usedTypeRows = await this.db.db.execute(sql`
+      SELECT DISTINCT pt.id
+      FROM product_types pt
+      JOIN products p ON p.product_type_id = pt.id
+      WHERE p.id IN (${productIdList}) AND p.deleted_at IS NULL
+    `);
+    const typeIds: string[] = ((usedTypeRows as any).rows ?? usedTypeRows).map((r: any) => r.id);
+
+    // Get product_type_attributes ordering for these types
+    const typeAttrOrder: Array<{ attrId: string; displayOrder: number }> = [];
+    if (typeIds.length > 0) {
+      const ptaRows = await this.db.db.query.productTypeAttributes.findMany({
+        where: and(
+          inArray(productTypeAttributes.productTypeId, typeIds),
+          inArray(productTypeAttributes.attributeDefinitionId, attrDefIds),
+        ),
+        columns: {
+          attributeDefinitionId: true,
+          displayOrder: true,
+        },
+        orderBy: [asc(productTypeAttributes.displayOrder)],
+      });
+      // Deduplicate: keep the first (lowest display_order) occurrence per attribute
+      const seen = new Set<string>();
+      for (const r of ptaRows) {
+        if (!seen.has(r.attributeDefinitionId)) {
+          typeAttrOrder.push({ attrId: r.attributeDefinitionId, displayOrder: r.displayOrder });
+          seen.add(r.attributeDefinitionId);
+        }
+      }
+    }
+
+    const typeAttrIds = new Set(typeAttrOrder.map(t => t.attrId));
+
+    // Sort: type-associated attrs by display_order, then remaining by code ASC
+    const result: Array<{ id: string; code: string }> = [];
+
+    // First: type-associated attributes in display_order
+    for (const ta of typeAttrOrder) {
+      const code = defById.get(ta.attrId);
+      if (code) result.push({ id: ta.attrId, code });
+    }
+
+    // Then: remaining attributes sorted by code
+    const remainingCodes = [...defById.entries()]
+      .filter(([id]) => !typeAttrIds.has(id))
+      .map(([id, code]) => ({ id, code }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    result.push(...remainingCodes);
+    return result;
+  }
+
+  /**
+   * List all variants across all products for a store.
+   * Eliminates the N+1 pattern where clients paginate products then fetch variants per product.
+   */
+  async listVariantsByStore(storeId: string) {
+    const storeProducts = await this.db.db
+      .select({ id: products.id })
+      .from(products)
+      .where(and(eq(products.storeId, storeId), isNull(products.deletedAt)));
+
+    const productIds = storeProducts.map((p) => p.id);
+    if (productIds.length === 0) return [];
+
+    return this.db.db.query.productVariants.findMany({
+      where: inArray(productVariants.productId, productIds),
+      orderBy: [productVariants.createdAt],
+    });
+  }
+
+  /**
+   * Reorder product media by setting sortOrder for each media item.
+   */
+  async reorderMedia(productId: string, order: string[]) {
+    await this.getProduct(productId);
+    for (let i = 0; i < order.length; i++) {
+      await this.db.db
+        .update(productMedia)
+        .set({ sortOrder: i })
+        .where(and(eq(productMedia.id, order[i]!), eq(productMedia.productId, productId)));
+    }
+    return { success: true };
+  }
+
+  // ── Variants ─────────────────────────────────────────────────
+
+  /**
+   * Drizzle numeric() columns return strings.  Coerce weight_grams to a
+   * JSON number so API consumers see `{ "weight_grams": 9.7 }` not
+   * `{ "weight_grams": "9.70" }`.  Locked by BD-01 / Phase 1.
+   */
+  private coerceVariantNumeric<V extends { weightGrams?: string | number | null } | undefined>(v: V): V {
+    if (v && v.weightGrams != null) {
+      (v as any).weightGrams = Number(v.weightGrams);
+    }
+    return v;
+  }
+
+  /**
+   * PHASE 3: Create a variant. Attribute input is persisted into
+   * variant_attribute_values (typed) — NOT into the JSONB attributes column.
+   * If attribute persistence fails, the variant creation is rolled back.
+   */
+  async createVariant(productId: string, input: CreateVariantInput) {
+    const product = await this.getProduct(productId);
+    const id = crypto.randomUUID();
+
+    // Convert legacy JSONB-style attributes to typed AttributeValueInput[]
+    const typedAttrInput = input.attributes
+      ? Object.entries(input.attributes).map(([attributeDefinitionId, value]) => ({
+          attributeDefinitionId,
+          value: value as string | number | boolean | string[] | null,
+        }))
+      : [];
+
+    try {
+      // PHASE 4 P2: Transaction with FOR SHARE product-row lock (BD-06).
+      // FOR SHARE allows concurrent variant creations but blocks productTypeId changes.
+      await this.db.db.transaction(async (tx) => {
+        await tx.select({ id: products.id })
+          .from(products)
+          .where(eq(products.id, productId))
+          .for('share')
+          .limit(1);
+
+        // PHASE 3: Do NOT write JSONB attributes — use DB default {}
+        await tx.insert(productVariants).values({
+          id,
+          productId,
+          sku: input.sku,
+          barcode: input.barcode || null,
+          title: input.title || null,
+          titleAr: input.titleAr || null,
+          unit: input.unit || 'PCS',
+          weightGrams: input.weightGrams != null ? String(input.weightGrams) : null,
+          dimensionsMm: input.dimensionsMm || {},
+          images: input.images || [],
+          updatedAt: new Date(),
+        });
+      });
+
+      // PHASE 3: Write typed attributes transactionally via taxonomy service.
+      // If this fails, roll back the variant creation.
+      if (typedAttrInput.length > 0) {
+        await this.taxonomyService.setVariantAttributeValues(productId, id, typedAttrInput);
+      }
+    } catch (err) {
+      // Roll back: remove the variant if attribute write failed
+      await this.db.db.delete(productVariants).where(eq(productVariants.id, id)).catch(() => {});
+      throw err;
+    }
+
+    // Ensure the new variant has at least a base price tier so the cart
+    // can resolve a price. Without this, variants created via the catalog
+    // UI are orphaned from the pricing system.
+    const cvStoreId = product['storeId'];
+    if (cvStoreId) await this.ensureVariantPricing(cvStoreId, id);
+
+    return this.getVariant(id);
+  }
+
+  /**
+   * PHASE 3: Update variant scalar fields. Attribute updates are owned by the
+   * dedicated typed endpoint PUT /v1/products/:productId/variants/:variantId/attribute-values.
+   * If a client sends `attributes` here, reject with a clear redirect.
+   */
+  async updateVariant(productId: string, variantId: string, input: Partial<CreateVariantInput>, clientUpdatedAt?: string) {
+    // PHASE 3: Reject attribute mutation via updateVariant — direct to typed endpoint
+    if (input['attributes'] !== undefined) {
+      throw new BadRequestException(
+        'Attribute updates are not supported on this endpoint. Use PUT /v1/products/:productId/variants/:variantId/attribute-values instead.',
+      );
+    }
+
+    const product = await this.getProduct(productId);
+    const existing = await this.db.db.query.productVariants.findFirst({
+      where: and(eq(productVariants.id, variantId), eq(productVariants.productId, productId)),
+    });
+    if (!existing) throw new NotFoundException('Variant not found in this product');
+
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+    if (input['sku'] !== undefined) updates['sku'] = input['sku'];
+    if (input['barcode'] !== undefined) updates['barcode'] = input['barcode'] || null;
+    if (input['title'] !== undefined) updates['title'] = input['title'] || null;
+    if (input['titleAr'] !== undefined) updates['titleAr'] = input['titleAr'] || null;
+    if (input['unit'] !== undefined) updates['unit'] = input['unit'];
+    if (input['weightGrams'] !== undefined) updates['weightGrams'] = input['weightGrams'] != null ? String(input['weightGrams']) : null;
+
+    // PHASE 4 P1 — Optimistic locking via updatedAt comparison (BD-08).
+    if (clientUpdatedAt !== undefined) {
+      const clientDate = new Date(clientUpdatedAt);
+      if (isNaN(clientDate.getTime())) {
+        throw new BadRequestException('Invalid updatedAt timestamp');
+      }
+
+      const [updated] = await this.db.db.update(productVariants)
+        .set(updates)
+        .where(and(
+          eq(productVariants.id, variantId),
+          eq(productVariants.productId, productId),
+          eq(productVariants.updatedAt, clientDate),
+        ))
+        .returning();
+
+      if (!updated) {
+        // Variant was pre-verified to exist → timestamp mismatch is a conflict.
+        const current = await this.getVariant(variantId);
+        throw new ConflictException({
+          statusCode: 409,
+          message: 'CONFLICT',
+          currentUpdatedAt: current['updatedAt'],
+        });
+      }
+
+      // PHASE 4 P6: Audit — variant updated by merchant
+      await this.audit.record({
+        actorType: 'MERCHANT',
+        action: 'variant.updated',
+        resource: 'variant',
+        resourceId: variantId,
+        metadata: { productId, fields: Object.keys(updates) },
+      });
+      return this.coerceVariantNumeric(updated);
+    }
+
+    // Legacy path: no optimistic locking
+    const [updated] = await this.db.db.update(productVariants)
+      .set(updates)
+      .where(eq(productVariants.id, variantId))
+      .returning();
+    // PHASE 4 P6: Audit — variant updated by merchant
+    await this.audit.record({
+      actorType: 'MERCHANT',
+      action: 'variant.updated',
+      resource: 'variant',
+      resourceId: variantId,
+      metadata: { productId, fields: Object.keys(updates) },
+    });
+    return this.coerceVariantNumeric(updated);
+  }
+
+  async getVariant(id: string) {
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, id),
+    });
+    if (!variant) throw new NotFoundException('Variant not found');
+    return this.coerceVariantNumeric(variant);
+  }
+
+  async listVariantsByProduct(productId: string) {
+    const variants = await this.db.db.query.productVariants.findMany({
+      where: eq(productVariants.productId, productId),
+      orderBy: [productVariants.createdAt],
+    }).then(rows => rows.map(r => this.coerceVariantNumeric(r)));
+    // Attach stock status per variant (same shape as getProductDetail)
+    // Wrapped in try-catch so test environments with partial mock DBs still work.
+    try {
+      const product = await this.getProduct(productId).catch(() => null);
+      if (!product || variants.length === 0) return variants;
+      if (!product['storeId']) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
+      const storeWarehouses = await this.db.db.query.warehouses.findMany({
+        where: eq(warehouses.storeId, product['storeId']),
+        columns: { id: true },
+      });
+      if (storeWarehouses.length === 0) return variants.map(v => ({ ...v, stock: { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 } }));
+      const whIds = storeWarehouses.map(w => w.id);
+      const variantIds = variants.map(v => v['id']);
+      const invRows = await this.db.db.query.inventoryItems.findMany({
+        where: and(
+          inArray(inventoryItems.warehouseId, whIds),
+          inArray(inventoryItems.variantId, variantIds),
+        ),
+      });
+      const stockByVariant: Record<string, { totalAvailable: number; totalOnHand: number; warehouseCount: number }> = {};
+      for (const row of invRows) {
+        const vid = row['variantId'];
+        const prev = stockByVariant[vid] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 };
+        stockByVariant[vid] = {
+          totalAvailable: prev.totalAvailable + (row['qtyOnHand'] - row['qtyReserved']),
+          totalOnHand: prev.totalOnHand + row['qtyOnHand'],
+          warehouseCount: prev.warehouseCount + 1,
+        };
+      }
+      return variants.map(v => ({
+        ...v,
+        stock: stockByVariant[v['id']] ?? { totalAvailable: 0, totalOnHand: 0, warehouseCount: 0 },
+      }));
+    } catch {
+      return variants;
+    }
+  }
+
+  // ── Variant Matrix ────────────────────────────────────────────
+
+  /**
+   * PHASE 3: Build a dimension-based variant matrix for the buyer selector.
+   * Loads the product type's VARIANT-scope dimensions, extracts distinct options
+   * from existing variants' typed attribute values, and maps each combination to
+   * its variant row with pricing and stock.
+   */
+  async getVariantMatrix(productId: string) {
+    const product = await this.getProduct(productId);
+    const productTypeId = product['productTypeId'] as string | null;
+    if (!productTypeId) {
+      return { productTypeId: null, dimensions: [], combinations: [] };
+    }
+
+    // 1. Load VARIANT-scope attribute configs for this product type
+    const ptAttrs = await this.db.db.query.productTypeAttributes.findMany({
+      where: and(
+        eq(productTypeAttributes.productTypeId, productTypeId),
+      ),
+    });
+
+    // 2. Load definitions to determine scope
+    const attrDefIds = ptAttrs.map(c => c['attributeDefinitionId']);
+    const defs = attrDefIds.length > 0
+      ? await this.db.db.query.attributeDefinitions.findMany({
+          where: inArray(attributeDefinitions.id, attrDefIds),
+        })
+      : [];
+    const defById = new Map(defs.map(d => [d['id'], d]));
+
+    const variantDims = ptAttrs
+      .filter(c => {
+        const def = defById.get(c['attributeDefinitionId']);
+        return def && def['scope'] === 'VARIANT';
+      })
+      .sort((a, b) => (a['displayOrder'] ?? 0) - (b['displayOrder'] ?? 0));
+
+    if (variantDims.length === 0) {
+      return { productTypeId, dimensions: [], combinations: [] };
+    }
+
+    // 3. Load attribute options for each dimension
+    const allOptionAttrIds = variantDims.map(c => c['attributeDefinitionId']);
+    const allOptions = allOptionAttrIds.length > 0
+      ? await this.db.db.query.attributeOptions.findMany({
+          where: inArray(attributeOptions.attributeId, allOptionAttrIds),
+        })
+      : [];
+    const optionsByAttr = new Map<string, typeof allOptions>();
+    for (const opt of allOptions) {
+      const key = opt['attributeId'];
+      if (!optionsByAttr.has(key)) optionsByAttr.set(key, []);
+      optionsByAttr.get(key)!.push(opt);
+    }
+
+    // 4. Build dimension descriptors
+    const dimensions = variantDims.map(c => {
+      const def = defById.get(c['attributeDefinitionId']);
+      const opts = (optionsByAttr.get(c['attributeDefinitionId']) ?? [])
+        .sort((a, b) => (a['sortOrder'] ?? 0) - (b['sortOrder'] ?? 0));
+      return {
+        attributeDefinitionId: c['attributeDefinitionId'],
+        code: def?.['code'] ?? '',
+        name: def?.['name'] ?? '',
+        nameAr: def?.['nameAr'] ?? null,
+        unit: def?.['unit'] ?? null,
+        displayOrder: c['displayOrder'] ?? 0,
+        options: opts.map(o => o['value']),
+      };
+    });
+
+    // 5. Load variants with stock enrichment (reuse listVariantsByProduct)
+    const enrichedVariants = await this.listVariantsByProduct(productId);
+
+    // 6. Build code → attributeDefinitionId lookup for typed attribute mapping
+    const codeToDefId = new Map<string, string>();
+    for (const dim of variantDims) {
+      const def = defById.get(dim['attributeDefinitionId']);
+      if (def) codeToDefId.set(def['code'], dim['attributeDefinitionId']);
+    }
+
+    // 7. Map each variant to a combination entry using typed attributes
+    const combinations = enrichedVariants
+      .filter((v: any) => v['isActive'])
+      .map((v: any) => {
+        // Typed attributes come as array of { attributeCode, valueText, valueNumber, optionValue }
+        // When no typed attributes exist, v['attributes'] may be the legacy JSONB {} — guard with Array.isArray
+        const rawAttrs = v['attributes'];
+        const typedAttrs = Array.isArray(rawAttrs) ? rawAttrs : [];
+        // Build a map from attributeDefinitionId → resolved display value
+        const attrById = new Map<string, string>();
+        for (const ta of typedAttrs) {
+          const defId = codeToDefId.get(ta.attributeCode);
+          if (defId) {
+            attrById.set(defId, ta.optionValue ?? ta.valueText ?? ta.valueNumber ?? '');
+          }
+        }
+        const values: Record<string, string> = {};
+        for (const dim of variantDims) {
+          const attrId = dim['attributeDefinitionId'];
+          values[attrId] = attrById.get(attrId) ?? '';
+        }
+        return {
+          variantId: v['id'],
+          sku: v['sku'],
+          title: v['title'] ?? null,
+          isActive: v['isActive'] ?? true,
+          values,
+          pricing: v['pricing'] ?? null,
+          stock: v['stock'] ?? null,
+        };
+      });
+
+    return { productTypeId, dimensions, combinations };
+  }
+
+  // ── Media ────────────────────────────────────────────────────
+
+  async addMedia(productId: string, input: AddMediaInput) {
+    await this.getProduct(productId);
+    const id = crypto.randomUUID();
+
+    await this.db.db.insert(productMedia).values({
+      id,
+      productId,
+      variantId: input.variantId || null,
+      mediaType: input.mediaType || 'IMAGE',
+      url: input.url,
+      thumbUrl: input.thumbUrl || null,
+      blurhash: input.blurhash || null,
+      altText: input.altText || null,
+      altTextAr: input.altTextAr || null,
+      sortOrder: input.sortOrder || 0,
+      fileSize: input.fileSize || 0,
+      mimeType: input.mimeType || null,
+    });
+
+    const created = {
+      id,
+      productId,
+      variantId: input.variantId || null,
+      mediaType: input.mediaType || 'IMAGE',
+      url: input.url,
+      thumbUrl: input.thumbUrl || null,
+      blurhash: input.blurhash || null,
+      altText: input.altText || null,
+      altTextAr: input.altTextAr || null,
+      sortOrder: input.sortOrder || 0,
+      fileSize: input.fileSize || 0,
+      mimeType: input.mimeType || null,
+    };
+    return this.resolveMediaRow(created);
+  }
+
+  async listMediaByProduct(productId: string) {
+    const rows = await this.db.db.query.productMedia.findMany({
+      where: eq(productMedia.productId, productId),
+      orderBy: [productMedia.sortOrder],
+    });
+    return Promise.all(rows.map(r => this.resolveMediaRow(r)));
+  }
+
+  async removeMedia(productId: string, mediaId: string) {
+    await this.getProduct(productId);
+    const item = await this.db.db.query.productMedia.findFirst({
+      where: eq(productMedia.id, mediaId),
+    });
+    if (!item || item.productId !== productId) throw new NotFoundException('Media not found');
+    await this.db.db.delete(productMedia).where(eq(productMedia.id, mediaId));
+    return { success: true };
+  }
+
+  // ── Import Jobs ──────────────────────────────────────────────
+
+  async createImportJob(storeId: string, input: CreateImportJobInput, userId: string) {
+    const id = crypto.randomUUID();
+    const storageKey = `imports/${storeId}/${id}/${input.fileName}`;
+
+    await this.db.db.insert(importJobs).values({
+      id,
+      storeId,
+      fileName: input.fileName,
+      fileType: input.fileType || 'XLSX',
+      fileSize: input.fileSize || 0,
+      storageKey,
+      status: 'UPLOADED',
+      columnMapping: input.columnMapping || {},
+      createdBy: userId,
+    });
+
+    return this.getImportJob(id);
+  }
+
+  async getImportJob(id: string) {
+    const job = await this.db.db.query.importJobs.findFirst({
+      where: eq(importJobs.id, id),
+    });
+    if (!job) throw new NotFoundException('Import job not found');
+    return job;
+  }
+
+  async listImportJobsByStore(storeId: string) {
+    return this.db.db.query.importJobs.findMany({
+      where: eq(importJobs.storeId, storeId),
+      orderBy: [desc(importJobs.createdAt)],
+    });
+  }
+
+  // ── P10 Remediation: upload, header detection, unified row source ──
+
+  /** Maximum import file size: 25 MB (aligned with the parser + spec §3). */
+  private static readonly MAX_IMPORT_BYTES = 25 * 1024 * 1024;
+
+  /** Bucket the import file is stored in / read from. */
+  private importBucket(): string {
+    return process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+  }
+
+  /**
+   * P10 Remediation (R2): Build a suggested column mapping from the workbook's
+   * detected (normalized) headers. Standard product fields match by normalized
+   * equality then containment; `attr:<code>` headers pass through so typed
+   * attributes stay supported. Pure — no DB/storage access.
+   */
+  buildSuggestedMapping(headers: string[]): Record<string, string> {
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9_:]/g, '');
+    const targets = [
+      'name', 'nameAr', 'sku', 'barcode', 'category', 'brand',
+      'unit', 'priceMinor', 'moq', 'description', 'stock',
+    ];
+    const mapping: Record<string, string> = {};
+    for (const target of targets) {
+      const t = norm(target);
+      const exact = headers.find((h) => norm(h) === t);
+      const match = exact ?? headers.find((h) => norm(h).includes(t));
+      if (match) mapping[target] = match;
+    }
+    for (const h of headers) {
+      if (h.startsWith('attr:')) mapping[h] = h;
+    }
+    return mapping;
+  }
+
+  /**
+   * P10 Remediation (R1): Persist the uploaded import file bytes to the job's
+   * server-derived storageKey via the storage abstraction (never a client key),
+   * validate type + 25 MB size, and for XLSX parse the workbook to surface
+   * detected headers + a suggested mapping. Read-only for catalog data.
+   */
+  async uploadImportFile(id: string, buffer: Buffer, contentType?: string) {
+    const job = await this.getImportJob(id);
+
+    if (buffer.length === 0) {
+      throw new BadRequestException('EMPTY_FILE: The uploaded file is empty.');
+    }
+    if (buffer.length > CatalogService.MAX_IMPORT_BYTES) {
+      throw new BadRequestException(
+        `FILE_TOO_LARGE: ${(buffer.length / 1024 / 1024).toFixed(1)} MB exceeds the 25 MB limit.`,
+      );
+    }
+
+    const ext = (job.fileName || '').toLowerCase().split('.').pop();
+    if (ext !== 'csv' && ext !== 'xlsx') {
+      throw new BadRequestException(
+        `UNSUPPORTED_FILE_TYPE: Only .csv and .xlsx files are accepted (got ".${ext ?? ''}").`,
+      );
+    }
+
+    await this.storage.putObject({
+      bucket: this.importBucket(),
+      key: job.storageKey,
+      body: buffer,
+      contentType: contentType || 'application/octet-stream',
+    });
+
+    let detectedHeaders: string[] = [];
+    let columnMapping = (job.columnMapping || {}) as Record<string, string>;
+
+    if (ext === 'xlsx') {
+      // Parsing enforces the workbook security limits (macro/row/col/cell size).
+      const parsed = await this.xlsxParser.parse(buffer, job.fileName);
+      detectedHeaders = parsed.headers;
+      // Auto-map only when nothing is mapped yet, so re-upload is non-destructive.
+      if (Object.keys(columnMapping).length === 0) {
+        columnMapping = this.buildSuggestedMapping(parsed.headers);
+      }
+    }
+
+    await this.db.db
+      .update(importJobs)
+      .set({ fileSize: buffer.length, columnMapping, updatedAt: new Date() })
+      .where(eq(importJobs.id, id));
+
+    return {
+      id,
+      storageKey: job.storageKey,
+      fileType: ext === 'xlsx' ? 'XLSX' : 'CSV',
+      detectedHeaders,
+      columnMapping,
+    };
+  }
+
+  /**
+   * P10 Remediation (R2): Persist an explicit column mapping chosen in the Map
+   * Columns UI. Requires name/sku/priceMinor; advances UPLOADED → MAPPING so a
+   * preview can run.
+   */
+  async updateImportMapping(id: string, mapping: Record<string, string>) {
+    const job = await this.getImportJob(id);
+    if (!mapping || typeof mapping !== 'object') {
+      throw new BadRequestException('columnMapping must be an object.');
+    }
+    if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
+      throw new BadRequestException(
+        'Column mapping must include at least: name, sku, priceMinor.',
+      );
+    }
+    await this.db.db
+      .update(importJobs)
+      .set({
+        columnMapping: mapping,
+        status: job.status === 'UPLOADED' ? 'MAPPING' : job.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(importJobs.id, id));
+    return this.getImportJob(id);
+  }
+
+  /**
+   * P10 Remediation (R1): Read the stored import file as a Buffer. A missing
+   * object yields a structured FILE_NOT_UPLOADED 4xx — never an opaque 500.
+   */
+  private async readImportFileBuffer(job: Record<string, any>): Promise<Buffer> {
+    const bucket = this.importBucket();
+    const present = await this.storage.exists(bucket, job['storageKey']);
+    if (!present) {
+      throw new BadRequestException(
+        'FILE_NOT_UPLOADED: The import file has not been uploaded yet. Re-upload the file, then preview again.',
+      );
+    }
+    const obj = await this.storage.getObject(bucket, job['storageKey']);
+    const body = obj.Body as any;
+    if (!body) {
+      throw new BadRequestException('FILE_NOT_UPLOADED: Stored import file is empty.');
+    }
+    if (Buffer.isBuffer(body)) return body;
+    if (body instanceof Uint8Array) return Buffer.from(body);
+    const chunks: Uint8Array[] = [];
+    for await (const c of body as AsyncIterable<Uint8Array>) chunks.push(c);
+    return Buffer.concat(chunks);
+  }
+
+  /**
+   * P10 Remediation (R3): The single authoritative row source for BOTH preview
+   * and processing so the two phases never disagree.
+   * - XLSX: parse the stored workbook (rows keyed by normalized header).
+   * - CSV : read rows staged in Redis (rows keyed by original header).
+   */
+  private async resolveJobRows(
+    job: Record<string, any>,
+  ): Promise<Record<string, string | null>[]> {
+    if ((job['fileType'] || 'CSV') === 'XLSX') {
+      const buffer = await this.readImportFileBuffer(job);
+      const parsed = await this.xlsxParser.parse(buffer, job['fileName']);
+      return parsed.rows;
+    }
+    const key = this.stagedRowsKey(job['id']);
+    const batches = await this.redis.client.lrange(key, 0, -1);
+    const rows: Record<string, string | null>[] = [];
+    for (const b of batches) {
+      for (const r of JSON.parse(b) as Record<string, string>[]) rows.push({ ...r });
+    }
+    return rows;
+  }
+
+  /**
+   * Stage parsed CSV rows for an import job.
+   * Clients parse the file locally and upload rows in batches
+   * (keeps request bodies under the JSON parser limit).
+   * Batches accumulate in Redis with a 1h TTL.
+   */
+  async stageImportRows(id: string, rows: Record<string, string>[], append: boolean) {
+    const job = await this.getImportJob(id);
+    if (job.status !== 'UPLOADED' && job.status !== 'MAPPING' && job.status !== 'READY') {
+      throw new ConflictException(`Cannot stage rows for job in status: ${job.status}`);
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw new BadRequestException('rows must be a non-empty array');
+    }
+    if (rows.length > 500) {
+      throw new BadRequestException('Batch too large: max 500 rows per request');
+    }
+
+    const key = this.stagedRowsKey(id);
+    if (!append) await this.redis.client.del(key);
+    await this.redis.client.rpush(key, JSON.stringify(rows));
+    await this.redis.client.expire(key, 3600);
+
+    // Transition to READY if still in pre-processing state.
+    if (job.status === 'UPLOADED' || job.status === 'MAPPING') {
+      await this.db.db
+        .update(importJobs)
+        .set({ status: 'READY', updatedAt: new Date() })
+        .where(and(eq(importJobs.id, id), inArray(importJobs.status, ['UPLOADED', 'MAPPING'])));
+    }
+
+    return { staged: rows.length, batches: await this.redis.client.llen(key) };
+  }
+
+  private stagedRowsKey(id: string) {
+    return `import:rows:${id}`;
+  }
+
+  // ── P8: Chunk-based import processing ─────────────────────────
+
+  /** P8 chunk size: 100 rows per chunk. */
+  private static readonly CHUNK_SIZE = 100;
+  /** P8 maximum chunk retry attempts. */
+  private static readonly MAX_CHUNK_ATTEMPTS = 3;
+  /** P8 stale-job threshold: 30 minutes. */
+  private static readonly STALE_LOCK_MS = 30 * 60 * 1000;
+
+  /**
+   * Process an import job using chunk-based architecture (P8).
+   * Atomically claims the job (READY → PROCESSING), creates 100-row chunks,
+   * processes each chunk in its own transaction, and supports resumability.
+   */
+  async processImportJob(id: string) {
+    const job = await this.getImportJob(id);
+
+    // P8: Atomic claim — READY → PROCESSING (concurrent import protection).
+    // Also accept FAILED for direct retry without separate reset step.
+    const claimable = ['READY', 'FAILED'];
+    if (!claimable.includes(job['status'])) {
+      throw new ConflictException(`Import job cannot be processed from status: ${job['status']}`);
+    }
+
+    // P10 Remediation (R3): unified row source so processing reads exactly the
+    // rows preview validated — XLSX from object storage, CSV from Redis staging.
+    const rows = (await this.resolveJobRows(job)) as Record<string, string>[];
+
+    if (rows.length === 0) {
+      throw new BadRequestException(
+        job['fileType'] === 'XLSX'
+          ? 'No data rows found in the uploaded workbook.'
+          : 'No staged rows found. Upload parsed CSV rows via POST /v1/imports/:id/rows before processing.',
+      );
+    }
+    const key = this.stagedRowsKey(id);
+
+    const mapping = (job['columnMapping'] || {}) as Record<string, string>;
+    if (!mapping['name'] || !mapping['sku'] || !mapping['priceMinor']) {
+      throw new BadRequestException('Column mapping must include at least: name, sku, priceMinor');
+    }
+
+    // P8: Atomic claim — exactly one worker succeeds.
+    const claimed = await this.db.db
+      .update(importJobs)
+      .set({
+        status: 'PROCESSING',
+        lockedAt: new Date(),
+        startedAt: job['startedAt'] || new Date(),
+        totalRows: rows.length,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(importJobs.id, id),
+          inArray(importJobs.status, ['READY', 'FAILED']),
+        ),
+      )
+      .returning({ id: importJobs.id });
+
+    if (claimed.length === 0) {
+      throw new ConflictException('Import job is already being processed by another worker');
+    }
+
+    const priceListId = await this.getOrCreateDefaultPriceList(job['storeId']);
+
+    try {
+      // P8: Create chunks (idempotent — skip if chunks already exist for resume).
+      await this.createChunks(id, rows.length);
+
+      // P8: Process chunks sequentially
+      const chunks = await this.getChunks(id);
+
+      for (const chunk of chunks) {
+        // Skip completed chunks (resumability)
+        if (chunk['status'] === 'COMPLETED') continue;
+
+        // Check max attempts
+        if (chunk['status'] === 'FAILED' && chunk['attemptCount'] >= CatalogService.MAX_CHUNK_ATTEMPTS) {
+          continue; // Skip exhausted chunks
+        }
+
+        // Check for cancellation between chunks (cooperative)
+        const currentJob = await this.getImportJob(id);
+        if (currentJob['status'] === 'CANCELLED') break;
+
+        // Extract this chunk's rows
+        const chunkRows = rows.slice(chunk['startRow'], chunk['endRow'] + 1);
+
+        // Process the chunk in a transaction
+        await this.processChunk(id, chunk, chunkRows, mapping, priceListId, job['storeId']);
+      }
+
+      // P8: Aggregate chunk results into job stats
+      const finalChunks = await this.getChunks(id);
+      let totalCreated = 0, totalUpdated = 0, totalSkipped = 0, totalErrors = 0;
+      const allErrors: Array<{ row: number; field: string; message: string }> = [];
+
+      for (const c of finalChunks) {
+        totalCreated += c['createdCount'];
+        totalUpdated += c['updatedCount'];
+        totalSkipped += c['skippedCount'];
+        totalErrors += c['errorCount'];
+        const chunkErrors = (c['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+        for (const err of chunkErrors) {
+          if (allErrors.length < 500) allErrors.push(err);
+        }
+      }
+
+      const processedRows = finalChunks.reduce((sum, c) => sum + c['processedRows'], 0);
+      const hasFailedChunks = finalChunks.some(c => c['status'] === 'FAILED');
+
+      const finalStatus = hasFailedChunks ? 'FAILED' : 'COMPLETED';
+
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: finalStatus,
+          processedRows,
+          errorRows: totalErrors,
+          errorLog: allErrors,
+          stats: {
+            total: rows.length,
+            processed: processedRows,
+            created: totalCreated,
+            updated: totalUpdated,
+            skipped: totalSkipped,
+            errors: totalErrors,
+          },
+          completedAt: finalStatus === 'COMPLETED' ? new Date() : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, id));
+
+      // Clean up staged rows only on full completion
+      if (finalStatus === 'COMPLETED') {
+        await this.redis.client.del(key);
+      }
+    } catch (e) {
+      // Catastrophic failure — mark FAILED, preserve chunks for resume
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: 'FAILED',
+          errorLog: [{ row: 0, field: 'job', message: (e as Error).message }],
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, id));
+      throw e;
+    }
+
+    return this.getImportJob(id);
+  }
+
+  /**
+   * P8: Create chunk rows for an import job. Idempotent — does not recreate
+   * if chunks already exist (supports resume after failure).
+   */
+  private async createChunks(jobId: string, totalRows: number): Promise<void> {
+    const existing = await this.db.db
+      .select({ id: importJobChunks.id })
+      .from(importJobChunks)
+      .where(eq(importJobChunks.importJobId, jobId))
+      .limit(1);
+
+    if (existing.length > 0) return; // Chunks already exist (resume scenario)
+
+    const chunkSize = CatalogService.CHUNK_SIZE;
+    const chunkCount = Math.ceil(totalRows / chunkSize);
+    const now = new Date();
+
+    const values = [];
+    for (let i = 0; i < chunkCount; i++) {
+      const startRow = i * chunkSize;
+      const endRow = Math.min((i + 1) * chunkSize - 1, totalRows - 1);
+      values.push({
+        id: crypto.randomUUID(),
+        importJobId: jobId,
+        chunkIndex: i,
+        startRow,
+        endRow,
+        status: 'PENDING' as const,
+        rowCount: endRow - startRow + 1,
+        processedRows: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        errorLog: [],
+        attemptCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Insert in batches to avoid query size limits
+    for (let i = 0; i < values.length; i += 50) {
+      await this.db.db.insert(importJobChunks).values(values.slice(i, i + 50));
+    }
+  }
+
+  /**
+   * P8: Get all chunks for an import job, ordered by chunk_index.
+   */
+  async getChunks(jobId: string) {
+    return this.db.db.query.importJobChunks.findMany({
+      where: eq(importJobChunks.importJobId, jobId),
+      orderBy: [asc(importJobChunks.chunkIndex)],
+    });
+  }
+
+  /**
+   * P8: Process a single chunk within a transaction.
+   * Each row is processed individually; row-level errors are caught and logged.
+   * The chunk transaction commits atomically with the product/variant/price changes.
+   */
+  private async processChunk(
+    jobId: string,
+    chunk: Record<string, any>,
+    rows: Record<string, string>[],
+    mapping: Record<string, string>,
+    priceListId: string,
+    storeId: string,
+  ): Promise<void> {
+    const chunkId = chunk['id'] as string;
+
+    // P8: Claim chunk — PENDING/FAILED → PROCESSING (conditional UPDATE)
+    const claimed = await this.db.db
+      .update(importJobChunks)
+      .set({
+        status: 'PROCESSING',
+        startedAt: new Date(),
+        attemptCount: chunk['attemptCount'] + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(importJobChunks.id, chunkId),
+          inArray(importJobChunks.status, ['PENDING', 'FAILED']),
+        ),
+      )
+      .returning({ id: importJobChunks.id });
+
+    if (claimed.length === 0) return; // Another worker claimed it first
+
+    try {
+      // P8: One transaction per chunk
+      await this.db.db.transaction(async (tx) => {
+        let created = 0, updated = 0, skipped = 0;
+        const errorLog: Array<{ row: number; field: string; message: string }> = [];
+
+        for (let i = 0; i < rows.length; i++) {
+          const rowNum = chunk['startRow'] + i + 2; // +2: 0-based + header row
+          try {
+            const outcome = await this.importRow(storeId, priceListId, mapping, rows[i]!, rowNum, tx);
+            if (outcome === 'created') created++;
+            else if (outcome === 'updated') updated++;
+            else skipped++;
+          } catch (e) {
+            if (errorLog.length < 100) {
+              errorLog.push({
+                row: rowNum,
+                field: (e as ImportRowError).field || 'row',
+                message: (e as Error).message,
+              });
+            }
+          }
+        }
+
+        // Update chunk with results (within the same transaction)
+        await tx
+          .update(importJobChunks)
+          .set({
+            status: 'COMPLETED',
+            processedRows: rows.length,
+            createdCount: created,
+            updatedCount: updated,
+            skippedCount: skipped,
+            errorCount: errorLog.length,
+            errorLog,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobChunks.id, chunkId));
+      });
+    } catch (e) {
+      // Catastrophic chunk failure — mark FAILED, preserve attempt count
+      await this.db.db
+        .update(importJobChunks)
+        .set({
+          status: 'FAILED',
+          lastError: (e as Error).message,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobChunks.id, chunkId));
+    }
+  }
+
+  /**
+   * Import a single row: find-or-create category/brand, then either
+   * update the existing variant (matched by SKU within the store) or
+   * create product + variant + base price tier.
+   * P8: accepts optional transaction client for chunk atomicity.
+   * P8: imports typed attributes from attr:<code> columns.
+   */
+  private async importRow(
+    storeId: string,
+    priceListId: string,
+    mapping: Record<string, string>,
+    row: Record<string, string>,
+    rowNum: number,
+    tx?: any,
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const db = tx || this.db.db;
+    const get = (key: string): string => {
+      const header = mapping[key];
+      return header ? (row[header] ?? '').trim() : '';
+    };
+
+    const name = get('name');
+    if (!name) throw new ImportRowError('name', `Row ${rowNum}: missing product name`);
+
+    const sku = get('sku');
+    if (!sku) throw new ImportRowError('sku', `Row ${rowNum}: missing SKU`);
+
+    const unit = get('unit') || 'PCS';
+
+    const priceRaw = get('priceMinor');
+    const priceMinor = parseInt(priceRaw, 10);
+    if (!priceRaw || isNaN(priceMinor) || priceMinor < 0) {
+      throw new ImportRowError(
+        'priceMinor',
+        `Row ${rowNum}: invalid price "${priceRaw}" (expected minor units, e.g. 1050)`,
+      );
+    }
+
+    // MOQ column in CSV is deprecated (offer-owned field). Parse but do not write to products.
+    const moqRaw = get('moq');
+    const _importMoq = moqRaw ? parseInt(moqRaw, 10) : 1;
+    if (isNaN(_importMoq) || _importMoq < 1) {
+      throw new ImportRowError('moq', `Row ${rowNum}: invalid MOQ "${moqRaw}"`);
+    }
+
+    const barcode = get('barcode') || null;
+    const description = get('description') || null;
+    const nameAr = get('nameAr') || null;
+
+    // Resolve category / brand (find-or-create by name)
+    const categoryName = get('category');
+    const categoryId = categoryName ? await this.findOrCreateCategory(storeId, categoryName) : null;
+    const brandName = get('brand');
+    const brandId = brandName ? await this.findOrCreateBrand(brandName) : null;
+
+    // Match existing variant by SKU within this store
+    const existing = await db
+      .select({ variantId: productVariants.id, productId: products.id, status: products.status })
+      .from(productVariants)
+      .innerJoin(products, eq(products.id, productVariants.productId))
+      .where(
+        and(
+          eq(productVariants.sku, sku),
+          eq(products.storeId, storeId),
+          isNull(products.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const match = existing[0]!;
+
+      // P11: Check governance eligibility
+      const eligibility = await this.governance.checkImportEligibility(match.productId);
+      if (!eligibility.eligible) {
+        // Product is SUBMITTED or UNDER_REVIEW — skip this row
+        throw new ImportRowError('status', `Row ${rowNum}: product is ${eligibility.currentStatus} and cannot be modified by import`);
+      }
+
+      await this.upsertBasePrice(priceListId, match.variantId, priceMinor, db);
+
+      // Detect high-risk field changes for re-review trigger
+      const importChangedFields = new Set<string>();
+      if (description) importChangedFields.add('description');
+      if (categoryId) importChangedFields.add('categoryId');
+      if (brandId) importChangedFields.add('brandId');
+
+      const hasHighRiskImportChanges = Array.from(importChangedFields).some(f => HIGH_RISK_FIELDS.has(f));
+      const needsImportReReview = hasHighRiskImportChanges && eligibility.action === 're-review';
+
+      if (needsImportReReview) {
+        // Wrap in transaction with governance trigger
+        const txClient = tx || this.db.db;
+        await txClient
+          .update(products)
+          .set({
+            ...(description ? { description } : {}),
+            ...(categoryId ? { categoryId } : {}),
+            ...(brandId ? { brandId } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, match.productId));
+
+        await this.governance.triggerReReviewIfNeeded(
+          txClient, match.productId, importChangedFields, false, false,
+          'system', 'SYSTEM',
+        );
+      } else {
+        await db
+          .update(products)
+          .set({
+            ...(description ? { description } : {}),
+            ...(categoryId ? { categoryId } : {}),
+            ...(brandId ? { brandId } : {}),
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, match.productId));
+      }
+
+      // P8: Import typed attributes for existing product/variant
+      await this.importTypedAttributes(db, mapping, row, match.productId, match.variantId, rowNum);
+
+      return 'updated';
+    }
+
+    // Create product (DRAFT) + default variant + base price
+    const productId = crypto.randomUUID();
+    const slugBase =
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'product';
+    const slug = `${slugBase}-${crypto.randomUUID().substring(0, 8)}`;
+
+    await db.insert(products).values({
+      id: productId,
+      storeId,
+      categoryId,
+      brandId,
+      slug,
+      title: name,
+      titleAr: nameAr,
+      description,
+      status: 'DRAFT',
+      updatedAt: new Date(),
+    });
+
+    const variantId = crypto.randomUUID();
+    await db.insert(productVariants).values({
+      id: variantId,
+      productId,
+      sku,
+      barcode,
+      title: name,
+      titleAr: nameAr,
+      unit,
+      updatedAt: new Date(),
+    });
+
+    await this.upsertBasePrice(priceListId, variantId, priceMinor, db);
+
+    // Honor the 'stock' column: create an inventory item in the store's first warehouse.
+    const stockRaw = get('stock');
+    if (stockRaw) {
+      const stockQty = parseInt(stockRaw, 10);
+      if (!isNaN(stockQty) && stockQty > 0) {
+        const firstWh = await this.db.db.query.warehouses.findFirst({
+          where: eq(warehouses.storeId, storeId),
+        });
+        if (firstWh) {
+          const invId = crypto.randomUUID();
+          await db.insert(inventoryItems).values({
+            id: invId,
+            variantId,
+            warehouseId: firstWh.id,
+            qtyOnHand: stockQty,
+            qtyReserved: 0,
+            reorderPoint: 0,
+          });
+        }
+      }
+    }
+
+    // P8: Import typed attributes for new product/variant
+    await this.importTypedAttributes(db, mapping, row, productId, variantId, rowNum);
+
+    return 'created';
+  }
+
+  /**
+   * P8: Import typed attributes from attr:<code> columns.
+   * Resolves attribute definitions by code, validates values against types,
+   * and writes to product_attribute_values or variant_attribute_values.
+   * Row-level errors do not poison the rest of the import.
+   */
+  private async importTypedAttributes(
+    db: any,
+    mapping: Record<string, string>,
+    row: Record<string, string>,
+    productId: string,
+    variantId: string,
+    rowNum: number,
+  ): Promise<void> {
+    // Collect attr: columns from the mapping
+    const attrEntries: Array<{ code: string; rawValue: string }> = [];
+    const seenCodes = new Set<string>();
+
+    for (const [logicalKey, headerName] of Object.entries(mapping)) {
+      if (!logicalKey.startsWith('attr:')) continue;
+      const code = logicalKey.substring(5).trim();
+      if (!code || seenCodes.has(code)) continue; // skip empty or duplicate
+      seenCodes.add(code);
+
+      const rawValue = headerName ? (row[headerName] ?? '').trim() : '';
+      if (!rawValue) continue; // P8: empty values are skipped
+      attrEntries.push({ code, rawValue });
+    }
+
+    if (attrEntries.length === 0) return;
+
+    // Resolve attribute definitions
+    const codes = attrEntries.map(e => e.code);
+    const defs: any[] = await db
+      .select()
+      .from(attributeDefinitions)
+      .where(and(
+        inArray(attributeDefinitions.code, codes),
+        isNull(attributeDefinitions.deletedAt),
+      ));
+
+    const defByCode = new Map(defs.map((d: any) => [d.code, d]));
+
+    const productValues: Array<{ attributeDefinitionId: string; value: any }> = [];
+    const variantValues: Array<{ attributeDefinitionId: string; value: any }> = [];
+
+    for (const entry of attrEntries) {
+      const def = defByCode.get(entry.code);
+      if (!def) {
+        throw new ImportRowError(`attr:${entry.code}`, `Row ${rowNum}: unknown attribute '${entry.code}'`);
+      }
+
+      try {
+        const coerced = this.coerceAttributeValue(entry.rawValue, def.type, def.validation || {});
+        if (def.scope === 'VARIANT') {
+          variantValues.push({ attributeDefinitionId: def.id, value: coerced });
+        } else {
+          productValues.push({ attributeDefinitionId: def.id, value: coerced });
+        }
+      } catch (e) {
+        throw new ImportRowError(`attr:${entry.code}`, `Row ${rowNum}: ${(e as Error).message}`);
+      }
+    }
+
+    // Write product-scope attributes
+    if (productValues.length > 0) {
+      // Delete existing values for these attributes, then insert
+      const attrIds = productValues.map(v => v.attributeDefinitionId);
+      await db.delete(productAttributeValues)
+        .where(and(
+          eq(productAttributeValues.productId, productId),
+          inArray(productAttributeValues.attributeDefinitionId, attrIds),
+        ));
+
+      for (const pv of productValues) {
+        const def = defs.find((d: any) => d.id === pv.attributeDefinitionId);
+        await db.insert(productAttributeValues).values({
+          id: crypto.randomUUID(),
+          productId,
+          attributeDefinitionId: pv.attributeDefinitionId,
+          ...this.typedValueColumns(pv.value, def?.type),
+          updatedAt: new Date(),
+        });
+      }
+    }
+
+    // Write variant-scope attributes
+    if (variantValues.length > 0) {
+      const attrIds = variantValues.map(v => v.attributeDefinitionId);
+      await db.delete(variantAttributeValues)
+        .where(and(
+          eq(variantAttributeValues.variantId, variantId),
+          inArray(variantAttributeValues.attributeDefinitionId, attrIds),
+        ));
+
+      for (const vv of variantValues) {
+        const def = defs.find((d: any) => d.id === vv.attributeDefinitionId);
+        await db.insert(variantAttributeValues).values({
+          id: crypto.randomUUID(),
+          variantId,
+          attributeDefinitionId: vv.attributeDefinitionId,
+          ...this.typedValueColumns(vv.value, def?.type),
+          updatedAt: new Date(),
+        });
+      }
+    }
+  }
+
+  /**
+   * P8: Coerce a raw string value to the appropriate typed value based on attribute type.
+   * Throws ImportRowError for invalid values.
+   */
+  private coerceAttributeValue(raw: string, type: string, _validation: Record<string, any>): any {
+    switch (type) {
+      case 'TEXT':
+      case 'LONG_TEXT':
+      case 'URL':
+      case 'COLOR':
+      case 'FILE':
+        return raw;
+      case 'INTEGER':
+      case 'MEASUREMENT': {
+        const n = parseInt(raw, 10);
+        if (isNaN(n)) throw new Error(`invalid INTEGER value '${raw}'`);
+        return n;
+      }
+      case 'DECIMAL':
+      case 'CURRENCY': {
+        const n = parseFloat(raw);
+        if (isNaN(n)) throw new Error(`invalid DECIMAL value '${raw}'`);
+        return n;
+      }
+      case 'BOOLEAN': {
+        const lower = raw.toLowerCase();
+        if (['true', '1', 'yes'].includes(lower)) return true;
+        if (['false', '0', 'no'].includes(lower)) return false;
+        throw new Error(`invalid BOOLEAN value '${raw}'`);
+      }
+      case 'DATE':
+      case 'DATETIME':
+        return raw; // stored as text in ISO format
+      case 'SELECT':
+        return raw; // validated against options in importTypedAttributes
+      case 'MULTI_SELECT': {
+        // Comma-separated values → deduplicated array
+        const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+        return [...new Set(parts)];
+      }
+      default:
+        return raw;
+    }
+  }
+
+  /**
+   * P8: Map a coerced attribute value to the typed storage columns.
+   */
+  private typedValueColumns(value: any, type?: string): Record<string, any> {
+    const result: Record<string, any> = {
+      valueText: null,
+      valueNumber: null,
+      valueBoolean: null,
+      optionValue: null,
+      valueJson: null,
+    };
+
+    switch (type) {
+      case 'TEXT':
+      case 'LONG_TEXT':
+      case 'URL':
+      case 'COLOR':
+      case 'FILE':
+      case 'DATE':
+      case 'DATETIME':
+        result['valueText'] = String(value);
+        break;
+      case 'INTEGER':
+      case 'MEASUREMENT':
+      case 'DECIMAL':
+      case 'CURRENCY':
+        result['valueNumber'] = String(value); // NUMERIC stored as string by Drizzle
+        break;
+      case 'BOOLEAN':
+        result['valueBoolean'] = Boolean(value);
+        break;
+      case 'SELECT':
+        result['optionValue'] = String(value);
+        break;
+      case 'MULTI_SELECT':
+        result['valueJson'] = Array.isArray(value) ? value : [value];
+        break;
+      default:
+        result['valueText'] = String(value);
+    }
+
+    return result;
+  }
+
+  /**
+   * Ensure a variant has at least one price tier across the store's active
+   * price lists. If no tier exists, create a default price list (if needed)
+   * and insert a zero-priced base tier. This prevents variants from being
+   * unpurchasable due to missing pricing entries.
+   */
+  private async ensureVariantPricing(storeId: string, variantId: string) {
+    const existingTier = await this.db.db.query.priceTiers.findFirst({
+      where: eq(priceTiers.variantId, variantId),
+    });
+    if (existingTier) return;
+
+    const priceListId = await this.getOrCreateDefaultPriceList(storeId);
+    await this.upsertBasePrice(priceListId, variantId, 0);
+  }
+
+  /** Get or create the store's default public B2B price list. */
+  private async getOrCreateDefaultPriceList(storeId: string): Promise<string> {
+    const existing = await this.db.db.query.priceLists.findFirst({
+      where: and(
+        eq(priceLists.storeId, storeId),
+        eq(priceLists.channel, 'B2B'),
+        eq(priceLists.audience, 'PUBLIC'),
+        eq(priceLists.isActive, true),
+      ),
+      orderBy: [priceLists.priority],
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(priceLists).values({
+      id,
+      storeId,
+      name: 'Default B2B Price List',
+      currency: 'SAR',
+      channel: 'B2B',
+      audience: 'PUBLIC',
+      priority: 0,
+    });
+    return id;
+  }
+
+  /** Find a store category by name, or create it at root level. */
+  private async findOrCreateCategory(storeId: string, name: string): Promise<string> {
+    const existing = await this.db.db.query.categories.findFirst({
+      where: and(eq(categories.storeId, storeId), eq(categories.name, name)),
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    const slug = `${
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'category'
+    }-${crypto.randomUUID().substring(0, 8)}`;
+    await this.db.db.insert(categories).values({
+      id,
+      storeId,
+      slug,
+      name,
+      path: `/${slug}`,
+      sortOrder: 0,
+    });
+    return id;
+  }
+
+  /** Find a global brand by name, or create it. */
+  private async findOrCreateBrand(name: string): Promise<string> {
+    const existing = await this.db.db.query.brands.findFirst({
+      where: eq(brands.name, name),
+    });
+    if (existing) return existing.id;
+
+    const id = crypto.randomUUID();
+    const slug = `${
+      name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '') || 'brand'
+    }-${crypto.randomUUID().substring(0, 8)}`;
+    await this.db.db.insert(brands).values({ id, name, slug });
+    return id;
+  }
+
+  /** Upsert the min-qty-1 price tier for a variant in a price list. */
+  private async upsertBasePrice(priceListId: string, variantId: string, priceMinor: number, db?: any) {
+    const client = db || this.db.db;
+    const existing = await client.query.priceTiers.findFirst({
+      where: and(
+        eq(priceTiers.priceListId, priceListId),
+        eq(priceTiers.variantId, variantId),
+        eq(priceTiers.minQty, 1),
+      ),
+    });
+    if (existing) {
+      await client
+        .update(priceTiers)
+        .set({ unitPriceMinor: priceMinor, updatedAt: new Date() })
+        .where(eq(priceTiers.id, existing.id));
+    } else {
+      await client.insert(priceTiers).values({
+        id: crypto.randomUUID(),
+        priceListId,
+        variantId,
+        minQty: 1,
+        unitPriceMinor: priceMinor,
+      });
+    }
+  }
+
+  // ── P8: Cancel, Retry, Recovery ───────────────────────────────
+
+  /**
+   * P8: Cooperatively cancel an import job.
+   * READY → CANCELLED immediately.
+   * PROCESSING → CANCELLED (cooperative: checked between chunks).
+   */
+  async cancelImport(jobId: string) {
+    const job = await this.getImportJob(jobId);
+    const cancelable = ['READY', 'PROCESSING'];
+    if (!cancelable.includes(job['status'])) {
+      throw new ConflictException(`Cannot cancel import in status: ${job['status']}`);
+    }
+
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(importJobs.id, jobId),
+          inArray(importJobs.status, cancelable),
+        ),
+      );
+
+    return this.getImportJob(jobId);
+  }
+
+  /**
+   * P8: Retry a failed import job. Resets failed/pending chunks to PENDING,
+   * resets job to READY for re-processing.
+   */
+  async retryFailedJob(jobId: string) {
+    const job = await this.getImportJob(jobId);
+    if (job['status'] !== 'FAILED' && job['status'] !== 'CANCELLED') {
+      throw new ConflictException(`Cannot retry import in status: ${job['status']}`);
+    }
+
+    // Reset failed chunks to PENDING (preserves attempt_count)
+    await this.db.db
+      .update(importJobChunks)
+      .set({ status: 'PENDING', updatedAt: new Date() })
+      .where(
+        and(
+          eq(importJobChunks.importJobId, jobId),
+          eq(importJobChunks.status, 'FAILED'),
+        ),
+      );
+
+    // Reset job to READY
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'READY', lockedAt: null, updatedAt: new Date() })
+      .where(eq(importJobs.id, jobId));
+
+    return this.getImportJob(jobId);
+  }
+
+  // ── P10: Preview & Error Reporting ─────────────────────────────
+
+  /**
+   * P10: Preview an import job — parse the uploaded file and validate rows
+   * without creating any catalog records. Read-only with respect to domain data.
+   *
+   * For XLSX: reads file from object storage, parses server-side.
+   * For CSV: validates already-staged rows from Redis.
+   *
+   * State transition: MAPPING → PREVIEWING → READY (or FAILED on fatal error).
+   */
+  async previewImportJob(id: string): Promise<Record<string, unknown>> {
+    const job = await this.getImportJob(id);
+
+    const previewable = ['MAPPING', 'READY', 'UPLOADED'];
+    if (!previewable.includes(job.status)) {
+      throw new ConflictException(`Cannot preview import in status: ${job.status}`);
+    }
+
+    // Transition to PREVIEWING
+    await this.db.db
+      .update(importJobs)
+      .set({ status: 'PREVIEWING', updatedAt: new Date() })
+      .where(and(eq(importJobs.id, id), inArray(importJobs.status, previewable)));
+
+    try {
+      const mapping = (job.columnMapping || {}) as Record<string, string>;
+      let rows: Record<string, string | null>[] = [];
+      let detectedHeaders: string[] = [];
+      let fileType = job.fileType || 'CSV';
+
+      if (fileType === 'XLSX') {
+        // P10 Remediation (R1/R3): read the stored workbook through the shared
+        // row source; a missing object yields a structured FILE_NOT_UPLOADED
+        // 4xx instead of an opaque 500.
+        const buffer = await this.readImportFileBuffer(job);
+        const parsed = await this.xlsxParser.parse(buffer, job.fileName);
+        rows = parsed.rows;
+        detectedHeaders = parsed.headers;
+        fileType = 'XLSX';
+      } else {
+        // CSV: read staged rows from Redis
+        const key = this.stagedRowsKey(id);
+        const allBatches = await this.redis.client.lrange(key, 0, -1);
+        for (const batch of allBatches) {
+          const parsed = JSON.parse(batch) as Record<string, string>[];
+          rows.push(...parsed.map(r => {
+            const converted: Record<string, string | null> = {};
+            for (const [k, v] of Object.entries(r)) converted[k] = v;
+            return converted;
+          }));
+        }
+        detectedHeaders = Object.values(mapping).filter((v): v is string => !!v);
+      }
+
+      // Validate rows (read-only)
+      const result = await this.importValidation.validateRows(job.storeId, mapping, rows, 1);
+
+      // Store preview results
+      const previewErrors = result.errors.slice(0, 5000); // Cap stored errors
+      await this.db.db
+        .update(importJobs)
+        .set({
+          status: result.errorCount > 0 && result.validRows === 0 ? 'FAILED' : 'READY',
+          totalRows: result.totalRows,
+          errorRows: result.errorCount,
+          errorLog: previewErrors as any,
+          stats: {
+            totalRows: result.totalRows,
+            validRows: result.validRows,
+            errorCount: result.errorCount,
+            warningCount: result.warningCount,
+            previewedAt: new Date().toISOString(),
+          } as any,
+          updatedAt: new Date(),
+        })
+        .where(eq(importJobs.id, id));
+
+      return {
+        totalRows: result.totalRows,
+        validRows: result.validRows,
+        errorCount: result.errorCount,
+        warningCount: result.warningCount,
+        errors: previewErrors.slice(0, 500), // Return first 500 in response
+        sampleRows: result.sampleRows,
+        columnMapping: mapping,
+        fileType,
+        detectedHeaders,
+      };
+    } catch (err) {
+      // Distinguish a precondition failure (file not uploaded) — which is
+      // retryable and must NOT mark the job FAILED — from a genuinely malformed
+      // workbook, which is recorded as a fatal preview failure.
+      if (
+        err instanceof BadRequestException &&
+        !err.message.startsWith('FILE_NOT_UPLOADED')
+      ) {
+        await this.db.db
+          .update(importJobs)
+          .set({
+            status: 'FAILED',
+            errorLog: [{ rowNumber: 0, field: 'file', errorCode: 'MALFORMED_FILE', severity: 'ERROR', message: err.message, suggestedFix: 'Re-check the workbook: only .xlsx (no macros) within 25 MB, with a header row and at least one data row.' }] as any,
+            updatedAt: new Date(),
+          })
+          .where(eq(importJobs.id, id));
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * P10: Generate a downloadable CSV error report for an import job.
+   * Combines preview errors (import_jobs.errorLog) and processing errors
+   * (import_job_chunks.errorLog) into a single deterministic CSV.
+   */
+  async getErrorReport(id: string): Promise<string> {
+    const job = await this.getImportJob(id);
+
+    const BOM = '\uFEFF';
+    const headerLine = 'row_number,field,error_code,severity,message,suggested_fix\n';
+    const allErrors: ImportError[] = [];
+
+    // Collect preview errors from import_jobs.errorLog
+    const previewErrors = (job.errorLog || []) as ImportError[];
+    for (const e of previewErrors) {
+      if (e.rowNumber !== undefined && e.field) {
+        allErrors.push(e);
+      }
+    }
+
+    // Collect processing errors from chunks
+    const chunks = await this.getChunks(id);
+    for (const chunk of chunks) {
+      const chunkErrors = (chunk['errorLog'] || []) as Array<{ row: number; field: string; message: string }>;
+      for (const ce of chunkErrors) {
+        allErrors.push({
+          rowNumber: ce.row,
+          field: ce.field || 'row',
+          errorCode: 'PROCESSING_ERROR',
+          severity: 'ERROR',
+          message: ce.message,
+          suggestedFix: null,
+        });
+      }
+    }
+
+    // Sort deterministically: row_number ASC, field ASC
+    allErrors.sort((a, b) => {
+      if (a.rowNumber !== b.rowNumber) return a.rowNumber - b.rowNumber;
+      return a.field.localeCompare(b.field);
+    });
+
+    // Cap at 50,000 rows
+    const capped = allErrors.slice(0, 50000);
+
+    // Build CSV
+    const lines: string[] = [BOM + headerLine];
+    for (const e of capped) {
+      const row = [
+        String(e.rowNumber),
+        this.csvEscape(e.field),
+        this.csvEscape(e.errorCode),
+        this.csvEscape(e.severity),
+        this.csvEscape(e.message),
+        this.csvEscape(e.suggestedFix || ''),
+      ].join(',');
+      lines.push(row);
+    }
+
+    return lines.join('\n');
+  }
+
+  /** Escape a value for CSV output. */
+  private csvEscape(value: string): string {
+    if (!value) return '';
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return '"' + value.replace(/"/g, '""') + '"';
+    }
+    return value;
+  }
+
+  /**
+   * P8: Detect and reset stale PROCESSING jobs (locked_at > 30 minutes).
+   * Returns the list of reset job IDs.
+   */
+  async recoverStaleJobs(): Promise<string[]> {
+    const staleThreshold = new Date(Date.now() - CatalogService.STALE_LOCK_MS);
+
+    const staleJobs = await this.db.db
+      .select({ id: importJobs.id })
+      .from(importJobs)
+      .where(
+        and(
+          eq(importJobs.status, 'PROCESSING'),
+          sql`${importJobs.lockedAt} < ${staleThreshold}`,
+        ),
+      );
+
+    const resetIds: string[] = [];
+    for (const j of staleJobs) {
+      // Reset job to FAILED (admin can then retry)
+      await this.db.db
+        .update(importJobs)
+        .set({ status: 'FAILED', updatedAt: new Date() })
+        .where(eq(importJobs.id, j.id));
+
+      // Reset any PROCESSING chunks to PENDING
+      await this.db.db
+        .update(importJobChunks)
+        .set({ status: 'PENDING', updatedAt: new Date() })
+        .where(
+          and(
+            eq(importJobChunks.importJobId, j.id),
+            eq(importJobChunks.status, 'PROCESSING'),
+          ),
+        );
+
+      resetIds.push(j.id);
+    }
+
+    return resetIds;
+  }
+
+  // ── Favorites / Wishlist ───────────────────────────────────
+
+  async listFavorites(userId: string) {
+    const favs = await this.db.db.query.favorites.findMany({
+      where: eq(favorites.userId, userId),
+      orderBy: [desc(favorites.createdAt)],
+    });
+    // Enrich with product data
+    const result = [];
+    for (const fav of favs) {
+      const product = await this.db.db.query.products.findFirst({
+        where: and(eq(products.id, fav['productId']), isNull(products.deletedAt)),
+      });
+      if (product) result.push({ ...fav, product });
+    }
+    return result;
+  }
+
+  async addFavorite(userId: string, productId: string) {
+    await this.getProduct(productId); // ensure product exists
+    // Check for duplicate
+    const existing = await this.db.db.query.favorites.findFirst({
+      where: and(eq(favorites.userId, userId), eq(favorites.productId, productId)),
+    });
+    if (existing) return existing;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(favorites).values({ id, userId, productId });
+    return { id, userId, productId, createdAt: new Date() };
+  }
+
+  async removeFavorite(userId: string, productId: string) {
+    await this.db.db
+      .delete(favorites)
+      .where(and(eq(favorites.userId, userId), eq(favorites.productId, productId)));
+    return { success: true };
+  }
+
+  // ── Saved Suppliers (§21.3) ──────────────────────────────────
+
+  /**
+   * List the stores (suppliers) a retailer has saved, enriched with store data.
+   * Stores are fetched in ONE batched query (inArray) to avoid an N+1 per save.
+   */
+  async listSavedSuppliers(userId: string) {
+    const saved = await this.db.db.query.savedSuppliers.findMany({
+      where: eq(savedSuppliers.userId, userId),
+      orderBy: [desc(savedSuppliers.createdAt)],
+    });
+    if (saved.length === 0) return [];
+
+    const storeIds = saved.map((s) => s['storeId']);
+    const storeRows = await this.db.db.select().from(stores).where(inArray(stores.id, storeIds));
+
+    const storeById: Record<string, (typeof storeRows)[number]> = {};
+    for (const st of storeRows) storeById[st['id']] = st;
+
+    return saved
+      .map((s) => ({ ...s, store: storeById[s['storeId']] ?? null }))
+      .filter((entry) => entry.store !== null);
+  }
+
+  /**
+   * Save a store as a supplier for the user. Idempotent: re-saving returns the
+   * existing row. Throws NotFoundException if the store does not exist.
+   */
+  async saveSupplier(userId: string, storeId: string) {
+    const store = await this.db.db.query.stores.findFirst({
+      where: eq(stores.id, storeId),
+    });
+    if (!store) throw new NotFoundException('Store not found');
+
+    const existing = await this.db.db.query.savedSuppliers.findFirst({
+      where: and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)),
+    });
+    if (existing) return existing;
+
+    const id = crypto.randomUUID();
+    await this.db.db.insert(savedSuppliers).values({ id, userId, storeId });
+    return { id, userId, storeId, createdAt: new Date() };
+  }
+
+  /**
+   * Remove a saved supplier. Idempotent: removing a store that was never saved
+   * is a no-op that still reports success.
+   */
+  async removeSavedSupplier(userId: string, storeId: string) {
+    await this.db.db
+      .delete(savedSuppliers)
+      .where(and(eq(savedSuppliers.userId, userId), eq(savedSuppliers.storeId, storeId)));
+    return { success: true };
+  }
+}
+
+// ── Input types ──────────────────────────────────────────────────
+
+export interface CreateCategoryInput {
+  name: string;
+  nameAr?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string;
+  storeId?: string;
+  parentId?: string;
+  sortOrder?: number;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  nameAr?: string;
+  description?: string;
+  imageUrl?: string;
+  parentId?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface CreateBrandInput {
+  name: string;
+  nameAr?: string;
+  slug?: string;
+  logoUrl?: string;
+  description?: string;
+}
+
+export interface CreateProductInput {
+  storeId?: string | null;
+  title: string;
+  titleAr?: string;
+  slug?: string;
+  description?: string;
+  descriptionAr?: string;
+  categoryId?: string;
+  brandId?: string;
+  condition?: string;
+  images?: string[];
+  /** PHASE 7: Canonical identifiers for deduplication. */
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+  productTypeId?: string;
+}
+
+export interface UpdateProductInput {
+  title?: string;
+  titleAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  status?: string;
+  condition?: string;
+  images?: string[];
+  categoryId?: string;
+  brandId?: string;
+  slug?: string;
+  metadata?: Record<string, unknown>;
+  /** PHASE 4 P1 — Optimistic locking. Client sends the updatedAt it loaded; server performs conditional update. Omit for legacy behavior. */
+  updatedAt?: string;
+  /** PHASE 4 P2 — Product type (BD-06). Blocked when variants or offers exist. */
+  productTypeId?: string | null;
+  /** PHASE 4 P2 — GTIN identifier (BD-05). varchar(20), unique where not null. */
+  gtin?: string | null;
+  /** PHASE 4 P2 — EAN identifier (BD-05). varchar(20), unique where not null. */
+  ean?: string | null;
+  /** PHASE 4 P2 — MPN identifier (BD-05). varchar(100), not unique. */
+  mpn?: string | null;
+}
+
+export interface CreateVariantInput {
+  sku: string;
+  barcode?: string;
+  title?: string;
+  titleAr?: string;
+  unit?: string;
+  weightGrams?: number;
+  dimensionsMm?: Record<string, unknown>;
+  /** @deprecated PHASE 3 — JSONB attributes are legacy. Accepted for backward compat but persisted into variant_attribute_values (typed), never JSONB. Prefer PUT /v1/products/:productId/variants/:variantId/attribute-values. */
+  attributes?: Record<string, unknown>;
+  images?: string[];
+}
+
+export interface AddMediaInput {
+  url: string;
+  variantId?: string;
+  mediaType?: string;
+  thumbUrl?: string;
+  blurhash?: string;
+  altText?: string;
+  altTextAr?: string;
+  sortOrder?: number;
+  fileSize?: number;
+  mimeType?: string;
+}
+
+export interface CreateImportJobInput {
+  fileName: string;
+  fileType?: string;
+  fileSize?: number;
+  columnMapping?: Record<string, string>;
+}
+
+/** Row-level validation error carrying the offending field name. */
+class ImportRowError extends Error {
+  constructor(
+    public readonly field: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ImportRowError';
+  }
+}

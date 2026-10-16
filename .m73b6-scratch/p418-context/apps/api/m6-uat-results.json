@@ -1,0 +1,256 @@
+{
+  "results": [
+    {
+      "id": "M6-3-1",
+      "name": "Catalog baseline intact",
+      "status": "PASS",
+      "detail": "3 products, 4 variants"
+    },
+    {
+      "id": "M6-4-1",
+      "name": "Merchant infrastructure created",
+      "status": "PASS",
+      "detail": "2 orgs, 2 stores, 2 warehouses"
+    },
+    {
+      "id": "M6-4-2",
+      "name": "Offer creation (Store A, variant-scoped)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-4-3",
+      "name": "Offer creation (Store A, product-level)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-4-4",
+      "name": "Competing offer (Store B, same variant)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-4-5",
+      "name": "Offer creation (Store B, ThinkPad)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-5-1",
+      "name": "DRAFT → PROPOSED",
+      "status": "PASS",
+      "detail": "status=201 newStatus=PROPOSED"
+    },
+    {
+      "id": "M6-5-2",
+      "name": "PROPOSED → ACTIVE (approve)",
+      "status": "PASS",
+      "detail": "status=201 newStatus=ACTIVE"
+    },
+    {
+      "id": "M6-5-3",
+      "name": "All offers ACTIVE",
+      "status": "PASS",
+      "detail": "3 offers approved"
+    },
+    {
+      "id": "M6-5-4",
+      "name": "Invalid transition rejected",
+      "status": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "id": "M6-5-5",
+      "name": "Duplicate offer rejected",
+      "status": "PASS",
+      "detail": "status=409"
+    },
+    {
+      "id": "M6-6-1",
+      "name": "Inventory created (Store A, var1)",
+      "status": "PASS",
+      "detail": "status=201 qty=100"
+    },
+    {
+      "id": "M6-6-2",
+      "name": "Inventory created (Store A, var3)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-6-3",
+      "name": "Inventory created (Store B, var1)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-6-4",
+      "name": "Inventory created (Store B, var3)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-6-5",
+      "name": "Inventory isolation verified",
+      "status": "PASS",
+      "detail": "4 rows, merchants isolated"
+    },
+    {
+      "id": "M6-6-6",
+      "name": "Stock reservation",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-6-7",
+      "name": "Reserved qty correct",
+      "status": "PASS",
+      "detail": "reserved=10"
+    },
+    {
+      "id": "M6-6-8",
+      "name": "Stock release",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-6-9",
+      "name": "Release qty correct",
+      "status": "PASS",
+      "detail": "reserved=0"
+    },
+    {
+      "id": "M6-6-10",
+      "name": "Over-reservation rejected",
+      "status": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "id": "M6-8-1",
+      "name": "Add to cart (offer A)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-8-2",
+      "name": "Add to cart (offer B, same variant)",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-8-3",
+      "name": "Two separate cart lines",
+      "status": "PASS",
+      "detail": "items=2"
+    },
+    {
+      "id": "M6-8-4",
+      "name": "Cart shows merchant + offer",
+      "status": "PASS",
+      "detail": "storeNames=true offers=true"
+    },
+    {
+      "id": "M6-7-1",
+      "name": "Cart add below MOQ allowed",
+      "status": "PASS",
+      "detail": "status=201 (MOQ enforced at checkout)"
+    },
+    {
+      "id": "M6-7-2",
+      "name": "Checkout rejects below-MOQ",
+      "status": "PASS",
+      "detail": "status=400"
+    },
+    {
+      "id": "M6-9-1",
+      "name": "Multi-merchant checkout",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-9-2",
+      "name": "Sub-orders created",
+      "status": "PASS",
+      "detail": "subOrders=2"
+    },
+    {
+      "id": "M6-9-3",
+      "name": "Correct store assignment",
+      "status": "PASS",
+      "detail": "storeA=true storeB=true"
+    },
+    {
+      "id": "M6-9-4",
+      "name": "Offer snapshots preserved",
+      "status": "PASS",
+      "detail": "allItemsHaveSnapshot=true"
+    },
+    {
+      "id": "M6-9-5",
+      "name": "Snapshot immune to later price change",
+      "status": "PASS",
+      "detail": "snapshotIntact=true"
+    },
+    {
+      "id": "M6-8-5",
+      "name": "Idempotent replay returns same order",
+      "status": "PASS",
+      "detail": "status=201 sameId=true"
+    },
+    {
+      "id": "M6-7-3",
+      "name": "Client price field rejected",
+      "status": "PASS",
+      "detail": "status=400 (whitelist validation)"
+    },
+    {
+      "id": "M6-10-1",
+      "name": "Merchant A cannot modify Merchant B offer",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "M6-10-2",
+      "name": "Merchant A cannot read Store B inventory",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "M6-8-6",
+      "name": "Ranked offers endpoint",
+      "status": "PASS",
+      "detail": "status=200 offers=2"
+    },
+    {
+      "id": "M6-8-7",
+      "name": "Product offers endpoint",
+      "status": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "id": "M6-5-6",
+      "name": "ACTIVE → SUSPENDED",
+      "status": "PASS",
+      "detail": "status=201 newStatus=SUSPENDED"
+    },
+    {
+      "id": "M6-5-7",
+      "name": "SUSPENDED → ACTIVE",
+      "status": "PASS",
+      "detail": "status=201"
+    },
+    {
+      "id": "M6-5-8",
+      "name": "ACTIVE → WITHDRAWN",
+      "status": "PASS",
+      "detail": "status=201"
+    }
+  ],
+  "summary": {
+    "passed": 41,
+    "failed": 0,
+    "blocked": 0,
+    "total": 41
+  }
+}

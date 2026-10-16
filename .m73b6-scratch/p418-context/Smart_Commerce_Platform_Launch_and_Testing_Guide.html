@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Commerce Platform — Launch &amp; Testing Guide</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+:root { --ink:#17202a; --muted:#5e6b75; --accent:#174a5b; --light:#eef4f6; --line:#d8e1e5; --green:#1e7e34; --green-bg:#e8f5e9; --red:#b71c1c; --red-bg:#fce4e4; --amber:#e65100; --amber-bg:#fff3e0; --blue:#0d47a1; --blue-bg:#e3f2fd; }
+*{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);line-height:1.55;font-size:10.4pt;margin:0;background:#fff}
+h1{font-size:24pt;line-height:1.15;color:var(--accent);margin:0 0 8px} h2{font-size:16pt;color:var(--accent);margin:26px 0 9px;border-bottom:2px solid var(--line);padding-bottom:4px;page-break-after:avoid} h3{font-size:12.5pt;color:#214b57;margin:18px 0 6px;page-break-after:avoid} h4{font-size:11pt;color:#2c3e50;margin:14px 0 4px}
+p{margin:7px 0} ul,ol{margin:6px 0 9px 22px} li{margin:3px 0}
+.cover{padding:28mm 8mm 16mm;min-height:245mm;display:flex;flex-direction:column;justify-content:center} .kicker{font-size:11pt;letter-spacing:.6px;color:var(--muted);font-weight:bold;text-transform:uppercase}.tagline{font-size:13pt;margin:13px 0 26px;color:#33454e}.meta{color:var(--muted);font-size:10pt}
+.callout{background:var(--light);border-left:4px solid var(--accent);padding:10px 12px;margin:11px 0;page-break-inside:avoid}
+.warn{background:var(--amber-bg);border-left-color:var(--amber)} .success{background:var(--green-bg);border-left-color:var(--green)} .error{background:var(--red-bg);border-left-color:var(--red)} .info{background:var(--blue-bg);border-left-color:var(--blue)}
+table{width:100%;border-collapse:collapse;margin:10px 0 14px;font-size:9.2pt;page-break-inside:auto} thead{display:table-header-group} tr{page-break-inside:avoid} th,td{border:1px solid var(--line);padding:6px 7px;vertical-align:top} th{background:#eaf0f2;color:#173f4b;text-align:left}
+code,.mono{font-family:"DejaVu Sans Mono",monospace;font-size:9pt;background:#f3f5f6;padding:1px 3px;border-radius:2px}
+pre{background:#1e272e;color:#d2dae2;border:1px solid var(--line);padding:12px 14px;white-space:pre-wrap;font-size:8.8pt;page-break-inside:avoid;border-radius:4px;line-height:1.5;overflow-x:auto}
+pre code{background:transparent;color:inherit;padding:0;font-size:inherit}
+.step-num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;background:var(--accent);color:#fff;font-size:9pt;font-weight:bold;margin-right:6px}
+.checklist{list-style:none;margin-left:0;padding-left:0} .checklist li{padding:4px 0 4px 26px;position:relative} .checklist li::before{content:"☐";position:absolute;left:0;font-size:12pt;color:var(--accent)}
+.checklist li.done::before{content:"☑";color:var(--green)}
+.svc-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:8.5pt;font-weight:bold;margin:1px 2px} .svc-db{background:#e3f2fd;color:#0d47a1} .svc-cache{background:#fce4ec;color:#c62828} .svc-store{background:#e8f5e9;color:#2e7d32} .svc-mail{background:#fff3e0;color:#e65100} .svc-api{background:#f3e5f5;color:#6a1b9a} .svc-web{background:#e0f2f1;color:#00695c}
+.port-map{font-family:"DejaVu Sans Mono",monospace;font-size:9pt;background:#f8f9fa;border:1px solid var(--line);padding:8px 12px;border-radius:4px;margin:8px 0}
+.toc{columns:2;column-gap:28px}.toc a{color:var(--accent);text-decoration:none}.toc li{margin:2px 0}
+.pagebreak{page-break-before:always}.footer-note{font-size:8.5pt;color:var(--muted);margin-top:25px;border-top:1px solid var(--line);padding-top:8px}
+.section-intro{color:#37474f;font-style:italic;margin-bottom:12px}
+@media print{a{text-decoration:none;color:inherit} pre{background:#f4f6f7;color:#17202e;border:1px solid var(--line)}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER ═══════════════════ -->
+<section class="cover">
+<div class="kicker">Operations Runbook</div>
+<h1>Smart Commerce &amp; Supply Platform<br>Launch &amp; Testing Guide</h1>
+<div class="tagline">Docker deployment, application startup, UI testing, integration verification, and troubleshooting for the Phase 1 codebase</div>
+<div class="callout success"><b>Phase 1 Status:</b> All P0 and P1 compliance items resolved. 16-status FSM with auto-advance, WebSocket realtime gateway, RFC 7807 error responses, admin disputes &amp; products moderation, merchant catalog/inventory/pricing pages, favorites, account management, driver flavor, barcode scanning. <b>168 backend tests + 32 mobile tests passing.</b></div>
+<div class="meta">
+<b>Date:</b> September 3, 2026<br>
+<b>Codebase:</b> <code>scs-platform/</code> monorepo (pnpm 9 + Turborepo 2.x)<br>
+<b>Stack:</b> NestJS 10 · Next.js 14 · Flutter 3.22+ · PostgreSQL 16 + PostGIS 3.4 · Redis 7 · Drizzle ORM · Socket.IO<br>
+<b>Tested with:</b> Vitest 2.x (168 tests) · flutter_test (32 tests) · k6 load scripts
+</div>
+</section>
+
+<!-- ═══════════════════ TOC ═══════════════════ -->
+<section class="pagebreak">
+<h2>Table of Contents</h2>
+<ol class="toc">
+<li><a href="#prereq">1. Prerequisites &amp; Environment Setup</a></li>
+<li><a href="#docker">2. Docker Deployment</a></li>
+<li><a href="#startup">3. Application Startup</a></li>
+<li><a href="#ports">4. Port Map &amp; Service URLs</a></li>
+<li><a href="#demo-data">5. Demo Data &amp; Test Accounts</a></li>
+<li><a href="#web-test">6. Web App Testing</a></li>
+<li><a href="#admin-test">7. Admin Console Testing</a></li>
+<li><a href="#mobile-test">8. Mobile App Testing</a></li>
+<li><a href="#integration">9. Integration Verification</a></li>
+<li><a href="#troubleshoot">10. Troubleshooting</a></li>
+<li><a href="#validation">11. Automated Validation Scripts</a></li>
+</ol>
+</section>
+
+<!-- ═══════════════════ 1. PREREQUISITES ═══════════════════ -->
+<section>
+<h2 id="prereq">1. Prerequisites &amp; Environment Setup</h2>
+<p class="section-intro">Verify every tool is installed and on the correct version before proceeding.</p>
+
+<table>
+<thead><tr><th>Tool</th><th>Required Version</th><th>Verify Command</th><th>Install Reference</th></tr></thead>
+<tbody>
+<tr><td><b>Node.js</b></td><td>≥ 20.0.0 (LTS)</td><td><code>node --version</code></td><td><code>nvm install 20</code> or <code>fnm install 20</code></td></tr>
+<tr><td><b>pnpm</b></td><td>≥ 9.0.0</td><td><code>pnpm --version</code></td><td><code>corepack enable</code> (auto-activates 9.15.9 via <code>packageManager</code> field)</td></tr>
+<tr><td><b>Turborepo</b></td><td>≥ 2.1.0</td><td><code>npx turbo --version</code></td><td>Installed as devDependency; no global install needed</td></tr>
+<tr><td><b>Docker Desktop</b></td><td>≥ 4.x with Compose v2</td><td><code>docker compose version</code></td><td><a href="https://docs.docker.com/get-docker/">docker.com/get-docker</a></td></tr>
+<tr><td><b>Flutter SDK</b></td><td>≥ 3.22.0</td><td><code>flutter --version</code></td><td><a href="https://docs.flutter.dev/get-started/install">flutter.dev/get-started</a></td></tr>
+<tr><td><b>Dart SDK</b></td><td>≥ 3.4.0 (bundled with Flutter)</td><td><code>dart --version</code></td><td>Included in Flutter SDK</td></tr>
+<tr><td><b>k6</b> (optional)</td><td>Latest</td><td><code>k6 version</code></td><td><a href="https://k6.io/docs/get-started/installation/">k6.io/installation</a></td></tr>
+</tbody>
+</table>
+
+<h3>1.1 Clone &amp; Install Dependencies</h3>
+<pre><code># Clone the repository
+git clone &lt;repo-url&gt; scs-platform
+cd scs-platform
+
+# Verify Node version (should show v20.x.x)
+node --version
+
+# Install all monorepo dependencies (apps, packages, mobile-core)
+pnpm install
+
+# Build shared packages (contracts, ui-kit, env, event-types)
+pnpm contracts:build</code></pre>
+
+<div class="callout info"><b>Monorepo structure:</b> <code>apps/api</code> (NestJS API), <code>apps/web</code> (Next.js buyer/merchant), <code>apps/admin</code> (Next.js admin console), <code>mobile/</code> (Flutter app), <code>packages/</code> (contracts, ui-kit, env, event-types)</div>
+</section>
+
+<!-- ═══════════════════ 2. DOCKER DEPLOYMENT ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="docker">2. Docker Deployment</h2>
+<p class="section-intro">Start all infrastructure services with a single command. The compose file provisions PostgreSQL, Redis, MinIO, and Mailhog.</p>
+
+<h3>2.1 Start Infrastructure</h3>
+<pre><code># Start all services in detached mode
+docker compose -f infra/docker-compose.dev.yml up -d
+
+# Or use the shorthand script
+pnpm infra:up</code></pre>
+
+<h3>2.2 Provisioned Services</h3>
+<table>
+<thead><tr><th>Service</th><th>Image</th><th>Container</th><th>Port(s)</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><span class="svc-badge svc-db">PostgreSQL</span></td><td><code>postgis/postgis:16-3.4</code></td><td><code>scs-postgres</code></td><td>5432</td><td>Primary database with PostGIS spatial extensions, FTS, trigram indexes</td></tr>
+<tr><td><span class="svc-badge svc-cache">Redis</span></td><td><code>redis:7-alpine</code></td><td><code>scs-redis</code></td><td>6379</td><td>OTP throttling, session cache, rate limiting, Socket.IO adapter</td></tr>
+<tr><td><span class="svc-badge svc-store">MinIO</span></td><td><code>minio/minio:latest</code></td><td><code>scs-minio</code></td><td>9000 (API), 9001 (Console)</td><td>S3-compatible object storage for product media, documents, imports</td></tr>
+<tr><td><span class="svc-badge svc-mail">Mailhog</span></td><td><code>mailhog/mailhog:latest</code></td><td><code>scs-mailhog</code></td><td>1025 (SMTP), 8025 (UI)</td><td>Email capture for testing — no real emails sent</td></tr>
+</tbody>
+</table>
+
+<div class="callout"><b>Database credentials:</b> User: <code>scs</code> · Password: <code>scs_dev_2026</code> · Database: <code>scs_platform</code><br>
+<b>Auth method:</b> <code>POSTGRES_HOST_AUTH_METHOD=trust</code> is set in the compose file for Docker Desktop compatibility on Windows.<br>
+<b>MinIO credentials:</b> User: <code>scs_minio</code> · Password: <code>scs_minio_2026</code><br>
+<b>MinIO Console:</b> <a href="http://localhost:9001">http://localhost:9001</a> — Buckets <code>scs-media</code> and <code>scs-uploads</code> are auto-created.</div>
+
+<h3>2.3 Health Check Verification</h3>
+<pre><code># Check all containers are running and healthy
+docker compose -f infra/docker-compose.dev.yml ps
+
+# Expected output — all services show "healthy" or "running":
+# scs-postgres   healthy
+# scs-redis      healthy
+# scs-minio      healthy
+# scs-mailhog    healthy
+# scs-minio-init exited (one-time bucket setup)
+
+# Individual health probes:
+docker exec scs-postgres pg_isready -U scs -d scs_platform
+docker exec scs-redis redis-cli ping</code></pre>
+
+<h3>2.4 Database Migration &amp; Seeding</h3>
+<pre><code># Run all 13 migrations (0001_identity through 0013_analytics)
+pnpm db:migrate
+
+# Seed reference data: 6 roles, 28 permissions, role-permission mappings
+pnpm db:seed
+
+# Verify: connect and check tables exist
+docker exec -it scs-postgres psql -U scs -d scs_platform -c "\dt"
+
+# Expected tables include:
+# users, organizations, roles, permissions, organization_members, sessions,
+# audit_logs, outbox_events, feature_flags, stores, warehouses,
+# business_documents, verification_requests, categories, brands,
+# products, product_variants, product_media, import_jobs,
+# inventory_items, stock_movements, price_lists, price_tiers,
+# promotions, promotion_redemptions, carts, cart_items,
+# master_orders, orders, order_items, order_financial_breakdown,
+# order_status_history, reviews, trust_snapshots, disputes,
+# dispute_events, conversations, messages, notifications,
+# notification_preferences, device_tokens, analytics_events,
+# favorites</code></pre>
+
+<div class="callout warn"><b>⚠ Reset database:</b> If migrations fail or you need a clean slate: <code>pnpm db:reset</code> drops all tables and re-runs migrations + seed. This is destructive.</div>
+
+<h3>2.5 Demo Data Generation</h3>
+<pre><code># Populate database with realistic sample data for testing
+pnpm --filter @scs/api db:demo
+
+# Expected output:
+# 🎭 Generating demo data...
+#   ✓ Role IDs resolved
+#   Creating 8 demo users...
+#   Creating 4 organizations...
+#   Creating 2 stores...
+#   Creating 3 warehouses...
+#   Creating 8 categories...
+#   Creating 4 brands...
+#   Creating 10 products with variants...
+#   Setting up pricing...
+#   Populating inventory...
+#   Creating 2 promotions...
+#   Creating orders in various states...
+#   Creating notifications...
+#   Creating audit logs...
+#   Creating reviews...
+#   Setting feature flags...
+#   Creating business documents...
+#   Creating verification requests...
+#   Creating outbox events...
+# ✅ Demo data generated successfully!</code></pre>
+
+<div class="callout success"><b>Idempotent:</b> The demo data script uses <code>ON CONFLICT DO NOTHING</code> — safe to run multiple times. Requires migrations + seed to be applied first.</div>
+
+<h3>2.6 Stop Infrastructure</h3>
+<pre><code># Stop all services (preserves data volumes)
+docker compose -f infra/docker-compose.dev.yml down
+# Or: pnpm infra:down
+
+# Stop AND delete all data (fresh start)
+docker compose -f infra/docker-compose.dev.yml down -v</code></pre>
+</section>
+
+<!-- ═══════════════════ 3. APPLICATION STARTUP ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="startup">3. Application Startup</h2>
+<p class="section-intro">Start each application in a separate terminal. All three TypeScript apps use hot-reload in dev mode.</p>
+
+<h3>3.1 Backend API</h3>
+<pre><code># Terminal 1 — Start PG proxy (required on Windows with Docker Desktop)
+pnpm --filter @scs/api dev:proxy
+
+# Expected output:
+# 🔌 PG proxy listening on 127.0.0.1:15432
+#    → scs-postgres:5432
+
+# Terminal 2 — NestJS API on port 3000
+pnpm --filter @scs/api dev
+
+# Expected output:
+# [Nest] NestJS Modular Monolith listening on :3000
+# [Nest] RealtimeGateway subscribed to /realtime
+# [Nest] OutboxDispatcher polling (interval: 1000ms)</code></pre>
+
+<div class="callout success"><b>Verify:</b> <code>curl http://localhost:3000/v1/healthz</code> should return <code>{"status":"ok"}</code></div>
+
+<div class="callout warn"><b>⚠ Windows Docker Desktop:</b> Node.js PostgreSQL clients cannot connect directly to Docker-mapped ports on Windows. The PG proxy (<code>infra/pg-proxy.ts</code>) tunnels connections through <code>docker exec</code>, bridging the protocol correctly. Always start the proxy before the API. The API's <code>DATABASE_URL</code> defaults to port <code>15432</code> (the proxy).</div>
+
+<h3>3.2 Web Application (Buyer / Merchant)</h3>
+<pre><code># Terminal 3 — Next.js web app on port 3100
+pnpm --filter @scs/web dev
+
+# Expected: Ready on http://localhost:3100</code></pre>
+
+<h3>3.3 Admin Console</h3>
+<pre><code># Terminal 4 — Next.js admin app on port 3200
+pnpm --filter @scs/admin dev
+
+# Expected: Ready on http://localhost:3200</code></pre>
+
+<h3>3.4 All TypeScript Apps Simultaneously</h3>
+<pre><code># Start API + Web + Admin together via Turborepo
+pnpm dev</code></pre>
+
+<h3>3.5 Mobile App (Flutter)</h3>
+<p>The mobile app supports three flavors. Each flavor has its own branding, default route, and feature set.</p>
+
+<table>
+<thead><tr><th>Flavor</th><th>Display Name</th><th>Command</th><th>Key Screens</th></tr></thead>
+<tbody>
+<tr><td><b>Retail</b></td><td>Smart Commerce</td><td><code>cd mobile; flutter run --dart-define=FLAVOR=retail</code></td><td>Search, stores, cart, checkout, orders, favorites, merchant orders</td></tr>
+<tr><td><b>Wholesale</b></td><td>SCS Wholesale</td><td><code>cd mobile; flutter run --dart-define=FLAVOR=wholesale</code></td><td>Same as retail with wholesale branding and bulk-order defaults</td></tr>
+<tr><td><b>Driver</b></td><td>SCS Driver</td><td><code>cd mobile; flutter run --dart-define=FLAVOR=driver</code></td><td>Driver dashboard: duty toggle, job board, POD, earnings</td></tr>
+</tbody>
+</table>
+
+<pre><code># Alternative: use flavor-specific entry points
+flutter run -t flavors/retail/lib/main.dart
+flutter run -t flavors/wholesale/lib/main.dart
+
+# Run on a specific device
+flutter devices              # list connected devices
+flutter run -d &lt;device-id&gt; --dart-define=FLAVOR=retail
+
+# Run tests
+cd mobile; flutter test      # 32 tests (models, FSM, API service)</code></pre>
+
+<div class="callout info"><b>Mobile API endpoint:</b> The mobile app connects to the backend API via the <code>mobile-core</code> package. Ensure the API is running on port 3000 before launching the mobile app. The base URL is configured in <code>packages/mobile-core/lib/api_client.dart</code>.</div>
+</section>
+
+<!-- ═══════════════════ 4. PORT MAP ═══════════════════ -->
+<section>
+<h2 id="ports">4. Port Map &amp; Service URLs</h2>
+
+<div class="port-map">
+<b>Infrastructure (Docker):</b><br>
+├── PostgreSQL .............. <b>localhost:5432</b> (scs / scs_dev_2026 / scs_platform)<br>
+├── PG Proxy (Windows) ...... <b>localhost:15432</b> (tunnels to container via docker exec)<br>
+├── Redis ................... <b>localhost:6379</b><br>
+├── MinIO API ............... <b>localhost:9000</b><br>
+├── MinIO Console ........... <b>http://localhost:9001</b> (scs_minio / scs_minio_2026)<br>
+├── Mailhog SMTP ............ <b>localhost:1025</b><br>
+└── Mailhog Web UI .......... <b>http://localhost:8025</b><br>
+<br>
+<b>Applications:</b><br>
+├── API (NestJS) ............ <b>http://localhost:3000</b><br>
+│   ├── /v1/healthz ....... Health check<br>
+│   ├── /v1/readyz ........ Readiness probe<br>
+│   ├── /v1/* ............... All API endpoints<br>
+│   └── /realtime ........... WebSocket gateway (Socket.IO)<br>
+├── Web (Next.js) ........... <b>http://localhost:3100</b><br>
+│   ├── /auth/login ......... OTP authentication<br>
+│   ├── / ................... Home / search<br>
+│   ├── /stores ............. Store listing<br>
+│   ├── /cart ................ Multi-supplier cart<br>
+│   ├── /checkout ........... Checkout flow<br>
+│   ├── /orders ............. Order history<br>
+│   ├── /favorites .......... Wishlist<br>
+│   ├── /account ............ Profile management<br>
+│   ├── /merchant/catalog ... Product catalog grid<br>
+│   ├── /merchant/inventory . Stock management<br>
+│   ├── /merchant/pricing ... Price list editor<br>
+│   └── /merchant/onboard ... Store onboarding wizard<br>
+└── Admin (Next.js) ......... <b>http://localhost:3200</b><br>
+    ├── / ................... Dashboard (KPI cards)<br>
+    ├── /orders ............. Order monitor<br>
+    ├── /merchants .......... Merchant directory<br>
+    ├── /verification ....... Verification queue<br>
+    ├── /products ........... Products moderation<br>
+    ├── /disputes ........... Dispute resolution<br>
+    ├── /kpis ............... KPI dashboard<br>
+    └── /audit .............. Audit log viewer
+</div>
+</section>
+
+<!-- ═══════════════════ 5. DEMO DATA & TEST ACCOUNTS ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="demo-data">5. Demo Data &amp; Test Accounts</h2>
+<p class="section-intro">After running <code>pnpm db:demo</code>, use these accounts to test every role and workflow.</p>
+
+<h3>5.1 Test Accounts</h3>
+<p>Login via OTP — enter the phone number, check the API terminal logs for the OTP code.</p>
+
+<table>
+<thead><tr><th>Role</th><th>Phone Number</th><th>Name</th><th>Organization</th></tr></thead>
+<tbody>
+<tr><td><b>SUPER_ADMIN</b></td><td><code>+966500000001</code></td><td>Fahad Al-Rashid</td><td>SCS Platform Ops</td></tr>
+<tr><td><b>ADMIN</b></td><td><code>+966500000002</code></td><td>Noura Al-Saud</td><td>SCS Platform Ops</td></tr>
+<tr><td><b>MODERATOR</b></td><td><code>+966500000003</code></td><td>Khalid Hassan</td><td>SCS Platform Ops</td></tr>
+<tr><td><b>MERCHANT_OWNER</b></td><td><code>+966500000010</code></td><td>Abdullah Al-Zahrani</td><td>Gulf Tech Wholesale</td></tr>
+<tr><td><b>MERCHANT_STAFF</b></td><td><code>+966500000011</code></td><td>Mohammed Al-Ghamdi</td><td>Gulf Tech Wholesale</td></tr>
+<tr><td><b>MERCHANT_OWNER</b></td><td><code>+966500000020</code></td><td>Sara Al-Otaibi</td><td>Al-Baraka Groceries</td></tr>
+<tr><td><b>BUYER</b></td><td><code>+966500000100</code></td><td>Youssef Ibrahim</td><td>—</td></tr>
+<tr><td><b>BUYER</b></td><td><code>+966500000101</code></td><td>Layla Mahmoud</td><td>—</td></tr>
+</tbody>
+</table>
+
+<div class="callout info"><b>OTP in dev mode:</b> The API logs the OTP code to the console. Look for <code>[OTP] Code for +966500000100: 123456</code> in the API terminal.</div>
+
+<h3>5.2 Demo Data Summary</h3>
+<table>
+<thead><tr><th>Category</th><th>Count</th><th>Details</th></tr></thead>
+<tbody>
+<tr><td><b>Users</b></td><td>8</td><td>SUPER_ADMIN, ADMIN, MODERATOR, 2× MERCHANT_OWNER, MERCHANT_STAFF, 2× BUYER</td></tr>
+<tr><td><b>Organizations</b></td><td>4</td><td>WHOLESALER (Gulf Tech), RETAILER (Al-Baraka), LOGISTICS (Swift), PLATFORM (SCS Ops)</td></tr>
+<tr><td><b>Stores</b></td><td>2</td><td>Gulf Tech Electronics (Riyadh), Al-Baraka Groceries (Jeddah)</td></tr>
+<tr><td><b>Warehouses</b></td><td>3</td><td>Riyadh Main, Jeddah Cold Storage, Dammam Overflow</td></tr>
+<tr><td><b>Categories</b></td><td>8</td><td>Electronics → Phones / Laptops / Accessories; Groceries → Dairy / Produce / Beverages</td></tr>
+<tr><td><b>Brands</b></td><td>4</td><td>Samsung, Apple, Almarai, Nestlé</td></tr>
+<tr><td><b>Products</b></td><td>10</td><td>5 electronics (phones, laptops, cables) + 5 groceries (milk, laban, coffee, oranges, bananas)</td></tr>
+<tr><td><b>Variants</b></td><td>10</td><td>1 default SKU per product</td></tr>
+<tr><td><b>Price Tiers</b></td><td>30</td><td>3 quantity tiers per variant (base, 10+, 50+ / base, 24+, 100+)</td></tr>
+<tr><td><b>Inventory</b></td><td>13</td><td>Stock across 3 warehouses with initial stock movements</td></tr>
+<tr><td><b>Promotions</b></td><td>2</td><td><code>SUMMER25</code> (25% off electronics), <code>BULK10</code> (10% off groceries over 100 SAR)</td></tr>
+<tr><td><b>Orders</b></td><td>4</td><td>COMPLETED, CONFIRMED, READY, CANCELLED — with full status history and financial breakdowns</td></tr>
+<tr><td><b>Notifications</b></td><td>8</td><td>Order confirmations, low-stock alerts, system messages across all user types</td></tr>
+<tr><td><b>Audit Logs</b></td><td>12</td><td>User creation, store verification, product creation, order lifecycle, promotion creation</td></tr>
+<tr><td><b>Reviews</b></td><td>1</td><td>5-star store review for completed order</td></tr>
+<tr><td><b>Feature Flags</b></td><td>5</td><td>Push notifications (on), multi-currency (off), Arabic RTL (on), analytics v2 (off), live chat (off)</td></tr>
+<tr><td><b>Business Docs</b></td><td>4</td><td>Commercial registrations + tax certificates (VERIFIED and PENDING)</td></tr>
+<tr><td><b>Verification</b></td><td>2</td><td>Both stores APPROVED, Swift Logistics PENDING</td></tr>
+<tr><td><b>Outbox Events</b></td><td>7</td><td>User registrations, store verifications, order events (DISPATCHED and PENDING)</td></tr>
+</tbody>
+</table>
+
+<h3>5.3 Promo Codes for Testing</h3>
+<table>
+<thead><tr><th>Code</th><th>Store</th><th>Discount</th><th>Min Order</th><th>Usage</th></tr></thead>
+<tbody>
+<tr><td><code>SUMMER25</code></td><td>Gulf Tech Electronics</td><td>25% off (max 2000 SAR)</td><td>500 SAR</td><td>42/1000 redemptions</td></tr>
+<tr><td><code>BULK10</code></td><td>Al-Baraka Groceries</td><td>10% off (max 500 SAR)</td><td>100 SAR</td><td>15/500 redemptions</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ 6. WEB TESTING ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="web-test">6. Web App Testing</h2>
+<p class="section-intro">Access the web app at <b>http://localhost:3100</b>. Test each flow end-to-end using demo accounts.</p>
+
+<h3>6.1 Authentication Flow</h3>
+<ol>
+<li>Navigate to <code>/auth/login</code></li>
+<li>Enter a demo buyer phone: <code>+966500000100</code> → click "Request OTP"</li>
+<li>Check API terminal logs for the OTP code (look for <code>[OTP] Code for +966500000100: XXXXXX</code>)</li>
+<li>Enter the OTP → click "Verify"</li>
+<li>Verify: button shows "Verifying..." state → redirect to home page</li>
+<li>Verify: Navbar shows user name and "Logout" button (not "Sign In")</li>
+<li>Verify: Home page "Sign In" card changes to "My Account" card</li>
+</ol>
+
+<div class="callout info"><b>Reactive auth state:</b> The web app uses <code>AuthProvider</code> + <code>useAuth()</code> context for reactive state. After login/logout, all components update automatically — no page refresh needed.</div>
+
+<h3>6.2 Search &amp; Discovery</h3>
+<ul class="checklist">
+<li>Navigate to <code>/</code> — verify search bar, category chips, brand filters load</li>
+<li>Verify product grid loads on initial page (no search query) — shows 10 demo products</li>
+<li>Search for "Samsung" — verify Galaxy S24, A54, USB-C cable appear</li>
+<li>Search for "مراعي" (Arabic) — verify Almarai products appear (normalize_arabic function)</li>
+<li>Search by SKU: <code>SAMSUNG_GALAXY_S24_ULTRA_001</code> — verify exact-match fast path</li>
+<li>Click a category chip — verify filtered results</li>
+<li>Click a product → verify product detail page with variants, TierLadder pricing (3 tiers visible)</li>
+</ul>
+
+<h3>6.3 Cart &amp; Checkout</h3>
+<ul class="checklist">
+<li>Login as buyer <code>+966500000100</code> (Youssef Ibrahim)</li>
+<li>Add Samsung Galaxy S24 Ultra from Gulf Tech Electronics</li>
+<li>Add Almarai Fresh Milk from Al-Baraka Groceries → verify multi-supplier grouping in cart</li>
+<li>Adjust quantities with QuantityStepper — verify tier hint updates ("Add 8 more for bulk pricing")</li>
+<li>Apply promo code <code>SUMMER25</code> → verify 25% discount reflected</li>
+<li>Apply promo code <code>BULK10</code> for grocery store → verify 10% discount</li>
+<li>Proceed to checkout → enter delivery address → submit</li>
+<li>Verify order appears in <code>/orders</code> with status <code>PENDING_CONFIRMATION</code> (auto-advanced from SUBMITTED)</li>
+</ul>
+
+<h3>6.4 Orders &amp; Favorites</h3>
+<ul class="checklist">
+<li>View order detail at <code>/orders/[id]</code> — verify OrderTimeline shows status transitions</li>
+<li>Verify demo orders visible: COMPLETED (Samsung S24), CONFIRMED (iPhone), READY (Groceries), CANCELLED</li>
+<li>Navigate to <code>/favorites</code> — verify favorited products appear</li>
+<li>Navigate to <code>/account</code> — verify profile (Youssef Ibrahim), organizations, device management sections</li>
+<li>Verify unauthenticated access to <code>/account</code> redirects to <code>/auth/login</code></li>
+</ul>
+
+<h3>6.5 Merchant Pages</h3>
+<p>Login as merchant owner <code>+966500000010</code> (Abdullah Al-Zahrani) or staff <code>+966500000011</code>.</p>
+<ul class="checklist">
+<li><code>/merchant/catalog</code> — verify product grid with 5 electronics products, status filters (ACTIVE, DRAFT, ARCHIVED)</li>
+<li><code>/merchant/inventory</code> — verify stock levels across Riyadh + Dammam warehouses, low-stock alerts</li>
+<li><code>/merchant/pricing</code> — verify price list editor with 3-tier quantity pricing and TierLadder preview</li>
+<li><code>/merchant/onboard</code> — verify store onboarding wizard flow</li>
+</ul>
+</section>
+
+<!-- ═══════════════════ 7. ADMIN TESTING ═══════════════════ -->
+<section>
+<h2 id="admin-test">7. Admin Console Testing</h2>
+<p class="section-intro">Access the admin console at <b>http://localhost:3200</b>. Login as admin <code>+966500000001</code> (Fahad Al-Rashid) or <code>+966500000002</code> (Noura Al-Saud).</p>
+
+<h3>7.1 Dashboard &amp; Navigation</h3>
+<ul class="checklist">
+<li>Verify sidebar navigation shows: Dashboard, Orders, Merchants, Verification, Products, Disputes, KPIs, Audit</li>
+<li>Dashboard loads with KPI cards (total orders, revenue, activation funnel)</li>
+</ul>
+
+<h3>7.2 Order Monitor</h3>
+<ul class="checklist">
+<li><code>/orders</code> — verify order list shows 4 demo orders with status filter tabs</li>
+<li>Verify all 16 FSM statuses appear correctly: DRAFT, SUBMITTED, PENDING_CONFIRMATION, ACCEPTED, PARTIALLY_ACCEPTED, PAYMENT_PENDING, PREPARING, READY, ASSIGNED, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED, COMPLETED, CANCELLED, REJECTED, DISPUTED</li>
+<li>Click an order → verify detail modal with timeline and financial breakdown</li>
+<li>Verify demo orders: COMPLETED (Samsung S24, buyer Youssef), CONFIRMED (iPhone), READY (Groceries, buyer Layla), CANCELLED</li>
+</ul>
+
+<h3>7.3 Products Moderation</h3>
+<ul class="checklist">
+<li><code>/products</code> — verify moderation queue loads</li>
+<li>Select a product → test <b>Approve</b> (keyboard: <code>A</code>)</li>
+<li>Select a product → test <b>Reject</b> (keyboard: <code>X</code>)</li>
+<li>Test keyboard navigation: <code>j</code>/<code>k</code> to move through list, <code>/</code> to focus search</li>
+</ul>
+
+<h3>7.4 Disputes Resolution</h3>
+<ul class="checklist">
+<li><code>/disputes</code> — verify split-pane layout: dispute list on left, evidence viewer on right</li>
+<li>Verify evidence timeline displays uploaded documents</li>
+<li>Test decision templates (refund, partial refund, reject)</li>
+<li>Resolve a dispute → verify status changes to RESOLVED</li>
+</ul>
+
+<h3>7.5 Verification Queue</h3>
+<ul class="checklist">
+<li><code>/verification</code> — verify queue lists pending verification requests</li>
+<li>Verify demo data: Gulf Tech and Al-Baraka show as APPROVED, Swift Logistics shows as PENDING</li>
+<li>Click a request → verify store details, documents, decision form</li>
+<li>Approve/reject with reason → verify status updates</li>
+</ul>
+</section>
+
+<!-- ═══════════════════ 8. MOBILE TESTING ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="mobile-test">8. Mobile App Testing</h2>
+<p class="section-intro">Test each flavor separately. Ensure the API is running on port 3000 before launching.</p>
+
+<h3>8.1 Retail / Wholesale Flavor</h3>
+<table>
+<thead><tr><th>Screen</th><th>Verify</th></tr></thead>
+<tbody>
+<tr><td>Auth (OTP)</td><td>Request → verify → token persistence → auto-login on restart</td></tr>
+<tr><td>Search</td><td>Text search, category chips, barcode scan button (opens camera)</td></tr>
+<tr><td>Stores</td><td>Store list → store detail with products</td></tr>
+<tr><td>Product Detail</td><td>Variant selection, TierLadder pricing widget, add-to-cart</td></tr>
+<tr><td>Cart</td><td>Multi-supplier grouping, QuantityStepper with MOQ floor, promo code</td></tr>
+<tr><td>Checkout</td><td>Delivery address → submit → order created with PENDING_CONFIRMATION</td></tr>
+<tr><td>Orders</td><td>Order list → detail with status transitions (16 FSM statuses in StatusBadge)</td></tr>
+<tr><td>Favorites</td><td>Heart icon on ProductCard → favorites list</td></tr>
+<tr><td>Notifications</td><td>Notification list, read/unread, preferences</td></tr>
+<tr><td>Merchant Orders</td><td>Accept/reject/partially accept with FSM transitions</td></tr>
+<tr><td>Reviews &amp; Disputes</td><td>Submit review, open dispute, add evidence</td></tr>
+</tbody>
+</table>
+
+<h3>8.2 Driver Flavor</h3>
+<pre><code>cd mobile; flutter run --dart-define=FLAVOR=driver</code></pre>
+<ul class="checklist">
+<li>Verify driver dashboard loads with "SCS Driver" branding</li>
+<li>Toggle duty status (on/off) — verify visual state change</li>
+<li>View job board — verify available delivery jobs with accept buttons</li>
+<li>View earnings section — verify stats display</li>
+<li>Verify <code>/driver</code> route is accessible via go_router</li>
+</ul>
+
+<h3>8.3 Barcode Scan Test</h3>
+<ul class="checklist">
+<li>Open search screen → tap barcode icon (📷) in AppBar</li>
+<li>Verify camera permission request appears</li>
+<li>Scan a product barcode → verify search results filter by barcode</li>
+<li>Note: On simulator/emulator, camera may not be available — test on physical device</li>
+</ul>
+
+<h3>8.4 Mobile Test Suite</h3>
+<pre><code>cd mobile; flutter test
+# Expected: 32 tests pass (models, FSM transitions, API service endpoints)</code></pre>
+</section>
+
+<!-- ═══════════════════ 9. INTEGRATION VERIFICATION ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="integration">9. Integration Verification</h2>
+<p class="section-intro">End-to-end verification of critical platform flows.</p>
+
+<h3>9.1 Auth Flow — Full Cycle</h3>
+<pre><code># Step 1: Request OTP (use demo buyer account)
+curl -X POST http://localhost:3000/v1/auth/otp/request \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+966500000100"}'
+# Expected: 201 Created
+
+# Step 2: Verify OTP (check API logs for the code)
+curl -X POST http://localhost:3000/v1/auth/otp/verify \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+966500000100","code":"&lt;OTP_FROM_LOGS&gt;"}'
+# Expected: 200 with { accessToken, refreshToken }
+
+# Step 3: Refresh token
+curl -X POST http://localhost:3000/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"&lt;REFRESH_TOKEN&gt;"}'
+# Expected: 200 with new accessToken + rotated refreshToken
+
+# Step 4: Verify old refresh token is invalidated (reuse detection)
+curl -X POST http://localhost:3000/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"&lt;OLD_REFRESH_TOKEN&gt;"}'
+# Expected: 401 — session revoked</code></pre>
+
+<h3>9.2 Order Lifecycle — Full FSM</h3>
+<pre><code># The 16-status canonical FSM:
+# DRAFT → SUBMITTED → PENDING_CONFIRMATION → ACCEPTED → PREPARING
+# → READY → ASSIGNED → PICKED_UP → OUT_FOR_DELIVERY → DELIVERED
+# → COMPLETED → DISPUTED
+# Also: PARTIALLY_ACCEPTED, PAYMENT_PENDING, CANCELLED, REJECTED
+
+# After checkout, verify auto-advance:
+# 1. POST /v1/checkout → creates order with SUBMITTED
+# 2. System auto-advances to PENDING_CONFIRMATION (merchant notified, SLA started)
+# 3. Merchant: POST /v1/orders/:id/accept → ACCEPTED
+# 4. Merchant: POST /v1/orders/:id/status → PREPARING
+# 5. Merchant: POST /v1/orders/:id/status → READY
+# 6. Merchant: POST /v1/orders/:id/status → OUT_FOR_DELIVERY
+# 7. Merchant: POST /v1/orders/:id/status → DELIVERED
+# 8. Buyer: POST /v1/orders/:id/status → COMPLETED
+
+# Verify each transition:
+# - order_status_history has append-only record
+# - outbox_events has corresponding domain event
+# - Invalid transitions throw 409 Conflict (RFC 7807 format)</code></pre>
+
+<div class="callout success"><b>FSM backward compat:</b> <code>acceptOrder()</code>, <code>rejectOrder()</code>, and <code>partiallyAcceptOrder()</code> all auto-advance from SUBMITTED → PENDING_CONFIRMATION before processing, so legacy clients still work.</div>
+
+<h3>9.3 WebSocket Realtime</h3>
+<pre><code># Connect to WebSocket gateway
+# Using wscat or any Socket.IO client:
+
+npx wscat -c "ws://localhost:3000/realtime"
+
+# Or with Socket.IO client (Node.js):
+# const io = require('socket.io-client');
+# const socket = io('http://localhost:3000/realtime');
+
+# Join rooms:
+# socket.emit('join', 'user:buyer-001');
+# socket.emit('join', 'org:org-001');
+# socket.emit('join', 'order:order-001');
+
+# Expected events:
+# - order.status.changed  → fired on every FSM transition
+# - notification.new      → fired when notification created</code></pre>
+
+<h3>9.4 RFC 7807 Error Format</h3>
+<pre><code># Trigger a validation error:
+curl -X POST http://localhost:3000/v1/auth/otp/request \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"invalid"}'
+
+# Expected response headers:
+# Content-Type: application/problem+json
+
+# Expected response body:
+# {
+#   "type": "https://httpstatuses.com/400",
+#   "title": "Bad Request",
+#   "status": 400,
+#   "detail": "phone must be a valid phone number",
+#   "instance": "/v1/auth/otp/request"
+# }</code></pre>
+
+<h3>9.5 Notification Delivery</h3>
+<ul class="checklist">
+<li>Place an order → verify merchant receives <code>order.submitted</code> notification</li>
+<li>Accept order → verify buyer receives <code>order.accepted</code> notification</li>
+<li>Check Mailhog at <code>http://localhost:8025</code> for any email notifications</li>
+<li>Verify quiet hours enforcement (22:00–07:00): promotional/behavioral notifications suppressed</li>
+</ul>
+</section>
+
+<!-- ═══════════════════ 10. TROUBLESHOOTING ═══════════════════ -->
+<section class="pagebreak">
+<h2 id="troubleshoot">10. Troubleshooting</h2>
+
+<h3>10.1 Docker Issues</h3>
+<table>
+<thead><tr><th>Problem</th><th>Cause</th><th>Solution</th></tr></thead>
+<tbody>
+<tr><td><code>unable to get image</code> / <code>Cannot connect to Docker</code></td><td>Docker Desktop is not running</td><td>Start Docker Desktop from Start Menu. Wait for the icon to stop animating. Verify: <code>docker info</code></td></tr>
+<tr><td><code>port is already allocated</code></td><td>Another service using port 5432, 6379, 9000, etc.</td><td><code>docker compose -f infra/docker-compose.dev.yml down</code> then change conflicting port in compose file, or stop the other service</td></tr>
+<tr><td><code>container unhealthy</code></td><td>Service failed health check (slow startup)</td><td>Wait 30s and re-check: <code>docker compose ps</code>. For Postgres, ensure <code>pg_isready</code> passes</td></tr>
+<tr><td><code>no such image</code></td><td>Docker image not pulled yet</td><td><code>docker compose -f infra/docker-compose.dev.yml pull</code> to pre-fetch all images</td></tr>
+<tr><td><code>permission denied</code> (Linux)</td><td>Docker socket permissions</td><td>Add user to <code>docker</code> group or run with <code>sudo</code></td></tr>
+<tr><td>Volumes have stale data</td><td>Old migrations or seed data conflict</td><td><code>docker compose -f infra/docker-compose.dev.yml down -v</code> to delete volumes, then <code>up -d</code> + <code>pnpm db:migrate</code></td></tr>
+</tbody>
+</table>
+
+<h3>10.2 Database Connection Problems</h3>
+<table>
+<thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+<tbody>
+<tr><td><code>ECONNREFUSED localhost:5432</code></td><td>Postgres container not running. Check: <code>docker ps | grep postgres</code></td></tr>
+<tr><td><code>password authentication failed</code></td><td>On Windows with Docker Desktop, Node.js clients cannot connect to Docker-mapped Postgres ports. Start the PG proxy: <code>pnpm --filter @scs/api dev:proxy</code>. The API defaults to port 15432 (proxy) automatically</td></tr>
+<tr><td><code>database "scs_platform" does not exist</code></td><td>Run <code>pnpm db:migrate</code> — migrations create the schema via <code>docker exec psql</code></td></tr>
+<tr><td>Migration fails mid-way</td><td>Run <code>pnpm db:reset</code> to drop all and re-migrate from scratch. Scripts use <code>docker exec psql</code> to bypass Docker Desktop networking issues</td></tr>
+</tbody>
+</table>
+
+<h3>10.3 Port Conflicts</h3>
+<pre><code># Find what's using a port (Windows PowerShell):
+netstat -ano | findstr :3000
+netstat -ano | findstr :5432
+netstat -ano | findstr :6379
+
+# Kill the process (replace PID):
+taskkill /PID &lt;PID&gt; /F
+
+# Or change the API port:
+API_PORT=3001 pnpm --filter @scs/api dev</code></pre>
+
+<h3>10.4 Application Startup Issues</h3>
+<table>
+<thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+<tbody>
+<tr><td><code>Cannot find module '@scs/contracts'</code></td><td>Run <code>pnpm contracts:build</code> to build shared packages first</td></tr>
+<tr><td><code>Module not found</code> in web/admin</td><td>Run <code>pnpm install</code> from repo root to link workspace packages</td></tr>
+<tr><td>API starts but <code>/v1/healthz</code> fails</td><td>Check that Postgres and Redis containers are healthy. Verify PG proxy is running on port 15432</td></tr>
+<tr><td>WebSocket connection refused</td><td>Verify API is running; check <code>/realtime</code> namespace is registered in startup logs</td></tr>
+<tr><td>Flutter build fails</td><td>Run <code>flutter clean; flutter pub get</code> in <code>mobile/</code> directory</td></tr>
+</tbody>
+</table>
+
+<h3>10.5 Test Failures</h3>
+<pre><code># Backend tests — 168 tests across 5 files:
+cd apps/api; npx vitest run
+# If failures: ensure no stale processes; re-run with --reporter=verbose
+
+# Mobile tests — 32 tests across 3 files:
+cd mobile; flutter test
+# If failures: flutter clean; flutter pub get; flutter test
+
+# Type checking:
+pnpm --filter @scs/api typecheck     # tsc --noEmit
+pnpm --filter @scs/web typecheck     # tsc --noEmit
+pnpm --filter @scs/admin typecheck   # tsc --noEmit
+cd mobile; dart analyze              # 0 errors expected (2 info deprecations OK)</code></pre>
+</section>
+
+<!-- ═══════════════════ 11. VALIDATION SCRIPTS ═══════════════════ -->
+<section>
+<h2 id="validation">11. Automated Validation Scripts</h2>
+<p class="section-intro">Use existing scripts for automated testing and CI validation.</p>
+
+<h3>11.1 k6 Load Tests</h3>
+<table>
+<thead><tr><th>Script</th><th>Flow Tested</th><th>Gate</th><th>Command</th></tr></thead>
+<tbody>
+<tr><td><code>infra/load/smoke.js</code></td><td><code>/v1/healthz</code> + OTP request</td><td>p95 &lt; 400ms, error rate &lt; 1%</td><td><code>k6 run infra/load/smoke.js</code></td></tr>
+<tr><td><code>infra/load/checkout.js</code></td><td>Full checkout flow (cart → order)</td><td>p95 &lt; 800ms</td><td><code>k6 run infra/load/checkout.js</code></td></tr>
+<tr><td><code>infra/load/search.js</code></td><td>Search + product detail</td><td>p95 &lt; 300ms</td><td><code>k6 run infra/load/search.js</code></td></tr>
+<tr><td><code>infra/load/order-acceptance.js</code></td><td>Merchant accept order flow</td><td>p95 &lt; 800ms</td><td><code>k6 run infra/load/order-acceptance.js</code></td></tr>
+</tbody>
+</table>
+
+<pre><code># Run all load tests against local API:
+export BASE_URL=http://localhost:3000
+k6 run infra/load/smoke.js
+k6 run infra/load/checkout.js
+k6 run infra/load/search.js
+k6 run infra/load/order-acceptance.js</code></pre>
+
+<h3>11.2 CI / Quality Scripts</h3>
+<pre><code># Full test suite (all apps via Turborepo)
+pnpm test
+
+# Unit tests only
+pnpm test:unit
+
+# Integration tests only
+pnpm test:integration
+
+# Type checking across all TypeScript projects
+pnpm typecheck
+
+# Linting
+pnpm lint
+
+# Boundary lint — enforces module isolation (E6)
+pnpm boundary-lint
+
+# Format check
+pnpm format:check
+
+# Contracts build (zod → OpenAPI → TS types)
+pnpm contracts:build</code></pre>
+
+<h3>11.3 Security Verification</h3>
+<pre><code># RBAC verification — checks all protected routes have guards
+npx ts-node infra/ci/rbac-verify.ts
+
+# Expected: all routes verified, no unguarded endpoints</code></pre>
+
+<h3>11.4 Pre-Launch Checklist</h3>
+<table>
+<thead><tr><th>#</th><th>Check</th><th>Command / Action</th><th>Expected</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Docker services healthy</td><td><code>docker compose -f infra/docker-compose.dev.yml ps</code></td><td>All show healthy/running</td></tr>
+<tr><td>2</td><td>Migrations applied</td><td><code>pnpm db:migrate</code></td><td>13 migrations, 0 pending</td></tr>
+<tr><td>3</td><td>Seed reference data</td><td><code>pnpm db:seed</code></td><td>6 roles, 28 permissions</td></tr>
+<tr><td>4</td><td>Generate demo data</td><td><code>pnpm --filter @scs/api db:demo</code></td><td>8 users, 10 products, 4 orders, etc.</td></tr>
+<tr><td>5</td><td>PG proxy running (Windows)</td><td><code>pnpm --filter @scs/api dev:proxy</code></td><td>Listening on 127.0.0.1:15432</td></tr>
+<tr><td>6</td><td>API health</td><td><code>curl http://localhost:3000/v1/healthz</code></td><td><code>{"status":"ok"}</code></td></tr>
+<tr><td>7</td><td>Backend tests</td><td><code>cd apps/api; npx vitest run</code></td><td>168/168 pass</td></tr>
+<tr><td>8</td><td>Mobile tests</td><td><code>cd mobile; flutter test</code></td><td>32/32 pass</td></tr>
+<tr><td>9</td><td>TypeScript clean</td><td><code>pnpm typecheck</code></td><td>0 errors across api/web/admin</td></tr>
+<tr><td>10</td><td>Dart analyze clean</td><td><code>cd mobile; dart analyze</code></td><td>0 errors, 0 warnings</td></tr>
+<tr><td>11</td><td>Auth flow works</td><td>OTP request → verify → JWT → refresh</td><td>Full cycle completes</td></tr>
+<tr><td>12</td><td>Checkout works</td><td>Cart → checkout → PENDING_CONFIRMATION</td><td>Order created + auto-advanced</td></tr>
+<tr><td>13</td><td>WebSocket connects</td><td>Connect to <code>/realtime</code></td><td>Room join + event reception</td></tr>
+<tr><td>14</td><td>Smoke test passes</td><td><code>k6 run infra/load/smoke.js</code></td><td>p95 &lt; 400ms, 0 errors</td></tr>
+<tr><td>15</td><td>RBAC verified</td><td><code>npx ts-node infra/ci/rbac-verify.ts</code></td><td>All routes guarded</td></tr>
+</tbody>
+</table>
+</section>
+
+<div class="footer-note">
+<b>Smart Commerce &amp; Supply Platform — Launch &amp; Testing Guide</b> · September 2026 · Phase 1 Complete · 16-status FSM · WebSocket Realtime · RFC 7807 · 168 backend tests · 32 mobile tests
+</div>
+
+</body>
+</html>

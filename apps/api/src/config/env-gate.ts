@@ -96,7 +96,7 @@ export function assertJwtConfig(env: NodeJS.ProcessEnv = process.env): string {
  * literal so the place that decides "this is a local dev credential" is one place.
  */
 export const DEV_DATABASE_URL =
-  'postgresql://scs:scs_dev_2026@127.0.0.1:15432/scs_platform';
+  'postgresql://scs:scs_dev_2026@127.0.0.1:25433/scs_platform';
 
 /** The development-only Redis endpoint. */
 export const DEV_REDIS_URL = 'redis://localhost:6379';

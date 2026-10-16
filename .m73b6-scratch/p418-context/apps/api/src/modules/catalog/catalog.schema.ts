@@ -1,0 +1,264 @@
+import {
+  pgTable,
+  uuid,
+  varchar,
+  text,
+  boolean,
+  integer,
+  numeric,
+  bigint,
+  jsonb,
+  timestamp,
+} from 'drizzle-orm/pg-core';
+import { stores } from '../merchant/merchant.schema';
+import { users } from '../identity/identity.schema';
+
+/**
+ * Catalog schema (migration 0004_catalog)
+ *
+ * - Categories use materialized path for hierarchy
+ * - Brands are platform-level
+ * - Products belong to a store; soft-deleted via deleted_at
+ * - Variants are the purchasable SKUs
+ * - Media is managed separately for rich ordering/thumbnails
+ * - Import jobs track bulk catalog imports
+ */
+
+export const categories = pgTable('categories', {
+  id: uuid('id').primaryKey(),
+  storeId: uuid('store_id').references(() => stores.id, { onDelete: 'cascade' }),
+  parentId: uuid('parent_id').references((): any => categories.id, { onDelete: 'set null' }),
+  path: text('path').notNull().default('/'),
+  slug: varchar('slug', { length: 120 }).notNull(),
+  name: varchar('name', { length: 200 }).notNull(),
+  nameAr: varchar('name_ar', { length: 200 }),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  productCount: integer('product_count').notNull().default(0),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const brands = pgTable('brands', {
+  id: uuid('id').primaryKey(),
+  name: varchar('name', { length: 200 }).notNull(),
+  nameAr: varchar('name_ar', { length: 200 }),
+  slug: varchar('slug', { length: 120 }).notNull().unique(),
+  logoUrl: text('logo_url'),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const products = pgTable('products', {
+  id: uuid('id').primaryKey(),
+  // PHASE 1 / migration 0025: store_id is nullable at both DB and ORM level so
+  // a platform-shared canonical product can exist with no single owning store.
+  // Merchant ownership is represented through MerchantOffer.storeId.
+  storeId: uuid('store_id')
+    .references(() => stores.id, { onDelete: 'cascade' }),
+  categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
+  brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'set null' }),
+  // Governed template binding (PHASE 3). The DB FK to product_types(id) is
+  // declared in migration 0025; kept as a plain column here so this base schema
+  // does not import the taxonomy schema (dependency stays taxonomy → catalog).
+  productTypeId: uuid('product_type_id'),
+  // Canonical manufacturer identifiers (§30) used to recognise an existing
+  // product when a merchant proposes it instead of creating a duplicate.
+  gtin: varchar('gtin', { length: 20 }),
+  ean: varchar('ean', { length: 20 }),
+  mpn: varchar('mpn', { length: 100 }),
+  slug: varchar('slug', { length: 200 }).notNull(),
+  title: varchar('title', { length: 300 }).notNull(),
+  titleAr: varchar('title_ar', { length: 300 }),
+  description: text('description'),
+  descriptionAr: text('description_ar'),
+  status: varchar('status', { length: 16 }).notNull().default('DRAFT'),
+  condition: varchar('condition', { length: 16 }).notNull().default('NEW'),
+  isAvailable: boolean('is_available').notNull().default(false),
+  moq: integer('moq').notNull().default(1),
+  images: jsonb('images').notNull().default([]),
+  /** @deprecated PHASE 3 — JSONB attributes is LEGACY. Authoritative storage is product_attribute_values. Column retained for backward compat; do NOT read or write. */
+  attributes: jsonb('attributes').notNull().default({}),
+  metadata: jsonb('metadata').notNull().default({}),
+  // P11 governance columns (migration 0056)
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  reviewedBy: uuid('reviewed_by').references(() => users.id),
+  rejectionReason: text('rejection_reason'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Product Moderation ledger (migration 0056).
+ * Append-only audit trail for every product governance transition.
+ * Application code must NEVER update or delete historical records.
+ */
+export const productModeration = pgTable('product_moderation', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 16 }).notNull(),
+  fromStatus: varchar('from_status', { length: 16 }),
+  toStatus: varchar('to_status', { length: 16 }).notNull(),
+  actorUserId: uuid('actor_user_id')
+    .notNull()
+    .references(() => users.id),
+  actorRole: varchar('actor_role', { length: 16 }).notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const productVariants = pgTable('product_variants', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  sku: varchar('sku', { length: 100 }).notNull(),
+  barcode: varchar('barcode', { length: 60 }),
+  title: varchar('title', { length: 300 }),
+  titleAr: varchar('title_ar', { length: 300 }),
+  unit: varchar('unit', { length: 30 }).notNull().default('PCS'),
+  weightGrams: numeric('weight_grams', { precision: 10, scale: 2 }),
+  dimensionsMm: jsonb('dimensions_mm').default({}),
+  /** @deprecated PHASE 3 — JSONB attributes is LEGACY. Authoritative storage is variant_attribute_values. Column retained for backward compat; do NOT read or write. */
+  attributes: jsonb('attributes').notNull().default({}),
+  images: jsonb('images').notNull().default([]),
+  isActive: boolean('is_active').notNull().default(true),
+  // Normalized digest of this variant's VARIANT-scope attribute values (PHASE 3,
+  // migration 0025). Two variants of a product may not share a combination; the
+  // partial unique index (product_id, combination_key) enforces it. NULL until a
+  // variant has typed values, so existing rows and the JSONB transition are safe.
+  combinationKey: varchar('combination_key', { length: 255 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const productMedia = pgTable('product_media', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  variantId: uuid('variant_id').references(() => productVariants.id, { onDelete: 'cascade' }),
+  mediaType: varchar('media_type', { length: 16 }).notNull().default('IMAGE'),
+  url: text('url').notNull(),
+  thumbUrl: text('thumb_url'),
+  blurhash: varchar('blurhash', { length: 60 }),
+  altText: varchar('alt_text', { length: 300 }),
+  altTextAr: varchar('alt_text_ar', { length: 300 }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull().default(0),
+  mimeType: varchar('mime_type', { length: 100 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const favorites = pgTable('favorites', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Saved suppliers (§21.3 retailer capability) — the store-level analog of
+ * product `favorites`. A retailer bookmarks stores (suppliers) they source from
+ * repeatedly. Unique per (user, store); enforced in migration 0017.
+ */
+export const savedSuppliers = pgTable('saved_suppliers', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const importJobs = pgTable('import_jobs', {
+  id: uuid('id').primaryKey(),
+  storeId: uuid('store_id')
+    .notNull()
+    .references(() => stores.id, { onDelete: 'cascade' }),
+  fileName: varchar('file_name', { length: 260 }).notNull(),
+  fileType: varchar('file_type', { length: 10 }).notNull().default('XLSX'),
+  fileSize: bigint('file_size', { mode: 'number' }).notNull().default(0),
+  storageKey: text('storage_key').notNull(),
+  status: varchar('status', { length: 16 }).notNull().default('UPLOADED'),
+  totalRows: integer('total_rows').notNull().default(0),
+  processedRows: integer('processed_rows').notNull().default(0),
+  errorRows: integer('error_rows').notNull().default(0),
+  columnMapping: jsonb('column_mapping').default({}),
+  errorLog: jsonb('error_log').default([]),
+  stats: jsonb('stats').notNull().default({}),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => users.id),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  lockedAt: timestamp('locked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Import job chunks (migration 0055) — chunked processing for merchant imports.
+ * Each chunk covers up to 100 rows and tracks its own status, counts, and errors.
+ * Completed chunks are never reprocessed; failed chunks can be retried (max 3 attempts).
+ */
+export const importJobChunks = pgTable('import_job_chunks', {
+  id: uuid('id').primaryKey(),
+  importJobId: uuid('import_job_id')
+    .notNull()
+    .references(() => importJobs.id, { onDelete: 'cascade' }),
+  chunkIndex: integer('chunk_index').notNull(),
+  startRow: integer('start_row').notNull(),
+  endRow: integer('end_row').notNull(),
+  status: varchar('status', { length: 16 }).notNull().default('PENDING'),
+  rowCount: integer('row_count').notNull(),
+  processedRows: integer('processed_rows').notNull().default(0),
+  createdCount: integer('created_count').notNull().default(0),
+  updatedCount: integer('updated_count').notNull().default(0),
+  skippedCount: integer('skipped_count').notNull().default(0),
+  errorCount: integer('error_count').notNull().default(0),
+  errorLog: jsonb('error_log').notNull().default([]),
+  attemptCount: integer('attempt_count').notNull().default(0),
+  lastError: text('last_error'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Product Sources (migration 0038) — provenance tracking for canonical catalog
+ * data. Each row records where a product's information originated (manufacturer
+ * datasheet, distributor feed, manual entry, etc.).
+ *
+ * Idempotency: the unique constraint (product_id, source_type, source_url)
+ * ensures the same source is never duplicated on re-import.
+ */
+export const productSources = pgTable('product_sources', {
+  id: uuid('id').primaryKey(),
+  productId: uuid('product_id')
+    .notNull()
+    .references(() => products.id, { onDelete: 'cascade' }),
+  sourceType: varchar('source_type', { length: 30 }).notNull(),
+  sourceUrl: text('source_url').notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  metadata: jsonb('metadata').notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

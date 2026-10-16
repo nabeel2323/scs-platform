@@ -1,0 +1,286 @@
+# ============================================================
+# Smart Commerce & Supply Platform — Production-like Compose
+# ============================================================
+# Introduced by P13 Phase 4.1. This is NOT a copy of docker-compose.dev.yml:
+# the dev file provides *infrastructure only* (Postgres/Redis/MinIO/Mailhog) and the
+# applications run on the host with pnpm. Here the applications run as containers,
+# built from infra/deploy/*.Dockerfile, with production defaults.
+#
+# HOW TO USE IT
+#   1. cp infra/deploy/.env.production.example .env.prod-like
+#   2. Fill in every value marked REQUIRED. There are no fallbacks in this file on
+#      purpose — a missing value must stop the start, not silently pick a dev secret.
+#   3. docker compose --env-file .env.prod-like -f infra/docker-compose.prod.yml up -d
+#   4. docker compose ... ps            # api replicas must be healthy, worker absent
+#
+# WHY `--env-file` AND NOT SHELL EXPORTS
+#   The applications read `process.env` directly (there is no dotenv/@nestjs/config
+#   loader in this repository), so Compose variable expansion is the only injection
+#   point. `--env-file` keeps the credentials out of the shell history and out of the
+#   repository; `.dockerignore` and `.gitignore` both exclude `.env*`.
+#
+# ── P13 safety posture of this configuration ─────────────────
+#   * `P13_WORKER_ENABLED` is set to the literal string "false" on every `api`
+#     replica. The protected return-expiration job therefore does not run here,
+#     even though the monitor does.
+#   * The worker runs only as the separate `worker` service, which is behind the
+#     `p13-worker` Compose profile. A plain `up` never starts it; it requires an
+#     explicit `--profile p13-worker`. This is the deliberate answer to "a Compose
+#     configuration that accidentally enables the worker in every API instance".
+#   * `P13_PILOT_MODE` defaults to `legacy`, so pilot allowlist enforcement stays
+#     off. The allowlist table is empty in a fresh database anyway, and in
+#     `allowlist` mode an empty list denies everything — which is fail-closed, not
+#     fail-open, but is still not a state to enter by accident.
+#   * Migrations run exactly once, in the one-shot `migrate` service, and `api`
+#     waits for `service_completed_successfully`. `migrate-pg.ts` takes no advisory
+#     lock, so letting N replicas migrate concurrently would be unsafe.
+#   * No secret has a default value in this file. `${VAR:?message}` fails the
+#     `docker compose` command when VAR is unset.
+
+name: scs-prod-like
+
+# ── Shared blocks ────────────────────────────────────────────
+x-api-environment: &api-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  API_HOST: 0.0.0.0
+  PORT: 3000
+  # POSTGRES_PASSWORD is interpolated into a URL, so it must be URL-safe (no `@`,
+  # `:`, `/`, `#`). Generate one accordingly; `.env.production.example` says so.
+  DATABASE_URL: postgresql://scs:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-scs_platform}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-1}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+  S3_ENDPOINT: http://minio:9000
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+  S3_MEDIA_BUCKET: ${S3_MEDIA_BUCKET:-scs-media}
+  S3_UPLOADS_BUCKET: ${S3_UPLOADS_BUCKET:-scs-uploads}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required (>=16 chars, not the dev default)}
+  # JWT_REFRESH_SECRET is intentionally NOT required here. Refresh tokens in this
+  # codebase are opaque UUIDs stored as `sessions.token_hash`
+  # (identity.service.ts), never JWTs, so no code path reads that variable. It is
+  # present in the dev `.env` and in the unused `@scs/env` schema only. Requiring it
+  # would ask operators to rotate a secret with no effect.
+  # Likewise `expiresIn` is hard-coded to '15m' in identity.module.ts, so
+  # JWT_ACCESS_TTL has no effect either.
+  API_CORS_ORIGINS: ${API_CORS_ORIGINS:?API_CORS_ORIGINS is required — comma-separated https origins}
+  # P13 posture: never enabled on the API tier. See the header block.
+  P13_WORKER_ENABLED: "false"
+  P13_PILOT_MODE: ${P13_PILOT_MODE:-legacy}
+  # With no worker running, zero live lease holders is the *expected* state; setting
+  # this to 0 suppresses monitor check #3 via its own `expectedWorkerCount > 0` guard
+  # rather than by editing code. Raise it to 1 only together with --profile p13-worker.
+  P13_WORKER_EXPECTED_COUNT: ${P13_EXPECTED_WORKER_COUNT:-0}
+  # No alert sink by default => log-only. Setting this is an explicit operator action
+  # (Phase 4.1 Stage F); it is never populated from a repository file.
+  P13_OPS_ALERT_WEBHOOK_URL: ${P13_OPS_ALERT_WEBHOOK_URL:-}
+
+services:
+  # ── One-shot migration step ────────────────────────────────
+  # Runs before any application container. `restart: "no"` (the Compose default) plus
+  # `service_completed_successfully` makes it a gate: if a migration fails, the API
+  # tier never starts, so a bad schema cannot serve traffic.
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/deploy/api.Dockerfile
+    image: scs-api:${SCS_IMAGE_TAG:-prod-like}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://scs:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-scs_platform}
+      # PGSSLROOTCERT: /run/secrets/pg-ca.pem   # uncomment for TLS to a managed Postgres
+    # Absolute path: `working_dir` is /app/apps/api, so a relative `./apps/api/...`
+    # would resolve to /app/apps/api/apps/api/... The `tsx` binary ships in the image
+    # because the runtime stage keeps the build stage's node_modules — the migration
+    # runner is TypeScript and has no compiled output.
+    command: ["/app/apps/api/node_modules/.bin/tsx", "infra/drizzle/migrate-pg.ts"]
+    working_dir: /app/apps/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # No `profiles:` key: this service must always be part of the run, and it is
+    # one-shot by virtue of `restart: "no"` plus the completion condition above.
+
+  # ── API tier ───────────────────────────────────────────────
+  api:
+    image: scs-api:${SCS_IMAGE_TAG:-prod-like}
+    build:
+      context: ..
+      dockerfile: infra/deploy/api.Dockerfile
+    restart: unless-stopped
+    init: true
+    # SIGTERM must reach Node as PID 1 (exec-form CMD) and the process needs enough
+    # time to release the P13 lease. The worker's release is awaited with a 5 s guard;
+    # Docker's 10 s default would leave no margin for an in-flight poll, so it is
+    # raised explicitly. Killing before that window is what `stop_grace_period` protects.
+    stop_grace_period: 30s
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Two replicas on purpose: this is the shape that makes the lease mechanism
+    # observable. With the worker disabled it proves nothing about exclusivity by
+    # itself — Stage E drives that with real processes.
+    deploy:
+      replicas: ${API_REPLICAS:-2}
+    # Deliberately NO published host port. Two replicas cannot share
+    # `127.0.0.1:3000`, and a prod-shaped file that worked only at replica count 1
+    # would be a rehearsal of the wrong topology. Replicas are reached through `web`
+    # and `admin`, or directly per container:
+    #   docker compose --env-file .env.prod-like -f infra/docker-compose.prod.yml \
+    #     exec --index=1 api curl -fsS http://127.0.0.1:3000/v1/healthz
+    # A reverse proxy / load balancer in front of `api` is the intended production
+    # shape; which proxy and which TLS is open decision D-2 in the Phase 4.1
+    # deployment-architecture report, not something this file gets to assume.
+    expose:
+      - "3000"
+
+  # ── P13 worker (profile-gated, never started by default) ───
+  worker:
+    image: scs-api:${SCS_IMAGE_TAG:-prod-like}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    environment:
+      <<: *api-environment
+      P13_WORKER_ENABLED: "true"
+      # Exactly one replica: the lease makes N safe, but the pilot wants one owner and
+      # a count of 1 is what makes "two holders" detectable instead of merely tolerated.
+      P13_WORKER_EXPECTED_COUNT: "1"
+      P13_WORKER_POLL_INTERVAL_MS: ${P13_WORKER_POLL_INTERVAL_MS:-120000}
+      P13_WORKER_LEASE_TTL_SECONDS: ${P13_WORKER_LEASE_TTL_SECONDS:-90}
+    command: ["node", "apps/api/dist/main.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    profiles: ["p13-worker"]
+
+  # ── Web storefront ─────────────────────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: infra/deploy/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is the origin browsers reach the API at}
+    image: scs-web:${SCS_IMAGE_TAG:-prod-like}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3100}:3100"
+    depends_on:
+      - api
+
+  # ── Admin / platform operations console ────────────────────
+  admin:
+    build:
+      context: ..
+      dockerfile: infra/deploy/admin.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is the origin browsers reach the API at}
+    image: scs-admin:${SCS_IMAGE_TAG:-prod-like}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${ADMIN_HOST_PORT:-3200}:3200"
+    depends_on:
+      - api
+
+  # ── Infrastructure ─────────────────────────────────────────
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-scs_platform}
+      # No POSTGRES_HOST_AUTH_METHOD here. The dev compose sets it to `trust`;
+      # carrying that into a production-shaped file would defeat the password.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scs -d ${POSTGRES_DB:-scs_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "log_min_messages=warning"
+      - "-c"
+      - "log_timezone=UTC"
+      - "-c"
+      - "timezone=UTC"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Authentication, unlike the dev compose which relies on network isolation.
+    # Redis holds the JWT denylist, so an unauthenticated Redis is an auth-control
+    # weakness, not just a cache concern.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 '$${MINIO_ROOT_USER}' '$${MINIO_ROOT_PASSWORD}';
+        mc mb local/$${S3_MEDIA_BUCKET:-scs-media} --ignore-existing;
+        mc mb local/$${S3_UPLOADS_BUCKET:-scs-uploads} --ignore-existing;
+        echo 'buckets ready';
+      "
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+      S3_MEDIA_BUCKET: ${S3_MEDIA_BUCKET:-scs-media}
+      S3_UPLOADS_BUCKET: ${S3_UPLOADS_BUCKET:-scs-uploads}
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local

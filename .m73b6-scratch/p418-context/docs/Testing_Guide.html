@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Pilot Testing Guide for the Smart Commerce & Supply Platform (TAIF) — manual test cases, integration flows, cross-platform parity checks and environment setup for QA validation of the B2B MVP.">
+<title>Testing Guide &mdash; Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#eef2f4;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--brand);border-radius:0 var(--radius) var(--radius) 0;padding:.8rem 1rem;margin:1rem 0;background:#f7fafb}
+  .callout.ok{border-color:var(--ok);background:#eef8f2}
+  .callout.warn{border-color:var(--warn);background:#fdf6ed}
+  .callout.err{border-color:var(--err);background:#fdf0ee}
+  .callout .label{display:inline-block;background:var(--brand);color:#fff;padding:.15rem .6rem;border-radius:4px;font-size:.82rem;margin-bottom:.35rem}
+  .callout.ok .label{background:var(--ok)} .callout.warn .label{background:var(--warn)} .callout.err .label{background:var(--err)}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .grid.c3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .grid.c4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  .card h4{margin-top:0}
+  .kpi{font-size:2.2rem;font-weight:700;color:var(--brand)}
+  .small{font-size:.88rem} .muted{color:var(--muted)}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.3rem}
+  ul.tight li,ol.tight li{margin:.2rem 0}
+  .badge{display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:600;vertical-align:middle;margin-left:.3rem}
+  .badge-web{background:#e2edf9;color:var(--info)} .badge-mob{background:#e4f3ea;color:var(--ok)}
+  .badge-adm{background:#fbeedd;color:var(--warn)} .badge-api{background:#eef2f4;color:var(--muted)}
+  footer.site{text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);margin-top:2rem}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;max-height:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Testing Guide &mdash; Smart Commerce &amp; Supply Platform</h1>
+    <p class="sub">Pilot-ready manual test plan covering all three client surfaces (Web, Admin Console, Mobile) mapped to Phase&nbsp;1 B2B MVP capabilities, with API integration flows, cross-platform parity checks and environment setup instructions.</p>
+    <div class="meta">
+      <span>Phase 1 B2B MVP</span>
+      <span>Maturity 94/100</span>
+      <span>371 API tests passing</span>
+      <span>73 Flutter tests passing</span>
+      <span>2026-09-15</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#summary">Executive Summary</a></li>
+      <li><a href="#env">Test Environment Setup</a></li>
+      <li><a href="#matrix">Browser / Device Matrix</a></li>
+      <li><a href="#api-map">API Endpoint Map</a></li>
+      <li><a href="#auth">Authentication &amp; Identity</a></li>
+      <li><a href="#buyer">Buyer Workflows</a></li>
+      <li><a href="#merchant">Merchant Workflows</a></li>
+      <li><a href="#admin">Admin Workflows</a></li>
+      <li><a href="#driver">Driver Workflows</a></li>
+      <li><a href="#parity">Cross-Platform Parity</a></li>
+      <li><a href="#edge">Edge Cases &amp; Error Handling</a></li>
+      <li><a href="#gaps">Known Issues &amp; Gap Register</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="summary">
+      <h2>1. Executive Summary</h2>
+      <p>This guide provides step-by-step manual test procedures for validating the <strong>Phase&nbsp;1 B2B MVP</strong> of the Smart Commerce &amp; Supply Platform. It covers all implemented features across four surfaces: the <strong>API</strong> (16 NestJS modules, 120+ endpoints), the <strong>Web app</strong> (31 pages), the <strong>Admin Console</strong> (13 pages), and the <strong>Mobile Flutter app</strong> (27 screens, 30 routes).</p>
+
+      <div class="grid c4">
+        <div class="card"><div class="kpi">94<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">All P0 + P1 blockers closed</p></div>
+        <div class="card"><div class="kpi">96%</div><h4>Phase 1 Coverage</h4><p class="small muted">All core B2B flows implemented</p></div>
+        <div class="card"><div class="kpi">371</div><h4>API Tests Passing</h4><p class="small muted">27 spec files, 0 failures</p></div>
+        <div class="card"><div class="kpi">73</div><h4>Flutter Tests Passing</h4><p class="small muted">0 dart analyze issues</p></div>
+      </div>
+
+      <h3>1.1 Test Scope by Phase</h3>
+      <table>
+        <thead><tr><th>Phase</th><th>Status</th><th>Testable Features</th><th>Surfaces</th></tr></thead>
+        <tbody>
+          <tr><td>Phase 0 &mdash; Validation &amp; Design</td><td><span class="pill p-ok">Complete</span></td><td>Schema, migrations, demo data seed</td><td><span class="badge badge-api">API</span></td></tr>
+          <tr><td>Phase 1 &mdash; Launchable B2B MVP</td><td><span class="pill p-ok">96% Complete</span></td><td>Auth, catalog, cart, checkout, orders, inventory, pricing, promotions, reviews, disputes, notifications, analytics, merchant registration, verification, admin console</td><td><span class="badge badge-api">API</span><span class="badge badge-web">Web</span><span class="badge badge-adm">Admin</span><span class="badge badge-mob">Mobile</span></td></tr>
+          <tr><td>Phase 2 &mdash; Delivery &amp; Tracking</td><td><span class="pill p-muted">Schema only</span></td><td>Driver dashboard screen (UI scaffold only; no backend)</td><td><span class="badge badge-mob">Mobile</span></td></tr>
+          <tr><td>Phase 3&ndash;7</td><td><span class="pill p-muted">Dark</span></td><td>Schema/FSM states exist; behaviour not activated</td><td>&mdash;</td></tr>
+        </tbody>
+      </table>
+
+      <h3>1.2 Role Coverage</h3>
+      <table>
+        <thead><tr><th>Role</th><th>Web</th><th>Mobile</th><th>Admin</th><th>Key Flows</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Buyer</strong></td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Full</span></td><td>&mdash;</td><td>Browse, search, cart, checkout, orders, reviews, disputes, favorites, saved suppliers</td></tr>
+          <tr><td><strong>Merchant</strong></td><td><span class="pill p-ok">Full</span></td><td><span class="pill p-ok">Full</span></td><td>&mdash;</td><td>Registration, catalog CRUD, pricing, inventory, import, orders, customers</td></tr>
+          <tr><td><strong>Admin</strong></td><td>&mdash;</td><td>&mdash;</td><td><span class="pill p-ok">Full</span></td><td>Verification queue, KPIs, order oversight, user management, categories, audit, disputes</td></tr>
+          <tr><td><strong>Driver</strong></td><td>&mdash;</td><td><span class="pill p-warn">Scaffold</span></td><td>&mdash;</td><td>Dashboard screen exists; no backend integration (Phase 2)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="env">
+      <h2>2. Test Environment Setup</h2>
+      <h3>2.1 Prerequisites</h3>
+      <table>
+        <thead><tr><th>Component</th><th>Version</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Node.js</td><td>20+ (LTS)</td><td>Check <code>.nvmrc</code></td></tr>
+          <tr><td>pnpm</td><td>9.x</td><td>Monorepo package manager</td></tr>
+          <tr><td>PostgreSQL</td><td>15+</td><td>Local or Docker; connection via <code>DATABASE_URL</code></td></tr>
+          <tr><td>Redis</td><td>7+</td><td>Local or Docker; <code>REDIS_URL</code></td></tr>
+          <tr><td>MinIO</td><td>Latest</td><td>S3-compatible storage; <code>S3_ENDPOINT=http://localhost:9000</code></td></tr>
+          <tr><td>Flutter SDK</td><td>3.x</td><td>For mobile app; <code>flutter doctor</code> must pass</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.2 Setup Steps</h3>
+      <ol class="tight">
+        <li><strong>Clone and install:</strong> <code>cd scs-platform &amp;&amp; pnpm install</code></li>
+        <li><strong>Copy environment:</strong> <code>cp .env.example .env.local</code> &mdash; verify all S3, JWT, DB and Redis variables are set</li>
+        <li><strong>Start infrastructure:</strong> PostgreSQL, Redis, MinIO (Docker Compose or manual)</li>
+        <li><strong>Run migrations:</strong> <code>cd apps/api &amp;&amp; pnpm exec ts-node src/scripts/migrate.ts</code></li>
+        <li><strong>Seed demo data:</strong> <code>cd apps/api &amp;&amp; pnpm exec ts-node src/scripts/demo-data.ts</code> &mdash; creates 3 admin accounts, demo orgs, stores, products</li>
+        <li><strong>Start API:</strong> <code>pnpm --filter @scs/api dev</code> &mdash; runs on port 3000</li>
+        <li><strong>Start Web:</strong> <code>pnpm --filter @scs/web dev</code> &mdash; runs on port 3100</li>
+        <li><strong>Start Admin:</strong> <code>pnpm --filter @scs/admin dev</code> &mdash; runs on port 3200</li>
+        <li><strong>Start Mobile:</strong> <code>cd mobile &amp;&amp; flutter run</code> &mdash; configure <code>API_URL</code> to point to the API</li>
+      </ol>
+
+      <h3>2.3 Demo Credentials</h3>
+      <table>
+        <thead><tr><th>Role</th><th>Phone</th><th>Password (after setup)</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>SUPER_ADMIN</td><td>+966500000001</td><td>Set via credential setup</td><td>Full admin access</td></tr>
+          <tr><td>ADMIN</td><td>+966500000002</td><td>Set via credential setup</td><td>Standard admin</td></tr>
+          <tr><td>MODERATOR</td><td>+966500000003</td><td>Set via credential setup</td><td>Limited admin (no user mgmt)</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong class="label">Note</strong><p>OTP is the primary auth method. Password login is available after credential setup. Device trust requires OTP on first login from a new device.</p></div>
+    </section>
+
+    <section id="matrix">
+      <h2>3. Browser / Device Compatibility Matrix</h2>
+      <table>
+        <thead><tr><th>Surface</th><th>Target</th><th>Tested Browsers / Devices</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Web App</td><td>Desktop (Chrome, Firefox, Safari, Edge)</td><td>Chrome 120+, Firefox 120+, Safari 17+</td><td><span class="pill p-ok">Supported</span></td></tr>
+          <tr><td>Admin Console</td><td>Desktop (Chrome, Firefox)</td><td>Chrome 120+, Firefox 120+</td><td><span class="pill p-ok">Supported</span></td></tr>
+          <tr><td>Mobile (Android)</td><td>Android 8+</td><td>Chrome WebView, physical devices</td><td><span class="pill p-ok">Supported</span></td></tr>
+          <tr><td>Mobile (iOS)</td><td>iOS 14+</td><td>WKWebView, physical devices</td><td><span class="pill p-warn">Untested</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="api-map">
+      <h2>4. API Endpoint Map</h2>
+      <p>All endpoints are prefixed with <code>/v1</code>. Auth required unless marked public. 120+ endpoints across 16 controllers.</p>
+
+      <h3>4.1 Identity &amp; Auth (16 endpoints)</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Auth</th></tr></thead>
+        <tbody>
+          <tr><td>POST</td><td><code>/auth/otp/request</code></td><td>Request OTP for phone</td><td>None</td></tr>
+          <tr><td>POST</td><td><code>/auth/otp/verify</code></td><td>Verify OTP + device trust</td><td>None</td></tr>
+          <tr><td>POST</td><td><code>/auth/refresh</code></td><td>Refresh access token</td><td>None</td></tr>
+          <tr><td>POST</td><td><code>/auth/logout</code></td><td>Revoke refresh token</td><td>None</td></tr>
+          <tr><td>POST</td><td><code>/auth/switch-org</code></td><td>Switch active organization</td><td>JWT</td></tr>
+          <tr><td>POST</td><td><code>/auth/login/password</code></td><td>Email/password login</td><td>None</td></tr>
+          <tr><td>POST</td><td><code>/auth/login/device-check</code></td><td>Check device trust status</td><td>None</td></tr>
+          <tr><td>GET/PATCH</td><td><code>/me</code></td><td>Profile get/update</td><td>JWT</td></tr>
+          <tr><td>GET</td><td><code>/me/organizations</code></td><td>List user's organizations</td><td>JWT</td></tr>
+          <tr><td>GET/POST/DELETE</td><td><code>/me/favorites</code></td><td>Favorite products</td><td>JWT</td></tr>
+          <tr><td>GET/POST/DELETE</td><td><code>/me/saved-suppliers</code></td><td>Saved suppliers</td><td>JWT</td></tr>
+          <tr><td>POST</td><td><code>/me/credentials/setup</code></td><td>Setup email/password</td><td>JWT</td></tr>
+          <tr><td>POST</td><td><code>/me/credentials/change-password</code></td><td>Change password</td><td>JWT</td></tr>
+          <tr><td>GET</td><td><code>/me/sessions</code></td><td>List active sessions</td><td>JWT</td></tr>
+          <tr><td>POST/GET/DELETE</td><td><code>/me/devices</code></td><td>Device token management</td><td>JWT</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.2 Catalog, Search &amp; Merchant (35+ endpoints)</h3>
+      <table>
+        <thead><tr><th>Module</th><th>Key Endpoints</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Categories</td><td><code>POST/GET/PATCH/DELETE /categories</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Brands</td><td><code>POST/GET /brands</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Products</td><td><code>POST /products</code>, <code>GET /stores/:id/products</code>, <code>GET /stores/:slug/catalog</code>, <code>GET /products/:id</code>, <code>PATCH/DELETE /products/:id</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Variants</td><td><code>POST/GET /products/:id/variants</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Media</td><td><code>POST/GET /products/:id/media</code>, <code>POST /media/presign</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Import</td><td><code>POST/GET /stores/:id/imports</code>, <code>POST /imports/:id/rows</code>, <code>POST /imports/:id/process</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Search</td><td><code>GET /search</code>, <code>GET /search/categories</code>, <code>GET /search/brands</code></td><td><code>catalog.controller.ts</code></td></tr>
+          <tr><td>Stores</td><td><code>POST/GET /stores</code>, <code>GET /stores/:id</code>, <code>GET /stores/slug/:slug</code>, <code>PATCH /stores/:id</code></td><td><code>merchant.controller.ts</code></td></tr>
+          <tr><td>Warehouses</td><td><code>POST/GET/PATCH /stores/:id/warehouses</code></td><td><code>merchant.controller.ts</code></td></tr>
+          <tr><td>Documents</td><td><code>POST /documents</code>, <code>POST /documents/presign-upload</code>, <code>POST /documents/:id/presign</code></td><td><code>merchant.controller.ts</code></td></tr>
+          <tr><td>Verification</td><td><code>POST /stores/:id/verify</code>, <code>GET /verification/queue</code></td><td><code>merchant.controller.ts</code></td></tr>
+          <tr><td>Customers</td><td><code>GET /merchant/customers</code></td><td><code>merchant.controller.ts</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.3 Cart, Orders &amp; Checkout (18 endpoints)</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/cart</code></td><td>Get current cart</td></tr>
+          <tr><td>POST</td><td><code>/cart/items</code></td><td>Add item to cart</td></tr>
+          <tr><td>PATCH</td><td><code>/cart/items/:itemId</code></td><td>Update cart item quantity</td></tr>
+          <tr><td>DELETE</td><td><code>/cart/items/:itemId</code></td><td>Remove cart item</td></tr>
+          <tr><td>DELETE</td><td><code>/cart</code></td><td>Clear cart</td></tr>
+          <tr><td>POST</td><td><code>/cart/promo</code></td><td>Apply promo code</td></tr>
+          <tr><td>POST</td><td><code>/checkout</code></td><td>Place order (idempotent)</td></tr>
+          <tr><td>GET</td><td><code>/orders</code></td><td>List buyer's orders</td></tr>
+          <tr><td>GET</td><td><code>/orders/:id</code></td><td>Order detail</td></tr>
+          <tr><td>GET</td><td><code>/orders/master/:id</code></td><td>Master order detail</td></tr>
+          <tr><td>POST</td><td><code>/orders/master/:id/reorder</code></td><td>Reorder from master order</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/accept</code></td><td>Merchant accepts order</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/partial-accept</code></td><td>Merchant partial acceptance</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/reject</code></td><td>Merchant rejects order</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/items/:itemId/confirm</code></td><td>Confirm item readiness</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/status</code></td><td>Advance order status (FSM)</td></tr>
+          <tr><td>POST</td><td><code>/orders/:id/cancel</code></td><td>Cancel order</td></tr>
+        </tbody>
+      </table>
+
+      <h3>4.4 Inventory, Pricing, Promotions, Reviews, Notifications, Analytics, Admin</h3>
+      <table>
+        <thead><tr><th>Module</th><th>Endpoints</th></tr></thead>
+        <tbody>
+          <tr><td>Inventory (8)</td><td><code>GET /inventory/warehouse/:id</code>, <code>GET /inventory/variant/:id</code>, <code>GET /inventory/low-stock</code>, <code>PATCH /inventory/:id</code>, <code>POST /inventory/adjust</code>, <code>POST /inventory/reserve</code>, <code>POST /inventory/release</code>, <code>GET /inventory/:id/movements</code></td></tr>
+          <tr><td>Pricing (10)</td><td><code>POST/GET/PATCH /price-lists</code>, <code>POST/GET/PATCH/DELETE /price-lists/:id/tiers</code>, <code>GET /variants/:id/pricing</code>, <code>GET /resolve-price</code></td></tr>
+          <tr><td>Promotions (7)</td><td><code>POST/GET/PATCH /promotions</code>, <code>GET /stores/:id/promotions/active</code>, <code>GET /stores/:id/promotions/validate</code>, <code>GET /offers/nearby</code></td></tr>
+          <tr><td>Reviews (5)</td><td><code>POST /orders/:id/review</code>, <code>GET /stores/:id/reviews</code>, <code>GET /orders/:id/reviews</code>, <code>GET /reviews/:id</code>, <code>GET /trust/:type/:id</code></td></tr>
+          <tr><td>Disputes (12)</td><td><code>POST /orders/:id/dispute</code>, <code>GET/PATCH /disputes</code>, <code>POST /disputes/:id/evidence</code>, <code>POST /disputes/:id/response</code>, conversation endpoints</td></tr>
+          <tr><td>Notifications (8)</td><td><code>GET /notifications</code>, <code>GET /notifications/unread-count</code>, <code>PATCH /notifications/:id/read</code>, <code>PATCH /notifications/read-all</code>, device tokens, preferences</td></tr>
+          <tr><td>Analytics (4)</td><td><code>POST /analytics/track</code>, <code>POST /analytics/track/batch</code>, <code>GET /analytics/events</code>, <code>GET /analytics/activity</code></td></tr>
+          <tr><td>Admin (7)</td><td><code>GET /admin/orders</code>, <code>GET /admin/orders/:id</code>, <code>GET /admin/merchants</code>, <code>GET /admin/kpis</code>, <code>GET /admin/audit-logs</code>, <code>GET /admin/products</code>, <code>PATCH /admin/products/:id/moderate</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="auth">
+      <h2>5. Authentication &amp; Identity Tests</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Flow</th><th>Preconditions</th><th>Steps</th><th>Expected Result</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>AUTH-01</code></td><td>OTP Login (new device)</td><td>Fresh device</td><td>1. Enter phone +966500000001<br>2. Request OTP<br>3. Enter OTP<br>4. Verify</td><td>Tokens returned; device trusted; redirected to home</td><td><code>auth.controller.ts</code><br>Web <code>/login</code>, Mobile <code>/login</code></td></tr>
+          <tr><td><code>AUTH-02</code></td><td>Password Login (trusted)</td><td>Credentials set; device trusted</td><td>1. Enter email + password<br>2. Submit</td><td>Tokens returned; no OTP challenge</td><td><code>auth.controller.ts:login/password</code></td></tr>
+          <tr><td><code>AUTH-03</code></td><td>Password Login (new device)</td><td>Credentials set; new device</td><td>1. Enter email + password<br>2. Submit</td><td>Device-check indicates OTP required</td><td><code>auth.controller.ts:login/device-check</code></td></tr>
+          <tr><td><code>AUTH-04</code></td><td>Setup Credentials</td><td>Logged in via OTP</td><td>1. Profile &gt; Credentials<br>2. Enter email + password<br>3. Save</td><td>Credentials stored; password login available</td><td>Web <code>/profile/credentials</code>, Mobile <code>/profile/credentials</code></td></tr>
+          <tr><td><code>AUTH-05</code></td><td>Change Password</td><td>Credentials set up</td><td>1. Profile &gt; Change Password<br>2. Old + new password<br>3. Submit</td><td>Password updated; other sessions revoked</td><td>Web <code>/profile/change-password</code>, Admin <code>/account</code></td></tr>
+          <tr><td><code>AUTH-06</code></td><td>Session Management</td><td>Multiple sessions</td><td>1. Profile &gt; Sessions<br>2. Revoke one session</td><td><code>isCurrent</code> flags active session; revoked session blocked</td><td>Web <code>/profile/sessions</code>, Mobile <code>/profile/sessions</code></td></tr>
+          <tr><td><code>AUTH-07</code></td><td>Switch Organization</td><td>Multiple org membership</td><td>1. Organizations &gt; Select org<br>2. Confirm switch</td><td>JWT re-minted; old token denylisted; UI reflects new org</td><td><code>auth.controller.ts:switch-org</code></td></tr>
+          <tr><td><code>AUTH-08</code></td><td>Token Refresh</td><td>Access expired; refresh valid</td><td>1. Wait for expiry<br>2. Make authenticated request</td><td>Single-flight refresh; request succeeds transparently</td><td>Web <code>auth.ts</code>, Admin <code>auth.ts</code></td></tr>
+          <tr><td><code>AUTH-09</code></td><td>Logout</td><td>Logged in</td><td>1. Click Logout</td><td>Refresh revoked; redirected to login</td><td>Web, Mobile, Admin</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="buyer">
+      <h2>6. Buyer Workflow Tests</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Flow</th><th>Steps</th><th>Expected Result</th><th>Surfaces</th></tr></thead>
+        <tbody>
+          <tr><td><code>BUY-01</code></td><td>Browse Stores</td><td>1. Navigate to Stores<br>2. View list</td><td>Verified wholesalers shown; store cards display name, slug</td><td><span class="badge badge-web">Web</span> <code>/stores</code> <span class="badge badge-mob">Mobile</span> <code>/stores</code></td></tr>
+          <tr><td><code>BUY-02</code></td><td>Store Detail</td><td>1. Click store card</td><td>Store profile + catalog shown with tier pricing</td><td><span class="badge badge-web">Web</span> <code>/stores/[slug]</code> <span class="badge badge-mob">Mobile</span> <code>/stores/:id</code></td></tr>
+          <tr><td><code>BUY-03</code></td><td>Product Search</td><td>1. Enter query<br>2. Filter by category/brand</td><td>Results with product cards; pagination; filters narrow results</td><td><span class="badge badge-web">Web</span> <code>/search</code> <span class="badge badge-mob">Mobile</span> <code>/search</code></td></tr>
+          <tr><td><code>BUY-04</code></td><td>Product Detail</td><td>1. Click product</td><td>Images, seller info, variants with tier pricing, add-to-cart</td><td><span class="badge badge-web">Web</span> <code>/products/[id]</code> <span class="badge badge-mob">Mobile</span> <code>/products/:id</code></td></tr>
+          <tr><td><code>BUY-05</code></td><td>Cart: Add / Update / Remove</td><td>1. Add variant to cart<br>2. Update qty<br>3. Remove item</td><td>Subtotals recalculate; cart badge updates; remove deletes item</td><td><span class="badge badge-web">Web</span> <code>/cart</code> <span class="badge badge-mob">Mobile</span> <code>/cart</code></td></tr>
+          <tr><td><code>BUY-06</code></td><td>Apply Promo Code</td><td>1. Enter promo code in cart</td><td>Valid: discount applied; Invalid: error shown</td><td><span class="badge badge-web">Web</span> <span class="badge badge-mob">Mobile</span></td></tr>
+          <tr><td><code>BUY-07</code></td><td>Checkout</td><td>1. Review summary<br>2. Confirm</td><td>Order placed; totals include promo + 15% VAT + delivery; breakdown persisted</td><td><span class="badge badge-web">Web</span> <code>/checkout</code> <span class="badge badge-mob">Mobile</span> <code>/checkout</code></td></tr>
+          <tr><td><code>BUY-08</code></td><td>Order List + Detail</td><td>1. Navigate to Orders<br>2. Click order</td><td>Orders listed with status; detail shows items, history, financial breakdown</td><td><span class="badge badge-web">Web</span> <code>/orders</code> <span class="badge badge-mob">Mobile</span> <code>/orders</code></td></tr>
+          <tr><td><code>BUY-09</code></td><td>Reorder</td><td>1. From order detail, click Reorder</td><td>Available items added to cart; skipped items reported</td><td><span class="badge badge-web">Web</span> <span class="badge badge-mob">Mobile</span></td></tr>
+          <tr><td><code>BUY-10</code></td><td>Cancel Order</td><td>1. Cancel (if status allows)</td><td>Status &rarr; CANCELLED; stock released</td><td><span class="badge badge-web">Web</span> <span class="badge badge-mob">Mobile</span></td></tr>
+          <tr><td><code>BUY-11</code></td><td>Favorites + Saved Suppliers</td><td>1. Favorite a product<br>2. Save a supplier</td><td>Both persist; visible on respective pages</td><td><span class="badge badge-web">Web</span> <code>/favorites</code>, <code>/saved-suppliers</code></td></tr>
+          <tr><td><code>BUY-12</code></td><td>Reviews + Disputes</td><td>1. Submit review on completed order<br>2. Raise dispute</td><td>Review appears in store listing; dispute created with evidence</td><td><span class="badge badge-web">Web</span> <code>/reviews</code> <span class="badge badge-mob">Mobile</span> <code>/reviews</code></td></tr>
+         <tr><td><code>BUY-13</code></td><td>Notifications</td><td>1. View notifications</td><td>Unread count badge; mark-as-read works</td><td><span class="badge badge-web">Web</span> <code>/notifications</code> <span class="badge badge-mob">Mobile</span> <code>/notifications</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="merchant">
+      <h2>7. Merchant Workflow Tests</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Flow</th><th>Preconditions</th><th>Steps</th><th>Expected Result</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>MER-01</code></td><td>Merchant Registration</td><td>Logged-in buyer</td><td>1. Navigate to <code>/merchant/register</code><br>2. Fill store name, slug, description, address<br>3. Upload CR document<br>4. Submit</td><td>Store created with <code>PENDING</code> status; redirect to success page</td><td>Web <code>/merchant/register</code><br>Mobile <code>/merchant/register</code><br><code>merchant.controller.ts:createStore</code></td></tr>
+          <tr><td><code>MER-02</code></td><td>Store Profile Edit</td><td>Store exists</td><td>1. Merchant &gt; Store Profile<br>2. Update name, description, logo<br>3. Save</td><td>Store updated; changes reflected in catalog</td><td>Web <code>/merchant/store</code><br>Mobile <code>/merchant/store</code><br><code>merchant.controller.ts:updateStore</code></td></tr>
+          <tr><td><code>MER-03</code></td><td>Warehouse Management</td><td>Store exists</td><td>1. Add warehouse (name, address)<br>2. List warehouses<br>3. Update warehouse</td><td>Warehouse CRUD works; linked to store</td><td><code>merchant.controller.ts:createWarehouse/listWarehouses/updateWarehouse</code></td></tr>
+          <tr><td><code>MER-04</code></td><td>Document Upload (Presigned)</td><td>Store exists; MinIO running</td><td>1. Request presign-upload for PDF<br>2. PUT file to returned URL<br>3. Register document metadata</td><td>File stored in S3; metadata persisted; download presign works</td><td><code>merchant.controller.ts:presignDocumentUpload,uploadDocument,presignDocument</code></td></tr>
+          <tr><td><code>MER-05</code></td><td>Verification Submission</td><td>Store created; documents uploaded</td><td>1. Submit verification request<br>2. Check queue as admin</td><td>Verification request created with <code>PENDING</code> status; appears in admin queue</td><td><code>merchant.controller.ts:submitVerification</code><br>Admin <code>/verification</code></td></tr>
+          <tr><td><code>MER-06</code></td><td>Product CRUD</td><td>Merchant with store</td><td>1. Create product (name, SKU, category, price)<br>2. Add variant<br>3. Upload media via presign<br>4. Update product<br>5. List products</td><td>Product created; variant linked; media attached; product appears in store catalog</td><td>Web <code>/merchant/catalog</code>, <code>/merchant/catalog/product/[id]</code><br>Mobile <code>/merchant/catalog</code>, <code>/merchant/catalog/new</code><br><code>catalog.controller.ts</code></td></tr>
+          <tr><td><code>MER-07</code></td><td>Bulk Import</td><td>Store exists</td><td>1. Create import job<br>2. Stage rows (CSV parsed)<br>3. Process import</td><td>Products created from rows; errors reported per row</td><td>Web <code>/merchant/import</code><br><code>catalog.controller.ts:createImportJob,stageImportRows,processImportJob</code></td></tr>
+          <tr><td><code>MER-08</code></td><td>Pricing &amp; Tier Management</td><td>Products exist</td><td>1. Create price list<br>2. Add quantity tiers (e.g. 1-10: 5 SAR, 11-50: 4 SAR)<br>3. Resolve price for quantity</td><td>Tier pricing applied; buyer sees correct tier price</td><td>Web <code>/merchant/pricing</code><br><code>pricing.controller.ts</code></td></tr>
+          <tr><td><code>MER-09</code></td><td>Inventory Management</td><td>Warehouse + variants exist</td><td>1. View stock levels<br>2. Adjust stock (+/-)<br>3. Check low-stock alerts</td><td>Stock updated; movements logged; low-stock threshold triggers alert</td><td>Web <code>/merchant/inventory</code><br><code>inventory.controller.ts</code></td></tr>
+          <tr><td><code>MER-10</code></td><td>Promotions</td><td>Store exists</td><td>1. Create promotion (type, discount, validity)<br>2. View active promotions<br>3. Validate promo code</td><td>Promo active during window; code validates correctly at checkout</td><td><code>promotions.controller.ts</code></td></tr>
+          <tr><td><code>MER-11</code></td><td>Merchant Orders</td><td>Buyer has placed orders</td><td>1. View merchant orders<br>2. Accept order<br>3. Confirm item readiness<br>4. Advance status</td><td>Order FSM transitions valid; buyer notified; stock reserved on accept</td><td>Web <code>/merchant/orders</code><br>Mobile <code>/merchant/orders</code><br><code>orders.controller.ts</code></td></tr>
+          <tr><td><code>MER-12</code></td><td>Partial Accept / Reject</td><td>Order pending</td><td>1. Partial accept (some items)<br>2. Reject with reason</td><td>Accepted items reserved; rejected items noted; totals adjusted</td><td><code>orders.controller.ts:partial-accept,reject</code></td></tr>
+          <tr><td><code>MER-13</code></td><td>Customer List</td><td>Orders exist</td><td>1. Navigate to Customers</td><td>Customers who ordered from store listed with order counts</td><td>Web <code>/merchant/customers</code><br>Mobile <code>/merchant/customers</code><br><code>merchant.controller.ts:getMerchantCustomers</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="admin">
+      <h2>8. Admin Workflow Tests</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Flow</th><th>Preconditions</th><th>Steps</th><th>Expected Result</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>ADM-01</code></td><td>Admin Login</td><td>Demo data seeded</td><td>1. Navigate to Admin Console (port 3200)<br>2. Login with SUPER_ADMIN credentials</td><td>Redirected to dashboard; sidebar visible with all menu items</td><td>Admin <code>/auth/login</code><br><code>auth.controller.ts</code></td></tr>
+          <tr><td><code>ADM-02</code></td><td>Verification Queue</td><td>Pending merchant verifications</td><td>1. Navigate to Verification<br>2. Click pending request<br>3. Review documents<br>4. Approve or reject with reason</td><td>Request status updated; store becomes VERIFIED on approve; merchant notified</td><td>Admin <code>/verification</code>, <code>/verification/[id]</code><br><code>merchant.controller.ts:reviewVerification</code></td></tr>
+          <tr><td><code>ADM-03</code></td><td>Platform KPIs</td><td>Orders and merchants exist</td><td>1. Navigate to KPIs<br>2. Filter by date range</td><td>GMV, order count, merchant count, activation funnel displayed</td><td>Admin <code>/kpis</code><br><code>admin.controller.ts:getKpis</code></td></tr>
+          <tr><td><code>ADM-04</code></td><td>Order Oversight</td><td>Orders across multiple stores</td><td>1. Navigate to Orders<br>2. Filter by status, store, buyer, date<br>3. View order detail</td><td>All orders listed with filters; detail shows items, history, financial breakdown</td><td>Admin <code>/orders</code><br><code>admin.controller.ts:listOrders,getOrderDetail</code></td></tr>
+          <tr><td><code>ADM-05</code></td><td>Merchant Management</td><td>Stores registered</td><td>1. Navigate to Merchants<br>2. Filter by status/verification<br>3. View store details</td><td>Merchants listed; verification status visible; pagination works</td><td>Admin <code>/merchants</code><br><code>admin.controller.ts:listMerchants</code></td></tr>
+          <tr><td><code>ADM-06</code></td><td>User Management</td><td>Users exist</td><td>1. Navigate to Users<br>2. Search by name/phone<br>3. Suspend/activate user<br>4. Assign/remove role</td><td>User status updated; role assignment reflected in JWT on next request</td><td>Admin <code>/users</code><br><code>admin.controller.ts:listUsers,updateUser,assignRole,removeRole</code></td></tr>
+          <tr><td><code>ADM-07</code></td><td>Category Management</td><td>Admin logged in</td><td>1. Navigate to Categories<br>2. Create category (name, parent, icon)<br>3. Update category<br>4. View tree structure</td><td>Category CRUD works; tree hierarchy maintained; products linked correctly</td><td>Admin <code>/categories</code><br><code>catalog.controller.ts</code></td></tr>
+          <tr><td><code>ADM-08</code></td><td>Audit Logs</td><td>Actions performed by users</td><td>1. Navigate to Audit<br>2. Filter by action, resource, actor, date</td><td>Audit trail shows who did what and when; pagination works</td><td>Admin <code>/audit</code><br><code>admin.controller.ts:getAuditLogs</code></td></tr>
+          <tr><td><code>ADM-09</code></td><td>Product Moderation</td><td>Products in PENDING_REVIEW</td><td>1. Navigate to Products<br>2. Filter by PENDING status<br>3. Approve or reject with reason</td><td>Product status updated; approved products visible to buyers; rejected hidden</td><td>Admin <code>/products</code><br><code>admin.controller.ts:listProductsModeration,moderateProduct</code></td></tr>
+          <tr><td><code>ADM-10</code></td><td>Dispute Oversight</td><td>Active disputes</td><td>1. Navigate to Disputes<br>2. View dispute with evidence<br>3. Admin response</td><td>Dispute list with status; evidence visible; admin response logged</td><td>Admin <code>/disputes</code><br><code>disputes.controller.ts</code></td></tr>
+          <tr><td><code>ADM-11</code></td><td>Account Settings</td><td>Admin logged in</td><td>1. Navigate to Account<br>2. Change password</td><td>Password updated; session refreshed</td><td>Admin <code>/account</code></td></tr>
+          <tr><td><code>ADM-12</code></td><td>RBAC Enforcement</td><td>MODERATOR logged in</td><td>1. Attempt to access Users page<br>2. Attempt to access KPIs</td><td>MODERATOR blocked from user management; KPIs accessible per permission</td><td><code>PermissionsGuard</code>, <code>admin.controller.ts</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="driver">
+      <h2>9. Driver Workflow Tests</h2>
+      <div class="callout warn"><span class="label">Phase 2 &mdash; UI Scaffold Only</span><p>The driver dashboard is a Flutter UI scaffold with hardcoded data. No backend integration exists. These tests validate the UI renders correctly.</p></div>
+      <table>
+        <thead><tr><th>ID</th><th>Flow</th><th>Steps</th><th>Expected Result</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>DRV-01</code></td><td>Dashboard Renders</td><td>1. Navigate to <code>/driver</code></td><td>Screen shows duty toggle, earnings card, job board placeholder</td><td>Mobile <code>driver_dashboard_screen.dart</code></td></tr>
+          <tr><td><code>DRV-02</code></td><td>Duty Toggle</td><td>1. Toggle &ldquo;On Duty&rdquo; switch</td><td>Job tiles appear when on-duty; placeholder when off-duty</td><td><code>driver_dashboard_screen.dart:_onDuty</code></td></tr>
+          <tr><td><code>DRV-03</code></td><td>Job Tiles (Hardcoded)</td><td>1. Go on duty<br>2. Observe job tiles</td><td>3 hardcoded tiles shown (abc12345, def67890, ghi13579) with Accept button</td><td><code>driver_dashboard_screen.dart:_JobTile</code></td></tr>
+          <tr><td><code>DRV-04</code></td><td>Accept Button (No-op)</td><td>1. Tap Accept on a job tile</td><td>Button press registers but no action (no backend)</td><td><code>driver_dashboard_screen.dart</code> &mdash; <code>onPressed: () {}</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="parity">
+      <h2>10. Cross-Platform Parity Verification</h2>
+      <p>Verify that equivalent features produce consistent results across Web, Mobile, and Admin surfaces.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Feature</th><th>Web Page</th><th>Mobile Screen</th><th>Parity Check</th></tr></thead>
+        <tbody>
+          <tr><td><code>PAR-01</code></td><td>Login (OTP)</td><td><code>/login</code></td><td><code>/login</code></td><td>Same OTP flow; token storage differs (cookie vs secure storage)</td></tr>
+          <tr><td><code>PAR-02</code></td><td>Store Browse</td><td><code>/stores</code></td><td><code>/stores</code></td><td>Same API <code>GET /stores</code>; both show verified stores</td></tr>
+          <tr><td><code>PAR-03</code></td><td>Product Search</td><td><code>/search</code></td><td><code>/search</code></td><td>Same API <code>GET /search</code>; results and filters match</td></tr>
+          <tr><td><code>PAR-04</code></td><td>Cart Operations</td><td><code>/cart</code></td><td><code>/cart</code></td><td>Add/update/remove produce same totals on both surfaces</td></tr>
+          <tr><td><code>PAR-05</code></td><td>Checkout</td><td><code>/checkout</code></td><td><code>/checkout</code></td><td>Same pricing engine: subtotal + VAT 15% + delivery &minus; promo</td></tr>
+          <tr><td><code>PAR-06</code></td><td>Order History</td><td><code>/orders</code></td><td><code>/orders</code></td><td>Same API <code>GET /orders</code>; status and items match</td></tr>
+          <tr><td><code>PAR-07</code></td><td>Merchant Catalog</td><td><code>/merchant/catalog</code></td><td><code>/merchant/catalog</code></td><td>CRUD operations consistent; product list matches</td></tr>
+          <tr><td><code>PAR-08</code></td><td>Merchant Orders</td><td><code>/merchant/orders</code></td><td><code>/merchant/orders</code></td><td>Accept/reject/status transitions work on both</td></tr>
+          <tr><td><code>PAR-09</code></td><td>Profile / Credentials</td><td><code>/profile/credentials</code></td><td><code>/profile/credentials</code></td><td>Setup and change-password flows identical</td></tr>
+          <tr><td><code>PAR-10</code></td><td>Notifications</td><td><code>/notifications</code></td><td><code>/notifications</code></td><td>Same unread count; mark-as-read syncs</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="edge">
+      <h2>11. Edge Cases &amp; Error Handling</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Scenario</th><th>Steps</th><th>Expected Result</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><code>EDGE-01</code></td><td>Expired JWT</td><td>1. Let access token expire<br>2. Make any authenticated request</td><td>401 returned; client attempts refresh; if refresh fails, redirect to login</td><td><code>jwt-auth.guard.ts</code>, Web/Admin <code>auth.ts</code></td></tr>
+          <tr><td><code>EDGE-02</code></td><td>Invalid OTP</td><td>1. Request OTP<br>2. Enter wrong code</td><td>401 with clear error message; attempts tracked for rate limiting</td><td><code>auth.controller.ts:otp/verify</code></td></tr>
+          <tr><td><code>EDGE-03</code></td><td>Cart with Inactive Product</td><td>1. Add product to cart<br>2. Merchant deactivates product<br>3. Attempt checkout</td><td>Checkout fails with item-level error; cart shows which items are unavailable</td><td><code>orders.controller.ts:checkout</code></td></tr>
+          <tr><td><code>EDGE-04</code></td><td>Insufficient Stock</td><td>1. Add more than available stock<br>2. Checkout</td><td>Checkout rejects with stock error; inventory reservation fails gracefully</td><td><code>inventory.controller.ts:reserve</code></td></tr>
+          <tr><td><code>EDGE-05</code></td><td>Double Checkout (Idempotency)</td><td>1. Submit checkout<br>2. Quickly submit again with same idempotency key</td><td>Second request returns same order (no duplicate)</td><td><code>orders.controller.ts:checkout</code></td></tr>
+          <tr><td><code>EDGE-06</code></td><td>Order FSM Invalid Transition</td><td>1. Try to accept a CANCELLED order</td><td>409 Conflict; FSM rejects invalid state transition</td><td><code>orders.controller.ts:accept,status</code></td></tr>
+          <tr><td><code>EDGE-07</code></td><td>Permission Denied</td><td>1. Buyer attempts <code>PATCH /products/:id</code></td><td>403 Forbidden; <code>PermissionsGuard</code> blocks</td><td><code>permissions.guard.ts</code></td></tr>
+          <tr><td><code>EDGE-08</code></td><td>Presigned URL &mdash; Bad Bucket</td><td>1. Call presign with bucket not in allow-list</td><td>500 error; bucket validation rejects</td><td><code>storage.service.ts:assertBucketAllowed</code></td></tr>
+          <tr><td><code>EDGE-09</code></td><td>Presigned URL &mdash; Expiry Cap</td><td>1. Request presign with <code>expiresInSeconds=9999</code></td><td>URL generated with 900s cap (15 minutes)</td><td><code>storage.service.ts:MAX_PRESIGN_EXPIRY</code></td></tr>
+          <tr><td><code>EDGE-10</code></td><td>Empty Cart Checkout</td><td>1. Checkout with empty cart</td><td>400 error; cannot place order with no items</td><td><code>orders.controller.ts:checkout</code></td></tr>
+          <tr><td><code>EDGE-11</code></td><td>Concurrent Inventory Adjust</td><td>1. Two users adjust same variant stock simultaneously</td><td>Both succeed; final stock = initial + sum of adjustments (no lost updates)</td><td><code>inventory.controller.ts:adjust</code></td></tr>
+          <tr><td><code>EDGE-12</code></td><td>Large Import Job</td><td>1. Import 500+ rows</td><td>Job processes in batches; partial errors reported per row; job status = COMPLETED_WITH_ERRORS</td><td><code>catalog.controller.ts:processImportJob</code></td></tr>
+          <tr><td><code>EDGE-13</code></td><td>Review on Non-Completed Order</td><td>1. Submit review on PENDING order</td><td>400 error; reviews only allowed on DELIVERED/COMPLETED orders</td><td><code>reviews.controller.ts</code></td></tr>
+          <tr><td><code>EDGE-14</code></td><td>Dispute on Non-Delivered Order</td><td>1. Raise dispute on PREPARING order</td><td>400 error; disputes require DELIVERED status</td><td><code>disputes.controller.ts</code></td></tr>
+          <tr><td><code>EDGE-15</code></td><td>Promo Code &mdash; Expired</td><td>1. Apply expired promo code at checkout</td><td>Validation fails; discount not applied; clear error message</td><td><code>promotions.controller.ts</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="gaps">
+      <h2>12. Known Issues &amp; Gap Register</h2>
+      <p>Items identified during codebase review that are tracked but not yet resolved. These do not block pilot launch.</p>
+      <table>
+        <thead><tr><th>ID</th><th>Gap</th><th>Severity</th><th>Phase</th><th>Workaround</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>GAP-01</td><td>Driver dashboard has no backend integration (hardcoded data)</td><td><span class="pill p-muted">Low</span></td><td>Phase 2</td><td>UI scaffold only; no user impact for pilot</td><td><span class="pill p-muted">Deferred</span></td></tr>
+          <tr><td>GAP-02</td><td>iOS mobile testing not performed</td><td><span class="pill p-warn">Medium</span></td><td>Phase 1</td><td>Test on iOS simulator before pilot</td><td><span class="pill p-warn">Open</span></td></tr>
+          <tr><td>GAP-03</td><td>No automated E2E tests (only unit + integration)</td><td><span class="pill p-warn">Medium</span></td><td>Phase 1</td><td>Manual testing per this guide</td><td><span class="pill p-warn">Open</span></td></tr>
+          <tr><td>GAP-04</td><td>Email notifications not implemented (in-app only)</td><td><span class="pill p-muted">Low</span></td><td>Phase 3</td><td>In-app notifications functional</td><td><span class="pill p-muted">Deferred</span></td></tr>
+          <tr><td>GAP-05</td><td>Real-time delivery tracking not implemented</td><td><span class="pill p-muted">Low</span></td><td>Phase 2</td><td>Order status updates via polling</td><td><span class="pill p-muted">Deferred</span></td></tr>
+          <tr><td>GAP-06</td><td>Payment gateway integration (COD only for pilot)</td><td><span class="pill p-warn">Medium</span></td><td>Phase 3</td><td>Cash on delivery for pilot</td><td><span class="pill p-muted">Deferred</span></td></tr>
+          <tr><td>GAP-07</td><td>Multi-language support (Arabic RTL)</td><td><span class="pill p-warn">Medium</span></td><td>Phase 4</td><td>English-only for pilot</td><td><span class="pill p-muted">Deferred</span></td></tr>
+          <tr><td>GAP-08</td><td>Analytics dashboard in admin (visual charts)</td><td><span class="pill p-muted">Low</span></td><td>Phase 1</td><td>KPI numbers displayed; no charts yet</td><td><span class="pill p-warn">Open</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout ok">
+        <span class="label">Pilot Readiness</span>
+        <p>All Phase&nbsp;1 P0 and P1 gaps are closed. The platform is ready for pilot testing with the manual procedures in this guide. Phase&nbsp;2&ndash;7 features are schema-only and do not affect B2B MVP flows.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform &mdash; Testing Guide v1.0 &mdash; 2026-09-15</p>
+  <p>Generated from codebase review of 15 API controllers, 40 Web pages, 18 Admin pages, 27 Mobile screens.</p>
+</footer>
+</body>
+</html>

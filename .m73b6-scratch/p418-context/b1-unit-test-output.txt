@@ -1,0 +1,80 @@
+﻿node.exe : npm notice run @scs/api@0.1.0 npx
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\nabee\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm notice run @scs/api@0.1.0 npx 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm notice run vitest run --reporter=verbose 
+src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts
+[33mThe CJS build of Vite's Node API is deprecated. See 
+https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for 
+more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/TAIF/scs-platform/apps/api[39m
+
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mCarrierError is the base class
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mRetryableCarrierError is retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mRateLimitCarrierError includes retryAfterSeconds
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mNonRetryableCarrierError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mAuthenticationCarrierError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mValidationCarrierError includes field errors
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mUnsupportedCarrierOperationError is not retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mclassifyCarrierError returns correct decisions
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mclassifyCarrierError handles unknown errors as retryable
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.4 ΓÇö Carrier Error Hierarchy[2m > [22mtoSafeMessage never includes raw secrets
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22maccepts valid HTTPS URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects localhost
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 127.0.0.1
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 10.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 172.16.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 192.168.x private IPs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects link-local 169.254.x (cloud metadata)
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 loopback ::1
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 link-local fe80::
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects IPv6 ULA fd00::
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects cloud metadata hostname
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects non-HTTPS when required
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mallows HTTP when not required
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects file:// scheme
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects gopher:// scheme
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects invalid URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22menforces provider allowlist
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22maccepts URLs matching allowlist
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.3 ΓÇö SSRF Protection[2m > [22mvalidateCarrierEndpointUrlSync[2m > [22mrejects 0.0.0.0
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts password fields[33m 487[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts API keys
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts bearer tokens
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts nested secrets
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mredacts encrypted credential contents
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mhandles arrays
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.5 ΓÇö Secret Redaction[2m > [22mhandles null and primitives
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mresolves service-specific endpoint
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mfalls back to primary endpoint when service not configured
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mreturns null when no endpoint available
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mextracts endpoints from payload
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mvalidates endpoint URLs
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.6 ΓÇö Multi-Service Endpoints[2m > [22mreturns empty errors for valid endpoints
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mvalidates correct email format[33m 577[2mms[22m[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mrejects invalid email format
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mnormalizes email to lowercase trimmed
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.2 ΓÇö Email Helpers[2m > [22mCarrierEmailRequiredError has shipmentId
+[32m[Nest] 18024  - [39m09/28/2026, 9:47:43 PM [32m    LOG[39m [38;5;3m[CarrierOps] [39m[32m[car-261496ed-ffe1-4b5e-9ec3-e5aecc4f0c22] provider=aramex op=createShipment attempt=1 | START[39m
+[32m[Nest] 18024  - [39m09/28/2026, 9:47:43 PM [32m    LOG[39m [38;5;3m[CarrierOps] [39m[32m[car-97103369-e965-4060-9886-39e656f59898] provider=aramex op=createShipment attempt=1 | duration=250ms | result=success[39m
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mgenerates correlation IDs with prefix
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mcreates context with defaults
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mlogStart does not throw
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.9 ΓÇö Observability[2m > [22mlogComplete does not throw
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mvalidates a complete configuration
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects empty provider key
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects invalid environment
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects missing credentials
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mrejects private IP endpoint
+ [32mΓ£ô[39m src/__tests__/unit/shipping/m723b1-carrier-foundation-hardening.spec.ts[2m > [22mB1.8 ΓÇö Configuration Validation[2m > [22mwarns about missing webhook secret when webhooks enabled
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m56 passed[39m[22m[90m (56)[39m
+[2m   Start at [22m 21:47:41
+[2m   Duration [22m 2.52s[2m (transform 507ms, setup 41ms, collect 264ms, tests 1.31s, environment 0ms, prepare 313ms)[22m
+
