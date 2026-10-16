@@ -1,0 +1,38 @@
+{
+  "name": "scs-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Smart Commerce & Supply Platform — B2B-first marketplace",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "db:migrate": "pnpm --filter @scs/api db:migrate",
+    "db:seed": "pnpm --filter @scs/api db:seed",
+    "db:reset": "pnpm --filter @scs/api db:reset",
+    "db:generate": "pnpm --filter @scs/api db:generate",
+    "contracts:build": "pnpm --filter @scs/contracts build",
+    "contracts:generate": "pnpm --filter @scs/contracts generate",
+    "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.dev.yml down",
+    "infra:logs": "docker compose -f infra/docker-compose.dev.yml logs -f",
+    "boundary-lint": "ts-node infra/ci/boundary-lint.ts",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.0",
+    "typescript": "^5.5.4"
+  }
+}

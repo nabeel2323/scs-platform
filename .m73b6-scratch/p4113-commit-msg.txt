@@ -1,0 +1,41 @@
+feat(p13): operational readiness, financial isolation, CI gates
+
+Phase 4 operational readiness for P13 production hardening.
+
+- Operations module (12 files): worker lease service with epoch
+  fencing, HMAC-SHA256 signed ops alerts (fail-closed on short
+  secrets), ops controls with audit trail, P13 monitor, pilot
+  controls, ops counters
+- Expiration worker: opt-in via P13_WORKER_ENABLED, lease fencing
+  with per-item re-check, pause control, graceful lease release on
+  SIGTERM; escalates REQUESTED->ESCALATED only
+- Financial isolation: financialOrgScope() fail-closed tenant scoping
+  across all 11 financial endpoints; audit-loss and reversal-failure
+  counters
+- Settlement adjustments: fx_status 'BLOCKED_FX' -> 'BLOCKED' (was an
+  illegal value violating CHECK 0061), allow-listed posting, missing
+  transaction awaits fixed; admin canPostFx() aligned
+- Config: env-gate resolvers (fail-fast outside dev), production boot
+  gate, Redis fail-fast, graceful shutdown hooks
+- Migration 0063 (ops tables, feature_flags columns); migration
+  runners hardened (ON_ERROR_STOP, transactional logging, CI applies
+  all 63 with pg_partman)
+- CI: enforcing migration gate, container-build job (safe defaults:
+  worker disabled, pilot legacy; non-root check)
+- Deployment: infra/deploy Dockerfiles + compose + placeholder-only
+  env example; .dockerignore; .nvmrc 22; .gitignore .env.* hardening
+- Tests: 3 new integration suites, 3 new unit suites (incl.
+  deployment invariants), settlement spec strengthened; AL-17 proves
+  the full signed ops-alert round trip against a disposable
+  in-process loopback receiver (HMAC-SHA256 over the timestamp.body
+  canonical input, timestamp freshness, byte fidelity) with
+  fail-closed coverage: short secret nulled at config init,
+  corrupted secret suppressed before send, forged/tampered/stale
+  deliveries rejected 401
+- Docs: P13 phase reports 4 through 4.1.13 in docs/production
+
+Local verification: typecheck 9/9, lint 0 errors, P13 unit subset
+289/289 (10 specs), integration 154/154 across the six P13 suites
+(zero failures, zero skips), migrations 63/63 fresh + idempotent
+(4.1.12 evidence; no DB source changed since), Turbo build 6/6.
+Hosted CI run pending authorization.

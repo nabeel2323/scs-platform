@@ -1,0 +1,21 @@
+FROM node:22-slim
+
+# Install build tools for native modules.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pin pnpm via corepack (matches CI).
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+
+WORKDIR /app
+
+# Copy the full checkout (all tracked + untracked P13 files).
+COPY . .
+
+# Install dependencies (frozen lockfile, extra retries for flaky networks).
+RUN pnpm install --frozen-lockfile --config.fetch-retries=10 || \
+    (echo "=== First attempt failed, retrying ===" && pnpm install --frozen-lockfile --config.fetch-retries=10)
+
+# Default command: typecheck.
+CMD ["pnpm", "--filter", "@scs/api", "exec", "tsc", "--noEmit"]

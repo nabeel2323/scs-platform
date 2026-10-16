@@ -1,0 +1,33 @@
+fix(ci): install pnpm and Node before container-build invariants step
+
+The container-build job failed on its first hosted run (run #386, job
+116911122701) at "Run deployment invariants spec" with exit 127: it was
+the only pnpm-consuming job in the workflow without toolchain setup, and
+ubuntu-latest has no pnpm on PATH.
+
+Two fixes, both confined to the workflow:
+
+- Add pnpm/action-setup@v4 (version: env.PNPM_VERSION) followed by
+  actions/setup-node@v4 (node-version: env.NODE_VERSION, cache: pnpm)
+  to container-build, byte-equivalent in structure to the seven working
+  jobs. pnpm/action-setup precedes setup-node because the node cache
+  step needs pnpm on PATH. Both run before the job's first host pnpm
+  command.
+- The invariants command "pnpm --filter @scs/api test -- --run <spec>"
+  is rejected by pnpm 9.15.9 ("Unknown option: 'run'"); pnpm consumes
+  the flags after "--" unless the script is invoked via the explicit
+  "run" keyword. Use "pnpm --filter @scs/api run test -- --run <spec>",
+  the same form the migration-gate job already runs hosted-green.
+
+Local verification: deployment invariants 36/36 via the corrected
+command; workflow parses clean (js-yaml) with structural assertions
+confirming step order and setup parity; lint 5/5 and typecheck 9/9;
+local docker build of the API image succeeded and the full smoke
+sequence passed (disposable postgres/redis, healthy container,
+/v1/healthz and /v1/readyz ok, P13_WORKER_ENABLED=false and
+P13_PILOT_MODE=legacy echo, non-root user node, cleanup).
+
+No tests were weakened: the invariants spec is unchanged, no
+continue-on-error or error suppression was added, container smoke
+checks are intact, and the safe defaults (P13_WORKER_ENABLED=false,
+P13_PILOT_MODE=legacy, empty pilot allowlist) are preserved.

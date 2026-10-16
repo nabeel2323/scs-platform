@@ -1,0 +1,920 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { authFetch } from '../../../lib/auth';
+import { fetchMyStores } from '../../../lib/api';
+import { pickStore } from '../../../lib/merchant-store';
+import { PageHeader } from '@scs/ui-kit';
+
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+
+const STEPS = ['Upload File', 'Map Columns', 'Validation', 'Preview', 'Import Progress', 'Review'] as const;
+
+/** Default column mapping targets for product imports. */
+const TARGET_COLUMNS = [
+  { key: 'name', label: 'Product Name', required: true },
+  { key: 'nameAr', label: 'Product Name (Arabic)', required: false },
+  { key: 'sku', label: 'SKU', required: true },
+  { key: 'barcode', label: 'Barcode', required: false },
+  { key: 'category', label: 'Category', required: false },
+  { key: 'brand', label: 'Brand', required: false },
+  { key: 'unit', label: 'Unit (pcs, kg, L)', required: true },
+  { key: 'priceMinor', label: 'Price (minor units)', required: true },
+  { key: 'moq', label: 'Min Order Qty', required: true },
+  { key: 'description', label: 'Description', required: false },
+  { key: 'stock', label: 'Initial Stock', required: false },
+] as const;
+
+interface ImportJob {
+  id: string;
+  storeId: string;
+  fileName: string;
+  status: string;
+  errors: unknown[] | null;
+  stats: Record<string, number> | null;
+}
+
+/** Parse a single CSV line, handling quoted fields and escaped quotes. */
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { current += '"'; i++; } // escaped quote
+        else inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+/** Parse full CSV text into records, tolerating quoted newlines. */
+function parseCsvRecords(text: string): string[][] {
+  // Split on newlines that are NOT inside quoted fields
+  const records: string[][] = [];
+  let buffer = '';
+  let inQuotes = false;
+  const flush = () => {
+    if (buffer.trim()) records.push(parseCsvLine(buffer));
+    buffer = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '"') {
+      if (inQuotes && text[i + 1] === '"') { buffer += '""'; i++; continue; }
+      inQuotes = !inQuotes;
+      buffer += ch;
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      if (ch === '\r' && text[i + 1] === '\n') i++; // CRLF
+      flush();
+    } else {
+      buffer += ch;
+    }
+  }
+  flush();
+  return records;
+}
+
+interface ValidationError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+export default function ImportWizardPage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Auto-resolve store
+  const [storeName, setStoreName] = useState('');
+
+  // Step 1: Upload
+  const [file, setFile] = useState<File | null>(null);
+  const [storeId, setStoreId] = useState('');
+
+  // Step 2: Column mapping
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+
+  // Step 3: Validation
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [validRows, setValidRows] = useState(0);
+  const [stockPreview, setStockPreview] = useState<{ totalRows: number; rowsWithStock: number; totalStock: number } | null>(null);
+
+  // Step 4: Preview (P10)
+  const [previewData, setPreviewData] = useState<{
+    totalRows: number; validRows: number; errorCount: number; warningCount: number;
+    errors: Array<{ rowNumber: number; field: string; errorCode: string; severity: string; message: string; suggestedFix?: string | null }>;
+    sampleRows: Record<string, string>[]; detectedHeaders: string[];
+  } | null>(null);
+
+  // Step 5: Progress
+  const [importJob, setImportJob] = useState<ImportJob | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  // Step 6: Review
+  const [importStats, setImportStats] = useState<{ created: number; updated: number; skipped: number; errors: number } | null>(null);
+
+  // Auto-resolve store on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const stores = await fetchMyStores();
+        const s = pickStore(stores);
+        if (s) {
+          setStoreId(s.id);
+          setStoreName(s.displayName);
+        }
+      } catch { /* handled during upload */ }
+    })();
+  }, []);
+
+  /** Download a CSV template with TARGET_COLUMNS headers and 2 example rows. */
+  const downloadTemplate = () => {
+    const header = TARGET_COLUMNS.map(c => c.label).join(',');
+    const row1 = TARGET_COLUMNS.map(c => {
+      if (c.key === 'name') return 'Widget Pro';
+      if (c.key === 'nameAr') return 'ودجت برو';
+      if (c.key === 'sku') return 'WDG-001';
+      if (c.key === 'barcode') return '6281001234567';
+      if (c.key === 'category') return 'Electronics';
+      if (c.key === 'brand') return 'Acme';
+      if (c.key === 'unit') return 'PCS';
+      if (c.key === 'priceMinor') return '1050';
+      if (c.key === 'moq') return '5';
+      if (c.key === 'description') return 'High-quality widget';
+      if (c.key === 'stock') return '100';
+      return '';
+    }).join(',');
+    const row2 = TARGET_COLUMNS.map(c => {
+      if (c.key === 'name') return 'Gadget Plus';
+      if (c.key === 'nameAr') return 'غادجيت بلس';
+      if (c.key === 'sku') return 'GDG-002';
+      if (c.key === 'barcode') return '6281009876543';
+      if (c.key === 'category') return 'Accessories';
+      if (c.key === 'brand') return 'TechCo';
+      if (c.key === 'unit') return 'PCS';
+      if (c.key === 'priceMinor') return '2500';
+      if (c.key === 'moq') return '10';
+      if (c.key === 'description') return 'Premium gadget';
+      if (c.key === 'stock') return '50';
+      return '';
+    }).join(',');
+    const csv = [header, row1, row2].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /** Parse CSV file to extract headers and preview rows. */
+  const parseCsvFile = (csvText: string) => {
+    const lines = csvText.split('\n').filter(l => l.trim());
+    if (lines.length < 2) {
+      setError('File must have at least a header row and one data row.');
+      return;
+    }
+    const headers = parseCsvLine(lines[0]!);
+    setDetectedHeaders(headers);
+
+    // Auto-map columns by name similarity
+    const mapping: Record<string, string> = {};
+    for (const target of TARGET_COLUMNS) {
+      const match = headers.find(h =>
+        h.toLowerCase().replace(/[^a-z0-9]/g, '') === target.key.toLowerCase() ||
+        h.toLowerCase().includes(target.key.toLowerCase()) ||
+        h.toLowerCase().includes(target.label.toLowerCase().split(' ')[0]!)
+      );
+      if (match) mapping[target.key] = match;
+    }
+    setColumnMapping(mapping);
+  };
+
+  /** Read the full file and parse all data rows keyed by header. */
+  const parseAllRows = async (csvFile: File): Promise<Record<string, string>[]> => {
+    const text = await csvFile.text();
+    const records = parseCsvRecords(text);
+    if (records.length < 2) return [];
+    const headers = records[0]!;
+    return records.slice(1).map(cols => {
+      const row: Record<string, string> = {};
+      headers.forEach((h, i) => { row[h] = cols[i] ?? ''; });
+      return row;
+    });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+
+    const ext = selected.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'csv' && ext !== 'xlsx') {
+      setError('Please select a CSV or XLSX file.');
+      return;
+    }
+
+    setFile(selected);
+    setError(null);
+
+    if (ext === 'csv') {
+      // Parse CSV client-side for column detection
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        parseCsvFile(text);
+      };
+      reader.readAsText(selected.slice(0, 10000)); // Read first 10KB for header detection
+    } else {
+      // XLSX: headers detected server-side during Preview step
+      setDetectedHeaders([]);
+      setColumnMapping({});
+    }
+  };
+
+  /** Create the import job (metadata) once and return it. */
+  const ensureJob = async (): Promise<ImportJob> => {
+    if (importJob) return importJob;
+    if (!file || !storeId) throw new Error('Please select a file and a store.');
+    const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+    const res = await authFetch(`${API_URL}/v1/stores/${storeId}/imports`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: isXlsx ? 'XLSX' : 'CSV',
+        fileSize: file.size,
+        // XLSX mapping is derived server-side after upload; CSV auto-maps client-side.
+        columnMapping: isXlsx ? {} : columnMapping,
+      }),
+    });
+    if (!res.ok) {
+      const b = await res.json().catch(() => null);
+      throw new Error(b?.detail || b?.message || `Create import job failed: ${res.status}`);
+    }
+    const job = (await res.json()) as ImportJob;
+    setImportJob(job);
+    return job;
+  };
+
+  /** Compute the CSV stock preview (informational). */
+  const computeStockPreview = async () => {
+    if (!file || !file.name.toLowerCase().endsWith('.csv')) return;
+    try {
+      const allRows = await parseAllRows(file);
+      const stockHeader =
+        columnMapping['stock'] || detectedHeaders.find((h) => h.toLowerCase().includes('stock'));
+      let rowsWithStock = 0;
+      let totalStock = 0;
+      if (stockHeader) {
+        for (const row of allRows) {
+          const val = row[stockHeader];
+          if (val) {
+            const qty = parseInt(val, 10);
+            if (!isNaN(qty) && qty > 0) { rowsWithStock++; totalStock += qty; }
+          }
+        }
+      }
+      setStockPreview({ totalRows: allRows.length, rowsWithStock, totalStock });
+    } catch {
+      setStockPreview(null);
+    }
+  };
+
+  /** R1/R2 — Step 0 → Step 1: create the job; for XLSX upload bytes + detect headers. */
+  const goToMapping = async () => {
+    if (!file || !storeId) { setError('Please select a file and a store.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const job = await ensureJob();
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        const upRes = await authFetch(`${API_URL}/v1/imports/${job.id}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: file,
+        });
+        if (!upRes.ok) {
+          const b = await upRes.json().catch(() => null);
+          throw new Error(b?.detail || b?.message || `Upload failed: ${upRes.status}`);
+        }
+        const data = await upRes.json();
+        setDetectedHeaders(data.detectedHeaders || []);
+        if (data.columnMapping && Object.keys(data.columnMapping).length > 0) {
+          setColumnMapping(data.columnMapping);
+        }
+      } else {
+        await computeStockPreview();
+      }
+      setStep(1);
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** R2 — Step 1 → Step 2: persist the chosen mapping (UPLOADED → MAPPING). */
+  const persistMappingAndValidate = async () => {
+    if (!importJob) { setError('Import job not created.'); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/mapping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ columnMapping }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Save mapping failed: ${res.status}`);
+      }
+      setStep(2);
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** R3 — stage all CSV rows server-side BEFORE preview so counts are real. */
+  const stageCsvRows = async () => {
+    if (!file || !importJob) return;
+    if (file.name.toLowerCase().endsWith('.xlsx')) return; // XLSX reads from storage
+    const rows = await parseAllRows(file);
+    if (rows.length === 0) throw new Error('No data rows found in the file.');
+    const BATCH = 200;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const stageRes = await authFetch(`${API_URL}/v1/imports/${importJob.id}/rows`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: batch, append: i > 0 }),
+      });
+      if (!stageRes.ok) {
+        const b = await stageRes.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Failed to stage rows: ${stageRes.status}`);
+      }
+    }
+  };
+
+  /** R3 — Step 2 → Step 3: stage CSV rows first, then run the read-only preview. */
+  const handlePreview = async () => {
+    if (!importJob) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await stageCsvRows();
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/preview`, { method: 'POST' });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Preview failed: ${res.status}`);
+      }
+      const data = await res.json();
+      setPreviewData(data);
+      setValidRows(data.validRows ?? 0);
+      setValidationErrors(
+        (data.errors || [])
+          .filter((e: any) => e.severity === 'ERROR')
+          .map((e: any) => ({ row: e.rowNumber, field: e.field, message: e.message })),
+      );
+      setStep(3);
+    } catch (e) {
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Step 3 → Step 4: trigger processing (rows already staged/uploaded). */
+  const handleStartImport = async () => {
+    if (!importJob) return;
+    setLoading(true);
+    setError(null);
+    const jobId = importJob.id;
+
+    const finalize = (job: any, cancelled = false) => {
+      setImportJob(job);
+      setImportStats({
+        created: job.stats?.created ?? 0,
+        updated: job.stats?.updated ?? 0,
+        skipped: job.stats?.skipped ?? 0,
+        errors: job.stats?.errors ?? 0,
+      });
+      if (cancelled) setError('Import cancelled.');
+      else if (job.status === 'FAILED') setError('Import completed with errors.');
+      setStep(5);
+    };
+
+    // Poll job lifecycle. R5: the backend PROCESSING state (not IMPORTING).
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await authFetch(`${API_URL}/v1/imports/${jobId}`);
+        if (!res.ok) return;
+        const job = await res.json();
+        setImportJob(job);
+        if (job.status === 'PROCESSING') {
+          const total = job.totalRows || job.stats?.total || 0;
+          const done = job.processedRows ?? job.stats?.processed ?? 0;
+          setProgress(total ? Math.round((done / total) * 100) : 0);
+        } else if (job.status === 'COMPLETED' || job.status === 'FAILED') {
+          clearInterval(pollInterval);
+          setProgress(job.status === 'COMPLETED' ? 100 : 0);
+          finalize(job);
+        } else if (job.status === 'CANCELLED') {
+          clearInterval(pollInterval);
+          finalize(job, true);
+        }
+      } catch {
+        // Polling error — ignore and retry
+      }
+    }, 1500);
+
+    try {
+      const processRes = await authFetch(`${API_URL}/v1/imports/${jobId}/process`, { method: 'POST' });
+      if (!processRes.ok) {
+        clearInterval(pollInterval);
+        const b = await processRes.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Import processing failed: ${processRes.status}`);
+      }
+      // Processing is synchronous server-side; the poll will settle the terminal state.
+      setStep(4);
+    } catch (e) {
+      clearInterval(pollInterval);
+      setError(`${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** R5 — request cooperative cancellation of a RUNNING/READY job. */
+  const handleCancel = async () => {
+    if (!importJob) return;
+    setError(null);
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/cancel`, { method: 'POST' });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.detail || b?.message || `Cancel failed: ${res.status}`);
+      }
+      // Poll loop (still active) observes the CANCELLED terminal state.
+    } catch (e) {
+      setError(`${e}`);
+    }
+  };
+
+  /** P10: Download the full error report as CSV. */
+  const handleDownloadErrors = async () => {
+    if (!importJob) return;
+    try {
+      const res = await authFetch(`${API_URL}/v1/imports/${importJob.id}/errors`);
+      if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+      // Preserve the backend's exact bytes (incl. the UTF-8 BOM). res.text()
+      // would strip the leading BOM, breaking the §8 error-report contract.
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `import-errors-${importJob.id.substring(0, 8)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(`Failed to download error report: ${e}`);
+    }
+  };
+
+  const updateMapping = (targetKey: string, sourceHeader: string) => {
+    setColumnMapping(prev => ({ ...prev, [targetKey]: sourceHeader }));
+  };
+
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      {/* Header Banner */}
+      <PageHeader title="Import Catalog" subtitle="Bulk import products from a CSV or Excel file" />
+      <div style={{ padding: '20px 24px 48px' }}>
+
+      {/* Step indicator */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
+        {STEPS.map((s, i) => (
+          <div key={s} style={{
+            flex: 1, height: 4, borderRadius: 2,
+            backgroundColor: i <= step ? '#174A5B' : '#E5E7EB',
+            transition: 'background-color 200ms',
+          }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24 }}>
+        {STEPS.map((s, i) => (
+          <div key={s} style={{
+            flex: 1, textAlign: 'center', fontSize: 11, fontWeight: i === step ? 600 : 400,
+            color: i <= step ? '#174A5B' : '#9CA3AF',
+          }}>
+            {s}
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div style={{ padding: '12px 16px', marginBottom: 16, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#B3372F', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
+
+      {/* Step 1: Upload */}
+      {step === 0 && (
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Store</label>
+            {storeName ? (
+              <div style={{ padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: 14, backgroundColor: '#F9FAFB', color: '#0f3340', fontWeight: 600 }}>
+                {storeName}
+              </div>
+            ) : (
+              <div style={{ padding: '8px 12px', border: '1px solid #FECACA', borderRadius: 4, fontSize: 13, color: '#B3372F', backgroundColor: '#FEF2F2' }}>
+                No store found — please onboard a store first.
+              </div>
+            )}
+          </div>
+
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: '2px dashed #D1D5DB', borderRadius: 12, padding: '48px 24px',
+              textAlign: 'center', cursor: 'pointer', backgroundColor: file ? '#F0FDF4' : '#FAFAFA',
+              transition: 'background-color 200ms',
+            }}
+          >
+            <input ref={fileInputRef} type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
+            <div style={{ fontSize: 40, marginBottom: 8 }}>{file ? '📄' : '📁'}</div>
+            {file ? (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{file.name}</div>
+                <div style={{ fontSize: 12, color: '#666' }}>{(file.size / 1024).toFixed(1)} KB</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Drop your file here or click to browse</div>
+                <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>Supports CSV and XLSX files</div>
+              </>
+            )}
+          </div>
+
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={downloadTemplate} style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, background: '#fff', color: '#174A5B', border: '1px solid #174A5B', borderRadius: 6, cursor: 'pointer' }}>
+              Download Template
+            </button>
+            <button
+              onClick={goToMapping}
+              disabled={!file || !storeId || loading}
+              style={{
+                padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600,
+                backgroundColor: file && storeId ? '#174A5B' : '#D1D5DB', color: 'white', border: 'none',
+                cursor: file && storeId ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {loading ? 'Preparing…' : 'Next: Map Columns →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Column Mapping */}
+      {step === 1 && (
+        <div>
+          <p style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+            Map your file columns to product fields. Required fields are marked with *.
+          </p>
+
+          <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ backgroundColor: '#F9FAFB' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #E5E7EB' }}>Product Field</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid #E5E7EB' }}>Your Column</th>
+                </tr>
+              </thead>
+              <tbody>
+                {TARGET_COLUMNS.map(tc => (
+                  <tr key={tc.key} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      {tc.label} {tc.required && <span style={{ color: '#B3372F' }}>*</span>}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <select
+                        value={columnMapping[tc.key] || ''}
+                        onChange={e => updateMapping(tc.key, e.target.value)}
+                        style={{
+                          width: '100%', padding: '6px 8px', border: '1px solid #D1D5DB',
+                          borderRadius: 4, fontSize: 13,
+                          backgroundColor: columnMapping[tc.key] ? '#F0FDF4' : 'white',
+                        }}
+                      >
+                        <option value="">— Not mapped —</option>
+                        {detectedHeaders.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 16, padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 12, color: '#92400E' }}>
+            💡 <strong>Tip:</strong> Prices should be in minor units (halalas). E.g., 10.50 SAR = 1050. MOQ must be a positive integer.
+          </div>
+
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={() => setStep(0)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
+              ← Back
+            </button>
+            <button onClick={persistMappingAndValidate} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
+              {loading ? 'Saving…' : 'Save Mapping →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Validation */}
+      {step === 2 && (
+        <div>
+          <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Mapping Saved</div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+              {detectedHeaders.length} columns detected{file ? ` from ${file.name}` : ''} — run the preview to validate rows.
+            </div>
+          </div>
+
+          {validationErrors.length > 0 && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '8px 12px', backgroundColor: '#FEF2F2', fontWeight: 600, fontSize: 13, color: '#B3372F', borderBottom: '1px solid #FECACA' }}>
+                Row-level errors ({validationErrors.length})
+              </div>
+              <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB' }}>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Row</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Field</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {validationErrors.slice(0, 50).map((err, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '6px 12px' }}>{err.row}</td>
+                        <td style={{ padding: '6px 12px' }}>{err.field}</td>
+                        <td style={{ padding: '6px 12px', color: '#B3372F' }}>{err.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {validationErrors.length > 50 && (
+                <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center' }}>
+                  Showing first 50 of {validationErrors.length} errors.
+                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontSize: 11, padding: 0 }}>Download full report</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Stock preview summary */}
+          {stockPreview && (
+            <div style={{ padding: '12px 16px', backgroundColor: stockPreview.rowsWithStock > 0 ? '#EFF6FF' : '#F3F4F6', border: `1px solid ${stockPreview.rowsWithStock > 0 ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 8, marginBottom: 16, fontSize: 13, color: stockPreview.rowsWithStock > 0 ? '#1E40AF' : '#6B7280' }}>
+              <strong>Stock Preview:</strong>{' '}
+              {stockPreview.rowsWithStock > 0
+                ? `${stockPreview.rowsWithStock} of ${stockPreview.totalRows} rows will create inventory items with a total of ${stockPreview.totalStock} units`
+                : `No stock values detected — ${stockPreview.totalRows} product(s) will be created without inventory items`}
+            </div>
+          )}
+
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={() => setStep(1)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
+              ← Back
+            </button>
+            <button onClick={handlePreview} disabled={loading} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}>
+              {loading ? 'Validating...' : 'Preview & Validate →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Preview & Validate (P10) */}
+      {step === 3 && previewData && (
+        <div>
+          <div style={{ padding: 24, backgroundColor: previewData.errorCount === 0 ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${previewData.errorCount === 0 ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 8, textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>{previewData.errorCount === 0 ? '✅' : '⚠️'}</div>
+            <div style={{ fontWeight: 600, fontSize: 16 }}>
+              {previewData.errorCount === 0 ? 'Preview Passed — No Errors' : `${previewData.errorCount} Errors Found`}
+            </div>
+            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>
+              {previewData.totalRows} total rows · {previewData.validRows} valid{previewData.warningCount > 0 ? ` · ${previewData.warningCount} warnings` : ''}
+            </div>
+          </div>
+
+          {previewData.detectedHeaders.length > 0 && (
+            <div style={{ padding: '12px 16px', backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: 16, fontSize: 12, color: '#1E40AF' }}>
+              <strong>Detected columns ({previewData.detectedHeaders.length}):</strong> {previewData.detectedHeaders.slice(0, 15).join(', ')}{previewData.detectedHeaders.length > 15 ? ` +${previewData.detectedHeaders.length - 15} more` : ''}
+            </div>
+          )}
+
+          {(previewData.errorCount > 0 || previewData.warningCount > 0) && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '8px 12px', backgroundColor: previewData.errorCount > 0 ? '#FEF2F2' : '#FFFBEB', fontWeight: 600, fontSize: 13, color: previewData.errorCount > 0 ? '#B3372F' : '#92400E', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Issues — {previewData.errorCount} error(s), {previewData.warningCount} warning(s)</span>
+                {previewData.errorCount > 0 && (
+                  <button onClick={handleDownloadErrors} style={{ color: '#174A5B', background: '#fff', border: '1px solid #174A5B', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '3px 10px' }}>Download Error Report</button>
+                )}
+              </div>
+              <div style={{ maxHeight: 250, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB' }}>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Row</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Field</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Code</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Severity</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Message</th>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', borderBottom: '1px solid #E5E7EB' }}>Suggested Fix</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.errors.slice(0, 100).map((err, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '6px 12px' }}>{err.rowNumber}</td>
+                        <td style={{ padding: '6px 12px' }}>{err.field}</td>
+                        <td style={{ padding: '6px 12px', fontFamily: 'monospace', fontSize: 11 }}>{err.errorCode}</td>
+                        <td style={{ padding: '6px 12px' }}>
+                          <span style={{ fontWeight: 600, fontSize: 10, padding: '1px 6px', borderRadius: 4, backgroundColor: err.severity === 'ERROR' ? '#FEE2E2' : '#FEF3C7', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.severity}</span>
+                        </td>
+                        <td style={{ padding: '6px 12px', color: err.severity === 'ERROR' ? '#B3372F' : '#92400E' }}>{err.message}</td>
+                        <td style={{ padding: '6px 12px', color: '#666' }}>{err.suggestedFix || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {previewData.errors.length >= 100 && (
+                <div style={{ padding: '8px 12px', fontSize: 11, color: '#666', textAlign: 'center', backgroundColor: '#F9FAFB' }}>
+                  Showing the first {previewData.errors.length >= 100 ? 100 : previewData.errors.length} of {previewData.errorCount + previewData.warningCount} issues — download the report for the full list.
+                </div>
+              )}
+            </div>
+          )}
+
+          {previewData.sampleRows && previewData.sampleRows.length > 0 && (
+            <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ padding: '8px 12px', backgroundColor: '#F0FDF4', fontWeight: 600, fontSize: 13, color: '#166534', borderBottom: '1px solid #BBF7D0' }}>
+                Sample Valid Rows ({previewData.sampleRows.length})
+              </div>
+              <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F9FAFB' }}>
+                      {Object.keys(previewData.sampleRows[0] || {}).map(k => (
+                        <th key={k} style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }}>{k}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.sampleRows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        {Object.values(row).map((v, j) => (
+                          <td key={j} style={{ padding: '4px 8px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={() => setStep(2)} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}>
+              ← Back
+            </button>
+            <button onClick={handleStartImport} disabled={loading || previewData.errorCount > 0} style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: previewData.errorCount > 0 ? '#D1D5DB' : '#174A5B', color: 'white', border: 'none', cursor: previewData.errorCount > 0 ? 'not-allowed' : 'pointer' }}>
+              {loading ? 'Starting...' : 'Start Import →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: Import Progress */}
+      {step === 4 && (
+        <div>
+          <div style={{ padding: 32, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+            <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Importing Products...</div>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 24 }}>
+              Processing your file. This may take a moment for large catalogs.
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ width: '100%', height: 8, backgroundColor: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                width: `${progress}%`, height: '100%', backgroundColor: '#174A5B',
+                borderRadius: 4, transition: 'width 500ms ease',
+              }} />
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8, color: '#174A5B' }}>{progress}%</div>
+
+            {importJob && (
+              <div style={{ marginTop: 16, fontSize: 12, color: '#9CA3AF' }}>
+                Job ID: {importJob.id.substring(0, 8)}... · Status: {importJob.status}
+              </div>
+            )}
+
+            {importJob && (importJob.status === 'PROCESSING' || importJob.status === 'READY' || importJob.status === 'IMPORTING') && (
+              <div style={{ marginTop: 20 }}>
+                <button
+                  onClick={handleCancel}
+                  style={{ padding: '8px 20px', borderRadius: 6, fontSize: 13, fontWeight: 600, backgroundColor: '#fff', color: '#B3372F', border: '1px solid #B3372F', cursor: 'pointer' }}
+                >
+                  Cancel Import
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Step 6: Review */}
+      {step === 5 && (
+        <div>
+          {importStats ? (
+            <>
+              <div style={{ padding: 24, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+                <div style={{ fontWeight: 600, fontSize: 18 }}>Import Complete!</div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { label: 'Created', value: importStats.created, color: '#1B7A4B' },
+                  { label: 'Updated', value: importStats.updated, color: '#1D5FA8' },
+                  { label: 'Skipped', value: importStats.skipped, color: '#B45309' },
+                  { label: 'Errors', value: importStats.errors, color: '#B3372F' },
+                ].map(s => (
+                  <div key={s.label} style={{ padding: 16, backgroundColor: '#F9FAFB', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: '12px 16px', backgroundColor: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, fontSize: 13, color: '#92400E', marginBottom: 24 }}>
+                💡 All imported products are created as <strong>DRAFT</strong>. Go to your catalog to review and publish them.
+              </div>
+            </>
+          ) : (
+            <div style={{ padding: 24, backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, textAlign: 'center' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>❌</div>
+              <div style={{ fontWeight: 600, fontSize: 18, color: '#B3372F' }}>Import Failed</div>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 8 }}>{error || 'An unexpected error occurred.'}</div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button
+              onClick={() => router.push('/merchant/catalog')}
+              style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, fontWeight: 600, backgroundColor: '#174A5B', color: 'white', border: 'none', cursor: 'pointer' }}
+            >
+              Go to Catalog
+            </button>
+            <button
+              onClick={() => { setStep(0); setFile(null); setImportJob(null); setImportStats(null); setProgress(0); setValidationErrors([]); setPreviewData(null); }}
+              style={{ padding: '10px 24px', borderRadius: 6, fontSize: 14, backgroundColor: '#F3F4F6', border: 'none', cursor: 'pointer' }}
+            >
+              Import Another File
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}

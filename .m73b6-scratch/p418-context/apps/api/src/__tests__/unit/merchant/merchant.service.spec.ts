@@ -1,0 +1,356 @@
+import { describe, it, expect, vi } from 'vitest';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { MerchantService } from '../../../modules/merchant/merchant.service';
+import { products } from '../../../modules/catalog/catalog.schema';
+import { stores, verificationRequests } from '../../../modules/merchant/merchant.schema';
+import { organizations } from '../../../modules/identity/identity.schema';
+import { PgDialect } from 'drizzle-orm/pg-core';
+
+/**
+ * A4-8 — merchant customers endpoint returns snake_case rows from raw SQL,
+ * but both clients (web and mobile) parse camelCase keys. The service must
+ * map the response so the contract is stable.
+ */
+
+function createMocks() {
+  const execute = vi.fn();
+  const db = {
+    db: {
+      execute,
+      query: {
+        stores: {
+          findMany: vi.fn(),
+        },
+      },
+    },
+  };
+  const outbox = { publish: vi.fn() };
+  const storage = {
+    createPresignedGetUrl: vi.fn(),
+    createPresignedPutUrl: vi.fn(),
+    putObject: vi.fn(),
+    getObject: vi.fn(),
+    deleteObject: vi.fn(),
+    exists: vi.fn(),
+  };
+
+  return { db, outbox, storage, execute };
+}
+
+describe('MerchantService.reviewVerification', () => {
+  function setup(status = 'SUBMITTED', missing?: 'request' | 'store', mismatch = false) {
+    const request = { id: 'request', storeId: 'store', orgId: 'org', status };
+    const lock = vi.fn().mockResolvedValueOnce(missing === 'request' ? [] : [request])
+      .mockResolvedValueOnce(missing === 'store' ? [] : [{ id: 'store', orgId: mismatch ? 'wrong' : 'org' }]);
+    const updates: { table: unknown; values: any; predicate: any }[] = [];
+    const insert = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      select: () => ({ from: () => ({ where: () => ({ for: lock }) }) }),
+      update: (table: unknown) => ({ set: (values: any) => ({ where: (predicate: any) => {
+        updates.push({ table, values, predicate });
+        return { returning: async () => table === verificationRequests ? [{ ...request, ...values }] : [{ id: 'product' }] };
+      } }) }),
+      insert: () => ({ values: insert }),
+    };
+    const transaction = vi.fn(async (callback: any) => callback(tx));
+    const outbox = { publish: vi.fn() };
+    const service = new MerchantService({ db: { transaction } } as any, outbox as any, {} as any);
+    return { service, updates, insert, transaction, outbox, lock };
+  }
+  it('locks request/store, batches scoped activation, and inserts transactional outbox', async () => {
+    const test = setup();
+    const result = await test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'Reviewed');
+    expect(test.lock.mock.calls).toEqual([['update'], ['update']]);
+    expect(result.autoActivatedProductCount).toBe(1);
+    const productUpdate = test.updates.find(update => update.table === products)!;
+    expect(productUpdate.values).toMatchObject({ status: 'ACTIVE', isAvailable: true, updatedAt: result.reviewedAt });
+    const query = new PgDialect().sqlToQuery(productUpdate.predicate);
+    expect(query.params).toContain('store');
+    expect(query.params).toContain('DRAFT');
+    expect(query.sql).toContain('"products"."deleted_at" is null');
+    expect(query.sql).toContain('count(distinct ref)');
+    expect(test.updates.find(update => update.table === stores)?.values.updatedAt).toBe(result.reviewedAt);
+    expect(test.updates.some(update => update.table === organizations)).toBe(true);
+    expect(test.insert).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ autoActivatedProductCount: 1 }) }));
+    expect(test.outbox.publish).not.toHaveBeenCalled();
+  });
+  it.each(['REJECTED', 'REVISION'] as const)('%s does not activate products', async decision => {
+    const test = setup();
+    const result = await test.service.reviewVerification('request', 'reviewer', decision);
+    expect(result.autoActivatedProductCount).toBe(0);
+    expect(test.updates.some(update => update.table === products)).toBe(false);
+    expect(result.resolvedAt === null).toBe(decision === 'REVISION');
+  });
+  it.each(['APPROVED', 'REJECTED'])('refuses already %s requests', async status => {
+    const test = setup(status);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('already resolved');
+    expect(test.updates).toHaveLength(0);
+  });
+  it.each(['request', 'store'] as const)('rejects missing %s without writes', async missing => {
+    const test = setup('SUBMITTED', missing);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('not found');
+    expect(test.updates).toHaveLength(0);
+  });
+  it('rejects organization mismatch', async () => {
+    const test = setup('SUBMITTED', undefined, true);
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('does not match');
+    expect(test.updates).toHaveLength(0);
+  });
+  it('validates decisions and bounded notes before opening a transaction', async () => {
+    const test = setup();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'INVALID' as any)).rejects.toThrow();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED', 'x'.repeat(5001))).rejects.toThrow();
+    await expect(test.service.reviewVerification('request', 'reviewer', 'REJECTED', undefined, ['x'.repeat(501)])).rejects.toThrow();
+    expect(test.transaction).not.toHaveBeenCalled();
+  });
+  it('propagates an outbox failure to the transaction', async () => {
+    const test = setup();
+    test.insert.mockRejectedValue(new Error('outbox unavailable'));
+    await expect(test.service.reviewVerification('request', 'reviewer', 'APPROVED')).rejects.toThrow('outbox unavailable');
+  });
+});
+
+describe('MerchantService.getCustomersByOrg', () => {
+  it('returns an empty array when the org has no stores', async () => {
+    const mocks = createMocks();
+    mocks.db.db.query.stores.findMany.mockResolvedValue([]);
+    const service = new MerchantService(mocks.db as any, mocks.outbox as any, mocks.storage as any);
+
+    const result = await service.getCustomersByOrg('org-1');
+
+    expect(result).toEqual([]);
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it('aggregates Drizzle order rows into per-buyer camelCase summaries', async () => {
+    const mocks = createMocks();
+    mocks.db.db.query.stores.findMany.mockResolvedValue([
+      { id: 'store-1' },
+      { id: 'store-2' },
+    ]);
+    // The service now uses Drizzle's query builder and aggregates in JS.
+    // Each row represents a single order with buyer contact info.
+    const selectFn = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        innerJoin: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockResolvedValue([
+              {
+                buyerId: 'buyer-1',
+                buyerName: 'Alice',
+                buyerPhone: '+1234567890',
+                buyerEmail: 'alice@example.com',
+                totalMinor: 5000,
+                currency: 'SAR',
+                createdAt: new Date('2026-09-01T10:00:00Z'),
+              },
+              {
+                buyerId: 'buyer-1',
+                buyerName: 'Alice',
+                buyerPhone: '+1234567890',
+                buyerEmail: 'alice@example.com',
+                totalMinor: 5000,
+                currency: 'SAR',
+                createdAt: new Date('2026-08-20T08:00:00Z'),
+              },
+              {
+                buyerId: 'buyer-1',
+                buyerName: 'Alice',
+                buyerPhone: '+1234567890',
+                buyerEmail: 'alice@example.com',
+                totalMinor: 2500,
+                currency: 'AED',
+                createdAt: new Date('2026-08-10T12:00:00Z'),
+              },
+              {
+                buyerId: 'buyer-2',
+                buyerName: 'Bob',
+                buyerPhone: null,
+                buyerEmail: 'bob@example.com',
+                totalMinor: 4000,
+                currency: 'SAR',
+                createdAt: new Date('2026-08-15T14:30:00Z'),
+              },
+              {
+                buyerId: 'buyer-2',
+                buyerName: 'Bob',
+                buyerPhone: null,
+                buyerEmail: 'bob@example.com',
+                totalMinor: 3500,
+                currency: 'SAR',
+                createdAt: new Date('2026-08-10T09:00:00Z'),
+              },
+            ]),
+          }),
+        }),
+      }),
+    });
+    (mocks.db.db as any).select = selectFn;
+    const service = new MerchantService(mocks.db as any, mocks.outbox as any, mocks.storage as any);
+
+    const result = await service.getCustomersByOrg('org-1');
+
+    expect(result).toEqual([
+      {
+        buyerId: 'buyer-1',
+        buyerName: 'Alice',
+        buyerPhone: '+1234567890',
+        buyerEmail: 'alice@example.com',
+        orderCount: 3,
+        totalSpentMinor: 12500,
+        spentByCurrency: [
+          { currency: 'SAR', totalMinor: 10000 },
+          { currency: 'AED', totalMinor: 2500 },
+        ],
+        lastOrderAt: new Date('2026-09-01T10:00:00Z'),
+      },
+      {
+        buyerId: 'buyer-2',
+        buyerName: 'Bob',
+        buyerPhone: null,
+        buyerEmail: 'bob@example.com',
+        orderCount: 2,
+        totalSpentMinor: 7500,
+        spentByCurrency: [{ currency: 'SAR', totalMinor: 7500 }],
+        lastOrderAt: new Date('2026-08-15T14:30:00Z'),
+      },
+    ]);
+  });
+
+  it('handles null totalMinor values gracefully', async () => {
+    const mocks = createMocks();
+    mocks.db.db.query.stores.findMany.mockResolvedValue([{ id: 'store-1' }]);
+    // A buyer whose order has null totalMinor (e.g. a zero-value or incomplete order).
+    // Number(null) === 0, so the aggregation must not throw.
+    const selectFn = vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        innerJoin: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockResolvedValue([
+              {
+                buyerId: 'buyer-1',
+                buyerName: 'Alice',
+                buyerPhone: null,
+                buyerEmail: null,
+                totalMinor: null,
+                currency: 'SAR',
+                createdAt: new Date('2026-08-01T10:00:00Z'),
+              },
+            ]),
+          }),
+        }),
+      }),
+    });
+    (mocks.db.db as any).select = selectFn;
+    const service = new MerchantService(mocks.db as any, mocks.outbox as any, mocks.storage as any);
+
+    const result = await service.getCustomersByOrg('org-1');
+
+    expect(result).toEqual([
+      {
+        buyerId: 'buyer-1',
+        buyerName: 'Alice',
+        buyerPhone: null,
+        buyerEmail: null,
+        orderCount: 1,
+        totalSpentMinor: 0,
+        spentByCurrency: [{ currency: 'SAR', totalMinor: 0 }],
+        lastOrderAt: new Date('2026-08-01T10:00:00Z'),
+      },
+    ]);
+  });
+});
+
+describe('MerchantService.uploadDocument', () => {
+  function mockUploadDb() {
+    const values = vi.fn().mockResolvedValue(undefined);
+    const insert = vi.fn(() => ({ values }));
+    const findFirst = vi.fn().mockResolvedValue({ id: 'doc-1' });
+    const db = { db: { insert, query: { businessDocuments: { findFirst } } } };
+    return { db, values };
+  }
+
+  it('persists the client-supplied storageKey so downloads presign the uploaded object', async () => {
+    const { db, values } = mockUploadDb();
+    const storage = { createPresignedGetUrl: vi.fn(), createPresignedPutUrl: vi.fn() };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+
+    await service.uploadDocument({
+      orgId: 'org-1',
+      docType: 'COMMERCIAL_REG',
+      fileName: 'cr.pdf',
+      uploadedBy: 'user-1',
+      storageKey: 'docs/presigned-uuid/cr.pdf',
+    });
+
+    expect(values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileName: 'cr.pdf',
+        storageKey: 'docs/presigned-uuid/cr.pdf',
+      }),
+    );
+  });
+
+  it('falls back to a deterministic docs/{orgId}/{docId}/{fileName} key when none is supplied', async () => {
+    const { db, values } = mockUploadDb();
+    const storage = { createPresignedGetUrl: vi.fn(), createPresignedPutUrl: vi.fn() };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+
+    await service.uploadDocument({
+      orgId: 'org-1',
+      docType: 'COMMERCIAL_REG',
+      fileName: 'cr.pdf',
+      uploadedBy: 'user-1',
+    });
+
+    const inserted = values.mock.calls.at(-1)?.[0] as { storageKey: string };
+    expect(inserted.storageKey).toMatch(/^docs\/org-1\/[^/]+\/cr\.pdf$/);
+  });
+});
+
+describe('MerchantService.presignForMerchant', () => {
+  function setup(doc: any, membership: any) {
+    const findFirstDoc = vi.fn().mockResolvedValue(doc);
+    const findFirstMember = vi.fn().mockResolvedValue(membership);
+    const db = {
+      db: {
+        query: {
+          businessDocuments: { findFirst: findFirstDoc },
+          organizationMembers: { findFirst: findFirstMember },
+        },
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) }),
+        }),
+      },
+    };
+    const storage = { createPresignedGetUrl: vi.fn().mockResolvedValue('https://presigned-url') };
+    const service = new MerchantService(db as any, { publish: vi.fn() } as any, storage as any);
+    return { service, findFirstDoc, findFirstMember, storage };
+  }
+
+  it('returns presigned URL when user is an org member', async () => {
+    const doc = { id: 'doc-1', orgId: 'org-1', storageKey: 'docs/org-1/doc-1/cr.pdf' };
+    const membership = { userId: 'user-1', orgId: 'org-1' };
+    const { service, storage } = setup(doc, membership);
+
+    const result = await service.presignForMerchant('doc-1', 'user-1');
+
+    expect(result.downloadUrl).toBe('https://presigned-url');
+    expect(storage.createPresignedGetUrl).toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException when user is not an org member', async () => {
+    const doc = { id: 'doc-1', orgId: 'org-1', storageKey: 'docs/org-1/doc-1/cr.pdf' };
+    const { service } = setup(doc, null);
+
+    await expect(service.presignForMerchant('doc-1', 'intruder'))
+      .rejects.toThrow(ForbiddenException);
+  });
+
+  it('throws NotFoundException when document does not exist', async () => {
+    const { service } = setup(null, null);
+
+    await expect(service.presignForMerchant('nonexistent', 'user-1'))
+      .rejects.toThrow(NotFoundException);
+  });
+});

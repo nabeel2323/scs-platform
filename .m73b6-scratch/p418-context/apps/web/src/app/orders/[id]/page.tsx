@@ -1,0 +1,701 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  fetchOrder,
+  fetchOrderHistory,
+  cancelOrder,
+  reorder,
+  createDispute,
+  fetchDisputeEvents,
+  submitDisputeEvidence,
+  fetchTracking,
+  buyerDeliveryNote,
+  buyerEventLabel,
+  confirmDelivery,
+  createReturn,
+  ReorderResult,
+  StatusHistoryEntry,
+  OrderItem,
+  Dispute,
+  DisputeEvent,
+  TrackingInfo,
+} from '../../../lib/buyer-api';
+import { useAuth } from '../../../components/AuthProvider';
+import { onOrderStatus, watchOrder } from '../../../lib/realtime';
+import { StatusBadge, formatMinor, formatDate, LoadingSpinner, EmptyState } from '../../../components/Shared';
+import { OrderTimeline } from '../../../components/OrderTimeline';
+import { PageHeader, Breadcrumb, colors, radii } from '@scs/ui-kit';
+
+interface OrderDetail {
+  id: string;
+  // A4-7: this page shows a sub-order; reorder is addressed by the master order.
+  masterOrderId?: string;
+  status: string;
+  totalMinor: number;
+  subtotalMinor: number;
+  discountMinor: number;
+  deliveryFeeMinor: number;
+  taxMinor: number;
+  // A2-4: every *_Minor above (and every line item) is expressed in this
+  // currency, so it is resolved once for the whole page instead of per amount.
+  currency?: string;
+  /** False when the code was inferred from the seller, not snapshotted. */
+  currencyFromSnapshot?: boolean;
+  storeId?: string;
+  // A4-6: who shipped this order, named rather than identified by hex.
+  storeName?: string;
+  storeSlug?: string;
+  fulfillmentMethod: string;
+  createdAt: string;
+  items: OrderItem[];
+  financialBreakdown: any;
+  // P12: Payment fields
+  paymentMethod?: string;
+  paymentStatus?: string;
+}
+
+export default function OrderDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+  const orderId = params['id'] as string;
+  const [order, setOrder] = useState<OrderDetail | null>(null);
+  const [history, setHistory] = useState<StatusHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelReason, setCancelReason] = useState('');
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [reordering, setReordering] = useState(false);
+  const [reorderResult, setReorderResult] = useState<ReorderResult | null>(null);
+  const [reorderError, setReorderError] = useState('');
+  const [loadError, setLoadError] = useState('');
+
+  // Dispute state
+  const [showDispute, setShowDispute] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [disputeAgainst, setDisputeAgainst] = useState('');
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false);
+  const [disputeError, setDisputeError] = useState('');
+  const [disputeResult, setDisputeResult] = useState<Dispute | null>(null);
+  const [disputeEvents, setDisputeEvents] = useState<DisputeEvent[]>([]);
+  const [evidenceBody, setEvidenceBody] = useState('');
+  const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
+
+  // M7.1 Shipment tracking
+  const [tracking, setTracking] = useState<TrackingInfo | null>(null);
+
+  // M7.3-A: confirm delivery
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState('');
+
+  // P13: buyer-initiated return request
+  const [showReturn, setShowReturn] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnDesc, setReturnDesc] = useState('');
+  const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [returnError, setReturnError] = useState('');
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace(`/auth/login?redirect=/orders/${orderId}`);
+      return;
+    }
+  }, [user, authLoading, router, orderId]);
+
+  const load = () => {
+    if (!user) return;
+    setLoading(true);
+    setLoadError('');
+    Promise.all([
+      fetchOrder(orderId).then(setOrder as any),
+      fetchOrderHistory(orderId).then(setHistory),
+    ])
+      .catch((err: any) => setLoadError(err.message || 'Could not load this order'))
+      .finally(() => setLoading(false));
+
+    // Load shipment tracking if this is a sub-order of a master order
+    fetchOrder(orderId).then((o: any) => {
+      if (o.masterOrderId) {
+        fetchTracking(o.masterOrderId).then(setTracking).catch(() => {});
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId, user, authLoading]);
+
+  // Live order-status push (WEB-B6): join this order's room and update the badge
+  // + timeline in place, replacing manual refresh / polling.
+  useEffect(() => {
+    if (!orderId || !user) return;
+    const unwatch = watchOrder(orderId);
+    const off = onOrderStatus((evt) => {
+      setOrder((prev) => (prev ? ({ ...prev, status: evt.status } as OrderDetail) : prev));
+      fetchOrderHistory(orderId).then(setHistory).catch(() => {});
+    }, orderId);
+    return () => {
+      off();
+      unwatch();
+    };
+  }, [orderId, user]);
+
+  const handleCancel = async () => {
+    if (!cancelReason.trim()) return;
+    setCancelError('');
+    try {
+      await cancelOrder(orderId, cancelReason);
+      const updated = await fetchOrder(orderId);
+      setOrder(updated as any);
+      setShowCancel(false);
+    } catch (err: any) {
+      setCancelError(err.message || 'Failed to cancel order');
+    }
+  };
+
+  const handleReorder = async () => {
+    if (!order) return;
+    setReordering(true);
+    setReorderResult(null);
+    setReorderError('');
+    try {
+      // The endpoint keys off the master order — this page is a sub-order, and
+      // posting its own id used to 404 before the server learned to resolve it.
+      const result = await reorder(order.masterOrderId || orderId);
+      setReorderResult(result);
+    } catch (err: any) {
+      setReorderError(err.message || 'Failed to reorder');
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  if (authLoading || !user) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  if (!order) {
+    return (
+      <EmptyState
+        title={loadError ? 'Order unavailable' : 'Order not found'}
+        description={loadError || undefined}
+        action={loadError ? (
+          <button onClick={load} style={{ display: 'inline-block', padding: '8px 20px', background: '#0f3340', color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Try Again</button>
+        ) : undefined}
+      />
+    );
+  }
+
+  // Currency comes from the sub-order snapshot; a legacy order with no snapshot
+  // is labelled as inferred instead of silently shown in the platform default.
+  const money = (minor: number) => formatMinor(minor, order.currency);
+  const currencyCaveat =
+    order.currency === undefined
+      ? 'The API reported no currency for this order, so amounts are shown in the platform default.'
+      : order.currencyFromSnapshot === false
+        ? `Currency was inferred from ${order.storeName || 'the seller'}'s current setting — this order predates currency being recorded on it.`
+        : '';
+
+  // Matches the backend cancellable list in orders.service.cancelOrder. Fresh
+  // orders sit in PENDING_CONFIRMATION during the merchant's 15-minute review
+  // window — the most natural cancel moment; the legacy CONFIRMED status no
+  // longer exists in the FSM.
+  const canCancel = ['SUBMITTED', 'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY', 'PAYMENT_PENDING'].includes(order.status);
+  const canReorder = ['DELIVERED', 'COMPLETED'].includes(order.status);
+  const canDispute = ['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(order.status) && !disputeResult;
+  // P13: returns require a delivered/completed sub-order (backend also enforces
+  // payment eligibility and the return window, surfacing errors in the form).
+  const canReturn = ['DELIVERED', 'COMPLETED'].includes(order.status);
+  // M7.3-A: buyer can confirm delivery when order is DELIVERED
+  const canConfirmDelivery = order.status === 'DELIVERED';
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <PageHeader
+        title={`Order #${order.id.slice(0, 8)}`}
+        subtitle={`${formatDate(order.createdAt)} · ${order.fulfillmentMethod}`}
+        breadcrumbs={<Breadcrumb items={[{ label: 'Orders', href: '/orders' }, { label: `#${order.id.slice(0, 8)}` }]} />}
+        actions={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <StatusBadge status={order.status} />
+            {order.storeName && (
+              order.storeSlug
+                ? <Link href={`/stores/${order.storeSlug}`} style={{ fontSize: 13, color: '#fff', textDecoration: 'underline' }}>Sold by {order.storeName}</Link>
+                : <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)' }}>Sold by {order.storeName}</span>
+            )}
+          </div>
+        }
+      />
+      <div style={{ padding: '20px 24px 48px' }}>
+
+      {/* A4-5: post-checkout success feedback — the outbox emits
+          order.pending_confirmation after ~15s, but the buyer UI never told
+          the story. Show an SLA banner while the order is in the merchant's
+          review window so the buyer knows what to expect. */}
+      {/* M7.3-A: delivery confirmation banner */}
+      {order.status === 'COMPLETED' && (
+        <div
+          style={{
+            background: colors.okBg,
+            border: `1px solid ${colors.okBorder}`,
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>✓</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.ok }}>
+              Order completed
+            </div>
+            <div style={{ fontSize: 13, color: colors.ok, marginTop: 2 }}>
+              Delivery has been confirmed. Thank you for your order.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* M7.3-A: confirm delivery prompt when DELIVERED */}
+      {canConfirmDelivery && (
+        <div
+          style={{
+            background: '#fffbeb',
+            border: '1px solid #fcd34d',
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>📦</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e' }}>
+              Received your order?
+            </div>
+            <div style={{ fontSize: 13, color: '#92400e', marginTop: 2 }}>
+              Confirm delivery to complete this order. If you don't confirm, it will auto-complete after the dispute window.
+            </div>
+          </div>
+          <button
+            onClick={async () => {
+              setConfirming(true);
+              setConfirmError('');
+              try {
+                await confirmDelivery(orderId);
+                const updated = await fetchOrder(orderId);
+                setOrder(updated as any);
+                fetchOrderHistory(orderId).then(setHistory).catch(() => {});
+              } catch (err: any) {
+                setConfirmError(err.message || 'Failed to confirm delivery');
+              } finally {
+                setConfirming(false);
+              }
+            }}
+            disabled={confirming}
+            style={{
+              padding: '8px 20px',
+              fontSize: 13,
+              fontWeight: 600,
+              background: '#065f46',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: confirming ? 'wait' : 'pointer',
+              opacity: confirming ? 0.6 : 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {confirming ? 'Confirming…' : 'Confirm Delivery'}
+          </button>
+        </div>
+      )}
+      {confirmError && (
+        <div role="alert" style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: colors.err }}>
+          {confirmError}
+        </div>
+      )}
+
+      {(order.status === 'SUBMITTED' || order.status === 'PENDING_CONFIRMATION') && (
+        <div
+          style={{
+            background: colors.okBg,
+            border: `1px solid ${colors.okBorder}`,
+            borderRadius: 10,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 20 }}>✓</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.ok }}>
+              Order placed successfully
+            </div>
+            <div style={{ fontSize: 13, color: colors.ok, marginTop: 2 }}>
+              {order.storeName || 'The merchant'} will review your order and confirm within 15 minutes.
+              You can cancel anytime before confirmation.
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
+        {/* Left column */}
+        <div>
+          {/* Items */}
+          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${colors.border}`, fontSize: 14, fontWeight: 600, color: colors.brand[700] }}>Items</div>
+            {order.items.map(item => (
+              <div key={item.id} style={{ padding: '12px 16px', borderBottom: '1px solid #f0f4f6', display: 'flex', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontSize: 14, color: colors.brand[700] }}>{item.title}</div>
+                  <div style={{ fontSize: 12, color: colors.muted }}>SKU: {item.sku} · Qty: {item.quantity}{item.qtyConfirmed != null ? ` (Confirmed: ${item.qtyConfirmed})` : ''}</div>
+                  {(item as any).offer && (
+                    <div style={{ fontSize: 11, color: colors.muted, marginTop: 2 }}>
+                      Offer status: {(item as any).offer.status}
+                      {(item as any).offer.leadTimeDays != null && ` · Lead: ${(item as any).offer.leadTimeDays}d`}
+                      {(item as any).offer.moq > 1 && ` · MOQ: ${(item as any).offer.moq}`}
+                    </div>
+                  )}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700] }}>{money(item.lineTotalMinor)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Financial breakdown */}
+          {order.financialBreakdown && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Financial Breakdown</div>
+              {[
+                ['Subtotal', order.subtotalMinor],
+                ['Discount', -order.discountMinor],
+                ['Delivery', order.deliveryFeeMinor],
+                ['Tax', order.taxMinor],
+              ].filter(([, v]) => v !== 0).map(([label, val]) => (
+                <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: colors.muted, marginBottom: 4 }}>
+                  <span>{label}</span>
+                  <span>{money(val as number)}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: colors.brand[700], borderTop: `1px solid ${colors.border}`, paddingTop: 8, marginTop: 8 }}>
+                <span>Total</span>
+                <span>{money(order.totalMinor)}</span>
+              </div>
+              {currencyCaveat && (
+                // Say so rather than let a SAR-looking number pass for a record.
+                <div style={{ fontSize: 11, color: '#92400e', marginTop: 8 }}>
+                  {currencyCaveat}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* P12: Payment Info — buyer-visible payment status only */}
+          {order.paymentMethod && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Payment</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 13 }}>
+                <div><span style={{ color: colors.muted }}>Method:</span> <strong>{order.paymentMethod.replace(/_/g, ' ')}</strong></div>
+                <div><span style={{ color: colors.muted }}>Status:</span> <strong>{(order.paymentStatus || order.status).replace(/_/g, ' ')}</strong></div>
+              </div>
+              {order.paymentMethod === 'BANK_TRANSFER' && order.paymentStatus === 'AWAITING_PAYMENT' && (
+                <div style={{ marginTop: 12, padding: '10px 12px', background: '#eff6ff', borderRadius: radii.sm, fontSize: 12, color: '#1e40af' }}>
+                  Please upload your bank transfer receipt to complete payment verification.
+                  Go to <strong>Account → Payments</strong> to submit your proof.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {canCancel && !showCancel && (
+              <button onClick={() => setShowCancel(true)} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>
+                Cancel Order
+              </button>
+            )}
+            {canReorder && (
+              <button onClick={handleReorder} disabled={reordering} style={{ padding: '8px 16px', fontSize: 13, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, opacity: reordering ? 0.6 : 1 }}>
+                {reordering ? 'Reordering…' : 'Reorder'}
+              </button>
+            )}
+            {canDispute && !showDispute && !disputeResult && (
+              <button onClick={() => { setShowDispute(true); setDisputeAgainst(order.storeId || ''); }} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, cursor: 'pointer' }}>
+                Raise Dispute
+              </button>
+            )}
+            {canReturn && !showReturn && (
+              <button onClick={() => { setShowReturn(true); setReturnError(''); }} style={{ padding: '8px 16px', fontSize: 13, background: '#fff', color: colors.brand[700], border: `1px solid ${colors.brand[300]}`, borderRadius: 6, cursor: 'pointer' }}>
+                Return Items
+              </button>
+            )}
+          </div>
+          {/* A4-7: reorder is per-line — some items may no longer be purchasable,
+              so say what happened instead of dropping the buyer on an empty cart. */}
+          {reorderError && (
+            <div role="alert" style={{ background: colors.errBg, border: `1px solid ${colors.errBorder}`, borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: colors.err }}>
+              {reorderError}
+            </div>
+          )}
+          {reorderResult && (
+            <div style={{ background: reorderResult.added.length > 0 ? '#ecfdf5' : '#fffbeb', border: `1px solid ${reorderResult.added.length > 0 ? '#6ee7b7' : '#fcd34d'}`, borderRadius: 8, padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#0f3340' }}>
+              {reorderResult.added.length > 0
+                ? `${reorderResult.added.length} item(s) added to your cart`
+                : 'Nothing could be re-added from this order'}
+              {reorderResult.skipped.length > 0 && (
+                <div style={{ fontSize: 12, color: '#92400e', marginTop: 4 }}>
+                  Unavailable: {reorderResult.skipped.map(s => `${s.title} — ${s.reason}`).join(' · ')}
+                </div>
+              )}
+              <Link href="/cart" style={{ display: 'inline-block', marginTop: 8, fontSize: 12, fontWeight: 600, color: '#0f3340', textDecoration: 'underline' }}>
+                Review cart
+              </Link>
+            </div>
+          )}
+          {showCancel && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: colors.err, marginBottom: 8 }}>Reason for cancellation</div>
+              {cancelError && <div style={{ fontSize: 12, color: '#991b1b', marginBottom: 8 }}>{cancelError}</div>}
+              <textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: `1px solid ${colors.border}`, borderRadius: 4, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleCancel} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: colors.err, color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Confirm Cancel</button>
+                <button onClick={() => setShowCancel(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 4, cursor: 'pointer' }}>Back</button>
+              </div>
+            </div>
+          )}
+
+          {/* P13: return creation form */}
+          {showReturn && (
+            <div data-testid="return-form" style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>Request a Return</div>
+              {returnError && <div role="alert" style={{ fontSize: 12, color: '#991b1b', marginBottom: 8, background: '#fef2f2', padding: '6px 10px', borderRadius: 4 }}>{returnError}</div>}
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Reason *</label>
+                {/* BD-P13-REASON-001: values are the shared REFUND_REASONS vocabulary */}
+                <select data-testid="return-reason" value={returnReason} onChange={e => setReturnReason(e.target.value)} style={{ width: '100%', padding: 8, border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}>
+                  <option value="">Select a reason…</option>
+                  <option value="PRODUCT_NOT_AS_DESCRIBED">Item defective, damaged or not as described</option>
+                  <option value="CUSTOMER_REQUEST">No longer needed</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Quantity per item *</label>
+                {(order.items || []).map((it: OrderItem, idx: number) => (
+                  <div key={it.id} data-testid={`return-line-${idx}`} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12 }}>
+                    <span style={{ flex: 1, color: '#374151' }}>{it.title || it.sku} × {it.quantity}</span>
+                    <input
+                      data-testid={`return-qty-${idx}`}
+                      type="number" min={0} max={it.quantity} value={returnQty[it.id] ?? 0}
+                      onChange={e => setReturnQty(prev => ({ ...prev, [it.id]: Math.max(0, Math.min(it.quantity, Number(e.target.value) || 0)) }))}
+                      style={{ width: 64, padding: '4px 6px', border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 12 }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>Description (optional)</label>
+                <textarea data-testid="return-desc" value={returnDesc} onChange={e => setReturnDesc(e.target.value)} rows={2} style={{ width: '100%', padding: 8, border: '1px solid #bfdbfe', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  data-testid="return-submit"
+                  onClick={async () => {
+                    if (!returnReason) { setReturnError('Please select a reason.'); return; }
+                    const lines = Object.entries(returnQty).filter(([, q]) => q > 0).map(([orderItemId, quantity]) => ({ orderItemId, quantity }));
+                    if (lines.length === 0) { setReturnError('Select at least one item to return.'); return; }
+                    setReturnSubmitting(true);
+                    setReturnError('');
+                    try {
+                      const ret = await createReturn({ subOrderId: orderId, reason: returnReason, description: returnDesc || undefined, lines });
+                      router.push(`/returns/${ret.id}`);
+                    } catch (err: any) {
+                      setReturnError(err.message || 'Return request failed');
+                    } finally {
+                      setReturnSubmitting(false);
+                    }
+                  }}
+                  disabled={returnSubmitting}
+                  style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#1e40af', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: returnSubmitting ? 0.6 : 1 }}
+                >
+                  {returnSubmitting ? 'Submitting…' : 'Submit Return'}
+                </button>
+                <button onClick={() => setShowReturn(false)} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: '1px solid #bfdbfe', borderRadius: 4, cursor: 'pointer' }}>Back</button>
+              </div>
+            </div>
+          )}
+
+          {/* Dispute creation form */}
+          {showDispute && !disputeResult && (
+            <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 8 }}>Raise a Dispute</div>
+              {disputeError && <div style={{ fontSize: 12, color: '#991b1b', marginBottom: 8, background: '#fef2f2', padding: '6px 10px', borderRadius: 4 }}>{disputeError}</div>}
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>Reason *</label>
+                <select value={disputeReason} onChange={e => setDisputeReason(e.target.value)} style={{ width: '100%', padding: 8, border: '1px solid #e5e7eb', borderRadius: 4, fontSize: 13, boxSizing: 'border-box' }}>
+                  <option value="">Select a reason…</option>
+                  <option value="ITEM_NOT_RECEIVED">Item not received</option>
+                  <option value="ITEM_DEFECTIVE">Item defective or damaged</option>
+                  <option value="WRONG_ITEM">Wrong item delivered</option>
+                  <option value="QUALITY_ISSUE">Quality not as described</option>
+                  <option value="LATE_DELIVERY">Delivery significantly late</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={async () => {
+                    if (!disputeReason) return;
+                    setDisputeSubmitting(true);
+                    setDisputeError('');
+                    try {
+                      const result = await createDispute(orderId, { againstId: disputeAgainst, reason: disputeReason });
+                      setDisputeResult(result);
+                      setShowDispute(false);
+                    } catch (err: any) {
+                      setDisputeError(err.message || 'Failed to raise dispute');
+                    } finally {
+                      setDisputeSubmitting(false);
+                    }
+                  }}
+                  disabled={disputeSubmitting || !disputeReason}
+                  style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: '#92400e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: disputeSubmitting ? 0.6 : 1 }}
+                >
+                  {disputeSubmitting ? 'Submitting…' : 'Submit Dispute'}
+                </button>
+                <button onClick={() => { setShowDispute(false); setDisputeError(''); }} style={{ padding: '6px 16px', fontSize: 12, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Dispute result + evidence */}
+          {disputeResult && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>
+                Dispute Raised — #{disputeResult.id.slice(0, 8)}
+              </div>
+              <div style={{ fontSize: 12, color: colors.muted, marginBottom: 12 }}>
+                Status: <strong style={{ color: disputeResult.status === 'OPEN' ? '#92400e' : colors.muted }}>{disputeResult.status}</strong> · Reason: {disputeResult.reason} · Opened: {new Date(disputeResult.createdAt).toLocaleDateString()}
+              </div>
+              {disputeEvents.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.brand[700], marginBottom: 6 }}>Event Timeline</div>
+                  {disputeEvents.map(ev => (
+                    <div key={ev.id} style={{ padding: '6px 0', borderBottom: '1px solid #f0f4f6', fontSize: 12 }}>
+                      <span style={{ fontWeight: 600, color: colors.brand[700] }}>{ev.type}</span>
+                      <span style={{ color: colors.muted, marginLeft: 8 }}>{new Date(ev.createdAt).toLocaleString()}</span>
+                      <div style={{ color: '#374151', marginTop: 2 }}>{ev.body}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {['OPEN', 'UNDER_REVIEW'].includes(disputeResult.status) && (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Submit Evidence</div>
+                  <textarea
+                    value={evidenceBody}
+                    onChange={e => setEvidenceBody(e.target.value)}
+                    rows={2}
+                    placeholder="Describe your issue or attach supporting information…"
+                    style={{ width: '100%', padding: 8, border: `1px solid ${colors.border}`, borderRadius: 4, fontSize: 12, marginBottom: 6, boxSizing: 'border-box' }}
+                  />
+                  <button
+                    onClick={async () => {
+                      if (!evidenceBody.trim()) return;
+                      setEvidenceSubmitting(true);
+                      try {
+                        await submitDisputeEvidence(disputeResult.id, evidenceBody);
+                        setEvidenceBody('');
+                        const events = await fetchDisputeEvents(disputeResult.id);
+                        setDisputeEvents(events);
+                      } catch (err: any) {
+                        setDisputeError(err.message || 'Failed to submit evidence');
+                      } finally {
+                        setEvidenceSubmitting(false);
+                      }
+                    }}
+                    disabled={evidenceSubmitting || !evidenceBody.trim()}
+                    style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: evidenceSubmitting ? 0.6 : 1 }}
+                  >
+                    {evidenceSubmitting ? 'Submitting…' : 'Submit Evidence'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right column — Timeline + Tracking */}
+        <div>
+          <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Order Timeline</div>
+            <OrderTimeline history={history} />
+          </div>
+
+          {/* M7.1 Shipment Tracking */}
+          {tracking && tracking.shipments.length > 0 && (
+            <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: colors.brand[700], marginBottom: 12 }}>Shipment Tracking</div>
+              {tracking.shipments.map((ts) => (
+                <div key={ts.orderId} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, color: colors.muted, marginBottom: 8 }}>
+                    Sub-order #{ts.orderId.slice(0, 8)} · <StatusBadge status={ts.status} />
+                  </div>
+                  {ts.shipment && (
+                    <div style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>
+                      Shipment: <strong style={{ color: colors.brand[700] }}>{ts.shipment.status.replace(/_/g, ' ')}</strong>
+                      {ts.shipment.assignedDriverId && ` · Driver assigned`}
+                      {ts.shipment.pickedUpAt && ` · Picked up`}
+                      {ts.shipment.deliveredAt && ` · Delivered`}
+                    </div>
+                  )}
+                  {ts.shipment?.exceptionStatus && (() => {
+                    const note = buyerDeliveryNote(ts.shipment!.exceptionStatus!);
+                    if (!note) return null;
+                    const active = ts.shipment.exceptionStatus === 'OPEN' || ts.shipment.exceptionStatus === 'RETRY_PENDING' || ts.shipment.exceptionStatus?.startsWith('RTS_');
+                    return (
+                      <div role="status" style={{ fontSize: 12, marginBottom: 8, padding: '6px 10px', borderRadius: 8, background: active ? '#fffbeb' : '#f0fdf4', border: `1px solid ${active ? '#fcd34d' : '#bbf7d0'}`, color: active ? '#92400e' : '#166534' }}>
+                        {note}
+                      </div>
+                    );
+                  })()}
+                  <div style={{ paddingLeft: 8, borderLeft: `2px solid ${colors.border}` }}>
+                    {/* M7.3-B.6: use buyer-safe event labels; internal events (RTS_*) return null and are not rendered. */}
+                    {ts.events
+                      .map((ev) => ({ ev, label: buyerEventLabel(ev.eventType) }))
+                      .filter(({ label }) => label !== null)
+                      .map(({ ev, label }, idx, visible) => (
+                      <div key={idx} style={{ padding: '4px 0 4px 12px', fontSize: 12, position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: -5, top: 8, width: 8, height: 8, borderRadius: '50%', background: idx === visible.length - 1 ? '#065f46' : '#d1d5db' }} />
+                        <div style={{ fontWeight: 600, color: colors.brand[700] }}>{label}</div>
+                        <div style={{ color: colors.muted, fontSize: 11 }}>{formatDate(ev.createdAt)} · {ev.actorType}</div>
+                        {ev.notes && <div style={{ color: '#374151', fontSize: 11, marginTop: 1 }}>{ev.notes}</div>}
+                      </div>
+                    ))}
+                    {ts.events.filter((ev) => buyerEventLabel(ev.eventType) !== null).length === 0 && (
+                      <div style={{ fontSize: 12, color: colors.muted, fontStyle: 'italic' }}>No tracking events yet</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}

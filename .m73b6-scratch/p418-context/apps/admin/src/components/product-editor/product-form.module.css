@@ -1,0 +1,56 @@
+/* product-form.module.css — Admin Product Editor styles */
+.shell { color: #16232b; font-size: 14px; }
+.header { padding: 30px 36px; background: linear-gradient(135deg,#0c2831,#1e6178); color: white; }
+.header h1 { margin: 0 0 8px; font-size: 23px; font-weight: 700; letter-spacing: -0.2px; }
+.header p { margin: 0; opacity: .7; font-size: 13px; }
+.content { padding: 24px 32px 48px; max-width: 960px; }
+.section { margin: 24px 0; padding: 24px; border: 1px solid #d9e2e6; border-radius: 10px; background: #fff; }
+.sectionTitle { margin: 0 0 16px; font-size: 16px; font-weight: 600; color: #0f3340; display: flex; align-items: center; gap: 8px; }
+.sectionSubtitle { margin: -8px 0 16px; font-size: 13px; color: #5b6b74; }
+.fieldGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; font-weight: 600; color: #16232b; }
+.field input, .field select, .field textarea {
+  padding: 9px 11px; font: inherit; border: 1px solid #d9e2e6; border-radius: 6px;
+  max-width: 100%; background: #fff; color: #16232b; transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible {
+  border-color: #1e6178; box-shadow: 0 0 0 3px rgba(30,97,120,0.35); outline: none;
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.field .help { font-size: 11px; color: #5b6b74; }
+.field .error { font-size: 11px; color: #b3372f; }
+.required { color: #b3372f; margin-left: 2px; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 20px 0; border-top: 1px solid #e5ecf0; margin-top: 24px; }
+.btnPrimary { padding: 10px 20px; font: inherit; font-weight: 600; background: #1e6178; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+.btnPrimary:hover { background: #174e62; }
+.btnPrimary:disabled { opacity: .5; cursor: not-allowed; }
+.btnSecondary { padding: 10px 20px; font: inherit; font-weight: 500; background: #fff; color: #0f3340; border: 1px solid #d9e2e6; border-radius: 6px; cursor: pointer; }
+.btnSecondary:hover { background: #f7f9fa; border-color: #b8d4e3; }
+.btnDanger { padding: 10px 20px; font: inherit; font-weight: 500; background: #fff; color: #b3372f; border: 1px solid #b3372f; border-radius: 6px; cursor: pointer; }
+.btnDanger:hover { background: #fef2f2; }
+.conflictBanner { padding: 16px 20px; background: #fef3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px; }
+.conflictBanner h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: #856404; }
+.conflictBanner p { margin: 0 0 12px; font-size: 13px; color: #856404; }
+.errorBanner { padding: 12px 16px; background: #fbeeec; color: #991b1b; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+.successBanner { padding: 12px 16px; background: #eaf5ef; color: #1b7a4b; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+.warningBanner { padding: 12px 16px; background: #fef3cd; color: #856404; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+.badge { display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
+.badgeRequired { background: #fef3cd; color: #856404; }
+.badgeOptional { background: #e5ecf0; color: #5b6b74; }
+.badgeMissing { background: #fbeeec; color: #991b1b; }
+.attrGroup { margin: 16px 0; }
+.attrGroupTitle { font-size: 13px; font-weight: 700; color: #0f3340; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e5ecf0; }
+.variantTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.variantTable th { background: #f7f9fa; padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 2px solid #d9e2e6; }
+.variantTable td { padding: 10px 12px; border-bottom: 1px solid #e5ecf0; }
+.mediaGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.mediaItem { border: 1px solid #d9e2e6; border-radius: 8px; padding: 8px; background: #fff; }
+.mediaItem img { width: 100%; height: 120px; object-fit: contain; }
+.mediaItem .mediaActions { display: flex; gap: 4px; margin-top: 6px; }
+.mediaItem .mediaActions button { padding: 4px 8px; font-size: 11px; border: 1px solid #d9e2e6; border-radius: 4px; background: #fff; cursor: pointer; }
+.mediaItem .mediaActions button:hover { background: #f7f9fa; }
+.reviewItem { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5ecf0; font-size: 13px; }
+.reviewItem:last-child { border-bottom: none; }
+.dirtyIndicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; margin-left: 8px; }
+@media (max-width: 700px) { .content { padding: 16px; } .header { padding: 24px 16px; } .fieldGrid { grid-template-columns: 1fr; } }

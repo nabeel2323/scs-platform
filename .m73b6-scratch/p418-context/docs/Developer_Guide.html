@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Technical developer guide for the Smart Commerce & Supply Platform (TAIF) — architecture, module boundaries, data flow, API contracts and extension patterns.">
+<title>Developer Guide — Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(135deg,var(--brand-2),var(--brand));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem;letter-spacing:.2px}
+  header.site p.sub{margin:0;opacity:.9;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+    padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  pre{background:#0f2530;color:#e6eef2;border-radius:8px;padding:1rem 1.1rem;overflow:auto;font-family:var(--mono);font-size:.84rem;line-height:1.5}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem}
+  .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .kpi{font-size:1.6rem;font-weight:800;color:var(--brand)}
+  .mermaid{background:#fbfcfd;border:1px dashed var(--line);border-radius:8px;padding:1rem;margin:1rem 0;text-align:center}
+  .muted{color:var(--muted)} .small{font-size:.85rem}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.2rem 0}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none}
+    .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Developer Guide</h1>
+    <p class="sub">Smart Commerce &amp; Supply Platform (TAIF) — a B2B-first marketplace. This manual explains the system architecture, module boundaries, data flow, API contracts and how to extend the platform safely.</p>
+    <div class="meta">
+      <span>NestJS Modular Monolith</span><span>Next.js Web + Admin</span><span>Flutter Mobile</span>
+      <span>PostgreSQL 16 + PostGIS</span><span>Redis 7</span><span>Drizzle ORM</span>
+      <span>Platform maturity 88/100</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">1. System Overview</a></li>
+      <li><a href="#arch">2. Architecture &amp; Module Boundaries</a></li>
+      <li><a href="#repo">3. Repository Structure</a></li>
+      <li><a href="#dataflow">4. Data Flow &amp; Outbox</a></li>
+      <li><a href="#fsm">5. Order State Machine</a></li>
+      <li><a href="#api">6. API Contracts</a></li>
+      <li><a href="#datamodel">7. Data Model &amp; Migrations</a></li>
+      <li><a href="#security">8. Auth &amp; Security</a></li>
+      <li><a href="#clients">9. Client Applications</a></li>
+      <li><a href="#extend">10. Extending the Platform</a></li>
+      <li><a href="#debt">11. Technical Debt &amp; Conventions</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="overview">
+      <h2>1. System Overview</h2>
+      <p>The Smart Commerce &amp; Supply Platform is a <strong>B2B-first marketplace</strong> connecting wholesalers (suppliers) with retailers (buyers), with a platform-admin console for governance. Phase&nbsp;1 is a launchable MVP; delivery, payments, B2C, advertising and AI are forward-declared phases whose schema and FSM states already exist but whose behaviour is dark.</p>
+      <div class="grid c4">
+        <div class="card"><div class="kpi">4</div><h4>Applications</h4><p class="small muted">API · Web · Admin · Mobile</p></div>
+        <div class="card"><div class="kpi">16</div><h4>Domain modules</h4><p class="small muted">12 active + 4 future-phase</p></div>
+        <div class="card"><div class="kpi">16</div><h4>Order statuses</h4><p class="small muted">Complete FSM from day one</p></div>
+        <div class="card"><div class="kpi">88<span style="font-size:1rem">/100</span></div><h4>Maturity</h4><p class="small muted">Phase 1 pilot-ready</p></div>
+      </div>
+
+      <h3>1.1 Application topology &amp; ports</h3>
+      <table>
+        <thead><tr><th>Application</th><th>Stack</th><th>Path</th><th>Port</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>Backend API</td><td>NestJS (modular monolith)</td><td><code>apps/api</code></td><td><code>3000</code></td><td>REST <code>/v1</code>, Socket.IO <code>/realtime</code>, outbox dispatcher</td></tr>
+          <tr><td>Web app</td><td>Next.js (App Router)</td><td><code>apps/web</code></td><td><code>3100</code></td><td>Retailer (buyer) + merchant surfaces</td></tr>
+          <tr><td>Admin console</td><td>Next.js (App Router)</td><td><code>apps/admin</code></td><td><code>3200</code></td><td>Platform operations &amp; governance</td></tr>
+          <tr><td>Mobile</td><td>Flutter (Riverpod + go_router)</td><td><code>mobile</code></td><td><code>3300</code> (dev)</td><td>Retail/wholesale flavors; driver scaffold</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">The API binds <code>0.0.0.0:3000</code>. CORS explicitly allows origins <code>3100</code>, <code>3200</code>, <code>3300</code> and the custom header <code>X-Device-Id</code> (device-trust sessions).</p>
+
+      <h3>1.2 Technology stack</h3>
+      <div class="grid c2">
+        <div class="card"><h4>Backend</h4><ul class="tight small">
+          <li>NestJS with URI versioning (<code>/v1</code>), Helmet, Pino structured logs, request-ID correlation</li>
+          <li>Drizzle ORM over PostgreSQL 16 (+ PostGIS for Phase 2 zones)</li>
+          <li>Redis 7 — rate limiting, OTP codes, import staging, refresh tokens</li>
+          <li>MinIO (S3-compatible) for media; FCM for push</li>
+          <li>Transactional outbox with a 1s polling <code>OutboxDispatcher</code></li>
+        </ul></div>
+        <div class="card"><h4>Frontend &amp; mobile</h4><ul class="tight small">
+          <li>Next.js App Router for web + admin (server components, typed fetch clients)</li>
+          <li>Flutter with Riverpod state, go_router navigation, Dio HTTP</li>
+          <li>Design tokens (TAIF brand) shared conceptually across web/mobile</li>
+          <li>Four Flutter flavors declared: wholesale · retail · driver · consumer</li>
+        </ul></div>
+      </div>
+      <div class="callout"><strong class="label">Authority</strong><p>This guide synthesises the strategic plan, the developer-ready implementation specification, the UI/UX plan and a live codebase audit (2026-09-05), cross-checked against the current source tree.</p></div>
+    </section>
+
+    <section id="arch">
+      <h2>2. Architecture &amp; Module Boundaries</h2>
+      <p>The backend is a <strong>modular monolith</strong>: one deployable, one database, with strictly enforced bounded contexts. Each NestJS module owns its tables, its domain events and a single public application service. Modules never read another module's tables — they call exported services or react to events.</p>
+
+      <div class="mermaid">
+flowchart TB
+  subgraph Clients["Clients"]
+    WEB["Web (Next.js) :3100"]
+    ADM["Admin (Next.js) :3200"]
+    MOB["Mobile (Flutter)"]
+  end
+  subgraph API["NestJS Modular Monolith :3000 (/v1)"]
+    ID["identity"]
+    MER["merchant"]
+    CAT["catalog"]
+    INV["inventory"]
+    PR["pricing"]
+    PROM["promotions"]
+    ORD["orders"]
+    REV["reviews"]
+    SUP["support"]
+    NOT["notifications"]
+    ANA["analytics"]
+    AUD["audit / outbox"]
+    RT["realtime (Socket.IO)"]
+  end
+  PG[("PostgreSQL 16 + PostGIS")]
+  RD[("Redis 7")]
+  S3[("MinIO / S3")]
+  FCM["FCM / SMS / Email"]
+  WEB & ADM & MOB -->|REST + JWT| API
+  API --> PG
+  API --> RD
+  CAT --> S3
+  NOT --> FCM
+  AUD -.->|1s poll dispatch| NOT & ANA & INV & RT
+      </div>
+
+      <h3>2.1 Module ownership matrix</h3>
+      <p>The authoritative map of where new code goes. <span class="pill p-brand">P1</span> modules are implemented; future-phase modules are forward-declared (schema/FSM ready, behaviour dark).</p>
+      <table>
+        <thead><tr><th>Module</th><th>Phase</th><th>Owns tables</th><th>Publishes</th><th>Consumes</th></tr></thead>
+        <tbody>
+          <tr><td><code>identity</code></td><td><span class="pill p-ok">P1</span></td><td>users, organizations, organization_members, roles, permissions, sessions</td><td><code>identity.user.registered</code></td><td>—</td></tr>
+          <tr><td><code>merchant</code></td><td><span class="pill p-ok">P1</span></td><td>stores, warehouses, business_documents, verification_requests</td><td><code>merchant.verification.approved</code></td><td><code>identity.user.registered</code></td></tr>
+          <tr><td><code>catalog</code></td><td><span class="pill p-ok">P1</span></td><td>categories, brands, products, product_variants, product_media, import_jobs</td><td><code>catalog.product.published</code>, <code>catalog.import.completed</code></td><td><code>merchant.verification.approved</code></td></tr>
+          <tr><td><code>inventory</code></td><td><span class="pill p-ok">P1</span></td><td>inventory_items, stock_movements</td><td><code>inventory.stock.reserved/released</code></td><td><code>order.accepted</code>, <code>order.cancelled</code></td></tr>
+          <tr><td><code>pricing</code></td><td><span class="pill p-ok">P1</span></td><td>price_lists, price_tiers</td><td><code>pricing.price_list.updated</code></td><td><code>catalog.product.published</code></td></tr>
+          <tr><td><code>promotions</code></td><td><span class="pill p-ok">P1</span></td><td>promotions, promotion_redemptions</td><td>—</td><td><code>order.submitted</code></td></tr>
+          <tr><td><code>orders</code></td><td><span class="pill p-ok">P1</span></td><td>carts, cart_items, master_orders, orders, order_items, order_financial_breakdown, order_status_history</td><td><code>order.*</code></td><td><code>inventory.stock.reserved</code>, <code>merchant.verification.approved</code></td></tr>
+          <tr><td><code>reviews</code></td><td><span class="pill p-ok">P1</span></td><td>reviews, trust_snapshots</td><td><code>review.created</code></td><td><code>order.completed</code></td></tr>
+          <tr><td><code>support</code></td><td><span class="pill p-ok">P1</span></td><td>disputes, dispute_events, conversations, messages</td><td><code>dispute.*</code></td><td><code>order.status.changed</code></td></tr>
+          <tr><td><code>notifications</code></td><td><span class="pill p-ok">P1</span></td><td>notifications, notification_preferences, device_tokens</td><td><code>notification.dispatched</code></td><td>all domain events (template-mapped)</td></tr>
+          <tr><td><code>analytics</code></td><td><span class="pill p-ok">P1</span></td><td>analytics_events</td><td>—</td><td>all domain events + client <code>track()</code></td></tr>
+          <tr><td><code>audit</code></td><td><span class="pill p-ok">P1</span></td><td>audit_logs, outbox_events</td><td>—</td><td>all domain events (outbox infra)</td></tr>
+          <tr><td><code>delivery</code></td><td><span class="pill p-info">P2</span></td><td>drivers, driver_vehicles, service_zones, delivery_jobs, delivery_job_events, driver_locations, proofs_of_delivery</td><td><code>delivery.*</code></td><td><code>order.status.changed</code></td></tr>
+          <tr><td><code>payments</code></td><td><span class="pill p-info">P3</span></td><td>payments, ledger_accounts, ledger_entries, settlements, settlement_lines, refunds, subscription_plans, merchant_subscriptions</td><td><code>payment.*</code>, <code>settlement.completed</code></td><td><code>order.submitted</code>, <code>order.status.changed</code></td></tr>
+          <tr><td><code>ads</code></td><td><span class="pill p-muted">P5</span></td><td>campaigns, ad_items, ad_events</td><td><code>ad.*</code></td><td>—</td></tr>
+          <tr><td><code>ai</code></td><td><span class="pill p-muted">P6</span></td><td>reorder_suggestions, ai_requests</td><td>—</td><td><code>order.completed</code>, analytics events</td></tr>
+        </tbody>
+      </table>
+
+      <h3>2.2 Uniform module layout</h3>
+      <pre><code>modules/orders/
+├── orders.module.ts        # wires controllers, service, repo, event handlers
+├── orders.controller.ts    # HTTP /v1/orders* — thin, delegates to service
+├── orders.service.ts       # application service — the ONLY public surface other modules may call
+├── orders.repo.ts          # Drizzle queries, private to module
+├── dto/                    # zod schemas re-exported from packages/contracts
+├── events/                 # event payloads + outbox writers
+├── guards/                 # org-scope + permission guards
+└── __tests__/              # unit + integration (Testcontainers)</code></pre>
+
+      <h3>2.3 Boundary rules (CI-enforced)</h3>
+      <ol class="tight">
+        <li><strong>Service-only cross-module calls</strong> — never import another module's repo or touch its tables.</li>
+        <li><strong>Side effects via the outbox</strong> — write <code>outbox_events</code> in the same transaction; never fire-and-forget.</li>
+        <li><strong>Read models are built by the consumer</strong> from events, not by joining another module's tables.</li>
+        <li><strong>Public contracts are versioned</strong> in <code>packages/contracts</code> (OpenAPI → generated TS/Dart).</li>
+        <li><strong>Extraction only on a trigger</strong> — scale divergence, team boundary or fault isolation. Until then: one database, one deployable.</li>
+      </ol>
+      <div class="callout warn"><strong class="label">Reality check</strong><p>The <code>packages/contracts</code> codegen boundary is <em>aspirational</em>: today web/admin hand-roll API clients and mobile re-declares JSON shapes. This is the single largest drift risk (see §11).</p></div>
+    </section>
+
+    <section id="repo">
+      <h2>3. Repository Structure</h2>
+      <pre><code>scs-platform/
+├── apps/
+│   ├── api/                    # NestJS modular monolith (src/modules/* per §2)
+│   ├── web/                    # Next.js: marketing + retailer/merchant app
+│   └── admin/                  # Next.js: platform admin console
+├── mobile/
+│   ├── lib/                    # router, providers (Riverpod), models, services, screens
+│   ├── flavors/                # wholesale | retail entry points (driver/consumer declared)
+│   └── packages/mobile-core/   # design tokens, api client, auth storage
+├── packages/
+│   ├── contracts/              # zod schemas → OpenAPI 3.1 → generated TS/Dart clients (planned)
+│   ├── ui-kit/                 # web design system (TAIF tokens)
+│   ├── event-types/            # domain + analytics event schemas (versioned)
+│   └── env/                    # zod-validated environment schemas per app
+├── infra/
+│   ├── docker-compose.dev.yml  # postgres:16-postgis, redis:7, minio, mailhog
+│   ├── drizzle/migrations/     # CANONICAL migration location (0001–0012 for Phase 1)
+│   ├── backup/                 # backup-db.ps1/.sh + restore runbook
+│   ├── k8s/                    # manifests/Helm per environment
+│   ├── load/                   # k6 scenarios
+│   └── ci/                     # pipeline definitions
+└── docs/                       # ADRs, module READMEs, runbooks, this guide</code></pre>
+      <div class="callout crit"><strong class="label">Migration gotcha</strong><p>Migrations live in the repo-root <code>infra/drizzle/migrations/</code>, <strong>not</strong> <code>apps/api/drizzle/migrations/</code>. A migration placed in the app-local folder is invisible to the runner — this has already caused a near-miss (0010).</p></div>
+      <h3>3.1 Environments</h3>
+      <table>
+        <thead><tr><th>Env</th><th>Purpose</th><th>Data</th><th>Rules</th></tr></thead>
+        <tbody>
+          <tr><td>dev</td><td>Local + shared dev</td><td>Seeded fixtures</td><td>Compose parity with prod images; <code>db:reset</code></td></tr>
+          <tr><td>preview</td><td>Per-PR ephemeral</td><td>Anonymised subset</td><td>CI-provisioned; smoke + contract tests; torn down on merge</td></tr>
+          <tr><td>staging</td><td>Pre-prod integration, load</td><td>Prod-like, anonymised</td><td>Payment sandbox, FCM test project; k6 gates</td></tr>
+          <tr><td>prod</td><td>Live</td><td>Real</td><td>Migration-gated deploys, blue-green, PITR backups</td></tr>
+        </tbody>
+      </table>
+      <p class="small muted">Configuration is 12-factor: every app validates its environment through <code>packages/env</code> zod schemas at boot and fails fast. Secrets live in the platform secret manager, never in the repo.</p>
+    </section>
+
+    <section id="dataflow">
+      <h2>4. Data Flow &amp; the Transactional Outbox</h2>
+      <p>State changes are the heart of the platform. Every mutation follows one transactional unit so that the database and the event stream can never diverge:</p>
+      <div class="mermaid">
+sequenceDiagram
+  participant C as Client
+  participant Ctrl as Controller
+  participant Svc as Application Service
+  participant DB as PostgreSQL (tx)
+  participant OB as outbox_events
+  participant D as OutboxDispatcher (1s)
+  participant H as Consumers (notifications/analytics/inventory/realtime)
+  C->>Ctrl: POST /v1/... (JWT + Idempotency-Key)
+  Ctrl->>Svc: delegate (thin controller)
+  Svc->>DB: BEGIN — guard → mutate → history row
+  Svc->>OB: INSERT outbox event (same tx)
+  DB-->>Svc: COMMIT
+  Svc-->>C: 200/201 (RFC 7807 on error)
+  D->>OB: poll unpublished
+  D->>H: fan-out domain event
+  H-->>D: ack → mark published
+      </div>
+      <h3>4.1 Why the outbox</h3>
+      <ul class="tight">
+        <li><strong>Atomicity</strong> — the business row and its event commit together; no "updated but not notified" states.</li>
+        <li><strong>At-least-once delivery</strong> — the dispatcher retries until a consumer acks; consumers must be idempotent.</li>
+        <li><strong>Future extraction</strong> — the event log is the seam along which a module (notifications first) can later become a service.</li>
+      </ul>
+      <h3>4.2 Request lifecycle &amp; cross-cutting middleware</h3>
+      <ol class="tight">
+        <li><strong>Helmet</strong> security headers → <strong>request-ID</strong> correlation → <strong>Pino</strong> structured log line <code>{ts,level,reqId,module,userId?,orgId?,msg}</code>.</li>
+        <li><strong>JWT guard</strong> validates the access token (15-min TTL); <code>@RequirePermission()</code> adds RBAC where declared.</li>
+        <li><strong>Org-scope guard</strong> restricts merchant/admin reads to the actor's active organisation.</li>
+        <li><strong>Validation pipe</strong> (<code>forbidNonWhitelisted</code>) — effective only where DTOs exist (see §11).</li>
+        <li><strong>AllExceptionsFilter</strong> renders every failure as RFC 7807 <code>application/problem+json</code>.</li>
+      </ol>
+      <h3>4.3 Domain event catalogue (Phase 1)</h3>
+      <table>
+        <thead><tr><th>Event</th><th>Producer</th><th>Notable consumers</th></tr></thead>
+        <tbody>
+          <tr><td><code>identity.user.registered</code></td><td>identity</td><td>merchant (bootstrap)</td></tr>
+          <tr><td><code>merchant.verification.approved</code></td><td>merchant</td><td>catalog (unlock publishing), orders</td></tr>
+          <tr><td><code>catalog.product.published</code></td><td>catalog</td><td>pricing, analytics</td></tr>
+          <tr><td><code>catalog.import.completed</code></td><td>catalog</td><td>notifications</td></tr>
+          <tr><td><code>order.submitted</code></td><td>orders</td><td>promotions, notifications, analytics</td></tr>
+          <tr><td><code>order.accepted</code> / <code>order.cancelled</code></td><td>orders</td><td>inventory (reserve/release)</td></tr>
+          <tr><td><code>order.status.changed</code></td><td>orders</td><td>support, notifications, realtime</td></tr>
+          <tr><td><code>order.completed</code></td><td>orders</td><td>reviews (open window), analytics</td></tr>
+          <tr><td><code>inventory.stock.reserved/released</code></td><td>inventory</td><td>orders, notifications</td></tr>
+          <tr><td><code>review.created</code> · <code>dispute.*</code></td><td>reviews / support</td><td>notifications, analytics</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong class="label">Realtime gap</strong><p>A Socket.IO gateway exists at <code>/realtime</code> (rooms <code>user:{id}</code>, <code>org:{id}</code>, <code>order:{id}</code>), but <strong>no client connects</strong>. Notifications are FCM + poll based; order-status push is not yet wired end-to-end.</p></div>
+    </section>
+
+    <section id="fsm">
+      <h2>5. Order State Machine</h2>
+      <p>The order lifecycle implements <strong>all 16 canonical statuses from day one</strong>. Delivery states and <code>PAYMENT_PENDING</code> exist in the Phase 1 machine but are unreachable until Phase 2/3 ship — later phases add <em>behaviour</em>, not schema. The FSM guard table lives in <code>orders/fsm.ts</code> as data, so the matrix below is executable documentation.</p>
+      <p class="small"><strong>Statuses:</strong>
+        <span class="pill p-info">DRAFT</span> <span class="pill p-info">SUBMITTED</span> <span class="pill p-info">PENDING_CONFIRMATION</span>
+        <span class="pill p-brand">ACCEPTED</span> <span class="pill p-brand">PARTIALLY_ACCEPTED</span> <span class="pill p-warn">PAYMENT_PENDING</span>
+        <span class="pill p-brand">PREPARING</span> <span class="pill p-brand">READY</span> <span class="pill p-info">ASSIGNED</span>
+        <span class="pill p-info">PICKED_UP</span> <span class="pill p-info">OUT_FOR_DELIVERY</span> <span class="pill p-ok">DELIVERED</span>
+        <span class="pill p-ok">COMPLETED</span> <span class="pill p-muted">CANCELLED</span> <span class="pill p-muted">REJECTED</span> <span class="pill p-err">DISPUTED</span>
+      </p>
+
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> DRAFT
+  DRAFT --> SUBMITTED: Checkout (buyer)
+  SUBMITTED --> PENDING_CONFIRMATION: Auto + notify merchant, start SLA
+  PENDING_CONFIRMATION --> ACCEPTED: Merchant accept-all (reserve stock)
+  PENDING_CONFIRMATION --> PARTIALLY_ACCEPTED: Merchant accept-partial
+  PENDING_CONFIRMATION --> REJECTED: Merchant reject (reason)
+  PENDING_CONFIRMATION --> CANCELLED: SLA expiry
+  ACCEPTED --> PREPARING: Auto (prepay off — P1)
+  PARTIALLY_ACCEPTED --> PREPARING: Auto (prepay off — P1)
+  ACCEPTED --> PAYMENT_PENDING: Auto (prepay on — P3)
+  PAYMENT_PENDING --> PREPARING: Payment webhook (P3)
+  PREPARING --> READY: Merchant
+  READY --> ASSIGNED: Delivery job created (P2)
+  READY --> DELIVERED: Pickup code verified
+  ASSIGNED --> PICKED_UP: Driver pickup (P2)
+  PICKED_UP --> OUT_FOR_DELIVERY: Driver departs (P2)
+  OUT_FOR_DELIVERY --> DELIVERED: POD submitted (P2)
+  DELIVERED --> COMPLETED: Financial closure
+  DELIVERED --> DISPUTED: Dispute opened (<=72h)
+  COMPLETED --> DISPUTED: Dispute opened (<=72h)
+  COMPLETED --> [*]
+  CANCELLED --> [*]
+  REJECTED --> [*]
+      </div>
+
+      <h3>5.1 Transition matrix (guards &amp; side effects)</h3>
+      <table>
+        <thead><tr><th>From</th><th>Trigger (actor)</th><th>To</th><th>Guards &amp; side effects</th></tr></thead>
+        <tbody>
+          <tr><td>DRAFT</td><td>Checkout (buyer)</td><td>SUBMITTED</td><td>Validate MOQ per line; snapshot prices onto items; write <code>order_financial_breakdown</code>; emit <code>order.submitted</code></td></tr>
+          <tr><td>SUBMITTED</td><td>Auto</td><td>PENDING_CONFIRMATION</td><td>Notify merchant (push + in-app); start confirmation SLA timer (default 12h → <code>sla_at</code>)</td></tr>
+          <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-all</td><td>ACCEPTED</td><td>Reserve inventory (same tx); re-price guard → line-level delta confirm if price list changed</td></tr>
+          <tr><td>PENDING_CONFIRMATION</td><td>Merchant accept-partial</td><td>PARTIALLY_ACCEPTED</td><td>Reserve confirmed qty only; release the rest; buyer notified of per-line deltas</td></tr>
+          <tr><td>PENDING_CONFIRMATION</td><td>Reject / SLA expiry</td><td>REJECTED / CANCELLED</td><td>Reason mandatory; notify buyer; nothing reserved</td></tr>
+          <tr><td>ACCEPTED / PARTIAL</td><td>Auto (prepay off — P1 default)</td><td>PREPARING</td><td>Payment on account; <code>prepayEnabled</code> flag flips this in P3</td></tr>
+          <tr><td>PAYMENT_PENDING</td><td>Payment webhook (P3)</td><td>PREPARING</td><td>Idempotent handler; failure → retry / CANCELLED per policy</td></tr>
+          <tr><td>PREPARING</td><td>Merchant</td><td>READY</td><td>Notify buyer; PICKUP → handover code; delivery → create <code>delivery_jobs</code> (P2)</td></tr>
+          <tr><td>READY</td><td>Pickup code verified</td><td>DELIVERED</td><td>Handover OTP verified at pickup</td></tr>
+          <tr><td>OUT_FOR_DELIVERY</td><td>POD submitted (P2)</td><td>DELIVERED</td><td>OTP/photo/signature + geo + recipient name</td></tr>
+          <tr><td>DELIVERED</td><td>Financial closure</td><td>COMPLETED</td><td><code>finalized_at</code> set; review window opens</td></tr>
+          <tr><td>DELIVERED / COMPLETED</td><td>Dispute opened (≤72h)</td><td>DISPUTED</td><td>Evidence bundle attached; support workflow</td></tr>
+          <tr><td>any pre-DELIVERED</td><td>Cancellation policy</td><td>CANCELLED</td><td>Free until ACCEPTED; policy fee after; release reservations; sub-order scope only</td></tr>
+        </tbody>
+      </table>
+
+      <h3>5.2 Canonical transition implementation</h3>
+      <pre><code>// orders.service.ts — every transition is a single transactional unit
+async transition(orderId, to, actor, reason?, idemKey?) {
+  return this.db.transaction(async (tx) => {
+    await this.idem.seenOrReplay(idemKey, tx);                 // 1. idempotency
+    const order = await tx.repo.orders.lockForUpdate(orderId);   // 2. row lock — no lost transitions
+    const guard = this.fsm.guard(order.status, to);             // 3. FSM guard — only source of truth
+    if (!guard.allowed) throw new InvalidTransitionProblem(order.status, to);
+    await guard.sideEffects(tx, order, actor);                  // 4. reserve/release stock, re-price, webhook
+    await tx.repo.orders.setStatus(orderId, to);
+    await tx.repo.statusHistory.insert({ orderId, from: order.status, to, actor, reason });
+    await tx.repo.outbox.insert({                               // 5. exactly one event
+      aggregateType: 'order', aggregateId: orderId,
+      eventType: 'order.status.changed',
+      payload: { orderId, from: order.status, to, at: new Date() },
+    });
+  });
+}</code></pre>
+      <p class="small muted">Rules encoded once, reused everywhere: no controller calls a repo directly; no transition bypasses <code>transition()</code>. Both the service matrix and the mobile FSM (<code>merchant_orders_screen.dart</code>) are aligned. <code>resolveStatusAlias()</code> maps legacy <code>CONFIRMED → PENDING_CONFIRMATION</code> for backward compatibility.</p>
+
+      <h3>5.3 Policies</h3>
+      <ul class="tight">
+        <li><strong>Re-price guard:</strong> if the price list changed between checkout and acceptance, acceptance returns <code>409 price_changed</code> with per-line deltas; the merchant confirms each changed line.</li>
+        <li><strong>Idempotency:</strong> all transition endpoints accept <code>Idempotency-Key</code>; replays return the original result, never a second transition.</li>
+        <li><strong>SLA timers:</strong> a delayed job fires at <code>sla_at − 2h</code> (<code>order.sla.warning</code>) and at <code>sla_at</code> (auto-CANCELLED, reason <code>SLA_EXPIRED</code>).</li>
+        <li><strong>Partial cancellation:</strong> only the affected sub-order changes; <code>master_orders.status</code> is derived worst-of (any DISPUTED → master DISPUTED).</li>
+        <li><strong>Dispute window:</strong> 72h from DELIVERED; opening freezes <code>finalized_at</code> (P3: freezes settlement lines).</li>
+      </ul>
+    </section>
+
+    <section id="api">
+      <h2>6. API Contracts</h2>
+      <h3>6.1 Conventions</h3>
+      <ul class="tight">
+        <li>REST over HTTPS at <code>/v1</code>, JSON, <strong>camelCase</strong>. Errors are RFC 7807 <code>application/problem+json</code> with a stable <code>type</code> URI per error family.</li>
+        <li><code>Idempotency-Key</code> header <strong>required</strong> on <code>POST /v1/checkout</code>, all order state transitions, and (P3) payment intents &mdash; Redis-backed 24h store; identical replay returns the original result.</li>
+        <li>Cursor pagination (<code>?limit=50&amp;cursor=</code>); filters/sorts whitelisted per endpoint; optimistic concurrency via <code>If-Match</code> ETag on catalog/admin mutations.</li>
+        <li>Rate limits: Redis token bucket per user/IP/role with <code>X-RateLimit-*</code> headers; OTP endpoints additionally throttle by phone number (5 / 15 min).</li>
+      </ul>
+      <h4>Canonical error shape</h4>
+      <pre><code>{
+  "type": "https://api.scsp.dev/errors/order/invalid-transition",
+  "title": "Invalid order transition",
+  "status": 409,
+  "detail": "Order cannot move from DELIVERED to PREPARING.",
+  "instance": "/v1/orders/ord_9f3c/status"
+}</code></pre>
+
+      <h3>6.2 Controller inventory (15 controllers)</h3>
+      <table>
+        <thead><tr><th>Module</th><th>Controller</th><th>Base path</th><th>Auth model</th></tr></thead>
+        <tbody>
+          <tr><td>identity</td><td><code>auth.controller.ts</code></td><td><code>/v1/auth</code></td><td>Public (OTP), JWT (refresh/logout/switch-org)</td></tr>
+          <tr><td>identity</td><td><code>profile.controller.ts</code></td><td><code>/v1/me</code></td><td>JWT (self)</td></tr>
+          <tr><td>identity</td><td><code>organizations.controller.ts</code></td><td><code>/v1/organizations</code></td><td>JWT + org membership</td></tr>
+          <tr><td>merchant</td><td><code>merchant.controller.ts</code></td><td><em>inline</em> (<code>/v1/stores</code>, <code>/v1/merchant/*</code>)</td><td>JWT + org-scope; <span class="pill p-warn">RBAC partial</span></td></tr>
+          <tr><td>catalog</td><td><code>catalog.controller.ts</code></td><td><em>inline</em> (<code>/v1/products</code>, <code>/v1/categories</code>, <code>/v1/media</code>)</td><td>JWT; brands guarded</td></tr>
+          <tr><td>inventory</td><td><code>inventory.controller.ts</code></td><td><em>inline</em> (<code>/v1/inventory</code>)</td><td>JWT + org-scope</td></tr>
+          <tr><td>pricing</td><td><code>pricing.controller.ts</code></td><td><em>inline</em> (<code>/v1/price-lists</code>)</td><td>JWT + org-scope</td></tr>
+          <tr><td>promotions</td><td><code>promotions.controller.ts</code></td><td><em>inline</em> (<code>/v1/promotions</code>, <code>/v1/offers</code>)</td><td>JWT</td></tr>
+          <tr><td>orders</td><td><code>cart.controller.ts</code></td><td><code>/v1/cart</code></td><td>JWT (self)</td></tr>
+          <tr><td>orders</td><td><code>orders.controller.ts</code></td><td><em>inline</em> (<code>/v1/checkout</code>, <code>/v1/orders</code>)</td><td>JWT + Idempotency-Key</td></tr>
+          <tr><td>reviews</td><td><code>reviews.controller.ts</code></td><td><em>inline</em></td><td>JWT (order-gated)</td></tr>
+          <tr><td>reviews</td><td><code>disputes.controller.ts</code></td><td><em>inline</em></td><td>JWT + party check</td></tr>
+          <tr><td>notifications</td><td><code>notifications.controller.ts</code></td><td><em>inline</em></td><td>JWT (self)</td></tr>
+          <tr><td>analytics</td><td><code>analytics.controller.ts</code></td><td><code>/v1/analytics</code></td><td>JWT / public track</td></tr>
+          <tr><td>admin</td><td><code>admin.controller.ts</code></td><td><code>/v1/admin</code></td><td><span class="pill p-ok">RBAC enforced</span> <code>admin:*</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>6.3 Phase 1 endpoint index</h3>
+      <table>
+        <thead><tr><th>Group</th><th>Endpoints</th></tr></thead>
+        <tbody>
+          <tr><td>Auth</td><td><code>POST /v1/auth/otp/request</code> · <code>otp/verify</code> · <code>refresh</code> · <code>logout</code> · <code>switch-org</code> · password login/setup/change</td></tr>
+          <tr><td>Users</td><td><code>GET/PATCH /v1/me</code> · <code>GET /v1/me/organizations</code> · <code>POST /v1/me/devices</code> · sessions</td></tr>
+          <tr><td>Organizations</td><td><code>POST /v1/organizations</code> · <code>join</code> · <code>GET/PATCH /v1/organizations/{id}</code> · <code>GET/POST .../{id}/members</code> · <code>DELETE .../members/{userId}</code></td></tr>
+          <tr><td>Merchant</td><td><code>POST /v1/stores</code> · <code>PATCH /v1/stores/{id}</code> · <code>GET /v1/stores/{id}</code> · documents · warehouses · <code>GET /v1/merchant/customers</code></td></tr>
+          <tr><td>Catalog</td><td><code>POST/PATCH/DELETE /v1/products[/{id}]</code> · variants · media list/add · <code>POST /v1/media/presign</code> · categories CRUD · <code>POST /v1/catalog/imports</code></td></tr>
+          <tr><td>Inventory</td><td><code>GET /v1/inventory</code> · <code>PATCH /v1/inventory/{itemId}</code> · low-stock · warehouses · adjust stock</td></tr>
+          <tr><td>Pricing</td><td><code>POST /v1/price-lists</code> · <code>POST /v1/price-lists/{id}/tiers</code> · <code>GET /v1/products/{id}/pricing</code></td></tr>
+          <tr><td>Promotions</td><td><code>POST /v1/promotions</code> · <code>GET /v1/promotions</code> · <code>GET /v1/offers/nearby</code></td></tr>
+          <tr><td>Search</td><td><code>GET /v1/search</code> · <code>GET /v1/categories</code> · <code>GET /v1/categories/{id}/products</code></td></tr>
+          <tr><td>Cart</td><td><code>GET /v1/cart</code> · <code>POST /v1/cart/items</code> · <code>PATCH/DELETE /v1/cart/items/{id}</code></td></tr>
+          <tr><td>Orders</td><td><code>POST /v1/checkout</code> · <code>GET /v1/orders[/{id}]</code> · <code>POST /v1/orders/{id}/accept|reject|cancel|reorder|status</code> · <code>.../items/{itemId}/confirm</code></td></tr>
+          <tr><td>Reviews</td><td><code>POST /v1/orders/{id}/review</code> · <code>GET /v1/stores/{id}/reviews</code></td></tr>
+          <tr><td>Notifications</td><td><code>GET /v1/notifications</code> · <code>PATCH /v1/notifications/{id}/read</code> · <code>GET/PATCH /v1/notification-preferences</code></td></tr>
+          <tr><td>Admin</td><td><code>GET /v1/admin/verifications</code> · <code>POST .../{id}/decision</code> · <code>GET /v1/admin/orders|merchants|users|kpis|audit-logs</code> · user role writes</td></tr>
+          <tr><td>Realtime</td><td><code>WS /v1/realtime</code> &mdash; rooms <code>user:{id}</code> · <code>org:{id}</code> · <code>order:{id}</code> <span class="pill p-warn">no client</span></td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong class="label">Contract rule</strong><p>All order-mutating endpoints require <code>Idempotency-Key</code>. Contracts are meant to live in <code>packages/contracts</code> &mdash; "if it is not in OpenAPI, it does not exist." Today this is enforced by convention, not codegen.</p></div>
+    </section>
+
+    <section id="datamodel">
+      <h2>7. Data Model &amp; Migrations</h2>
+      <p>All Phase 1 DDL follows the conventions: <strong>app-generated UUIDv7</strong> primary keys, <code>timestamptz</code> in UTC, money as <code>bigint</code> minor units with a <code>char(3)</code> currency, and statuses as <code>varchar</code> + CHECK constraints. The Drizzle schema is defined per module in <code>&lt;module&gt;.schema.ts</code> (organization tables live in <code>identity/identity.schema.ts</code>, not a central <code>packages/db</code>).</p>
+      <h3>7.1 Migration plan</h3>
+      <div class="grid c2">
+        <div class="card"><h4>Phase 1 &mdash; <code>0001</code>&ndash;<code>0012</code></h4><ul class="tight small">
+          <li><code>0001_identity</code> · <code>0002_merchant</code> · <code>0003_catalog</code></li>
+          <li><code>0004_inventory</code> · <code>0005_pricing</code> · <code>0006_orders</code></li>
+          <li><code>0007_promotions</code> · <code>0008_trust</code> · <code>0009_comms</code></li>
+          <li><code>0010_platform</code> (audit, outbox, analytics, flags)</li>
+          <li><code>0011_search</code> (pg_trgm, tsvector, Arabic normalisation)</li>
+          <li><code>0012_seed</code> (roles, permissions, categories, FREE plan)</li>
+          <li><code>0014</code> dual-auth · <code>0015</code> import stats (remediation)</li>
+        </ul></div>
+        <div class="card"><h4>Forward-declared</h4><ul class="tight small">
+          <li><span class="pill p-info">P2</span> <code>0013</code>&ndash;<code>0016</code>: drivers, zones, delivery, location partitions</li>
+          <li><span class="pill p-info">P3</span> <code>0017</code>&ndash;<code>0020</code>: payments, ledger, settlements, subscriptions</li>
+          <li><span class="pill p-muted">P4</span> <code>0021</code>&ndash;<code>0022</code>: consumer, service areas</li>
+          <li><span class="pill p-muted">P5</span> <code>0023</code>&ndash;<code>0024</code>: campaigns, ad-event partitions</li>
+          <li><span class="pill p-muted">P6</span> <code>0025</code>: ai</li>
+        </ul></div>
+      </div>
+      <h3>7.2 Money, pricing &amp; the financial breakdown</h3>
+      <p>Orders carry an <code>order_financial_breakdown</code> that is <strong>shadow-populated from Phase 1</strong> so Phase 3 activates it rather than retrofitting. Line items snapshot SKU, title and unit price at checkout so later catalog edits never mutate history.</p>
+      <div class="callout crit"><strong class="label">Live defect &mdash; pricing not applied (API-B4)</strong><p>In <code>orders.service.ts</code> the checkout totals still hardcode <code>discount = 0</code>, <code>deliveryFee = 0</code>, <code>tax = 0</code> (lines 104&ndash;106). Promo codes are stored on the order but never priced, and 15% KSA VAT is unapplied. This is the top open P1 correctness gap for transactions.</p></div>
+      <h3>7.3 Identity &amp; roles</h3>
+      <p>Role keys are seeded as <code>SUPER_ADMIN</code>, <code>ADMIN</code>, <code>MODERATOR</code>, <code>MERCHANT_OWNER</code>, <code>MERCHANT_STAFF</code>, <code>BUYER</code> &mdash; there is <em>no</em> generic <code>OWNER</code>/<code>MEMBER</code> key. Org creation awards <code>MERCHANT_OWNER</code>; joining by invite code awards <code>MERCHANT_STAFF</code>. Organizations carry a unique 12-char <code>invite_code</code>.</p>
+    </section>
+
+    <section id="security">
+      <h2>8. Authentication &amp; Security</h2>
+      <h3>8.1 Dual-auth with device trust</h3>
+      <div class="mermaid">
+sequenceDiagram
+  participant U as User (web/mobile)
+  participant A as API identity
+  participant R as Redis
+  participant DB as sessions
+  U->>A: POST /auth/otp/request {phone}
+  A->>R: store otp phone (dev: no SMS)
+  U->>A: POST /auth/otp/verify {phone, otp, deviceId}
+  A->>DB: create session WITH device_id (device trust)
+  A-->>U: accessToken(15m) + refreshToken (rotating)
+  Note over U,A: Later, on a trusted device
+  U->>A: POST /auth/login {phone, password, deviceId}
+  A->>DB: device_id matches a trusted session?
+  alt trusted
+    A-->>U: tokens (no OTP)
+  else new device
+    A-->>U: requiresOtp step-up
+  end
+      </div>
+      <ul class="tight">
+        <li><strong>Passwords:</strong> bcrypt cost 12, NIST-aligned rules, <code>credential_audit_log</code>.</li>
+        <li><strong>OTP:</strong> codes in Redis key <code>otp:&lt;phone&gt;</code> (dev emits to Redis, not SMS); rate limit 5/15 min; typed 401/429 (was HTTP 500).</li>
+        <li><strong>JWT:</strong> 15-min access + rotating refresh with <strong>reuse detection</strong> (<code>revokeChain</code> on replay).</li>
+        <li><strong>Device trust:</strong> <code>deviceId</code> persisted on the session at OTP verify (fixed 2026-09-04) &mdash; ends the infinite-OTP loop on new-device password login.</li>
+      </ul>
+      <h3>8.2 RBAC posture</h3>
+      <p>Authorisation uses a JWT guard everywhere plus a <code>@RequirePermission()</code> decorator for fine-grained rights. Current coverage: <strong>19 usages</strong> &mdash; 15 in <code>admin.controller.ts</code> (<code>admin:*</code>), 3 merchant verification-review, 1 catalog brands.</p>
+      <div class="callout warn"><strong class="label">Open &mdash; merchant write RBAC (API-B6)</strong><p>Merchant/catalog <em>write</em> endpoints (products, orders, promotions, store mutations) rely on the JWT + org-scope guard alone, with no explicit permission keys. Recommended: seed <code>merchant:products:write</code>, <code>merchant:orders:write</code>, <code>merchant:promotions:write</code> and annotate the write routes.</p></div>
+      <h3>8.3 Hardening checklist</h3>
+      <ul class="tight">
+        <li><span class="pill p-ok">Done</span> CORS allows <code>X-Device-Id</code> (preflight 204 verified).</li>
+        <li><span class="pill p-ok">Done</span> Typed auth errors (RFC 7807) instead of generic 500s.</li>
+        <li><span class="pill p-ok">Done</span> Daily Postgres backup + restore drill (<code>infra/backup/</code>).</li>
+        <li><span class="pill p-warn">Open</span> Production config gate: fail fast if <code>JWT_ACCESS_SECRET</code> unset outside dev.</li>
+        <li><span class="pill p-warn">Open</span> DTOs for all auth bodies so <code>forbidNonWhitelisted</code> actually filters.</li>
+        <li><span class="pill p-warn">Open</span> <code>switchOrg</code> re-signs the JWT but does not revoke the old access token (&le;15-min stale-permission window).</li>
+      </ul>
+    </section>
+
+    <section id="clients">
+      <h2>9. Client Applications</h2>
+      <div class="grid c3">
+        <div class="card"><h4>Web (buyer + merchant)</h4><p class="small">39 files · 13 route groups. The most mature session client: event emitter, auto-refresh, synthetic 401. Typed contracts in <code>src/lib/buyer-api.ts</code>. Merchant surfaces: catalog, product editor, import wizard, inventory, pricing, promotions, customers, orders, store, org, verification.</p></div>
+        <div class="card"><h4>Admin console</h4><p class="small">12 pages: overview, users, merchants, verification (+ detail), categories, products, orders, disputes, KPIs, audit. Extension pattern: add <code>src/app/&lt;feature&gt;/page.tsx</code>, register helpers in <code>src/lib/api.ts</code>, add a link in <code>AdminSidebar.tsx</code>. Now ships dual-auth.</p></div>
+        <div class="card"><h4>Mobile (Flutter)</h4><p class="small">40 Dart files · Riverpod, go_router, Dio. Auth (dual + sessions), commerce (stores/products/cart/checkout/orders/reorder/reviews/favorites), orgs, notifications (FCM + local), a full <strong>merchant hub</strong> and a driver dashboard scaffold.</p></div>
+      </div>
+      <h3>9.1 Shared client concerns</h3>
+      <table>
+        <thead><tr><th>Aspect</th><th>API</th><th>Web</th><th>Admin</th><th>Mobile</th></tr></thead>
+        <tbody>
+          <tr><td>Access token TTL</td><td>15 min</td><td>15 min</td><td>15 min</td><td>via Dio interceptor</td></tr>
+          <tr><td>Refresh rotation</td><td>reuse detection</td><td><span class="pill p-warn">no single-flight</span></td><td>ok</td><td>ok</td></tr>
+          <tr><td>Device trust</td><td><code>deviceId</code> on session</td><td><code>getDeviceId()</code></td><td><code>device-id.ts</code></td><td><code>DeviceIdService</code></td></tr>
+          <tr><td>Session store</td><td>sessions table</td><td>localStorage</td><td>localStorage</td><td>secure storage / prefs</td></tr>
+          <tr><td>Realtime</td><td>Socket.IO gateway</td><td>none</td><td>none</td><td>none (FCM + poll)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="extend">
+      <h2>10. Extending the Platform</h2>
+      <h3>10.1 Add a new API endpoint (existing module)</h3>
+      <ol class="tight">
+        <li>Adjust the Drizzle table in <code>&lt;module&gt;.schema.ts</code> and add a migration in <code>infra/drizzle/migrations/</code>.</li>
+        <li>Implement the use case in <code>&lt;module&gt;.service.ts</code> (the only public surface); keep queries in <code>&lt;module&gt;.repo.ts</code>.</li>
+        <li>If it mutates state, write an <code>outbox_events</code> row in the same transaction &mdash; never call another module directly.</li>
+        <li>Expose a thin route in <code>&lt;module&gt;.controller.ts</code>; add <code>@RequirePermission()</code> for writes; require <code>Idempotency-Key</code> for order/payment mutations.</li>
+        <li>Extend the matching client contract in the same commit (<code>buyer-api.ts</code>, <code>admin/src/lib/api.ts</code>, or <code>mobile/lib/services/api_service.dart</code>).</li>
+      </ol>
+      <h3>10.2 Add an admin console page</h3>
+      <pre><code>apps/admin/src/app/&lt;feature&gt;/page.tsx     # the screen
+apps/admin/src/lib/api.ts                  # append typed fetch helpers
+apps/admin/src/components/AdminSidebar.tsx # add the nav link</code></pre>
+      <h3>10.3 Add a mobile screen</h3>
+      <ol class="tight">
+        <li>Create <code>mobile/lib/screens/&lt;area&gt;/&lt;name&gt;_screen.dart</code> (ConsumerWidget / ConsumerStatefulWidget).</li>
+        <li>Add API methods to <code>lib/services/api_service.dart</code> and models to <code>lib/models/models.dart</code>.</li>
+        <li>Expose data via a provider in <code>lib/providers/providers.dart</code>.</li>
+        <li>Register a <code>GoRoute</code> in <code>lib/router/router.dart</code> and link it from a hub/home card.</li>
+        <li>Use <code>DropdownButtonFormField(initialValue: ...)</code> (not the deprecated <code>value:</code>); guard dropdown values against the items list.</li>
+      </ol>
+      <h3>10.4 Add a whole new module</h3>
+      <p>Create <code>modules/&lt;ctx&gt;/</code> with the uniform layout (2.2), register it in the app module, own its tables and events, and add a CODEOWNER. Do not read another module's tables &mdash; consume its events and build a local read model.</p>
+      <div class="callout ok"><strong class="label">Definition of Done (every story)</strong><p>Compiles clean (<code>tsc --noEmit</code> / <code>dart analyze</code> 0 issues) · migration in the canonical folder · contracts extended in the same commit · outbox event for any state change · tests for the happy + one failure path · boundary lint green.</p></div>
+    </section>
+
+    <section id="debt">
+      <h2>11. Technical Debt &amp; Engineering Conventions</h2>
+      <h3>11.1 Known debt (prioritised)</h3>
+      <table>
+        <thead><tr><th>Area</th><th>Issue</th><th>Impact</th><th>Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Orders</td><td>Checkout discount/VAT/delivery fee hardcoded to 0 (API-B4)</td><td>Incorrect totals; promo codes inert</td><td><span class="pill p-err">P1</span></td></tr>
+          <tr><td>RBAC</td><td>Merchant write endpoints lack <code>@RequirePermission</code> (API-B6)</td><td>Coarse authorisation on revenue paths</td><td><span class="pill p-err">P1</span></td></tr>
+          <tr><td>Web auth</td><td>No single-flight refresh; parallel 401s may trip reuse detection (WEB-B4)</td><td>Sporadic logouts under concurrency</td><td><span class="pill p-warn">P1</span></td></tr>
+          <tr><td>Web sessions</td><td><code>isCurrent</code> relies on a header the API no longer reads (WEB-B3)</td><td>Current-session never highlighted</td><td><span class="pill p-warn">P1</span></td></tr>
+          <tr><td>Identity</td><td>N+1 permission/role lookups in <code>buildClaims</code> on every refresh</td><td>Hotspot under mobile refresh storms</td><td><span class="pill p-warn">P2</span></td></tr>
+          <tr><td>Catalog</td><td>Import pipeline real but synchronous (request-scoped <code>/process</code>)</td><td>Not restart-safe at scale</td><td><span class="pill p-info">P3</span></td></tr>
+          <tr><td>Contracts</td><td>No shared <code>@scs/contracts</code>; 4 hand-maintained client surfaces</td><td>Type drift (already visible)</td><td><span class="pill p-warn">P2</span></td></tr>
+          <tr><td>Realtime</td><td>Socket.IO gateway unused by any client</td><td>Polling UX; dead capability</td><td><span class="pill p-info">P2</span></td></tr>
+          <tr><td>Testing</td><td>~5 API spec files, 3 mobile test files, no web E2E</td><td>Thin safety net on auth/orders</td><td><span class="pill p-warn">P2</span></td></tr>
+        </tbody>
+      </table>
+      <h3>11.2 Conventions to preserve</h3>
+      <ul class="tight">
+        <li><strong>Modular monolith</strong> until an extraction trigger is met &mdash; notifications is the first sanctioned candidate.</li>
+        <li><strong>Outbox for every side effect</strong>; consumers idempotent.</li>
+        <li><strong>RFC 7807</strong> for all errors; map <code>type</code> to localised message on clients.</li>
+        <li><strong>Idempotency-Key</strong> on checkout, transitions, payment intents.</li>
+        <li><strong>Money as bigint minor units</strong> + <code>char(3)</code> currency; never floats.</li>
+        <li><strong>Trunk-based</strong>, short-lived PRs (&lt;400 lines), Conventional Commits; <code>main</code> always deployable.</li>
+      </ul>
+      <h3>11.3 SLOs &amp; budgets</h3>
+      <p class="small">Phase 1 target: API 99.5% availability, checkout p95 &lt; 800 ms. Log line shape: <code>{ts, level, reqId, module, userId?, orgId?, msg}</code>. Alerts page ops on-call from day one of pilot; an external pen test is required before Phase 3 payments go live.</p>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; Developer Guide. Synthesised from the strategic final plan, the developer-ready implementation specification, the UI/UX plan and a live codebase audit; verified against the current source tree. Companion documents: <em>User Guide</em> and <em>Gap &amp; Roadmap Report</em>.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: 'base', securityLevel: 'loose',
+      themeVariables: { primaryColor:'#e2ebef', primaryBorderColor:'#174A5B', primaryTextColor:'#16232B',
+        lineColor:'#5B6B74', fontSize:'14px' } });
+  }
+</script>
+</body>
+</html>

@@ -126,7 +126,20 @@ export class OrdersService {
     const cart = await this.db.db.query.carts.findFirst({
       where: and(eq(carts.userId, input.buyerId), eq(carts.status, 'ACTIVE')),
     });
-    if (!cart) throw new BadRequestException('No active cart found');
+    if (!cart) {
+      // PHASE 1.1: If an idempotency key was provided, the cart may have been
+      // CONVERTED by a concurrent request that already created the order.
+      // Return the existing order instead of throwing.
+      if (input.idempotencyKey) {
+        const existingByKey = await this.db.db.query.masterOrders.findFirst({
+          where: eq(masterOrders.idempotencyKey, input.idempotencyKey),
+        });
+        if (existingByKey && existingByKey['status'] !== 'DRAFT') {
+          return this.getMasterOrder(existingByKey['id']);
+        }
+      }
+      throw new BadRequestException('No active cart found');
+    }
 
     const items = await this.db.db.query.cartItems.findMany({
       where: eq(cartItems.cartId, cart['id']),

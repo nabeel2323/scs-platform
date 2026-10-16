@@ -1,0 +1,448 @@
+{
+  "name": "CI",
+  "on": {
+    "push": {
+      "branches": [
+        "main",
+        "develop"
+      ]
+    },
+    "pull_request": {
+      "branches": [
+        "main",
+        "develop"
+      ]
+    }
+  },
+  "concurrency": {
+    "group": "${{ github.workflow }}-${{ github.ref }}",
+    "cancel-in-progress": true
+  },
+  "env": {
+    "NODE_VERSION": "22",
+    "PNPM_VERSION": "9.15.9"
+  },
+  "jobs": {
+    "lint": {
+      "name": "Lint & Typecheck",
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm lint"
+        },
+        {
+          "run": "pnpm typecheck"
+        },
+        {
+          "run": "pnpm format:check",
+          "continue-on-error": true
+        }
+      ]
+    },
+    "boundary-lint": {
+      "name": "Boundary Lint (E6)",
+      "runs-on": "ubuntu-latest",
+      "needs": "lint",
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm --filter @scs/api lint",
+          "continue-on-error": true
+        }
+      ]
+    },
+    "test-unit": {
+      "name": "Unit Tests + Coverage Gates",
+      "runs-on": "ubuntu-latest",
+      "needs": "lint",
+      "env": {
+        "NODE_ENV": "test"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm --filter @scs/api test:coverage"
+        },
+        {
+          "uses": "actions/upload-artifact@v4",
+          "if": "always()",
+          "with": {
+            "name": "coverage-unit",
+            "path": "apps/api/coverage/"
+          }
+        }
+      ]
+    },
+    "test-integration": {
+      "name": "Integration Tests",
+      "runs-on": "ubuntu-latest",
+      "needs": "lint",
+      "services": {
+        "postgres": {
+          "image": "postgis/postgis:16-3.4",
+          "env": {
+            "POSTGRES_USER": "scs",
+            "POSTGRES_PASSWORD": "scs_test",
+            "POSTGRES_DB": "scs_test"
+          },
+          "ports": [
+            "5432:5432"
+          ],
+          "options": "--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5"
+        },
+        "redis": {
+          "image": "redis:7-alpine",
+          "ports": [
+            "6379:6379"
+          ],
+          "options": "--health-cmd \"redis-cli ping\" --health-interval 10s --health-timeout 5s --health-retries 5"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm test:integration",
+          "env": {
+            "DATABASE_URL": "postgresql://scs:scs_test@localhost:5432/scs_test",
+            "REDIS_URL": "redis://localhost:6379"
+          }
+        }
+      ]
+    },
+    "migration-gate": {
+      "name": "Migration Full Apply",
+      "runs-on": "ubuntu-latest",
+      "needs": "lint",
+      "env": {
+        "DATABASE_URL": "postgresql://scs:scs_test@localhost:5433/scs_test"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "name": "Build CI postgres image (PostGIS + pg_partman)",
+          "run": "docker build -t scs-ci-postgres:ci -f infra/deploy/ci-postgres.Dockerfile infra/deploy/"
+        },
+        {
+          "name": "Start disposable postgres with pg_partman",
+          "run": "docker run -d --name ci-migration-pg \\\n  -e POSTGRES_USER=scs -e POSTGRES_PASSWORD=scs_test -e POSTGRES_DB=scs_test \\\n  -p 5433:5432 scs-ci-postgres:ci\n# Wait for postgres to be ready\nfor i in $(seq 1 30); do\n  docker exec ci-migration-pg pg_isready -U scs -d scs_test && break\n  sleep 1\ndone\n"
+        },
+        {
+          "name": "Dry-run (validate ordering)",
+          "run": "pnpm --filter @scs/api run db:migrate:ci -- --dry-run"
+        },
+        {
+          "name": "Full migration apply (enforcing ΓÇö all 63 files)",
+          "run": "pnpm --filter @scs/api run db:migrate:ci"
+        },
+        {
+          "name": "Verify pg_partman partitioning",
+          "run": "docker exec ci-migration-pg psql -U scs -d scs_test -c \\\n  \"SELECT parent_table, partition_type, partition_interval FROM partman.part_config;\"\n"
+        },
+        {
+          "name": "Cleanup",
+          "if": "always()",
+          "run": "docker rm -f ci-migration-pg 2>/dev/null || true"
+        }
+      ]
+    },
+    "test-contract": {
+      "name": "Contract Spec & Codegen",
+      "runs-on": "ubuntu-latest",
+      "needs": [
+        "test-unit",
+        "test-integration"
+      ],
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm contracts:build"
+        },
+        {
+          "run": "pnpm contracts:generate"
+        },
+        {
+          "name": "Validate OpenAPI spec structure",
+          "run": "set -euo pipefail\nnode -e '\n  const fs = require(\"fs\");\n  const spec = JSON.parse(fs.readFileSync(\"packages/contracts/openapi/openapi.json\", \"utf8\"));\n  const paths = Object.keys(spec.paths || {});\n  const schemas = Object.keys((spec.components || {}).schemas || {});\n  const needPaths = [\n    \"/v1/auth/otp/request\", \"/v1/auth/otp/verify\", \"/v1/auth/refresh\",\n    \"/v1/auth/logout\", \"/v1/auth/switch-org\", \"/v1/auth/login/password\",\n    \"/v1/auth/login/device-check\", \"/v1/me\", \"/v1/me/sessions\",\n  ];\n  const needSchemas = [\n    \"AuthTokens\", \"RefreshResponse\", \"SwitchOrgResponse\",\n    \"LoginPasswordResponse\", \"DeviceCheckResponse\", \"SessionInfo\",\n    \"UserProfile\", \"ProblemDetail\",\n  ];\n  const mp = needPaths.filter((p) => !paths.includes(p));\n  const ms = needSchemas.filter((s) => !schemas.includes(s));\n  if (mp.length) { console.error(\"Missing paths:\", mp.join(\", \")); process.exit(1); }\n  if (ms.length) { console.error(\"Missing component schemas:\", ms.join(\", \")); process.exit(1); }\n  console.log(`OpenAPI spec valid: ${paths.length} paths, ${schemas.length} shared schemas`);\n'\n"
+        },
+        {
+          "name": "Generate TS client",
+          "run": "pnpm --filter @scs/contracts generate:ts"
+        },
+        {
+          "name": "Verify TS client artifact",
+          "run": "set -euo pipefail\ntest -f packages/contracts/generated/api.d.ts || { echo \"TS client not generated\"; exit 1; }\necho \"TS client generated (generated/api.d.ts)\"\n"
+        }
+      ]
+    },
+    "build": {
+      "name": "Build",
+      "runs-on": "ubuntu-latest",
+      "needs": [
+        "test-unit",
+        "test-integration"
+      ],
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "run": "pnpm install --frozen-lockfile"
+        },
+        {
+          "run": "pnpm build"
+        }
+      ]
+    },
+    "k6-smoke": {
+      "name": "k6 Smoke Test",
+      "runs-on": "ubuntu-latest",
+      "if": "github.ref == 'refs/heads/main'",
+      "needs": "build",
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "grafana/k6-action@v0.3.1",
+          "with": {
+            "filename": "infra/load/smoke.js"
+          }
+        }
+      ]
+    },
+    "mobile": {
+      "name": "Mobile (flutter analyze ┬╖ test)",
+      "runs-on": "ubuntu-latest",
+      "defaults": {
+        "run": {
+          "working-directory": "mobile"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "subosito/flutter-action@v2",
+          "with": {
+            "flutter-version": "3.47.1",
+            "channel": "stable",
+            "cache": true
+          }
+        },
+        {
+          "run": "flutter pub get"
+        },
+        {
+          "run": "flutter analyze --no-fatal-infos lib test"
+        },
+        {
+          "run": "flutter pub get",
+          "working-directory": "${{ github.workspace }}/mobile/packages/mobile-core"
+        },
+        {
+          "run": "flutter analyze",
+          "working-directory": "${{ github.workspace }}/mobile/packages/mobile-core"
+        },
+        {
+          "run": "flutter test"
+        }
+      ]
+    },
+    "container-build": {
+      "name": "Container Build & Smoke Test",
+      "runs-on": "ubuntu-latest",
+      "needs": [
+        "test-unit",
+        "test-integration"
+      ],
+      "timeout-minutes": 30,
+      "steps": [
+        {
+          "uses": "actions/checkout@v4"
+        },
+        {
+          "uses": "pnpm/action-setup@v4",
+          "with": {
+            "version": "${{ env.PNPM_VERSION }}"
+          }
+        },
+        {
+          "uses": "actions/setup-node@v4",
+          "with": {
+            "node-version": "${{ env.NODE_VERSION }}",
+            "cache": "pnpm"
+          }
+        },
+        {
+          "name": "Set up Docker Buildx",
+          "uses": "docker/setup-buildx-action@v3"
+        },
+        {
+          "name": "Build API image",
+          "uses": "docker/build-push-action@v5",
+          "with": {
+            "context": ".",
+            "file": "infra/deploy/api.Dockerfile",
+            "push": false,
+            "load": true,
+            "tags": "scs-api:ci-test",
+            "cache-from": "type=gha",
+            "cache-to": "type=gha,mode=max"
+          }
+        },
+        {
+          "name": "Run deployment invariants spec",
+          "run": "pnpm install --frozen-lockfile\npnpm --filter @scs/api run test -- --run src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts\n"
+        },
+        {
+          "name": "Start disposable services",
+          "run": "docker network create ci-smoke-net\ndocker run -d --name ci-postgres --network ci-smoke-net \\\n  -e POSTGRES_PASSWORD=scs -e POSTGRES_USER=scs -e POSTGRES_DB=scs_platform \\\n  postgres:16-alpine\ndocker run -d --name ci-redis --network ci-smoke-net redis:7-alpine\nsleep 10\n"
+        },
+        {
+          "name": "Start API container with safe defaults",
+          "run": "docker run -d --name ci-api --network ci-smoke-net \\\n  -e NODE_ENV=production \\\n  -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \\\n  -e REDIS_URL=redis://ci-redis:6379 \\\n  -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \\\n  -e S3_ENDPOINT=http://minio:9000 \\\n  -e S3_ACCESS_KEY=ci-test-key \\\n  -e S3_SECRET_KEY=ci-test-secret \\\n  -e API_CORS_ORIGINS=https://shop.example.com \\\n  -e P13_WORKER_ENABLED=false \\\n  -e P13_PILOT_MODE=legacy \\\n  scs-api:ci-test\nsleep 15\n"
+        },
+        {
+          "name": "Verify health endpoints",
+          "run": "echo \"=== Liveness ===\"\ndocker exec ci-api curl -fsS http://localhost:3000/v1/healthz\necho \"\"\necho \"=== Readiness ===\"\ndocker exec ci-api curl -fsS http://localhost:3000/v1/readyz\necho \"\"\n"
+        },
+        {
+          "name": "Verify P13 configuration",
+          "run": "echo \"=== P13 Worker Status ===\"\ndocker exec ci-api sh -c 'echo \"P13_WORKER_ENABLED=$P13_WORKER_ENABLED\"'\necho \"=== P13 Pilot Mode ===\"\ndocker exec ci-api sh -c 'echo \"P13_PILOT_MODE=$P13_PILOT_MODE\"'\n"
+        },
+        {
+          "name": "Verify non-root user",
+          "run": "CONTAINER_USER=$(docker exec ci-api whoami)\necho \"Container running as: $CONTAINER_USER\"\nif [ \"$CONTAINER_USER\" = \"root\" ]; then\n  echo \"ERROR: Container running as root\"\n  exit 1\nfi\necho \"OK: Container running as non-root user\"\n"
+        },
+        {
+          "name": "Cleanup",
+          "if": "always()",
+          "run": "docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true\ndocker network rm ci-smoke-net 2>/dev/null || true\ndocker rmi scs-api:ci-test 2>/dev/null || true\n"
+        }
+      ]
+    }
+  }
+}

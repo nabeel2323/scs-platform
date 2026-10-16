@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Comprehensive RBAC audit report for the Smart Commerce & Supply Platform — permission coverage, role analysis, gap inventory and security findings.">
+<title>RBAC Audit Report — Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(135deg,var(--brand-2),var(--brand));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem;letter-spacing:.2px}
+  header.site p.sub{margin:0;opacity:.9;max-width:70ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+    padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  pre{background:#0f2530;color:#e6eef2;border-radius:8px;padding:1rem 1.1rem;overflow:auto;font-family:var(--mono);font-size:.84rem;line-height:1.5}
+  pre code{background:none;border:none;color:inherit;padding:0}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.9rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#e9eef0;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--info);background:#f3f8fd;padding:.8rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0}
+  .callout.warn{border-color:var(--warn);background:#fdf6ec}
+  .callout.crit{border-color:var(--err);background:#fbeeea}
+  .callout.ok{border-color:var(--ok);background:#eef7f1}
+  .callout p:first-child{margin-top:0} .callout p:last-child{margin-bottom:0}
+  .callout strong.label{display:block;margin-bottom:.2rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+  .grid{display:grid;gap:1rem}
+  .grid.c2{grid-template-columns:1fr 1fr} .grid.c3{grid-template-columns:repeat(3,1fr)} .grid.c4{grid-template-columns:repeat(4,1fr)} .grid.c5{grid-template-columns:repeat(5,1fr)}
+  .card{border:1px solid var(--line);border-radius:8px;padding:.9rem 1rem;background:#fbfcfd}
+  .card h4{margin:.1rem 0 .4rem}
+  .kpi{font-size:1.6rem;font-weight:800;color:var(--brand)}
+  .score-ring{display:inline-block;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;color:#fff}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.2rem} ul.tight li,ol.tight li{margin:.2rem 0}
+  .status-ok{color:var(--ok);font-weight:700} .status-warn{color:var(--warn);font-weight:700} .status-err{color:var(--err);font-weight:700}
+  .severity-p0{background:#f7e3e1;border-left:4px solid var(--err)} .severity-p1{background:#fdf6ec;border-left:4px solid var(--warn)}
+  .severity-p2{background:#e2edf9;border-left:4px solid var(--info)} .severity-p3{background:#e9eef0;border-left:4px solid var(--muted)}
+  footer.site{max-width:var(--maxw);margin:0 auto;padding:1.5rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line)}
+  @media(max-width:900px){
+    .layout{grid-template-columns:1fr} nav.toc{position:static;max-height:none}
+    .grid.c2,.grid.c3,.grid.c4,.grid.c5{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>RBAC Audit Report</h1>
+    <p class="sub">Smart Commerce &amp; Supply Platform (TAIF) — comprehensive analysis of user authentication, authorization, and permission enforcement across all four applications.</p>
+    <div class="meta">
+      <span>Report Date: 2026-09-12</span>
+      <span>API (NestJS)</span><span>Admin Console (Next.js)</span><span>Web App (Next.js)</span><span>Mobile (Flutter)</span>
+      <span>45 Permission Keys</span><span>6 Roles</span><span>16 Controllers</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#executive">1. Executive Summary</a></li>
+      <li><a href="#matrix">2. Permission Matrix</a></li>
+      <li><a href="#roles">3. Role Coverage Analysis</a></li>
+      <li><a href="#gaps">4. Gap Inventory</a></li>
+      <li><a href="#security">5. Security Findings</a></li>
+      <li><a href="#recommendations">6. Recommendations</a></li>
+      <li><a href="#appendix">7. Appendix: Evidence</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <!-- SECTION 1: EXECUTIVE SUMMARY -->
+    <section id="executive">
+      <h2>1. Executive Summary</h2>
+
+      <div class="grid c5" style="margin-bottom:1.2rem">
+        <div class="card" style="text-align:center">
+          <div class="score-ring" style="background:linear-gradient(135deg,var(--warn),var(--accent));margin:0 auto .5rem">72</div>
+          <h4>Overall RBAC Health</h4>
+          <p class="small muted">out of 100</p>
+        </div>
+        <div class="card" style="text-align:center">
+          <div class="kpi">31</div>
+          <h4>Permission Guards</h4>
+          <p class="small muted">@RequirePermission usages</p>
+        </div>
+        <div class="card" style="text-align:center">
+          <div class="kpi">45</div>
+          <h4>Permission Keys</h4>
+          <p class="small muted">Seeded in database</p>
+        </div>
+        <div class="card" style="text-align:center">
+          <div class="kpi">13</div>
+          <h4>Gaps Found</h4>
+          <p class="small muted">5 P1, 5 P2, 3 P3</p>
+        </div>
+        <div class="card" style="text-align:center">
+          <div class="kpi" style="color:var(--warn)">6</div>
+          <h4>Security Findings</h4>
+          <p class="small muted">2 resolved</p>
+        </div>
+      </div>
+
+      <h3>Scoring Breakdown</h3>
+      <table>
+        <thead><tr><th>Dimension</th><th>Score</th><th>Weight</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>API Permission Coverage</td><td>68%</td><td>30%</td><td>31 @RequirePermission decorators across 5 controllers; 8 controllers lack any permission guards</td></tr>
+          <tr><td>Seed Data Completeness</td><td>95%</td><td>15%</td><td>45 permission keys seeded; all 6 roles assigned; admin:* keys present</td></tr>
+          <tr><td>Client-Side Role Gating</td><td>30%</td><td>20%</td><td>No role-based UI gating in web or admin; mobile has minimal role awareness</td></tr>
+          <tr><td>Session &amp; Device Trust</td><td>90%</td><td>20%</td><td>Device trust working E2E on all 3 clients; stale-permission window after switchOrg</td></tr>
+          <tr><td>Auth Consistency</td><td>80%</td><td>15%</td><td>Dual-auth on web+admin+mobile; admin profile hydration via /v1/me (not JWT decode)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Critical Gaps</h3>
+      <table>
+        <thead><tr><th>#</th><th>Gap</th><th>Severity</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><strong>8 controllers have zero @RequirePermission</strong> &mdash; inventory, pricing, disputes (write), notifications, cart, analytics, profile, organizations</td><td><span class="pill p-err">P1</span></td><td>Any authenticated user can modify inventory, pricing, resolve disputes</td></tr>
+          <tr><td>2</td><td><strong>Web app has no client-side role gating</strong> &mdash; buyer can navigate to /merchant/* routes</td><td><span class="pill p-err">P1</span></td><td>UX confusion; API guards are the only enforcement layer</td></tr>
+          <tr><td>3</td><td><strong>Admin sidebar shows all 11 nav items regardless of role</strong></td><td><span class="pill p-warn">P2</span></td><td>MODERATOR/ADMIN users see pages they may not have permissions for</td></tr>
+          <tr><td>4</td><td><strong>switchOrg stale-permission window</strong> &mdash; old JWT valid for 15 min with old org/role</td><td><span class="pill p-warn">P2</span></td><td>Privilege escalation if user switches from high-perm to low-perm org</td></tr>
+          <tr><td>5</td><td><strong>Order buyer endpoints (checkout, cancel) have no permission guard</strong></td><td><span class="pill p-err">P1</span></td><td>Any authenticated user can checkout/cancel &mdash; acceptable for buyer-only but unvalidated</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong class="label">Launch-Readiness Verdict</strong>
+        <p><strong>Conditionally Ready for Pilot</strong> &mdash; The admin console has strong RBAC (class-level PermissionsGuard on all 15 endpoints). The merchant write paths have been hardened with @RequirePermission (API-B6 partially remediated). However, <strong>inventory, pricing, and dispute resolution endpoints are unprotected by permission keys</strong>, which is acceptable for a single-org pilot but becomes a <strong>P0 blocker before multi-tenant scale</strong>.</p>
+      </div>
+    </section>
+
+    <!-- SECTION 2: PERMISSION MATRIX -->
+    <section id="matrix">
+      <h2>2. Permission Matrix</h2>
+
+      <h3>2.1 Admin Controller &mdash; Class Guards: <code>JwtAuthGuard, PermissionsGuard</code></h3>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Permission Key</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>/admin/orders</code></td><td>GET</td><td><code>admin:orders:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/orders/:id</code></td><td>GET</td><td><code>admin:orders:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/merchants</code></td><td>GET</td><td><code>admin:merchants:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/kpis</code></td><td>GET</td><td><code>admin:kpis:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/audit-logs</code></td><td>GET</td><td><code>admin:audit:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/verifications</code></td><td>GET</td><td><code>admin:merchants:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/users</code></td><td>GET</td><td><code>admin:users:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/users/:id</code></td><td>GET</td><td><code>admin:users:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/users/:id</code></td><td>PATCH</td><td><code>admin:users:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/users/:id/assign-role</code></td><td>POST</td><td><code>admin:users:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/users/:id/roles/:orgId</code></td><td>DELETE</td><td><code>admin:users:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/roles</code></td><td>GET</td><td><code>admin:users:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/organizations</code></td><td>GET</td><td><code>admin:users:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/products</code></td><td>GET</td><td><code>admin:merchants:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/admin/products/:id/moderate</code></td><td>PATCH</td><td><code>admin:merchants:read</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+        </tbody>
+      </table>
+      <div class="callout ok"><strong class="label">Coverage: 15/15 (100%)</strong><p>Strongest RBAC boundary in the system.</p></div>
+
+      <h3>2.2 Merchant Controller &mdash; Class Guard: <code>JwtAuthGuard</code></h3>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Permission Key</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>/stores</code></td><td>POST</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/stores</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/merchant/customers</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/stores/:id</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/stores/slug/:slug</code></td><td>GET</td><td>&mdash; (no auth)</td><td class="status-ok">&#10003; Public</td></tr>
+          <tr><td><code>/stores/:id</code></td><td>PATCH</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/stores/:storeId/warehouses</code></td><td>POST</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/stores/:storeId/warehouses</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/warehouses/:id</code></td><td>PATCH</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/documents</code></td><td>POST</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/documents/org/:orgId</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/documents/store/:storeId</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/documents/:id/presign</code></td><td>POST</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/stores/:storeId/verify</code></td><td>POST</td><td><code>merchant:stores:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/verification/queue</code></td><td>GET</td><td><code>merchant:verification:review</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong class="label">Coverage: 8/15 (53%)</strong><p>Write endpoints protected; read endpoints rely on org-scope.</p></div>
+
+      <h3>2.3 Catalog Controller &mdash; Class Guard: <code>JwtAuthGuard</code></h3>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Permission Key</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>/categories</code></td><td>POST</td><td><code>catalog:categories:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/categories</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/categories/:id</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/categories/:id</code></td><td>PATCH</td><td><code>catalog:categories:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/categories/:id</code></td><td>DELETE</td><td><code>catalog:categories:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/brands</code></td><td>POST</td><td><code>catalog:brands:manage</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/brands</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/products</code></td><td>POST</td><td><code>merchant:products:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/stores/:storeId/products</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/products/:id</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/products/:id</code></td><td>PATCH</td><td><code>merchant:products:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/products/:id</code></td><td>DELETE</td><td><code>merchant:products:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><strong class="label">Coverage: 7/12 (58%)</strong><p>All write/delete protected; reads open (acceptable for catalog browsing).</p></div>
+
+      <h3>2.4 Orders Controller &mdash; Class Guard: <code>JwtAuthGuard</code></h3>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Permission Key</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>/checkout</code></td><td>POST</td><td>&mdash; (JWT only)</td><td class="status-err">&#10007; Missing</td></tr>
+          <tr><td><code>/orders/master/:id</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/orders/master/:id/reorder</code></td><td>POST</td><td>&mdash; (JWT only)</td><td class="status-err">&#10007; Missing</td></tr>
+          <tr><td><code>/orders</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/orders/:id</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/orders/:id/history</code></td><td>GET</td><td>&mdash; (JWT only)</td><td class="status-warn">&#9888; No perm</td></tr>
+          <tr><td><code>/orders/:id/accept</code></td><td>POST</td><td><code>merchant:orders:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/orders/:id/partial-accept</code></td><td>POST</td><td><code>merchant:orders:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/orders/:id/reject</code></td><td>POST</td><td><code>merchant:orders:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/orders/:id/items/:itemId/confirm</code></td><td>POST</td><td><code>merchant:orders:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/orders/:id/status</code></td><td>POST</td><td><code>merchant:orders:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/orders/:id/cancel</code></td><td>POST</td><td>&mdash; (JWT only)</td><td class="status-err">&#10007; Missing</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn"><strong class="label">Coverage: 5/12 (42%)</strong><p>Merchant transitions protected; buyer-side operations unprotected.</p></div>
+
+      <h3>2.5 Promotions Controller &mdash; Class Guard: <code>JwtAuthGuard</code></h3>
+      <table>
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Permission Key</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><code>/promotions</code></td><td>POST</td><td><code>merchant:promotions:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+          <tr><td><code>/promotions/:id</code></td><td>PATCH</td><td><code>merchant:promotions:write</code></td><td class="status-ok">&#10003; Enforced</td></tr>
+        </tbody>
+      </table>
+      <div class="callout ok"><strong class="label">Coverage: 2/2 (100%)</strong></div>
+
+      <h3>2.6 Controllers with ZERO @RequirePermission</h3>
+      <table>
+        <thead><tr><th>Controller</th><th>Class Guard</th><th>Endpoints</th><th>Risk</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Inventory</strong> <code>inventory.controller.ts</code></td><td>JwtAuthGuard</td><td>8 (GET/PATCH/POST)</td><td><span class="pill p-err">HIGH</span> Stock adjustments, reservations unprotected</td></tr>
+          <tr><td><strong>Pricing</strong> <code>pricing.controller.ts</code></td><td>JwtAuthGuard</td><td>10 (CRUD price lists/tiers)</td><td><span class="pill p-err">HIGH</span> Any user can modify pricing</td></tr>
+          <tr><td><strong>Disputes</strong> <code>disputes.controller.ts</code></td><td>JwtAuthGuard</td><td>11 (resolve, respond, evidence)</td><td><span class="pill p-warn">MEDIUM</span> Dispute resolution unprotected</td></tr>
+          <tr><td><strong>Reviews</strong> <code>reviews.controller.ts</code></td><td>JwtAuthGuard</td><td>5 (create, read)</td><td><span class="pill p-muted">LOW</span> User-scoped</td></tr>
+          <tr><td><strong>Notifications</strong> <code>notifications.controller.ts</code></td><td>JwtAuthGuard</td><td>4 (list, mark-read)</td><td><span class="pill p-ok">LOW</span> User-scoped</td></tr>
+          <tr><td><strong>Cart</strong> <code>cart.controller.ts</code></td><td>JwtAuthGuard</td><td>~4 (CRUD)</td><td><span class="pill p-warn">MEDIUM</span> User-scoped but no perm check</td></tr>
+          <tr><td><strong>Analytics</strong> <code>analytics.controller.ts</code></td><td>JwtAuthGuard</td><td>4 (track, events)</td><td><span class="pill p-warn">MEDIUM</span> Should require analytics:read</td></tr>
+          <tr><td><strong>Profile</strong> <code>profile.controller.ts</code></td><td>JwtAuthGuard</td><td>~12 (self-service)</td><td><span class="pill p-ok">LOW</span> User-scoped (own data)</td></tr>
+          <tr><td><strong>Organizations</strong> <code>organizations.controller.ts</code></td><td>JwtAuthGuard</td><td>~4 (CRUD orgs)</td><td><span class="pill p-warn">MEDIUM</span> Org creation should be gated</td></tr>
+          <tr><td><strong>Auth</strong> <code>auth.controller.ts</code></td><td>None (public)</td><td>6 (OTP, refresh, logout)</td><td><span class="pill p-ok">Correct</span> Public auth endpoints</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 3: ROLE COVERAGE -->
+    <section id="roles">
+      <h2>3. Role Coverage Analysis</h2>
+
+      <h3>3.1 SUPER_ADMIN</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Admin UI</th><th>Web UI</th><th>Mobile</th></tr></thead>
+        <tbody>
+          <tr><td>User management</td><td class="status-ok">&#10003; admin:users:read/write</td><td class="status-ok">&#10003; Full sidebar</td><td class="status-err">&#10007; No role gating</td><td class="status-err">&#10007; No role gating</td></tr>
+          <tr><td>Merchant management</td><td class="status-ok">&#10003; admin:merchants:read</td><td class="status-ok">&#10003; Full sidebar</td><td class="status-err">&#10007; No role gating</td><td class="status-err">&#10007; No role gating</td></tr>
+          <tr><td>KPI/Analytics</td><td class="status-ok">&#10003; admin:kpis:read</td><td class="status-ok">&#10003; Full sidebar</td><td class="status-err">&#10007; No role gating</td><td class="status-err">&#10007; No role gating</td></tr>
+          <tr><td>Audit logs</td><td class="status-ok">&#10003; admin:audit:read</td><td class="status-ok">&#10003; Full sidebar</td><td class="status-err">&#10007; No role gating</td><td class="status-err">&#10007; No role gating</td></tr>
+          <tr><td>All permissions</td><td class="status-ok">&#10003; All 45 keys</td><td class="status-ok">&#10003;</td><td class="status-err">&#10007;</td><td class="status-err">&#10007;</td></tr>
+        </tbody>
+      </table>
+
+      <h3>3.2 ADMIN (Platform Admin)</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Admin UI</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>User CRUD</td><td class="status-ok">&#10003; admin:users:read/write</td><td class="status-ok">&#10003;</td><td>24 permissions assigned</td></tr>
+          <tr><td>Merchant verification</td><td class="status-ok">&#10003; merchant:verification:review</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>Order monitoring</td><td class="status-ok">&#10003; admin:orders:read</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>KPIs</td><td class="status-ok">&#10003; admin:kpis:read</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>Cannot: delete users, manage ads</td><td class="status-ok">&#10003; Correctly excluded</td><td class="status-ok">&#10003;</td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>3.3 MODERATOR</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Catalog management</td><td class="status-ok">&#10003; catalog:products:read/write/delete, categories:read/write</td><td>10 permissions</td></tr>
+          <tr><td>Product moderation</td><td class="status-ok">&#10003; merchant:products:write</td><td></td></tr>
+          <tr><td>Verification review</td><td class="status-ok">&#10003; merchant:verification:review</td><td></td></tr>
+          <tr><td>Support tickets</td><td class="status-ok">&#10003; support:tickets:read/write/escalate</td><td></td></tr>
+          <tr><td>Cannot: admin endpoints, merchant stores write</td><td class="status-ok">&#10003; Correctly excluded</td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>3.4 MERCHANT_OWNER</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Web UI</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Store management</td><td class="status-ok">&#10003; merchant:stores:read/write</td><td class="status-err">&#10007; No gating</td><td>13 permissions</td></tr>
+          <tr><td>Product CRUD</td><td class="status-ok">&#10003; merchant:products:write</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Order management</td><td class="status-ok">&#10003; merchant:orders:write</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Promotions</td><td class="status-ok">&#10003; merchant:promotions:write</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Catalog</td><td class="status-ok">&#10003; catalog:products:read/write/delete</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Cannot: admin endpoints, verification review</td><td class="status-ok">&#10003; Correctly excluded</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>3.5 MERCHANT_STAFF</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Web UI</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Product CRUD</td><td class="status-ok">&#10003; merchant:products:write</td><td class="status-err">&#10007; No gating</td><td>9 permissions &mdash; same as OWNER minus store management</td></tr>
+          <tr><td>Order management</td><td class="status-ok">&#10003; merchant:orders:write</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Promotions</td><td class="status-ok">&#10003; merchant:promotions:write</td><td class="status-err">&#10007; No gating</td><td></td></tr>
+          <tr><td>Cannot: merchant:stores:write (owner-only)</td><td class="status-ok">&#10003; Correctly excluded</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>3.6 BUYER</h3>
+      <table>
+        <thead><tr><th>Capability</th><th>API</th><th>Web UI</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Browse catalog</td><td class="status-ok">&#10003; catalog:products:read</td><td class="status-ok">&#10003;</td><td>4 permissions only</td></tr>
+          <tr><td>Read orders</td><td class="status-ok">&#10003; orders:read</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>Write orders (checkout)</td><td class="status-ok">&#10003; orders:write</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>Browse stores</td><td class="status-ok">&#10003; merchant:stores:read</td><td class="status-ok">&#10003;</td><td></td></tr>
+          <tr><td>Cannot: merchant write, admin, catalog write</td><td class="status-ok">&#10003; Correctly excluded</td><td></td><td></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 4: GAP INVENTORY -->
+    <section id="gaps">
+      <h2>4. Gap Inventory</h2>
+
+      <div class="callout ok">
+        <strong class="label">P0 &mdash; Critical (Launch Blocker)</strong>
+        <p><em>None identified &mdash; admin RBAC is solid; merchant write paths hardened.</em></p>
+      </div>
+
+      <h3>P1 &mdash; High (Pre-Pilot Remediation)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Gap</th><th>Affected Files</th><th>Impact</th><th>Remediation Effort</th></tr></thead>
+        <tbody>
+          <tr class="severity-p1"><td><strong>GAP-1</strong></td><td>Inventory endpoints lack @RequirePermission</td><td><code>inventory.controller.ts</code> (8 endpoints)</td><td>Any authenticated user can adjust stock, reserve/release inventory</td><td>2h &mdash; add <code>merchant:inventory:write</code> perm + guard</td></tr>
+          <tr class="severity-p1"><td><strong>GAP-2</strong></td><td>Pricing endpoints lack @RequirePermission</td><td><code>pricing.controller.ts</code> (10 endpoints)</td><td>Any authenticated user can create/modify price lists and tiers</td><td>2h &mdash; add <code>merchant:pricing:write</code> perm + guard</td></tr>
+          <tr class="severity-p1"><td><strong>GAP-3</strong></td><td>Dispute resolution lacks @RequirePermission</td><td><code>disputes.controller.ts</code> (resolve, respond)</td><td>Any user can resolve disputes or submit evidence on behalf of others</td><td>2h &mdash; add <code>support:disputes:write</code> perm + guard</td></tr>
+          <tr class="severity-p1"><td><strong>GAP-4</strong></td><td>Web app has zero client-side role gating</td><td><code>apps/web/src/app/merchant/*</code></td><td>Buyer users can navigate to merchant pages; API rejects but UX is confusing</td><td>4h &mdash; add role checks to merchant route group</td></tr>
+          <tr class="severity-p1"><td><strong>GAP-5</strong></td><td>Order buyer endpoints (checkout, cancel, reorder) lack permission guards</td><td><code>orders.controller.ts</code></td><td>Acceptable for single-org pilot; risky for multi-tenant</td><td>1h &mdash; add <code>orders:checkout</code> perm or document as intentional</td></tr>
+        </tbody>
+      </table>
+
+      <h3>P2 &mdash; Medium (Post-Pilot)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Gap</th><th>Affected Files</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr class="severity-p2"><td><strong>GAP-6</strong></td><td>Admin sidebar shows all 11 nav items regardless of role</td><td><code>AdminSidebar.tsx</code></td><td>MODERATOR sees Users/KPIs/Audit links they can't access</td></tr>
+          <tr class="severity-p2"><td><strong>GAP-7</strong></td><td>Analytics endpoints lack @RequirePermission</td><td><code>analytics.controller.ts</code></td><td>Any user can track events and read analytics</td></tr>
+          <tr class="severity-p2"><td><strong>GAP-8</strong></td><td>Organization creation lacks @RequirePermission</td><td><code>organizations.controller.ts</code></td><td>Any authenticated user can create organizations</td></tr>
+          <tr class="severity-p2"><td><strong>GAP-9</strong></td><td>Cart endpoints lack @RequirePermission</td><td><code>cart.controller.ts</code></td><td>Low risk (user-scoped) but inconsistent</td></tr>
+          <tr class="severity-p2"><td><strong>GAP-10</strong></td><td>Document presign endpoint lacks permission check</td><td><code>merchant.controller.ts</code></td><td>Any authenticated user can get presigned URLs</td></tr>
+        </tbody>
+      </table>
+
+      <h3>P3 &mdash; Low (Backlog)</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Gap</th><th>Affected Files</th><th>Impact</th></tr></thead>
+        <tbody>
+          <tr class="severity-p3"><td><strong>GAP-11</strong></td><td>Reviews controller has no permission guards</td><td><code>reviews.controller.ts</code></td><td>User-scoped; low risk</td></tr>
+          <tr class="severity-p3"><td><strong>GAP-12</strong></td><td>Notifications controller has no permission guards</td><td><code>notifications.controller.ts</code></td><td>User-scoped; low risk</td></tr>
+          <tr class="severity-p3"><td><strong>GAP-13</strong></td><td>Profile controller has no permission guards</td><td><code>profile.controller.ts</code></td><td>Self-service; correct by design</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- SECTION 5: SECURITY FINDINGS -->
+    <section id="security">
+      <h2>5. Security Findings</h2>
+
+      <h3>5.1 Stale Permissions After switchOrg (API-B9)</h3>
+      <div class="callout warn">
+        <strong class="label">Severity: Medium</strong>
+        <p><strong>File</strong>: <code>identity.service.ts:242-281</code></p>
+        <p>When a user calls <code>switchOrg</code>, a new JWT is minted with the target org's claims, but the <strong>old JWT remains valid for up to 15 minutes</strong> with the old org's permissions. If a user switches from a SUPER_ADMIN org to a BUYER org, the old token still carries SUPER_ADMIN permissions.</p>
+        <p><strong>Mitigation</strong>: API-B9 denylist was added (jti-based Redis denylist), but the access token is still usable for non-denylisted endpoints until expiry.</p>
+      </div>
+
+      <h3>5.2 Client-Side JWT Decoding (ADM-B2 &mdash; RESOLVED)</h3>
+      <div class="callout ok">
+        <strong class="label">Severity: Resolved</strong>
+        <p><strong>File</strong>: <code>apps/admin/src/lib/auth.ts:133-150</code></p>
+        <p>The admin app previously decoded the JWT client-side via <code>atob()</code> to extract the role. This has been replaced with <code>hydrateUser()</code> which calls <code>GET /v1/me</code> for server-side role resolution.</p>
+      </div>
+
+      <h3>5.3 No Org-Membership Validation on Merchant Endpoints</h3>
+      <div class="callout crit">
+        <strong class="label">Severity: Medium-High</strong>
+        <p><strong>Files</strong>: <code>merchant.controller.ts</code>, <code>catalog.controller.ts</code></p>
+        <p>Merchant write endpoints check <code>@RequirePermission('merchant:products:write')</code> but do <strong>not</strong> validate that the user is an active member of the org that owns the store/product. A MERCHANT_OWNER of Org A could potentially modify products in Org B if they guess the product ID.</p>
+        <p><strong>Mitigation</strong>: Service-layer org-scope checks exist in some paths (e.g., <code>createProduct</code> takes <code>user.sub</code> and resolves org), but not all read/update/delete paths validate org ownership.</p>
+      </div>
+
+      <h3>5.4 Device Trust &mdash; Now Working</h3>
+      <div class="callout ok">
+        <strong class="label">Severity: Resolved 2026-09-11</strong>
+        <p>Three bugs were fixed:</p>
+        <ol class="tight">
+          <li><code>refreshToken</code> now carries <code>deviceId</code> to new sessions</li>
+          <li><code>setupCredentials</code> no longer revokes the trust-establishing OTP session</li>
+          <li><code>checkDeviceTrust</code> now checks ALL sessions (including revoked) &mdash; logout no longer breaks trust</li>
+        </ol>
+      </div>
+
+      <h3>5.5 Missing DTO Validation (API-B10)</h3>
+      <div class="callout warn">
+        <strong class="label">Severity: Medium</strong>
+        <p><strong>File</strong>: <code>auth.controller.ts</code></p>
+        <p>OTP request/verify endpoints use <code>@Body('phone')</code> instead of DTO classes with <code>@IsPhoneNumber</code> validation. The <code>forbidNonWhitelisted</code> pipe is ineffective without DTOs, allowing arbitrary fields in request bodies.</p>
+      </div>
+
+      <h3>5.6 JWT Secret Fallback (API-B7)</h3>
+      <div class="callout warn">
+        <strong class="label">Severity: Medium</strong>
+        <p><strong>File</strong>: <code>identity.module.ts:14</code></p>
+        <p>JWT secret falls back to a hardcoded dev string (<code>'super-secret-dev-key-change-me'</code>) if <code>JWT_ACCESS_SECRET</code> env var is unset. No production environment enforcement exists.</p>
+      </div>
+    </section>
+
+    <!-- SECTION 6: RECOMMENDATIONS -->
+    <section id="recommendations">
+      <h2>6. Recommendations</h2>
+
+      <h3>6.1 Immediate (Pre-Pilot)</h3>
+
+      <h4>6.1.1 Add Permission Guards to Inventory Controller</h4>
+      <p><strong>File</strong>: <code>apps/api/src/modules/inventory/inventory.controller.ts</code></p>
+      <pre><code>// Add to class:
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+
+// On write endpoints:
+@Patch('inventory/:id')
+@RequirePermission('merchant:inventory:write')
+
+@Post('inventory/adjust')
+@RequirePermission('merchant:inventory:write')
+
+@Post('inventory/reserve')
+@RequirePermission('merchant:inventory:write')
+
+@Post('inventory/release')
+@RequirePermission('merchant:inventory:write')</code></pre>
+      <p><strong>Seed addition</strong>: Add <code>'merchant:inventory:write'</code> to PERMISSIONS array; assign to MERCHANT_OWNER, MERCHANT_STAFF, ADMIN, SUPER_ADMIN.</p>
+
+      <h4>6.1.2 Add Permission Guards to Pricing Controller</h4>
+      <p><strong>File</strong>: <code>apps/api/src/modules/pricing/pricing.controller.ts</code></p>
+      <pre><code>@Post('price-lists')
+@RequirePermission('merchant:pricing:write')
+
+@Patch('price-lists/:id')
+@RequirePermission('merchant:pricing:write')
+
+@Post('price-lists/:priceListId/tiers')
+@RequirePermission('merchant:pricing:write')
+
+@Patch('tiers/:id')
+@RequirePermission('merchant:pricing:write')
+
+@Delete('tiers/:id')
+@RequirePermission('merchant:pricing:write')</code></pre>
+      <p><strong>Seed addition</strong>: Add <code>'merchant:pricing:write'</code> to PERMISSIONS; assign to MERCHANT_OWNER, MERCHANT_STAFF, ADMIN, SUPER_ADMIN.</p>
+
+      <h4>6.1.3 Add Permission Guards to Dispute Resolution</h4>
+      <p><strong>File</strong>: <code>apps/api/src/modules/reviews/disputes.controller.ts</code></p>
+      <pre><code>@Patch('disputes/:id/resolve')
+@RequirePermission('support:disputes:resolve')
+
+@Post('disputes/:id/response')
+@RequirePermission('support:disputes:write')</code></pre>
+      <p><strong>Seed addition</strong>: Add <code>'support:disputes:resolve'</code> and <code>'support:disputes:write'</code>; assign to ADMIN, SUPER_ADMIN, MODERATOR (write only).</p>
+
+      <h4>6.1.4 Seed Script Updates</h4>
+      <p><strong>File</strong>: <code>apps/api/src/scripts/seed.ts</code></p>
+      <pre><code>// Add to PERMISSIONS array:
+'merchant:inventory:write',
+'merchant:pricing:write',
+'support:disputes:resolve',
+'support:disputes:write',
+
+// Assign to roles:
+// SUPER_ADMIN: all (already gets all)
+// ADMIN: add merchant:inventory:write, merchant:pricing:write,
+//        support:disputes:resolve, support:disputes:write
+// MODERATOR: add support:disputes:write
+// MERCHANT_OWNER: add merchant:inventory:write, merchant:pricing:write
+// MERCHANT_STAFF: add merchant:inventory:write, merchant:pricing:write</code></pre>
+
+      <h3>6.2 Short-Term (Post-Pilot)</h3>
+
+      <h4>6.2.1 Web App Role Gating</h4>
+      <p>Add a <code>useMerchantAccess()</code> hook to <code>apps/web/src/lib/auth.ts</code>:</p>
+      <pre><code>export function useMerchantAccess(): boolean {
+  const user = getUser();
+  return user?.role === 'MERCHANT_OWNER' || user?.role === 'MERCHANT_STAFF';
+}
+
+// Use in merchant pages to redirect buyers:
+const isMerchant = useMerchantAccess();
+useEffect(() =&gt; { if (!isMerchant) router.replace('/search'); }, [isMerchant]);</code></pre>
+
+      <h4>6.2.2 Admin Sidebar Role Gating</h4>
+      <p>Add permission requirements to nav items in <code>AdminSidebar.tsx</code>:</p>
+      <pre><code>const navItems = [
+  { href: '/', label: 'Dashboard', icon: '&#8962;', perm: null },
+  { href: '/users', label: 'Users', icon: '&#128101;', perm: 'admin:users:read' },
+  { href: '/kpis', label: 'KPIs', icon: '&#128202;', perm: 'admin:kpis:read' },
+  { href: '/audit', label: 'Audit Log', icon: '&#128203;', perm: 'admin:audit:read' },
+  // ... others default to visible for all admin roles
+];
+// Filter nav items against the user's perms array from the JWT.</code></pre>
+
+      <h4>6.2.3 Production JWT Secret Gate</h4>
+      <p><strong>File</strong>: <code>apps/api/src/modules/identity/identity.module.ts</code></p>
+      <pre><code>const secret = process.env['JWT_ACCESS_SECRET'];
+if (!secret &amp;&amp; process.env['NODE_ENV'] === 'production') {
+  throw new Error('JWT_ACCESS_SECRET must be set in production');
+}</code></pre>
+
+      <h3>6.3 Medium-Term</h3>
+      <ol class="tight">
+        <li><strong>Shared @scs/contracts package</strong> &mdash; Extract API types into a shared package consumed by web, admin, and mobile codegen</li>
+        <li><strong>Org-membership validation middleware</strong> &mdash; Add a guard that validates the user is an active member of the org that owns the target resource</li>
+        <li><strong>CI permission audit</strong> &mdash; Add a script that compares <code>@RequirePermission</code> keys against seed PERMISSIONS and fails CI on mismatch</li>
+        <li><strong>DTO validation for all auth endpoints</strong> &mdash; Create proper class-validator DTOs for OTP request/verify</li>
+      </ol>
+    </section>
+
+    <!-- SECTION 7: APPENDIX -->
+    <section id="appendix">
+      <h2>7. Appendix: Evidence Traces</h2>
+
+      <h3>7.1 @RequirePermission Grep Results (Complete)</h3>
+      <p><strong>Total: 31 decorator usages across 5 controllers</strong></p>
+      <table>
+        <thead><tr><th>Controller</th><th>Count</th><th>Permission Keys Used</th></tr></thead>
+        <tbody>
+          <tr><td><code>admin.controller.ts</code></td><td>15</td><td>admin:orders:read (2), admin:merchants:read (3), admin:kpis:read (1), admin:audit:read (1), admin:users:read (4), admin:users:write (3), admin:merchants:read (1)</td></tr>
+          <tr><td><code>merchant.controller.ts</code></td><td>8</td><td>merchant:stores:write (6), merchant:verification:review (1)</td></tr>
+          <tr><td><code>catalog.controller.ts</code></td><td>7</td><td>catalog:categories:write (3), catalog:brands:manage (1), merchant:products:write (3)</td></tr>
+          <tr><td><code>orders.controller.ts</code></td><td>5</td><td>merchant:orders:write (5)</td></tr>
+          <tr><td><code>promotions.controller.ts</code></td><td>2</td><td>merchant:promotions:write (2)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>7.2 Seed Permission Count by Role</h3>
+      <table>
+        <thead><tr><th>Role</th><th>Permission Count</th><th>Key Categories</th></tr></thead>
+        <tbody>
+          <tr><td>SUPER_ADMIN</td><td>45 (all)</td><td>Everything</td></tr>
+          <tr><td>ADMIN</td><td>24</td><td>identity:*, merchant:stores:*, catalog:products:read, orders:read/cancel/refund, payments:*, analytics:read, audit:read, support:*, admin:*</td></tr>
+          <tr><td>MODERATOR</td><td>10</td><td>catalog:products:*, catalog:categories:*, merchant:products:write, support:*, orders:read, merchant:verification:review</td></tr>
+          <tr><td>MERCHANT_OWNER</td><td>13</td><td>catalog:*, orders:read/write, merchant:stores:read/write, merchant:products:write, merchant:orders:write, merchant:promotions:write</td></tr>
+          <tr><td>MERCHANT_STAFF</td><td>9</td><td>catalog:products:read/write, catalog:categories:read/write, orders:read/write, merchant:products:write, merchant:orders:write, merchant:promotions:write</td></tr>
+          <tr><td>BUYER</td><td>4</td><td>catalog:products:read, orders:read, orders:write, merchant:stores:read</td></tr>
+        </tbody>
+      </table>
+
+      <h3>7.3 Controller Guard Summary</h3>
+      <table>
+        <thead><tr><th>Controller</th><th>Class-Level Guards</th><th>@RequirePermission Count</th><th>Total Endpoints</th><th>Coverage</th></tr></thead>
+        <tbody>
+          <tr><td>admin</td><td>JwtAuthGuard, PermissionsGuard</td><td>15</td><td>15</td><td><span class="pill p-ok">100%</span></td></tr>
+          <tr><td>merchant</td><td>JwtAuthGuard</td><td>8</td><td>15</td><td><span class="pill p-warn">53%</span></td></tr>
+          <tr><td>catalog</td><td>JwtAuthGuard</td><td>7</td><td>12</td><td><span class="pill p-warn">58%</span></td></tr>
+          <tr><td>orders</td><td>JwtAuthGuard</td><td>5</td><td>12</td><td><span class="pill p-err">42%</span></td></tr>
+          <tr><td>promotions</td><td>JwtAuthGuard</td><td>2</td><td>2</td><td><span class="pill p-ok">100%</span></td></tr>
+          <tr><td>inventory</td><td>JwtAuthGuard</td><td>0</td><td>8</td><td><span class="pill p-err">0%</span></td></tr>
+          <tr><td>pricing</td><td>JwtAuthGuard</td><td>0</td><td>10</td><td><span class="pill p-err">0%</span></td></tr>
+          <tr><td>disputes</td><td>JwtAuthGuard</td><td>0</td><td>11</td><td><span class="pill p-err">0%</span></td></tr>
+          <tr><td>reviews</td><td>JwtAuthGuard</td><td>0</td><td>5</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>notifications</td><td>JwtAuthGuard</td><td>0</td><td>4</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>cart</td><td>JwtAuthGuard</td><td>0</td><td>~4</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>analytics</td><td>JwtAuthGuard</td><td>0</td><td>4</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>profile</td><td>JwtAuthGuard</td><td>0</td><td>~12</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>organizations</td><td>JwtAuthGuard</td><td>0</td><td>~4</td><td><span class="pill p-muted">0%</span></td></tr>
+          <tr><td>auth</td><td>None (public)</td><td>0</td><td>6</td><td><span class="pill p-ok">N/A</span></td></tr>
+        </tbody>
+      </table>
+
+      <h3>7.4 Client-Side Auth Summary</h3>
+      <table>
+        <thead><tr><th>Client</th><th>Auth Method</th><th>Role Source</th><th>Device Trust</th><th>Permission Awareness</th></tr></thead>
+        <tbody>
+          <tr><td>Admin</td><td>Dual-auth (OTP + password)</td><td><code>GET /v1/me</code> hydration</td><td class="status-ok">&#10003; getDeviceId()</td><td class="status-err">&#10007; No client-side perm checks</td></tr>
+          <tr><td>Web</td><td>Dual-auth (OTP + password)</td><td><code>GET /v1/me</code> hydration</td><td class="status-ok">&#10003; getDeviceId()</td><td class="status-err">&#10007; No role-based routing</td></tr>
+          <tr><td>Mobile</td><td>Dual-auth (OTP + password)</td><td><code>GET /v1/me</code> via profileProvider</td><td class="status-ok">&#10003; DeviceIdService</td><td class="status-err">&#10007; Minimal role awareness</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Report generated 2026-09-12 from comprehensive codebase analysis: 16 API controllers audited, 45 permission keys verified against seed, 4 client apps reviewed. All TypeScript projects compile clean (<code>tsc --noEmit</code>); Flutter mobile analyzer clean.</p>
+  <p>Smart Commerce &amp; Supply Platform (TAIF) &mdash; RBAC Audit Report</p>
+</footer>
+</body>
+</html>

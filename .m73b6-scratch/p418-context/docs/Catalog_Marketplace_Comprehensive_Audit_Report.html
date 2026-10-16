@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Multi-Merchant Marketplace Catalog — Comprehensive Audit Report</title>
+<style>
+:root{--brand:#0f3340;--brand-l:#1a5068;--accent:#38bdf8;--ok:#16a34a;--warn:#d97706;--err:#dc2626;--bg:#f8fafc;--surface:#fff;--muted:#64748b;--border:#e2e8f0;--ink:#0f172a;--radius:8px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+.hero{background:linear-gradient(135deg,var(--brand),var(--brand-l));color:#fff;padding:48px 32px 40px}
+.hero h1{font-size:28px;font-weight:800;letter-spacing:-.5px}.hero p{color:rgba(255,255,255,.7);margin-top:6px;font-size:14px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.toc{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.toc-inner{display:flex;gap:6px;overflow-x:auto;padding:0 24px;max-width:1120px;margin:0 auto}
+.toc a{font-size:12px;font-weight:600;color:var(--muted);text-decoration:none;padding:4px 10px;border-radius:20px;white-space:nowrap;transition:all .15s}
+.toc a:hover,.toc a.active{background:var(--brand);color:#fff}
+section{padding:32px 0;border-bottom:1px solid var(--border)}
+section h2{font-size:20px;font-weight:700;color:var(--brand);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+section h3{font-size:16px;font-weight:600;color:var(--ink);margin:20px 0 8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.b-ok{background:#dcfce7;color:var(--ok)}.b-warn{background:#fef3c7;color:var(--warn)}.b-err{background:#fee2e2;color:var(--err)}.b-info{background:#e0f2fe;color:#0369a1}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{background:var(--brand);color:#fff;text-align:left;padding:8px 12px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:hover td{background:rgba(56,189,248,.04)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:12px 0}
+.card h4{font-size:14px;font-weight:700;color:var(--brand);margin-bottom:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:768px){.grid2,.grid3{grid-template-columns:1fr}}
+.stat{text-align:center;padding:20px}.stat .num{font-size:32px;font-weight:800;color:var(--brand)}.stat .label{font-size:12px;color:var(--muted);margin-top:4px}
+.gap-id{font-family:monospace;font-size:11px;color:var(--accent);font-weight:700}
+code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px;font-family:'Fira Code',monospace}
+.p0{border-left:4px solid var(--err)}.p1{border-left:4px solid var(--warn)}.p2{border-left:4px solid var(--accent)}
+.summary-box{background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border:1px solid #bae6fd;border-radius:var(--radius);padding:20px;margin:16px 0}
+.progress-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:4px 0}
+.progress-fill{height:100%;border-radius:4px}
+</style>
+</head>
+<body>
+
+<div class="hero"><div class="wrap">
+<h1>Multi-Merchant Marketplace Catalog — Comprehensive Audit Report</h1>
+<p>Smart Commerce &amp; Supply Platform · Covers 78-section master specification · Generated 24 Sep 2026</p>
+<div style="display:flex;gap:24px;margin-top:20px;flex-wrap:wrap">
+<div class="stat"><div class="num">30</div><div class="label">DB Migrations</div></div>
+<div class="stat"><div class="num">522+</div><div class="label">Unit Tests</div></div>
+<div class="stat"><div class="num">75</div><div class="label">Integration Tests</div></div>
+<div class="stat"><div class="num">51</div><div class="label">RBAC Permissions</div></div>
+<div class="stat"><div class="num">39</div><div class="label">Test Spec Files</div></div>
+</div>
+</div></div>
+
+<nav class="toc"><div class="toc-inner">
+<a href="#s1">Executive Summary</a>
+<a href="#s2">Implementation Status</a>
+<a href="#s3">Backend Domain Audit</a>
+<a href="#s4">Frontend Audit</a>
+<a href="#s5">Missing Features</a>
+<a href="#s6">UI Workflow Gaps</a>
+<a href="#s7">Cross-Cutting</a>
+<a href="#s8">Security &amp; RBAC</a>
+<a href="#s9">Gap Register</a>
+<a href="#s10">Recommendations</a>
+</div></nav>
+
+<div class="wrap">
+
+<!-- ═══════════════════ 1. EXECUTIVE SUMMARY ═══════════════════ -->
+<section id="s1">
+<h2>1. Executive Summary</h2>
+
+<div class="summary-box">
+<strong>Overall Assessment:</strong> The backend architecture is <strong>launch-ready for Phase 1–4</strong> of the marketplace catalog evolution (canonical products, attributes, product types, merchant offers). The domain model, API surface, RBAC, migrations, and test infrastructure are solid. However, the <strong>frontend has significant gaps</strong> — most admin governance pages are stubs, the buyer experience lacks dynamic variant selection and offer comparison, and the merchant product creation workflow is not yet template-driven.
+</div>
+
+<div class="grid3">
+<div class="card" style="border-left:4px solid var(--ok)"><h4>Backend (API)</h4>
+<div style="font-size:13px;color:var(--muted)">Phase 1–4 domain model complete, 30 migrations, full taxonomy + offer APIs, 522+ tests passing, dynamic search facets, RBAC fully wired.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:85%;background:var(--ok)"></div></div>
+<span class="badge b-ok">85% Complete</span></div>
+
+<div class="card" style="border-left:4px solid var(--warn)"><h4>Admin Console</h4>
+<div style="font-size:13px;color:var(--muted)">Categories, brands, products, offers pages exist but most are generic ManagementPage stubs. No Product Type Builder, no attribute management UI, no offer governance workflow.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:30%;background:var(--warn)"></div></div>
+<span class="badge b-warn">30% Complete</span></div>
+
+<div class="card" style="border-left:4px solid var(--warn)"><h4>Web App (Buyer + Merchant)</h4>
+<div style="font-size:13px;color:var(--muted)">Buyer product page has gallery, specs, other sellers. Search has dynamic facets. Missing: variant selector matrix, offer comparison, B2B actions. Merchant offers page exists but no template-driven creation.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:45%;background:var(--warn)"></div></div>
+<span class="badge b-warn">45% Complete</span></div>
+</div>
+
+<div class="grid3">
+<div class="card" style="border-left:4px solid var(--err)"><h4>Mobile (Flutter)</h4>
+<div style="font-size:13px;color:var(--muted)">Basic catalog screens exist. No product type awareness, no offer comparison, no attribute-driven forms. Typed API client is auth-only.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:20%;background:var(--err)"></div></div>
+<span class="badge b-err">20% Complete</span></div>
+
+<div class="card" style="border-left:4px solid var(--accent)"><h4>CI / Testing</h4>
+<div style="font-size:13px;color:var(--muted)">Comprehensive pipeline: lint, typecheck, unit+coverage gates, integration (testcontainers), migration dry-run, contract spec validation, build, Flutter analyze+test, k6 smoke.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:90%;background:var(--accent)"></div></div>
+<span class="badge b-info">90% Complete</span></div>
+
+<div class="card" style="border-left:4px solid var(--err)"><h4>Product Type Builder</h4>
+<div style="font-size:13px;color:var(--muted)">Not started. The flagship admin tool (§33, §69) — drag/reorder attributes, configure groups, required/variant/filterable toggles, validation, conditional rules, preview — has no UI.</div>
+<div class="progress-bar"><div class="progress-fill" style="width:0%;background:var(--err)"></div></div>
+<span class="badge b-err">0% Complete</span></div>
+</div>
+</section>
+
+<!-- ═══════════════════ 2. IMPLEMENTATION STATUS ═══════════════════ -->
+<section id="s2">
+<h2>2. Implemented Features — Spec Section Coverage</h2>
+<table>
+<thead><tr><th>Spec §</th><th>Requirement</th><th>Status</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>§1–2</td><td>Canonical Product vs Merchant Offer separation</td><td><span class="badge b-ok">Complete</span></td><td><code>catalog.schema.ts</code> + <code>catalog.offer.schema.ts</code>; migrations 0025–0026</td></tr>
+<tr><td>§5 Domain Model</td><td>Category, Brand, AttributeDefinition, AttributeOption, ProductType, Product, Variant, MerchantOffer</td><td><span class="badge b-ok">Complete</span></td><td>All tables in Drizzle schema; 15 schema files</td></tr>
+<tr><td>§6 Category</td><td>Taxonomy with hierarchy, slug, image, status, sort_order</td><td><span class="badge b-ok">Complete</span></td><td><code>categories</code> table; materialized path hierarchy</td></tr>
+<tr><td>§7 Brand</td><td>First-class entity with name, slug, logo, status</td><td><span class="badge b-ok">Complete</span></td><td><code>brands</code> table; admin CRUD via ManagementPage</td></tr>
+<tr><td>§8–9 Attributes</td><td>AttributeDefinition + AttributeOption with 14 types</td><td><span class="badge b-ok">Complete</span></td><td><code>attributeDefinitions</code>, <code>attributeOptions</code> tables; migration 0023</td></tr>
+<tr><td>§10 Attribute Scope</td><td>PRODUCT / VARIANT / OFFER scope</td><td><span class="badge b-ok">Complete</span></td><td><code>AttributeScope</code> type; <code>scope</code> column on attributeDefinitions + productTypeAttributes</td></tr>
+<tr><td>§11 Product Type</td><td>First-class ProductType with category binding</td><td><span class="badge b-ok">Complete</span></td><td><code>productTypes</code> table; migration 0024</td></tr>
+<tr><td>§12 Versioning</td><td>Product Type versioning</td><td><span class="badge b-ok">Complete</span></td><td><code>version</code> column; <code>POST admin/product-types/:id/versions</code> endpoint</td></tr>
+<tr><td>§13 Type Attribute Config</td><td>required, scope, filterable, searchable, sortable, comparable, visibleInListing/Detail, allowedValues, validationRules</td><td><span class="badge b-ok">Complete</span></td><td><code>productTypeAttributes</code> table — all columns present</td></tr>
+<tr><td>§14 Attribute Groups</td><td>Reusable groups (General, Processor, Memory…)</td><td><span class="badge b-ok">Complete</span></td><td><code>attributeGroups</code> table; <code>groupId</code> FK on productTypeAttributes</td></tr>
+<tr><td>§15 Conditional Attributes</td><td>IF/THEN rules for attribute requirements</td><td><span class="badge b-warn">Partial</span></td><td><code>conditionalRules jsonb</code> column exists; no UI or runtime enforcement</td></tr>
+<tr><td>§16 Validation</td><td>Required, Min, Max, Regex, Allowed Values</td><td><span class="badge b-warn">Partial</span></td><td><code>validationRules jsonb</code> on type-attribute; <code>validation jsonb</code> on definition; backend enforcement unverified</td></tr>
+<tr><td>§17 Canonical Product</td><td>Product with productTypeId, category, brand; no merchant data</td><td><span class="badge b-ok">Complete</span></td><td><code>products</code> table; <code>productTypeId</code>, <code>brandId</code>, <code>categoryId</code> columns</td></tr>
+<tr><td>§18 Product Attribute Values</td><td>Typed attribute values (text, number, boolean, option)</td><td><span class="badge b-ok">Complete</span></td><td><code>productAttributeValues</code> table; multi-column typed storage</td></tr>
+<tr><td>§19–22 Variants</td><td>ProductVariant, variant attribute values, combination uniqueness</td><td><span class="badge b-ok">Complete</span></td><td><code>productVariants</code> + <code>variantAttributeValues</code>; <code>combinationKey</code> + partial unique index</td></tr>
+<tr><td>§23–25 Merchant Offer</td><td>MerchantOffer connecting Merchant + Variant; price/stock/MOQ/lead-time</td><td><span class="badge b-ok">Complete</span></td><td><code>merchantOffers</code> table; priceListId + warehouseId references</td></tr>
+<tr><td>§24 Multiple Merchants</td><td>Same variant supports multiple offers</td><td><span class="badge b-ok">Complete</span></td><td>Schema allows N offers per variant; <code>GET products/:id/offers</code> returns all</td></tr>
+<tr><td>§26 B2B Features</td><td>MOQ, lead time, volume pricing preparation</td><td><span class="badge b-ok">Complete</span></td><td><code>moq</code>, <code>leadTimeDays</code>, <code>orderIncrement</code> on offers; price_tiers for volume</td></tr>
+<tr><td>§31 Merchant Request Workflow</td><td>Request new category/brand/attribute → admin review</td><td><span class="badge b-err">Missing</span></td><td>No request tables or API endpoints</td></tr>
+<tr><td>§32 Platform Admin</td><td>Admin manages categories, brands, attributes, product types</td><td><span class="badge b-err">Partial</span></td><td>API complete; admin UI has only generic stubs for categories/brands; no attribute/product-type UI</td></tr>
+<tr><td>§33 Product Type Builder</td><td>Advanced drag/reorder admin tool</td><td><span class="badge b-err">Missing</span></td><td>No admin page exists</td></tr>
+<tr><td>§34 Product Type Preview</td><td>Admin preview of merchant form / buyer detail / search facets</td><td><span class="badge b-err">Missing</span></td><td>No preview UI</td></tr>
+<tr><td>§35–36 Buyer Product Page + Variant Selector</td><td>Polished page with dynamic variant selection</td><td><span class="badge b-warn">Partial</span></td><td>Product page exists with gallery, specs, other sellers; but variant selection is a flat list, not a dynamic matrix</td></tr>
+<tr><td>§37–38 Multi-Merchant Offer Selection + Comparison</td><td>Compare offers on price, MOQ, stock, lead time</td><td><span class="badge b-warn">Partial</span></td><td>"Other Sellers" section exists with per-offer add-to-cart; no side-by-side comparison table</td></tr>
+<tr><td>§39 Buyer Specifications</td><td>Dynamic spec sections from Product Type</td><td><span class="badge b-ok">Complete</span></td><td><code>product.attributeValues</code> rendered as spec table on product detail page</td></tr>
+<tr><td>§40–41 Category Listing + Search Facets</td><td>Dynamic template-driven filters</td><td><span class="badge b-ok">Complete</span></td><td>Search service has attribute-based EXISTS filtering; search page renders dynamic facets</td></tr>
+<tr><td>§42 Product Card</td><td>Category-specific summary info</td><td><span class="badge b-ok">Complete</span></td><td><code>product-card.ts</code> enrichment with media, pricing</td></tr>
+<tr><td>§43 Product Comparison</td><td>Side-by-side attribute comparison</td><td><span class="badge b-err">Missing</span></td><td>No comparison UI</td></tr>
+<tr><td>§44–45 Dedup + Identifiers</td><td>GTIN, EAN, MPN support; dedup preparation</td><td><span class="badge b-warn">Partial</span></td><td><code>gtin</code>, <code>ean</code>, <code>mpn</code> columns on products; dedup test exists; no admin review workflow</td></tr>
+<tr><td>§46 Product Media</td><td>Separate canonical vs merchant media</td><td><span class="badge b-ok">Complete</span></td><td><code>productMedia</code> table with variantId scope; presigned URL resolution</td></tr>
+<tr><td>§47–48 Product + Offer Lifecycle</td><td>Status states for products and offers</td><td><span class="badge b-ok">Complete</span></td><td>Products: DRAFT/...; Offers: DRAFT|PROPOSED|ACTIVE|SUSPENDED|REJECTED|WITHDRAWN</td></tr>
+<tr><td>§49–50 Inventory + Price on Offer</td><td>Inventory and price belong to offer, not canonical product</td><td><span class="badge b-ok">Complete</span></td><td>Offers reference priceListId + warehouseId</td></tr>
+<tr><td>§57 Permissions</td><td>Admin/Merchant/Buyer permission separation</td><td><span class="badge b-ok">Complete</span></td><td>51 permissions; 6 roles; @RequirePermission guards on all write endpoints</td></tr>
+<tr><td>§58 Ownership Rule</td><td>Merchant owns offer; marketplace owns canonical</td><td><span class="badge b-ok">Complete</span></td><td>Schema + API enforce this separation</td></tr>
+<tr><td>§59–60 Merchant UX</td><td>Step-based product creation with template</td><td><span class="badge b-err">Missing</span></td><td>Merchant catalog page is a flat product list; no template-driven wizard</td></tr>
+<tr><td>§61–62 Buyer Experience</td><td>Coherent catalog with variant selector + offer comparison</td><td><span class="badge b-warn">Partial</span></td><td>Product page works but lacks dynamic variant matrix and structured offer comparison</td></tr>
+<tr><td>§63 B2B Buying</td><td>RFQ, bulk inquiry, contact supplier, sample request</td><td><span class="badge b-err">Missing</span></td><td>None of these actions exist in the UI</td></tr>
+<tr><td>§64–65 Data Quality</td><td>Admin data quality dashboard, completeness score</td><td><span class="badge b-err">Missing</span></td><td>No data quality pages or scoring</td></tr>
+<tr><td>§66–67 Search + SEO</td><td>Template-driven search, SEO structured data</td><td><span class="badge b-warn">Partial</span></td><td>Search works with dynamic facets; no SEO structured data (JSON-LD), no canonical URLs</td></tr>
+<tr><td>§68 Design System</td><td>Reuse existing design tokens and components</td><td><span class="badge b-ok">Complete</span></td><td>@scs/ui-kit shared; colors, typeScale, radii used consistently</td></tr>
+<tr><td>§69 Admin Product Type Builder UI</td><td>Professional schema management tool</td><td><span class="badge b-err">Missing</span></td><td>No page exists</td></tr>
+<tr><td>§70 Merchant Product Editor</td><td>Step-based workflow with progress, validation, completeness</td><td><span class="badge b-err">Missing</span></td><td>Existing merchant catalog is a flat list + basic form</td></tr>
+<tr><td>§72 Testing</td><td>Tests for all domains</td><td><span class="badge b-ok">Complete</span></td><td>39 spec files covering catalog, orders, identity, pricing, inventory, RBAC, realtime, storage</td></tr>
+<tr><td>§73 Implementation Phases</td><td>Phased delivery</td><td><span class="badge b-ok">On Track</span></td><td>Phases 1–4 backend complete; Phases 6–10 frontend pending</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ 3. BACKEND DOMAIN AUDIT ═══════════════════ -->
+<section id="s3">
+<h2>3. Backend Domain Audit</h2>
+
+<h3>3.1 Database Schema (15 files, 30 migrations)</h3>
+<table>
+<thead><tr><th>Domain</th><th>Tables</th><th>Migration(s)</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Identity</td><td>users, organizations, orgMembers, roles, permissions, rolePermissions, sessions, refreshTokens, revokedTokens</td><td>0001, 0011, 0014, 0016, 0021, 0022</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Catalog Core</td><td>categories, brands, products, productVariants, productMedia, favorites, savedSuppliers, importJobs</td><td>0004, 0017</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Taxonomy (Phase 2)</td><td>attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues</td><td>0023, 0024, 0025</td><td><span class="badge b-ok">Complete</span></td></tr>
+<tr><td>Merchant Offers (Phase 4)</td><td>merchantOffers</td><td>0026, 0028, 0029, 0030</td><td><span class="badge b-ok">Complete</span></td></tr>
+<tr><td>Merchant</td><td>stores, warehouses, verifications</td><td>0003</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Inventory</td><td>inventoryItems, stockMovements</td><td>0005, 0020</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Pricing</td><td>priceLists, priceTiers</td><td>0006, 0019</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Orders</td><td>orders, orderItems, orderStatusHistory</td><td>0010</td><td><span class="badge b-ok">Mature</span></td></tr>
+<tr><td>Performance</td><td>Various indexes</td><td>0027</td><td><span class="badge b-ok">Complete</span></td></tr>
+</tbody>
+</table>
+
+<h3>3.2 API Surface (18 controllers)</h3>
+<table>
+<thead><tr><th>Controller</th><th>Routes</th><th>Guards</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>CatalogController</td><td>Products CRUD, categories, brands, search, facets</td><td>JwtAuthGuard + selective PermissionsGuard</td><td>1624-line service — the largest</td></tr>
+<tr><td>CatalogTaxonomyController</td><td>Attributes CRUD, options, groups, product types CRUD, publish, version, set-attributes, set-variant-dimensions</td><td>JwtAuthGuard (reads) + PermissionsGuard (writes: <code>catalog:attributes:manage</code>, <code>catalog:product-types:manage</code>)</td><td><span class="badge b-ok">Full Phase 2 API</span></td></tr>
+<tr><td>CatalogOfferController</td><td>List offers per product, ranked offers, merchant offer CRUD, propose/withdraw, admin approve/reject/suspend/activate, analytics, trend</td><td>JwtAuthGuard + PermissionsGuard (<code>catalog:offers:write</code>, <code>catalog:offers:govern</code>)</td><td><span class="badge b-ok">Full Phase 4 API</span></td></tr>
+<tr><td>AdminController</td><td>Dashboard KPIs, entity CRUD (users, orders, merchants, products, categories, brands, disputes, verification)</td><td>PermissionsGuard per entity</td><td>840-line service</td></tr>
+<tr><td>Other controllers</td><td>Auth, Profile, Organizations, Inventory, Pricing, Promotions, Orders, Cart, Notifications, Reviews, Disputes, Analytics, Health</td><td>Appropriate guards</td><td>All operational</td></tr>
+</tbody>
+</table>
+
+<h3>3.3 Known Backend Gaps</h3>
+<div class="card p0"><h4>BK-1: products.storeId still NOT NULL <span class="badge b-err">P0</span></h4>
+<p>The <code>products</code> table still requires <code>storeId</code>. For a true canonical product (platform-owned, multi-merchant), this must be nullable. Migration 0025 relaxes at DB level but the ORM type still says <code>notNull()</code>.</p></div>
+<div class="card p1"><h4>BK-2: No merchant request workflow API <span class="badge b-warn">P1</span></h4>
+<p>§31 requires merchants to request new categories, brands, attributes. No tables, endpoints, or status machine exist.</p></div>
+<div class="card p1"><h4>BK-3: Conditional attribute rules not enforced <span class="badge b-warn">P1</span></h4>
+<p><code>conditionalRules jsonb</code> column exists on productTypeAttributes but no runtime validation evaluates these rules during product creation or publishing.</p></div>
+<div class="card p2"><h4>BK-4: No product completeness / data quality scoring <span class="badge b-info">P2</span></h4>
+<p>§65 calls for a completeness score. No backend computation exists.</p></div>
+</section>
+
+<!-- ═══════════════════ 4. FRONTEND AUDIT ═══════════════════ -->
+<section id="s4">
+<h2>4. Frontend Audit</h2>
+
+<h3>4.1 Admin Console (apps/admin) — 21 pages</h3>
+<table>
+<thead><tr><th>Page</th><th>Implementation</th><th>Assessment</th></tr></thead>
+<tbody>
+<tr><td>Dashboard (<code>/</code>)</td><td>165 lines — KPI summary</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Users</td><td>ManagementPage stub → full table with detail dialog, status actions</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Orders</td><td>ManagementPage stub → table with sorting/filtering</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Merchants</td><td>ManagementPage stub → table</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Organizations</td><td>559 lines — full page</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Verification</td><td>List + <code>/verification/[id]</code> (521 lines) with approve/reject/revision</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Categories</td><td>ManagementPage with CRUD (create/edit/delete)</td><td><span class="badge b-warn">Basic</span> — no tree view, no nesting visualization</td></tr>
+<tr><td>Brands</td><td>ManagementPage with CRUD</td><td><span class="badge b-warn">Basic</span> — no verification badge, no brand ownership</td></tr>
+<tr><td>Products</td><td>ManagementPage with moderation (approve/reject), keyboard shortcuts (j/k/a/x)</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Offers</td><td>ManagementPage stub — table only</td><td><span class="badge b-warn">Minimal</span> — no approve/reject/suspend workflow in UI</td></tr>
+<tr><td>Offer KPIs</td><td>203 lines — chart dashboard</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Offer Trend</td><td>296 lines — time-series</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>KPIs</td><td>207 lines — dashboard</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Disputes</td><td>ManagementPage stub</td><td><span class="badge b-warn">Minimal</span></td></tr>
+<tr><td>Audit Log</td><td>5-line stub</td><td><span class="badge b-err">Stub</span></td></tr>
+<tr><td>Account</td><td>312 lines — security settings</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr style="background:#fee2e2"><td><strong>Product Types</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fee2e2"><td><strong>Attributes</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fee2e2"><td><strong>Product Type Builder</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fee2e2"><td><strong>Data Quality Dashboard</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+</tbody>
+</table>
+
+<h3>4.2 Web App — Buyer Pages (apps/web)</h3>
+<table>
+<thead><tr><th>Page</th><th>Implementation</th><th>Assessment</th></tr></thead>
+<tbody>
+<tr><td>Search (<code>/search</code>)</td><td>659 lines — query, category/brand filters, dynamic attribute facets, sort, pagination, add-to-cart</td><td><span class="badge b-ok">Strong</span></td></tr>
+<tr><td>Product Detail (<code>/products/[id]</code>)</td><td>606 lines — gallery with zoom, specs from attributeValues, other sellers with per-offer add-to-cart, ranked overlay, stock badges</td><td><span class="badge b-ok">Strong</span></td></tr>
+<tr><td>Stores (<code>/stores/[slug]</code>)</td><td>369 lines — merchant storefront</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Cart / Checkout</td><td>228 / 175 lines</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Orders (<code>/orders</code>, <code>/orders/[id]</code>)</td><td>List + detail</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Favorites</td><td>84 lines</td><td><span class="badge b-warn">Basic</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>Variant Selector Matrix</strong></td><td><strong>DOES NOT EXIST</strong> — variants shown as flat list</td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>Offer Comparison Table</strong></td><td><strong>DOES NOT EXIST</strong> — "Other Sellers" is a list, not a comparison</td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>B2B Actions (RFQ, Bulk Inquiry, Contact Supplier)</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>Product Comparison</strong></td><td><strong>DOES NOT EXIST</strong></td><td><span class="badge b-err">Missing</span></td></tr>
+</tbody>
+</table>
+
+<h3>4.3 Web App — Merchant Pages</h3>
+<table>
+<thead><tr><th>Page</th><th>Implementation</th><th>Assessment</th></tr></thead>
+<tbody>
+<tr><td>Merchant Catalog</td><td>507 lines — product list + category CRUD</td><td><span class="badge b-warn">Basic</span> — flat list, no template-driven creation</td></tr>
+<tr><td>Product Detail</td><td>726 lines — edit form</td><td><span class="badge b-warn">Basic</span> — no attribute-group wizard</td></tr>
+<tr><td>Merchant Offers</td><td>484 lines — full CRUD, propose/withdraw, analytics, trend chart</td><td><span class="badge b-ok">Strong</span></td></tr>
+<tr><td>Inventory / Pricing / Warehouses</td><td>746 / 495 / 293 lines</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr><td>Orders / Customers / Import / Store / Onboard / Register</td><td>All present (400–1100 lines each)</td><td><span class="badge b-ok">Functional</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>Template-Driven Product Creation</strong></td><td><strong>DOES NOT EXIST</strong> — no step wizard, no product type form generation</td><td><span class="badge b-err">Missing</span></td></tr>
+<tr style="background:#fef3c7"><td><strong>Variant Matrix UI</strong></td><td><strong>DOES NOT EXIST</strong> — no combination generator</td><td><span class="badge b-err">Missing</span></td></tr>
+</tbody>
+</table>
+
+<h3>4.4 Mobile (Flutter) — 120 Dart files</h3>
+<table>
+<thead><tr><th>Area</th><th>Status</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Auth (login, sessions, password change)</td><td><span class="badge b-ok">Complete</span></td><td>Dual auth with device trust</td></tr>
+<tr><td>Home / Search / Product Detail</td><td><span class="badge b-warn">Basic</span></td><td>No attribute-driven forms, no offer comparison</td></tr>
+<tr><td>Merchant (catalog, inventory, orders, customers, store, registration)</td><td><span class="badge b-warn">Basic</span></td><td>CRUD screens exist but no offer management, no template-driven creation</td></tr>
+<tr><td>Cart / Checkout / Orders</td><td><span class="badge b-ok">Functional</span></td><td>Full flow</td></tr>
+<tr><td>Organizations / Notifications / Reviews</td><td><span class="badge b-ok">Functional</span></td><td>Present</td></tr>
+<tr><td>Typed API Client</td><td><span class="badge b-err">Auth-only</span></td><td>api_client package only covers auth/profile models; no catalog/offer types</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ 5. MISSING FEATURES ═══════════════════ -->
+<section id="s5">
+<h2>5. Missing Features — Prioritized</h2>
+
+<h3>P0 — Launch-Blocking</h3>
+<div class="card p0"><h4>M-01: Admin Product Type Builder <span class="gap-id">§33, §69</span></h4>
+<p>The flagship admin tool for managing product types, their attributes, groups, validation rules, variant dimensions, and preview has <strong>zero UI</strong>. The API is complete (<code>catalog.taxonomy.controller.ts</code>) but administrators cannot use it.</p>
+<p><strong>Effort:</strong> 8–10 days · <strong>Dependencies:</strong> None (API ready)</p></div>
+
+<div class="card p0"><h4>M-02: Admin Attribute Management UI <span class="gap-id">§32</span></h4>
+<p>No admin page to create/edit/deprecate attribute definitions or manage attribute options. The API exists (<code>POST/PATCH/DELETE admin/attributes</code>) but has no UI.</p>
+<p><strong>Effort:</strong> 3–4 days · <strong>Dependencies:</strong> None</p></div>
+
+<div class="card p0"><h4>M-03: Dynamic Variant Selector on Buyer Product Page <span class="gap-id">§35–36</span></h4>
+<p>The buyer sees a flat list of all variants instead of a dynamic matrix (e.g., RAM × Storage × Color) that disables unavailable combinations. This is the core marketplace UX.</p>
+<p><strong>Effort:</strong> 4–5 days · <strong>Dependencies:</strong> Product type variant dimensions API</p></div>
+
+<h3>P1 — Critical</h3>
+<div class="card p1"><h4>M-04: Offer Comparison Table <span class="gap-id">§37–38</span></h4>
+<p>"Other Sellers" is a list, not a structured comparison. Buyers need to compare price, MOQ, stock, lead time, shipping, warranty side-by-side.</p>
+<p><strong>Effort:</strong> 3–4 days</p></div>
+
+<div class="card p1"><h4>M-05: Admin Offer Governance Workflow UI <span class="gap-id">§48</span></h4>
+<p>The offers admin page is a generic table. The approve/reject/suspend/activate API endpoints exist but the admin UI doesn't surface these actions.</p>
+<p><strong>Effort:</strong> 2–3 days</p></div>
+
+<div class="card p1"><h4>M-06: Template-Driven Merchant Product Creation <span class="gap-id">§27–28, §70</span></h4>
+<p>Merchants currently use a flat product form. The spec requires a step-based wizard that dynamically generates fields from the Product Type configuration.</p>
+<p><strong>Effort:</strong> 6–8 days</p></div>
+
+<div class="card p1"><h4>M-07: Variant Matrix Generator for Merchants <span class="gap-id">§21</span></h4>
+<p>Merchants need a UI to select variant dimensions (e.g., RAM × Storage × Color), see all theoretical combinations, and disable ones they don't sell.</p>
+<p><strong>Effort:</strong> 4–5 days</p></div>
+
+<div class="card p1"><h4>M-08: B2B Buying Actions (RFQ, Bulk Inquiry, Contact Supplier) <span class="gap-id">§63</span></h4>
+<p>No RFQ, bulk pricing request, contact supplier, or sample request functionality exists anywhere in the UI.</p>
+<p><strong>Effort:</strong> 5–6 days (API + UI)</p></div>
+
+<div class="card p1"><h4>M-09: Merchant Request Workflow <span class="gap-id">§31</span></h4>
+<p>Merchants cannot request new categories, brands, attributes, or attribute options. No API or UI exists.</p>
+<p><strong>Effort:</strong> 4–5 days (API + UI)</p></div>
+
+<div class="card p1"><h4>M-10: products.storeId NOT NULL Constraint <span class="gap-id">§17</span></h4>
+<p>The products table still requires storeId at the ORM level. For true canonical products (platform-owned, multi-merchant), this must be nullable.</p>
+<p><strong>Effort:</strong> 1–2 days (migration + service updates)</p></div>
+
+<h3>P2 — Nice-to-Have</h3>
+<div class="card p2"><h4>M-11: Product Comparison UI <span class="gap-id">§43</span></h4>
+<p>Side-by-side comparison of products within compatible product types using normalized attributes. Effort: 4–5 days.</p></div>
+<div class="card p2"><h4>M-12: Data Quality Dashboard <span class="gap-id">§64–65</span></h4>
+<p>Admin dashboard showing products missing attributes, duplicate candidates, incomplete media, completeness scores. Effort: 5–6 days.</p></div>
+<div class="card p2"><h4>M-13: SEO Structured Data <span class="gap-id">§67</span></h4>
+<p>No JSON-LD structured data on product pages. No canonical URL management. Effort: 2–3 days.</p></div>
+<div class="card p2"><h4>M-14: Conditional Attribute Rules Enforcement <span class="gap-id">§15</span></h4>
+<p>conditionalRules jsonb exists but is never evaluated. Backend validation + frontend form integration needed. Effort: 3–4 days.</p></div>
+<div class="card p2"><h4>M-15: GTIN/EAN Dedup Admin Review Workflow <span class="gap-id">§44, §60</span></h4>
+<p>Identifiers exist on products but no admin workflow to review/merge duplicate candidates. Effort: 3–4 days.</p></div>
+<div class="card p2"><h4>M-16: Mobile Catalog Parity <span class="gap-id">§61–62</span></h4>
+<p>Mobile app lacks offer comparison, dynamic variant selection, template-driven creation, typed API client for catalog. Effort: 8–10 days.</p></div>
+<div class="card p2"><h4>M-17: Admin Audit Log Page <span class="gap-id">§32</span></h4>
+<p>The audit page is a 5-line stub. The backend audit service and <code>audit:read</code> permission exist. Effort: 2–3 days.</p></div>
+</section>
+
+<!-- ═══════════════════ 6. UI WORKFLOW GAPS ═══════════════════ -->
+<section id="s6">
+<h2>6. UI Workflow Gaps</h2>
+
+<h3>6.1 Incomplete User Journeys</h3>
+<table>
+<thead><tr><th>Journey</th><th>API Status</th><th>Admin UI</th><th>Web UI</th><th>Mobile UI</th></tr></thead>
+<tbody>
+<tr><td>Admin creates Product Type with attributes</td><td><span class="badge b-ok">API ✓</span></td><td><span class="badge b-err">No UI</span></td><td>N/A</td><td>N/A</td></tr>
+<tr><td>Admin manages attribute definitions + options</td><td><span class="badge b-ok">API ✓</span></td><td><span class="badge b-err">No UI</span></td><td>N/A</td><td>N/A</td></tr>
+<tr><td>Admin governs offers (approve/reject/suspend)</td><td><span class="badge b-ok">API ✓</span></td><td><span class="badge b-err">No actions</span></td><td>N/A</td><td>N/A</td></tr>
+<tr><td>Merchant creates product via template wizard</td><td><span class="badge b-warn">Partial</span></td><td>N/A</td><td><span class="badge b-err">No UI</span></td><td><span class="badge b-err">No UI</span></td></tr>
+<tr><td>Merchant generates variant matrix</td><td><span class="badge b-warn">Partial</span></td><td>N/A</td><td><span class="badge b-err">No UI</span></td><td><span class="badge b-err">No UI</span></td></tr>
+<tr><td>Buyer selects variant via dynamic matrix</td><td><span class="badge b-ok">API ✓</span></td><td>N/A</td><td><span class="badge b-err">Flat list</span></td><td><span class="badge b-err">No UI</span></td></tr>
+<tr><td>Buyer compares merchant offers</td><td><span class="badge b-ok">API ✓</span></td><td>N/A</td><td><span class="badge b-warn">List only</span></td><td><span class="badge b-err">No UI</span></td></tr>
+<tr><td>Buyer requests quote / bulk inquiry</td><td><span class="badge b-err">No API</span></td><td>N/A</td><td><span class="badge b-err">No UI</span></td><td><span class="badge b-err">No UI</span></td></tr>
+<tr><td>Merchant requests new taxonomy entry</td><td><span class="badge b-err">No API</span></td><td><span class="badge b-err">No UI</span></td><td><span class="badge b-err">No UI</span></td><td><span class="badge b-err">No UI</span></td></tr>
+</tbody>
+</table>
+
+<h3>6.2 Missing Error / Loading / Empty States</h3>
+<div class="grid2">
+<div class="card"><h4>Loading States</h4>
+<ul style="font-size:13px;padding-left:16px">
+<li>Admin ManagementPage: <span style="color:var(--ok)">✓</span> SkeletonTable during load</li>
+<li>Product detail: <span style="color:var(--ok)">✓</span> LoadingSpinner</li>
+<li>Search page: <span style="color:var(--ok)">✓</span> loading flag with Suspense fallback</li>
+<li>Admin sidebar: <span style="color:var(--warn)">⚠</span> No loading state for permission resolution</li>
+<li>Merchant offers: <span style="color:var(--ok)">✓</span> LoadingSpinner</li>
+</ul></div>
+<div class="card"><h4>Empty States</h4>
+<ul style="font-size:13px;padding-left:16px">
+<li>Product detail (not found): <span style="color:var(--ok)">✓</span> EmptyState component</li>
+<li>Search (no results): <span style="color:var(--ok)">✓</span> EmptyState component</li>
+<li>Variants (none): <span style="color:var(--ok)">✓</span> "No variants available"</li>
+<li>Admin tables (no rows): <span style="color:var(--ok)">✓</span> "No matching records"</li>
+<li>Other Sellers (none): <span style="color:var(--warn)">⚠</span> Silently hidden — no informational message</li>
+</ul></div>
+</div>
+
+<h3>6.3 Accessibility Issues</h3>
+<table>
+<thead><tr><th>Area</th><th>Finding</th><th>Severity</th></tr></thead>
+<tbody>
+<tr><td>Product Gallery</td><td><span style="color:var(--ok)">✓</span> Has <code>role="region"</code>, <code>aria-label</code>, keyboard left/right navigation</td><td><span class="badge b-ok">Good</span></td></tr>
+<tr><td>Admin Table</td><td><span style="color:var(--ok)">✓</span> <code>aria-sort</code> on sortable headers, <code>aria-label</code> on View buttons</td><td><span class="badge b-ok">Good</span></td></tr>
+<tr><td>Search Page</td><td><span style="color:var(--warn)">⚠</span> Only 3 ARIA attributes total; filter checkboxes lack <code>aria-label</code>; facet groups have no <code>role="group"</code></td><td><span class="badge b-warn">P1</span></td></tr>
+<tr><td>Variant List</td><td><span style="color:var(--warn)">⚠</span> Quantity inputs have <code>aria-label</code> but variant cards have no <code>role</code> or heading structure</td><td><span class="badge b-warn">P1</span></td></tr>
+<tr><td>Admin Sidebar</td><td><span style="color:var(--ok)">✓</span> Close menu button has <code>aria-label</code>; responsive breakpoint detection</td><td><span class="badge b-ok">Good</span></td></tr>
+<tr><td>Error Alerts</td><td><span style="color:var(--ok)">✓</span> <code>role="alert"</code> on error banners in product detail and search</td><td><span class="badge b-ok">Good</span></td></tr>
+<tr><td>Keyboard Navigation</td><td><span style="color:var(--warn)">⚠</span> Admin products has j/k/a/x shortcuts; no equivalent on other admin pages or web app</td><td><span class="badge b-info">P2</span></td></tr>
+<tr><td>Skip Links</td><td><span style="color:var(--err)">✗</span> No skip-to-content links on any page</td><td><span class="badge b-warn">P1</span></td></tr>
+<tr><td>Focus Management</td><td><span style="color:var(--warn)">⚠</span> DetailDialog doesn't trap focus; no focus restoration on close</td><td><span class="badge b-warn">P1</span></td></tr>
+</tbody>
+</table>
+
+<h3>6.4 Responsive Design</h3>
+<table>
+<thead><tr><th>Area</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Admin Sidebar</td><td><span style="color:var(--ok)">✓</span> Responsive: collapses at &lt;1080px, overlay mode on mobile</td></tr>
+<tr><td>Product Detail Gallery</td><td><span style="color:var(--ok)">✓</span> Mobile: thumbnail rail beside main image (Amazon pattern)</td></tr>
+<tr><td>Product Detail Grid</td><td><span style="color:var(--ok)">✓</span> Single column at &lt;768px</td></tr>
+<tr><td>Search Page</td><td><span style="color:var(--ok)">✓</span> Mobile filter toggle button</td></tr>
+<tr><td>Admin Tables</td><td><span style="color:var(--warn)">⚠</span> Horizontal scroll wrapper exists (<code>tableWrap</code>) but no card layout for mobile</td></tr>
+<tr><td>Web Navbar</td><td><span style="color:var(--warn)">⚠</span> No responsive handling detected in Navbar component</td></tr>
+<tr><td>Merchant Pages</td><td><span style="color:var(--warn)">⚠</span> No responsive breakpoints found in merchant inventory/pricing pages</td></tr>
+</tbody>
+</table>
+
+<h3>6.5 RTL / Localization</h3>
+<div class="card"><p>Arabic support is <strong>partially implemented</strong> at the data layer: <code>nameAr</code>, <code>titleAr</code>, <code>descriptionAr</code> twin columns exist on categories, brands, products, variants, attribute definitions, attribute options, attribute groups, product types, and media alt text. The <code>dir="rtl"</code> attribute is applied dynamically on the admin ManagementPage for Arabic fields. However, there is <strong>no full RTL layout switch</strong>, no locale selector, and no Arabic translations for UI chrome (labels, buttons, messages).</p></div>
+</section>
+
+<!-- ═══════════════════ 7. CROSS-CUTTING ═══════════════════ -->
+<section id="s7">
+<h2>7. Cross-Cutting Concerns</h2>
+
+<h3>7.1 Data Validation</h3>
+<table>
+<thead><tr><th>Layer</th><th>Approach</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>Backend DTOs</td><td>class-validator with NestJS ValidationPipe</td><td><span class="badge b-ok">Enforced</span></td></tr>
+<tr><td>Admin Forms</td><td>Inline <code>window.confirm</code> for deletes; basic required-field checks</td><td><span class="badge b-warn">Minimal</span></td></tr>
+<tr><td>Merchant Forms</td><td>Client-side validation on offer creation (price, MOQ)</td><td><span class="badge b-warn">Partial</span></td></tr>
+<tr><td>Buyer Forms</td><td>Quantity min enforcement via <code>min</code> attribute; cart error handling</td><td><span class="badge b-warn">Partial</span></td></tr>
+<tr><td>Template-Driven Validation</td><td>Not implemented — product type validation rules not evaluated</td><td><span class="badge b-err">Missing</span></td></tr>
+</tbody>
+</table>
+
+<h3>7.2 Error Handling</h3>
+<div class="grid2">
+<div class="card"><h4>Backend</h4>
+<ul style="font-size:13px;padding-left:16px">
+<li>RFC 7807 ProblemDetail responses: <span style="color:var(--ok)">✓</span></li>
+<li>Global exception filter: <span style="color:var(--ok)">✓</span></li>
+<li>Outbox pattern for event dispatch: <span style="color:var(--ok)">✓</span></li>
+</ul></div>
+<div class="card"><h4>Frontend</h4>
+<ul style="font-size:13px;padding-left:16px">
+<li>Error boundaries (React): <span style="color:var(--warn)">⚠</span> Only on search page (Suspense)</li>
+<li>ErrorBanner component: <span style="color:var(--ok)">✓</span> Shared component used across pages</li>
+<li>Inline error messages: <span style="color:var(--ok)">✓</span> Product detail, search, offers</li>
+<li>404 page: <span style="color:var(--ok)">✓</span> Both admin and web have not-found.tsx</li>
+</ul></div>
+</div>
+
+<h3>7.3 Performance</h3>
+<table>
+<thead><tr><th>Optimization</th><th>Status</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>Redis caching</td><td><span style="color:var(--ok)">✓</span></td><td><code>redis.service.ts</code>; rate-limit service uses Redis</td></tr>
+<tr><td>Performance indexes</td><td><span style="color:var(--ok)">✓</span></td><td>Migration 0027 — composite indexes on offers, products, variants</td></tr>
+<tr><td>N+1 prevention</td><td><span style="color:var(--ok)">✓</span></td><td>Dedicated test: <code>identity.n-plus-one.spec.ts</code>; product card enrichment batch</td></tr>
+<tr><td>Pagination</td><td><span style="color:var(--ok)">✓</span></td><td>All list endpoints support limit/offset; TablePagination component</td></tr>
+<tr><td>Product card enrichment</td><td><span style="color:var(--ok)">✓</span></td><td><code>product-card.ts</code> — batch media + pricing resolution</td></tr>
+<tr><td>Lazy loading images</td><td><span style="color:var(--ok)">✓</span></td><td>Thumbnail <code>loading="lazy"</code>; main image <code>loading="eager"</code></td></tr>
+<tr><td>Search debounce</td><td><span style="color:var(--ok)">✓</span></td><td>Search page uses <code>debounceRef</code> for query input</td></tr>
+<tr><td>Query parallelism</td><td><span style="color:var(--ok)">✓</span></td><td>Product page fetches product + offers + ranked in parallel</td></tr>
+</tbody>
+</table>
+
+<h3>7.4 Analytics / Tracking</h3>
+<div class="card"><p><strong>Backend:</strong> <code>analytics.service.ts</code> (195 lines) + <code>analytics.controller.ts</code> exist. Migration 0013 + 0018 provide analytics tables with retention. Offer-specific analytics (per-offer sales, trend) are implemented. <strong>Frontend:</strong> No client-side analytics event tracking detected — no <code>analytics:track</code> calls from UI components.</p></div>
+</section>
+
+<!-- ═══════════════════ 8. SECURITY & RBAC ═══════════════════ -->
+<section id="s8">
+<h2>8. Security &amp; RBAC</h2>
+
+<h3>8.1 Permission Coverage (51 permissions, 6 roles)</h3>
+<table>
+<thead><tr><th>Role</th><th>Permissions</th><th>Coverage</th></tr></thead>
+<tbody>
+<tr><td>SUPER_ADMIN</td><td>51 (all)</td><td><span class="badge b-ok">Full platform</span></td></tr>
+<tr><td>ADMIN</td><td>36</td><td><span class="badge b-ok">Platform operations</span></td></tr>
+<tr><td>MODERATOR</td><td>20</td><td><span class="badge b-ok">Catalog curation + support</span></td></tr>
+<tr><td>MERCHANT_OWNER</td><td>18</td><td><span class="badge b-ok">Store management</span></td></tr>
+<tr><td>MERCHANT_STAFF</td><td>14</td><td><span class="badge b-ok">Day-to-day operations</span></td></tr>
+<tr><td>BUYER</td><td>6</td><td><span class="badge b-ok">Browse + purchase</span></td></tr>
+</tbody>
+</table>
+
+<h3>8.2 Security Gaps</h3>
+<div class="card p1"><h4>S-01: Mobile API Client Missing Catalog Types <span class="badge b-warn">P1</span></h4>
+<p>The Flutter <code>api_client</code> package only covers auth/profile models. Catalog, offer, and order types are hand-written in <code>models.dart</code> (972 lines), creating contract drift risk.</p></div>
+<div class="card p1"><h4>S-02: Some Admin Pages Lack Granular Permission Checks <span class="badge b-warn">P1</span></h4>
+<p>The admin sidebar gates navigation on permissions, but the generic ManagementPage uses a single permission per entity. Offer governance actions (approve/reject/suspend) require <code>catalog:offers:govern</code> but the offers page doesn't surface these actions in the UI.</p></div>
+<div class="card p2"><h4>S-03: No CSRF Protection on State-Changing GETs <span class="badge b-info">P2</span></h4>
+<p>Some read routes are authenticated but not permission-gated (by design for merchant/buyer rendering). State-changing routes all use POST/PATCH/PUT/DELETE with proper guards.</p></div>
+</section>
+
+<!-- ═══════════════════ 9. GAP REGISTER ═══════════════════ -->
+<section id="s9">
+<h2>9. Consolidated Gap Register</h2>
+<table>
+<thead><tr><th>ID</th><th>Category</th><th>Gap</th><th>Priority</th><th>Effort</th><th>Spec §</th></tr></thead>
+<tbody>
+<tr><td class="gap-id">GAP-01</td><td>Admin UI</td><td>Product Type Builder — no UI for managing types, attributes, groups, variant dimensions</td><td><span class="badge b-err">P0</span></td><td>8–10d</td><td>§33, §69</td></tr>
+<tr><td class="gap-id">GAP-02</td><td>Admin UI</td><td>Attribute Management — no CRUD UI for definitions and options</td><td><span class="badge b-err">P0</span></td><td>3–4d</td><td>§32</td></tr>
+<tr><td class="gap-id">GAP-03</td><td>Buyer UX</td><td>Dynamic Variant Selector — flat list instead of attribute-driven matrix</td><td><span class="badge b-err">P0</span></td><td>4–5d</td><td>§35–36</td></tr>
+<tr><td class="gap-id">GAP-04</td><td>Buyer UX</td><td>Offer Comparison Table — list instead of structured comparison</td><td><span class="badge b-warn">P1</span></td><td>3–4d</td><td>§37–38</td></tr>
+<tr><td class="gap-id">GAP-05</td><td>Admin UI</td><td>Offer Governance Actions — approve/reject/suspend not surfaced in UI</td><td><span class="badge b-warn">P1</span></td><td>2–3d</td><td>§48</td></tr>
+<tr><td class="gap-id">GAP-06</td><td>Merchant UX</td><td>Template-Driven Product Creation Wizard</td><td><span class="badge b-warn">P1</span></td><td>6–8d</td><td>§27–28, §70</td></tr>
+<tr><td class="gap-id">GAP-07</td><td>Merchant UX</td><td>Variant Matrix Generator UI</td><td><span class="badge b-warn">P1</span></td><td>4–5d</td><td>§21</td></tr>
+<tr><td class="gap-id">GAP-08</td><td>B2B</td><td>RFQ / Bulk Inquiry / Contact Supplier / Sample Request</td><td><span class="badge b-warn">P1</span></td><td>5–6d</td><td>§63</td></tr>
+<tr><td class="gap-id">GAP-09</td><td>API + UI</td><td>Merchant Request Workflow (new category/brand/attribute)</td><td><span class="badge b-warn">P1</span></td><td>4–5d</td><td>§31</td></tr>
+<tr><td class="gap-id">GAP-10</td><td>Backend</td><td>products.storeId NOT NULL prevents true canonical products</td><td><span class="badge b-warn">P1</span></td><td>1–2d</td><td>§17</td></tr>
+<tr><td class="gap-id">GAP-11</td><td>Buyer UX</td><td>Product Comparison (side-by-side within product type)</td><td><span class="badge b-info">P2</span></td><td>4–5d</td><td>§43</td></tr>
+<tr><td class="gap-id">GAP-12</td><td>Admin UI</td><td>Data Quality Dashboard + Completeness Scoring</td><td><span class="badge b-info">P2</span></td><td>5–6d</td><td>§64–65</td></tr>
+<tr><td class="gap-id">GAP-13</td><td>SEO</td><td>JSON-LD structured data + canonical URLs</td><td><span class="badge b-info">P2</span></td><td>2–3d</td><td>§67</td></tr>
+<tr><td class="gap-id">GAP-14</td><td>Backend</td><td>Conditional attribute rules not enforced at runtime</td><td><span class="badge b-info">P2</span></td><td>3–4d</td><td>§15–16</td></tr>
+<tr><td class="gap-id">GAP-15</td><td>Admin UI</td><td>GTIN/EAN dedup admin review workflow</td><td><span class="badge b-info">P2</span></td><td>3–4d</td><td>§44, §60</td></tr>
+<tr><td class="gap-id">GAP-16</td><td>Mobile</td><td>Full catalog/offer parity with web app</td><td><span class="badge b-info">P2</span></td><td>8–10d</td><td>§61–62</td></tr>
+<tr><td class="gap-id">GAP-17</td><td>Admin UI</td><td>Audit Log page is a stub</td><td><span class="badge b-info">P2</span></td><td>2–3d</td><td>§32</td></tr>
+<tr><td class="gap-id">GAP-18</td><td>A11y</td><td>Missing skip links, focus traps, ARIA on search facets</td><td><span class="badge b-warn">P1</span></td><td>2–3d</td><td>§68</td></tr>
+<tr><td class="gap-id">GAP-19</td><td>Responsive</td><td>Admin tables + merchant pages lack mobile card layouts</td><td><span class="badge b-info">P2</span></td><td>3–4d</td><td>§68</td></tr>
+<tr><td class="gap-id">GAP-20</td><td>Analytics</td><td>No client-side analytics event tracking from UI</td><td><span class="badge b-info">P2</span></td><td>2–3d</td><td>§66</td></tr>
+</tbody>
+</table>
+
+<div class="summary-box" style="margin-top:20px">
+<strong>Total Estimated Remediation:</strong> ~80–100 development days across all priorities.<br>
+<strong>P0 (launch-blocking):</strong> ~15–19 days · <strong>P1 (critical):</strong> ~27–35 days · <strong>P2 (enhancement):</strong> ~30–40 days.
+</div>
+</section>
+
+<!-- ═══════════════════ 10. RECOMMENDATIONS ═══════════════════ -->
+<section id="s10">
+<h2>10. Recommended Phased Remediation</h2>
+
+<div class="card" style="border-left:4px solid var(--err)">
+<h4>Phase A — Admin Governance Foundation (P0 · ~15d)</h4>
+<ol style="font-size:13px;padding-left:20px;line-height:2">
+<li><strong>Attribute Management UI</strong> — CRUD page for definitions + options (GAP-02)</li>
+<li><strong>Product Type Builder</strong> — attribute assignment, groups, required/variant/filterable toggles, validation config (GAP-01)</li>
+<li><strong>Dynamic Variant Selector</strong> — buyer product page matrix driven by product type dimensions (GAP-03)</li>
+<li><strong>Fix products.storeId nullable</strong> — migration + service relaxation (GAP-10)</li>
+</ol>
+<p style="font-size:12px;color:var(--muted);margin-top:8px">Dependencies: None (all APIs exist). Tests: unit + integration for new pages; e2e for variant selector.</p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--warn)">
+<h4>Phase B — Marketplace Experience (P1 · ~30d)</h4>
+<ol style="font-size:13px;padding-left:20px;line-height:2" start="5">
+<li><strong>Offer Comparison Table</strong> — side-by-side on product page (GAP-04)</li>
+<li><strong>Admin Offer Governance UI</strong> — approve/reject/suspend actions (GAP-05)</li>
+<li><strong>Template-Driven Product Creation</strong> — merchant wizard (GAP-06)</li>
+<li><strong>Variant Matrix Generator</strong> — merchant combination UI (GAP-07)</li>
+<li><strong>B2B Actions</strong> — RFQ, bulk inquiry API + UI (GAP-08)</li>
+<li><strong>Merchant Request Workflow</strong> — taxonomy request API + admin review (GAP-09)</li>
+<li><strong>Accessibility Fixes</strong> — skip links, focus traps, ARIA audit (GAP-18)</li>
+</ol>
+<p style="font-size:12px;color:var(--muted);margin-top:8px">Dependencies: Phase A for product type UI. Tests: contract tests for new APIs; integration for wizard flows.</p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--accent)">
+<h4>Phase C — Enhancement & Polish (P2 · ~35d)</h4>
+<ol style="font-size:13px;padding-left:20px;line-height:2" start="12">
+<li><strong>Product Comparison</strong> (GAP-11)</li>
+<li><strong>Data Quality Dashboard</strong> (GAP-12)</li>
+<li><strong>SEO Structured Data</strong> (GAP-13)</li>
+<li><strong>Conditional Attribute Enforcement</strong> (GAP-14)</li>
+<li><strong>GTIN Dedup Workflow</strong> (GAP-15)</li>
+<li><strong>Mobile Catalog Parity</strong> (GAP-16)</li>
+<li><strong>Audit Log Page</strong> (GAP-17)</li>
+<li><strong>Responsive Polish</strong> (GAP-19)</li>
+<li><strong>Client Analytics Tracking</strong> (GAP-20)</li>
+</ol>
+<p style="font-size:12px;color:var(--muted);margin-top:8px">Dependencies: Phases A–B. All additive-only — no schema or API contract breaks.</p>
+</div>
+</section>
+
+</div>
+
+<footer style="background:var(--brand);color:rgba(255,255,255,.6);padding:24px 32px;text-align:center;font-size:12px">
+Smart Commerce &amp; Supply Platform · Comprehensive Catalog Audit · 24 Sep 2026<br>
+Covers 78-section master specification · 30 migrations · 522+ unit tests · 75 integration tests · 51 RBAC permissions
+</footer>
+
+</body>
+</html>

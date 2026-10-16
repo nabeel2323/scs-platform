@@ -1,0 +1,23 @@
+﻿[
+  {
+    "corsRuleName": "scs-staging-web-upload",
+    "allowedOrigins": [
+      "https://scs-platform-web.vercel.app"
+    ],
+    "allowedHeaders": [
+      "Content-Type",
+      "Content-MD5",
+      "x-amz-checksum-crc32",
+      "x-amz-sdk-checksum-algorithm"
+    ],
+    "allowedOperations": [
+      "s3_put",
+      "s3_get",
+      "s3_head"
+    ],
+    "exposeHeaders": [
+      "ETag"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

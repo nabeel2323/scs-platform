@@ -144,27 +144,13 @@ jobs:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
 
-  # â”€â”€ Migration Dry-Run (apply ordered SQL to ephemeral DB) â”€
+  # ── Migration Gate (enforcing — full chain with pg_partman) ──
   migration-gate:
-    name: Migration Dry-Run
+    name: Migration Full Apply
     runs-on: ubuntu-latest
     needs: lint
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: scs
-          POSTGRES_PASSWORD: scs_test
-          POSTGRES_DB: scs_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
-      DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
+      DATABASE_URL: postgresql://scs:scs_test@localhost:5433/scs_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -175,21 +161,44 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+  
+      # Build the CI postgres image with PostGIS + pg_partman from the repo Dockerfile.
+      # This ensures the migration gate uses the same extension set as production.
+      - name: Build CI postgres image (PostGIS + pg_partman)
+        run: docker build -t scs-ci-postgres:ci -f infra/deploy/ci-postgres.Dockerfile infra/deploy/
+  
+      # Start a disposable postgres container from the custom image.
+      - name: Start disposable postgres with pg_partman
+        run: |
+          docker run -d --name ci-migration-pg \
+            -e POSTGRES_USER=scs -e POSTGRES_PASSWORD=scs_test -e POSTGRES_DB=scs_test \
+            -p 5433:5432 scs-ci-postgres:ci
+          # Wait for postgres to be ready
+          for i in $(seq 1 30); do
+            docker exec ci-migration-pg pg_isready -U scs -d scs_test && break
+            sleep 1
+          done
+  
       # 1) Enforcing gate: validate every migration file exists, is ordered and
-      #    non-empty, and that the DB is reachable â€” without writing.
-      - name: Dry-run (validate)
+      #    non-empty, and that the DB is reachable — without writing.
+      - name: Dry-run (validate ordering)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
-      # 2) Best-effort full apply to a fresh DB. Migrations 0001â€“0012 apply
-      #    cleanly (verified locally against postgis/postgis:16-3.4). 0013_
-      #    analytics.sql requires the third-party pg_partman extension, which is
-      #    not bundled in the postgis image and has no official combined image,
-      #    so the ordered apply cannot complete on this service container. Kept
-      #    non-blocking to avoid coupling CI to a custom DB image; the full apply
-      #    is validated in staging/prod provisioning images that install
-      #    pg_partman. The dry-run above is the enforcing migration gate.
-      - name: Apply to ephemeral DB (best-effort; 0013+ needs pg_partman)
+  
+      # 2) ENFORCING: Full migration apply. All 63 migrations must apply cleanly,
+      #    including 0013 and 0018 which require pg_partman. No continue-on-error.
+      #    If any migration fails, the gate fails and the PR cannot merge.
+      - name: Full migration apply (enforcing — all 63 files)
         run: pnpm --filter @scs/api run db:migrate:ci
-        continue-on-error: true
+  
+      # 3) Verify pg_partman is configured after migration
+      - name: Verify pg_partman partitioning
+        run: |
+          docker exec ci-migration-pg psql -U scs -d scs_test -c \
+            "SELECT parent_table, partition_type, partition_interval FROM partman.part_config;"
+  
+      - name: Cleanup
+        if: always()
+        run: docker rm -f ci-migration-pg 2>/dev/null || true
 
   # â”€â”€ Contract Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-contract:
@@ -306,3 +315,98 @@ jobs:
         working-directory: ${{ github.workspace }}/mobile/packages/mobile-core
 
       - run: flutter test
+
+  # --- Container Build & Smoke Test (Phase 4.1.2) ---
+  container-build:
+    name: Container Build & Smoke Test
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/deploy/api.Dockerfile
+          push: false
+          load: true
+          tags: scs-api:ci-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run deployment invariants spec
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @scs/api run test -- --run src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
+
+      - name: Start disposable services
+        run: |
+          docker network create ci-smoke-net
+          docker run -d --name ci-postgres --network ci-smoke-net \
+            -e POSTGRES_PASSWORD=scs -e POSTGRES_USER=scs -e POSTGRES_DB=scs_platform \
+            postgres:16-alpine
+          docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
+          sleep 10
+
+      - name: Start API container with safe defaults
+        run: |
+          docker run -d --name ci-api --network ci-smoke-net \
+            -e NODE_ENV=production \
+            -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
+            -e REDIS_URL=redis://ci-redis:6379 \
+            -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
+            -e S3_ENDPOINT=http://minio:9000 \
+            -e S3_ACCESS_KEY=ci-test-key \
+            -e S3_SECRET_KEY=ci-test-secret \
+            -e API_CORS_ORIGINS=https://shop.example.com \
+            -e P13_WORKER_ENABLED=false \
+            -e P13_PILOT_MODE=legacy \
+            scs-api:ci-test
+          sleep 15
+
+      - name: Verify health endpoints
+        run: |
+          echo "=== Liveness ==="
+          docker exec ci-api curl -fsS http://localhost:3000/v1/healthz
+          echo ""
+          echo "=== Readiness ==="
+          docker exec ci-api curl -fsS http://localhost:3000/v1/readyz
+          echo ""
+
+      - name: Verify P13 configuration
+        run: |
+          echo "=== P13 Worker Status ==="
+          docker exec ci-api sh -c 'echo "P13_WORKER_ENABLED=$P13_WORKER_ENABLED"'
+          echo "=== P13 Pilot Mode ==="
+          docker exec ci-api sh -c 'echo "P13_PILOT_MODE=$P13_PILOT_MODE"'
+
+      - name: Verify non-root user
+        run: |
+          CONTAINER_USER=$(docker exec ci-api whoami)
+          echo "Container running as: $CONTAINER_USER"
+          if [ "$CONTAINER_USER" = "root" ]; then
+            echo "ERROR: Container running as root"
+            exit 1
+          fi
+          echo "OK: Container running as non-root user"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
+          docker network rm ci-smoke-net 2>/dev/null || true
+          docker rmi scs-api:ci-test 2>/dev/null || true

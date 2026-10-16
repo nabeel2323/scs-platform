@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 1 B2B MVP — Comprehensive Gap Analysis</title>
+<style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+:root { --ink:#17202a; --muted:#5e6b75; --accent:#174a5b; --light:#eef4f6; --line:#d8e1e5; --green:#1e7e34; --red:#b71c1c; --amber:#e65100; --blue:#0d47a1; }
+*{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);line-height:1.5;font-size:10pt;margin:0;background:#fff;max-width:210mm;margin:0 auto;padding:16mm}
+h1{font-size:22pt;line-height:1.15;color:var(--accent);margin:0 0 6px} h2{font-size:15pt;color:var(--accent);margin:22px 0 8px;border-bottom:2px solid var(--line);padding-bottom:4px;page-break-after:avoid} h3{font-size:12pt;color:#214b57;margin:16px 0 6px;page-break-after:avoid}
+p{margin:6px 0} ul,ol{margin:5px 0 8px 20px} li{margin:2px 0}
+table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:9pt;page-break-inside:auto} thead{display:table-header-group} tr{page-break-inside:avoid} th,td{border:1px solid var(--line);padding:5px 6px;vertical-align:top} th{background:#eaf0f2;color:#173f4b;text-align:left;font-size:8.5pt}
+code{font-family:"DejaVu Sans Mono",monospace;font-size:8.5pt;background:#f3f5f6;padding:1px 3px;border-radius:2px}
+.callout{background:var(--light);border-left:4px solid var(--accent);padding:8px 10px;margin:10px 0;page-break-inside:avoid;font-size:9.5pt}
+.warn{background:#fff3e0;border-left-color:var(--amber)} .error{background:#fce4e4;border-left-color:var(--red)} .success{background:#e8f5e9;border-left-color:var(--green)}
+.status-ok{color:var(--green);font-weight:bold} .status-partial{color:var(--amber);font-weight:bold} .status-miss{color:var(--red);font-weight:bold} .status-plan{color:var(--blue);font-weight:bold}
+.prio-p0{background:#fce4e4;color:var(--red);font-weight:bold;padding:2px 6px;border-radius:3px;font-size:8pt} .prio-p1{background:#fff3e0;color:var(--amber);font-weight:bold;padding:2px 6px;border-radius:3px;font-size:8pt} .prio-p2{background:#e3f2fd;color:var(--blue);font-weight:bold;padding:2px 6px;border-radius:3px;font-size:8pt}
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.summary-card{border:1px solid var(--line);padding:12px;border-radius:6px;text-align:center}
+.summary-card .num{font-size:28pt;font-weight:bold;display:block}
+.summary-card .label{font-size:9pt;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.toc{columns:2;column-gap:24px}.toc a{color:var(--accent);text-decoration:none}.toc li{margin:2px 0}
+.cover{padding:20mm 8mm 12mm;min-height:200mm;display:flex;flex-direction:column;justify-content:center}
+.kicker{font-size:10pt;letter-spacing:.6px;color:var(--muted);font-weight:bold;text-transform:uppercase}
+.tagline{font-size:12pt;margin:10px 0 20px;color:#33454e}
+.meta{color:var(--muted);font-size:9.5pt}
+.pagebreak{page-break-before:always}
+.footer-note{font-size:8pt;color:var(--muted);margin-top:20px;border-top:1px solid var(--line);padding-top:6px}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER ═══════════════════ -->
+<section class="cover">
+<div class="kicker">Gap Analysis Report</div>
+<h1>Phase 1 — Launchable B2B MVP<br>Comprehensive Gap Analysis</h1>
+<div class="tagline">Section 21 requirements vs. actual implementation across Admin Console, Web App, and Mobile App</div>
+<div class="callout success"><b>Overall Assessment:</b> The codebase covers <b>~85%</b> of Phase 1 requirements. All P0 capabilities from §29.1 are implemented. The remaining gaps are concentrated in wholesaler customer management, retailer reorder UX, saved suppliers, location management, and automated backups. None of the gaps block a controlled pilot launch, but several should be closed before general availability.</div>
+<div class="meta">
+<b>Date:</b> September 3, 2026<br>
+<b>Source:</b> <code>Smart_Commerce_Supply_Platform_Final_Plan.html</code> §21, §29<br>
+<b>Codebase:</b> <code>scs-platform/</code> — NestJS API (18 modules, 168 tests) · Next.js Web (22 pages) · Next.js Admin (11 pages) · Flutter Mobile (27 screens/services)<br>
+<b>Test Status:</b> 168 backend (Vitest) + 32 mobile (flutter_test) passing
+</div>
+</section>
+
+<!-- ═══════════════════ EXECUTIVE SUMMARY ═══════════════════ -->
+<section>
+<h2>Executive Summary</h2>
+
+<div class="summary-grid">
+<div class="summary-card" style="background:#e8f5e9"><span class="num" style="color:var(--green)">28</span><span class="label">✅ Fully Implemented</span></div>
+<div class="summary-card" style="background:#fff3e0"><span class="num" style="color:var(--amber)">5</span><span class="label">⚠️ Partially Implemented</span></div>
+<div class="summary-card" style="background:#fce4e4"><span class="num" style="color:var(--red)">2</span><span class="label">❌ Not Implemented</span></div>
+<div class="summary-card" style="background:#e3f2fd"><span class="num" style="color:var(--blue)">2</span><span class="label">📋 Planned (Deferred)</span></div>
+</div>
+
+<table>
+<thead><tr><th>Priority</th><th>Count</th><th>Description</th><th>Launch Impact</th></tr></thead>
+<tbody>
+<tr><td><span class="prio-p0">P0</span></td><td>0</td><td>No P0 gaps — all launch-blocking items from §29.1 are implemented</td><td>None — launch is not blocked</td></tr>
+<tr><td><span class="prio-p1">P1</span></td><td>5</td><td>Significant UX/functional gaps that degrade the Phase 1 experience</td><td>Fix within first 2 weeks post-launch</td></tr>
+<tr><td><span class="prio-p2">P2</span></td><td>4</td><td>Nice-to-have enhancements for future phases</td><td>Defer to Phase 2 or backlog</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ SECTION 21.2 WHOLESALER ═══════════════════ -->
+<section class="pagebreak">
+<h2>1. Wholesaler Capabilities (§21.2)</h2>
+
+<table>
+<thead><tr><th style="width:22%">Requirement</th><th style="width:8%">Status</th><th style="width:25%">Backend</th><th style="width:22%">Web App</th><th style="width:23%">Mobile App</th></tr></thead>
+<tbody>
+<tr>
+<td><b>Store &amp; business profile creation</b></td>
+<td class="status-ok">✅</td>
+<td><code>merchant.controller.ts</code> — CRUD stores, onboarding, verification requests<br><code>stores</code> schema with address JSONB, slug, currency</td>
+<td><code>merchant/onboard/</code> — 5-step onboarding wizard (442 lines)</td>
+<td><code>organizations_screen.dart</code>, <code>org_detail_screen.dart</code> — create org, manage members</td>
+</tr>
+<tr>
+<td><b>Basic verification</b></td>
+<td class="status-ok">✅</td>
+<td><code>merchant.service.ts</code> — verification request lifecycle<br><code>verification_requests</code> table with auto-verify</td>
+<td>Admin: <code>verification/</code> queue + <code>verification/[id]/</code> review page (320 lines)</td>
+<td>Verification status shown in org detail</td>
+</tr>
+<tr>
+<td><b>Category, product &amp; media management</b></td>
+<td class="status-ok">✅</td>
+<td><code>catalog.controller.ts</code> (192 lines) — full CRUD products, variants, categories, brands, media<br><code>catalog.service.ts</code> (415 lines)</td>
+<td><code>merchant/catalog/</code> — product list with CRUD, status toggle</td>
+<td><code>api_service.dart</code> — catalog CRUD methods</td>
+</tr>
+<tr>
+<td><b>Excel/CSV import</b></td>
+<td class="status-ok">✅</td>
+<td><code>import_jobs</code> table, <code>catalog.service.ts</code> import methods<br>5-stage pipeline: upload → map → validate → import → review</td>
+<td><code>merchant/import/</code> — full 5-step wizard (486 lines) with column mapping, validation preview</td>
+<td><code>api_service.dart</code> — createImportJob, fetchImportJob, processImportJob</td>
+</tr>
+<tr>
+<td><b>Manual stock management</b></td>
+<td class="status-ok">✅</td>
+<td><code>inventory.controller.ts</code> (77 lines), <code>inventory.service.ts</code> (197 lines)<br><code>inventory_items</code>, <code>stock_movements</code> schemas</td>
+<td><code>merchant/inventory/</code> — stock list, adjustments, low-stock alerts</td>
+<td>— (not yet on mobile; P2)</td>
+</tr>
+<tr>
+<td><b>Quantity pricing</b></td>
+<td class="status-ok">✅</td>
+<td><code>pricing.controller.ts</code> (88 lines), <code>pricing.service.ts</code> (252 lines)<br><code>price_lists</code>, <code>price_tiers</code> with min/max qty</td>
+<td><code>merchant/pricing/</code> — price list management (125 lines)</td>
+<td>— (pricing managed via web)</td>
+</tr>
+<tr>
+<td><b>Basic promotions</b></td>
+<td class="status-ok">✅</td>
+<td><code>promotions.controller.ts</code> (76 lines), <code>promotions.service.ts</code> (224 lines)<br>Percentage, fixed, time-limited, first-order, segment-based</td>
+<td>Promotions managed via API (no dedicated web UI page)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><b>Order management</b></td>
+<td class="status-ok">✅</td>
+<td><code>orders.controller.ts</code> — accept, partial-accept, reject, confirm-item, status-transition, cancel<br>16-status FSM with validated transitions</td>
+<td><code>merchant/orders/</code> — order list with actions (160 lines)</td>
+<td><code>merchant_orders_screen.dart</code> (141 lines) — full FSM actions</td>
+</tr>
+<tr>
+<td><b>Customer list</b></td>
+<td class="status-miss">❌</td>
+<td>No endpoint to list buyers who ordered from a store. No <code>GET /v1/merchant/customers</code> in <code>merchant.controller.ts</code></td>
+<td>No <code>merchant/customers/</code> page</td>
+<td>No customer list screen</td>
+</tr>
+<tr>
+<td><b>Order notifications</b></td>
+<td class="status-ok">✅</td>
+<td><code>notifications.service.ts</code> (415 lines) — 12+ order templates<br>Channels: SMS, PUSH (FCM), IN_APP, WHATSAPP<br>Quiet hours for promotional types</td>
+<td><code>notifications/</code> — in-app notification list (73 lines)</td>
+<td><code>notifications_screen.dart</code> (82 lines)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout warn"><b>Gap — Customer List:</b> Wholesalers cannot see which retailers have ordered from them. This is a significant UX gap for merchant relationship management. Backend needs a <code>GET /v1/merchant/customers</code> endpoint that aggregates distinct buyers from the orders table. Web needs a <code>merchant/customers/</code> page. Effort: ~3 story points.</div>
+</section>
+
+<!-- ═══════════════════ SECTION 21.3 RETAILER ═══════════════════ -->
+<section class="pagebreak">
+<h2>2. Retailer Capabilities (§21.3)</h2>
+
+<table>
+<thead><tr><th style="width:22%">Requirement</th><th style="width:8%">Status</th><th style="width:25%">Backend</th><th style="width:22%">Web App</th><th style="width:23%">Mobile App</th></tr></thead>
+<tbody>
+<tr>
+<td><b>Account &amp; store profile</b></td>
+<td class="status-ok">✅</td>
+<td><code>profile.controller.ts</code> — GET/PATCH <code>/v1/me</code>, GET <code>/v1/me/organizations</code><br><code>identity.service.ts</code> (464 lines)</td>
+<td><code>account/</code> — profile view/edit, org memberships, device management (120 lines)</td>
+<td><code>profile_screen.dart</code> (183 lines) — view/edit profile</td>
+</tr>
+<tr>
+<td><b>Location / area setting</b></td>
+<td class="status-partial">⚠️</td>
+<td>Checkout accepts <code>deliveryAddress</code> JSONB. Store addresses stored as JSONB. No dedicated address-book or default-area API.</td>
+<td><code>checkout/</code> — address + city fields at checkout only. No address book.</td>
+<td>Checkout screen has address input. No saved-address or area-selection feature.</td>
+</tr>
+<tr>
+<td><b>Search &amp; filters</b></td>
+<td class="status-ok">✅</td>
+<td><code>search.service.ts</code> (226 lines) — FTS + trigram fuzzy + SKU/barcode fast path<br>Arabic normalization via <code>normalize_arabic()</code></td>
+<td><code>search/</code> — debounced search with category + brand filters (252 lines)</td>
+<td><code>search_screen.dart</code> (183 lines) — search with filters</td>
+</tr>
+<tr>
+<td><b>Merchant &amp; product pages</b></td>
+<td class="status-ok">✅</td>
+<td><code>catalog.controller.ts</code> — store listing, store-by-slug, product-by-id, product variants</td>
+<td><code>stores/</code> list + <code>stores/[slug]/</code> detail<br><code>products/[id]/</code> with add-to-cart</td>
+<td><code>stores_list_screen.dart</code>, <code>store_detail_screen.dart</code>, <code>product_detail_screen.dart</code></td>
+</tr>
+<tr>
+<td><b>Cart</b></td>
+<td class="status-ok">✅</td>
+<td><code>cart.controller.ts</code> (56 lines), <code>cart.service.ts</code> (184 lines)<br>Add/remove/update items, qty validation, MOQ enforcement</td>
+<td><code>cart/</code> — full cart page with qty controls (153 lines)</td>
+<td><code>cart_screen.dart</code> (154 lines)</td>
+</tr>
+<tr>
+<td><b>Purchase order</b></td>
+<td class="status-ok">✅</td>
+<td><code>orders.controller.ts</code> — POST <code>/v1/checkout</code><br>Idempotency key, MOQ validation, multi-store grouping, financial breakdown</td>
+<td><code>checkout/</code> — address, fulfillment method (delivery/merchant/pickup), notes (79 lines)</td>
+<td><code>checkout_screen.dart</code> (115 lines)</td>
+</tr>
+<tr>
+<td><b>Order history</b></td>
+<td class="status-ok">✅</td>
+<td><code>orders.controller.ts</code> — GET <code>/v1/orders</code>, GET <code>/v1/orders/:id</code>, GET <code>/v1/orders/:id/history</code></td>
+<td><code>orders/</code> list + <code>orders/[id]/</code> detail with timeline, financial breakdown, cancel</td>
+<td><code>orders_list_screen.dart</code>, <code>order_detail_screen.dart</code> (157 lines)</td>
+</tr>
+<tr>
+<td><b>Reorder from previous order</b></td>
+<td class="status-partial">⚠️</td>
+<td><code>orders.controller.ts</code> — POST <code>/v1/orders/master/:id/reorder</code><br><code>orders.service.ts</code> — re-adds items to cart (lines 450–475)</td>
+<td><code>buyer-api.ts</code> exports <code>reorder()</code>. <code>orders/[id]/page.tsx</code> imports it but <b>no Reorder button is rendered</b>. Dead import.</td>
+<td><code>api_service.dart</code> has <code>reorder()</code> method but <b>no screen calls it</b>.</td>
+</tr>
+<tr>
+<td><b>Favorites / saved suppliers</b></td>
+<td class="status-partial">⚠️</td>
+<td><code>catalog.service.ts</code> — list/add/remove favorites<br><code>favorites</code> table (product-level only)</td>
+<td><code>favorites/</code> — list saved products with remove (67 lines). <b>No saved suppliers feature.</b></td>
+<td><code>api_service.dart</code> has favorite methods but <b>no favorites screen exists</b>.</td>
+</tr>
+<tr>
+<td><b>Ratings</b></td>
+<td class="status-ok">✅</td>
+<td><code>reviews.controller.ts</code> (48 lines), <code>disputes.controller.ts</code> (110 lines)<br>Full dispute lifecycle: OPEN → EVIDENCE → RESPONSE → REVIEW → RESOLVED/CLOSED</td>
+<td><code>reviews/</code> — submit review + open dispute (114 lines)</td>
+<td><code>reviews_disputes_screen.dart</code> (179 lines)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout warn"><b>Gap — Reorder:</b> Backend is complete but the Web order detail page has no "Reorder" button despite importing the function. The mobile app has the API method but no UI trigger. This is a high-value B2B feature (repeat procurement is the core use case). Effort: ~2 SP.</div>
+<div class="callout warn"><b>Gap — Saved Suppliers:</b> Favorites are product-level only. The plan requires saved <i>suppliers</i> (store-level bookmarking). Needs a <code>saved_stores</code> table or extending favorites to support <code>target_type</code> (product | store). Effort: ~3 SP.</div>
+<div class="callout warn"><b>Gap — Location/Area:</b> Address is entered at checkout only. No address book, no default area, no saved locations. For a B2B platform where retailers reorder frequently, this adds friction to every checkout. Effort: ~5 SP for address book + default selection.</div>
+</section>
+
+<!-- ═══════════════════ SECTION 21.4 ADMIN ═══════════════════ -->
+<section class="pagebreak">
+<h2>3. Admin Capabilities (§21.4)</h2>
+
+<table>
+<thead><tr><th style="width:22%">Requirement</th><th style="width:8%">Status</th><th style="width:25%">Backend</th><th style="width:22%">Admin Console</th><th style="width:23%">Notes</th></tr></thead>
+<tbody>
+<tr>
+<td><b>User &amp; merchant management</b></td>
+<td class="status-ok">✅</td>
+<td><code>admin.controller.ts</code> (140 lines), <code>admin.service.ts</code> (402 lines)<br>List/filter users, merchants, stores</td>
+<td><code>merchants/</code> — directory with verification + status filters, pagination (123 lines)</td>
+<td>Full CRUD with org-scoped access control</td>
+</tr>
+<tr>
+<td><b>Verification review</b></td>
+<td class="status-ok">✅</td>
+<td><code>merchant.service.ts</code> — verification queue, approve/reject/revision<br>Auto-verification logic</td>
+<td><code>verification/</code> queue (155 lines) + <code>verification/[id]/</code> review (320 lines)<br>Status filters: SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, REVISION</td>
+<td>Full workflow with document review</td>
+</tr>
+<tr>
+<td><b>Category management</b></td>
+<td class="status-partial">⚠️</td>
+<td><code>catalog.controller.ts</code> — full CRUD categories<br><code>categories</code> table with hierarchy (parent_id, path)</td>
+<td><b>No dedicated admin page.</b> Categories managed via DB seed/migration only.</td>
+<td>Backend supports it; admin UI is missing a category management page</td>
+</tr>
+<tr>
+<td><b>Moderation of violating products</b></td>
+<td class="status-ok">✅</td>
+<td><code>admin.controller.ts</code> — GET <code>/v1/admin/products</code>, PATCH <code>/v1/admin/products/:id/moderate</code><br>Decisions: APPROVED, REJECTED, ARCHIVED</td>
+<td><code>products/</code> — moderation queue with status filters, keyboard shortcuts (j/k/a/r) (162 lines)</td>
+<td>Includes keyboard-driven efficient workflow</td>
+</tr>
+<tr>
+<td><b>Order monitoring</b></td>
+<td class="status-ok">✅</td>
+<td><code>admin.controller.ts</code> — list orders with status/store filters, order detail</td>
+<td><code>orders/</code> — all 14 statuses filterable, store filter, detail drawer (167 lines)</td>
+<td>Full visibility into all platform orders</td>
+</tr>
+<tr>
+<td><b>Basic support &amp; disputes</b></td>
+<td class="status-ok">✅</td>
+<td><code>disputes.controller.ts</code> (110 lines), <code>disputes.service.ts</code> (268 lines)<br>7-status lifecycle with evidence chain</td>
+<td><code>disputes/</code> — list with status filter, detail panel with resolution templates (273 lines)<br>5 decision templates: Full Refund, Partial 50/25%, No Action, Escalate</td>
+<td>Full dispute resolution workflow</td>
+</tr>
+<tr>
+<td><b>KPI reports</b></td>
+<td class="status-ok">✅</td>
+<td><code>analytics.controller.ts</code> (65 lines), <code>analytics.service.ts</code> (195 lines)<br>Revenue, orders, users, merchants, conversion, activation funnel</td>
+<td><code>kpis/</code> — dashboard with date range, 11 metric cards, activation funnel visualization (122 lines)</td>
+<td>Registration → Verified → Catalog ≥ 20 → First Order → Repeat ×3</td>
+</tr>
+<tr>
+<td><b>Audit logs</b></td>
+<td class="status-ok">✅</td>
+<td><code>audit.schema.ts</code> — <code>audit_logs</code> table<br><code>audit-log.middleware.ts</code> — automatic logging</td>
+<td><code>audit/</code> — filterable by action/resource/actor/date, paginated (147 lines)</td>
+<td>System-wide activity trail with metadata</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout warn"><b>Gap — Category Management UI:</b> Backend supports full CRUD but the admin console has no page for it. Categories are seeded via migration. For Phase 1 launch, an admin needs to be able to add/edit/deactivate categories without running SQL. Effort: ~3 SP.</div>
+</section>
+
+<!-- ═══════════════════ TECHNICAL REQUIREMENTS ═══════════════════ -->
+<section>
+<h2>4. Technical Requirements</h2>
+
+<table>
+<thead><tr><th style="width:22%">Requirement</th><th style="width:8%">Status</th><th style="width:50%">Implementation Details</th><th style="width:20%">Gap / Notes</th></tr></thead>
+<tbody>
+<tr>
+<td><b>Order state machine (16-status FSM)</b></td>
+<td class="status-ok">✅</td>
+<td><code>orders.service.ts</code> lines 595–612 — complete transition map:<br>
+DRAFT → SUBMITTED → PENDING_CONFIRMATION → ACCEPTED | PARTIALLY_ACCEPTED | REJECTED | CANCELLED<br>
+ACCEPTED/PARTIAL → PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED<br>
+Plus ASSIGNED, PICKED_UP (P2 driver), PAYMENT_PENDING (P3), DISPUTED<br>
+Validated via <code>assertTransition()</code>. Auto-advance SUBMITTED → PENDING_CONFIRMATION.</td>
+<td>All 16 statuses + 3 terminal states implemented</td>
+</tr>
+<tr>
+<td><b>Self-pickup / manual delivery</b></td>
+<td class="status-ok">✅</td>
+<td>Checkout supports 3 fulfillment methods: <code>PLATFORM_DELIVERY</code>, <code>MERCHANT_DELIVERY</code>, <code>PICKUP</code><br>Full independent delivery marketplace deferred to Phase 2 per §21.5</td>
+<td>Meets Phase 1 requirement</td>
+</tr>
+<tr>
+<td><b>RBAC</b></td>
+<td class="status-ok">✅</td>
+<td><code>JwtAuthGuard</code> → <code>PermissionsGuard</code> → <code>OrgScopeGuard</code> chain<br>6 roles: SUPER_ADMIN, ADMIN, MODERATOR, MERCHANT_OWNER, MERCHANT_STAFF, BUYER<br>28 permissions seeded. Org-scoped tenant isolation. PLATFORM_ADMIN bypass.</td>
+<td>Comprehensive RBAC</td>
+</tr>
+<tr>
+<td><b>API protection</b></td>
+<td class="status-ok">✅</td>
+<td><code>helmet()</code> for security headers<br>CORS configured via <code>API_CORS_ORIGINS</code><br><code>@nestjs/throttler</code> rate limiting (Redis token bucket)<br>OTP per-phone throttle via Redis<br>Request ID middleware for tracing</td>
+<td>Industry-standard protections</td>
+</tr>
+<tr>
+<td><b>Backups</b></td>
+<td class="status-miss">❌</td>
+<td><code>reset.ts</code> exists for DB reset. <b>No automated backup script, no pg_dump cron, no backup/restore procedure.</b></td>
+<td><span class="prio-p1">P1</span> — Need backup script + cron/scheduled task</td>
+</tr>
+<tr>
+<td><b>Analytics</b></td>
+<td class="status-ok">✅</td>
+<td><code>analytics.service.ts</code> — 14 event types in taxonomy<br><code>track()</code> + <code>trackBatch()</code> client SDK<br>Domain writers: order_submitted, order_accepted, order_rejected, etc.<br><code>analytics_events</code> table with properties JSONB</td>
+<td>Event tracking + KPI computation complete</td>
+</tr>
+<tr>
+<td><b>WebSocket realtime</b></td>
+<td class="status-ok">✅</td>
+<td><code>realtime.gateway.ts</code> — Socket.IO at <code>/realtime</code><br>Auth handshake, room join/leave, event broadcast<br>Connected to order status transitions via outbox events</td>
+<td>Foundation for live order updates</td>
+</tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ LAUNCH READINESS ═══════════════════ -->
+<section class="pagebreak">
+<h2>5. Launch Readiness Standards (§21.6)</h2>
+
+<table>
+<thead><tr><th style="width:14%">Area</th><th style="width:8%">Status</th><th style="width:38%">Minimum Standard</th><th style="width:40%">Assessment</th></tr></thead>
+<tbody>
+<tr>
+<td><b>Product</b></td>
+<td class="status-ok">✅</td>
+<td>A merchant can publish products without continuous technical support.</td>
+<td>Onboarding wizard + catalog CRUD + bulk import wizard + inventory management. A merchant can self-serve from registration to published catalog.</td>
+</tr>
+<tr>
+<td><b>Transaction</b></td>
+<td class="status-ok">✅</td>
+<td>A complete B2B order can be executed end-to-end.</td>
+<td>Search → product → cart → checkout (with fulfillment choice) → FSM through 16 statuses → completion. Idempotent checkout, MOQ enforcement, financial breakdown, stock reservation.</td>
+</tr>
+<tr>
+<td><b>Support</b></td>
+<td class="status-ok">✅</td>
+<td>Clear support and dispute path.</td>
+<td>Reviews + disputes with 7-status lifecycle, evidence chain, 5 resolution templates. Admin dispute management page.</td>
+</tr>
+<tr>
+<td><b>Performance</b></td>
+<td class="status-ok">✅</td>
+<td>Acceptable response time in normal use.</td>
+<td>FTS + trigram search (no full-table scans), Redis caching, rate limiting, debounced client search (300ms), paginated all list endpoints. 168 tests passing.</td>
+</tr>
+<tr>
+<td><b>Security</b></td>
+<td class="status-partial">⚠️</td>
+<td>RBAC, API protection, logs, backups.</td>
+<td>RBAC ✅, API protection ✅, audit logs ✅. <b>Backups ❌</b> — no automated backup mechanism. This is the only missing piece in the security posture.</td>
+</tr>
+<tr>
+<td><b>Analytics</b></td>
+<td class="status-ok">✅</td>
+<td>Registration → activation → order → completion measurement.</td>
+<td>Activation funnel: Registered → Verified → Catalog ≥ 20 → First Order → Repeat ×3. Revenue, orders, conversion, completion/cancellation rates. Date-range filterable.</td>
+</tr>
+<tr>
+<td><b>Operations</b></td>
+<td class="status-partial">⚠️</td>
+<td>Assigned ownership for onboarding and live operations.</td>
+<td>Onboarding flow ✅, verification queue ✅. <b>No dedicated operations dashboard</b> for support staff to manage day-to-day merchant support, batch operations, or operational alerts.</td>
+</tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ PRIORITY GAP TABLE ═══════════════════ -->
+<section>
+<h2>6. Prioritized Gap Register</h2>
+
+<h3>6.1 P1 — Significant UX/Functional Gaps (fix soon after launch)</h3>
+
+<table>
+<thead><tr><th style="width:5%">#</th><th style="width:18%">Gap</th><th style="width:10%">Section</th><th style="width:30%">Action Item</th><th style="width:12%">Files to Modify</th><th style="width:8%">Effort</th><th style="width:17%">Dependencies</th></tr></thead>
+<tbody>
+<tr>
+<td>P1-1</td>
+<td><b>Reorder button missing from UI</b></td>
+<td>§21.3</td>
+<td>Add "Reorder" button to <code>orders/[id]/page.tsx</code> for completed orders. Wire to existing <code>reorder()</code> API. Redirect to cart on success. Add reorder button to mobile order detail screen.</td>
+<td><code>apps/web/src/app/orders/[id]/page.tsx</code><br><code>mobile/lib/screens/orders/order_detail_screen.dart</code></td>
+<td>2 SP<br>(~4 hrs)</td>
+<td>Backend already done. No dependency.</td>
+</tr>
+<tr>
+<td>P1-2</td>
+<td><b>Customer list for wholesalers</b></td>
+<td>§21.2</td>
+<td>Create <code>GET /v1/merchant/customers</code> endpoint that queries distinct buyers from orders grouped by store. Build <code>merchant/customers/</code> web page showing buyer name, order count, last order date, total spend.</td>
+<td><code>apps/api/src/modules/merchant/merchant.controller.ts</code><br><code>merchant.service.ts</code><br><code>apps/web/src/app/merchant/customers/page.tsx</code> (new)</td>
+<td>3 SP<br>(~6 hrs)</td>
+<td>Requires orders data. No other dependency.</td>
+</tr>
+<tr>
+<td>P1-3</td>
+<td><b>Saved suppliers (store-level bookmarks)</b></td>
+<td>§21.3</td>
+<td>Extend <code>favorites</code> table with <code>target_type</code> column (PRODUCT | STORE) or create <code>saved_stores</code> table. Add API endpoints. Build "Saved Suppliers" tab on web favorites page. Create mobile favorites/saved screen.</td>
+<td><code>apps/api/src/modules/catalog/catalog.schema.ts</code><br><code>catalog.service.ts</code><br><code>apps/web/src/app/favorites/page.tsx</code><br><code>mobile/lib/screens/</code> (new favorites screen)</td>
+<td>3 SP<br>(~6 hrs)</td>
+<td>Product favorites exist. Extend pattern.</td>
+</tr>
+<tr>
+<td>P1-4</td>
+<td><b>Automated database backups</b></td>
+<td>§21.6</td>
+<td>Create <code>infra/scripts/backup.sh</code> using <code>pg_dump</code> via <code>docker exec</code>. Add cron schedule or npm script <code>db:backup</code>. Document restore procedure. Add backup verification to testing guide.</td>
+<td><code>infra/scripts/backup.sh</code> (new)<br><code>apps/api/package.json</code> (add script)<br>Testing Guide (add section)</td>
+<td>2 SP<br>(~3 hrs)</td>
+<td>Infrastructure only. No code dependency.</td>
+</tr>
+<tr>
+<td>P1-5</td>
+<td><b>Location / address book</b></td>
+<td>§21.3</td>
+<td>Create <code>user_addresses</code> table. Add CRUD endpoints on profile controller. Build address book page on web. Add default address selection. Pre-fill checkout from saved addresses. Add to mobile.</td>
+<td><code>apps/api/src/modules/identity/identity.schema.ts</code><br><code>profile.controller.ts</code><br><code>apps/web/src/app/account/addresses/page.tsx</code> (new)<br><code>apps/web/src/app/checkout/page.tsx</code> (modify)</td>
+<td>5 SP<br>(~10 hrs)</td>
+<td>Checkout already accepts deliveryAddress. Extend to load from saved.</td>
+</tr>
+</tbody>
+</table>
+
+<h3>6.2 P2 — Nice-to-Have (future phase)</h3>
+
+<table>
+<thead><tr><th style="width:5%">#</th><th style="width:18%">Gap</th><th style="width:10%">Section</th><th style="width:35%">Action Item</th><th style="width:8%">Effort</th><th style="width:24%">Notes</th></tr></thead>
+<tbody>
+<tr>
+<td>P2-1</td>
+<td><b>Admin category management UI</b></td>
+<td>§21.4</td>
+<td>Create <code>admin/categories/</code> page with tree view, add/edit/deactivate. Backend CRUD already exists.</td>
+<td>3 SP</td>
+<td>Can use DB seed for initial launch. Admin UI needed for ongoing operations.</td>
+</tr>
+<tr>
+<td>P2-2</td>
+<td><b>Advanced promotion types</b></td>
+<td>§6.3</td>
+<td>Implement Buy X Get Y, geographic offers, bundle offers. Current engine supports percentage, fixed, time-limited, first-order, segment.</td>
+<td>8 SP</td>
+<td>Deferred per §29.2 (P1 "advanced promotions" post-launch). Not required for MVP.</td>
+</tr>
+<tr>
+<td>P2-3</td>
+<td><b>Operations dashboard</b></td>
+<td>§21.6</td>
+<td>Build admin operations page: pending onboarding alerts, low-stock warnings, stuck-order alerts, daily operational summary.</td>
+<td>5 SP</td>
+<td>Useful for scale but manageable manually for initial pilot.</td>
+</tr>
+<tr>
+<td>P2-4</td>
+<td><b>RTL / Arabic UI rendering</b></td>
+<td>§15.1</td>
+<td>Locale is stored but UI is English-only rendering. Add RTL layout support, Arabic translations for key screens.</td>
+<td>8 SP</td>
+<td>Important for market adoption but not a launch blocker for a technical pilot.</td>
+</tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ REMEDIATION ROADMAP ═══════════════════ -->
+<section class="pagebreak">
+<h2>7. Suggested Remediation Order</h2>
+
+<div class="callout"><b>Principle:</b> fix the gaps that unlock the most user value with the least risk and fewest dependencies first. All P1 items can be done in parallel by different team members.</div>
+
+<table>
+<thead><tr><th style="width:5%">Order</th><th style="width:12%">Task</th><th style="width:8%">Priority</th><th style="width:8%">Effort</th><th style="width:20%">Rationale</th><th style="width:22%">Testing Strategy</th><th style="width:10%">Risk</th><th style="width:15%">Sprint</th></tr></thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><b>Reorder button</b></td>
+<td><span class="prio-p1">P1</span></td>
+<td>2 SP</td>
+<td>Backend exists. Pure UI wiring. Zero risk. Highest user-value-per-effort for B2B repeat ordering.</td>
+<td>E2E test: complete order → click reorder → verify cart populated. Unit test: reorder service logic (already exists).</td>
+<td>Very Low</td>
+<td>Week 1</td>
+</tr>
+<tr>
+<td>2</td>
+<td><b>Database backup script</b></td>
+<td><span class="prio-p1">P1</span></td>
+<td>2 SP</td>
+<td>Infrastructure only. No code changes. Required for launch readiness standard §21.6 Security.</td>
+<td>Run backup → verify dump file → restore to fresh DB → verify data integrity. Document runbook.</td>
+<td>Very Low</td>
+<td>Week 1</td>
+</tr>
+<tr>
+<td>3</td>
+<td><b>Customer list</b></td>
+<td><span class="prio-p1">P1</span></td>
+<td>3 SP</td>
+<td>Read-only aggregation query. No writes to existing data. Wholesaler relationship management.</td>
+<td>Integration test: create orders from 2 buyers → verify customer list returns 2 entries with correct counts. API contract test.</td>
+<td>Low</td>
+<td>Week 1</td>
+</tr>
+<tr>
+<td>4</td>
+<td><b>Saved suppliers</b></td>
+<td><span class="prio-p1">P1</span></td>
+<td>3 SP</td>
+<td>Extends existing favorites pattern. Schema migration needed. Retailer activation metric depends on saved suppliers.</td>
+<td>Unit test: save/remove store bookmark. Integration test: verify saved stores appear in list. Web E2E: bookmark from store page.</td>
+<td>Low</td>
+<td>Week 1–2</td>
+</tr>
+<tr>
+<td>5</td>
+<td><b>Address book</b></td>
+<td><span class="prio-p1">P1</span></td>
+<td>5 SP</td>
+<td>Highest effort P1. New table + CRUD + UI. Reduces checkout friction for repeat buyers.</td>
+<td>Integration test: CRUD addresses. E2E: save address → checkout → verify pre-filled. Mobile test: address management.</td>
+<td>Medium (schema migration)</td>
+<td>Week 2</td>
+</tr>
+<tr>
+<td>6</td>
+<td><b>Category admin UI</b></td>
+<td><span class="prio-p2">P2</span></td>
+<td>3 SP</td>
+<td>Backend exists. Admin UX convenience. Can defer past launch if categories are seeded.</td>
+<td>E2E: create category → verify in search filter. Edit category → verify display update.</td>
+<td>Low</td>
+<td>Week 3</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout success"><b>Total P1 effort: 15 SP (~30 hours, ~1.5 weeks for 2 developers).</b><br>
+All P1 gaps can be closed before general availability while still within the Phase 1 planning window. The pilot launch (§35.1–35.2) can proceed with the current codebase for a controlled merchant group, with P1 fixes deployed in the first 2 weeks.</div>
+</section>
+
+<!-- ═══════════════════ DETAILED REQUIREMENT MATRIX ═══════════════════ -->
+<section class="pagebreak">
+<h2>8. Complete Requirement → Implementation Matrix</h2>
+<p class="meta">Cross-reference of every §21 requirement against all implementation layers.</p>
+
+<table>
+<thead><tr><th>§</th><th>Requirement</th><th>API Module</th><th>Schema / Migration</th><th>Web Page</th><th>Admin Page</th><th>Mobile Screen</th><th>Tests</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>21.2</td><td>Store profile</td><td>merchant</td><td>stores</td><td>merchant/onboard</td><td>merchants</td><td>organizations</td><td>integration</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Verification</td><td>merchant</td><td>verification_requests</td><td>—</td><td>verification, verification/[id]</td><td>org_detail</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Product/media mgmt</td><td>catalog</td><td>products, variants, media</td><td>merchant/catalog</td><td>products</td><td>api_service</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Excel/CSV import</td><td>catalog</td><td>import_jobs</td><td>merchant/import</td><td>—</td><td>api_service</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Stock management</td><td>inventory</td><td>inventory_items, stock_movements</td><td>merchant/inventory</td><td>—</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Quantity pricing</td><td>pricing</td><td>price_lists, price_tiers</td><td>merchant/pricing</td><td>—</td><td>—</td><td>unit (265 lines)</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Promotions</td><td>promotions</td><td>promotions, redemption</td><td>—</td><td>—</td><td>—</td><td>unit (398 lines)</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Order management</td><td>orders</td><td>master_orders, orders, items</td><td>merchant/orders</td><td>orders</td><td>merchant_orders</td><td>unit (387) + integration (302)</td><td class="status-ok">✅</td></tr>
+<tr><td>21.2</td><td>Customer list</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="status-miss">❌</td></tr>
+<tr><td>21.2</td><td>Notifications</td><td>notifications</td><td>notifications, preferences, devices</td><td>notifications</td><td>—</td><td>notifications</td><td>—</td><td class="status-ok">✅</td></tr>
+
+<tr><td>21.3</td><td>Account/profile</td><td>identity</td><td>users, organizations, members</td><td>account</td><td>—</td><td>profile</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Location/area</td><td>partial (checkout only)</td><td>stores.address JSONB</td><td>checkout (address field)</td><td>—</td><td>checkout</td><td>—</td><td class="status-partial">⚠️</td></tr>
+<tr><td>21.3</td><td>Search/filters</td><td>catalog (search.service)</td><td>search_queries, FTS indexes</td><td>search</td><td>—</td><td>search</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Merchant/product pages</td><td>catalog</td><td>products, stores</td><td>stores, stores/[slug], products/[id]</td><td>—</td><td>stores, product_detail</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Cart</td><td>orders (cart)</td><td>carts, cart_items</td><td>cart</td><td>—</td><td>cart</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Purchase order</td><td>orders</td><td>master_orders, orders, financial_breakdown</td><td>checkout</td><td>orders</td><td>checkout</td><td>integration (238)</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Order history</td><td>orders</td><td>order_status_history</td><td>orders, orders/[id]</td><td>orders</td><td>orders_list, order_detail</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.3</td><td>Reorder</td><td>orders (reorder)</td><td>—</td><td>import only (dead code)</td><td>—</td><td>api_service (unused)</td><td>—</td><td class="status-partial">⚠️</td></tr>
+<tr><td>21.3</td><td>Favorites/saved suppliers</td><td>catalog (favorites)</td><td>favorites (product only)</td><td>favorites (products only)</td><td>—</td><td>—</td><td>—</td><td class="status-partial">⚠️</td></tr>
+<tr><td>21.3</td><td>Ratings</td><td>reviews, disputes</td><td>reviews, disputes, dispute_events</td><td>reviews</td><td>disputes</td><td>reviews_disputes</td><td>—</td><td class="status-ok">✅</td></tr>
+
+<tr><td>21.4</td><td>User/merchant mgmt</td><td>admin</td><td>—</td><td>—</td><td>merchants</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>Verification review</td><td>merchant, admin</td><td>verification_requests</td><td>—</td><td>verification, verification/[id]</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>Category management</td><td>catalog (CRUD exists)</td><td>categories</td><td>—</td><td><b>no page</b></td><td>—</td><td>—</td><td class="status-partial">⚠️</td></tr>
+<tr><td>21.4</td><td>Product moderation</td><td>admin</td><td>products.status</td><td>—</td><td>products</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>Order monitoring</td><td>admin</td><td>—</td><td>—</td><td>orders</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>Support/disputes</td><td>reviews (disputes)</td><td>disputes, dispute_events</td><td>reviews (dispute form)</td><td>disputes</td><td>reviews_disputes</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>KPI reports</td><td>analytics</td><td>analytics_events</td><td>—</td><td>kpis</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+<tr><td>21.4</td><td>Audit logs</td><td>audit</td><td>audit_logs</td><td>—</td><td>audit</td><td>—</td><td>—</td><td class="status-ok">✅</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ DEFERRED ITEMS ═══════════════════ -->
+<section>
+<h2>9. Confirmed Deferred Items (§21.5 — Do Not Build in Phase 1)</h2>
+<p>The following are explicitly excluded from Phase 1 per §21.5 and §29. Their absence is <b>not a gap</b>.</p>
+<table>
+<thead><tr><th>Item</th><th>Plan Reference</th><th>Target Phase</th></tr></thead>
+<tbody>
+<tr><td>Full independent delivery marketplace</td><td>§21.5, §22</td><td>Phase 2</td></tr>
+<tr><td>Broad B2C consumer commerce</td><td>§21.5, §24</td><td>Phase 4</td></tr>
+<tr><td>Advanced advertising system</td><td>§21.5, §25</td><td>Phase 5</td></tr>
+<tr><td>Complex ML / AI recommendations</td><td>§21.5, §26</td><td>Phase 6</td></tr>
+<tr><td>Full ERP accounting</td><td>§21.5</td><td>Phase 7+</td></tr>
+<tr><td>Microservice estate (currently modular monolith)</td><td>§16.1</td><td>When scale demands</td></tr>
+<tr><td>Credit system / trade credit</td><td>§21.5</td><td>Phase 7+</td></tr>
+<tr><td>Complex multi-party settlement</td><td>§21.5, §23</td><td>Phase 3</td></tr>
+<tr><td>RFQ marketplace</td><td>§29.3</td><td>P2 (post-growth)</td></tr>
+<tr><td>Negotiation / counter-offer</td><td>§29.3</td><td>P2</td></tr>
+<tr><td>Smart Basket optimization</td><td>§29.3</td><td>P2</td></tr>
+<tr><td>Merchant subscriptions</td><td>§29.2</td><td>Phase 3</td></tr>
+<tr><td>Driver module (full)</td><td>§29.2</td><td>Phase 2</td></tr>
+<tr><td>Live GPS tracking / PoD</td><td>§29.2</td><td>Phase 2</td></tr>
+<tr><td>Payment integration</td><td>§29.2</td><td>Phase 3</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ═══════════════════ TEST COVERAGE ═══════════════════ -->
+<section>
+<h2>10. Test Coverage Summary</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Framework</th><th>Test Count</th><th>Covers</th></tr></thead>
+<tbody>
+<tr><td>Backend unit</td><td>Vitest</td><td>168</td><td>Orders FSM, pricing tiers, promotions engine, checkout flow</td></tr>
+<tr><td>Backend integration</td><td>Vitest</td><td>(included in 168)</td><td>Full checkout flow (238 lines), order lifecycle (302 lines)</td></tr>
+<tr><td>Mobile</td><td>flutter_test</td><td>32</td><td>Models (fromJson), FSM transitions, API service contracts</td></tr>
+<tr><td>Load testing</td><td>k6</td><td>Scripts exist</td><td>API performance under load</td></tr>
+</tbody>
+</table>
+
+<div class="callout"><b>Test gaps to address with P1 fixes:</b><br>
+• P1-1 (Reorder): Add integration test for reorder endpoint + E2E for button click<br>
+• P1-2 (Customer list): Add API contract test<br>
+• P1-3 (Saved suppliers): Add unit + integration tests<br>
+• P1-4 (Backups): Add restore verification script<br>
+• P1-5 (Address book): Add CRUD integration test</div>
+</section>
+
+<!-- ═══════════════════ CONCLUSION ═══════════════════ -->
+<section>
+<h2>11. Conclusion &amp; Recommendation</h2>
+
+<div class="callout success">
+<b>Recommendation: Proceed to pilot launch with current codebase.</b><br><br>
+The codebase satisfies all P0 launch-blocking requirements from §29.1 and meets 6 of 7 launch readiness standards from §21.6. The single readiness gap (automated backups) is an infrastructure task that can be completed in parallel with pilot preparation.<br><br>
+The 5 P1 functional gaps (reorder UI, customer list, saved suppliers, backups, address book) total 15 story points and can be closed within 1.5 weeks of development. None of them prevent a controlled pilot with anchor merchants and a pilot retailer group as described in §35.1–35.2.<br><br>
+<b>Suggested path:</b><br>
+1. Deploy backup script immediately (Week 1, Day 1)<br>
+2. Wire reorder button (Week 1, Day 1–2)<br>
+3. Build customer list endpoint + page (Week 1)<br>
+4. Extend favorites to support saved suppliers (Week 1–2)<br>
+5. Build address book (Week 2)<br>
+6. Begin pilot with anchor merchants while P1 fixes are deployed<br>
+7. Close P2 items (category UI, operations dashboard) in Week 3–4
+</div>
+</section>
+
+<p class="footer-note">End of gap analysis. Generated from <code>Smart_Commerce_Supply_Platform_Final_Plan.html</code> §21, §29 cross-referenced against <code>scs-platform/</code> codebase as of September 3, 2026.</p>
+
+</body>
+</html>

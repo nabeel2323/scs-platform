@@ -248,11 +248,17 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
   // TC-03: Concurrent post of same adjustment
   // ═══════════════════════════════════════════════════════════════
   it('TC-03: concurrent post of same adjustment → only one wins', async () => {
-    // Create a fresh adjustment for this test
+    // Create a fresh adjustment for this test.
+    // Phase 4: fx_status is 'RESOLVED', not 'BLOCKED'. Posting is allow-listed on
+    // the FX position (settlement-adjustment.service.ts), because §7 requires that
+    // an adjustment without an authoritative FX source stays blocked and the P13
+    // monitor raises a CRITICAL invariant violation for any POSTED row whose FX is
+    // still blocked. This test is about concurrent post, not about FX, so the row
+    // must be in a state the posting guard accepts.
     const adjId = crypto.randomUUID();
     await pool.query(
       `INSERT INTO settlement_adjustments (id, sub_order_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id)
-       VALUES ($1, $2, 'SETTLEMENT_CORRECTION', 200, 'SYP', 'BLOCKED', 'APPROVED', 'Post test', false, $3, $4)`,
+       VALUES ($1, $2, 'SETTLEMENT_CORRECTION', 200, 'SYP', 'RESOLVED', 'APPROVED', 'Post test', false, $3, $4)`,
       [adjId, orderA, adminA, orgA],
     );
     // Add an approval record (required for posting)

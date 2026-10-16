@@ -1,0 +1,114 @@
+# ============================================================
+# Smart Commerce & Supply Platform — Docker build exclusions
+# ============================================================
+# Context is the repository root (monorepo), so this file is the single
+# gate that keeps credentials, local state and generated bulk out of every
+# image. Introduced by P13 Phase 4.1; before it existed the repository had no
+# container builds at all.
+#
+# What MUST NOT be copied in, and why:
+#   .env*          real local credentials (JWT secrets, DB password, S3 keys)
+#   node_modules   Windows-built native modules; the image installs its own
+#                  from pnpm-lock.yaml on Linux
+#   .next / dist   host build artifacts; the image rebuilds them
+#   *.dump         database dumps
+#   b2-test tree    a second copy of the repository (separate CI worktree)
+
+# ── Dependencies and build output ────────────────────────────
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+**/out/
+dist/
+**/dist/
+build/
+coverage/
+**/coverage/
+.turbo/
+**/.turbo/
+*.tsbuildinfo
+.cache/
+**/.cache/
+
+# ── Secrets and local configuration ──────────────────────────
+# Every .env variant is excluded, INCLUDING `.env.example`. Nothing in this
+# repository loads a .env file at runtime (there is no dotenv/@nestjs/config), so an
+# example file inside an image would be inert at best and mistaken for real
+# configuration at worst. The documented templates live in infra/deploy/ and are read
+# from the repository, not from a container.
+.env
+.env.*
+**/.env
+**/.env.*
+# CI verification exception: deployment-invariants test checks this file exists on disk.
+!infra/deploy/.env.production.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.kdbx
+id_rsa
+id_ed25519
+.secrets/
+kubectl-config*
+
+# ── Data dumps and local database state ──────────────────────
+*.dump
+*.sql.gz
+*.bak
+pgdata/
+postgres_data/
+
+# ── Logs, scratch and evidence files ─────────────────────────
+*.log
+logs/
+**/*.log
+b1-*.txt
+b2-*.json
+p4-*.json
+p4-*.log
+p4-*.txt
+p41-*.json
+p41-*.log
+p41-*.mjs
+.p4-*
+**/.p4-*
+test-token.txt
+
+# ── Binary office/spreadsheet test fixtures ──────────────────
+*.xlsx
+*.xls
+*.zip
+*.tgz
+
+# ── Duplicate worktree and version control internals ─────────
+apps/scs-platform-b2-test/
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── Mobile toolchain (not part of a web/API image) ───────────
+# Only the Flutter *build output* is dropped, never the `mobile/packages/` tree:
+# `pnpm-workspace.yaml` lists `mobile/packages/*` as importers, so excluding the whole
+# `mobile/` directory would make `pnpm install --frozen-lockfile` fail on an importer
+# mismatch. `mobile/build` and `mobile/.dart_tool` alone account for ~3 GB of the host
+# working tree (APKs, native libs, dill caches), which is why they are excluded
+# explicitly rather than left to the general `build/` pattern (which is root-anchored).
+mobile/build/
+mobile/.dart_tool/
+mobile/.pub-cache/
+mobile/.pub/
+
+# ── Docs are excluded from images but keep the production
+#    runbooks available to operators through the repository.
+docs/
+
+# ── Tests are not needed in a production image. Kept in the
+#    build stage (the build graph may reference them), removed
+#    from the runtime stage by copying only dist output.

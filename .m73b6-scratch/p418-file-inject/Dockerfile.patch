@@ -1,0 +1,2 @@
+FROM p418-ci:verify
+COPY infra/deploy/.env.production.example /app/infra/deploy/.env.production.example

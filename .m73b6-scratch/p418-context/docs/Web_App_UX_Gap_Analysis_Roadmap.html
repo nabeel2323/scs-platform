@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Web App UX Gap Analysis &amp; Implementation Roadmap</title>
+<style>
+:root{--brand:#0f3340;--brand-light:#1e6178;--ink:#1e2d35;--bg:#f7f9fa;--ok:#065f46;--ok-bg:#d1fae5;--warn:#92400e;--warn-bg:#fef3c7;--err:#991b1b;--err-bg:#fee2e2;--info:#1e40af;--info-bg:#dbeafe;--muted:#5b6b74;--border:#d9e2e6;--card:#fff;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;font-size:15px}
+a{color:var(--brand-light);text-decoration:none}a:hover{text-decoration:underline}
+.hero{background:linear-gradient(135deg,#0c2831 0%,#1e6178 100%);color:#fff;padding:48px 24px 40px;text-align:center}
+.hero h1{font-size:28px;font-weight:700;letter-spacing:-.3px;margin-bottom:8px}
+.hero p{font-size:15px;color:rgba(255,255,255,.65);max-width:640px;margin:0 auto}
+.hero .meta{margin-top:12px;font-size:12px;color:rgba(255,255,255,.45)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+.toc-bar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto}
+.toc-inner{max-width:1100px;margin:0 auto;display:flex;gap:4px;padding:8px 0}
+.toc-inner a{font-size:12px;font-weight:500;color:var(--muted);padding:6px 12px;border-radius:6px;white-space:nowrap;transition:all .15s}
+.toc-inner a:hover,.toc-inner a.active{background:var(--brand);color:#fff;text-decoration:none}
+section{padding:32px 0 24px}
+section h2{font-size:22px;font-weight:700;color:var(--brand);margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid var(--brand)}
+section h3{font-size:17px;font-weight:600;color:var(--ink);margin:20px 0 10px}
+section h4{font-size:14px;font-weight:600;color:var(--brand-light);margin:14px 0 6px}
+p{margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0 20px;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(22,35,43,.06)}
+th{background:linear-gradient(135deg,#0f3340,#1a4a5c);color:rgba(255,255,255,.92);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left;padding:12px 14px}
+td{padding:10px 14px;border-bottom:1px solid #e2e8f0;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even){background:#f8fafb}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 10px;border-radius:10px;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}.p-warn{background:var(--warn-bg);color:var(--warn)}.p-err{background:var(--err-bg);color:var(--err)}.p-info{background:var(--info-bg);color:var(--info)}.p-muted{background:#edf2f7;color:#4a5568}
+.callout{padding:14px 18px;border-radius:8px;margin:14px 0;font-size:13px;border:1px solid}
+.callout.ok{background:var(--ok-bg);border-color:#a7f3d0}.callout.warn{background:var(--warn-bg);border-color:#fde68a}.callout.err{background:var(--err-bg);border-color:#fca5a5}.callout.info{background:var(--info-bg);border-color:#93c5fd}
+.callout .label{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+code{font-family:'Cascadia Code',Consolas,monospace;font-size:12px;background:#edf2f7;padding:1px 6px;border-radius:4px}
+.phase-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin:12px 0;box-shadow:0 1px 3px rgba(22,35,43,.06)}
+.phase-card h4{margin-top:0}
+.score{display:flex;gap:16px;flex-wrap:wrap;margin:16px 0}
+.score-item{flex:1;min-width:140px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.score-num{font-size:28px;font-weight:700;color:var(--brand)}
+.score-label{font-size:12px;color:var(--muted);margin-top:4px}
+footer{text-align:center;padding:32px 24px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);margin-top:40px}
+ul,ol{margin:8px 0 12px 20px}li{margin-bottom:4px}
+.tight{margin-left:20px}li{margin-bottom:3px}
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>Web App UX Gap Analysis &amp; Implementation Roadmap</h1>
+  <p>Comprehensive analysis of <code>apps/web</code>, brand management, mobile parity, navigation patterns, and Phase 1 B2B MVP completeness</p>
+  <div class="meta">September 21, 2026 &middot; Read-only analysis &middot; 8 gap domains &middot; Phase 1 audit</div>
+</div>
+<nav class="toc-bar"><div class="toc-inner" id="toc">
+  <a href="#scorecard">Scorecard</a>
+  <a href="#inventory">1 Inventory</a>
+  <a href="#pricing">2 Pricing</a>
+  <a href="#images">3 Images</a>
+  <a href="#search">4 Search</a>
+  <a href="#brands">5 Brands</a>
+  <a href="#mobile">6 Mobile</a>
+  <a href="#nav">7 Navigation</a>
+  <a href="#phase1">8 Phase 1 Audit</a>
+  <a href="#roadmap">9 Roadmap</a>
+  <a href="#testing">10 Testing</a>
+</div></nav>
+<div class="wrap">
+
+<section id="scorecard">
+  <h2>Executive Scorecard</h2>
+  <div class="score">
+    <div class="score-item"><div class="score-num">31</div><div class="score-label">Gaps Identified</div></div>
+    <div class="score-item"><div class="score-num" style="color:var(--err)">7</div><div class="score-label">P0 Launch Blockers</div></div>
+    <div class="score-item"><div class="score-num" style="color:var(--warn)">14</div><div class="score-label">P1 Significant Gaps</div></div>
+    <div class="score-item"><div class="score-num" style="color:var(--info)">10</div><div class="score-label">P2 Enhancements</div></div>
+    <div class="score-item"><div class="score-num" style="color:var(--ok)">~28d</div><div class="score-label">Total Effort</div></div>
+  </div>
+  <table>
+    <thead><tr><th>Domain</th><th>P0</th><th>P1</th><th>P2</th><th>Effort</th><th>Key Blocker</th></tr></thead>
+    <tbody>
+      <tr><td>1. Inventory Management</td><td>1</td><td>3</td><td>1</td><td>4d</td><td>No movement history UI; no low-stock alerts</td></tr>
+      <tr><td>2. Pricing Management</td><td>1</td><td>2</td><td>1</td><td>4d</td><td>Pricing page is read-only; API CRUD unused</td></tr>
+      <tr><td>3. Product Images</td><td>2</td><td>1</td><td>2</td><td>5d</td><td>No image upload/replace/remove in editor</td></tr>
+      <tr><td>4. Search Enhancement</td><td>0</td><td>3</td><td>2</td><td>5d</td><td>No price/MOQ/sort/pagination</td></tr>
+      <tr><td>5. Brand Management</td><td>1</td><td>1</td><td>1</td><td>3d</td><td>No admin or merchant brand CRUD UI</td></tr>
+      <tr><td>6. Mobile Parity</td><td>1</td><td>2</td><td>1</td><td>4d</td><td>No inventory/pricing screens; barcode placeholder</td></tr>
+      <tr><td>7. Navigation &amp; UX</td><td>1</td><td>2</td><td>2</td><td>3d</td><td>No responsive hamburger; no back button pattern</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="inventory">
+  <h2>1. Inventory Management</h2>
+  <p>Page: <code>apps/web/src/app/merchant/inventory/page.tsx</code> (233 lines). API: <code>inventory.controller.ts</code> (89 lines).</p>
+  <h3>Current Capabilities</h3>
+  <ul class="tight">
+    <li>Warehouse selector, item table (qty on hand / reserved / available / reorder point)</li>
+    <li>Stock adjustment dialog via <code>POST /v1/inventory/adjust</code></li>
+    <li>Low-stock inline count in header</li>
+    <li>API also: <code>GET /v1/inventory/:id/movements</code>, <code>PATCH /v1/inventory/:id</code>, <code>GET /v1/inventory/low-stock</code></li>
+  </ul>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>INV-1</td><td><span class="pill p-err">P0</span></td><td>No stock movement history. API returns movements but UI never calls it.</td><td>1d</td></tr>
+      <tr><td>INV-2</td><td><span class="pill p-warn">P1</span></td><td>No dedicated low-stock alerts page/filter. Count shown but cannot isolate items.</td><td>1d</td></tr>
+      <tr><td>INV-3</td><td><span class="pill p-warn">P1</span></td><td>No item search/filter. Large warehouses scroll unfiltered table.</td><td>0.5d</td></tr>
+      <tr><td>INV-4</td><td><span class="pill p-warn">P1</span></td><td>No inline reorder point editing. <code>PATCH /v1/inventory/:id</code> exists but unused.</td><td>0.5d</td></tr>
+      <tr><td>INV-5</td><td><span class="pill p-info">P2</span></td><td>No bulk adjustment. Each row requires separate dialog.</td><td>1d</td></tr>
+    </tbody>
+  </table>
+  <div class="callout info"><span class="label">API Coverage</span><p>All P0/P1 gaps are UI-only. The API already supports movements, variant lookup, reserve/release, and item updates.</p></div>
+</section>
+
+<section id="pricing">
+  <h2>2. Pricing Management</h2>
+  <p>Page: <code>apps/web/src/app/merchant/pricing/page.tsx</code> (175 lines). API: <code>pricing.controller.ts</code> (100 lines).</p>
+  <h3>Current Capabilities</h3>
+  <ul class="tight">
+    <li>Read-only display of price lists and tiers</li>
+    <li>Tier preview sidebar using <code>TierLadder</code> component</li>
+  </ul>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>PRC-1</td><td><span class="pill p-err">P0</span></td><td>Page is entirely read-only. API supports full CRUD on price lists and tiers but none are wired to UI.</td><td>2d</td></tr>
+      <tr><td>PRC-2</td><td><span class="pill p-warn">P1</span></td><td>No tier creation/editing form. Cannot add volume tiers or update prices.</td><td>1d</td></tr>
+      <tr><td>PRC-3</td><td><span class="pill p-warn">P1</span></td><td>No live price preview during creation. Cannot simulate price at quantity.</td><td>0.5d</td></tr>
+      <tr><td>PRC-4</td><td><span class="pill p-info">P2</span></td><td>No price list activation toggle. <code>isActive</code> field exists but no UI.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn"><span class="label">Shared Resolver</span><p>The tier-price resolver at <code>price-resolution.ts</code> serves cart and display. CRUD writes take effect immediately for buyers.</p></div>
+</section>
+
+<section id="images">
+  <h2>3. Product Images</h2>
+  <p>Helpers: <code>product-images.ts</code> (33 lines). Upload: <code>POST /v1/media/presign</code>.</p>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>IMG-1</td><td><span class="pill p-err">P0</span></td><td>No image upload UI in product editor. Text field for URLs only. Merchants cannot add photos.</td><td>2d</td></tr>
+      <tr><td>IMG-2</td><td><span class="pill p-err">P0</span></td><td>No image replace/remove. Once stored, references are permanent. No delete endpoint or UI.</td><td>1.5d</td></tr>
+      <tr><td>IMG-3</td><td><span class="pill p-warn">P1</span></td><td>Single image display only. No gallery or carousel. Products with multiple images waste the rest.</td><td>1d</td></tr>
+      <tr><td>IMG-4</td><td><span class="pill p-info">P2</span></td><td>No image reordering. Cannot set primary image order.</td><td>0.5d</td></tr>
+      <tr><td>IMG-5</td><td><span class="pill p-info">P2</span></td><td>Signed URL delivery unverified end-to-end. <code>productImageSrc()</code> renders raw keys.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+  <div class="callout err"><span class="label">Activation Dependency</span><p>Verification approval requires <code>productImageCount &gt; 0</code>. Without upload UI, merchants cannot satisfy this independently. Launch blocker for self-service onboarding.</p></div>
+</section>
+
+<section id="search">
+  <h2>4. Search Page Enhancement</h2>
+  <p>Page: <code>apps/web/src/app/search/page.tsx</code> (305 lines). API: <code>GET /v1/search</code>.</p>
+  <h3>Current Capabilities</h3>
+  <ul class="tight">
+    <li>Text search with 300ms debounce, category dropdown + chips, brand dropdown</li>
+    <li>Product cards with image, title, price, MOQ, verified badge, add-to-cart</li>
+  </ul>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>SRC-1</td><td><span class="pill p-warn">P1</span></td><td>No pagination. Hard-coded limit 40 with no offset or page navigation.</td><td>1d</td></tr>
+      <tr><td>SRC-2</td><td><span class="pill p-warn">P1</span></td><td>No sort options. Results in relevance order only. No price/newest sorting.</td><td>0.5d</td></tr>
+      <tr><td>SRC-3</td><td><span class="pill p-warn">P1</span></td><td>No price range or MOQ filters. Wholesale buyers need min/max price and MOQ threshold.</td><td>1.5d</td></tr>
+      <tr><td>SRC-4</td><td><span class="pill p-info">P2</span></td><td>No sponsored slot integration. Phase 5 defines SEARCH_RESULT placements.</td><td>1d</td></tr>
+      <tr><td>SRC-5</td><td><span class="pill p-info">P2</span></td><td>No barcode search on web. Mobile has scanner placeholder; web text only.</td><td>0.5d</td></tr>
+      <tr><td>SRC-6</td><td><span class="pill p-info">P2</span></td><td>No URL-backed filter state. Refreshing loses filters. Not shareable.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="brands">
+  <h2>5. Brand Management</h2>
+  <p>Schema: <code>brands</code> (id, name, nameAr, slug, logoUrl, description, isActive). API: <code>POST /v1/brands</code>, <code>GET /v1/brands</code>.</p>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>BND-1</td><td><span class="pill p-err">P0</span></td><td>No admin brands page. No <code>/admin/brands</code> route. <code>catalog:brands:manage</code> permission exists but has no UI.</td><td>1.5d</td></tr>
+      <tr><td>BND-2</td><td><span class="pill p-warn">P1</span></td><td>No merchant brand assignment UI. Product editor has brandId but no brand selector dropdown.</td><td>0.5d</td></tr>
+      <tr><td>BND-3</td><td><span class="pill p-err">P0</span></td><td>No brand update/delete API. Only POST and GET exist. Cannot toggle isActive or edit brands.</td><td>0.5d</td></tr>
+      <tr><td>BND-4</td><td><span class="pill p-info">P2</span></td><td>No brand logo display. logoUrl field exists but never rendered in cards.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="mobile">
+  <h2>6. Mobile App Review</h2>
+  <p>Flutter: <code>mobile/lib/screens/</code> (27 screen files).</p>
+  <h3>Feature Parity Matrix</h3>
+  <table>
+    <thead><tr><th>Feature</th><th>Web</th><th>Mobile</th><th>Gap</th></tr></thead>
+    <tbody>
+      <tr><td>Authentication</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td>Complete</td></tr>
+      <tr><td>Product search</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-warn">Partial</span></td><td>Missing price/MOQ filters</td></tr>
+      <tr><td>Barcode scanning</td><td><span class="pill p-muted">N/A</span></td><td><span class="pill p-err">Placeholder</span></td><td>No camera integration</td></tr>
+      <tr><td>Cart + checkout</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td>Complete</td></tr>
+      <tr><td>Order tracking</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td>Complete</td></tr>
+      <tr><td>Favorites</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-err">Missing</span></td><td>No favorites screen</td></tr>
+      <tr><td>Inventory management</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-err">Missing</span></td><td>No inventory screen</td></tr>
+      <tr><td>Pricing management</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-err">Missing</span></td><td>No pricing screen</td></tr>
+      <tr><td>Product editor</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td>Complete</td></tr>
+      <tr><td>Reviews &amp; disputes</td><td><span class="pill p-ok">Yes</span></td><td><span class="pill p-ok">Yes</span></td><td>Complete</td></tr>
+    </tbody>
+  </table>
+  <h3>Mobile Gaps</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>MOB-1</td><td><span class="pill p-err">P0</span></td><td>Barcode scanner is placeholder. <code>mobile_scanner</code> not integrated.</td><td>1d</td></tr>
+      <tr><td>MOB-2</td><td><span class="pill p-warn">P1</span></td><td>No inventory management screen.</td><td>1.5d</td></tr>
+      <tr><td>MOB-3</td><td><span class="pill p-warn">P1</span></td><td>No favorites/saved-suppliers screen.</td><td>1d</td></tr>
+      <tr><td>MOB-4</td><td><span class="pill p-info">P2</span></td><td>No notification preferences UI.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="nav">
+  <h2>7. Navigation &amp; UX</h2>
+  <p>Navbar: <code>Navbar.tsx</code> (186 lines). Merchant layout: <code>merchant/layout.tsx</code> (52 lines).</p>
+  <h3>Gap Register</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Priority</th><th>Gap</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>NAV-1</td><td><span class="pill p-err">P0</span></td><td>No mobile-responsive hamburger menu. 9+ links overflow on small screens.</td><td>1d</td></tr>
+      <tr><td>NAV-2</td><td><span class="pill p-warn">P1</span></td><td>No consistent back button pattern. Some pages have ad-hoc links; others none.</td><td>1d</td></tr>
+      <tr><td>NAV-3</td><td><span class="pill p-warn">P1</span></td><td>No breadcrumb navigation. Deep pages lack path context.</td><td>0.5d</td></tr>
+      <tr><td>NAV-4</td><td><span class="pill p-info">P2</span></td><td>No responsive grid breakpoints. Detail/pricing pages collapse poorly on mobile.</td><td>0.5d</td></tr>
+      <tr><td>NAV-5</td><td><span class="pill p-info">P2</span></td><td>No keyboard navigation for product cards. Div elements not focusable.</td><td>0.5d</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="phase1">
+  <h2>8. Phase 1 B2B MVP Completeness</h2>
+  <p>Cross-referencing Section 5.1 of the Implementation Plan against the live codebase.</p>
+  <h3>8.1 API Endpoint Coverage</h3>
+  <table>
+    <thead><tr><th>Module</th><th>Planned</th><th>Actual</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Auth</td><td>5</td><td>7</td><td><span class="pill p-ok">Exceeded</span> +password, +device trust</td></tr>
+      <tr><td>Users</td><td>4</td><td>4</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Organizations</td><td>3</td><td>3</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Merchant</td><td>4</td><td>6</td><td><span class="pill p-ok">Exceeded</span> +verification</td></tr>
+      <tr><td>Catalog</td><td>6</td><td>10+</td><td><span class="pill p-ok">Exceeded</span> +brands, +detail, +media</td></tr>
+      <tr><td>Inventory</td><td>3</td><td>7</td><td><span class="pill p-ok">Exceeded</span> +movements, +reserve</td></tr>
+      <tr><td>Pricing</td><td>3</td><td>9</td><td><span class="pill p-ok">Exceeded</span> +full CRUD</td></tr>
+      <tr><td>Promotions</td><td>3</td><td>3</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Search</td><td>3</td><td>4</td><td><span class="pill p-ok">Exceeded</span> +popular brands</td></tr>
+      <tr><td>Cart</td><td>4</td><td>5</td><td><span class="pill p-ok">Exceeded</span> +clear, +promo</td></tr>
+      <tr><td>Orders</td><td>9</td><td>12</td><td><span class="pill p-ok">Exceeded</span> +reorder, +settlement</td></tr>
+      <tr><td>Reviews</td><td>2</td><td>2</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Notifications</td><td>4</td><td>4</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Admin</td><td>6</td><td>20+</td><td><span class="pill p-ok">Exceeded</span> 8 management pages</td></tr>
+      <tr><td>Realtime</td><td>1</td><td>1</td><td><span class="pill p-ok">Complete</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><span class="label">API Verdict</span><p>Every planned Phase 1 API endpoint is implemented or exceeded. The API layer is launch-ready. Remaining gaps are in the frontend UI.</p></div>
+
+  <h3>8.2 Frontend Feature Completeness</h3>
+  <table>
+    <thead><tr><th>Feature (Plan M1-M7)</th><th>Web</th><th>Admin</th><th>Mobile</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>M1: Auth screens</td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>M2: Store wizard + verification</td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>M3: Product editor</td><td><span class="pill p-warn">Partial</span></td><td><span class="pill p-ok">Moderation</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-warn">No image upload</span></td></tr>
+      <tr><td>M3: Tier ladder editor</td><td><span class="pill p-err">Read-only</span></td><td>N/A</td><td><span class="pill p-err">Missing</span></td><td><span class="pill p-err">Not editable</span></td></tr>
+      <tr><td>M3: Import wizard</td><td><span class="pill p-ok">Done</span></td><td>N/A</td><td>N/A</td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>M4: Search + filters</td><td><span class="pill p-warn">Basic</span></td><td>N/A</td><td><span class="pill p-warn">Basic</span></td><td><span class="pill p-warn">Missing advanced</span></td></tr>
+      <tr><td>M4: Favorites</td><td><span class="pill p-ok">Done</span></td><td>N/A</td><td><span class="pill p-err">Missing</span></td><td><span class="pill p-warn">Web only</span></td></tr>
+      <tr><td>M4: Multi-supplier cart</td><td><span class="pill p-ok">Done</span></td><td>N/A</td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>M5: Order flows</td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>M6: Ratings + KPIs</td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Done</span></td><td><span class="pill p-ok">Complete</span></td></tr>
+      <tr><td>Brand management UI</td><td><span class="pill p-err">Missing</span></td><td><span class="pill p-err">Missing</span></td><td><span class="pill p-err">Missing</span></td><td><span class="pill p-err">Not started</span></td></tr>
+    </tbody>
+  </table>
+
+  <h3>8.3 Phase 1 Exit Gate Readiness</h3>
+  <table>
+    <thead><tr><th>Exit Gate</th><th>Status</th><th>Blocker</th></tr></thead>
+    <tbody>
+      <tr><td>Merchant publishes without tech support</td><td><span class="pill p-warn">At Risk</span></td><td>Image upload UI missing</td></tr>
+      <tr><td>Full order end-to-end</td><td><span class="pill p-ok">Ready</span></td><td>None</td></tr>
+      <tr><td>RBAC/audit verified</td><td><span class="pill p-ok">Ready</span></td><td>None</td></tr>
+      <tr><td>Funnel measurable</td><td><span class="pill p-ok">Ready</span></td><td>Analytics events landed</td></tr>
+      <tr><td>Activation rate target</td><td><span class="pill p-warn">At Risk</span></td><td>Pricing page read-only</td></tr>
+      <tr><td>Repeat-order rate</td><td><span class="pill p-ok">Ready</span></td><td>Reorder implemented</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="roadmap">
+  <h2>9. Phased Implementation Roadmap</h2>
+  <div class="phase-card">
+    <h4>Phase A: Launch Blockers (7 P0 items, ~8d)</h4>
+    <p>Goal: Enable self-service merchant onboarding and core management workflows.</p>
+    <table>
+      <thead><tr><th>Task</th><th>Files</th><th>Effort</th><th>Depends</th></tr></thead>
+      <tbody>
+        <tr><td>A1: Product image upload (presign + picker + preview)</td><td><code>product/[id]/page.tsx</code>, <code>buyer-api.ts</code></td><td>2d</td><td>None</td></tr>
+        <tr><td>A2: Product image replace/remove</td><td><code>product/[id]/page.tsx</code>, <code>catalog.controller.ts</code></td><td>1.5d</td><td>A1</td></tr>
+        <tr><td>A3: Admin brands CRUD + API PATCH/DELETE</td><td>New <code>admin/brands/</code>, <code>catalog.controller.ts</code></td><td>1.5d</td><td>None</td></tr>
+        <tr><td>A4: Pricing page CRUD (lists + tiers)</td><td><code>pricing/page.tsx</code>, <code>buyer-api.ts</code></td><td>2d</td><td>None</td></tr>
+        <tr><td>A5: Inventory movement history panel</td><td><code>inventory/page.tsx</code></td><td>1d</td><td>None</td></tr>
+        <tr><td>A6: Mobile barcode scanner (mobile_scanner)</td><td><code>search_screen.dart</code></td><td>1d</td><td>None</td></tr>
+        <tr><td>A7: Responsive navbar hamburger menu</td><td><code>Navbar.tsx</code></td><td>1d</td><td>None</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="phase-card">
+    <h4>Phase B: Significant UX Gaps (14 P1 items, ~12d)</h4>
+    <p>Goal: Complete merchant tools, search discovery, and mobile parity.</p>
+    <table>
+      <thead><tr><th>Task</th><th>Effort</th><th>Depends</th></tr></thead>
+      <tbody>
+        <tr><td>B1: Low-stock alerts filter/page</td><td>1d</td><td>A5</td></tr>
+        <tr><td>B2: Inventory search + status filter</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>B3: Inline reorder point editing</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>B4: Tier creation form with live preview</td><td>1d</td><td>A4</td></tr>
+        <tr><td>B5: Product image gallery/carousel</td><td>1d</td><td>A1</td></tr>
+        <tr><td>B6: Search pagination</td><td>1d</td><td>None</td></tr>
+        <tr><td>B7: Search sort options</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>B8: Search price range + MOQ filters</td><td>1.5d</td><td>None</td></tr>
+        <tr><td>B9: Merchant brand selector in product editor</td><td>0.5d</td><td>A3</td></tr>
+        <tr><td>B10: Mobile inventory screen</td><td>1.5d</td><td>None</td></tr>
+        <tr><td>B11: Mobile favorites screen</td><td>1d</td><td>None</td></tr>
+        <tr><td>B12: Consistent back button component</td><td>1d</td><td>None</td></tr>
+        <tr><td>B13: Breadcrumb navigation</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>B14: Search API sortBy/minPrice/maxPrice/minMoq</td><td>1d</td><td>None</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="phase-card">
+    <h4>Phase C: Enhancements (10 P2 items, ~8d)</h4>
+    <p>Goal: Polish, accessibility, and future-phase scaffolding.</p>
+    <table>
+      <thead><tr><th>Task</th><th>Effort</th><th>Depends</th></tr></thead>
+      <tbody>
+        <tr><td>C1: Bulk inventory adjustment</td><td>1d</td><td>B2</td></tr>
+        <tr><td>C2: Price list activation toggle</td><td>0.5d</td><td>A4</td></tr>
+        <tr><td>C3: Image reordering (drag-and-drop)</td><td>0.5d</td><td>A1</td></tr>
+        <tr><td>C4: Image CDN/presign E2E verification</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>C5: Sponsored slot scaffolding (Phase 5)</td><td>1d</td><td>B6</td></tr>
+        <tr><td>C6: Web barcode entry in search</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>C7: URL-backed search filter state</td><td>0.5d</td><td>B6</td></tr>
+        <tr><td>C8: Brand logo display in cards</td><td>0.5d</td><td>A3</td></tr>
+        <tr><td>C9: Mobile notification preferences</td><td>0.5d</td><td>None</td></tr>
+        <tr><td>C10: Responsive grid breakpoints</td><td>0.5d</td><td>None</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="testing">
+  <h2>10. Testing Strategy &amp; Rollback</h2>
+  <h3>10.1 Testing Strategy</h3>
+  <table>
+    <thead><tr><th>Layer</th><th>Scope</th><th>Tool</th><th>Target</th></tr></thead>
+    <tbody>
+      <tr><td>API unit</td><td>Brand CRUD, search filters, pricing resolver</td><td>Vitest + mocks</td><td>85%+ new code</td></tr>
+      <tr><td>API integration</td><td>Brand lifecycle, search SQL, image count</td><td>Vitest + Testcontainers</td><td>All new endpoints</td></tr>
+      <tr><td>Web unit</td><td>Pricing forms, search state, navbar toggle</td><td>Vitest + jsdom + RTL</td><td>All new components</td></tr>
+      <tr><td>Mobile unit</td><td>Scanner result, favorites state</td><td>Flutter test</td><td>New screens</td></tr>
+      <tr><td>E2E smoke</td><td>Upload, display, search visibility</td><td>Manual / Playwright</td><td>Critical paths</td></tr>
+    </tbody>
+  </table>
+  <h3>10.2 Rollback Procedures</h3>
+  <table>
+    <thead><tr><th>Change</th><th>Rollback</th></tr></thead>
+    <tbody>
+      <tr><td>Brand API additions</td><td>Remove new routes; no schema change.</td></tr>
+      <tr><td>Search API filter params</td><td>Additive; old clients unaffected.</td></tr>
+      <tr><td>Pricing CRUD UI</td><td>UI-only; revert to read-only page.</td></tr>
+      <tr><td>Image upload UI</td><td>UI-only; revert to text field.</td></tr>
+      <tr><td>Navbar responsive menu</td><td>CSS/component only; revert to flex.</td></tr>
+      <tr><td>Mobile screens</td><td>Remove new files and route entries.</td></tr>
+    </tbody>
+  </table>
+  <div class="callout ok"><span class="label">Key Principle</span><p>All gaps are additive. No schema migration, API contract break, or data mutation required. Every phase deploys independently and rolls back by reverting affected files.</p></div>
+</section>
+
+</div>
+<footer>
+  Smart Commerce &amp; Supply Platform &middot; Web App UX Gap Analysis &amp; Implementation Roadmap &middot; September 21, 2026<br>
+  31 gaps across 7 domains &middot; Phase 1 B2B MVP audit &middot; ~28d estimated effort
+</footer>
+<script>
+(function(){
+  var links=document.querySelectorAll('#toc a');
+  var sections=[];
+  links.forEach(function(a){var id=a.getAttribute('href').slice(1);var el=document.getElementById(id);if(el)sections.push({el:el,a:a});});
+  function onScroll(){
+    var y=window.scrollY+80;var active=null;
+    sections.forEach(function(s){if(s.el.offsetTop<=y)active=s;});
+    links.forEach(function(a){a.classList.remove('active');});
+    if(active)active.a.classList.add('active');
+  }
+  window.addEventListener('scroll',onScroll);onScroll();
+})();
+</script>
+</body>
+</html>

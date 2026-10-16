@@ -1,0 +1,262 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markNotificationUnread,
+  markAllNotificationsRead,
+  type Notification,
+} from '../../lib/buyer-api';
+import { useAuth } from '../../components/AuthProvider';
+import { onNotification } from '../../lib/realtime';
+import { formatDate, EmptyState, LoadingSpinner } from '../../components/Shared';
+import { PageHeader, colors, radii, shadows, transitions } from '@scs/ui-kit';
+
+type Filter = 'ALL' | 'UNREAD' | 'READ';
+
+/**
+ * Notify the navbar badge that the unread count may have changed so it can
+ * refetch without requiring a realtime push or a socket reconnect.
+ */
+function notifyBadgeChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('unreadCountChanged'));
+  }
+}
+
+export default function NotificationsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>('ALL');
+  // Track IDs that are mid-transition so the button shows a spinner and
+  // repeated clicks are suppressed.
+  const [working, setWorking] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.replace('/auth/login?redirect=/notifications');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await fetchNotifications();
+      setNotifications(data);
+    } catch { /* silently swallow — the empty state covers it */ }
+    finally { setLoading(false); }
+  }, [user]);
+
+  useEffect(() => { if (user) void load(); }, [load, user]);
+
+  // Live in-app notifications over the realtime gateway (WEB-B6) — new items
+  // appear without a manual refresh.
+  useEffect(() => {
+    if (!user) return;
+    return onNotification(() => { void load(); });
+  }, [load, user]);
+
+  if (authLoading || !user) return <LoadingSpinner />;
+
+  const unreadCount = notifications.filter(n => !n.readAt).length;
+
+  // ── Individual toggle ────────────────────────────────────────
+  async function toggleRead(n: Notification) {
+    const id = n.id;
+    const wasRead = !!n.readAt;
+    setWorking(prev => { const s = new Set(prev); s.add(id); return s; });
+
+    // Optimistic update
+    setNotifications(prev => prev.map(x =>
+      x.id === id
+        ? { ...x, readAt: wasRead ? null : new Date().toISOString(), status: wasRead ? 'SENT' : 'READ' }
+        : x,
+    ));
+
+    try {
+      if (wasRead) {
+        await markNotificationUnread(id);
+      } else {
+        await markNotificationRead(id);
+      }
+      notifyBadgeChanged();
+    } catch {
+      // Revert on failure
+      setNotifications(prev => prev.map(x =>
+        x.id === id ? { ...x, readAt: wasRead ? x.readAt : null, status: wasRead ? 'READ' : 'SENT' } : x,
+      ));
+    } finally {
+      setWorking(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }
+  }
+
+  // ── Mark all read ────────────────────────────────────────────
+  async function handleMarkAllRead() {
+    setWorking(prev => { const s = new Set(prev); s.add('__all__'); return s; });
+    const prev = notifications;
+
+    // Optimistic: mark every unread item as read
+    setNotifications(p => p.map(x => x.readAt ? x : { ...x, readAt: new Date().toISOString(), status: 'READ' }));
+
+    try {
+      await markAllNotificationsRead();
+      notifyBadgeChanged();
+    } catch {
+      setNotifications(prev);
+    } finally {
+      setWorking(prev => { const s = new Set(prev); s.delete('__all__'); return s; });
+    }
+  }
+
+  const isAllWorking = working.has('__all__');
+
+  // ── Filtered list ────────────────────────────────────────────
+  const visible = filter === 'UNREAD'
+    ? notifications.filter(n => !n.readAt)
+    : filter === 'READ'
+      ? notifications.filter(n => !!n.readAt)
+      : notifications;
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <PageHeader
+        title="Notifications"
+        subtitle={unreadCount > 0
+          ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
+          : "You're all caught up!"}
+        actions={unreadCount > 0 ? (
+          <button
+            onClick={() => void handleMarkAllRead()}
+            disabled={isAllWorking}
+            style={{
+              padding: '8px 18px', fontSize: 12, fontWeight: 600,
+              background: isAllWorking ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.15)',
+              color: '#fff',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: radii.md, cursor: isAllWorking ? 'wait' : 'pointer',
+              opacity: isAllWorking ? 0.7 : 1,
+            }}
+          >
+            {isAllWorking ? 'Marking…' : `Mark All Read (${unreadCount})`}
+          </button>
+        ) : undefined}
+      />
+
+      <div style={{ padding: '20px 24px 48px' }}>
+        {/* Filter tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: colors.bgSubtle, borderRadius: radii.lg, padding: 4, width: 'fit-content' }}>
+          {([['ALL', 'All'], ['UNREAD', 'Unread'], ['READ', 'Read']] as const).map(([key, label]) => {
+            const count = key === 'ALL' ? notifications.length : key === 'UNREAD' ? unreadCount : notifications.length - unreadCount;
+            const active = filter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                style={{
+                  padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 6, cursor: 'pointer',
+                  background: active ? '#fff' : 'transparent',
+                  color: active ? colors.brand[700] : colors.muted,
+                  border: active ? `1px solid ${colors.border}` : '1px solid transparent',
+                  boxShadow: active ? shadows.sm : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {label} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        {visible.length === 0 ? (
+          <EmptyState
+            title={filter === 'UNREAD' ? 'No unread notifications' : filter === 'READ' ? 'No read notifications' : 'No notifications'}
+            description={filter === 'UNREAD' ? 'All caught up!' : 'Notifications will appear here as they arrive.'}
+          />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {visible.map(n => {
+              const isRead = !!n.readAt;
+              const isBusy = working.has(n.id);
+              return (
+                <div
+                  key={n.id}
+                  style={{
+                    background: isRead ? '#fff' : '#f0f7ff',
+                    border: `1px solid ${isRead ? colors.border : '#93c5fd'}`,
+                    borderRadius: 10,
+                    padding: '14px 16px',
+                    transition: 'background 0.2s ease, border-color 0.2s ease',
+                    opacity: isBusy ? 0.7 : 1,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    {/* Unread dot indicator */}
+                    <div style={{ paddingTop: 4, flexShrink: 0 }}>
+                      <div style={{
+                        width: 10, height: 10, borderRadius: '50%',
+                        background: isRead ? 'transparent' : '#3b82f6',
+                        border: isRead ? `2px solid ${colors.border}` : '2px solid #3b82f6',
+                        transition: 'all 0.2s ease',
+                      }} />
+                    </div>
+
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                        <span style={{
+                          fontSize: 13,
+                          fontWeight: isRead ? 500 : 700,
+                          color: isRead ? colors.muted : colors.brand[700],
+                        }}>
+                          {n.title || n.template}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#a0aec0', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {formatDate(n.createdAt)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: isRead ? '#8a9ba5' : colors.muted, lineHeight: 1.5 }}>{n.body}</div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.channel}</span>
+                        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#edf2f7', color: '#4a5568', fontWeight: 500 }}>{n.type}</span>
+                        {isRead && (
+                          <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: '#f0fdf4', color: '#166534', fontWeight: 600 }}>✓ Read</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action button */}
+                    <button
+                      onClick={() => void toggleRead(n)}
+                      disabled={isBusy}
+                      aria-label={isRead ? `Mark "${n.title || n.template}" as unread` : `Mark "${n.title || n.template}" as read`}
+                      style={{
+                        padding: '6px 14px', fontSize: 11, fontWeight: 600,
+                        borderRadius: 6, cursor: isBusy ? 'wait' : 'pointer',
+                        border: isRead ? `1px solid ${colors.border}` : '1px solid #93c5fd',
+                        background: isRead ? '#fff' : '#dbeafe',
+                        color: isRead ? colors.muted : '#1e40af',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                        opacity: isBusy ? 0.6 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isBusy ? '…' : isRead ? 'Mark Unread' : '✓ Mark Read'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -39,6 +39,9 @@ import { PaymentsService } from '../../modules/payments/payments.service';
 import { PaymentProviderRegistry } from '../../modules/payments/payments.provider-registry';
 import { ManualVerificationProvider } from '../../modules/payments/manual-verification.provider';
 import { ReturnsService } from '../../modules/returns/returns.service';
+import { AuditService } from '../../modules/audit/audit.service';
+import { OpsAlertService } from '../../modules/operations/ops-alert.service';
+import { PilotControlService } from '../../modules/operations/pilot-control.service';
 import { BusinessCalendarService } from '../../modules/returns/business-calendar.service';
 import { CommissionReversalService } from '../../modules/returns/commission-reversal.service';
 import { SettlementAdjustmentService } from '../../modules/returns/settlement-adjustment.service';
@@ -217,7 +220,12 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
     const settlementAdjService = new SettlementAdjustmentService(database, outbox);
-    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService);
+    // P13 Phase 4: ReturnsService now takes the pilot gate. Enforcement is
+    // inactive here (no P13_PILOT_MODE, no p13.pilot.enabled flag), so the gate
+    // is a pass-through and these Phase 3 assertions are unchanged.
+    const opsAlerts = new OpsAlertService(database);
+    const pilotService = new PilotControlService(database, new AuditService(database), opsAlerts);
+    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService, pilotService);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));

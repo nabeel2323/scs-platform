@@ -1,0 +1,1734 @@
+/**
+ * Admin API client — verification queue, merchant management.
+ */
+import { authFetch } from './auth';
+
+const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
+
+export type AdminRecord = { id: string; [key: string]: unknown };
+export type AdminTableQuery = Record<string, string | number | undefined>;
+export interface AdminProduct extends AdminRecord {
+  title: string;
+  slug: string;
+  storeId: string;
+  status: string;
+  isAvailable: boolean;
+  images: unknown;
+  imageCount: number;
+  store: (AdminRecord & { displayName: string; slug: string }) | null;
+  media: (AdminRecord & { mediaType: string; url: string })[];
+  variants: (AdminRecord & { images: unknown })[];
+}
+
+/**
+ * PHASE 4 P3: Structured error thrown by adminRequest on non-2xx responses.
+ * Preserves the HTTP status and parsed body so callers can detect 409 CONFLICT.
+ */
+export class AdminApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly body: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = 'AdminApiError';
+  }
+}
+
+export async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await authFetch(`${API_URL}/v1/${path}`, init);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const message = body.detail || body.message || `Request failed (${response.status})`;
+    throw new AdminApiError(
+      Array.isArray(message) ? message.join('; ') : message,
+      response.status,
+      body,
+    );
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json();
+}
+
+export function fetchAdminTable<T = AdminRecord>(endpoint: string, query: AdminTableQuery, signal?: AbortSignal): Promise<PaginatedResult<T>> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));
+  return adminRequest(`admin/${endpoint}?${params}`, { signal });
+}
+
+export function fetchAdminProduct(id: string, signal?: AbortSignal): Promise<AdminProduct> {
+  return adminRequest(`products/${encodeURIComponent(id)}`, { signal });
+}
+
+export function moderateAdminProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', updatedAt?: string) {
+  const payload: Record<string, unknown> = { decision };
+  if (updatedAt) payload['updatedAt'] = updatedAt;
+  return adminRequest(`admin/products/${encodeURIComponent(id)}/moderate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+}
+
+// ── Types ────────────────────────────────────────────────────
+
+export interface VerificationRequest {
+  id: string;
+  storeId: string;
+  orgId: string;
+  status: string;
+  submittedBy: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  decisionNotes: string | null;
+  rejectionReasons: string[] | null;
+  autoVerified: boolean;
+  autoActivatedProductCount?: number;
+  submittedAt: string;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Enriched fields from join with stores/organizations
+  storeName?: string | null;
+  storeSlug?: string | null;
+  orgName?: string | null;
+  orgType?: string | null;
+  /** Owning organization (attached by GET /v1/verification/:id). */
+  org?: { id: string; name: string; isActive: boolean } | null;
+}
+
+export interface Store {
+  id: string;
+  orgId: string;
+  slug: string;
+  displayName: string;
+  description: string | null;
+  logoUrl: string | null;
+  coverUrl: string | null;
+  currency: string;
+  timezone: string;
+  locale: string;
+  status: string;
+  verificationStatus: string;
+  address: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessDocument {
+  id: string;
+  orgId: string;
+  storeId: string | null;
+  docType: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  storageKey: string;
+  storageUrl: string | null;
+  verificationStatus: string;
+  uploadedBy: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+// ── Verification Queue ───────────────────────────────────────
+
+export async function fetchVerificationQueue(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<VerificationRequest[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+
+  const qs = searchParams.toString();
+  const url = `${API_URL}/v1/verification/queue${qs ? `?${qs}` : ''}`;
+  const res = await authFetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch verification queue: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchVerificationRequest(id: string): Promise<VerificationRequest> {
+  const res = await authFetch(`${API_URL}/v1/verification/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch verification request: ${res.status}`);
+  return res.json();
+}
+
+export async function reviewVerification(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED' | 'REVISION',
+  notes?: string,
+  rejectionReasons?: string[],
+): Promise<VerificationRequest> {
+  const res = await authFetch(`${API_URL}/v1/verification/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, notes, rejectionReasons }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to review verification: ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Stores ───────────────────────────────────────────────────
+
+export async function fetchStores(params?: {
+  status?: string;
+  verificationStatus?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Store[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.verificationStatus) searchParams.set('verificationStatus', params.verificationStatus);
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+
+  const qs = searchParams.toString();
+  const url = `${API_URL}/v1/stores${qs ? `?${qs}` : ''}`;
+  const res = await authFetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch stores: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchStore(id: string): Promise<Store> {
+  const res = await authFetch(`${API_URL}/v1/stores/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch store: ${res.status}`);
+  return res.json();
+}
+
+// ── Documents ────────────────────────────────────────────────
+
+export async function fetchStoreDocuments(storeId: string): Promise<BusinessDocument[]> {
+  const res = await authFetch(`${API_URL}/v1/documents/store/${storeId}`);
+  if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchOrgDocuments(orgId: string): Promise<BusinessDocument[]> {
+  const res = await authFetch(`${API_URL}/v1/documents/org/${orgId}`);
+  if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Request a presigned download URL for a verification document (GAP-10).
+ * Backed by POST /v1/documents/:id/presign, which now accepts
+ * `merchant:verification:review` so reviewers can download submissions.
+ */
+export async function presignDocumentDownload(id: string): Promise<string> {
+  const res = await authFetch(`${API_URL}/v1/documents/${id}/presign`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Failed to presign document download: ${res.status}`);
+  const body = (await res.json()) as { downloadUrl: string };
+  return body.downloadUrl;
+}
+
+// ── Admin Orders ─────────────────────────────────────────────
+
+export interface AdminOrder {
+  id: string;
+  buyerId: string;
+  storeId: string;
+  masterOrderId: string | null;
+  status: string;
+  subtotalMinor: number;
+  deliveryFeeMinor: number;
+  totalMinor: number;
+  currency: string;
+  fulfillmentMethod: string;
+  deliveryAddress: Record<string, unknown>;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminOrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  unitPriceMinor: number;
+  totalPriceMinor: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface OrderStatusEntry {
+  id: string;
+  orderId: string;
+  fromStatus: string | null;
+  toStatus: string;
+  changedBy: string | null;
+  actorType: string;
+  reason: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface AdminOrderDetail extends AdminOrder {
+  items: AdminOrderItem[];
+  history: OrderStatusEntry[];
+}
+
+export interface PaginatedResult<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function fetchAdminOrders(params?: {
+  status?: string;
+  storeId?: string;
+  buyerId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AdminOrder>> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.storeId) sp.set('storeId', params.storeId);
+  if (params?.buyerId) sp.set('buyerId', params.buyerId);
+  if (params?.from) sp.set('from', params.from);
+  if (params?.to) sp.set('to', params.to);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/orders${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch admin orders: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminOrderDetail(id: string): Promise<AdminOrderDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/orders/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch order detail: ${res.status}`);
+  return res.json();
+}
+
+// ── Admin Merchants ──────────────────────────────────────────
+
+export interface AdminMerchant {
+  id: string;
+  orgId: string;
+  slug: string;
+  displayName: string;
+  description: string | null;
+  logoUrl: string | null;
+  status: string;
+  verificationStatus: string;
+  currency: string;
+  timezone: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAdminMerchants(params?: {
+  status?: string;
+  verificationStatus?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AdminMerchant>> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.verificationStatus) sp.set('verificationStatus', params.verificationStatus);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/merchants${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch admin merchants: ${res.status}`);
+  return res.json();
+}
+
+// ── KPIs ─────────────────────────────────────────────────────
+
+export interface ActivationFunnel {
+  registered: number;
+  verified: number;
+  catalogReady: number;
+  firstOrder: number;
+  repeatThree: number;
+}
+
+export interface KpiResponse {
+  period: { from: string; to: string };
+  users: { total: number };
+  merchants: { verified: number; pending: number };
+  orders: {
+    total: number;
+    completed: number;
+    cancelled: number;
+    completionRate: number;
+    cancellationRate: number;
+  };
+  revenue: { totalMinor: number };
+  conversion: {
+    firstOrderRate: number;
+    repeatOrderRate: number;
+  };
+  activationFunnel: ActivationFunnel;
+}
+
+export async function fetchKpis(from?: string, to?: string): Promise<KpiResponse> {
+  const sp = new URLSearchParams();
+  if (from) sp.set('from', from);
+  if (to) sp.set('to', to);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/kpis${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch KPIs: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 17: platform-wide per-offer revenue analytics response.
+ * Mirrors AdminService.getOfferRevenueKpis return shape.
+ */
+export interface OfferRevenueRow {
+  offerId: string;
+  storeId: string;
+  storeName: string | null;
+  productId: string;
+  productTitle: string | null;
+  variantId: string | null;
+  offerStatus: string;
+  currency: string;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferRevenueKpiResponse {
+  from: string;
+  to: string;
+  filters: { storeId: string | null; status: string | null; limit: number };
+  totals: {
+    offersTouched: number;
+    byCurrency: Array<{ currency: string; revenueMinor: number; unitsSold: number }>;
+  };
+  offers: OfferRevenueRow[];
+}
+
+export async function fetchOfferRevenueKpis(params: {
+  from?: string; to?: string; storeId?: string; status?: string; limit?: number;
+} = {}): Promise<OfferRevenueKpiResponse> {
+  const sp = new URLSearchParams();
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  if (params.storeId) sp.set('storeId', params.storeId);
+  if (params.status) sp.set('status', params.status);
+  if (params.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/offers/kpis${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch offer KPIs: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 19: platform-wide offer sales trend bucketed by day/week. Mirrors
+ * AdminService.getOfferTrend so the admin governance page can render a
+ * time-series chart plus a top-N store leaderboard inside one request.
+ */
+export interface OfferTrendBucket {
+  bucket: string;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferTrendTopStore {
+  storeId: string;
+  storeName: string | null;
+  ordersCount: number;
+  unitsSold: number;
+  revenueMinor: number;
+}
+
+export interface OfferTrendResponse {
+  granularity: 'day' | 'week';
+  from: string;
+  to: string;
+  filters: {
+    storeId: string | null;
+    offerId: string | null;
+    status: string | null;
+    topStores: number;
+  };
+  buckets: OfferTrendBucket[];
+  topStores: OfferTrendTopStore[];
+}
+
+export async function fetchAdminOfferTrend(params: {
+  from?: string; to?: string; days?: number;
+  storeId?: string; offerId?: string; status?: string;
+  granularity?: 'day' | 'week'; topStores?: number;
+} = {}): Promise<OfferTrendResponse> {
+  const sp = new URLSearchParams();
+  if (params.from) sp.set('from', params.from);
+  if (params.to) sp.set('to', params.to);
+  if (params.days != null) sp.set('days', String(params.days));
+  if (params.storeId) sp.set('storeId', params.storeId);
+  if (params.offerId) sp.set('offerId', params.offerId);
+  if (params.status) sp.set('status', params.status);
+  sp.set('granularity', params.granularity === 'week' ? 'week' : 'day');
+  if (params.topStores != null) sp.set('topStores', String(params.topStores));
+  const res = await authFetch(`${API_URL}/v1/admin/offers/trend?${sp.toString()}`);
+  if (!res.ok) throw new Error(`Failed to fetch offer trend: ${res.status}`);
+  return res.json();
+}
+
+// ── User Management ───────────────────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  phone: string;
+  email: string | null;
+  fullName: string;
+  locale: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserOrgMembership {
+  orgId: string;
+  orgName: string;
+  orgType: string;
+  roleId: string;
+  roleKey: string;
+  roleName: string;
+  membershipStatus: string;
+  joinedAt: string;
+}
+
+export interface AdminUserDetail extends AdminUser {
+  organizations: UserOrgMembership[];
+}
+
+export interface RoleInfo {
+  id: string;
+  key: string;
+  name: string;
+  permissions: string[];
+}
+
+export interface AdminOrg {
+  id: string;
+  name: string;
+  type: string;
+  legalName: string | null;
+  taxId: string | null;
+  country: string;
+  verificationStatus: string;
+  isActive: boolean;
+  inviteCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminOrgDetail extends AdminOrg {
+  stores: { id: string; orgId: string; slug: string; displayName: string; description: string | null; currency: string; locale: string; verificationStatus: string; address: Record<string, unknown>; createdAt: string }[];
+  warehouses: { id: string; storeId: string; name: string; address: Record<string, unknown>; managerName: string | null; managerPhone: string | null; status: string; createdAt: string }[];
+  documents: { id: string; orgId: string; storeId: string | null; docType: string; fileName: string; mimeType: string | null; fileSize: number; verificationStatus: string; createdAt: string }[];
+  members: { id: string; orgId: string; userId: string; roleId: string; status: string; createdAt: string; user: { id: string; fullName: string; phone: string; email: string | null }; role: { id: string; name: string; key: string } }[];
+}
+
+export async function fetchAdminOrganizationDetail(orgId: string): Promise<AdminOrgDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations/${orgId}`);
+  if (!res.ok) throw new Error(`Failed to fetch organization detail: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminUsers(params?: {
+  status?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AdminUser>> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.search) sp.set('search', params.search);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/users${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminUserDetail(id: string): Promise<AdminUserDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch user detail: ${res.status}`);
+  return res.json();
+}
+
+export async function updateUserStatus(
+  id: string,
+  status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE',
+): Promise<{ id: string; status: string }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(`Failed to update user: ${res.status}`);
+  return res.json();
+}
+
+export async function assignUserRole(
+  userId: string,
+  orgId: string,
+  roleId: string,
+): Promise<{ orgId: string; userId: string; roleId: string; action: string }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${userId}/assign-role`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ orgId, roleId }),
+  });
+  if (!res.ok) throw new Error(`Failed to assign role: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchRoles(): Promise<RoleInfo[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/roles`);
+  if (!res.ok) throw new Error(`Failed to fetch roles: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAdminOrganizations(): Promise<AdminOrg[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations`);
+  if (!res.ok) throw new Error(`Failed to fetch organizations: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateAdminOrganization(id: string, isActive: boolean): Promise<{ success: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/admin/organizations/${id}/deactivate`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ isActive }),
+  });
+  if (!res.ok) throw new Error(`Failed to deactivate organization: ${res.status}`);
+  return res.json();
+}
+
+// ── Organization update requests (G5) ────────────────────
+
+export interface AdminOrgUpdateRequest {
+  id: string;
+  orgId: string;
+  orgName: string | null;
+  requestedBy: string;
+  payload: { name?: string; legalName?: string; taxId?: string };
+  status: string; // PENDING | APPROVED | REJECTED
+  decisionNotes: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchAdminOrgUpdateRequests(status?: string): Promise<AdminOrgUpdateRequest[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await authFetch(`${API_URL}/v1/admin/org-update-requests${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch update requests: ${res.status}`);
+  return res.json();
+}
+
+export async function reviewOrgUpdateRequest(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED',
+  notes?: string,
+): Promise<AdminOrgUpdateRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/org-update-requests/${id}/review`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, notes }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    throw new Error(err?.message ?? `Failed to review update request: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function removeUserRole(
+  userId: string,
+  orgId: string,
+): Promise<{ orgId: string; userId: string; removed: boolean }> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${userId}/roles/${orgId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to remove role: ${res.status}`);
+  return res.json();
+}
+
+// ── Audit Logs ───────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  resource: string;
+  resourceId: string | null;
+  actorId: string | null;
+  actorType: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export async function fetchAuditLogs(params?: {
+  action?: string;
+  resource?: string;
+  actorId?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginatedResult<AuditLog>> {
+  const sp = new URLSearchParams();
+  if (params?.action) sp.set('action', params.action);
+  if (params?.resource) sp.set('resource', params.resource);
+  if (params?.actorId) sp.set('actorId', params.actorId);
+  if (params?.from) sp.set('from', params.from);
+  if (params?.to) sp.set('to', params.to);
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/audit-logs${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch audit logs: ${res.status}`);
+  return res.json();
+}
+
+// ── Category Management ──────────────────────────────────────
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  slug: string;
+  path: string;
+  parentId: string | null;
+  isActive: boolean;
+  productCount?: number;
+  sortOrder?: number;
+  description?: string | null;
+  imageUrl?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminProductTypeSummary {
+  id: string;
+  code: string;
+  name: string;
+  version: number;
+  status: string;
+  categoryId: string | null;
+}
+
+export async function fetchAdminCategories(opts?: { all?: boolean; includeInactive?: boolean }): Promise<AdminCategory[]> {
+  const sp = new URLSearchParams();
+  // Admin needs the full tree — always pass all=true to get child categories
+  sp.set('all', 'true');
+  if (opts?.includeInactive) sp.set('includeInactive', 'true');
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/categories${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch categories: ${res.status}`);
+  return res.json();
+}
+
+export async function createAdminCategory(data: {
+  name: string;
+  nameAr?: string;
+  parentId?: string;
+}): Promise<AdminCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create category: ${res.status}`);
+  return res.json();
+}
+
+export async function updateAdminCategory(
+  id: string,
+  data: {
+    name?: string;
+    nameAr?: string;
+    parentId?: string | null;
+    isActive?: boolean;
+  },
+): Promise<AdminCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update category: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAdminCategory(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/categories/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete category: ${res.status}`);
+}
+
+/**
+ * PHASE 10: fetch published product types associated with a category.
+ */
+export async function fetchCategoryProductTypes(categoryId: string): Promise<AdminProductTypeSummary[]> {
+  const res = await authFetch(`${API_URL}/v1/categories/${categoryId}/product-types`);
+  if (!res.ok) throw new Error(`Failed to fetch category product types: ${res.status}`);
+  return res.json();
+}
+
+// ── Brands ─────────────────────────────────────────────────────
+
+export interface AdminBrand {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  slug: string;
+  logoUrl: string | null;
+  description: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnrichedBrand extends AdminBrand {
+  productCount: number;
+  merchantCount: number;
+}
+
+export async function fetchAdminBrands(includeInactive = false): Promise<AdminBrand[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  const res = await authFetch(`${API_URL}/v1/brands${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch brands: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * PHASE 11: enriched brand list with product count + merchant count.
+ */
+export async function fetchAdminBrandsEnriched(includeInactive = false): Promise<EnrichedBrand[]> {
+  const qs = includeInactive ? '?includeInactive=true' : '';
+  const res = await authFetch(`${API_URL}/v1/admin/brands${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch enriched brands: ${res.status}`);
+  return res.json();
+}
+
+export async function createAdminBrand(data: { name: string; nameAr?: string; logoUrl?: string; description?: string }): Promise<AdminBrand> {
+  const res = await authFetch(`${API_URL}/v1/brands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create brand: ${res.status}`);
+  return res.json();
+}
+
+export async function updateAdminBrand(id: string, data: Partial<AdminBrand>): Promise<AdminBrand> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update brand: ${res.status}`);
+  return res.json();
+}
+
+export async function deactivateAdminBrand(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/brands/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to deactivate brand: ${res.status}`);
+}
+
+// ── Catalog Taxonomy — Attributes ─────────────────────────────
+
+export type AttributeScope = 'PRODUCT' | 'VARIANT' | 'OFFER';
+export type AttributeType =
+  | 'TEXT' | 'LONG_TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME'
+  | 'SELECT' | 'MULTI_SELECT' | 'COLOR' | 'URL' | 'FILE' | 'MEASUREMENT' | 'CURRENCY';
+
+export interface AttributeOption {
+  id: string;
+  attributeId: string;
+  value: string;
+  valueAr: string | null;
+  label: string | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface AttributeDefinition {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  type: AttributeType;
+  unit: string | null;
+  scope: AttributeScope;
+  status: 'ACTIVE' | 'DEPRECATED';
+  validation: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  options?: AttributeOption[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AttributeGroup {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  kind: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAttributes(params?: {
+  scope?: string; type?: string; includeDeprecated?: boolean;
+}): Promise<AttributeDefinition[]> {
+  const sp = new URLSearchParams();
+  if (params?.scope) sp.set('scope', params.scope);
+  if (params?.type) sp.set('type', params.type);
+  if (params?.includeDeprecated) sp.set('includeDeprecated', 'true');
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/attributes${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch attributes: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAttribute(id: string): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/attributes/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch attribute: ${res.status}`);
+  return res.json();
+}
+
+export async function createAttribute(data: {
+  code: string; name: string; nameAr?: string; description?: string;
+  type?: AttributeType; unit?: string; scope?: AttributeScope;
+  validation?: Record<string, unknown>;
+  options?: Array<{ value: string; valueAr?: string; label?: string; sortOrder?: number }>;
+}): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to create attribute: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateAttribute(id: string, data: {
+  name?: string; nameAr?: string; description?: string;
+  unit?: string; status?: 'ACTIVE' | 'DEPRECATED';
+  validation?: Record<string, unknown>;
+}): Promise<AttributeDefinition> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to update attribute: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAttribute(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to deactivate attribute: ${res.status}`);
+}
+
+export async function addAttributeOption(id: string, data: {
+  value: string; valueAr?: string; label?: string; sortOrder?: number;
+}): Promise<AttributeOption> {
+  const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}/options`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to add option: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Taxonomy — Attribute Groups ───────────────────────
+
+export async function fetchAttributeGroups(): Promise<AttributeGroup[]> {
+  const res = await authFetch(`${API_URL}/v1/attribute-groups`);
+  if (!res.ok) throw new Error(`Failed to fetch attribute groups: ${res.status}`);
+  return res.json();
+}
+
+export async function createAttributeGroup(data: {
+  name: string; nameAr?: string; kind?: string;
+}): Promise<AttributeGroup> {
+  const res = await authFetch(`${API_URL}/v1/admin/attribute-groups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create attribute group: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Taxonomy — Product Types ──────────────────────────
+
+export interface ProductType {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  categoryId: string | null;
+  version: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'DEPRECATED';
+  variantDimensions: string[];
+  metadata: Record<string, unknown>;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchProductTypes(params?: {
+  categoryId?: string; status?: string;
+}): Promise<ProductType[]> {
+  const sp = new URLSearchParams();
+  if (params?.categoryId) sp.set('categoryId', params.categoryId);
+  // Admin always sends status: explicit filter or 'ALL' to see every status
+  sp.set('status', params?.status || 'ALL');
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/product-types${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch product types: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProductType(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/product-types/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch product type: ${res.status}`);
+  return res.json();
+}
+
+export async function createProductType(data: {
+  code: string; name: string; nameAr?: string; description?: string;
+  categoryId?: string | null;
+}): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to create product type: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function publishProductType(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/publish`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to publish product type: ${res.status}`);
+  return res.json();
+}
+
+export interface ProductTypeSchema extends ProductType {
+  groups: AttributeGroup[];
+  attributes: Array<{
+    attributeDefinitionId: string;
+    displayOrder: number;
+    isRequired: boolean;
+    isFilterable: boolean;
+    isSearchable: boolean;
+    isComparable: boolean;
+    visibleInListing: boolean;
+    visibleInDetail: boolean;
+    conditionalRules: Record<string, unknown> | null;
+    validationOverride: Record<string, unknown> | null;
+    definition: AttributeDefinition | null;
+    options: AttributeOption[];
+  }>;
+}
+
+export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSchema> {
+  const res = await authFetch(`${API_URL}/v1/product-types/${id}/schema`);
+  if (!res.ok) throw new Error(`Failed to fetch product type schema: ${res.status}`);
+  return res.json();
+}
+
+export async function setProductTypeAttributes(id: string, attributes: Array<{
+  attributeDefinitionId: string;
+  displayOrder?: number;
+  isRequired?: boolean;
+  isFilterable?: boolean;
+  isSearchable?: boolean;
+  isComparable?: boolean;
+  visibleInListing?: boolean;
+  visibleInDetail?: boolean;
+  conditionalRules?: Record<string, unknown> | null;
+  validationOverride?: Record<string, unknown> | null;
+}>): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/attributes`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attributes }),
+  });
+  if (!res.ok) throw new Error(`Failed to set attributes: ${res.status}`);
+}
+
+export async function setVariantDimensions(id: string, attributeIds: string[]): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/variant-dimensions`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attributeIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to set variant dimensions: ${res.status}`);
+}
+
+export async function updateProductTypeCategory(
+  id: string,
+  categoryId: string | null,
+): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/category`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to update product type category: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function createNewVersion(id: string): Promise<ProductType> {
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/versions`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to create new version: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Requests (PHASE COS-12) ──────────────────────────
+
+export interface AdminCatalogRequest {
+  id: string;
+  storeId: string;
+  requestedBy: string | null;
+  type: 'CATEGORY' | 'BRAND' | 'ATTRIBUTE' | 'OPTION';
+  payload: Record<string, unknown>;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedBy: string | null;
+  reviewReason: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function fetchAdminCatalogRequests(filters?: { type?: string; status?: string }): Promise<AdminCatalogRequest[]> {
+  const params = new URLSearchParams();
+  if (filters?.type) params.set('type', filters.type);
+  if (filters?.status) params.set('status', filters.status);
+  const qs = params.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/requests${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog requests: ${res.status}`);
+  return res.json();
+}
+
+export async function approveCatalogRequest(id: string, reviewerId: string): Promise<AdminCatalogRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewerId }),
+  });
+  if (!res.ok) throw new Error(`Failed to approve request: ${res.status}`);
+  return res.json();
+}
+
+export async function rejectCatalogRequest(id: string, reviewerId: string, reason: string): Promise<AdminCatalogRequest> {
+  const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewerId, reason }),
+  });
+  if (!res.ok) throw new Error(`Failed to reject request: ${res.status}`);
+  return res.json();
+}
+
+// ── PHASE COS-14: Data Quality Dashboard ──────────────────────────
+
+export interface DataQualityMetrics {
+  totalProducts: number;
+  missingImages: number;
+  missingDescription: number;
+  missingCategory: number;
+  missingBrand: number;
+  orphanedVariants: number;
+  incompleteOffers: number;
+}
+
+export async function fetchDataQualityMetrics(): Promise<DataQualityMetrics> {
+  const res = await authFetch(`${API_URL}/v1/admin/data-quality`);
+  if (!res.ok) throw new Error(`Failed to fetch data quality metrics: ${res.status}`);
+  return res.json();
+}
+
+// ── Catalog Import Center ─────────────────────────────────────
+
+export interface CatalogImport {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  storageKey: string;
+  importType: string;
+  status: string;
+  totalRows: number;
+  processedRows: number;
+  createdRows: number;
+  updatedRows: number;
+  unchangedRows: number;
+  rejectedRows: number;
+  skippedRows: number;
+  errorCount: number;
+  warningCount: number;
+  stats: Record<string, unknown>;
+  uploadedBy: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CatalogImportError {
+  id: string;
+  importId: string;
+  sheet: string | null;
+  rowNumber: number | null;
+  entityType: string | null;
+  externalKey: string | null;
+  field: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  rawValue: string | null;
+  suggestedFix: string | null;
+  severity: string;
+  dependency: string | null;
+  rootErrorId: string | null;
+  normalizedValue: string | null;
+  expected: string | null;
+  actual: string | null;
+  createdAt: string;
+}
+
+export interface CatalogImportPreview {
+  plan: {
+    summary: {
+      totalCreate: number;
+      totalUpdate: number;
+      totalUnchanged: number;
+      byEntity: Record<string, { create: number; update: number; unchanged: number }>;
+    };
+  };
+  errors: CatalogImportError[];
+}
+
+export async function uploadCatalogImport(file: File): Promise<CatalogImport> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to upload catalog import: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCatalogImports(params?: {
+  limit?: number; offset?: number; status?: string;
+}): Promise<CatalogImport[]> {
+  const sp = new URLSearchParams();
+  if (params?.limit) sp.set('limit', String(params.limit));
+  if (params?.offset) sp.set('offset', String(params.offset));
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports${qs ? `?${qs}` : ''}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog imports: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCatalogImport(id: string): Promise<CatalogImport> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}`);
+  if (!res.ok) throw new Error(`Failed to fetch catalog import: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCatalogImportPreview(id: string): Promise<CatalogImportPreview> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/preview`);
+  if (!res.ok) throw new Error(`Failed to fetch import preview: ${res.status}`);
+  return res.json();
+}
+
+export type ImportOverrides = Record<string, Record<string, Record<string, string>>>;
+
+export async function executeCatalogImport(
+  id: string,
+  overrides?: ImportOverrides,
+): Promise<{
+  created: number; updated: number; unchanged: number; rejected: number; errors: string[];
+}> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/execute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(overrides ? { overrides } : {}),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || body.message || `Failed to execute catalog import: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCatalogImportErrors(id: string): Promise<CatalogImportError[]> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/errors`);
+  if (!res.ok) throw new Error(`Failed to fetch import errors: ${res.status}`);
+  return res.json();
+}
+
+export async function retryCatalogImport(
+  id: string,
+): Promise<{
+  created: number; updated: number; unchanged: number; rejected: number; skipped: number;
+  errors: string[]; entityBreakdown: Record<string, any>; structuredErrors: any[];
+}> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/retry`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Failed to retry catalog import: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function downloadCatalogImportReport(id: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/report`);
+  if (!res.ok) throw new Error(`Failed to download report: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `import-report-${id}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadCatalogTemplate(type: string): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/template/${type}`);
+  if (!res.ok) throw new Error(`Failed to download template: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `catalog-template-${type}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportCatalog(): Promise<void> {
+  const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/export`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to export catalog: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `catalog-export-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Dispute Events ──────────────────────────────────────────
+
+export interface DisputeEventRecord {
+  id: string;
+  disputeId: string;
+  type: string;
+  body: string;
+  attachments: string[] | null;
+  submittedBy: string;
+  createdAt: string;
+}
+
+export async function fetchDisputeEvents(disputeId: string): Promise<DisputeEventRecord[]> {
+  const res = await authFetch(`${API_URL}/v1/disputes/${disputeId}/events`);
+  if (!res.ok) throw new Error(`Failed to fetch dispute events: ${res.status}`);
+  return res.json();
+}
+
+// ── Analytics ───────────────────────────────────────────────
+
+export interface AnalyticsEventCount {
+  eventType: string;
+  count: number;
+}
+
+export interface AnalyticsActivityEntry {
+  userId: string;
+  eventType: string;
+  createdAt: string;
+  properties: Record<string, unknown> | null;
+}
+
+export async function fetchAnalyticsEvents(from: string, to: string): Promise<AnalyticsEventCount[]> {
+  const res = await authFetch(`${API_URL}/v1/analytics/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  if (!res.ok) throw new Error(`Failed to fetch analytics events: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAnalyticsActivity(limit?: string | number): Promise<AnalyticsActivityEntry[]> {
+  const qs = limit ? `?limit=${limit}` : '';
+  const res = await authFetch(`${API_URL}/v1/analytics/activity${qs}`);
+  if (!res.ok) throw new Error(`Failed to fetch analytics activity: ${res.status}`);
+  return res.json();
+}
+
+// ────────────────────────────────────────────────────────────
+// Catalog round-trip remediation (M2/M3) — enriched Category
+// contents, category tree, admin product-types-by-category, and
+// structured Product Type publish-readiness. Consumes the M2 API
+// contracts and adds no behaviour of its own.
+// ────────────────────────────────────────────────────────────
+
+export interface CategorySummaryRef {
+  id: string;
+  slug: string;
+  name: string;
+}
+
+export interface EnrichedCategory extends AdminCategory {
+  parent: CategorySummaryRef | null;
+  children: CategorySummaryRef[];
+  productTypeCount: number;
+  directProductCount: number;
+  descendantProductCount: number;
+}
+
+export interface CategoryTreeNode extends CategorySummaryRef {
+  nameAr: string | null;
+  sortOrder: number;
+  parentId: string | null;
+  directProductCount: number;
+  descendantProductCount: number;
+  children: CategoryTreeNode[];
+}
+
+export interface CategoryProductRow {
+  id: string;
+  slug: string | null;
+  title: string;
+  titleAr: string | null;
+  status: string;
+  condition: string | null;
+  categoryId: string;
+  categorySlug: string | null;
+  categoryName: string | null;
+  brandSlug: string | null;
+  brandName: string | null;
+  productTypeCode: string | null;
+  productTypeName: string | null;
+}
+
+export interface CategoryProductsResponse {
+  categoryId: string;
+  categorySlug: string;
+  scope: 'DIRECT' | 'DESCENDANT' | 'BOTH';
+  direct: CategoryProductRow[];
+  descendant: CategoryProductRow[];
+  directCount: number;
+  descendantCount: number;
+}
+
+export interface AdminCategoryProductTypeRow {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  status: string;
+  version: number;
+  publishedAt: string | null;
+  variantDimensions: unknown;
+  variantCount: number;
+  attributeCount: number;
+  publishStatus: 'PUBLISHED' | 'NOT_PUBLISHED' | string;
+}
+
+export interface PublishValidationIssue {
+  code:
+    | 'PRODUCT_TYPE_NOT_FOUND'
+    | 'CATEGORY_MISSING'
+    | 'CATEGORY_NOT_FOUND'
+    | 'CATEGORY_NOT_PLATFORM'
+    | 'NO_ATTRIBUTES'
+    | 'NO_REQUIRED_ATTRIBUTES'
+    | 'VARIANT_DIMENSION_INVALID_REF'
+    | 'VARIANT_DIMENSION_NOT_FOUND'
+    | 'VARIANT_DIMENSION_WRONG_SCOPE'
+    | 'VARIANT_DIM_INACTIVE'
+    | 'VARIANT_DIM_NOT_IN_ATTRIBUTES';
+  field: string;
+  message: string;
+  severity: 'ERROR' | 'WARNING';
+}
+
+export interface PublishValidationResult {
+  canPublish: boolean;
+  errors: PublishValidationIssue[];
+  warnings: PublishValidationIssue[];
+}
+
+export async function fetchCategoryContents(id: string): Promise<EnrichedCategory> {
+  const res = await authFetch(`${API_URL}/v1/categories/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to fetch category: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryTree(): Promise<CategoryTreeNode[]> {
+  const res = await authFetch(`${API_URL}/v1/categories/tree`);
+  if (!res.ok) throw new Error(`Failed to fetch category tree: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryProducts(
+  id: string,
+  scope: 'DIRECT' | 'DESCENDANT' | 'BOTH' = 'BOTH',
+): Promise<CategoryProductsResponse> {
+  const res = await authFetch(
+    `${API_URL}/v1/categories/${encodeURIComponent(id)}/products?scope=${scope}`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch category products: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCategoryProductTypesForAdmin(
+  id: string,
+): Promise<AdminCategoryProductTypeRow[]> {
+  const res = await authFetch(
+    `${API_URL}/v1/admin/categories/${encodeURIComponent(id)}/product-types`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch admin category product types: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProductTypePublishReadiness(id: string): Promise<PublishValidationResult> {
+  const res = await authFetch(
+    `${API_URL}/v1/admin/product-types/${encodeURIComponent(id)}/publish-readiness`,
+  );
+  if (!res.ok) throw new Error(`Failed to fetch publish readiness: ${res.status}`);
+  return res.json();
+}
+
+// ── PHASE 4 P3: Admin Product CRUD ────────────────────────────
+
+/** 409 CONFLICT response shape from P1 optimistic locking. */
+export type ProductConflictResponse = {
+  statusCode: 409;
+  message: 'CONFLICT';
+  currentUpdatedAt: string;
+};
+
+/** Admin product create input — mirrors backend CreateProductInput. */
+export interface AdminProductCreateInput {
+  title: string;
+  titleAr?: string;
+  slug?: string;
+  description?: string;
+  descriptionAr?: string;
+  categoryId?: string;
+  brandId?: string;
+  condition?: string;
+  productTypeId?: string;
+  gtin?: string;
+  ean?: string;
+  mpn?: string;
+}
+
+/** Admin product edit input — mirrors backend UpdateProductInput. */
+export interface AdminProductEditInput {
+  title?: string;
+  titleAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  status?: string;
+  condition?: string;
+  categoryId?: string;
+  brandId?: string;
+  slug?: string;
+  metadata?: Record<string, unknown>;
+  updatedAt?: string;
+  productTypeId?: string | null;
+  gtin?: string | null;
+  ean?: string | null;
+  mpn?: string | null;
+}
+
+/** PHASE 4 P3: Admin product creation (POST /v1/admin/products). */
+export async function adminCreateProduct(input: AdminProductCreateInput): Promise<AdminProduct> {
+  return adminRequest('admin/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+/** PHASE 4 P3: Admin product update (PATCH /v1/admin/products/:id). */
+export async function adminUpdateProduct(id: string, input: AdminProductEditInput): Promise<AdminProduct> {
+  return adminRequest(`admin/products/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+/** PHASE 4 P3: Load typed product attribute values. */
+export async function adminGetProductAttributeValues(productId: string): Promise<Array<{
+  id: string;
+  productId: string;
+  attributeDefinitionId: string;
+  valueText: string | null;
+  valueNumber: string | null;
+  valueBoolean: boolean | null;
+  optionValue: string | null;
+  createdAt: string;
+}>> {
+  return adminRequest(`admin/products/${encodeURIComponent(productId)}/attribute-values`);
+}
+
+/** PHASE 4 P3: Replace typed product attribute values. */
+export async function adminSetProductAttributeValues(
+  productId: string,
+  values: Array<{ attributeDefinitionId: string; value?: string | number | boolean | null }>,
+): Promise<unknown> {
+  return adminRequest(`admin/products/${encodeURIComponent(productId)}/attribute-values`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ values }),
+  });
+}
+
+// ── P12: Payments & Financials ────────────────────────────────────
+
+export interface AdminPayment extends AdminRecord {
+  orderId: string;
+  paymentMethod: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+  confirmedAmountMinor: number | null;
+  receiptUrl: string | null;
+  receiptReference: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminRefund extends AdminRecord {
+  paymentRecordId: string;
+  amountMinor: number;
+  currency: string;
+  status: string;
+  reason: string;
+  approvedBy: string | null;
+  createdAt: string;
+}
+
+export interface AdminSettlement extends AdminRecord {
+  subOrderId: string;
+  merchantStoreId: string;
+  paymentRecordId: string;
+  grossMinor: number;
+  refundMinor: number;
+  commissionMinor: number;
+  feeMinor: number;
+  netMinor: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
+export async function fetchAdminPayments(params?: {
+  status?: string;
+  paymentMethod?: string;
+}): Promise<AdminPayment[]> {
+  const sp = new URLSearchParams();
+  if (params?.status) sp.set('status', params.status);
+  if (params?.paymentMethod) sp.set('paymentMethod', params.paymentMethod);
+  const qs = sp.toString();
+  return adminRequest(`admin/payments${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchPaymentVerificationQueue(): Promise<AdminPayment[]> {
+  return adminRequest('admin/payments/verification-queue');
+}
+
+export async function verifyPayment(
+  paymentId: string,
+  decision: 'CONFIRMED' | 'REJECTED',
+  notes?: string,
+  verifiedAmountMinor?: number,
+): Promise<AdminPayment> {
+  return adminRequest(`admin/payments/${encodeURIComponent(paymentId)}/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, notes, verifiedAmountMinor }),
+  });
+}
+
+export async function approveRefund(refundId: string): Promise<AdminRefund> {
+  return adminRequest(`admin/refunds/${encodeURIComponent(refundId)}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function fetchStalePayments(): Promise<AdminPayment[]> {
+  return adminRequest('admin/payments/stale');
+}
+
+export async function calculateSettlement(subOrderId: string): Promise<AdminSettlement> {
+  return adminRequest(`admin/settlements/${encodeURIComponent(subOrderId)}/calculate`, {
+    method: 'POST',
+  });
+}
+
+export async function markSettlementPaid(
+  settlementId: string,
+  input?: { paymentReference?: string; notes?: string },
+): Promise<AdminSettlement> {
+  return adminRequest(`admin/settlements/${encodeURIComponent(settlementId)}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input || {}),
+  });
+}
+
+export async function fetchAdminSettlements(params?: {
+  storeId?: string;
+  status?: string;
+}): Promise<AdminSettlement[]> {
+  const sp = new URLSearchParams();
+  if (params?.storeId) sp.set('storeId', params.storeId);
+  if (params?.status) sp.set('status', params.status);
+  const qs = sp.toString();
+  return adminRequest(`admin/settlements${qs ? `?${qs}` : ''}`);
+}
+

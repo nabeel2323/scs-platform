@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { eq, and, inArray } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
+import { recordOpsCounter } from '../modules/operations/ops-counters';
 import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
 import { products, productVariants } from '../modules/catalog/catalog.schema';
 import { inventoryItems } from '../modules/inventory/inventory.schema';
@@ -20,6 +21,36 @@ export interface CallerContext {
 
 /** Platform staff manage any tenant's objects. */
 const BYPASS_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'SYSTEM'];
+
+/**
+ * P13 Phase 4 §8 — organization scope for financial records (settlement
+ * adjustments, commission reversals, reconciliation runs).
+ *
+ * Those services scope their queries "when an orgId is supplied", which is
+ * correct for trusted internal callers but a fail-open at an HTTP boundary: a
+ * token with no `activeOrg` claim would silently widen the query to every
+ * organization, so a guessed UUID would read — or approve — a foreign record.
+ *
+ * This helper closes that hole at the edge, without changing the services:
+ *   - platform staff (BYPASS_ROLES) may act across organizations, which is the
+ *     behaviour p311-tenant-isolation TISO-07 pins as intentional;
+ *   - every other role MUST be pinned to an organization, or the request is
+ *     denied and counted so the P13 monitor can alert on it (alert 8).
+ *
+ * Denials here are unauthorized-financial-operation events, not errors: the
+ * counter is an alert input and the caller's own audit row is written by the
+ * generic audit middleware.
+ */
+export function financialOrgScope(caller: CallerContext): string | null {
+  if (isTenantPrivileged(caller)) return caller.activeOrg ?? null;
+  if (!caller.activeOrg) {
+    recordOpsCounter('financial_isolation_denials_total', 1, 'missing_active_org');
+    throw new ForbiddenException(
+      'An active organization is required to access financial records',
+    );
+  }
+  return caller.activeOrg;
+}
 
 /**
  * Object-level tenant scoping (audit A3-1). Functional permission keys answer

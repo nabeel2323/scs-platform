@@ -1,0 +1,373 @@
+/* detail.module.css — Token-aligned styles for Admin detail-view components */
+
+/* ── Page shell ─────────────────────────────────────────────── */
+.detailShell {
+  color: #16232b;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Breadcrumb row ─────────────────────────────────────────── */
+.breadcrumbRow {
+  padding: 16px 32px 0;
+}
+
+/* ── Back link ──────────────────────────────────────────────── */
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #1e6178;
+  text-decoration: none;
+  margin-bottom: 12px;
+  transition: color 0.12s ease;
+}
+.backLink:hover {
+  color: #0f3340;
+}
+.backLink:focus-visible {
+  outline: 3px solid rgba(30, 97, 120, 0.35);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Detail header ──────────────────────────────────────────── */
+.detailHeader {
+  padding: 0 32px 24px;
+}
+.detailHeaderTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.detailTitle {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+  color: #16232b;
+  margin: 0 0 6px;
+}
+.detailSubtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #5b6b74;
+  margin-bottom: 12px;
+}
+.detailSubtitleSep {
+  color: #d9e2e6;
+}
+.detailActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* ── Tabs container ─────────────────────────────────────────── */
+.tabsContainer {
+  padding: 0 32px;
+  margin-bottom: 24px;
+}
+
+/* ── Content area ───────────────────────────────────────────── */
+.detailContent {
+  padding: 0 32px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Key-Value grid ─────────────────────────────────────────── */
+.kvGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+}
+.kvItem {
+  padding: 12px 0;
+  border-bottom: 1px solid #e5ecf0;
+  min-width: 0;
+}
+.kvItem:nth-child(odd) {
+  padding-right: 16px;
+}
+.kvItem:nth-child(even) {
+  padding-left: 16px;
+  border-left: 1px solid #e5ecf0;
+}
+.kvLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5b6b74;
+  margin-bottom: 4px;
+  letter-spacing: 0.2px;
+}
+.kvValue {
+  font-size: 14px;
+  color: #16232b;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ── Section card ───────────────────────────────────────────── */
+.sectionCard {
+  background: #fff;
+  border: 1px solid #d9e2e6;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5ecf0;
+}
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f3340;
+  margin: 0;
+}
+.sectionDescription {
+  font-size: 12px;
+  color: #5b6b74;
+  margin: 2px 0 0;
+}
+.sectionBody {
+  padding: 16px 20px;
+}
+.sectionBodyBare {
+  padding: 0;
+}
+
+/* ── Copy button ────────────────────────────────────────────── */
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5b6b74;
+  background: transparent;
+  border: 1px solid #d9e2e6;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.copyBtn:hover {
+  background: #f7f9fa;
+  border-color: #b8d4e3;
+  color: #16232b;
+}
+.copyBtn:focus-visible {
+  outline: 3px solid rgba(30, 97, 120, 0.35);
+  outline-offset: 1px;
+}
+.copyBtnCopied {
+  color: #1b7a4b;
+  border-color: #a7f3d0;
+  background: #eaf5ef;
+}
+
+/* ── Entity link ────────────────────────────────────────────── */
+.entityLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #1e6178;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.12s ease;
+}
+.entityLink:hover {
+  color: #0f3340;
+  text-decoration: underline;
+}
+.entityLink:focus-visible {
+  outline: 3px solid rgba(30, 97, 120, 0.35);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.entityLinkMuted {
+  color: #5b6b74;
+  font-weight: 400;
+  cursor: default;
+}
+.entityLinkMuted:hover {
+  color: #5b6b74;
+  text-decoration: none;
+}
+
+/* ── Related table ──────────────────────────────────────────── */
+.relTableWrap {
+  overflow-x: auto;
+  border: 1px solid #d9e2e6;
+  border-radius: 10px;
+  background: #fff;
+}
+.relTable {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.relTable th {
+  background: #f7f9fa;
+  color: #0f3340;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  border-bottom: 1px solid #d9e2e6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.relTable th button {
+  border: none;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 12px;
+}
+.relTable td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #e5ecf0;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+.relTable tbody tr {
+  transition: background 0.12s ease;
+}
+.relTable tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+.relTable tbody tr:hover {
+  background: #e5f2f8;
+}
+
+/* ── Audit timeline ─────────────────────────────────────────── */
+.timeline {
+  position: relative;
+  padding-left: 28px;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #d9e2e6;
+}
+.timelineItem {
+  position: relative;
+  padding-bottom: 20px;
+}
+.timelineItem:last-child {
+  padding-bottom: 0;
+}
+.timelineDot {
+  position: absolute;
+  left: -24px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1e6178;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #d9e2e6;
+}
+.timelineDotMuted {
+  background: #b0bec5;
+}
+.timelineTime {
+  font-size: 12px;
+  color: #5b6b74;
+  margin-bottom: 2px;
+}
+.timelineAction {
+  font-size: 14px;
+  color: #16232b;
+  font-weight: 500;
+}
+.timelineActor {
+  font-size: 12px;
+  color: #5b6b74;
+  margin-top: 2px;
+}
+.timelineDetail {
+  font-size: 12px;
+  color: #5b6b74;
+  margin-top: 4px;
+  padding: 8px 10px;
+  background: #f7f9fa;
+  border-radius: 6px;
+  border: 1px solid #e5ecf0;
+}
+
+/* ── Error / Empty states ───────────────────────────────────── */
+.errorState {
+  text-align: center;
+  padding: 48px 24px;
+}
+.errorStateIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fbeeec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: #b3372f;
+}
+.errorStateTitle {
+  font-size: 17px;
+  font-weight: 600;
+  color: #16232b;
+  margin: 0 0 8px;
+}
+.errorStateMsg {
+  font-size: 14px;
+  color: #5b6b74;
+  margin: 0 0 16px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .breadcrumbRow { padding: 12px 16px 0; }
+  .detailHeader { padding: 0 16px 16px; }
+  .tabsContainer { padding: 0 16px; }
+  .detailContent { padding: 0 16px 32px; }
+  .detailTitle { font-size: 22px; }
+  .kvGrid { grid-template-columns: 1fr; }
+  .kvItem:nth-child(odd) { padding-right: 0; }
+  .kvItem:nth-child(even) { padding-left: 0; border-left: none; }
+  .detailHeaderTop { flex-direction: column; }
+  .detailActions { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .detailTitle { font-size: 20px; }
+  .relTable td, .relTable th { padding: 8px 10px; font-size: 12px; }
+}

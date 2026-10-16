@@ -18,7 +18,7 @@ import { CommissionReversalService } from './commission-reversal.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
-import { CallerContext } from '../../common/tenant-scope';
+import { CallerContext, financialOrgScope } from '../../common/tenant-scope';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -30,6 +30,16 @@ export class ReturnsController {
     private readonly reconciliation: ReconciliationService,
     private readonly commissionReversal: CommissionReversalService,
   ) {}
+
+  /**
+   * Organization scope for every P13 financial record endpoint.
+   * Fail-closed: a non-platform-staff role (notably FINANCE) with no active
+   * organization is denied here rather than reaching a service whose org filter
+   * is conditional on the value being present.
+   */
+  private finScope(user: JwtPayload): string | null {
+    return financialOrgScope({ sub: user.sub, role: user.role, activeOrg: user.activeOrg });
+  }
 
   // ── Buyer Endpoints ───────────────────────────────────────────
 
@@ -344,7 +354,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
   ) {
-    return this.commissionReversal.listReversals(user.activeOrg, status);
+    return this.commissionReversal.listReversals(this.finScope(user), status);
   }
 
   // ── P13 Phase 3: Settlement Adjustment Administration ────────────
@@ -357,7 +367,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
   ) {
-    return this.settlementAdj.listAdjustments(user.activeOrg, status);
+    return this.settlementAdj.listAdjustments(this.finScope(user), status);
   }
 
   /** GET /v1/admin/settlement-adjustments/:id — get adjustment detail. */
@@ -368,7 +378,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    return this.settlementAdj.getAdjustment(id, user.activeOrg);
+    return this.settlementAdj.getAdjustment(id, this.finScope(user));
   }
 
   /** POST /v1/admin/settlement-adjustments — create a new adjustment. */
@@ -379,7 +389,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: CreateAdjustmentInput,
   ) {
-    return this.settlementAdj.createAdjustment(body, user.sub, user.activeOrg);
+    return this.settlementAdj.createAdjustment(body, user.sub, this.finScope(user));
   }
 
   /** POST /v1/admin/settlement-adjustments/:id/submit — submit for approval. */
@@ -390,7 +400,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    return this.settlementAdj.submitForApproval(id, user.sub, user.activeOrg);
+    return this.settlementAdj.submitForApproval(id, user.sub, this.finScope(user));
   }
 
   /** POST /v1/admin/settlement-adjustments/:id/approve — approve adjustment. */
@@ -403,7 +413,7 @@ export class ReturnsController {
     @Body() body: { notes?: string },
   ) {
     return this.settlementAdj.approveAdjustment(
-      id, user.sub, user.role, { approverRole: user.role, notes: body.notes }, user.activeOrg,
+      id, user.sub, user.role, { approverRole: user.role, notes: body.notes }, this.finScope(user),
     );
   }
 
@@ -417,7 +427,7 @@ export class ReturnsController {
     @Body() body: { reason: string },
   ) {
     if (!body.reason) throw new BadRequestException('Rejection reason is required');
-    return this.settlementAdj.rejectAdjustment(id, user.sub, body.reason, user.activeOrg);
+    return this.settlementAdj.rejectAdjustment(id, user.sub, body.reason, this.finScope(user));
   }
 
   /** POST /v1/admin/settlement-adjustments/:id/post — post approved adjustment. */
@@ -428,7 +438,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    return this.settlementAdj.postAdjustment(id, user.sub, user.activeOrg);
+    return this.settlementAdj.postAdjustment(id, user.sub, this.finScope(user));
   }
 
   // ── P13 Phase 3: Reconciliation Administration ──────────────────
@@ -438,7 +448,7 @@ export class ReturnsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:reconciliation:read')
   async listReconciliationRuns(@CurrentUser() user: JwtPayload) {
-    return this.reconciliation.listReconciliationRuns(user.activeOrg);
+    return this.reconciliation.listReconciliationRuns(this.finScope(user));
   }
 
   /** GET /v1/admin/reconciliation/:id — get run with discrepancies. */
@@ -449,7 +459,7 @@ export class ReturnsController {
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
   ) {
-    return this.reconciliation.getReconciliationRun(id, user.activeOrg);
+    return this.reconciliation.getReconciliationRun(id, this.finScope(user));
   }
 
   /** POST /v1/admin/reconciliation/run — execute reconciliation for a period. */
@@ -464,7 +474,7 @@ export class ReturnsController {
       throw new BadRequestException('periodStart and periodEnd are required (YYYY-MM-DD)');
     }
     return this.reconciliation.executeReconciliation(
-      body.periodStart, body.periodEnd, body.currency ?? 'SYP', user.sub, user.activeOrg,
+      body.periodStart, body.periodEnd, body.currency ?? 'SYP', user.sub, this.finScope(user),
     );
   }
 

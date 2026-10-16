@@ -23,10 +23,11 @@ import { Pool } from 'pg';
 // Migrations live at repo root: infra/drizzle/migrations/
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
-// Migrations that require extensions not available in the base PostGIS image
-// (pg_partman is only installed in the CI service container). The integration
-// test runner excludes the same files.
-const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+// Phase 4.1.4: The CI migration gate now builds a custom Postgres image
+// (infra/deploy/ci-postgres.Dockerfile) that includes pg_partman alongside
+// PostGIS. All 63 migrations apply cleanly — no exclusions needed.
+// The local runner (migrate.ts) still skips 0013/0018 because the dev
+// docker-compose image (postgis/postgis:16-3.4) lacks pg_partman.
 
 function isDryRun(): boolean {
   return process.argv.includes('--dry-run');
@@ -39,7 +40,7 @@ function listMigrationFiles(): string[] {
   }
   return fs
     .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
+    .filter((f) => f.endsWith('.sql'))
     .sort();
 }
 
