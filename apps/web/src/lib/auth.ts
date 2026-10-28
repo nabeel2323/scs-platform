@@ -228,14 +228,21 @@ async function hydrateUserFromProfile(accessToken: string): Promise<void> {
 
 // ── Auth flows ───────────────────────────────────────────────
 
-export async function requestOtp(phone: string): Promise<{ success: boolean }> {
+export async function requestOtp(
+  phone: string,
+  channel: 'sms' | 'whatsapp' = 'sms',
+): Promise<{ success: boolean; deliveryStatus: string; possiblyDelivered?: boolean }> {
   const res = await fetch(`${API_URL}/v1/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ phone, channel }),
   });
   if (!res.ok) {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 400) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'Invalid phone number');
+    }
     throw new Error(`OTP request failed: ${res.status}`);
   }
   return res.json();

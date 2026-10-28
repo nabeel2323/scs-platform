@@ -91,6 +91,90 @@ export function assertJwtConfig(env: NodeJS.ProcessEnv = process.env): string {
   });
 }
 
+// ── OTP HMAC secret gate (S1.3, audit finding M-02) ─────────────
+
+/**
+ * The insecure development fallback for the OTP challenge-storage secret. It is
+ * the same value shipped in `.env.example`, so an operator who copies the example
+ * straight into a deployment is using this exact string — which is why it is
+ * refused outside development/test.
+ */
+export const INSECURE_DEV_OTP_HMAC_SECRET =
+  'dev-hmac-secret-change-me-in-production-64chars-minimum!!';
+
+/** Minimum acceptable length for the OTP HMAC secret (HMAC-SHA256 key material). */
+export const MIN_OTP_HMAC_SECRET_LENGTH = 32;
+
+export interface OtpHmacSecretGateInput {
+  /** Value of NODE_ENV; defaults to 'development' when unset. */
+  nodeEnv?: string;
+  /** Value of OTP_HMAC_SECRET. */
+  secret?: string;
+}
+
+/**
+ * Resolve the OTP HMAC storage secret, enforcing production rules.
+ *
+ * OTP values are stored as `HMAC-SHA256(secret, otp + salt)`. If the secret is a
+ * known public value, a Redis read alone is enough to precompute every code and
+ * reverse the protection, so outside development/test the secret MUST be present,
+ * must not be the committed `.env.example` placeholder, and must be at least
+ * {@link MIN_OTP_HMAC_SECRET_LENGTH} characters. Errors never echo the secret.
+ *
+ * - Development/test: returns the provided secret when strong enough, otherwise
+ *   the documented dev default so local tooling and the test suite keep working.
+ * - Production-like: throws on missing/placeholder/short values.
+ *
+ * @throws Error when the secret is missing, a known default, or too short outside dev.
+ */
+export function resolveOtpHmacSecret(input: OtpHmacSecretGateInput = {}): string {
+  const { nodeEnv, secret: raw } = input;
+  const secret = raw?.trim();
+
+  if (isProductionLikeEnv(nodeEnv)) {
+    if (!secret) {
+      throw new Error(
+        'OTP_HMAC_SECRET must be set outside development. ' +
+          'Refusing to boot with the insecure development default — generate a unique secret of at ' +
+          `least ${MIN_OTP_HMAC_SECRET_LENGTH} characters with: ` +
+          `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))".`,
+      );
+    }
+    if (secret === INSECURE_DEV_OTP_HMAC_SECRET) {
+      throw new Error(
+        'OTP_HMAC_SECRET is set to the well-known development/example default. ' +
+          'It is committed in .env.example and must be replaced with a unique, strong secret ' +
+          'outside development.',
+      );
+    }
+    if (secret.length < MIN_OTP_HMAC_SECRET_LENGTH) {
+      throw new Error(
+        `OTP_HMAC_SECRET must be at least ${MIN_OTP_HMAC_SECRET_LENGTH} characters outside ` +
+          `development (got ${secret.length}).`,
+      );
+    }
+    return secret;
+  }
+
+  // Development / test: allow the documented dev fallback for a working local flow.
+  return secret &&
+    secret.length >= MIN_OTP_HMAC_SECRET_LENGTH &&
+    secret !== INSECURE_DEV_OTP_HMAC_SECRET
+    ? secret
+    : INSECURE_DEV_OTP_HMAC_SECRET;
+}
+
+/**
+ * Validate OTP HMAC configuration from the ambient environment and fail fast on
+ * misconfiguration. Never prints the secret value.
+ */
+export function assertOtpHmacConfig(env: NodeJS.ProcessEnv = process.env): string {
+  return resolveOtpHmacSecret({
+    nodeEnv: env['NODE_ENV'],
+    secret: env['OTP_HMAC_SECRET'],
+  });
+}
+
 /**
  * The development-only database DSN. Kept as a named constant instead of an inline
  * literal so the place that decides "this is a local dev credential" is one place.
@@ -244,4 +328,64 @@ export function assertProductionConfig(
     );
   }
   return sink;
+}
+
+// ── S1.7: Proxy trust configuration ─────────────────────────────
+
+/**
+ * Valid shapes for the Express `trust proxy` setting.
+ *
+ * - `false`: do not trust any proxy (direct connections only — the safe default).
+ * - `true`: trust all proxies (NOT recommended — allows header spoofing).
+ * - `number`: trust the Nth hop from the right (e.g. 1 = the immediate connection).
+ * - `string[]`: explicit trusted proxy addresses (IPs, CIDRs, or hostnames).
+ */
+export type TrustProxyValue = false | true | number | string[];
+
+/**
+ * Resolve the `TRUST_PROXY` environment variable into a value suitable for
+ * `app.set('trust proxy', ...)`.
+ *
+ * Supported formats:
+ * - unset / `false` / `0` → `false` (default — no proxy trust)
+ * - `true` → `true` (trust all — logged as a warning; not for production)
+ * - a positive integer → hop count (e.g. `1` = trust the first proxy)
+ * - comma-separated IPs/CIDRs → string array (e.g. `10.0.0.1,172.16.0.0/12`)
+ *
+ * Invalid values throw at startup so misconfiguration is caught immediately.
+ */
+export function resolveTrustProxy(raw?: string): TrustProxyValue {
+  const value = raw?.trim();
+  if (!value || value.toLowerCase() === 'false' || value === '0') {
+    return false;
+  }
+  if (value.toLowerCase() === 'true') {
+    return true;
+  }
+  // Numeric hop count.
+  const asNumber = Number(value);
+  if (Number.isInteger(asNumber) && asNumber > 0) {
+    return asNumber;
+  }
+  // Comma-separated addresses/CIDRs.
+  const parts = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length > 0) {
+    // Reject obviously invalid entries (wildcards, empty after trim).
+    for (const part of parts) {
+      if (part === '*' || part === '0.0.0.0/0') {
+        throw new Error(
+          `TRUST_PROXY contains an unrestricted entry ("${part}"). ` +
+            'Use explicit proxy IPs or CIDRs instead.',
+        );
+      }
+    }
+    return parts;
+  }
+  throw new Error(
+    `TRUST_PROXY has an unrecognised value ("${raw}"). ` +
+      'Expected: false, true, a positive integer hop count, or comma-separated IPs/CIDRs.',
+  );
 }

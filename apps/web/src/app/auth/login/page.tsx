@@ -15,6 +15,7 @@ import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 type LoginMode = 'password' | 'otp';
 type OtpStage = 'request' | 'verify';
+type OtpChannel = 'sms' | 'whatsapp';
 
 /** Human-friendly wait time for the lockout countdown. */
 function formatWait(seconds: number): string {
@@ -35,6 +36,8 @@ export default function LoginPage() {
   // OTP state
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+  const [channel, setChannel] = useState<OtpChannel>('sms');
+  const [deliveryTimeout, setDeliveryTimeout] = useState(false);
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -107,10 +110,24 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setRateLimit(null);
+    setDeliveryTimeout(false);
     setLoading(true);
     try {
-      await requestOtp(phone);
-      setOtpStage('verify');
+      const result = await requestOtp(phone, channel);
+      if (result.success) {
+        setOtpStage('verify');
+      } else if ((result as any).possiblyDelivered) {
+        // Timeout — OTP may have been delivered. Let user try to verify.
+        setDeliveryTimeout(true);
+        setOtpStage('verify');
+      } else {
+        const status = result.deliveryStatus || '';
+        if (status.includes('NOT_CONFIGURED')) {
+          setError('This delivery method is currently unavailable. Please try another option.');
+        } else {
+          setError('Failed to send code. Please try again or switch delivery method.');
+        }
+      }
     } catch (err: any) {
       if (err instanceof LoginRateLimitError) {
         setRateLimit({
@@ -263,15 +280,66 @@ export default function LoginPage() {
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+966 5XX XXX XXXX"
             required
+            disabled={loading}
             style={inputStyle}
           />
+          <fieldset style={{ marginBottom: 16, padding: 0, border: 'none' }} role="radiogroup" aria-label="Delivery channel">
+            <legend style={{ fontSize: 13, fontWeight: 600, color: colors.brand[700], marginBottom: 6 }}>
+              Send code via
+            </legend>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+                <input
+                  type="radio"
+                  name="channel"
+                  value="sms"
+                  checked={channel === 'sms'}
+                  onChange={() => setChannel('sms')}
+                  disabled={loading}
+                  aria-label="SMS"
+                />
+                SMS
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+                <input
+                  type="radio"
+                  name="channel"
+                  value="whatsapp"
+                  checked={channel === 'whatsapp'}
+                  onChange={() => setChannel('whatsapp')}
+                  disabled={loading}
+                  aria-label="WhatsApp"
+                />
+                WhatsApp
+              </label>
+            </div>
+          </fieldset>
           <button type="submit" disabled={loading} style={buttonStyle}>
-            {loading ? 'Sending...' : 'Send OTP'}
+            {loading ? `Sending via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}...` : `Send via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}`}
           </button>
         </form>
       ) : (
         <form onSubmit={handleVerifyOtp}>
-          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>Code sent to {phone}</p>
+          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>
+            Code sent via {channel === 'sms' ? 'SMS' : 'WhatsApp'} to {phone}
+          </p>
+          {deliveryTimeout && (
+            <div
+              style={{
+                background: colors.warnBg,
+                color: colors.warn,
+                border: `1px solid ${colors.amber}`,
+                padding: '10px 14px',
+                borderRadius: 8,
+                marginBottom: 16,
+                fontSize: 13,
+              }}
+              role="alert"
+              aria-live="polite"
+            >
+              Delivery status uncertain &mdash; you may have received the code. If not, try resending via a different channel.
+            </div>
+          )}
           <label style={labelStyle}>OTP code</label>
           <input
             type="text"
@@ -280,23 +348,52 @@ export default function LoginPage() {
             placeholder="123456"
             maxLength={6}
             required
+            disabled={loading}
             style={inputStyle}
           />
           <button type="submit" disabled={loading} style={buttonStyle}>
             {loading ? 'Verifying...' : 'Verify'}
           </button>
-          <button
-            type="button"
-            onClick={() => setOtpStage('request')}
-            style={{
-              ...buttonStyle,
-              background: 'transparent',
-              color: colors.brand[500],
-              border: `1px solid ${colors.border}`,
-            }}
-          >
-            Change number
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setOtpStage('request');
+                setError('');
+                setDeliveryTimeout(false);
+              }}
+              style={{
+                ...buttonStyle,
+                flex: 1,
+                background: 'transparent',
+                color: colors.brand[500],
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              Change number
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                // L-06: the label promises the opposite channel, so actually switch to
+                // it and return to the request stage where the selection is shown and
+                // used for the next OTP request.
+                setChannel(channel === 'sms' ? 'whatsapp' : 'sms');
+                setOtpStage('request');
+                setError('');
+                setDeliveryTimeout(false);
+              }}
+              style={{
+                ...buttonStyle,
+                flex: 1,
+                background: 'transparent',
+                color: colors.brand[500],
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              Resend via {channel === 'sms' ? 'WhatsApp' : 'SMS'}
+            </button>
+          </div>
         </form>
       )}
 

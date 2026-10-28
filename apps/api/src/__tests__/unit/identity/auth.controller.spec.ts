@@ -56,7 +56,7 @@ describe('AuthController', () => {
 
   it('requestOtp forwards the phone', async () => {
     await controller.requestOtp({ phone: '+966500000000' } as any);
-    expect(svc.requestOtp).toHaveBeenCalledWith('+966500000000');
+    expect(svc.requestOtp).toHaveBeenCalledWith('+966500000000', 'sms');
   });
 
   it('verifyOtp forwards phone/otp/device fields + request context', async () => {
