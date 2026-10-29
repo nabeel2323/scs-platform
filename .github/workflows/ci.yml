@@ -120,6 +120,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # S1.12 D-CI-1: this Redis is a GitHub Actions service container — created for
+      # this job run and destroyed with it. It happens to share the address a
+      # developer would use for a persistent local instance, which is why the test
+      # harness decides safety from CI context plus an explicit attestation below,
+      # never from the port number alone.
       redis:
         image: redis:7-alpine
         ports:
@@ -139,10 +144,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # S1.12 D-CI-2: `pnpm test:integration` runs Vitest with --no-file-parallelism
+      # (set in apps/api/package.json) so suites that share the scs:throttle:
+      # namespace cannot clean up each other's keys. Never invoke `vitest run
+      # src/__tests__/integration` directly here — that would bypass the guard.
+      # S1.12 D-SAFE-1: the real-Redis suites require an explicit disposability
+      # attestation, because a supplied URL alone is not proof the target is safe to
+      # write to. This job's Redis is ephemeral by construction, so the attestation
+      # is accurate; a developer reusing the same address for a persistent instance
+      # is refused by the harness (it checks CI context, not just the port).
       - run: pnpm test:integration
         env:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
+          REDIS_IT: '1'
+          REDIS_DISPOSABLE_ACK: '1'
 
   # ── Migration Gate (enforcing — full chain with pg_partman) ──
   migration-gate:
