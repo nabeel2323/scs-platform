@@ -399,6 +399,13 @@ jobs:
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           sleep 10
 
+      # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
+      # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
+      # when OTP_HMAC_SECRET is missing, is the `.env.example` placeholder, or is
+      # shorter than 32 chars. The container-build smoke test starts the image with
+      # NODE_ENV=production, so the CI value below must satisfy the same rules as
+      # any deployment: non-empty, >= 32 chars, not the dev placeholder. It is a
+      # throwaway per-run value — no secret material is stored in the workflow.
       - name: Start API container with safe defaults
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
@@ -406,6 +413,7 @@ jobs:
             -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
+            -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
             -e S3_ENDPOINT=http://minio:9000 \
             -e S3_ACCESS_KEY=ci-test-key \
             -e S3_SECRET_KEY=ci-test-secret \
