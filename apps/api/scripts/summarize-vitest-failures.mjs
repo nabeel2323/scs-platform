@@ -140,13 +140,90 @@ if (SUMMARY_PATH) {
 }
 console.log(text);
 
-// Also emit GitHub Actions `::error::` workflow commands so each failing test
-// surfaces as an annotation on the check-run. Annotations are readable via the
+// Also emit GitHub Actions `::error::` workflow commands so the failure cause
+// surfaces as annotations on the check-run. Annotations are readable via the
 // public `/check-runs/<id>/annotations` endpoint without authenticated log
 // access, which is the whole point of this diagnostic step. Escape per
 // https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#multiline-text
 // (real newlines are not permitted inside ::error::; encode as %0A).
+//
+// Three failure classes are distinguished, in priority order:
+//   A. Per-assertion failures (`assertionResults[].status === "failed"`) —
+//      the most common case; emit one annotation per failing test.
+//   B. File-level failures with no assertion failures — a suite crashed during
+//      collection, setup, or teardown. Emit one annotation per crashing file.
+//   C. Vitest exited 0 but the assertion gate (assert-redis-suite.mjs) would
+//      still fail — reproduce the gate's contract in-process so the reason is
+//      visible without needing authenticated raw-log access.
 const isRunner = Boolean(process.env['GITHUB_ACTIONS']);
+const REQUIRED_REDIS_FILES = [
+  'otp-redis-lua.real.spec.ts',
+  'cross-instance-throttling.spec.ts',
+  'http-cross-instance-throttling.spec.ts',
+  'throttle-ip-isolation.spec.ts',
+  'throttle-cleanup-sentinel.real.spec.ts',
+];
+const EXPECTED_OTP_REDIS_COUNT = 12;
+
+function diagnose(parsed) {
+  const results = Array.isArray(parsed?.testResults) ? parsed.testResults : [];
+  const assertionFails = [];
+  const fileCrashes = [];
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
+  for (const f of results) {
+    const assertions = Array.isArray(f?.assertionResults) ? f.assertionResults : [];
+    const anyFailed = assertions.some((a) => a?.status === 'failed');
+    for (const a of assertions) {
+      if (a?.status === 'passed') totalPassed += 1;
+      else if (a?.status === 'failed') {
+        totalFailed += 1;
+        assertionFails.push({
+          file: fileName(f?.name),
+          title: a?.title ?? '(unnamed)',
+          msg: (a?.failureMessages ?? []).join('\n'),
+        });
+      } else totalSkipped += 1;
+    }
+    if (f?.status === 'failed' && !anyFailed) {
+      fileCrashes.push({
+        file: fileName(f?.name),
+        msg: (f?.assertionResults ?? [])
+          .flatMap((a) => a?.failureMessages ?? [])
+          .join('\n') ||
+          (f?.message ?? 'no assertion records — file failed during collection/setup/teardown'),
+      });
+    }
+  }
+  const gateIssues = [];
+  for (const req of REQUIRED_REDIS_FILES) {
+    const found = results.find((r) => fileName(r?.name).includes(req));
+    if (!found) {
+      gateIssues.push(`redis-gate: ${req} not discovered by vitest`);
+      continue;
+    }
+    if (found.status === 'skipped' || found.status === 'pending') {
+      gateIssues.push(`redis-gate: ${req} skipped (status=${found.status})`);
+      continue;
+    }
+    const list = Array.isArray(found.assertionResults) ? found.assertionResults : [];
+    const skippedCount = list.filter((a) => a?.status === 'skipped' || a?.status === 'pending').length;
+    if (skippedCount > 0) {
+      gateIssues.push(`redis-gate: ${req} has ${skippedCount} skipped test(s)`);
+    }
+    if (req === 'otp-redis-lua.real.spec.ts') {
+      const passedCount = list.filter((a) => a?.status === 'passed').length;
+      if (passedCount !== EXPECTED_OTP_REDIS_COUNT) {
+        gateIssues.push(
+          `redis-gate: ${req} expected ${EXPECTED_OTP_REDIS_COUNT} passed, found ${passedCount}`,
+        );
+      }
+    }
+  }
+  return { assertionFails, fileCrashes, gateIssues, totals: { totalPassed, totalFailed, totalSkipped } };
+}
+
 if (isRunner) {
   const encoded = (s) =>
     String(s ?? '')
@@ -154,31 +231,34 @@ if (isRunner) {
       .replace(/\r/g, '%0D')
       .replace(/\n/g, '%0A')
       .replace(/:/g, '%3A');
-  const resultsFile = REPORT_PATH;
   try {
-    const parsedForAnn = JSON.parse(readFileSync(resultsFile, 'utf-8'));
-    const fails = [];
-    for (const f of (parsedForAnn?.testResults ?? [])) {
-      for (const a of (f?.assertionResults ?? [])) {
-        if (a?.status === 'failed') {
-          fails.push({
-            file: fileName(f?.name),
-            title: a?.title ?? '(unnamed)',
-            msg: (a?.failureMessages ?? []).join('\n'),
-          });
-        }
-      }
-    }
-    if (fails.length === 0) {
-      console.log(
-        `::error title=Integration Tests diagnosis::vitest exited non-zero but no failed assertions were recorded (crash or assertion-gate failure). See raw log.`,
-      );
-    } else {
-      for (const f of fails) {
+    const parsedForAnn = JSON.parse(readFileSync(REPORT_PATH, 'utf-8'));
+    const { assertionFails, fileCrashes, gateIssues, totals } = diagnose(parsedForAnn);
+
+    console.log(
+      `::notice title=Integration Tests totals::files=${(parsedForAnn?.testResults ?? []).length}, passed=${totals.totalPassed}, failed=${totals.totalFailed}, skipped=${totals.totalSkipped}`,
+    );
+
+    if (assertionFails.length > 0) {
+      for (const f of assertionFails) {
         console.log(
           `::error title=${encoded(f.file)} > ${encoded(f.title)}::${encoded(truncate(f.msg))}`,
         );
       }
+    } else if (fileCrashes.length > 0) {
+      for (const fc of fileCrashes) {
+        console.log(
+          `::error title=${encoded(fc.file)} (file-level crash)::${encoded(truncate(fc.msg))}`,
+        );
+      }
+    } else if (gateIssues.length > 0) {
+      console.log(
+        `::error title=Integration Tests: vitest all-pass but Redis assertion gate would reject::${encoded(gateIssues.join(' | '))}`,
+      );
+    } else {
+      console.log(
+        `::error title=Integration Tests: vitest exited non-zero with no per-assertion, per-file, or gate-level cause in the JSON report::likely vitest process-level crash (unhandled rejection, worker kill, or out-of-memory). Inspect raw log.`,
+      );
     }
   } catch (err) {
     console.log(`::error title=Integration Tests diagnosis::${encoded(err.message)}`);
