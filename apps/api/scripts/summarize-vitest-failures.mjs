@@ -139,4 +139,50 @@ if (SUMMARY_PATH) {
   }
 }
 console.log(text);
+
+// Also emit GitHub Actions `::error::` workflow commands so each failing test
+// surfaces as an annotation on the check-run. Annotations are readable via the
+// public `/check-runs/<id>/annotations` endpoint without authenticated log
+// access, which is the whole point of this diagnostic step. Escape per
+// https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#multiline-text
+// (real newlines are not permitted inside ::error::; encode as %0A).
+const isRunner = Boolean(process.env['GITHUB_ACTIONS']);
+if (isRunner) {
+  const encoded = (s) =>
+    String(s ?? '')
+      .replace(/%/g, '%25')
+      .replace(/\r/g, '%0D')
+      .replace(/\n/g, '%0A')
+      .replace(/:/g, '%3A');
+  const resultsFile = REPORT_PATH;
+  try {
+    const parsedForAnn = JSON.parse(readFileSync(resultsFile, 'utf-8'));
+    const fails = [];
+    for (const f of (parsedForAnn?.testResults ?? [])) {
+      for (const a of (f?.assertionResults ?? [])) {
+        if (a?.status === 'failed') {
+          fails.push({
+            file: fileName(f?.name),
+            title: a?.title ?? '(unnamed)',
+            msg: (a?.failureMessages ?? []).join('\n'),
+          });
+        }
+      }
+    }
+    if (fails.length === 0) {
+      console.log(
+        `::error title=Integration Tests diagnosis::vitest exited non-zero but no failed assertions were recorded (crash or assertion-gate failure). See raw log.`,
+      );
+    } else {
+      for (const f of fails) {
+        console.log(
+          `::error title=${encoded(f.file)} > ${encoded(f.title)}::${encoded(truncate(f.msg))}`,
+        );
+      }
+    }
+  } catch (err) {
+    console.log(`::error title=Integration Tests diagnosis::${encoded(err.message)}`);
+  }
+}
+
 process.exit(0);
