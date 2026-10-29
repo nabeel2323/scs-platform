@@ -144,16 +144,26 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # S1.12 D-CI-2: `pnpm test:integration` runs Vitest with --no-file-parallelism
-      # (set in apps/api/package.json) so suites that share the scs:throttle:
-      # namespace cannot clean up each other's keys. Never invoke `vitest run
-      # src/__tests__/integration` directly here — that would bypass the guard.
+      # S1.12 D-CI-2: `pnpm --filter @scs/api test:integration` runs Vitest with
+      # --no-file-parallelism (set in apps/api/package.json) so suites that share the
+      # scs:throttle: namespace cannot clean up each other's keys. Never invoke
+      # `vitest run src/__tests__/integration` directly here — that would bypass the
+      # guard.
       # S1.12 D-SAFE-1: the real-Redis suites require an explicit disposability
       # attestation, because a supplied URL alone is not proof the target is safe to
       # write to. This job's Redis is ephemeral by construction, so the attestation
       # is accurate; a developer reusing the same address for a persistent instance
       # is refused by the harness (it checks CI context, not just the port).
-      - run: pnpm test:integration
+      # S1.28 D-CI-3: the workspace root's `pnpm test:integration` invokes
+      # `turbo run test:integration`, and Turborepo 2.x with any `globalEnv` /
+      # `env` declaration restricts the child process environment to the declared
+      # variables. Redis IT opt-ins are intentionally kept local to this step, so
+      # the CI job bypasses turbo via `--filter @scs/api` — matching the pattern
+      # already used by the sibling `test-unit` job (`pnpm --filter @scs/api
+      # test:coverage`). Local developers may still invoke `pnpm test:integration`
+      # from the repo root and export the vars themselves; the turbo task remains
+      # unchanged.
+      - run: pnpm --filter @scs/api test:integration
         env:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
