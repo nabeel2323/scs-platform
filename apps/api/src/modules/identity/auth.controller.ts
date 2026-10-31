@@ -1,4 +1,5 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { IdentityService } from './identity.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser, JwtPayload } from '../../common/guards/current-user.decorator';
@@ -16,11 +17,15 @@ export class AuthController {
   constructor(private readonly identityService: IdentityService) {}
 
   @Post('otp/request')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ 'otp-request': {} })
   async requestOtp(@Body() dto: RequestOtpDto) {
-    return this.identityService.requestOtp(dto.phone);
+    return this.identityService.requestOtp(dto.phone, dto.channel || 'sms');
   }
 
   @Post('otp/verify')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ 'otp-verify': {} })
   async verifyOtp(
     @Body() dto: VerifyOtpDto,
     // Inline structural type, not express's Request: with

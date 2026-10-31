@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { IdentityService } from '../../../modules/identity/identity.service';
 
+process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
+
 /**
  * Identity Service — session contract unit tests (WEB-B3).
  *
@@ -42,12 +44,18 @@ function createMocks() {
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
+  const otpDeliveryService = {
+    deliverOtp: vi.fn().mockResolvedValue({ success: false, status: 'failed', errorReason: 'NOT_CONFIGURED', deliveryOutcome: 'rejected' }),
+    isChannelAvailable: vi.fn().mockReturnValue(false),
+    getAvailableChannels: vi.fn().mockReturnValue([]),
+  };
   return new IdentityService(
     mocks.mockDb,
     mocks.mockRedis,
     mocks.mockJwt,
     mocks.mockRateLimit,
     mocks.mockAudit,
+    otpDeliveryService as any,
   );
 }
 

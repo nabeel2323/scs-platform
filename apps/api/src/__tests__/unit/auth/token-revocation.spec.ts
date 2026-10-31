@@ -8,6 +8,8 @@ import {
   secondsUntilExp,
 } from '../../../common/auth/token-denylist';
 
+process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
+
 /**
  * Access-token revocation unit tests (API-B9).
  *
@@ -150,12 +152,18 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
 
   beforeEach(() => {
     mocks = createIdentityMocks();
+    const otpDeliveryService = {
+      deliverOtp: vi.fn().mockResolvedValue({ success: false, status: 'failed', errorReason: 'NOT_CONFIGURED', deliveryOutcome: 'rejected' }),
+      isChannelAvailable: vi.fn().mockReturnValue(false),
+      getAvailableChannels: vi.fn().mockReturnValue([]),
+    };
     service = new IdentityService(
       { db: mocks.db } as any,
       { client: mocks.redis.client } as any,
       mocks.jwt as any,
       mocks.rateLimit as any,
       mocks.audit as any,
+      otpDeliveryService as any,
     );
     // Membership check + claims resolution.
     mocks.db.query.organizationMembers.findFirst.mockResolvedValue({

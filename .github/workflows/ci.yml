@@ -120,6 +120,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # S1.12 D-CI-1: this Redis is a GitHub Actions service container — created for
+      # this job run and destroyed with it. It happens to share the address a
+      # developer would use for a persistent local instance, which is why the test
+      # harness decides safety from CI context plus an explicit attestation below,
+      # never from the port number alone.
       redis:
         image: redis:7-alpine
         ports:
@@ -139,10 +144,42 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:integration
+      # S1.12 D-CI-2: `pnpm --filter @scs/api test:integration` runs Vitest with
+      # --no-file-parallelism (set in apps/api/package.json) so suites that share the
+      # scs:throttle: namespace cannot clean up each other's keys. Never invoke
+      # `vitest run src/__tests__/integration` directly here — that would bypass the
+      # guard.
+      # S1.12 D-SAFE-1: the real-Redis suites require an explicit disposability
+      # attestation, because a supplied URL alone is not proof the target is safe to
+      # write to. This job's Redis is ephemeral by construction, so the attestation
+      # is accurate; a developer reusing the same address for a persistent instance
+      # is refused by the harness (it checks CI context, not just the port).
+      # S1.28 D-CI-3: the workspace root's `pnpm test:integration` invokes
+      # `turbo run test:integration`, and Turborepo 2.x with any `globalEnv` /
+      # `env` declaration restricts the child process environment to the declared
+      # variables. Redis IT opt-ins are intentionally kept local to this step, so
+      # the CI job bypasses turbo via `--filter @scs/api` — matching the pattern
+      # already used by the sibling `test-unit` job (`pnpm --filter @scs/api
+      # test:coverage`). Local developers may still invoke `pnpm test:integration`
+      # from the repo root and export the vars themselves; the turbo task remains
+      # unchanged.
+      - run: pnpm --filter @scs/api test:integration
         env:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
+          REDIS_IT: '1'
+          REDIS_DISPOSABLE_ACK: '1'
+      # S1.28 diagnostic follow-up (non-blocking, always exit 0): vitest's JSON
+      # reporter suppresses ::error:: workflow commands, so failure annotations
+      # otherwise collapse to a bare "exit code 1". This step parses the same
+      # JSON report the assertion gate consumed and publishes failing test
+      # names to $GITHUB_STEP_SUMMARY, which is publicly readable on the run
+      # page. It changes no expectations and hides no failures — it only makes
+      # them visible without authenticated log access.
+      - name: Summarize vitest failures in job summary
+        if: failure()
+        working-directory: apps/api
+        run: node scripts/summarize-vitest-failures.mjs .vitest-integration-results.json
 
   # ── Migration Gate (enforcing — full chain with pg_partman) ──
   migration-gate:
@@ -362,6 +399,13 @@ jobs:
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           sleep 10
 
+      # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
+      # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
+      # when OTP_HMAC_SECRET is missing, is the `.env.example` placeholder, or is
+      # shorter than 32 chars. The container-build smoke test starts the image with
+      # NODE_ENV=production, so the CI value below must satisfy the same rules as
+      # any deployment: non-empty, >= 32 chars, not the dev placeholder. It is a
+      # throwaway per-run value — no secret material is stored in the workflow.
       - name: Start API container with safe defaults
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
@@ -369,6 +413,7 @@ jobs:
             -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
+            -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
             -e S3_ENDPOINT=http://minio:9000 \
             -e S3_ACCESS_KEY=ci-test-key \
             -e S3_SECRET_KEY=ci-test-secret \

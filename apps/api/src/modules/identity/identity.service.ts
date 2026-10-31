@@ -1,5 +1,7 @@
 import {
   Injectable,
+  Logger,
+  InternalServerErrorException,
   ConflictException,
   UnauthorizedException,
   BadRequestException,
@@ -24,10 +26,20 @@ import { eq, and, desc, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
+import { normalizePhone, maskPhone } from '../../common/utils/phone-validation';
+import { resolveOtpHmacSecret } from '../../config/env-gate';
 import { RateLimitService } from '../../common/services/rate-limit.service';
 import { RateLimitException } from '../../common/exceptions/rate-limit.exception';
 import { denylistKey, secondsUntilExp } from '../../common/auth/token-denylist';
 import { AuditService, AuditRequestContext } from '../audit/index';
+import { OtpDeliveryService } from '../notifications/otp-delivery.service';
+import { OtpDeliveryChannel } from '../notifications/providers/provider.interface';
+import {
+  ACQUIRE_RATE_LIMIT,
+  CREATE_CHALLENGE,
+  CLEANUP_CHALLENGE,
+  VERIFY_AND_CONSUME,
+} from '../../common/redis/otp-lua';
 
 /**
  * Roles assignable through the organization-membership endpoint
@@ -49,47 +61,170 @@ const MERCHANT_ASSIGNABLE_ROLE_KEYS = ['MERCHANT_OWNER', 'MERCHANT_STAFF'];
  * - Organization switching
  * - Session management (listable, remotely revocable)
  */
+/** OTP challenge TTL in seconds. */
+const OTP_CHALLENGE_TTL = 90;
+
+/** Max OTP requests per phone within the rate-limit window. */
+const OTP_REQUEST_LIMIT = 5;
+
+/** Max OTP verification failures per phone within the rate-limit window. */
+const OTP_VERIFY_FAIL_LIMIT = 10;
+
+/** Rate-limit window in seconds (15 minutes). */
+const RATE_LIMIT_WINDOW = 900;
+
 @Injectable()
 export class IdentityService {
+  private readonly logger = new Logger(IdentityService.name);
+  private readonly hmacSecret: string;
+
   constructor(
     private readonly db: DatabaseService,
     private readonly redis: RedisService,
     private readonly jwt: JwtService,
     private readonly rateLimitService: RateLimitService,
     private readonly audit: AuditService,
-  ) {}
+    private readonly otpDeliveryService: OtpDeliveryService,
+  ) {
+    // OTP storage secret is resolved through the shared config gate (S1.3 M-02):
+    // outside development/test a missing, too-short, or committed-example value
+    // fails startup; in development/test it falls back to a documented dev value.
+    this.hmacSecret = resolveOtpHmacSecret({
+      nodeEnv: process.env['NODE_ENV'],
+      secret: process.env['OTP_HMAC_SECRET'],
+    });
+  }
 
   /**
    * Request OTP for a phone number.
-   * - Generates 6-digit code
-   * - Stores in Redis with 90s TTL
-   * - Tracks attempts (max 5 per 15 min)
+   *
+   * Lifecycle:
+   * 1. Normalize phone to E.164.
+   * 2. Atomically enforce per-phone request rate limit (Lua script).
+   * 3. Generate 6-digit OTP with cryptographic randomness.
+   * 4. Compute HMAC-SHA256 of OTP with per-challenge salt.
+   * 5. Atomically create challenge in Redis (Lua script — supersedes any existing).
+   * 6. Deliver via selected provider (SMS or WhatsApp).
+   * 7. On definite delivery failure: atomically clean up challenge (owner-guarded).
+   *    On ambiguous timeout: preserve challenge — user may have received the OTP.
    */
-  async requestOtp(phone: string): Promise<{ success: boolean }> {
-    const attemptsKey = `otp:att:${phone}`;
-    const attempts = await this.redis.client.get(attemptsKey);
-    const attemptCount = attempts ? parseInt(attempts, 10) : 0;
+  async requestOtp(
+    phone: string,
+    channel: OtpDeliveryChannel = 'sms',
+  ): Promise<{
+    success: boolean;
+    deliveryStatus: string;
+    possiblyDelivered?: boolean;
+  }> {
+    // 1. Normalize phone to E.164
+    const normalizedPhone = normalizePhone(phone);
+    const masked = maskPhone(normalizedPhone);
 
-    if (attemptCount >= 5) {
-      const ttl = await this.redis.client.ttl(attemptsKey);
-      throw new RateLimitException('Too many OTP attempts. Please try again later.', {
-        limit: 5,
+    // 2. Atomic rate-limit check-and-increment
+    let rateResult: number[];
+    try {
+      rateResult = await this.redis.client.eval(
+        ACQUIRE_RATE_LIMIT, 1,
+        `otp:req:${normalizedPhone}`,
+        OTP_REQUEST_LIMIT,
+        RATE_LIMIT_WINDOW,
+      ) as number[];
+    } catch (_redisError) {
+      this.logger.error(`Redis error during rate-limit check for ${masked}`);
+      throw new InternalServerErrorException('Rate limit check failed. Please try again.');
+    }
+
+    const allowed: number = (rateResult[0] ?? 0) as number;
+    const ttl: number = (rateResult[2] ?? RATE_LIMIT_WINDOW) as number;
+    if (allowed === 0) {
+      throw new RateLimitException('Too many OTP requests. Please try again later.', {
+        limit: OTP_REQUEST_LIMIT,
         remaining: 0,
-        retryAfterSeconds: ttl > 0 ? ttl : 900,
+        retryAfterSeconds: ttl > 0 ? ttl : RATE_LIMIT_WINDOW,
       });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await this.redis.client.set(`otp:${phone}`, otp, 'EX', 90);
+    // 3. Generate OTP and HMAC
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const challengeId = crypto.randomUUID();
+    const salt = crypto.randomBytes(16).toString('hex');
+    const otpHash = crypto
+      .createHmac('sha256', this.hmacSecret)
+      .update(otp + salt)
+      .digest('hex');
 
-    // In production: send via SMS provider. Dev: log the OTP.
-    console.log(`[OTP] Code for ${phone}: ${otp}`);
+    // 4. Atomic challenge creation (supersedes any existing)
+    try {
+      await this.redis.client.eval(
+        CREATE_CHALLENGE, 1,
+        `otp:${normalizedPhone}`,
+        challengeId,
+        otpHash,
+        salt,
+        OTP_CHALLENGE_TTL,
+        Date.now().toString(),
+      );
+    } catch (_redisError) {
+      this.logger.error(`Redis error during challenge creation for ${masked}`);
+      throw new InternalServerErrorException('OTP generation failed. Please try again.');
+    }
 
-    return { success: true };
+    // 5. Deliver via provider
+    const deliveryResult = await this.otpDeliveryService.deliverOtp(
+      normalizedPhone, otp, channel, challengeId,
+    );
+
+    // 6. Handle delivery outcome
+    if (!deliveryResult.success) {
+      if (deliveryResult.deliveryOutcome === 'unknown') {
+        // Timeout or network error — OTP may have been delivered.
+        // Keep the challenge active so the user can verify if they received it.
+        this.logger.warn(
+          `OTP delivery outcome uncertain via ${channel} for ${masked} — challenge preserved`,
+        );
+        return {
+          success: false,
+          deliveryStatus: 'DELIVERY_TIMEOUT',
+          possiblyDelivered: true,
+        };
+      }
+
+      // Definite rejection — clean up challenge only if we still own it
+      try {
+        await this.redis.client.eval(
+          CLEANUP_CHALLENGE, 1,
+          `otp:${normalizedPhone}`,
+          challengeId,
+        );
+      } catch (_redisError) {
+        this.logger.error(`Redis error during challenge cleanup for ${masked}`);
+      }
+
+      return {
+        success: false,
+        deliveryStatus: deliveryResult.errorReason || 'DELIVERY_FAILED',
+      };
+    }
+
+    this.logger.log(`OTP delivered via ${channel} to ${masked} (challenge: ${challengeId})`);
+
+    return {
+      success: true,
+      deliveryStatus: 'delivered',
+    };
   }
 
   /**
    * Verify OTP and issue JWT pair.
+   *
+   * Lifecycle:
+   * 1. Normalize phone to E.164.
+   * 2. Read challenge to obtain salt for HMAC computation.
+   * 3. Compute HMAC-SHA256 of user-supplied OTP with stored salt.
+   * 4. Atomically verify-and-consume via Lua script.
+   * 5. On invalid OTP: atomically enforce verify-failure rate limit.
+   * 6. On success: clean up all rate-limit keys, issue JWT pair.
+   *
    * Persists deviceId on the session so the device becomes trusted
    * for future email/password logins.
    */
@@ -100,19 +235,97 @@ export class IdentityService {
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const storedOtp = await this.redis.client.get(`otp:${phone}`);
+    const normalizedPhone = normalizePhone(phone);
+    const masked = maskPhone(normalizedPhone);
+    const otpKey = `otp:${normalizedPhone}`;
 
-    if (!storedOtp || storedOtp !== otp) {
-      await this.redis.client.incr(`otp:att:${phone}`);
-      await this.redis.client.expire(`otp:att:${phone}`, 900);
-      throw new UnauthorizedException('Invalid OTP');
+    // 1. Read challenge to obtain salt for HMAC computation
+    let rawChallenge: string | null;
+    try {
+      rawChallenge = await this.redis.client.get(otpKey);
+    } catch (_redisError) {
+      this.logger.error(`Redis error reading challenge for ${masked}`);
+      throw new InternalServerErrorException('Verification failed. Please try again.');
     }
 
-    await this.redis.client.del(`otp:${phone}`);
-    await this.redis.client.del(`otp:att:${phone}`);
+    if (!rawChallenge) {
+      throw new UnauthorizedException('OTP expired or not found');
+    }
+
+    let challenge: { ch: string; hs: string; s: string; ca: string; co: boolean };
+    try {
+      challenge = JSON.parse(rawChallenge);
+    } catch {
+      this.logger.error(`Corrupt challenge data for ${masked}`);
+      await this.redis.client.del(otpKey).catch(() => {});
+      throw new UnauthorizedException('OTP verification error');
+    }
+
+    // 2. Compute HMAC of user-supplied OTP with stored salt
+    const providedHash = crypto
+      .createHmac('sha256', this.hmacSecret)
+      .update(otp + challenge.s)
+      .digest('hex');
+
+    // 3. Atomic verify-and-consume
+    let verifyStatus: number;
+    try {
+      const result = await this.redis.client.eval(
+        VERIFY_AND_CONSUME, 1,
+        otpKey,
+        providedHash,
+      ) as number[];
+      verifyStatus = (result[0] ?? -1) as number;
+    } catch (_redisError) {
+      this.logger.error(`Redis error during OTP verification for ${masked}`);
+      throw new InternalServerErrorException('Verification failed. Please try again.');
+    }
+
+    // 4. Handle verification result
+    switch (verifyStatus) {
+      case -1:
+        throw new UnauthorizedException('OTP expired or not found');
+      case -2:
+        throw new UnauthorizedException('OTP already used');
+      case 0: {
+        // Wrong OTP — atomically enforce verify-failure rate limit
+        try {
+          const failResult = await this.redis.client.eval(
+            ACQUIRE_RATE_LIMIT, 1,
+            `otp:vatt:${normalizedPhone}`,
+            OTP_VERIFY_FAIL_LIMIT,
+            RATE_LIMIT_WINDOW,
+          ) as number[];
+          const failAllowed = (failResult[0] ?? 0) as number;
+          if (failAllowed === 0) {
+            const failTtl = (failResult[2] ?? RATE_LIMIT_WINDOW) as number;
+            throw new RateLimitException('Too many invalid OTP attempts.', {
+              limit: OTP_VERIFY_FAIL_LIMIT,
+              remaining: 0,
+              retryAfterSeconds: failTtl > 0 ? failTtl : RATE_LIMIT_WINDOW,
+            });
+          }
+        } catch (e) {
+          if (e instanceof RateLimitException) throw e;
+          this.logger.error(`Redis error during verify-failure rate limit for ${masked}`);
+        }
+        throw new UnauthorizedException('Invalid OTP');
+      }
+      case 1:
+        // Valid OTP — challenge consumed (deleted by Lua script)
+        break;
+      default:
+        throw new UnauthorizedException('OTP verification error');
+    }
+
+    // 5. Clean up all rate-limit keys on successful verification
+    await Promise.all([
+      this.redis.client.del(`otp:req:${normalizedPhone}`).catch(() => {}),
+      this.redis.client.del(`otp:vatt:${normalizedPhone}`).catch(() => {}),
+    ]);
 
     const existing = await this.db.db.query.users.findFirst({
-      where: eq(users.phone, phone),
+      where: eq(users.phone, normalizedPhone),
     });
 
     let userId: string;
@@ -122,7 +335,7 @@ export class IdentityService {
       userId = crypto.randomUUID();
       await this.db.db.insert(users).values({
         id: userId,
-        phone,
+        phone: normalizedPhone,
         fullName: 'New User',
         locale: 'en',
         status: 'ACTIVE',
@@ -160,14 +373,13 @@ export class IdentityService {
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
-    // A login carries no JWT yet, so the HTTP middleware cannot attribute it.
     await this.audit.record({
       actorType: AuditService.actorTypeForRole(claims.roleKey),
       actorId: userId,
       orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: { method: 'otp', phone, deviceId: deviceId ?? null, sessionId },
+      metadata: { method: 'otp', phone: normalizedPhone, deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
@@ -857,8 +1069,17 @@ export class IdentityService {
 
     if (!isTrustedDevice) {
       // Device not trusted - require OTP verification
-      // Send OTP to user's phone
-      await this.requestOtp(user.phone);
+      // Send OTP to user's phone (defaults to SMS channel)
+      const otpResult = await this.requestOtp(user.phone);
+
+      if (!otpResult.success && !otpResult.possiblyDelivered) {
+        // Definite delivery failure — cannot proceed with untrusted device login
+        throw new UnauthorizedException(
+          'OTP delivery is currently unavailable. Please contact support or use a trusted device.',
+        );
+      }
+      // If possiblyDelivered (timeout), the challenge is still active in Redis.
+      // The user may have received the OTP and should be allowed to verify.
 
       // Password was correct but the device is unknown — record the challenge.
       await this.audit.record({

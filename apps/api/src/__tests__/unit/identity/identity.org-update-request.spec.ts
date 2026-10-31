@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { IdentityService } from '../../../modules/identity/identity.service';
 
+process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
+
 /**
  * Identity Service — organization update request unit tests (G5).
  *
@@ -57,12 +59,18 @@ function createMocks() {
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
+  const otpDeliveryService = {
+    deliverOtp: vi.fn().mockResolvedValue({ success: false, status: 'failed', errorReason: 'NOT_CONFIGURED', deliveryOutcome: 'rejected' }),
+    isChannelAvailable: vi.fn().mockReturnValue(false),
+    getAvailableChannels: vi.fn().mockReturnValue([]),
+  };
   return new IdentityService(
     mocks.mockDb,
     mocks.mockRedis,
     mocks.mockJwt,
     mocks.mockRateLimit,
     mocks.mockAudit,
+    otpDeliveryService as any,
   );
 }
 

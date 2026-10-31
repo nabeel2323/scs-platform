@@ -7,6 +7,7 @@ import {
   MaxLength,
   Matches,
   ValidateNested,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -43,6 +44,16 @@ export class RequestOtpDto {
   @IsNotEmpty()
   @MaxLength(20)
   phone!: string;
+
+  @ApiPropertyOptional({
+    enum: ['sms', 'whatsapp'],
+    default: 'sms',
+    description: 'Delivery channel for the OTP code',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['sms', 'whatsapp'])
+  channel?: 'sms' | 'whatsapp';
 }
 
 /** POST /v1/auth/otp/verify */
