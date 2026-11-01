@@ -13,7 +13,7 @@ import { relations } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(),
-  phone: varchar('phone', { length: 20 }).notNull().unique(),
+  phone: varchar('phone', { length: 20 }).unique(), // nullable since 0064 — email-only accounts allowed
   email: varchar('email', { length: 254 }).unique(),
   fullName: varchar('full_name', { length: 160 }).notNull(),
   locale: varchar('locale', { length: 10 }).notNull().default('en'),
@@ -146,5 +146,23 @@ export const credentialAuditLog = pgTable('credential_audit_log', {
   deviceId: varchar('device_id', { length: 128 }),
   ipAddress: inet('ip_address'),
   userAgent: varchar('user_agent', { length: 256 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Account link/unlink audit log (migration 0064_email_identity).
+ * Records every identifier link and unlink operation for security audit.
+ * identifierHash is SHA-256 of the normalized identifier — never stores
+ * raw phone/email values.
+ */
+export const accountLinkLog = pgTable('account_link_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  action: varchar('action', { length: 16 }).notNull(), // LINK | UNLINK
+  identifierType: varchar('identifier_type', { length: 8 }).notNull(), // PHONE | EMAIL
+  identifierHash: varchar('identifier_hash', { length: 64 }).notNull(),
+  performedBy: uuid('performed_by'), // NULL for self-service
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

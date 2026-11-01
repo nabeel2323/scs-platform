@@ -1,9 +1,9 @@
 /**
  * Notification provider configuration and validation.
  *
- * This module validates environment variables for SMS and WhatsApp providers
- * following the same pattern as env-gate.ts. Credentials are never logged or
- * exposed in error messages.
+ * This module validates environment variables for SMS, WhatsApp, and SMTP
+ * providers following the same pattern as env-gate.ts. Credentials are never
+ * logged or exposed in error messages.
  */
 
 import { Logger } from '@nestjs/common';
@@ -34,6 +34,19 @@ export interface WhatsAppConfig {
 }
 
 /**
+ * SMTP email provider configuration.
+ */
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+  from: string;
+  enabled: boolean;
+}
+
+/**
  * Default WhatsApp Graph API version when `WHATSAPP_API_VERSION` is unset or
  * invalid. This is the historically-pinned value; operators must confirm it is
  * still supported by Meta for their account before deploying.
@@ -49,6 +62,7 @@ const WHATSAPP_API_VERSION_PATTERN = /^v\d+\.\d+$/;
 export interface NotificationProviderConfig {
   twilio: TwilioConfig;
   whatsapp: WhatsAppConfig;
+  smtp: SmtpConfig;
 }
 
 /**
@@ -132,6 +146,35 @@ export function resolveWhatsAppConfig(
 }
 
 /**
+ * Resolve SMTP configuration from environment variables.
+ *
+ * Security: Never logs credential values. Only reports presence/absence.
+ */
+export function resolveSmtpConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): SmtpConfig {
+  const host = env['SMTP_HOST']?.trim() || '';
+  const port = parseInt(env['SMTP_PORT']?.trim() || '587', 10);
+  const secure = (env['SMTP_SECURE']?.trim() || 'false').toLowerCase() === 'true';
+  const user = env['SMTP_USER']?.trim() || '';
+  const password = env['SMTP_PASSWORD']?.trim() || '';
+  const from = env['SMTP_FROM']?.trim() || '';
+
+  // SMTP is considered enabled when at minimum host and from are set.
+  // Authentication (user/password) is optional — local dev uses Mailhog without auth.
+  const enabled = !!(host && from);
+
+  if (!enabled) {
+    logger.log('SMTP email provider is not configured (missing SMTP_HOST or SMTP_FROM)');
+  } else {
+    const authStatus = user ? 'with auth' : 'without auth (anonymous relay)';
+    logger.log(`SMTP email provider is configured (${host}:${port}, ${authStatus})`);
+  }
+
+  return { host, port, secure, user, password, from, enabled };
+}
+
+/**
  * Resolve all notification provider configurations.
  *
  * @param env - Environment variables (defaults to process.env).
@@ -143,6 +186,7 @@ export function resolveNotificationConfig(
   return {
     twilio: resolveTwilioConfig(env),
     whatsapp: resolveWhatsAppConfig(env),
+    smtp: resolveSmtpConfig(env),
   };
 }
 
@@ -156,7 +200,7 @@ export function resolveNotificationConfig(
  * @returns Whether at least one provider is configured.
  */
 export function hasAnyProvider(config: NotificationProviderConfig): boolean {
-  return config.twilio.enabled || config.whatsapp.enabled;
+  return config.twilio.enabled || config.whatsapp.enabled || config.smtp.enabled;
 }
 
 /**
@@ -165,8 +209,9 @@ export function hasAnyProvider(config: NotificationProviderConfig): boolean {
  * @param config - Resolved provider configuration.
  */
 export function logProviderStatus(config: NotificationProviderConfig): void {
-  logger.log(`SMS provider (Twilio): ${config.twilio.enabled ? 'ENABLED' : 'DISABLED'}`);
+  logger.log(`Twilio SMS provider: ${config.twilio.enabled ? 'ENABLED' : 'DISABLED'}`);
   logger.log(`WhatsApp provider: ${config.whatsapp.enabled ? 'ENABLED' : 'DISABLED'}`);
+  logger.log(`SMTP email provider: ${config.smtp.enabled ? 'ENABLED' : 'DISABLED'}`);
 
   if (!hasAnyProvider(config)) {
     logger.warn(

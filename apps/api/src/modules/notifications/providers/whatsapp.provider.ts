@@ -16,7 +16,7 @@
 import { Logger } from '@nestjs/common';
 import {
   NotificationProvider,
-  OtpDeliveryRequest,
+  ChallengeDeliveryRequest,
   OtpDeliveryResult,
   ProviderPermanentError,
   ProviderTransientError,
@@ -53,7 +53,7 @@ export class WhatsAppProvider implements NotificationProvider {
    * @param request - The OTP delivery request.
    * @returns The delivery result.
    */
-  async sendOtp(request: OtpDeliveryRequest): Promise<OtpDeliveryResult> {
+  async sendOtp(request: ChallengeDeliveryRequest): Promise<OtpDeliveryResult> {
     if (!this.isConfigured()) {
       return {
         success: false,
@@ -65,6 +65,15 @@ export class WhatsAppProvider implements NotificationProvider {
     }
 
     const { phone, otp, correlationId } = request;
+    if (!phone) {
+      return {
+        success: false,
+        status: 'failed',
+        errorReason: 'MISSING_PHONE',
+        retryable: false,
+        deliveryOutcome: 'rejected' as const,
+      };
+    }
 
     try {
       // Mask phone number for logging (show only last 4 digits)

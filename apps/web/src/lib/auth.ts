@@ -32,7 +32,13 @@ export type { AuthSession };
 
 export interface AuthUser {
   id: string;
-  phone: string;
+  /**
+   * Nullable from S1.35 onward. Migration 0064 drops the NOT NULL constraint on
+   * `users.phone` and `UserProfileSchema` therefore became `z.string().nullable()`,
+   * so an email-first account legitimately has no phone. Callers must not render or
+   * forward this as if it were always present.
+   */
+  phone: string | null;
   fullName: string;
   activeOrgId?: string;
   role?: string;

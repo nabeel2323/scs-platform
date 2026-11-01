@@ -34,6 +34,12 @@ import {
   LoginPasswordResponseSchema,
   DeviceCheckSchema,
   DeviceCheckResponseSchema,
+  EmailOtpRequestSchema,
+  EmailOtpVerifySchema,
+  EmailOtpRequestResponseSchema,
+  AccountLinkEmailSchema,
+  AccountLinkPhoneSchema,
+  AccountLinkResponseSchema,
   SessionInfoSchema,
   UserProfileSchema,
   ProblemDetailSchema,
@@ -64,6 +70,12 @@ const Ref = {
   LoginPasswordResponse: register('LoginPasswordResponse', LoginPasswordResponseSchema),
   DeviceCheck: register('DeviceCheck', DeviceCheckSchema),
   DeviceCheckResponse: register('DeviceCheckResponse', DeviceCheckResponseSchema),
+  EmailOtpRequest: register('EmailOtpRequest', EmailOtpRequestSchema),
+  EmailOtpVerify: register('EmailOtpVerify', EmailOtpVerifySchema),
+  EmailOtpRequestResponse: register('EmailOtpRequestResponse', EmailOtpRequestResponseSchema),
+  AccountLinkEmail: register('AccountLinkEmail', AccountLinkEmailSchema),
+  AccountLinkPhone: register('AccountLinkPhone', AccountLinkPhoneSchema),
+  AccountLinkResponse: register('AccountLinkResponse', AccountLinkResponseSchema),
   SessionInfo: register('SessionInfo', SessionInfoSchema),
   UserProfile: register('UserProfile', UserProfileSchema),
   ProblemDetail: register('ProblemDetail', ProblemDetailSchema),
@@ -179,6 +191,95 @@ const openapi = {
         responses: {
           '200': jsonResponse('Device-trust status', Ref.DeviceCheckResponse),
         },
+      },
+    },
+    '/v1/auth/otp/email/request': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Request an email OTP (login, registration, or identifier linking)',
+        description: 'Enumeration-safe and 404 when the auth.email_otp.enabled feature flag is off. '
+          + 'Response shape and timing do not disclose whether the address exists.',
+        requestBody: requestBody(Ref.EmailOtpRequest),
+        responses: {
+          '200': jsonResponse('Delivery outcome (same shape for known and unknown addresses)', Ref.EmailOtpRequestResponse),
+          '404': problemResponse('Feature flag disabled'),
+          '429': problemResponse('Per-email or per-IP rate limit exceeded'),
+        },
+      },
+    },
+    '/v1/auth/otp/email/verify': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Verify an email OTP and issue a JWT pair',
+        description: 'Atomically consumes the challenge; replay yields 401. Creates an '
+          + 'email-only account when no user holds the address yet.',
+        requestBody: requestBody(Ref.EmailOtpVerify),
+        responses: {
+          '200': jsonResponse('JWT tokens issued', Ref.AuthTokens),
+          '401': problemResponse('Expired, already used, or invalid OTP'),
+          '404': problemResponse('Feature flag disabled'),
+          '429': problemResponse('Too many invalid OTP attempts'),
+        },
+      },
+    },
+    '/v1/auth/account/link-email': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Attach an email identifier to the caller account',
+        description: 'Requires a consumed email OTP proving control of the address, plus the '
+          + 'auth.email_otp.enabled feature flag.',
+        requestBody: requestBody(Ref.AccountLinkEmail),
+        responses: {
+          '200': jsonResponse('Identifier attached', Ref.AccountLinkResponse),
+          '401': problemResponse('Missing access token or OTP proof'),
+          '404': problemResponse('Feature flag disabled'),
+          '409': problemResponse('EMAIL_ALREADY_IN_USE or a concurrent link'),
+        },
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    '/v1/auth/account/link-phone': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Attach a phone identifier to the caller account',
+        description: 'Requires a consumed phone OTP proving control of the number, plus the '
+          + 'auth.email_otp.enabled feature flag.',
+        requestBody: requestBody(Ref.AccountLinkPhone),
+        responses: {
+          '200': jsonResponse('Identifier attached', Ref.AccountLinkResponse),
+          '401': problemResponse('Missing access token or OTP proof'),
+          '404': problemResponse('Feature flag disabled'),
+          '409': problemResponse('PHONE_ALREADY_IN_USE or a concurrent link'),
+        },
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    '/v1/auth/account/unlink-email': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Detach the email identifier from the caller account',
+        description: 'Rejected when no usable identifier would remain.',
+        responses: {
+          '200': jsonResponse('Identifier detached', Ref.AccountLinkResponse),
+          '400': problemResponse('Would remove the last usable identifier'),
+          '401': problemResponse('Missing access token'),
+          '404': problemResponse('Feature flag disabled'),
+        },
+        security: [{ bearerAuth: [] }],
+      },
+    },
+    '/v1/auth/account/unlink-phone': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Detach the phone identifier from the caller account',
+        description: 'Rejected when no usable identifier would remain.',
+        responses: {
+          '200': jsonResponse('Identifier detached', Ref.AccountLinkResponse),
+          '400': problemResponse('Would remove the last usable identifier'),
+          '401': problemResponse('Missing access token'),
+          '404': problemResponse('Feature flag disabled'),
+        },
+        security: [{ bearerAuth: [] }],
       },
     },
     '/v1/me': {

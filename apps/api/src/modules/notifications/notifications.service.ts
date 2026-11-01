@@ -288,6 +288,7 @@ export class NotificationsService implements OnModuleInit {
     });
     if (!user) throw new Error('User not found');
     const phone = user['phone'];
+    if (!phone) throw new Error('User has no phone number for SMS delivery');
 
     // Primary provider
     try {

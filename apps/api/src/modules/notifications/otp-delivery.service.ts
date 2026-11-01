@@ -2,53 +2,51 @@
  * OTP delivery service — orchestrates provider selection and delivery.
  *
  * This service manages the lifecycle of OTP delivery:
- * 1. Select the appropriate provider based on the requested channel.
+ * 1. Select the appropriate provider via the ProviderRegistryService.
  * 2. Attempt delivery via the selected provider.
  * 3. Handle failures gracefully (no silent bypasses).
  * 4. Log delivery status without exposing sensitive data.
  *
  * Security:
- * - Never logs OTP values or full phone numbers.
+ * - Never logs OTP values or full phone/email addresses.
  * - Returns explicit failure when no provider is configured.
  * - Returns deliveryOutcome classification for safe OTP lifecycle management.
+ * - Mock provider is accessible only through internal test injection.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  NotificationProvider,
   OtpDeliveryChannel,
-  OtpDeliveryRequest,
+  InternalDeliveryChannel,
+  ChallengeDeliveryRequest,
   OtpDeliveryResult,
 } from './providers/provider.interface';
-import {
-  NotificationProviderConfig,
-  resolveNotificationConfig,
-} from './providers/provider.config';
-import { TwilioSmsProvider } from './providers/twilio-sms.provider';
-import { WhatsAppProvider } from './providers/whatsapp.provider';
+import { ProviderRegistryService } from './provider-registry.service';
+import { maskPhone } from '../../common/utils/phone-validation';
+import { maskEmail } from '../../common/utils/email-normalization';
 
 @Injectable()
 export class OtpDeliveryService {
   private readonly logger = new Logger(OtpDeliveryService.name);
-  private readonly providers: Map<OtpDeliveryChannel, NotificationProvider>;
-  private readonly config: NotificationProviderConfig;
+  private readonly registry!: ProviderRegistryService;
 
-  constructor() {
-    this.config = resolveNotificationConfig();
-    this.providers = new Map();
-
-    // Initialize providers
-    const twilioProvider = new TwilioSmsProvider(this.config.twilio);
-    const whatsappProvider = new WhatsAppProvider(this.config.whatsapp);
-
-    this.providers.set('sms', twilioProvider);
-    this.providers.set('whatsapp', whatsappProvider);
-
-    this.logProviderStatus();
+  constructor(registry?: ProviderRegistryService) {
+    if (registry) {
+      this.registry = registry;
+    } else {
+      // Legacy test path — create a default registry
+      try {
+        this.registry = new ProviderRegistryService();
+      } catch {
+        // ProviderRegistryService may fail in test env without config
+      }
+    }
   }
 
   /**
-   * Deliver an OTP via the specified channel.
+   * Deliver an OTP via a phone channel (SMS or WhatsApp).
+   *
+   * Backward-compatible method for existing phone OTP flows.
    *
    * @param phone - Destination phone number in E.164 format.
    * @param otp - The OTP code to deliver (6 digits).
@@ -62,10 +60,73 @@ export class OtpDeliveryService {
     channel: OtpDeliveryChannel,
     correlationId?: string,
   ): Promise<OtpDeliveryResult> {
-    const provider = this.providers.get(channel);
+    return this.deliverChallenge({
+      otp,
+      channel,
+      correlationId,
+      phone,
+      subject: maskPhone(phone),
+      subjectType: 'phone',
+    });
+  }
 
-    if (!provider) {
-      this.logger.warn(`Unknown delivery channel requested: ${channel}`);
+  /**
+   * Deliver an OTP via email.
+   *
+   * @param email - Normalized recipient email address.
+   * @param otp - The OTP code to deliver (6 digits).
+   * @param correlationId - Optional correlation ID for tracking.
+   * @returns The delivery result.
+   */
+  async deliverEmailOtp(
+    email: string,
+    otp: string,
+    correlationId?: string,
+  ): Promise<OtpDeliveryResult> {
+    return this.deliverChallenge({
+      otp,
+      channel: 'email',
+      correlationId,
+      email,
+      subject: maskEmail(email),
+      subjectType: 'email',
+    });
+  }
+
+  /**
+   * Deliver an OTP challenge via a specific internal channel (including mock).
+   * Used by test infrastructure for deterministic OTP delivery.
+   */
+  async deliverToTestChannel(
+    request: ChallengeDeliveryRequest,
+  ): Promise<OtpDeliveryResult> {
+    return this.deliverChallenge(request);
+  }
+
+  /**
+   * Check if a specific public channel is available.
+   */
+  isChannelAvailable(channel: OtpDeliveryChannel): boolean {
+    return this.registry.isChannelAvailable(channel);
+  }
+
+  /**
+   * Get the list of available public delivery channels.
+   */
+  getAvailableChannels(): OtpDeliveryChannel[] {
+    return this.registry.getAvailableChannels();
+  }
+
+  /**
+   * Core delivery method — routes through the provider registry.
+   */
+  private async deliverChallenge(
+    request: ChallengeDeliveryRequest,
+  ): Promise<OtpDeliveryResult> {
+    const channel = request.channel;
+
+    // Reject unknown channels explicitly (backward compat)
+    if (!this.isPublicChannel(channel) && channel !== 'mock') {
       return {
         success: false,
         status: 'failed',
@@ -75,41 +136,39 @@ export class OtpDeliveryService {
       };
     }
 
-    if (!provider.isConfigured()) {
-      this.logger.warn(`Provider for channel '${channel}' is not configured`);
-      return {
-        success: false,
-        status: 'failed',
-        errorReason: `${channel.toUpperCase()}_PROVIDER_NOT_CONFIGURED`,
-        retryable: false,
-        deliveryOutcome: 'rejected' as const,
-      };
-    }
-
-    const request: OtpDeliveryRequest = {
-      phone,
-      otp,
-      channel,
-      correlationId,
-    };
-
     try {
+      // Route through the appropriate registry accessor
+      const provider = this.isPublicChannel(channel)
+        ? this.registry.getForChannel(channel as OtpDeliveryChannel)
+        : this.registry.getForTest(channel as InternalDeliveryChannel);
+
+      if (!provider.isConfigured()) {
+        this.logger.warn(`Provider for channel '${channel}' is not configured`);
+        return {
+          success: false,
+          status: 'failed',
+          errorReason: `${channel.toUpperCase()}_PROVIDER_NOT_CONFIGURED`,
+          retryable: false,
+          deliveryOutcome: 'rejected' as const,
+        };
+      }
+
       const result = await provider.sendOtp(request);
 
       if (result.success) {
         this.logger.log(
-          `OTP delivered via ${channel} (message: ${result.messageId || 'unknown'}, correlation: ${correlationId || 'none'})`,
+          `OTP delivered via ${channel} to ${request.subject} (message: ${result.messageId || 'unknown'}, correlation: ${request.correlationId || 'none'})`,
         );
       } else {
         this.logger.warn(
-          `OTP delivery failed via ${channel}: ${result.errorReason} (retryable: ${result.retryable || false})`,
+          `OTP delivery failed via ${channel} to ${request.subject}: ${result.errorReason} (retryable: ${result.retryable || false})`,
         );
       }
 
       return result;
     } catch (error) {
       this.logger.error(
-        `Unexpected error during OTP delivery via ${channel}: ${error instanceof Error ? error.message : 'unknown'}`,
+        `Unexpected error during OTP delivery via ${channel} to ${request.subject}: ${error instanceof Error ? error.message : 'unknown'}`,
       );
 
       return {
@@ -122,47 +181,7 @@ export class OtpDeliveryService {
     }
   }
 
-  /**
-   * Check if a specific channel is available (configured and ready).
-   *
-   * @param channel - The delivery channel to check.
-   * @returns Whether the channel is available.
-   */
-  isChannelAvailable(channel: OtpDeliveryChannel): boolean {
-    const provider = this.providers.get(channel);
-    return provider?.isConfigured() || false;
-  }
-
-  /**
-   * Get the list of available delivery channels.
-   *
-   * @returns Array of available channel names.
-   */
-  getAvailableChannels(): OtpDeliveryChannel[] {
-    const available: OtpDeliveryChannel[] = [];
-
-    for (const [channel, provider] of this.providers.entries()) {
-      if (provider.isConfigured()) {
-        available.push(channel);
-      }
-    }
-
-    return available;
-  }
-
-  /**
-   * Log provider status summary (no credentials).
-   */
-  private logProviderStatus(): void {
-    const availableChannels = this.getAvailableChannels();
-
-    if (availableChannels.length === 0) {
-      this.logger.warn(
-        'No notification providers are configured. OTP delivery will fail explicitly. ' +
-          'Set TWILIO_* or WHATSAPP_* environment variables to enable delivery.',
-      );
-    } else {
-      this.logger.log(`Available delivery channels: ${availableChannels.join(', ')}`);
-    }
+  private isPublicChannel(channel: string): boolean {
+    return channel === 'sms' || channel === 'whatsapp' || channel === 'email';
   }
 }
