@@ -18,7 +18,7 @@
 | Baseline (starting) commit, audited  | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Baseline relationship to `develop`   | identical to `origin/develop` — the Phase 1 work was **uncommitted** at audit start (finding F-01)                                                                                                                                                                                                                                                                                                                                                                                          |
 | **Audited final SHA (code)**         | `5581e6a46d4705c21a97cc941a696896f8f7973e` — Phase 1 source, migration, tests, contracts, CI, lockfile and the web client. 51 paths, each staged by explicit name (§4.7); `51 files changed, 9523 insertions(+), 176 deletions(-)`                                                                                                                                                                                                                                                          |
-| Publication SHA (docs only)          | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f`, the documentation-only commit immediately following `5581e6a46d4705c21a97cc941a696896f8f7973e`: the three S1.37 reports, the corrected S1.35 runbook and the two S1.35 supersession banners. A further documentation-only commit appends §4.8 below. Neither contains any source, migration, test, contract or CI change, so the audited source tree is byte-identical at all of these SHAs                                                     |
+| Publication SHA (docs only)          | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f`, the documentation-only commit immediately following `5581e6a46d4705c21a97cc941a696896f8f7973e`: the three S1.37 reports, the corrected S1.35 runbook and the two S1.35 supersession banners. Further documentation-only commits append §4.7–§4.9 below. None of them contains any source, migration, test, contract or CI change, so the audited source tree is byte-identical at all of these SHAs                                             |
 | Why the last docs SHA is not printed | a commit cannot contain its own hash, so the tip documentation commit is necessarily unnamed here; its predecessor can be and is named above. Verify the branch tip with `git rev-parse feat/auth-email-otp-phase1`, then confirm that everything above `5581e6a…` is documentation with `git diff --name-only 5581e6a46d4705c21a97cc941a696896f8f7973e..HEAD`, which must list only `docs/production/*`. That command was executed and returned exactly the six audit and report documents |
 | Remotes touched                      | none. No push, no PR, no merge, no deploy                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -115,11 +115,17 @@ a reviewer can predict it exactly. This is blocker B-2's quantified form.
 
 ## 4. Command-level evidence
 
-**Retention note.** The raw console logs and JSON reports from these runs were written to a scratch
-directory that is deliberately not committed and has been removed at the end of the audit. This
-section therefore transcribes the decisive lines — exact command, counts, exit code, duration — and
-every command is given verbatim so that any figure below can be reproduced from the committed tree.
-No claim in this report depends on an artifact the reader cannot regenerate.
+**Retention note.** The raw console logs and JSON reports from these runs were written to
+`.audit-scratch/` at the repository root. That directory belongs to **no** commit: the `*.log` files
+inside it are covered by `.gitignore:37`, and the directory itself is the single untracked entry
+`?? .audit-scratch/`. It was scanned across all 109 of its files for credential-shaped content
+(JWT-prefixed strings, `redis://user:pass@`, `smtp://user:pass@`, long bearer tokens) and returned
+zero matches. Deleting it is safe and is recorded as a one-command operator action
+(`Remove-Item -Recurse .audit-scratch`) rather than claimed as done, because bulk directory removal is
+outside the file operations this audit is permitted to perform. **No claim in these reports depends on
+any file in it:** the decisive lines — exact command, counts, exit code, duration — are transcribed
+below, and every command is given verbatim so that any figure can be reproduced from the committed
+tree. The generated `apps/api/.vitest-integration-results.json` was deleted (§4.7).
 
 ### 4.1 Full unit suite, deterministic
 
@@ -310,8 +316,8 @@ but belong to unrelated work and are excluded.
 staging with `git add -A` would therefore commit a machine-local test report. The exact action is to
 add `.vitest-integration-results.json` to `.gitignore` in a housekeeping commit; it was deliberately
 not done here, because that edit belongs to the code commit that had already been made and frozen,
-and a `.gitignore` line is not evidence for any Phase 1 criterion. The audit's own copy was deleted
-with the rest of the scratch tree.
+and a `.gitignore` line is not evidence for any Phase 1 criterion. The audit deleted its own copy of
+the file (`DeleteFile`, confirmed gone from the working tree) and left no trace in any commit.
 
 ### 4.8 Re-verification executed **after** the commit, on the committed tree
 
@@ -347,6 +353,26 @@ removal — name, image and port binding all matching — and only then removed
 (`docker rm -f scs-s137-disposable-redis` and `docker rm -f audit-pg-0064`, both exit 0). No other
 container was stopped: `scs-redis`, `scs-postgres`, `scs-minio`, `scs-mailhog` and the two leftover
 `postgis/postgis:16-3.4` test containers are in the same state they were found in.
+
+### 4.9 Self-review of the audit's own deliverables
+
+The mandate requires reviewing the changes just made, so the three reports were checked mechanically
+rather than read persuasively. Five checks, each with a concrete defect or a clean result:
+
+| Check on the deliverables                                                                                      | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Table shape: every row of every table has as many cell separators as its header                                | **one real defect found and fixed.** The runbook's §3 prerequisites row for “0063 applied” had been split across two physical lines by an earlier in-place edit and named a file that does not exist (`0063_…_inventory_reserved.sql`). It now names `0063_phase4_operational_readiness.sql` and states that `_migration_log.name` holds the migration basename (`migrate.ts:71`, `migrate-pg.ts:124`). Runbook change log v2.4. The only remaining flagged row is the deliberate escaped pipe in `phone: string \| null` (finding F-16), which is correct markdown. |
+| Stray empty trailing cells produced by fragment-style edits                                                    | two rows acquired an extra empty trailing cell (a doubled cell separator at the end of the row) after a partial-line replacement; both were collapsed and re-verified.                                                                                                                                                                                                                                                                                                                                                                                               |
+| Encoding: lone `\r`, `\r\n`, double-encoded em-dashes, replacement characters across all six Phase 1 documents | `loneCR=0`, `crlf=0`, `a-acute=0`, `euro=0`, `replacement=0`, every em-dash present as the correct `E2 80 94` byte sequence. The apparently corrupted characters seen in the console are a CP1252 decoding artifact of the Windows terminal — U+2014 read as three separate latin-1 characters — not file corruption, and this report deliberately quotes no mojibake literal so that the byte-level check stays green on every document in the set.                                                                                                                 |
+| Credential scan of the scratch tree (109 files) and of the staged diff                                         | zero matches for JWT-prefixed strings, `redis://user:pass@`, `smtp://user:pass@`, long bearer tokens, Twilio account identifiers or SMTP passwords. The committed `.env.example` change adds commented placeholders only.                                                                                                                                                                                                                                                                                                                                            |
+| Formatting of the six documents                                                                                | `prettier --check` exit 0, “All matched files use Prettier code style!”. Repo-wide `pnpm format:check` remains red for unrelated pre-existing reasons (F-18, B-7).                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+Two self-corrections of the same class are worth naming because they were _my_ errors, not the
+baseline's: a line count taken with `Measure-Object -Line` reported the withdrawn S1.35 runbook as
+88 lines when it is 110 (`-Line` ignores blank lines), and an earlier sentence in this report
+described the S1.35 runbook as carrying “a supersession banner, no content rewrite” when it had in
+fact been rewritten as a withdrawal notice. Both were found by re-deriving the claim from the file
+instead of from memory, and both are corrected above and in audit report §3.2.
 
 ---
 
