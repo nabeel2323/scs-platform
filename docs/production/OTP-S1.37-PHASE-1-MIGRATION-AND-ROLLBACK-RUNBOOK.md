@@ -21,13 +21,15 @@
 
 ### 1.1 Commit identity
 
-| Item                               | Value                                                    |
-| ---------------------------------- | -------------------------------------------------------- |
-| Branch                             | `feat/auth-email-otp-phase1`                             |
-| Baseline (audited starting commit) | `2abb53881c87724c338e2a2a94b8e9be78e70c23`               |
-| Baseline relationship to `develop` | recorded in the audit report §1                          |
-| Audited final SHA (code)           | `5581e6a46d4705c21a97cc941a696896f8f7973e`               |
-| Migration audited                  | `0064_email_identity.sql` rev.2 (rewritten during S1.37) |
+| Item                               | Value                                                                                                                                                                                          |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Branch                             | `feat/auth-email-otp-phase1`                                                                                                                                                                   |
+| Baseline (audited starting commit) | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                                                                                     |
+| Baseline relationship to `develop` | recorded in the audit report §1                                                                                                                                                                |
+| Audited final SHA (code)           | `5581e6a46d4705c21a97cc941a696896f8f7973e`                                                                                                                                                     |
+| Documentation commits on top       | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f` (this runbook, the two S1.35 corrections and the two S1.37 reports) plus a later documentation-only commit carrying the post-commit re-verification |
+| Audit window                       | opened 2026-10-31, closed 2026-11-01 (local time, UTC+03:00)                                                                                                                                   |
+| Migration audited                  | `0064_email_identity.sql` rev.2 (rewritten during S1.37)                                                                                                                                       |
 
 ### 1.2 What rev.2 changed relative to the rev.1 file the v1.0 runbook described
 
@@ -490,6 +492,13 @@ Every claim below was re-tested against a disposable PostgreSQL 16 instance duri
 | C-14 | Date `2025-01-19`, Change Log 1.0                                                                                  | **Wrong**                             | §13.                                                                                                                                                                                                                          |
 | C-15 | "The migration is applied automatically … when the API service starts"                                             | **True but must be stated as a risk** | `onModuleInit` auto-migration means starting a dev server against a shared database silently applies pending migrations. Never start a dev API against staging/production.                                                    |
 
+**On the quoted MSISDN.** The `+9665…` digit string appears in this table **only** as the original that
+C-11 rejects; it is absent from every executable block in §8.9 and from every health check, where
+`<DISPOSABLE_TEST_MSISDN>` must be replaced by a number the operator owns. The same string is still
+quoted inside the withdrawal notice that replaced the S1.35 runbook, because that notice has to keep
+the withdrawn text identifiable — finding F-20 exists precisely because earlier revisions were not
+recoverable from Git. That notice is a record, not a procedure, and nothing in it may be executed.
+
 ---
 
 ## 11. Evidence: actual rev.2 behaviour on a disposable database
@@ -577,6 +586,7 @@ that is why the guarded `DO` blocks compare `pg_get_constraintdef` / `pg_indexes
 | 2026-10-31 | 2.0     | S1.37 independent audit | Rewritten as the authoritative runbook. Corrects the idempotency claim (C-1), the `CONCURRENTLY`/locking claim (C-2, C-4), the atomicity claim (C-3), the preflight/CHECK/index definitions (C-6..C-9), the feature-flag scope claim (C-10), the phone-number/credential health checks (C-11), a log pattern that cannot occur (C-12), the appendix SQL (C-13) and the document date (C-14). Adds the runner transaction contract, verified lock semantics, rerun semantics, rev.1→rev.2 reconciliation, and the disposable-only evidence set. Reflects migration rev.2. |
 | 2026-10-31 | 2.1     | S1.37 independent audit | Adds health check H5 and the proof-of-control behaviour note for `account/link-phone`, following the remediation of finding **S1.37-F-05**: `LinkPhoneDto`/`AccountLinkPhone` now require a consumed phone OTP, the phone verification gate is shared with login, and the OpenAPI document declares the requirement. Migration content is unchanged.                                                                                                                                                                                                                     |
 | 2026-10-31 | 2.2     | S1.37 independent audit | Records the audited final code SHA (`5581e6a46d4705c21a97cc941a696896f8f7973e`) in §1.1, replacing the forward reference to another document. H5 no longer contains the withdrawn S1.35 placeholder subscriber number: leaving it in would have contradicted correction C-11, which rejects that exact literal. The check now takes an operator-owned `<DISPOSABLE_TEST_MSISDN>` and explains the 400/401/200 outcomes. Migration content is unchanged.                                                                                                                  |
+| 2026-11-01 | 2.3     | S1.37 independent audit | Closes the audit. §1.1 now names the documentation commits and the audit window, and §10 states explicitly that the rejected MSISDN survives only as quoted original in the C-11 row and in the S1.35 withdrawal notice, never inside an executable block. All checks were re-executed against the committed tree after the code commit and reproduced every published figure (verification report §4.8); the migration, its probes and the rollback procedure are unchanged.                                                                                            |
 
 ---
 

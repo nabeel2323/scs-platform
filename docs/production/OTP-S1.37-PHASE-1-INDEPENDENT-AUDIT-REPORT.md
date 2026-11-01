@@ -3,7 +3,7 @@
 - **Document ID:** OTP-S1.37-PHASE-1-INDEPENDENT-AUDIT-REPORT
 - **Sprint:** S1.37 — Phase 1 Independent Audit, Corrections and Final Acceptance
 - **Audited artefact:** S1.35–S1.36 _Phase 1 — Email-First Identity and Email OTP_
-- **Audit date:** 2026-10-31
+- **Audit date:** opened 2026-10-31, closed 2026-11-01 (local time, UTC+03:00)
 - **Auditor:** independent engineering audit (agent-executed, evidence-backed)
 - **Reports issued under this audit:**
   1. this document (findings + remediation + acceptance matrix)
@@ -44,15 +44,18 @@ no persistent/shared Redis, disposable PostgreSQL and Redis only.
 
 ## 2. Repository state verified (Section 1 of the mandate)
 
-| Item                                | Verified value                                                                                                             |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Working directory                   | `c:\TAIF\scs-platform`                                                                                                     |
-| Branch                              | `feat/auth-email-otp-phase1`                                                                                               |
-| `HEAD` at audit start (baseline)    | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                 |
-| Baseline relationship to `develop`  | `HEAD` **is** `origin/develop`; `git rev-parse origin/develop` returns the same SHA — the branch has no commits of its own |
-| Staged changes at audit start       | 0                                                                                                                          |
-| Working-tree entries at audit start | 209 (`git status --porcelain` line count)                                                                                  |
-| Destructive operations used         | none                                                                                                                       |
+| Item                                  | Verified value                                                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Working directory                     | `c:\TAIF\scs-platform`                                                                                                        |
+| Branch                                | `feat/auth-email-otp-phase1`                                                                                                  |
+| `HEAD` at audit start (baseline)      | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                    |
+| Baseline relationship to `develop`    | `HEAD` **is** `origin/develop`; `git rev-parse origin/develop` returns the same SHA — the branch has no commits of its own    |
+| Staged changes at audit start         | 0                                                                                                                             |
+| Working-tree entries at audit start   | 209 (`git status --porcelain` line count)                                                                                     |
+| Destructive operations used           | none                                                                                                                          |
+| `HEAD` at audit close (code)          | `5581e6a46d4705c21a97cc941a696896f8f7973e` — see §2.2                                                                         |
+| `HEAD` at audit close (documentation) | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f`, plus a further documentation-only commit carrying §4.8 of the verification report |
+| Unrelated entries preserved           | 154 working-tree entries outside this change set, untouched                                                                   |
 
 ### 2.1 The one fact that changes how every other report must be read
 
@@ -80,10 +83,25 @@ Consequences, all of which are material and none of which were previously docume
 
 **Remediation (F-01):** the Phase 1 change set is now committed locally as
 `5581e6a46d4705c21a97cc941a696896f8f7973e` (51 paths, each staged explicitly by name; 9 523 insertions, 176 deletions), with the
-documentation set following in a separate documentation-only commit. `git diff HEAD --name-only`
+documentation set following in the separate documentation-only commit
+`00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f`. `git diff HEAD --name-only`
 over those 51 paths returns no files, so the tested tree and the committed tree are identical, and
 the commit's own file list was verified to contain every import target (§4.7 of the Final
 Verification Report). No push was performed and none is authorized.
+
+### 2.2 Repository state at audit close
+
+| Item                        | Value                                                                                                                                                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Branch                      | `feat/auth-email-otp-phase1`, three commits ahead of `origin/develop` (`2abb538…`): one code commit and two documentation commits                                                                                                          |
+| Commit 1 (code)             | `5581e6a46d4705c21a97cc941a696896f8f7973e` — 51 files, `9523 insertions(+)`, `176 deletions(-)`                                                                                                                                            |
+| Commit 2 (documentation)    | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f` — 6 files, `2605 insertions(+)`, all under `docs/production/`                                                                                                                                   |
+| Commit 3 (documentation)    | adds this §2.2, the verification report's §4.8 post-commit re-verification and the §4.7 housekeeping note, and runbook v2.3. Its own hash cannot appear inside itself; read the branch tip with `git rev-parse feat/auth-email-otp-phase1` |
+| Isolation proof             | `git diff --name-only 5581e6a..HEAD` returns only the six `docs/production/*` documents, so no commit after the code commit touches source                                                                                                 |
+| Clean-checkout proof        | `COMMIT_SELFCONTAIN=OK` — every relative import of all 46 committed TypeScript files resolves inside the commit's own tree (§4.7 of the verification report)                                                                               |
+| Unrelated work              | 154 working-tree entries outside this change set remain exactly as found; none was staged, and `apps/web`, `packages/` and `mobile/` are clean                                                                                             |
+| Remotes                     | untouched. No push, no PR, no merge, no deploy                                                                                                                                                                                             |
+| Post-commit re-verification | typecheck, lint, full unit suite, contract pipeline, drift guard, API build and the Phase 1 + real-Redis integration subset were re-run on the committed tree and all reproduced the published figures (verification report §4.8)          |
 
 ---
 
@@ -481,7 +499,7 @@ claim-by-claim correction table (C-1 … C-15). The corrections demanded by the 
 | Transaction behaviour                            | C-3 → §5.1: runner owns `BEGIN`/`COMMIT`; the file must not contain transaction control                                                             |
 | Preflight and post-migration checks              | C-6, C-7, C-8 → §7 (six pre-flight checks, both on `LOWER(BTRIM(email))`) and §8 (post-flight probes reading `pg_indexes` / `pg_get_constraintdef`) |
 | Health checks using phone numbers or credentials | C-11 → §8.9 replaces them with non-delivering checks (H1…H5); no dialable number, no credential literal, no invented route                          |
-| Date and version history                         | C-14 → §13 change log: v1.0 2025-01-19 (wrong), v2.0 and v2.1 both 2026-10-31                                                                       |
+| Date and version history                         | C-14 → §13 change log: v1.0 2025-01-19 (wrong), v2.0–v2.2 on 2026-10-31, v2.3 on 2026-11-01 when the audit closed                                   |
 | Any claim unsupported by the implementation      | C-4, C-5, C-9, C-10, C-12, C-13, C-15                                                                                                               |
 
 Two audit-time additions: **H5**, a check that `account/link-phone` refuses without a live

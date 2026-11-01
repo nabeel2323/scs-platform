@@ -2,7 +2,7 @@
 
 - **Document ID:** OTP-S1.37-PHASE-1-FINAL-VERIFICATION-REPORT
 - **Sprint:** S1.37 — Phase 1 Independent Audit, Corrections and Final Acceptance
-- **Date:** 2026-10-31
+- **Date:** opened 2026-10-31, closed 2026-11-01 (local time, UTC+03:00); the post-commit re-verification of §4.8 ran on 2026-11-01
 - **Companion documents:** [`…-INDEPENDENT-AUDIT-REPORT.md`](./OTP-S1.37-PHASE-1-INDEPENDENT-AUDIT-REPORT.md)
   (findings F-01 … F-20), [`…-MIGRATION-AND-ROLLBACK-RUNBOOK.md`](./OTP-S1.37-PHASE-1-MIGRATION-AND-ROLLBACK-RUNBOOK.md)
 - **Verdict:** see §9 — **NOT COMPLETE — BLOCKED**
@@ -11,16 +11,16 @@
 
 ## 1. Commit identity
 
-| Item                                | Value                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repository                          | `c:\TAIF\scs-platform`                                                                                                                                                                                                                                                                                                                             |
-| Branch                              | `feat/auth-email-otp-phase1`                                                                                                                                                                                                                                                                                                                       |
-| Baseline (starting) commit, audited | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                                                                                                                                                                                                                                         |
-| Baseline relationship to `develop`  | identical to `origin/develop` — the Phase 1 work was **uncommitted** at audit start (finding F-01)                                                                                                                                                                                                                                                 |
-| **Audited final SHA (code)**        | `5581e6a46d4705c21a97cc941a696896f8f7973e` — Phase 1 source, migration, tests, contracts, CI, lockfile and the web client. 51 paths, each staged by explicit name (§4.7); `51 files changed, 9523 insertions(+), 176 deletions(-)`                                                                                                                 |
-| Publication SHA (docs only)         | the commit immediately following `5581e6a46d4705c21a97cc941a696896f8f7973e` at the tip of `feat/auth-email-otp-phase1` — the three S1.37 reports, the corrected S1.35 runbook and the two S1.35 supersession banners. It contains **no** source, migration, test, contract or CI change, so the audited source tree is byte-identical at both SHAs |
-| Why the docs SHA is not printed     | a commit cannot contain its own hash. Verify it with `git rev-parse feat/auth-email-otp-phase1`, then confirm it is documentation-only with `git diff --name-only <code SHA>..HEAD`, which must list only `docs/production/*`                                                                                                                      |
-| Remotes touched                     | none. No push, no PR, no merge, no deploy                                                                                                                                                                                                                                                                                                          |
+| Item                                 | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository                           | `c:\TAIF\scs-platform`                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Branch                               | `feat/auth-email-otp-phase1`                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Baseline (starting) commit, audited  | `2abb53881c87724c338e2a2a94b8e9be78e70c23`                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Baseline relationship to `develop`   | identical to `origin/develop` — the Phase 1 work was **uncommitted** at audit start (finding F-01)                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Audited final SHA (code)**         | `5581e6a46d4705c21a97cc941a696896f8f7973e` — Phase 1 source, migration, tests, contracts, CI, lockfile and the web client. 51 paths, each staged by explicit name (§4.7); `51 files changed, 9523 insertions(+), 176 deletions(-)`                                                                                                                                                                                                                                                          |
+| Publication SHA (docs only)          | `00f59dedd1f54f75c76cb1cd0b24d9ccb6a0721f`, the documentation-only commit immediately following `5581e6a46d4705c21a97cc941a696896f8f7973e`: the three S1.37 reports, the corrected S1.35 runbook and the two S1.35 supersession banners. A further documentation-only commit appends §4.8 below. Neither contains any source, migration, test, contract or CI change, so the audited source tree is byte-identical at all of these SHAs                                                     |
+| Why the last docs SHA is not printed | a commit cannot contain its own hash, so the tip documentation commit is necessarily unnamed here; its predecessor can be and is named above. Verify the branch tip with `git rev-parse feat/auth-email-otp-phase1`, then confirm that everything above `5581e6a…` is documentation with `git diff --name-only 5581e6a46d4705c21a97cc941a696896f8f7973e..HEAD`, which must list only `docs/production/*`. That command was executed and returned exactly the six audit and report documents |
+| Remotes touched                      | none. No push, no PR, no merge, no deploy                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Every test figure in this report was executed against the working tree that became
 `5581e6a46d4705c21a97cc941a696896f8f7973e`. That tree was frozen before the long-running suites were started: the only source
@@ -304,6 +304,50 @@ Three facts that are easy to miss and would each have broken CI are recorded exp
 completely in a clean checkout. `infra/audit/` and `infra/deploy/nginx.conf.template` are untracked
 but belong to unrelated work and are excluded.
 
+**Housekeeping item found while constructing the commits (no finding number, LOW).** The canonical
+`test:integration` command writes `apps/api/.vitest-integration-results.json`, and
+`git check-ignore` returns exit 1 for it: the file is untracked **and not** `.gitignore`d. Anyone
+staging with `git add -A` would therefore commit a machine-local test report. The exact action is to
+add `.vitest-integration-results.json` to `.gitignore` in a housekeeping commit; it was deliberately
+not done here, because that edit belongs to the code commit that had already been made and frozen,
+and a `.gitignore` line is not evidence for any Phase 1 criterion. The audit's own copy was deleted
+with the rest of the scratch tree.
+
+### 4.8 Re-verification executed **after** the commit, on the committed tree
+
+A first-run suite proves the working tree; it does not prove that the commit contains what was
+tested. After `5581e6a…` and the documentation commit `00f59de…` existed, the authoritative checks
+were re-executed from the repository in its committed state (`git diff HEAD --name-only` over the 51
+committed paths returned no files, so the working tree _was_ the commit). Every figure published
+above was reproduced:
+
+| Check                                   | Command                                         | Result                                         | Exit | Duration |
+| --------------------------------------- | ----------------------------------------------- | ---------------------------------------------- | ---- | -------- |
+| API typecheck                           | `pnpm --filter @scs/api typecheck`              | `Found 0 issues`                               | `0`  | 21.3 s   |
+| API lint                                | `pnpm --filter @scs/api lint`                   | `322 problems (0 errors, 322 warnings)`        | `0`  | 14.6 s   |
+| Full unit suite                         | `pnpm --filter @scs/api test:unit`              | `118 passed (118)` files, `2308 passed (2308)` | `0`  | 62.6 s   |
+| Contract build / generate / generate:ts | `pnpm --filter @scs/contracts build …`          | `15 paths, 21 component schemas`               | `0`  | each     |
+| Contract drift guard                    | `vitest run …/contracts-phase1.openapi.spec.ts` | `58 passed (58)`                               | `0`  | 2.2 s    |
+| API build                               | `pnpm --filter @scs/api build`                  | `Successfully compiled: 421 files`, 0 issues   | `0`  | 17.4 s   |
+| Phase 1 + real-Redis integration subset | the 8 specs of §3 run serially                  | `8 passed (8)` files, `131 passed (131)`       | `0`  | 155.3 s  |
+
+The unit re-run was executed without `--no-file-parallelism` and still produced exactly
+2 308 tests in 118 files in 62.6 s, against the 158.6 s serial run of §4.1. Same counts, different
+wall time: that is the cross-check that the serial figure was not an artifact of ordering.
+
+**Persistent Redis, verified untouched.** The §6 claim that the shared `scs-redis` instance was never
+used is now evidenced rather than merely asserted: `docker inspect scs-redis` reports
+`running=false`, `FinishedAt=2026-10-30T13:06:36Z` and `RestartCount=0`, i.e. the container was
+already stopped more than a day before this audit's test runs began and was never started or
+contacted. Every real-Redis assertion ran against `scs-s137-disposable-redis`, re-verified at
+removal time as `name=/scs-s137-disposable-redis`, `image=redis:7-alpine`, published to
+`127.0.0.1:16479` only. The migration probes ran against `audit-pg-0064`
+(`postgres:16-alpine`, host port 25599). Both were re-verified by `docker inspect` immediately before
+removal — name, image and port binding all matching — and only then removed
+(`docker rm -f scs-s137-disposable-redis` and `docker rm -f audit-pg-0064`, both exit 0). No other
+container was stopped: `scs-redis`, `scs-postgres`, `scs-minio`, `scs-mailhog` and the two leftover
+`postgis/postgis:16-3.4` test containers are in the same state they were found in.
+
 ---
 
 ## 5. Gap tests added by this audit
@@ -344,19 +388,19 @@ import converted into a real assertion), which is why lint warnings fell from 32
 
 ## 6. Explicitly **not** executed and therefore not claimed
 
-| Item                                                     | Status               | Why                                                                                                                 |
-| -------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Real SMTP delivery (any provider)                        | **never executed**   | not authorized; no real credentials exist in this workspace                                                         |
-| Real Twilio SMS / WhatsApp Business                      | **never executed**   | not authorized                                                                                                      |
-| Staging or production database migration                 | **never executed**   | not authorized; every migration probe ran on disposable PostgreSQL                                                  |
-| Persistent / shared Redis (`scs-redis`)                  | **never used**       | the real-Redis suite ran only against `scs-s137-disposable-redis` on `127.0.0.1:16479`                              |
-| Placeholder number `+966500000000` as a live destination | **never dialled**    | it appears only as a request body in a non-delivering health check expecting `401`                                  |
-| Flutter/Dart client generation                           | **not executed**     | `java` absent; `generate:dart` cannot run here (F-17)                                                               |
-| `boundary-lint` job                                      | **not executable**   | `ts-node` not installed in this workspace (F-18)                                                                    |
-| Root `pnpm build`                                        | **failed, `EXIT=1`** | `@scs/admin` / `@scs/web` cannot resolve `react` / `next` in this workspace's store (F-18); `@scs/api` builds clean |
-| `pnpm format:check`                                      | **failed, `EXIT=2`** | repo-wide pre-existing condition (F-18)                                                                             |
-| Production-scale migration timing                        | **not measured**     | lock and index timings were observed on a 2-row table only                                                          |
-| CI pipeline on the audited commit                        | **has never run**    | no push is authorized; see §7                                                                                       |
+| Item                                                     | Status               | Why                                                                                                                       |
+| -------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Real SMTP delivery (any provider)                        | **never executed**   | not authorized; no real credentials exist in this workspace                                                               |
+| Real Twilio SMS / WhatsApp Business                      | **never executed**   | not authorized                                                                                                            |
+| Staging or production database migration                 | **never executed**   | not authorized; every migration probe ran on disposable PostgreSQL                                                        |
+| Persistent / shared Redis (`scs-redis`)                  | **never used**       | the real-Redis suite ran only against `scs-s137-disposable-redis` on `127.0.0.1:16479`; `docker inspect` evidence in §4.8 |
+| Placeholder number `+966500000000` as a live destination | **never dialled**    | it appears only as a request body in a non-delivering health check expecting `401`                                        |
+| Flutter/Dart client generation                           | **not executed**     | `java` absent; `generate:dart` cannot run here (F-17)                                                                     |
+| `boundary-lint` job                                      | **not executable**   | `ts-node` not installed in this workspace (F-18)                                                                          |
+| Root `pnpm build`                                        | **failed, `EXIT=1`** | `@scs/admin` / `@scs/web` cannot resolve `react` / `next` in this workspace's store (F-18); `@scs/api` builds clean       |
+| `pnpm format:check`                                      | **failed, `EXIT=2`** | repo-wide pre-existing condition (F-18)                                                                                   |
+| Production-scale migration timing                        | **not measured**     | lock and index timings were observed on a 2-row table only                                                                |
+| CI pipeline on the audited commit                        | **has never run**    | no push is authorized; see §7                                                                                             |
 
 ---
 
@@ -402,6 +446,8 @@ every verified finding (+103 unit tests over the S1.35 published count, includin
 contract drift guard; §5). All authorized local verification that could be run was run: 2 308 unit
 tests and the integration suite pass on the audited tree with exit code 0, lint reports 0 errors,
 typecheck is clean, the API builds, and the contract surface now has a mechanical drift guard in CI.
+All of those were re-executed **after** the code was committed and reproduced exactly (§4.8), so the
+evidence belongs to the commit and not merely to a working tree that no longer exists.
 
 It is nevertheless **not complete**, because acceptance requires findings to be closed and evidence
 to exist, and both remain outstanding:
