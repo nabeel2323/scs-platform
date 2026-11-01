@@ -372,7 +372,14 @@ baseline's: a line count taken with `Measure-Object -Line` reported the withdraw
 88 lines when it is 110 (`-Line` ignores blank lines), and an earlier sentence in this report
 described the S1.35 runbook as carrying “a supersession banner, no content rewrite” when it had in
 fact been rewritten as a withdrawal notice. Both were found by re-deriving the claim from the file
-instead of from memory, and both are corrected above and in audit report §3.2.
+instead of from memory, and both are corrected above and in audit report §3.2. A third claim of the
+same kind was corrected the same way: the audit report stated that exactly 151 unrelated
+working-tree entries were preserved, but re-measuring `git status --porcelain` after the last
+documentation commit returned a different number, because `.m73b6-scratch/` — the scratch directory of
+another workstream — is being written concurrently and contributes untracked entries that move
+between observations. A precise figure there is not a meaningful one, so it is now stated as
+approximate with the reason. The documentation commit before this one carries the superseded `151`
+claim in its message; it is left in history rather than amended away.
 
 ---
 
