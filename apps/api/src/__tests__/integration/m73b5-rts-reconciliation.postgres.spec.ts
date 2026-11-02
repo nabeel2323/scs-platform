@@ -804,11 +804,43 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     );
     const results = await Promise.all(promises);
 
-    const successes = results.filter((r: any) => r.exceptionStatus === 'RTS_PENDING');
-    const failures = results.filter((r: any) => r instanceof Error || r.message?.includes?.('409') || r.status === 409);
+    // S1.38.9 concurrency-invariant classification:
+    //   - `transitions`: the sole caller that flipped OPEN → RTS_PENDING inside
+    //     the service transaction (`idempotent === false`).
+    //   - `idempotentReplays`: callers whose non-transactional `findFirst` read
+    //     happened after the winner committed and returned 200 with
+    //     `idempotent === true`. Legitimate HTTP retry semantics (see
+    //     memory 310717ee), NOT a second state transition.
+    //   - `conflicts`: callers who entered the transaction concurrently with
+    //     the winner and lost the CAS `UPDATE ... WHERE exception_status='OPEN'`,
+    //     throwing ConflictException (status 409).
+    // The task requires exactly one caller to actually transition the state
+    // and exactly one shipment_event/outbox_event to be written, and every
+    // caller to be accounted for by one of the three categories.
+    const transitions = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_PENDING' && r.idempotent === false,
+    );
+    const idempotentReplays = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_PENDING' && r.idempotent === true,
+    );
+    const conflicts = results.filter(
+      (r: any) => r instanceof Error && ((r as any).status === 409 || r.message?.includes?.('409') || r.message?.includes?.('concurrent')),
+    );
 
-    expect(successes.length).toBe(1);
-    expect(failures.length).toBe(99);
+    expect(transitions.length + idempotentReplays.length + conflicts.length).toBe(100);
+    expect(transitions.length).toBe(1);
+
+    // No duplicate side effects from losing/idempotent callers.
+    const eventCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM shipment_events WHERE shipment_id = $1 AND event_type = 'RTS_REQUESTED'`,
+      [shipmentId],
+    );
+    expect(eventCount.rows[0].cnt).toBe(1);
+    const outboxCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'shipment.rts_requested'`,
+      [shipmentId],
+    );
+    expect(outboxCount.rows[0].cnt).toBe(1);
 
     // Verify DB state
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
@@ -828,11 +860,39 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     );
     const results = await Promise.all(promises);
 
-    const successes = results.filter((r: any) => r.exceptionStatus === 'RTS_IN_PROGRESS');
-    const failures = results.filter((r: any) => r instanceof Error || r.message?.includes?.('409') || r.status === 409);
+    // S1.38.9 concurrency-invariant classification (same pattern as B5-PG-31
+    // but for the RTS_PENDING → RTS_IN_PROGRESS transition). CI run #406
+    // reported `expected 7 to be 1` on this test because the previous filter
+    // `r.exceptionStatus === 'RTS_IN_PROGRESS'` also matched post-commit
+    // callers that took the pre-transaction idempotent branch (line
+    // 2413 of orders.service.ts). The CAS transition inside the transaction
+    // is unchanged and remains the single source of state mutation; the
+    // assertion now classifies each caller as transition / idempotent-replay
+    // / 409-conflict, requires exactly one transition, and validates the
+    // single-write DB invariant via shipment_events + outbox_events counts.
+    const transitions = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_IN_PROGRESS' && r.idempotent === false,
+    );
+    const idempotentReplays = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_IN_PROGRESS' && r.idempotent === true,
+    );
+    const conflicts = results.filter(
+      (r: any) => r instanceof Error && ((r as any).status === 409 || r.message?.includes?.('409') || r.message?.includes?.('concurrent')),
+    );
 
-    expect(successes.length).toBe(1);
-    expect(failures.length).toBe(99);
+    expect(transitions.length + idempotentReplays.length + conflicts.length).toBe(100);
+    expect(transitions.length).toBe(1);
+
+    const eventCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM shipment_events WHERE shipment_id = $1 AND event_type = 'RTS_APPROVED'`,
+      [shipmentId],
+    );
+    expect(eventCount.rows[0].cnt).toBe(1);
+    const outboxCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'shipment.rts_approved'`,
+      [shipmentId],
+    );
+    expect(outboxCount.rows[0].cnt).toBe(1);
 
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
     expect(row.rows[0].exception_status).toBe('RTS_IN_PROGRESS');
@@ -852,11 +912,31 @@ describe('M7.3-B.5 — RTS + Reconciliation (PostgreSQL)', () => {
     );
     const results = await Promise.all(promises);
 
-    const successes = results.filter((r: any) => r.exceptionStatus === 'RTS_COMPLETED');
-    const failures = results.filter((r: any) => r instanceof Error || r.message?.includes?.('409') || r.status === 409);
+    // S1.38.9 concurrency-invariant classification (same pattern as B5-PG-31/32
+    // but for the RTS_IN_PROGRESS → RTS_COMPLETED transition).
+    const transitions = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_COMPLETED' && r.idempotent === false,
+    );
+    const idempotentReplays = results.filter(
+      (r: any) => r && !(r instanceof Error) && r.exceptionStatus === 'RTS_COMPLETED' && r.idempotent === true,
+    );
+    const conflicts = results.filter(
+      (r: any) => r instanceof Error && ((r as any).status === 409 || r.message?.includes?.('409') || r.message?.includes?.('concurrent')),
+    );
 
-    expect(successes.length).toBe(1);
-    expect(failures.length).toBe(99);
+    expect(transitions.length + idempotentReplays.length + conflicts.length).toBe(100);
+    expect(transitions.length).toBe(1);
+
+    const eventCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM shipment_events WHERE shipment_id = $1 AND event_type = 'RTS_COMPLETED'`,
+      [shipmentId],
+    );
+    expect(eventCount.rows[0].cnt).toBe(1);
+    const outboxCount = await pool.query(
+      `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE aggregate_id = $1 AND event_type = 'shipment.rts_completed'`,
+      [shipmentId],
+    );
+    expect(outboxCount.rows[0].cnt).toBe(1);
 
     const row = await pool.query(`SELECT exception_status FROM shipments WHERE id = $1`, [shipmentId]);
     expect(row.rows[0].exception_status).toBe('RTS_COMPLETED');

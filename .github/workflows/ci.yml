@@ -94,6 +94,18 @@ jobs:
       # Runs the full API suite under v8 coverage and enforces the thresholds
       # in apps/api/vitest.config.ts (global floor + per-module gates on the
       # identity and orders bounded contexts). Fails the build on regression.
+      # S1.38.9 note: self-provisioning `@testcontainers/postgresql` integration
+      # specs are collected through this broad include (see apps/api/vitest.config.ts
+      # `include: ['src/__tests__/**/*.spec.ts']`) and their coverage contribution
+      # is required to keep the aggregate orders-module threshold (lines 40% /
+      # functions 60% / branches 70% / statements 40%) above the floor. Isolating
+      # the coverage job to unit specs only would push orders to ~31/44/58/31 and
+      # fail the gate. Real-Redis ambient-service suites still correctly self-skip
+      # because they gate on `REDIS_IT === '1'`, which this job never exports.
+      # Follow-up scope (owner): author additional orders-module unit tests so the
+      # coverage job can be position-filtered to `src/__tests__/unit` without
+      # dropping below the per-module thresholds — that would be a cleaner
+      # separation between the unit-coverage and integration jobs.
       - run: pnpm --filter @scs/api test:coverage
       - uses: actions/upload-artifact@v4
         if: always()
