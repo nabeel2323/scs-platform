@@ -717,14 +717,14 @@ class Dispute {
 
 /// User profile returned by GET /v1/me.
 class UserProfile {
-  final String id, phone, status, createdAt;
-  final String? email, fullName, locale, activeOrgId, role;
+  final String id, status, createdAt;
+  final String? phone, email, fullName, locale, activeOrgId, role;
   final List<OrgMembership> organizations;
   UserProfile({
     required this.id,
-    required this.phone,
     required this.status,
     required this.createdAt,
+    this.phone,
     this.email,
     this.fullName,
     this.locale,
@@ -734,10 +734,10 @@ class UserProfile {
   });
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
         id: j['id'] ?? '',
-        phone: j['phone'] ?? '',
         status: j['status'] ?? '',
         createdAt: j['createdAt'] ?? '',
-        email: j['email'],
+        phone: j['phone'] as String?,
+        email: j['email'] as String?,
         fullName: j['fullName'],
         locale: j['locale'],
         activeOrgId: j['activeOrgId'],
@@ -746,6 +746,14 @@ class UserProfile {
             .map((e) => OrgMembership.fromJson(e))
             .toList(),
       );
+}
+
+/// Response from account link/unlink endpoints (S1.35 Phase 1).
+class AccountLinkResponse {
+  final bool success;
+  AccountLinkResponse({required this.success});
+  factory AccountLinkResponse.fromJson(Map<String, dynamic> j) =>
+      AccountLinkResponse(success: j['success'] as bool? ?? false);
 }
 
 /// Membership entry inside UserProfile.

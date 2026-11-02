@@ -47,7 +47,18 @@ export class MockOtpProvider implements NotificationProvider {
         `"${nodeEnv || 'unset'}" environment. This is a hard security boundary.`,
       );
     }
-    logger.log('MockOtpProvider initialized (development/test only)');
+
+    // F-10 (S1.38): require explicit opt-in even in development/test.
+    // An absent or blank NODE_ENV no longer silently activates mock delivery.
+    const mockEnabled = (process.env['OTP_MOCK_ENABLED'] || '').trim().toLowerCase();
+    if (mockEnabled !== 'true') {
+      throw new Error(
+        'MockOtpProvider: REFUSED — mock delivery provider requires explicit ' +
+        'OTP_MOCK_ENABLED=true opt-in. This is a fail-closed security boundary (S1.38 F-10).',
+      );
+    }
+
+    logger.log('MockOtpProvider initialized (development/test with explicit opt-in only)');
   }
 
   isConfigured(): boolean {

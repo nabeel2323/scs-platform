@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, char, boolean, timestamp, text, inet, jsonb, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 /**
@@ -150,10 +150,11 @@ export const credentialAuditLog = pgTable('credential_audit_log', {
 });
 
 /**
- * Account link/unlink audit log (migration 0064_email_identity).
+ * Account link/unlink audit log (migration 0064_email_identity, 0065_hmac_identifier_hash).
  * Records every identifier link and unlink operation for security audit.
- * identifierHash is SHA-256 of the normalized identifier — never stores
- * raw phone/email values.
+ * identifierHash is a versioned HMAC-SHA256 digest of the normalized identifier
+ * (v2: keyed with domain separation) — never stores raw phone/email values.
+ * Legacy v1 rows use unsalted SHA-256 (pre-migration 0065).
  */
 export const accountLinkLog = pgTable('account_link_log', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -162,7 +163,8 @@ export const accountLinkLog = pgTable('account_link_log', {
     .references(() => users.id, { onDelete: 'cascade' }),
   action: varchar('action', { length: 16 }).notNull(), // LINK | UNLINK
   identifierType: varchar('identifier_type', { length: 8 }).notNull(), // PHONE | EMAIL
-  identifierHash: varchar('identifier_hash', { length: 64 }).notNull(),
+  identifierHash: varchar('identifier_hash', { length: 68 }).notNull(),
+  hashVersion: integer('hash_version').notNull().default(2),
   performedBy: uuid('performed_by'), // NULL for self-service
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

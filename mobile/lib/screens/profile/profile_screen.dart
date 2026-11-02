@@ -21,13 +21,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _editing = false;
   late TextEditingController _nameCtrl;
   late TextEditingController _emailCtrl;
+  // Shared by the two link dialogs (only one can be open at a time). They are
+  // State-owned so they are disposed with the screen rather than while a popped
+  // dialog is still animating out (S1.38.2).
+  final TextEditingController _linkValueCtrl = TextEditingController();
+  final TextEditingController _linkCodeCtrl = TextEditingController();
   String _locale = 'ar';
   bool _saving = false;
+  bool _linkingEmail = false;
+  bool _linkingPhone = false;
+  String? _linkError;
+  String? _linkSuccess;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
+    _linkValueCtrl.dispose();
+    _linkCodeCtrl.dispose();
     super.dispose();
   }
 
@@ -60,12 +71,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// Session sign-out. Moved here from the old Home app bar now that Account is
   /// a persistent tab: shut down push, clear stored tokens, drop the in-memory
-  /// access token, flip auth state, and route to login.
+  /// access token, flip auth state, clear the cached login identity, and route
+  /// to login.
   Future<void> _signOut() async {
     ref.read(pushNotificationServiceProvider).shutdown();
     await ref.read(authStorageProvider).clearTokens();
     ref.read(apiClientProvider).clearAccessToken();
     ref.read(isAuthenticatedProvider.notifier).state = false;
+    // S1.38.2: the identity cache is separate from auth state, so it has to be
+    // reset here too — otherwise Home shows the previous user's email/phone to
+    // whoever signs in next on this device.
+    resetIdentityProviders(ref);
     if (mounted) context.go('/login');
   }
 
@@ -106,7 +122,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           radius: 40,
           backgroundColor: TaifTokens.brandPrimary,
           child: Text(
-            (p.fullName ?? p.phone).substring(0, 1).toUpperCase(),
+            (p.fullName ?? p.phone ?? p.email ?? '?')
+                .substring(0, 1)
+                .toUpperCase(),
             style: const TextStyle(fontSize: 32, color: Colors.white),
           ),
         ),
@@ -116,8 +134,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: const TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w700))),
         Center(
-            child:
-                Text(p.phone, style: const TextStyle(color: TaifTokens.muted))),
+            child: Text(p.phone ?? 'Not linked',
+                style: const TextStyle(color: TaifTokens.muted))),
         const SizedBox(height: 24),
         _infoTile('Email', p.email ?? 'Not set', Icons.email),
         _infoTile(
@@ -142,6 +160,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               )),
         ],
+        const SizedBox(height: 24),
+        // Authentication Methods (S1.38 Flutter integration)
+        const Text('Authentication Methods',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        if (_linkSuccess != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: TaifTokens.ok.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(_linkSuccess!,
+                style: TextStyle(color: TaifTokens.ok, fontSize: 13)),
+          ),
+        if (_linkError != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(_linkError!,
+                style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+          ),
+        // Email row
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.email, color: TaifTokens.brandPrimary),
+            title: const Text('Email'),
+            subtitle: Text(p.email ?? 'Not linked'),
+            trailing: p.email != null
+                ? TextButton(
+                    onPressed:
+                        _linkingEmail ? null : () => _confirmUnlinkEmail(p),
+                    child: const Text('Remove',
+                        style: TextStyle(color: TaifTokens.err)),
+                  )
+                : TextButton(
+                    onPressed:
+                        _linkingEmail ? null : () => _showLinkEmailDialog(p),
+                    child: const Text('Link'),
+                  ),
+          ),
+        ),
+        // Phone row
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.phone, color: TaifTokens.brandPrimary),
+            title: const Text('Phone'),
+            subtitle: Text(p.phone ?? 'Not linked'),
+            trailing: p.phone != null
+                ? TextButton(
+                    onPressed:
+                        _linkingPhone ? null : () => _confirmUnlinkPhone(p),
+                    child: const Text('Remove',
+                        style: TextStyle(color: TaifTokens.err)),
+                  )
+                : TextButton(
+                    onPressed:
+                        _linkingPhone ? null : () => _showLinkPhoneDialog(p),
+                    child: const Text('Link'),
+                  ),
+          ),
+        ),
         const SizedBox(height: 24),
         const Text('Security',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -266,4 +351,281 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           subtitle: Text(value, style: const TextStyle(fontSize: 15)),
         ),
       );
+
+  // ── Account linking dialogs (S1.38 Flutter integration) ──
+
+  Future<void> _showLinkEmailDialog(UserProfile p) async {
+    // `await showDialog` completes the moment the route is popped, while the
+    // dialog is still animating out with its TextFields mounted. The
+    // controllers therefore belong to the State, not to this method.
+    final emailCtrl = _linkValueCtrl..clear();
+    final otpCtrl = _linkCodeCtrl..clear();
+    bool otpSent = false;
+    String? localError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Link Email'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (localError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(localError!,
+                      style:
+                          TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                ),
+              if (!otpSent) ...[
+                TextField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                      labelText: 'Email address', border: OutlineInputBorder()),
+                ),
+              ] else ...[
+                Text('Code sent to ${emailCtrl.text}'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: otpCtrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                      labelText: 'OTP',
+                      border: OutlineInputBorder(),
+                      counterText: ''),
+                ),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            if (!otpSent)
+              ElevatedButton(
+                onPressed: () async {
+                  if (emailCtrl.text.isEmpty) return;
+                  setDialogState(() {
+                    localError = null;
+                  });
+                  try {
+                    await ref
+                        .read(apiServiceProvider)
+                        .requestEmailOtp(emailCtrl.text);
+                    setDialogState(() {
+                      otpSent = true;
+                    });
+                  } catch (e) {
+                    setDialogState(() {
+                      localError = ApiService.errorMessage(e);
+                    });
+                  }
+                },
+                child: const Text('Send OTP'),
+              )
+            else
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(apiServiceProvider)
+                        .linkEmail(emailCtrl.text, otpCtrl.text);
+                    setState(() {
+                      _linkSuccess = 'Email linked successfully.';
+                      _linkError = null;
+                    });
+                    ref.invalidate(profileProvider);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  } catch (e) {
+                    setDialogState(() {
+                      localError = ApiService.errorMessage(e);
+                    });
+                  }
+                },
+                child: const Text('Link'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showLinkPhoneDialog(UserProfile p) async {
+    final phoneCtrl = _linkValueCtrl..clear();
+    final otpCtrl = _linkCodeCtrl..clear();
+    bool otpSent = false;
+    String? localError;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Link Phone'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (localError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(localError!,
+                      style:
+                          TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                ),
+              if (!otpSent) ...[
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                      labelText: 'Phone number',
+                      hintText: '+9665XXXXXXXX',
+                      border: OutlineInputBorder()),
+                ),
+              ] else ...[
+                Text('Code sent to ${phoneCtrl.text}'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: otpCtrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                      labelText: 'OTP',
+                      border: OutlineInputBorder(),
+                      counterText: ''),
+                ),
+              ],
+            ]),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            if (!otpSent)
+              ElevatedButton(
+                onPressed: () async {
+                  if (phoneCtrl.text.isEmpty) return;
+                  setDialogState(() {
+                    localError = null;
+                  });
+                  try {
+                    await ref
+                        .read(apiServiceProvider)
+                        .requestOtp(phoneCtrl.text);
+                    setDialogState(() {
+                      otpSent = true;
+                    });
+                  } catch (e) {
+                    setDialogState(() {
+                      localError = ApiService.errorMessage(e);
+                    });
+                  }
+                },
+                child: const Text('Send OTP'),
+              )
+            else
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await ref
+                        .read(apiServiceProvider)
+                        .linkPhone(phoneCtrl.text, otpCtrl.text);
+                    setState(() {
+                      _linkSuccess = 'Phone linked successfully.';
+                      _linkError = null;
+                    });
+                    ref.invalidate(profileProvider);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  } catch (e) {
+                    setDialogState(() {
+                      localError = ApiService.errorMessage(e);
+                    });
+                  }
+                },
+                child: const Text('Link'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmUnlinkEmail(UserProfile p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Email'),
+        content: const Text(
+            'Remove email from your account? You will no longer be able to use email OTP to sign in.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _linkingEmail = true;
+      _linkError = null;
+      _linkSuccess = null;
+    });
+    try {
+      await ref.read(apiServiceProvider).unlinkEmail();
+      setState(() {
+        _linkSuccess = 'Email removed from account.';
+        _linkError = null;
+      });
+      ref.invalidate(profileProvider);
+    } catch (e) {
+      setState(() {
+        _linkError = ApiService.errorMessage(e);
+      });
+    } finally {
+      if (mounted) setState(() => _linkingEmail = false);
+    }
+  }
+
+  Future<void> _confirmUnlinkPhone(UserProfile p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Phone'),
+        content: const Text(
+            'Remove phone from your account? You will no longer be able to use phone OTP to sign in.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Remove')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _linkingPhone = true;
+      _linkError = null;
+      _linkSuccess = null;
+    });
+    try {
+      await ref.read(apiServiceProvider).unlinkPhone();
+      setState(() {
+        _linkSuccess = 'Phone removed from account.';
+        _linkError = null;
+      });
+      ref.invalidate(profileProvider);
+    } catch (e) {
+      setState(() {
+        _linkError = ApiService.errorMessage(e);
+      });
+    } finally {
+      if (mounted) setState(() => _linkingPhone = false);
+    }
+  }
 }

@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import {
   requestOtp,
   verifyOtp,
+  requestEmailOtp,
+  verifyEmailOtp,
   loginPassword,
   checkDeviceLogin,
   LoginRateLimitError,
@@ -13,7 +15,7 @@ import { getDeviceId } from '@/lib/device-id';
 import { fetchProfile } from '@/lib/api';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
 
-type LoginMode = 'password' | 'otp';
+type LoginMode = 'password' | 'otp' | 'email-otp';
 type OtpStage = 'request' | 'verify';
 type OtpChannel = 'sms' | 'whatsapp';
 
@@ -38,6 +40,10 @@ export default function LoginPage() {
   const [otp, setOtp] = useState('');
   const [channel, setChannel] = useState<OtpChannel>('sms');
   const [deliveryTimeout, setDeliveryTimeout] = useState(false);
+
+  // Email OTP state
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpStage, setEmailOtpStage] = useState<OtpStage>('request');
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -157,6 +163,47 @@ export default function LoginPage() {
     }
   }
 
+  async function handleRequestEmailOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setRateLimit(null);
+    setLoading(true);
+    try {
+      const result = await requestEmailOtp(email);
+      if (result.success) {
+        setEmailOtpStage('verify');
+      } else {
+        setError('Failed to send code. Please try again.');
+      }
+    } catch (err: any) {
+      if (err instanceof LoginRateLimitError) {
+        setRateLimit({
+          message: err.message,
+          remaining: err.remainingAttempts,
+          retryAfter: err.retryAfterSeconds,
+        });
+      } else {
+        setError(err.message || 'Failed to send email OTP');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyEmailOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await verifyEmailOtp(email, emailOtp);
+      localStorage.setItem('scs_last_email', email);
+      await redirectAfterLogin();
+    } catch (err: any) {
+      setError(err.message || 'Invalid OTP');
+      setLoading(false);
+    }
+  }
+
   return (
     <main style={{ maxWidth: 420, margin: '80px auto 0' }}>
       <PageHeader
@@ -187,6 +234,18 @@ export default function LoginPage() {
             style={tabStyle(mode === 'otp')}
           >
             Phone OTP
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('email-otp');
+              setEmailOtpStage('request');
+              setEmailOtp('');
+              setError('');
+            }}
+            style={tabStyle(mode === 'email-otp')}
+          >
+            Email OTP
           </button>
         </div>
       )}
@@ -271,7 +330,9 @@ export default function LoginPage() {
             </button>
           </p>
         </form>
-      ) : otpStage === 'request' ? (
+      // S1.38.2: the phone branches must stay gated on `mode === 'otp'`, otherwise
+      // the phone request/verify form renders underneath the Email OTP form.
+      ) : mode === 'otp' && otpStage === 'request' ? (
         <form onSubmit={handleRequestOtp}>
           <label style={labelStyle}>Phone number</label>
           <input
@@ -318,7 +379,7 @@ export default function LoginPage() {
             {loading ? `Sending via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}...` : `Send via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}`}
           </button>
         </form>
-      ) : (
+      ) : mode === 'otp' ? (
         <form onSubmit={handleVerifyOtp}>
           <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>
             Code sent via {channel === 'sms' ? 'SMS' : 'WhatsApp'} to {phone}
@@ -394,6 +455,65 @@ export default function LoginPage() {
               Resend via {channel === 'sms' ? 'WhatsApp' : 'SMS'}
             </button>
           </div>
+        </form>
+      ) : null}
+
+      {mode === 'email-otp' && emailOtpStage === 'request' && (
+        <form onSubmit={handleRequestEmailOtp}>
+          <label style={labelStyle}>Email address</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            disabled={loading}
+            style={inputStyle}
+          />
+          <p style={{ fontSize: 13, color: '#5b6b74', marginBottom: 16 }}>
+            We&apos;ll send a 6-digit code to your email. Sign in or create an account instantly.
+          </p>
+          <button type="submit" disabled={loading} style={buttonStyle}>
+            {loading ? 'Sending code...' : 'Send code to email'}
+          </button>
+        </form>
+      )}
+
+      {mode === 'email-otp' && emailOtpStage === 'verify' && (
+        <form onSubmit={handleVerifyEmailOtp}>
+          <p style={{ color: '#5b6b74', fontSize: 14, marginBottom: 16 }}>
+            Code sent to <strong>{email}</strong>
+          </p>
+          <label style={labelStyle}>OTP code</label>
+          <input
+            type="text"
+            value={emailOtp}
+            onChange={(e) => setEmailOtp(e.target.value)}
+            placeholder="123456"
+            maxLength={6}
+            required
+            disabled={loading}
+            style={inputStyle}
+          />
+          <button type="submit" disabled={loading} style={buttonStyle}>
+            {loading ? 'Verifying...' : 'Verify'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmailOtpStage('request');
+              setEmailOtp('');
+              setError('');
+            }}
+            style={{
+              ...buttonStyle,
+              background: 'transparent',
+              color: colors.brand[500],
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            Change email
+          </button>
         </form>
       )}
 

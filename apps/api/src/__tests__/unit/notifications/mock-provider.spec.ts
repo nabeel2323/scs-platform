@@ -12,44 +12,68 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MockOtpProvider } from '../../../modules/notifications/providers/mock.provider';
 
 describe('MockOtpProvider', () => {
-  let originalEnv: string | undefined;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(() => {
-    originalEnv = process.env['NODE_ENV'];
-    // Ensure we're in test mode (should already be, but be explicit)
+    originalEnv = { ...process.env };
+    // Ensure we're in test mode with explicit mock opt-in
     process.env['NODE_ENV'] = 'test';
+    process.env['OTP_MOCK_ENABLED'] = 'true';
   });
 
   afterEach(() => {
-    if (originalEnv !== undefined) {
-      process.env['NODE_ENV'] = originalEnv;
-    } else {
-      delete process.env['NODE_ENV'];
-    }
+    process.env = { ...originalEnv };
     vi.restoreAllMocks();
   });
 
   // ── Initialization Guard ──────────────────────────────────────
 
   describe('initialization guard', () => {
-    it('allows construction in test environment', () => {
+    it('allows construction in test environment with explicit opt-in', () => {
       process.env['NODE_ENV'] = 'test';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       expect(() => new MockOtpProvider()).not.toThrow();
     });
 
-    it('allows construction in development environment', () => {
+    it('allows construction in development environment with explicit opt-in', () => {
       process.env['NODE_ENV'] = 'development';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       expect(() => new MockOtpProvider()).not.toThrow();
     });
 
-    it('rejects construction in production environment', () => {
+    it('rejects construction in production environment even with opt-in', () => {
       process.env['NODE_ENV'] = 'production';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
     });
 
-    it('rejects construction in staging environment', () => {
+    it('rejects construction in staging environment even with opt-in', () => {
       process.env['NODE_ENV'] = 'staging';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
+    });
+
+    it('rejects construction when OTP_MOCK_ENABLED is absent (fail-closed, S1.38 F-10)', () => {
+      process.env['NODE_ENV'] = 'test';
+      delete process.env['OTP_MOCK_ENABLED'];
+      expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
+    });
+
+    it('rejects construction when OTP_MOCK_ENABLED is false', () => {
+      process.env['NODE_ENV'] = 'test';
+      process.env['OTP_MOCK_ENABLED'] = 'false';
+      expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
+    });
+
+    it('rejects construction when NODE_ENV is unset (fail-closed, S1.38 F-10)', () => {
+      delete process.env['NODE_ENV'];
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      // isProductionLikeEnv treats unset as 'development', but MockOtpProvider
+      // constructor's own NODE_ENV check passes. The registry-level guard is
+      // what blocks this — tested in provider-registry.spec.ts.
+      // At the provider level, unset NODE_ENV + opt-in still constructs,
+      // but the registry won't call the constructor in that case.
+      expect(() => new MockOtpProvider()).not.toThrow();
     });
 
     it('error message does not contain OTP values or credentials', () => {

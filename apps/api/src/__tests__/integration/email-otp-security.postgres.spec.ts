@@ -425,8 +425,8 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
 
       const logs = await pool.query(`SELECT * FROM account_link_log WHERE user_id = $1`, [userId]);
       expect(logs.rows).toHaveLength(1);
-      // identifier_hash is SHA-256 (64 hex chars), never raw email
-      expect(logs.rows[0].identifier_hash).toHaveLength(64);
+      // identifier_hash is HMAC-SHA256 v2 (v2: prefix + 64 hex chars = 67), never raw email
+      expect(logs.rows[0].identifier_hash).toHaveLength(67);
       expect(logs.rows[0].identifier_hash).not.toContain('audit-sec@test.com');
 
       await pool.query(`DELETE FROM account_link_log WHERE user_id = $1`, [userId]);
@@ -451,33 +451,59 @@ describe('Email OTP Security Integration (S1.35 Phase 1)', () => {
   // ── 8. Mock Provider Environment Guard ────────────────────────────
 
   describe('Mock provider environment guard', () => {
-    it('rejects construction in production NODE_ENV', () => {
+    it('rejects construction in production NODE_ENV even with opt-in', () => {
       const origEnv = process.env['NODE_ENV'];
+      const origMock = process.env['OTP_MOCK_ENABLED'];
       process.env['NODE_ENV'] = 'production';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       try {
-        expect(() => new MockOtpProvider()).toThrow(/production|staging|not allowed/i);
+        expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
       } finally {
         process.env['NODE_ENV'] = origEnv;
+        if (origMock !== undefined) process.env['OTP_MOCK_ENABLED'] = origMock;
+        else delete process.env['OTP_MOCK_ENABLED'];
       }
     });
 
-    it('rejects construction in staging NODE_ENV', () => {
+    it('rejects construction in staging NODE_ENV even with opt-in', () => {
       const origEnv = process.env['NODE_ENV'];
+      const origMock = process.env['OTP_MOCK_ENABLED'];
       process.env['NODE_ENV'] = 'staging';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       try {
-        expect(() => new MockOtpProvider()).toThrow(/production|staging|not allowed/i);
+        expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
       } finally {
         process.env['NODE_ENV'] = origEnv;
+        if (origMock !== undefined) process.env['OTP_MOCK_ENABLED'] = origMock;
+        else delete process.env['OTP_MOCK_ENABLED'];
       }
     });
 
-    it('allows construction in test NODE_ENV', () => {
+    it('allows construction in test NODE_ENV with explicit opt-in (S1.38 F-10)', () => {
       const origEnv = process.env['NODE_ENV'];
+      const origMock = process.env['OTP_MOCK_ENABLED'];
       process.env['NODE_ENV'] = 'test';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
       try {
         expect(() => new MockOtpProvider()).not.toThrow();
       } finally {
         process.env['NODE_ENV'] = origEnv;
+        if (origMock !== undefined) process.env['OTP_MOCK_ENABLED'] = origMock;
+        else delete process.env['OTP_MOCK_ENABLED'];
+      }
+    });
+
+    it('rejects construction when OTP_MOCK_ENABLED is absent (fail-closed, S1.38 F-10)', () => {
+      const origEnv = process.env['NODE_ENV'];
+      const origMock = process.env['OTP_MOCK_ENABLED'];
+      process.env['NODE_ENV'] = 'test';
+      delete process.env['OTP_MOCK_ENABLED'];
+      try {
+        expect(() => new MockOtpProvider()).toThrow(/REFUSED/);
+      } finally {
+        process.env['NODE_ENV'] = origEnv;
+        if (origMock !== undefined) process.env['OTP_MOCK_ENABLED'] = origMock;
+        else delete process.env['OTP_MOCK_ENABLED'];
       }
     });
   });

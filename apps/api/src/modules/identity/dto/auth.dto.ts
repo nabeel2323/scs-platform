@@ -145,18 +145,6 @@ export class EmailOtpRequestDto {
   @IsEmail()
   @MaxLength(254)
   email!: string;
-
-  @ApiPropertyOptional({
-    description:
-      'Informational only: the field is accepted and ignored. The challenge is keyed on the ' +
-      'normalized email address, not on its purpose, so an OTP issued through this endpoint is ' +
-      'redeemable for any email-identity operation on the same address (S1.37 open finding F-10b). ' +
-      'Do not rely on it for intent separation.',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(32)
-  purpose?: string;
 }
 
 /** POST /v1/auth/otp/email/verify */
@@ -198,8 +186,8 @@ export class LinkEmailDto {
     description:
       'A live, unconsumed email OTP for this exact address, obtained from /v1/auth/otp/email/request. ' +
       'Required: an identifier may never be attached without proof of mailbox control. Any valid ' +
-      'challenge for the address qualifies regardless of the `purpose` it was requested with, because ' +
-      'the challenge key is the normalized address (see F-10b).',
+      'challenge for the address qualifies regardless of the original request intent, because ' +
+      'the challenge key is the normalized address.',
   })
   @IsString()
   @Matches(/^\d{6}$/, { message: 'otp must be a 6-digit code' })

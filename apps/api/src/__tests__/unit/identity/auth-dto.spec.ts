@@ -128,12 +128,13 @@ describe('Email OTP DTO validation (S1.35 Phase 1)', () => {
     expect((dto as EmailOtpRequestDto).email).toBe('user@example.com');
   });
 
-  it('accepts email OTP request with optional purpose', async () => {
-    const dto = await pipe.transform(
-      { email: 'user@example.com', purpose: 'login' },
-      body(EmailOtpRequestDto),
-    );
-    expect((dto as EmailOtpRequestDto).purpose).toBe('login');
+  it('rejects purpose field on email OTP request (removed in S1.38 F-10b)', async () => {
+    await expect(
+      pipe.transform(
+        { email: 'user@example.com', purpose: 'login' },
+        body(EmailOtpRequestDto),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects invalid email on email OTP request', async () => {

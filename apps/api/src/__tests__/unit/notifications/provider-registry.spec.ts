@@ -48,6 +48,11 @@ describe('ProviderRegistryService', () => {
     process.env['SMTP_FROM'] = 'noreply@example.com';
   }
 
+  /** Enable mock provider opt-in for tests that need it (S1.38 F-10). */
+  function enableMockOptIn() {
+    process.env['OTP_MOCK_ENABLED'] = 'true';
+  }
+
   // ── Public Channel Selection ───────────────────────────────────
 
   describe('public channel selection', () => {
@@ -85,8 +90,9 @@ describe('ProviderRegistryService', () => {
   // ── Internal (Test) Channel Selection ──────────────────────────
 
   describe('internal test channel', () => {
-    it('returns mock provider through getForTest in test environment', () => {
+    it('returns mock provider through getForTest in test environment with opt-in', () => {
       process.env['NODE_ENV'] = 'test';
+      enableMockOptIn();
       setAllProvidersConfigured();
       const registry = new ProviderRegistryService();
       const mock = registry.getForTest('mock');
@@ -96,6 +102,7 @@ describe('ProviderRegistryService', () => {
 
     it('returns public providers through getForTest as well', () => {
       process.env['NODE_ENV'] = 'test';
+      enableMockOptIn();
       setAllProvidersConfigured();
       const registry = new ProviderRegistryService();
       const sms = registry.getForTest('sms');
@@ -103,11 +110,81 @@ describe('ProviderRegistryService', () => {
       expect(sms.channel).toBe('sms');
     });
 
-    it('getMockProvider returns mock in test environment', () => {
+    it('getMockProvider returns mock in test environment with opt-in', () => {
       process.env['NODE_ENV'] = 'test';
+      enableMockOptIn();
       setAllProvidersConfigured();
       const registry = new ProviderRegistryService();
       expect(registry.getMockProvider()).not.toBeNull();
+    });
+  });
+
+  // ── F-10 Fail-closed mock selection (S1.38) ──────────────────
+
+  describe('fail-closed mock selection (F-10)', () => {
+    it('does NOT activate mock when NODE_ENV is test but OTP_MOCK_ENABLED is absent', () => {
+      process.env['NODE_ENV'] = 'test';
+      delete process.env['OTP_MOCK_ENABLED'];
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('does NOT activate mock when NODE_ENV is unset even with OTP_MOCK_ENABLED=true', () => {
+      delete process.env['NODE_ENV'];
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      // Registry-level guard blocks mock when NODE_ENV is not explicitly dev/test
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('does NOT activate mock when NODE_ENV is blank', () => {
+      process.env['NODE_ENV'] = '  ';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('does NOT activate mock in production even with OTP_MOCK_ENABLED=true', () => {
+      process.env['NODE_ENV'] = 'production';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('does NOT activate mock in staging even with OTP_MOCK_ENABLED=true', () => {
+      process.env['NODE_ENV'] = 'staging';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('does NOT activate mock when OTP_MOCK_ENABLED=false', () => {
+      process.env['NODE_ENV'] = 'test';
+      process.env['OTP_MOCK_ENABLED'] = 'false';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).toBeNull();
+    });
+
+    it('activates mock ONLY when NODE_ENV=test AND OTP_MOCK_ENABLED=true', () => {
+      process.env['NODE_ENV'] = 'test';
+      process.env['OTP_MOCK_ENABLED'] = 'true';
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(registry.getMockProvider()).not.toBeNull();
+    });
+
+    it('getForTest throws for mock when mock is not activated', () => {
+      process.env['NODE_ENV'] = 'test';
+      delete process.env['OTP_MOCK_ENABLED'];
+      setAllProvidersConfigured();
+      const registry = new ProviderRegistryService();
+      expect(() => registry.getForTest('mock')).toThrow(/No provider registered/);
     });
   });
 
@@ -116,6 +193,7 @@ describe('ProviderRegistryService', () => {
   describe('mock exclusion', () => {
     it('getAvailableChannels never includes mock', () => {
       process.env['NODE_ENV'] = 'test';
+      enableMockOptIn();
       setAllProvidersConfigured();
       const registry = new ProviderRegistryService();
       const channels = registry.getAvailableChannels();
@@ -124,6 +202,7 @@ describe('ProviderRegistryService', () => {
 
     it('isChannelAvailable rejects mock', () => {
       process.env['NODE_ENV'] = 'test';
+      enableMockOptIn();
       setAllProvidersConfigured();
       const registry = new ProviderRegistryService();
       expect(registry.isChannelAvailable('mock' as any)).toBe(false);

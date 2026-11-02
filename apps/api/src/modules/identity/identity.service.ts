@@ -28,7 +28,7 @@ import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
 import { normalizePhone, maskPhone } from '../../common/utils/phone-validation';
-import { normalizeEmail, maskEmail, hashEmail } from '../../common/utils/email-normalization';
+import { normalizeEmail, maskEmail, hashEmail, hashIdentifier } from '../../common/utils/email-normalization';
 import { resolveOtpHmacSecret } from '../../config/env-gate';
 import { RateLimitService } from '../../common/services/rate-limit.service';
 import { RateLimitException } from '../../common/exceptions/rate-limit.exception';
@@ -743,7 +743,7 @@ export class IdentityService {
       orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: { method: 'email_otp', emailHash: hashEmail(email), deviceId: deviceId ?? null, sessionId },
+      metadata: { method: 'email_otp', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
@@ -1480,7 +1480,7 @@ export class IdentityService {
         actorId: user.id,
         action: 'auth.otp_challenge',
         resource: 'auth',
-        metadata: { method: 'password', emailHash: hashEmail(email), deviceId, reason: 'untrusted_device' },
+        metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, reason: 'untrusted_device' },
         ip: context?.ip,
         userAgent: context?.userAgent ?? deviceInfo?.userAgent,
       });
@@ -1530,7 +1530,7 @@ export class IdentityService {
       orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: { method: 'password', emailHash: hashEmail(email), deviceId, sessionId, trustedDevice: true },
+      metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, sessionId, trustedDevice: true },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
@@ -1824,7 +1824,7 @@ export class IdentityService {
       userId,
       action: 'LINK',
       identifierType: 'EMAIL',
-      identifierHash: hashEmail(email),
+      identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
       performedBy: userId,
     });
 
@@ -1889,7 +1889,7 @@ export class IdentityService {
       userId,
       action: 'LINK',
       identifierType: 'PHONE',
-      identifierHash: hashEmail(phone), // SHA-256 hex, same redaction format as EMAIL
+      identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
       performedBy: userId,
     });
 
@@ -1956,7 +1956,7 @@ export class IdentityService {
         userId,
         action: 'UNLINK',
         identifierType: 'EMAIL',
-        identifierHash: hashEmail(oldEmail),
+        identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
         performedBy: userId,
       });
     }
@@ -2004,7 +2004,7 @@ export class IdentityService {
         userId,
         action: 'UNLINK',
         identifierType: 'PHONE',
-        identifierHash: hashEmail(oldPhone),
+        identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
         performedBy: userId,
       });
     }

@@ -153,6 +153,55 @@ class ApiService {
   Future<void> revokeSessionsByDevice(String deviceId) async =>
       _dio.delete('/v1/me/sessions/revoke-by-device/$deviceId');
 
+  // ── Email OTP (S1.35 Phase 1, S1.38 Flutter integration) ─────
+
+  /// Request an OTP to the given email address.
+  /// Enumeration-safe: returns the same shape whether or not the email exists.
+  Future<Map<String, dynamic>> requestEmailOtp(String email) async =>
+      (await _dio.post('/v1/auth/otp/email/request', data: {'email': email}))
+          .data
+          .cast<String, dynamic>();
+
+  /// Verify an email OTP and obtain a session.
+  Future<AuthTokens> verifyEmailOtp(String email, String otp) async {
+    final deviceId = await DeviceIdService.instance.getDeviceId();
+    final deviceInfo = await DeviceIdService.instance.getDeviceInfo();
+    return AuthTokens.fromJson(
+        (await _dio.post('/v1/auth/otp/email/verify', data: {
+      'email': email,
+      'otp': otp,
+      'deviceId': deviceId,
+      'deviceInfo': deviceInfo,
+    }))
+            .data);
+  }
+
+  // ── Account linking (S1.35 Phase 1, S1.38 Flutter integration) ──
+
+  /// Link a verified email to the authenticated user's account.
+  Future<AccountLinkResponse> linkEmail(String email, String otp) async =>
+      AccountLinkResponse.fromJson((await _dio.post(
+              '/v1/auth/account/link-email',
+              data: {'email': email, 'otp': otp}))
+          .data);
+
+  /// Link a verified phone to the authenticated user's account.
+  Future<AccountLinkResponse> linkPhone(String phone, String otp) async =>
+      AccountLinkResponse.fromJson((await _dio.post(
+              '/v1/auth/account/link-phone',
+              data: {'phone': phone, 'otp': otp}))
+          .data);
+
+  /// Unlink email from the authenticated user's account.
+  Future<AccountLinkResponse> unlinkEmail() async =>
+      AccountLinkResponse.fromJson(
+          (await _dio.post('/v1/auth/account/unlink-email')).data);
+
+  /// Unlink phone from the authenticated user's account.
+  Future<AccountLinkResponse> unlinkPhone() async =>
+      AccountLinkResponse.fromJson(
+          (await _dio.post('/v1/auth/account/unlink-phone')).data);
+
   // ── Profile ───────────────────────────────────────────────
   Future<UserProfile> fetchProfile() async =>
       UserProfile.fromJson((await _dio.get('/v1/me')).data);

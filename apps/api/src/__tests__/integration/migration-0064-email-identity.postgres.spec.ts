@@ -31,11 +31,14 @@ import * as path from 'node:path';
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 const MIGRATION_0064 = '0064_email_identity.sql';
+const MIGRATION_0065 = '0065_hmac_identifier_hash.sql';
 
 /** Run all migrations except 0064 (to set up pre-migration state). */
 async function runMigrationsUpTo(pool: Pool, excludeFile?: string) {
+  // 0065 depends on account_link_log created by 0064, so exclude it too when 0064 is excluded.
+  const alsoExclude = excludeFile === MIGRATION_0064 ? MIGRATION_0065 : undefined;
   const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f) && f !== excludeFile)
+    .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f) && f !== excludeFile && f !== alsoExclude)
     .sort();
   await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
   const failed: string[] = [];

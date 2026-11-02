@@ -568,7 +568,7 @@ describe('Account Linking', () => {
       expect(linkEntry).toBeDefined();
       expect(linkEntry.identifierType).toBe('PHONE');
       // The audit trail must never carry the plaintext number.
-      expect(linkEntry.identifierHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(linkEntry.identifierHash).toMatch(/^v\d+:[a-f0-9]{64}$/);
       expect(linkEntry.identifierHash).not.toContain('966512349999');
     });
   });
@@ -718,7 +718,7 @@ describe('Account Linking', () => {
       expect(linkEntry).toBeDefined();
       expect(linkEntry.identifierType).toBe('EMAIL');
       // The audit trail must never carry the plaintext address.
-      expect(linkEntry.identifierHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(linkEntry.identifierHash).toMatch(/^v\d+:[a-f0-9]{64}$/);
       expect(linkEntry.identifierHash).not.toContain('new@example.com');
     });
 
@@ -735,7 +735,7 @@ describe('Account Linking', () => {
       await service.unlinkPhoneFromAccount('user-1');
 
       expect(insertLog2.map((e) => e.identifierType)).toEqual(['EMAIL', 'PHONE']);
-      expect(insertLog2.every((e) => /^[a-f0-9]{64}$/.test(e.identifierHash))).toBe(true);
+      expect(insertLog2.every((e) => /^v\d+:[a-f0-9]{64}$/.test(e.identifierHash))).toBe(true);
     });
   });
 });

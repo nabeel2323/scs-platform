@@ -32,7 +32,7 @@ import { eq } from 'drizzle-orm';
 import { IdentityService } from '../../modules/identity/identity.service';
 import { createMockRedisStore } from '../unit/helpers/mock-redis';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
-import { normalizeEmail, hashEmail } from '../../common/utils/email-normalization';
+import { normalizeEmail, hashIdentifier } from '../../common/utils/email-normalization';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
@@ -348,14 +348,14 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
       await pool.query(
         `INSERT INTO account_link_log (user_id, action, identifier_type, identifier_hash, performed_by)
          VALUES ($1, 'LINK', 'EMAIL', $2, $1)`,
-        [userId, hashEmail('linktest@example.com')],
+        [userId, hashIdentifier('linktest@example.com', HMAC_SECRET, 'email')],
       );
 
       const logs = await pool.query(`SELECT * FROM account_link_log WHERE user_id = $1`, [userId]);
       expect(logs.rows).toHaveLength(1);
       expect(logs.rows[0].action).toBe('LINK');
       expect(logs.rows[0].identifier_type).toBe('EMAIL');
-      expect(logs.rows[0].identifier_hash).toHaveLength(64);
+      expect(logs.rows[0].identifier_hash).toHaveLength(67); // v2:<64-hex>
 
       await pool.query(`DELETE FROM account_link_log WHERE user_id = $1`, [userId]);
       await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);

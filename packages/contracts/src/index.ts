@@ -105,7 +105,6 @@ export const DeviceCheckResponseSchema = z.object({
 /** POST /v1/auth/otp/email/request */
 export const EmailOtpRequestSchema = z.object({
   email: z.string().email().max(254),
-  purpose: z.string().max(32).optional(),
 });
 
 /** POST /v1/auth/otp/email/verify */

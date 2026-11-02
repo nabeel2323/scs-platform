@@ -28,10 +28,11 @@ import * as schema from '../../drizzle/schema';
 import { IdentityService } from '../../modules/identity/identity.service';
 import { createMockRedisStore } from '../unit/helpers/mock-redis';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
-import { hashEmail } from '../../common/utils/email-normalization';
+import { hashIdentifier } from '../../common/utils/email-normalization';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+const HMAC_SECRET = 'dev-hmac-secret-change-me-in-production-64chars-minimum!!';
 
 /** Every OTP the service generates in this file, so tests need no real mailbox. */
 const PINNED_OTP = '246810';
@@ -163,7 +164,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       expect(logs.rows).toHaveLength(1);
       expect(logs.rows[0].action).toBe('LINK');
       expect(logs.rows[0].identifier_type).toBe('EMAIL');
-      expect(logs.rows[0].identifier_hash).toHaveLength(64);
+      expect(logs.rows[0].identifier_hash).toHaveLength(67); // v2:<64-hex>
       // The audit trail stores the hash only, never the address.
       expect(JSON.stringify(logs.rows[0])).not.toContain('newemail@example.com');
 
@@ -284,7 +285,7 @@ describe('Account Linking Integration (S1.35 Phase 1)', () => {
       expect(logs.rows.some((l: any) => l.action === 'LINK' && l.identifier_type === 'PHONE')).toBe(true);
       // The audit trail stores the hash only, never the number.
       const phoneEntry = logs.rows.find((l: any) => l.identifier_type === 'PHONE');
-      expect(phoneEntry.identifier_hash).toBe(hashEmail('+966500000099'));
+      expect(phoneEntry.identifier_hash).toBe(hashIdentifier('+966500000099', HMAC_SECRET, 'phone'));
       expect(JSON.stringify(phoneEntry)).not.toContain('966500000099');
 
       await pool.query(`DELETE FROM account_link_log WHERE user_id = $1`, [userId]);

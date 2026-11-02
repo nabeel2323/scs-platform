@@ -27,7 +27,7 @@ export function AuthCard() {
         }}>👤</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#0f3340', marginBottom: 2 }}>My Account</div>
-          <div style={{ fontSize: 12, color: '#5b6b74', lineHeight: 1.4 }}>Signed in as {user.fullName || user.phone}</div>
+          <div style={{ fontSize: 12, color: '#5b6b74', lineHeight: 1.4 }}>Signed in as {user.fullName || user.phone || user.email}</div>
         </div>
         <svg className="home-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="#b0bec5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"

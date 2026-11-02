@@ -58,15 +58,25 @@ export class ProviderRegistryService {
     this.internalProviders.set('whatsapp', whatsapp);
     this.internalProviders.set('email', smtp);
 
-    // Conditionally initialize mock provider (dev/test only — constructor guards)
-    const nodeEnv = (process.env['NODE_ENV'] || 'development').trim().toLowerCase();
-    if (nodeEnv === 'development' || nodeEnv === 'test') {
+    // F-10 (S1.38): fail-closed mock provider selection.
+    // Mock requires BOTH a non-production NODE_ENV AND explicit OTP_MOCK_ENABLED=true.
+    // An absent or blank NODE_ENV no longer defaults to 'development' — it fails closed.
+    const nodeEnv = process.env['NODE_ENV']?.trim().toLowerCase();
+    const isDevOrTest = nodeEnv === 'development' || nodeEnv === 'test';
+    const mockOptIn = (process.env['OTP_MOCK_ENABLED'] || '').trim().toLowerCase() === 'true';
+
+    if (isDevOrTest && mockOptIn) {
       try {
         this.mockProvider = new MockOtpProvider();
         this.internalProviders.set('mock', this.mockProvider);
       } catch (error) {
         this.logger.warn(`Mock provider not initialized: ${error instanceof Error ? error.message : 'unknown'}`);
       }
+    } else if (mockOptIn && !isDevOrTest) {
+      this.logger.warn(
+        `OTP_MOCK_ENABLED=true is set but NODE_ENV="${nodeEnv || 'unset'}" is not development/test. ` +
+        'Mock provider refused — this is a hard security boundary.',
+      );
     }
 
     this.logStatus();
