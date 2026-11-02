@@ -197,12 +197,15 @@ describe('Webhook Rate Limiting — Malicious Request Scenarios', () => {
 // ── Controller Decorator Verification ────────────────────────────────────
 
 describe('Webhook Rate Limiting — Controller Integration', () => {
+  // S1.6: The dynamic import resolves 11+ transitive dependencies (drizzle schemas,
+  // database services, etc.) which takes 8-10s on Windows. Scoped timeout of 15s
+  // covers module resolution without weakening the assertion.
   it('CarrierWebhookController imports ThrottlerGuard', async () => {
     const controllerSource = await import(
       '../../../modules/shipping/carrier-webhook.controller'
     );
     expect(controllerSource.CarrierWebhookController).toBeDefined();
-  });
+  }, 15_000);
 
   it('ThrottlerGuard is exported from @nestjs/throttler', async () => {
     const throttler = await import('@nestjs/throttler');

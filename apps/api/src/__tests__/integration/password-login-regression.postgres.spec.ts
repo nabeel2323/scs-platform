@@ -91,8 +91,12 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
 
     await pool.query(`UPDATE feature_flags SET enabled = true WHERE key = 'auth.email_otp.enabled'`);
 
-    // Create test users with bcrypt-hashed passwords
-    const hash = await bcrypt.hash(phoneUser.password, 10);
+    // Create test users with bcrypt-hashed passwords.
+    // S1.38.3: cost factor must match getUnknownUserPasswordHash() (cost 12) in
+    // the production service so that the enumeration-resistance timing test compares
+    // equivalent bcrypt work. A mismatch (cost 10 seed vs cost 12 dummy) caused the
+    // "no branch materially faster" assertion to flake at ratio 4.67 under load.
+    const hash = await bcrypt.hash(phoneUser.password, 12);
     await pool.query(
       `INSERT INTO users (id, full_name, phone, email, password_hash, password_set_at, locale, status, email_verified_at)
        VALUES ($1, 'Phone User', $2, $3, $4, now(), 'en', 'ACTIVE', now())`,
@@ -348,12 +352,26 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
         return Date.now() - startedAt;
       };
 
-      const unknown = await timed('nobody-here@test.com', 'AnyPassword123!');
-      const wrong = await timed(phoneUser.email, 'WrongPassword123!');
+      // S1.38.3: Use median-of-3 to reduce sensitivity to transient scheduler
+      // jitter and Docker resource contention during heavy serial suites.
+      // A single sample under full-suite load produced ratios up to 4.67×
+      // (measured in S1.38.2 and reproduced in S1.38.3 full run) even though
+      // the security invariant (both paths do bcrypt.compare) is maintained.
+      const median = (arr: number[]): number => [...arr].sort((a, b) => a - b)[1]!;
+
+      const unknownSamples: number[] = [];
+      const wrongSamples: number[] = [];
+      for (let i = 0; i < 3; i++) {
+        unknownSamples.push(await timed('nobody-here@test.com', 'AnyPassword123!'));
+        wrongSamples.push(await timed(phoneUser.email, 'WrongPassword123!'));
+      }
+
+      const unknown = median(unknownSamples);
+      const wrong = median(wrongSamples);
       const ratio = unknown / Math.max(wrong, 1);
       expect(ratio).toBeGreaterThan(0.25);
       expect(ratio).toBeLessThan(4);
-    });
+    }, 30_000);
 
     it('audit records the address as a hash, never in clear (S1.37-F-13)', async () => {
       const deviceId = 'audit-hash-device';
@@ -371,7 +389,7 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
         .map((c) => c[0] as any)
         .find((a) => a.action === 'auth.login');
       expect(loginAudit).toBeDefined();
-      expect(loginAudit.metadata.emailHash).toHaveLength(64);
+      expect(loginAudit.metadata.emailHash).toMatch(/^v2:[0-9a-f]{64}$/);
       expect(JSON.stringify(loginAudit)).not.toContain(phoneUser.email);
 
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
