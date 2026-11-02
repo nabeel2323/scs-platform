@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { eq, sql, like, and, isNull } from 'drizzle-orm';
+import { eq, isNull } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -36,10 +36,8 @@ import {
   productAttributeValues, variantAttributeValues,
 } from '../../modules/catalog/catalog.taxonomy.schema';
 import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
-import { users, organizations, organizationMembers } from '../../modules/identity/identity.schema';
+import { users, organizations } from '../../modules/identity/identity.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
-import { auditLogs, outboxEvents } from '../../modules/audit/audit.schema';
-import { masterOrders, orders } from '../../modules/orders/orders.schema';
 import { disputes } from '../../modules/reviews/support.schema';
 import { warehouses } from '../../modules/merchant/merchant.schema';
 import { inventoryItems } from '../../modules/inventory/inventory.schema';
@@ -902,7 +900,7 @@ describe('Catalog Governance — Round-Trip & Relationship Integrity', () => {
   // ── Helper methods (mirror CatalogImportService private methods) ──────
 
   async function loadExistingDataSnapshot() {
-    const [brandRows, catRows, attrRows, optRows, ptRows, prodRows, varRows] = await Promise.all([
+    const [brandRows, catRows, attrRows, _optRows, ptRows, prodRows, varRows] = await Promise.all([
       db.select({ slug: brands.slug }).from(brands),
       db.select({ slug: categories.slug, storeId: categories.storeId }).from(categories),
       db.select({ code: attributeDefinitions.code, type: attributeDefinitions.type, scope: attributeDefinitions.scope }).from(attributeDefinitions),

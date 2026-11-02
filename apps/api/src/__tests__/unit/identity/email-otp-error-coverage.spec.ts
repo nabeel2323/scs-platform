@@ -15,12 +15,11 @@ import { IdentityService } from '../../../modules/identity/identity.service';
 import { createMockRedisStore } from '../helpers/mock-redis';
 import {
   InternalServerErrorException,
-  RateLimitException,
-  UnauthorizedException,
   ConflictException,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { RateLimitException } from '../../../common/exceptions/rate-limit.exception';
 import crypto from 'node:crypto';
 
 process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
@@ -44,7 +43,7 @@ function mockDb(options: {
     db: {
       query: {
         users: {
-          findFirst: vi.fn().mockImplementation(({ where }: any) => {
+          findFirst: vi.fn().mockImplementation((_args: any) => {
             for (const u of userStore.values()) {
               return Promise.resolve(u);
             }

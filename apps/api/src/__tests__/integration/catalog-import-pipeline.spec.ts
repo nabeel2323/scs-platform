@@ -15,7 +15,7 @@ import ExcelJS from 'exceljs';
 import { ExcelParserService } from '../../modules/catalog-import/excel-parser.service';
 import { ExcelValidatorService, type ExistingDataSnapshot } from '../../modules/catalog-import/excel-validator.service';
 import { ExcelPlannerService, type ExistingEntityMap, type ImportPlan, type PlanEntry } from '../../modules/catalog-import/excel-planner.service';
-import { ExcelExecutorService, VARCHAR_LIMITS } from '../../modules/catalog-import/excel-executor.service';
+import { VARCHAR_LIMITS } from '../../modules/catalog-import/excel-executor.service';
 import { CatalogValidationService } from '../../modules/catalog/catalog.validation-service';
 
 /**
