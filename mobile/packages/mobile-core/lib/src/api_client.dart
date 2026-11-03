@@ -87,8 +87,14 @@ class ApiClient {
     '/v1/auth/refresh',
     '/v1/auth/otp/request',
     '/v1/auth/otp/verify',
+    '/v1/auth/otp/email/request',
+    '/v1/auth/otp/email/verify',
     '/v1/auth/login/password',
     '/v1/auth/login/device-check',
+    '/v1/auth/account/link-email',
+    '/v1/auth/account/link-phone',
+    '/v1/auth/account/unlink-email',
+    '/v1/auth/account/unlink-phone',
     '/v1/auth/logout',
   ];
 

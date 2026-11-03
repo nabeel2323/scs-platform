@@ -1489,6 +1489,12 @@ export class IdentityService {
         accessToken: '',
         refreshToken: '',
         requiresOtp: true,
+        // NOTE: otpPhone returns the full phone number (not masked) because the
+        // client needs it for OTP verification — the verify endpoint looks up the
+        // challenge by phone. The user already authenticated with the correct
+        // password, so this is their own phone on their own session. otpEmail is
+        // masked because the email OTP flow uses a different endpoint that takes
+        // the email directly from the request body.
         otpPhone: otpChannel === 'phone' ? (user.phone ?? undefined) : undefined,
         otpEmail: otpChannel === 'email' ? maskEmail(user.email ?? '') : undefined,
       };
@@ -1566,10 +1572,15 @@ export class IdentityService {
    */
   async setupCredentials(
     userId: string,
-    email: string,
+    rawEmail: string,
     password: string,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
+    // Normalize email so the identity is stored in canonical form (trim + lowercase).
+    // Without this, a user who sets up "Alice@Example.com" could fail to log in later
+    // because loginWithPassword normalizes to "alice@example.com" before lookup.
+    const email = normalizeEmail(rawEmail);
+
     // Get user to check current state
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
