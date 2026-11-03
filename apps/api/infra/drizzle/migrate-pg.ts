@@ -6,7 +6,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { acquireMigrationLock, releaseMigrationLock } from './migration-lock';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
@@ -43,7 +43,7 @@ async function main(): Promise<void> {
     }),
   });
 
-  let client: Awaited<ReturnType<Pool['connect']>> | undefined;
+  let client: PoolClient | undefined;
   let lockAcquired = false;
   try {
     client = await pool.connect();
