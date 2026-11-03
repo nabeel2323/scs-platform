@@ -27,6 +27,7 @@ export const DeviceInfoSchema = z.object({
 
 export const OtpRequestSchema = z.object({
   phone: z.string().min(8).max(20),
+  channel: z.enum(['sms', 'whatsapp', 'email']).default('sms').optional(),
 });
 
 export const OtpVerifySchema = z.object({
@@ -83,6 +84,7 @@ export const LoginPasswordResponseSchema = z.object({
   refreshToken: z.string(),
   requiresOtp: z.boolean().optional(),
   otpPhone: z.string().optional(),
+  otpEmail: z.string().optional(),
 });
 
 /** POST /v1/auth/login/device-check request. */
@@ -96,6 +98,63 @@ export const DeviceCheckResponseSchema = z.object({
   canAutoLogin: z.boolean(),
   requiresOtp: z.boolean(),
   hasPassword: z.boolean(),
+});
+
+// ── Email OTP (S1.35 Phase 1) ────────────────────────────────
+
+/** POST /v1/auth/otp/email/request */
+export const EmailOtpRequestSchema = z.object({
+  email: z.string().email().max(254),
+});
+
+/** POST /v1/auth/otp/email/verify */
+export const EmailOtpVerifySchema = z.object({
+  email: z.string().email().max(254),
+  otp: z.string().length(6),
+  deviceId: z.string().max(128).optional(),
+  deviceInfo: DeviceInfoSchema.optional(),
+});
+
+/**
+ * Enumeration-safe response for email OTP request.
+ * Same shape regardless of whether the email exists in the database.
+ */
+export const EmailOtpRequestResponseSchema = z.object({
+  success: z.boolean(),
+  deliveryStatus: z.string(),
+  possiblyDelivered: z.boolean().optional(),
+});
+
+// ── Account Linking (S1.35 Phase 1) ──────────────────────────
+
+/**
+ * POST /v1/auth/account/link-email
+ *
+ * `otp` is required: an email identifier may only be attached after proof of
+ * control over that mailbox (S1.35 Step 10 ownership requirement, re-enforced
+ * by the S1.37 audit).
+ */
+export const AccountLinkEmailSchema = z.object({
+  email: z.string().email().max(254),
+  otp: z.string().regex(/^\d{6}$/),
+});
+
+/**
+ * POST /v1/auth/account/link-phone
+ *
+ * `otp` is required (S1.37-F-05): a phone identifier may only be attached after
+ * proof of control over that number, mirroring the email rule above. Consuming
+ * the challenge for linking invalidates it for login, so one code cannot be used
+ * for both.
+ */
+export const AccountLinkPhoneSchema = z.object({
+  phone: z.string().min(8).max(20),
+  otp: z.string().regex(/^\d{6}$/),
+});
+
+/** Generic success response for account linking/unlinking. */
+export const AccountLinkResponseSchema = z.object({
+  success: z.boolean(),
 });
 
 /**
@@ -830,6 +889,12 @@ export type LoginPassword = z.infer<typeof LoginPasswordSchema>;
 export type LoginPasswordResponse = z.infer<typeof LoginPasswordResponseSchema>;
 export type DeviceCheck = z.infer<typeof DeviceCheckSchema>;
 export type DeviceCheckResponse = z.infer<typeof DeviceCheckResponseSchema>;
+export type EmailOtpRequest = z.infer<typeof EmailOtpRequestSchema>;
+export type EmailOtpVerify = z.infer<typeof EmailOtpVerifySchema>;
+export type EmailOtpRequestResponse = z.infer<typeof EmailOtpRequestResponseSchema>;
+export type AccountLinkEmail = z.infer<typeof AccountLinkEmailSchema>;
+export type AccountLinkPhone = z.infer<typeof AccountLinkPhoneSchema>;
+export type AccountLinkResponse = z.infer<typeof AccountLinkResponseSchema>;
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
 export type AuthSession = z.infer<typeof AuthSessionSchema>;
 
@@ -1099,7 +1164,7 @@ export const UpdateProfileSchema = z.object({
 
 export const UserProfileSchema = z.object({
   id: z.string().uuid(),
-  phone: z.string(),
+  phone: z.string().nullable(),
   email: z.string().nullable(),
   fullName: z.string(),
   locale: z.string(),

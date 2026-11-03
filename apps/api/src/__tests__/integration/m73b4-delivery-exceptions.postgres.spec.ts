@@ -325,7 +325,11 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
       const result = await ordersService.reportShipmentException(shipmentId, type, notes, caller);
       expect(result.exceptionType).toBe(type);
     }
-  });
+    // S1.38.3: This test creates 8 full order lifecycles (checkout → accept → prepare →
+    // ready → assignDriver → pickup → outForDelivery) plus 8 exception reports.
+    // Measured ~8–10 s in isolation (each order cycle ≈ 1 s). The Vitest default 5 000 ms
+    // timeout is insufficient; 30 000 ms provides a 3× margin.
+  }, 30_000);
 
   // ─── B4-PG-04: Notes required for OTHER/DAMAGED/LOST ─────────────
 

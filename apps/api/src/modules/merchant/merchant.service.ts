@@ -164,7 +164,7 @@ export class MerchantService {
       {
         buyerId: string;
         buyerName: string;
-        buyerPhone: string;
+        buyerPhone: string | null;
         buyerEmail: string | null;
         orderCount: number;
         totalSpentMinor: number;

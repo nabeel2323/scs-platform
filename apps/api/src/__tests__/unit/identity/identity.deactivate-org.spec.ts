@@ -55,6 +55,7 @@ function createService(mocks: ReturnType<typeof createMocks>) {
     mocks.mockRateLimit,
     mocks.mockAudit,
     otpDeliveryService as any,
+    { getMockProvider: () => null } as any,
   );
 }
 

@@ -21,12 +21,14 @@ import {
   rolePermissions,
   permissions,
   credentialAuditLog,
+  accountLinkLog,
 } from './identity.schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
 import { normalizePhone, maskPhone } from '../../common/utils/phone-validation';
+import { normalizeEmail, maskEmail, hashEmail, hashIdentifier } from '../../common/utils/email-normalization';
 import { resolveOtpHmacSecret } from '../../config/env-gate';
 import { RateLimitService } from '../../common/services/rate-limit.service';
 import { RateLimitException } from '../../common/exceptions/rate-limit.exception';
@@ -34,12 +36,17 @@ import { denylistKey, secondsUntilExp } from '../../common/auth/token-denylist';
 import { AuditService, AuditRequestContext } from '../audit/index';
 import { OtpDeliveryService } from '../notifications/otp-delivery.service';
 import { OtpDeliveryChannel } from '../notifications/providers/provider.interface';
+import { ProviderRegistryService } from '../notifications/provider-registry.service';
+import { featureFlags } from '../audit/audit.schema';
 import {
   ACQUIRE_RATE_LIMIT,
   CREATE_CHALLENGE,
   CLEANUP_CHALLENGE,
   VERIFY_AND_CONSUME,
 } from '../../common/redis/otp-lua';
+
+/** Feature flag key for email OTP (S1.35 Phase 1). */
+const FLAG_AUTH_EMAIL_OTP = 'auth.email_otp.enabled';
 
 /**
  * Roles assignable through the organization-membership endpoint
@@ -61,17 +68,41 @@ const MERCHANT_ASSIGNABLE_ROLE_KEYS = ['MERCHANT_OWNER', 'MERCHANT_STAFF'];
  * - Organization switching
  * - Session management (listable, remotely revocable)
  */
-/** OTP challenge TTL in seconds. */
+/** OTP challenge TTL in seconds (phone channels). */
 const OTP_CHALLENGE_TTL = 90;
 
-/** Max OTP requests per phone within the rate-limit window. */
+/** OTP challenge TTL in seconds (email channel — D-6). */
+const EMAIL_OTP_CHALLENGE_TTL = 300;
+
+/** Max OTP requests per phone/email within the rate-limit window. */
 const OTP_REQUEST_LIMIT = 5;
 
-/** Max OTP verification failures per phone within the rate-limit window. */
+/** Max OTP verification failures per phone/email within the rate-limit window. */
 const OTP_VERIFY_FAIL_LIMIT = 10;
+
+/** Max OTP requests per IP within the per-IP rate-limit window. */
+const OTP_IP_REQUEST_LIMIT = 20;
+
+/** Per-IP rate-limit window in seconds (1 minute). */
+const OTP_IP_RATE_WINDOW = 60;
 
 /** Rate-limit window in seconds (15 minutes). */
 const RATE_LIMIT_WINDOW = 900;
+
+/**
+ * Cached bcrypt target used to equalize the password-login response time of an
+ * unknown identifier with that of a known one (S1.37 audit). Cost 12 is the
+ * cost every real password hash in this service is minted with, so the
+ * "no such user" branch spends the same single bcrypt round as the real
+ * compare and the difference is not an account-enumeration oracle.
+ */
+let unknownUserPasswordHash: Promise<string> | null = null;
+function getUnknownUserPasswordHash(): Promise<string> {
+  if (!unknownUserPasswordHash) {
+    unknownUserPasswordHash = bcrypt.hash(crypto.randomUUID(), 12);
+  }
+  return unknownUserPasswordHash;
+}
 
 @Injectable()
 export class IdentityService {
@@ -85,6 +116,7 @@ export class IdentityService {
     private readonly rateLimitService: RateLimitService,
     private readonly audit: AuditService,
     private readonly otpDeliveryService: OtpDeliveryService,
+    private readonly providerRegistry: ProviderRegistryService,
   ) {
     // OTP storage secret is resolved through the shared config gate (S1.3 M-02):
     // outside development/test a missing, too-short, or committed-example value
@@ -225,6 +257,9 @@ export class IdentityService {
    * 5. On invalid OTP: atomically enforce verify-failure rate limit.
    * 6. On success: clean up all rate-limit keys, issue JWT pair.
    *
+   * Steps 1-5 are executed by `consumePhoneChallenge`, the same gate account
+   * linking uses, so the verification rules cannot diverge between the two.
+   *
    * Persists deviceId on the session so the device becomes trusted
    * for future email/password logins.
    */
@@ -235,94 +270,11 @@ export class IdentityService {
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
   ): Promise<{ accessToken: string; refreshToken: string }> {
-    const normalizedPhone = normalizePhone(phone);
-    const masked = maskPhone(normalizedPhone);
-    const otpKey = `otp:${normalizedPhone}`;
-
-    // 1. Read challenge to obtain salt for HMAC computation
-    let rawChallenge: string | null;
-    try {
-      rawChallenge = await this.redis.client.get(otpKey);
-    } catch (_redisError) {
-      this.logger.error(`Redis error reading challenge for ${masked}`);
-      throw new InternalServerErrorException('Verification failed. Please try again.');
-    }
-
-    if (!rawChallenge) {
-      throw new UnauthorizedException('OTP expired or not found');
-    }
-
-    let challenge: { ch: string; hs: string; s: string; ca: string; co: boolean };
-    try {
-      challenge = JSON.parse(rawChallenge);
-    } catch {
-      this.logger.error(`Corrupt challenge data for ${masked}`);
-      await this.redis.client.del(otpKey).catch(() => {});
-      throw new UnauthorizedException('OTP verification error');
-    }
-
-    // 2. Compute HMAC of user-supplied OTP with stored salt
-    const providedHash = crypto
-      .createHmac('sha256', this.hmacSecret)
-      .update(otp + challenge.s)
-      .digest('hex');
-
-    // 3. Atomic verify-and-consume
-    let verifyStatus: number;
-    try {
-      const result = await this.redis.client.eval(
-        VERIFY_AND_CONSUME, 1,
-        otpKey,
-        providedHash,
-      ) as number[];
-      verifyStatus = (result[0] ?? -1) as number;
-    } catch (_redisError) {
-      this.logger.error(`Redis error during OTP verification for ${masked}`);
-      throw new InternalServerErrorException('Verification failed. Please try again.');
-    }
-
-    // 4. Handle verification result
-    switch (verifyStatus) {
-      case -1:
-        throw new UnauthorizedException('OTP expired or not found');
-      case -2:
-        throw new UnauthorizedException('OTP already used');
-      case 0: {
-        // Wrong OTP — atomically enforce verify-failure rate limit
-        try {
-          const failResult = await this.redis.client.eval(
-            ACQUIRE_RATE_LIMIT, 1,
-            `otp:vatt:${normalizedPhone}`,
-            OTP_VERIFY_FAIL_LIMIT,
-            RATE_LIMIT_WINDOW,
-          ) as number[];
-          const failAllowed = (failResult[0] ?? 0) as number;
-          if (failAllowed === 0) {
-            const failTtl = (failResult[2] ?? RATE_LIMIT_WINDOW) as number;
-            throw new RateLimitException('Too many invalid OTP attempts.', {
-              limit: OTP_VERIFY_FAIL_LIMIT,
-              remaining: 0,
-              retryAfterSeconds: failTtl > 0 ? failTtl : RATE_LIMIT_WINDOW,
-            });
-          }
-        } catch (e) {
-          if (e instanceof RateLimitException) throw e;
-          this.logger.error(`Redis error during verify-failure rate limit for ${masked}`);
-        }
-        throw new UnauthorizedException('Invalid OTP');
-      }
-      case 1:
-        // Valid OTP — challenge consumed (deleted by Lua script)
-        break;
-      default:
-        throw new UnauthorizedException('OTP verification error');
-    }
-
-    // 5. Clean up all rate-limit keys on successful verification
-    await Promise.all([
-      this.redis.client.del(`otp:req:${normalizedPhone}`).catch(() => {}),
-      this.redis.client.del(`otp:vatt:${normalizedPhone}`).catch(() => {}),
-    ]);
+    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure-limit
+    // enforcement, rate-limit key cleanup) are delegated to consumePhoneChallenge
+    // so that this login path and the account-linking path can never drift apart
+    // (S1.37-F-05).
+    const { phone: normalizedPhone } = await this.consumePhoneChallenge(phone, otp);
 
     const existing = await this.db.db.query.users.findFirst({
       where: eq(users.phone, normalizedPhone),
@@ -380,6 +332,418 @@ export class IdentityService {
       action: 'auth.login',
       resource: 'auth',
       metadata: { method: 'otp', phone: normalizedPhone, deviceId: deviceId ?? null, sessionId },
+      ip: context?.ip,
+      userAgent: context?.userAgent ?? deviceInfo?.userAgent,
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  // ── Email OTP (S1.35 Phase 1) ───────────────────────────────
+
+  /**
+   * Request OTP for an email address.
+   *
+   * Enumeration prevention: returns the same response shape whether the email
+   * exists in the database or not. A challenge is always created so that
+   * timing differences do not leak account existence.
+   *
+   * Lifecycle:
+   * 1. Normalize email.
+   * 2. Enforce per-email rate limit (5 per 15 min).
+   * 3. Enforce per-IP rate limit (20 per 1 min).
+   * 4. Generate 6-digit OTP with cryptographic randomness.
+   * 5. Compute HMAC-SHA256 of OTP with per-challenge salt.
+   * 6. Atomically create challenge in Redis (300s TTL — D-6).
+   * 7. Deliver via email provider (or store in mock for tests).
+   * 8. On definite delivery failure: clean up challenge.
+   */
+  async requestEmailOtp(
+    rawEmail: string,
+    ip?: string,
+  ): Promise<{
+    success: boolean;
+    deliveryStatus: string;
+    possiblyDelivered?: boolean;
+  }> {
+    // 1. Normalize email
+    const email = normalizeEmail(rawEmail);
+    const masked = maskEmail(email);
+
+    // 2. Per-email rate limit (atomic Lua)
+    let rateResult: number[];
+    try {
+      rateResult = await this.redis.client.eval(
+        ACQUIRE_RATE_LIMIT, 1,
+        `otp:req:email:${email}`,
+        OTP_REQUEST_LIMIT,
+        RATE_LIMIT_WINDOW,
+      ) as number[];
+    } catch (_redisError) {
+      this.logger.error(`Redis error during email rate-limit check for ${masked}`);
+      throw new InternalServerErrorException('Rate limit check failed. Please try again.');
+    }
+
+    const allowed: number = (rateResult[0] ?? 0) as number;
+    const ttl: number = (rateResult[2] ?? RATE_LIMIT_WINDOW) as number;
+    if (allowed === 0) {
+      throw new RateLimitException('Too many OTP requests. Please try again later.', {
+        limit: OTP_REQUEST_LIMIT,
+        remaining: 0,
+        retryAfterSeconds: ttl > 0 ? ttl : RATE_LIMIT_WINDOW,
+      });
+    }
+
+    // 3. Per-IP rate limit (atomic Lua)
+    //    Fail-closed, exactly like the per-email limit above: a Redis fault on
+    //    this dimension must not silently drop the only cross-account throttle
+    //    (S1.37 audit — the previous handler logged and continued).
+    if (ip) {
+      try {
+        const ipResult = await this.redis.client.eval(
+          ACQUIRE_RATE_LIMIT, 1,
+          `otp:ip:${ip}`,
+          OTP_IP_REQUEST_LIMIT,
+          OTP_IP_RATE_WINDOW,
+        ) as number[];
+        const ipAllowed = (ipResult[0] ?? 0) as number;
+        if (ipAllowed === 0) {
+          const ipTtl = (ipResult[2] ?? OTP_IP_RATE_WINDOW) as number;
+          throw new RateLimitException('Too many requests from this address.', {
+            limit: OTP_IP_REQUEST_LIMIT,
+            remaining: 0,
+            retryAfterSeconds: ipTtl > 0 ? ipTtl : OTP_IP_RATE_WINDOW,
+          });
+        }
+      } catch (e) {
+        if (e instanceof RateLimitException) throw e;
+        this.logger.error(`Redis error during email OTP IP rate-limit check`);
+        throw new InternalServerErrorException('Rate limit check failed. Please try again.');
+      }
+    } else {
+      this.logger.warn('Email OTP request arrived without a resolvable client IP; per-IP limit skipped');
+    }
+
+    // 4. Generate OTP and HMAC
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const challengeId = crypto.randomUUID();
+    const salt = crypto.randomBytes(16).toString('hex');
+    const otpHash = crypto
+      .createHmac('sha256', this.hmacSecret)
+      .update(otp + salt)
+      .digest('hex');
+
+    // 5. Atomic challenge creation (300s TTL for email — D-6)
+    const redisKey = `otp:email:${email}`;
+    try {
+      await this.redis.client.eval(
+        CREATE_CHALLENGE, 1,
+        redisKey,
+        challengeId,
+        otpHash,
+        salt,
+        EMAIL_OTP_CHALLENGE_TTL,
+        Date.now().toString(),
+      );
+    } catch (_redisError) {
+      this.logger.error(`Redis error during email challenge creation for ${masked}`);
+      throw new InternalServerErrorException('OTP generation failed. Please try again.');
+    }
+
+    // 6. Deliver via email provider (or mock for tests)
+    const mockProvider = this.providerRegistry.getMockProvider();
+    let deliveryResult;
+
+    if (mockProvider) {
+      // Use mock provider in dev/test for deterministic retrieval
+      deliveryResult = await this.otpDeliveryService.deliverToTestChannel({
+        otp,
+        channel: 'mock',
+        correlationId: challengeId,
+        email,
+        subject: masked,
+        subjectType: 'email',
+      });
+    } else {
+      deliveryResult = await this.otpDeliveryService.deliverEmailOtp(
+        email, otp, challengeId,
+      );
+    }
+
+    // 7. Handle delivery outcome
+    if (!deliveryResult.success) {
+      if (deliveryResult.deliveryOutcome === 'unknown') {
+        this.logger.warn(
+          `Email OTP delivery outcome uncertain for ${masked} — challenge preserved`,
+        );
+        return {
+          success: false,
+          deliveryStatus: 'DELIVERY_TIMEOUT',
+          possiblyDelivered: true,
+        };
+      }
+
+      // Definite rejection — clean up challenge
+      try {
+        await this.redis.client.eval(
+          CLEANUP_CHALLENGE, 1,
+          redisKey,
+          challengeId,
+        );
+      } catch (_redisError) {
+        this.logger.error(`Redis error during email challenge cleanup for ${masked}`);
+      }
+
+      return {
+        success: false,
+        deliveryStatus: deliveryResult.errorReason || 'DELIVERY_FAILED',
+      };
+    }
+
+    this.logger.log(`Email OTP delivered to ${masked} (challenge: ${challengeId})`);
+
+    return {
+      success: true,
+      deliveryStatus: 'delivered',
+    };
+  }
+
+  /**
+   * Atomically verify and consume an OTP challenge, whichever identifier channel
+   * it was issued for.
+   *
+   * Extracted (S1.37 audit) so phone login, email login, registration and account
+   * linking all run the identical expiry / replay / wrong-code / failure-limit
+   * rules. Before this, `POST /auth/account/link-email` attached an address and
+   * stamped `emailVerifiedAt` with no proof of mailbox control at all, which let
+   * any authenticated user pre-claim someone else's address, and
+   * `POST /auth/account/link-phone` attached a number with the same missing gate
+   * (S1.37-F-04, S1.37-F-05). Any identity write that claims an identifier was
+   * verified must consume a live challenge through this gate.
+   *
+   * The challenge value itself is never read back into this process for
+   * comparison: the stored HMAC is compared inside the Lua script, so exactly one
+   * concurrent attempt can win and the challenge cannot be replayed.
+   */
+  private async consumeOtpChallenge(
+    target: {
+      /** Challenge JSON key, e.g. `otp:email:<address>` or `otp:<phone>`. */
+      challengeKey: string;
+      /** Request-budget key, cleared when the challenge is won. */
+      requestKey: string;
+      /** Wrong-code budget key for this identifier. */
+      failureKey: string;
+      /** Redacted identifier for log lines; the raw value never reaches a log. */
+      masked: string;
+      /** Channel label, used only to keep log lines attributable. */
+      label: 'email' | 'phone';
+    },
+    otp: string,
+  ): Promise<void> {
+    const otpKey = target.challengeKey;
+    const masked = target.masked;
+
+    // 1. Read challenge to obtain salt
+    let rawChallenge: string | null;
+    try {
+      rawChallenge = await this.redis.client.get(otpKey);
+    } catch (_redisError) {
+      this.logger.error(`Redis error reading ${target.label} challenge for ${masked}`);
+      throw new InternalServerErrorException('Verification failed. Please try again.');
+    }
+
+    if (!rawChallenge) {
+      throw new UnauthorizedException('OTP expired or not found');
+    }
+
+    let challenge: { ch: string; hs: string; s: string; ca: string; co: boolean };
+    try {
+      challenge = JSON.parse(rawChallenge);
+    } catch {
+      this.logger.error(`Corrupt ${target.label} challenge data for ${masked}`);
+      await this.redis.client.del(otpKey).catch(() => {});
+      throw new UnauthorizedException('OTP verification error');
+    }
+
+    // 2. Compute HMAC of user-supplied OTP with stored salt
+    const providedHash = crypto
+      .createHmac('sha256', this.hmacSecret)
+      .update(otp + challenge.s)
+      .digest('hex');
+
+    // 3. Atomic verify-and-consume
+    let verifyStatus: number;
+    try {
+      const result = await this.redis.client.eval(
+        VERIFY_AND_CONSUME, 1,
+        otpKey,
+        providedHash,
+      ) as number[];
+      verifyStatus = (result[0] ?? -1) as number;
+    } catch (_redisError) {
+      this.logger.error(`Redis error during ${target.label} OTP verification for ${masked}`);
+      throw new InternalServerErrorException('Verification failed. Please try again.');
+    }
+
+    // 4. Handle verification result
+    switch (verifyStatus) {
+      case -1:
+        throw new UnauthorizedException('OTP expired or not found');
+      case -2:
+        throw new UnauthorizedException('OTP already used');
+      case 0: {
+        // Wrong OTP — enforce verify-failure rate limit
+        try {
+          const failResult = await this.redis.client.eval(
+            ACQUIRE_RATE_LIMIT, 1,
+            target.failureKey,
+            OTP_VERIFY_FAIL_LIMIT,
+            RATE_LIMIT_WINDOW,
+          ) as number[];
+          const failAllowed = (failResult[0] ?? 0) as number;
+          if (failAllowed === 0) {
+            const failTtl = (failResult[2] ?? RATE_LIMIT_WINDOW) as number;
+            throw new RateLimitException('Too many invalid OTP attempts.', {
+              limit: OTP_VERIFY_FAIL_LIMIT,
+              remaining: 0,
+              retryAfterSeconds: failTtl > 0 ? failTtl : RATE_LIMIT_WINDOW,
+            });
+          }
+        } catch (e) {
+          if (e instanceof RateLimitException) throw e;
+          this.logger.error(`Redis error during ${target.label} verify-failure rate limit for ${masked}`);
+        }
+        throw new UnauthorizedException('Invalid OTP');
+      }
+      case 1:
+        break;
+      default:
+        throw new UnauthorizedException('OTP verification error');
+    }
+
+    // 5. Clean up rate-limit keys
+    await Promise.all([
+      this.redis.client.del(target.requestKey).catch(() => {}),
+      this.redis.client.del(target.failureKey).catch(() => {}),
+    ]);
+  }
+
+  /**
+   * Consume the email OTP challenge for `rawEmail`, returning the normalized
+   * address it was issued for.
+   *
+   * @returns the normalized email whose challenge was consumed.
+   */
+  private async consumeEmailChallenge(rawEmail: string, otp: string): Promise<{ email: string }> {
+    const email = normalizeEmail(rawEmail);
+    await this.consumeOtpChallenge(
+      {
+        challengeKey: `otp:email:${email}`,
+        requestKey: `otp:req:email:${email}`,
+        failureKey: `otp:vatt:email:${email}`,
+        masked: maskEmail(email),
+        label: 'email',
+      },
+      otp,
+    );
+    return { email };
+  }
+
+  /**
+   * Consume the phone OTP challenge for `rawPhone`, returning the E.164 number it
+   * was issued for.
+   *
+   * Uses exactly the key layout `requestOtp` writes, so a code already delivered
+   * over SMS or WhatsApp proves control of the number being linked. No second
+   * "linking" challenge format exists: one identifier, one challenge, one consume
+   * gate (S1.37-F-05).
+   */
+  private async consumePhoneChallenge(rawPhone: string, otp: string): Promise<{ phone: string }> {
+    const phone = normalizePhone(rawPhone);
+    await this.consumeOtpChallenge(
+      {
+        challengeKey: `otp:${phone}`,
+        requestKey: `otp:req:${phone}`,
+        failureKey: `otp:vatt:${phone}`,
+        masked: maskPhone(phone),
+        label: 'phone',
+      },
+      otp,
+    );
+    return { phone };
+  }
+
+  /**
+   * Verify email OTP and issue JWT pair.
+   *
+   * Lifecycle mirrors phone verifyOtp but uses email-keyed Redis entries
+   * and 300s challenge TTL. On success, resolves the user by email —
+   * creating an email-only account if no user exists yet.
+   */
+  async verifyEmailOtp(
+    rawEmail: string,
+    otp: string,
+    deviceId?: string,
+    deviceInfo?: { platform: string; userAgent: string },
+    context?: AuditRequestContext,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure limits,
+    // rate-limit key cleanup) live in consumeEmailChallenge so linking proves
+    // mailbox control through exactly the same gate.
+    const { email } = await this.consumeEmailChallenge(rawEmail, otp);
+
+    // 6. Resolve or create user by email
+    const existing = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+    } else {
+      // Email-only registration (D-1)
+      userId = crypto.randomUUID();
+      await this.db.db.insert(users).values({
+        id: userId,
+        email,
+        fullName: 'New User',
+        locale: 'en',
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+      });
+    }
+
+    // 7. Issue JWT pair through existing session infrastructure
+    const claims = await this.buildClaims(userId);
+    const refreshToken = crypto.randomUUID();
+    const tokenHash = this.hashToken(refreshToken);
+    const sessionId = crypto.randomUUID();
+
+    const accessToken = this.jwt.sign({
+      sub: userId,
+      activeOrg: claims.activeOrgId,
+      role: claims.roleKey,
+      perms: claims.permissions,
+      sid: sessionId,
+      jti: crypto.randomUUID(),
+    });
+
+    await this.db.db.insert(sessions).values({
+      id: sessionId,
+      userId,
+      tokenHash,
+      device: deviceInfo?.platform || 'web',
+      deviceId: deviceId || null,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    await this.audit.record({
+      actorType: AuditService.actorTypeForRole(claims.roleKey),
+      actorId: userId,
+      orgId: claims.activeOrgId,
+      action: 'auth.login',
+      resource: 'auth',
+      metadata: { method: 'email_otp', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId: deviceId ?? null, sessionId },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
@@ -1015,7 +1379,7 @@ export class IdentityService {
    * Checks device trust and requires OTP if device changed.
    */
   async loginWithPassword(
-    email: string,
+    rawEmail: string,
     password: string,
     deviceId: string,
     deviceInfo?: { platform: string; userAgent: string },
@@ -1025,7 +1389,14 @@ export class IdentityService {
     refreshToken: string;
     requiresOtp?: boolean;
     otpPhone?: string;
+    otpEmail?: string;
   }> {
+    // Normalize through the same rule the email OTP path uses, so one identity
+    // has one rate-limit bucket and one lookup key across both auth methods
+    // (S1.37 audit: the raw DTO value was used, making password login
+    // case-sensitive while email OTP was case-insensitive).
+    const email = normalizeEmail(rawEmail);
+
     // Rate limit check
     const rateCheck = await this.rateLimitService.checkAndIncrement(
       'password_login',
@@ -1048,14 +1419,24 @@ export class IdentityService {
     });
 
     if (!user) {
+      // Equalize against the real compare path below, then give the same answer
+      // as a wrong password. Any distinct message here would confirm that the
+      // identifier has an account.
+      await bcrypt.compare(password, await getUnknownUserPasswordHash());
       throw new UnauthorizedException('Invalid email or password');
     }
 
     // Check if password is set
     if (!user.passwordHash) {
-      throw new UnauthorizedException(
-        'Password not set. Please use OTP login or set up credentials.',
-      );
+      // S1.37 audit: this branch used to answer "Password not set. Please use OTP
+      // login or set up credentials.", which disclosed that the email belongs to
+      // an existing account. Every email-only account created by Phase 1 has a
+      // NULL passwordHash, so the oracle reached the whole new user population.
+      // Answer exactly as a wrong password would; the enumeration-prevention
+      // invariant already asserted by password-login-regression now holds for
+      // all three branches (unknown user / no password / wrong password).
+      await bcrypt.compare(password, await getUnknownUserPasswordHash());
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     // Verify password
@@ -1068,9 +1449,21 @@ export class IdentityService {
     const isTrustedDevice = await this.checkDeviceTrust(user.id, deviceId);
 
     if (!isTrustedDevice) {
-      // Device not trusted - require OTP verification
-      // Send OTP to user's phone (defaults to SMS channel)
-      const otpResult = await this.requestOtp(user.phone);
+      // Device not trusted - require OTP verification.
+      // Prefer phone (existing behaviour); fall back to email for email-only accounts.
+      let otpResult: { success: boolean; deliveryStatus: string; possiblyDelivered?: boolean };
+      let otpChannel: 'phone' | 'email' = 'phone';
+
+      if (user.phone) {
+        otpResult = await this.requestOtp(user.phone);
+      } else if (user.email) {
+        otpResult = await this.requestEmailOtp(user.email as string, context?.ip ?? undefined);
+        otpChannel = 'email';
+      } else {
+        throw new UnauthorizedException(
+          'Account has no phone or email for OTP delivery. Contact support.',
+        );
+      }
 
       if (!otpResult.success && !otpResult.possiblyDelivered) {
         // Definite delivery failure — cannot proceed with untrusted device login
@@ -1087,7 +1480,7 @@ export class IdentityService {
         actorId: user.id,
         action: 'auth.otp_challenge',
         resource: 'auth',
-        metadata: { method: 'password', email, deviceId, reason: 'untrusted_device' },
+        metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, reason: 'untrusted_device' },
         ip: context?.ip,
         userAgent: context?.userAgent ?? deviceInfo?.userAgent,
       });
@@ -1096,7 +1489,14 @@ export class IdentityService {
         accessToken: '',
         refreshToken: '',
         requiresOtp: true,
-        otpPhone: user.phone,
+        // NOTE: otpPhone returns the full phone number (not masked) because the
+        // client needs it for OTP verification — the verify endpoint looks up the
+        // challenge by phone. The user already authenticated with the correct
+        // password, so this is their own phone on their own session. otpEmail is
+        // masked because the email OTP flow uses a different endpoint that takes
+        // the email directly from the request body.
+        otpPhone: otpChannel === 'phone' ? (user.phone ?? undefined) : undefined,
+        otpEmail: otpChannel === 'email' ? maskEmail(user.email ?? '') : undefined,
       };
     }
 
@@ -1136,7 +1536,7 @@ export class IdentityService {
       orgId: claims.activeOrgId,
       action: 'auth.login',
       resource: 'auth',
-      metadata: { method: 'password', email, deviceId, sessionId, trustedDevice: true },
+      metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, sessionId, trustedDevice: true },
       ip: context?.ip,
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
@@ -1172,10 +1572,15 @@ export class IdentityService {
    */
   async setupCredentials(
     userId: string,
-    email: string,
+    rawEmail: string,
     password: string,
     deviceId?: string,
   ): Promise<{ success: boolean; message: string }> {
+    // Normalize email so the identity is stored in canonical form (trim + lowercase).
+    // Without this, a user who sets up "Alice@Example.com" could fail to log in later
+    // because loginWithPassword normalizes to "alice@example.com" before lookup.
+    const email = normalizeEmail(rawEmail);
+
     // Get user to check current state
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
@@ -1195,7 +1600,7 @@ export class IdentityService {
     }
 
     // Validate password strength
-    const passwordCheck = validatePasswordStrength(password, email, user.phone);
+    const passwordCheck = validatePasswordStrength(password, email, user.phone ?? undefined);
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
@@ -1256,7 +1661,7 @@ export class IdentityService {
     const userEmail = user.email || undefined;
 
     // Validate new password strength
-    const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone);
+    const passwordCheck = validatePasswordStrength(newPassword, userEmail, user.phone ?? undefined);
     if (!passwordCheck.valid) {
       throw new BadRequestException(passwordCheck.errors.join('; '));
     }
@@ -1371,7 +1776,271 @@ export class IdentityService {
     return { success: true, revokedCount: result['rowCount'] || 0 };
   }
 
+  // ── Account Linking / Unlinking (S1.35 Phase 1) ────────────
+
+  /**
+   * Link a verified email to an existing account.
+   *
+   * Requirements (S1.35 Step 10, re-enforced by the S1.37 audit):
+   * - Proof of mailbox control: a live email OTP for this exact address must be
+   *   consumed before the address may be attached.
+   * - Email must not already belong to another account.
+   * - Concurrency: the write is optimistic on the account's prior email value and
+   *   the DB unique index is the final arbiter.
+   * - Ownership of the target account is proven by the caller's JWT.
+   */
+  async linkEmailToAccount(
+    userId: string,
+    rawEmail: string,
+    otp: string,
+  ): Promise<{ success: boolean }> {
+    // 1. Proof of control — consumes the challenge, so a code cannot be replayed
+    //    afterwards to log in.
+    const { email } = await this.consumeEmailChallenge(rawEmail, otp);
+
+    // 2. Resolve and lock in the decision we are about to base the write on.
+    const target = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    // Attaching the address the account already holds is a no-op.
+    if (target.email === email) return { success: true };
+
+    // 3. Check if email already belongs to another user
+    const existingByEmail = await this.db.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+    if (existingByEmail && existingByEmail.id !== userId) {
+      throw new ConflictException('EMAIL_ALREADY_IN_USE');
+    }
+
+    // 4. Update user's email, guarded by optimistic locking on the value this
+    //    decision read. A concurrent link that beat step 3 surfaces either as
+    //    rowCount 0 or as a unique violation, never as a silent overwrite.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ email, emailVerifiedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${target.email}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+    }
+
+    // 5. Audit log
+    await this.db.db.insert(accountLinkLog).values({
+      userId,
+      action: 'LINK',
+      identifierType: 'EMAIL',
+      identifierHash: hashIdentifier(email, this.hmacSecret, 'email'),
+      performedBy: userId,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Link a verified phone to an existing account.
+   *
+   * Requirements (symmetric with linkEmailToAccount, S1.37-F-05):
+   * - Proof of control: a live, unconsumed phone OTP for this exact number must be
+   *   consumed before the number may be attached. Ownership of the target account
+   *   is proven by the caller's JWT; ownership of the identifier is proven here.
+   * - The number must not already belong to another account.
+   * - Concurrency: the write is optimistic on the account's prior phone value and
+   *   the DB unique index is the final arbiter.
+   * - The last usable identifier can never be removed by a link (CHECK 23514).
+   */
+  async linkPhoneToAccount(
+    userId: string,
+    rawPhone: string,
+    otp: string,
+  ): Promise<{ success: boolean }> {
+    // 1. Proof of control — consumes the challenge, so the same code cannot be
+    //    replayed afterwards to log in.
+    const { phone } = await this.consumePhoneChallenge(rawPhone, otp);
+
+    // 2. Resolve and lock in the decision we are about to base the write on.
+    const target = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!target) throw new NotFoundException('User not found');
+
+    // Attaching the number the account already holds is a no-op.
+    if (target.phone === phone) return { success: true };
+
+    // 3. Check if phone already belongs to another user
+    const existingByPhone = await this.db.db.query.users.findFirst({
+      where: eq(users.phone, phone),
+    });
+    if (existingByPhone && existingByPhone.id !== userId) {
+      throw new ConflictException('PHONE_ALREADY_IN_USE');
+    }
+
+    // 4. Update user's phone, guarded by optimistic locking on the value this
+    //    decision read. A concurrent link that beat step 3 surfaces either as
+    //    rowCount 0 or as a unique violation, never as a silent overwrite.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ phone, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${target.phone}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+    }
+
+    // 5. Audit log
+    await this.db.db.insert(accountLinkLog).values({
+      userId,
+      action: 'LINK',
+      identifierType: 'PHONE',
+      identifierHash: hashIdentifier(phone, this.hmacSecret, 'phone'),
+      performedBy: userId,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Map a PostgreSQL constraint violation raised by a link/unlink write onto the
+   * domain error the API contract promises instead of leaking an HTTP 500.
+   * 23505 = unique violation (identifier already taken),
+   * 23514 = CHECK violation (the last usable identifier would be removed).
+   */
+  private translateIdentifierConstraintError(err: unknown, takenCode: string): unknown {
+    const code = (err as { code?: string } | null | undefined)?.code;
+    if (code === '23505') return new ConflictException(takenCode);
+    if (code === '23514') {
+      return new BadRequestException(
+        'At least one usable identifier (phone or email) must remain on the account.',
+      );
+    }
+    return err;
+  }
+
+  /**
+   * Unlink email from an account.
+   *
+   * Safety: cannot remove the last usable authentication method.
+   * If the account has no phone, unlinking email is rejected.
+   */
+  async unlinkEmailFromAccount(
+    userId: string,
+  ): Promise<{ success: boolean }> {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Cannot remove last auth method
+    if (!user.phone) {
+      throw new BadRequestException(
+        'Cannot remove email: no phone number linked. At least one authentication method is required.',
+      );
+    }
+
+    const oldEmail = user.email;
+    // Optimistic guard: only clear the email this decision was based on, and
+    // translate a concurrent last-identifier race (CHECK 23514) into a 400
+    // rather than an HTTP 500.
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ email: null, emailVerifiedAt: null, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.email} IS NOT DISTINCT FROM ${user.email}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'EMAIL_ALREADY_IN_USE');
+    }
+
+    // Audit log
+    if (oldEmail) {
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'UNLINK',
+        identifierType: 'EMAIL',
+        identifierHash: hashIdentifier(oldEmail, this.hmacSecret, 'email'),
+        performedBy: userId,
+      });
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Unlink phone from an account.
+   *
+   * Safety: cannot remove the last usable authentication method.
+   * If the account has no email, unlinking phone is rejected.
+   */
+  async unlinkPhoneFromAccount(
+    userId: string,
+  ): Promise<{ success: boolean }> {
+    const user = await this.db.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Cannot remove last auth method
+    if (!user.email) {
+      throw new BadRequestException(
+        'Cannot remove phone: no email linked. At least one authentication method is required.',
+      );
+    }
+
+    const oldPhone = user.phone;
+    try {
+      const updated = await this.db.db
+        .update(users)
+        .set({ phone: null, updatedAt: new Date() })
+        .where(and(eq(users.id, userId), sql`${users.phone} IS NOT DISTINCT FROM ${user.phone}`));
+      if (((updated as any)['rowCount'] ?? 0) === 0) {
+        throw new ConflictException('LINK_CONFLICT_RETRY');
+      }
+    } catch (err) {
+      throw this.translateIdentifierConstraintError(err, 'PHONE_ALREADY_IN_USE');
+    }
+
+    // Audit log
+    if (oldPhone) {
+      await this.db.db.insert(accountLinkLog).values({
+        userId,
+        action: 'UNLINK',
+        identifierType: 'PHONE',
+        identifierHash: hashIdentifier(oldPhone, this.hmacSecret, 'phone'),
+        performedBy: userId,
+      });
+    }
+
+    return { success: true };
+  }
+
   // ── Helpers ────────────────────────────────────────────────
+
+  /**
+   * Check whether the email OTP feature flag is enabled.
+   * Reads from the feature_flags table; returns false when the row is absent.
+   */
+  async isEmailOtpEnabled(): Promise<boolean> {
+    try {
+      const result = await this.db.db.execute(
+        sql`SELECT enabled FROM feature_flags WHERE key = ${FLAG_AUTH_EMAIL_OTP}`,
+      );
+      // drizzle-orm/node-postgres returns { rows: [...] } from raw execute
+      const rows = (result as any)?.rows ?? (result as any);
+      return Array.isArray(rows) && rows[0]?.enabled === true;
+    } catch {
+      return false;
+    }
+  }
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');

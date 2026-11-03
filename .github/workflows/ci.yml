@@ -94,6 +94,18 @@ jobs:
       # Runs the full API suite under v8 coverage and enforces the thresholds
       # in apps/api/vitest.config.ts (global floor + per-module gates on the
       # identity and orders bounded contexts). Fails the build on regression.
+      # S1.38.9 note: self-provisioning `@testcontainers/postgresql` integration
+      # specs are collected through this broad include (see apps/api/vitest.config.ts
+      # `include: ['src/__tests__/**/*.spec.ts']`) and their coverage contribution
+      # is required to keep the aggregate orders-module threshold (lines 40% /
+      # functions 60% / branches 70% / statements 40%) above the floor. Isolating
+      # the coverage job to unit specs only would push orders to ~31/44/58/31 and
+      # fail the gate. Real-Redis ambient-service suites still correctly self-skip
+      # because they gate on `REDIS_IT === '1'`, which this job never exports.
+      # Follow-up scope (owner): author additional orders-module unit tests so the
+      # coverage job can be position-filtered to `src/__tests__/unit` without
+      # dropping below the per-module thresholds — that would be a cleaner
+      # separation between the unit-coverage and integration jobs.
       - run: pnpm --filter @scs/api test:coverage
       - uses: actions/upload-artifact@v4
         if: always()
@@ -269,11 +281,21 @@ jobs:
               "/v1/auth/otp/request", "/v1/auth/otp/verify", "/v1/auth/refresh",
               "/v1/auth/logout", "/v1/auth/switch-org", "/v1/auth/login/password",
               "/v1/auth/login/device-check", "/v1/me", "/v1/me/sessions",
+              // S1.37-F-09: the six Phase 1 email-identity routes. They shipped in the
+              // controller while this gate still only knew the pre-Phase-1 surface, which
+              // is exactly how the omission survived — the gate could not fail for paths
+              // it never listed.
+              "/v1/auth/otp/email/request", "/v1/auth/otp/email/verify",
+              "/v1/auth/account/link-email", "/v1/auth/account/link-phone",
+              "/v1/auth/account/unlink-email", "/v1/auth/account/unlink-phone",
             ];
             const needSchemas = [
               "AuthTokens", "RefreshResponse", "SwitchOrgResponse",
               "LoginPasswordResponse", "DeviceCheckResponse", "SessionInfo",
               "UserProfile", "ProblemDetail",
+              // S1.37-F-09: Phase 1 request/response component schemas.
+              "EmailOtpRequest", "EmailOtpVerify", "EmailOtpRequestResponse",
+              "AccountLinkEmail", "AccountLinkPhone", "AccountLinkResponse",
             ];
             const mp = needPaths.filter((p) => !paths.includes(p));
             const ms = needSchemas.filter((s) => !schemas.includes(s));
@@ -289,6 +311,14 @@ jobs:
           set -euo pipefail
           test -f packages/contracts/generated/api.d.ts || { echo "TS client not generated"; exit 1; }
           echo "TS client generated (generated/api.d.ts)"
+      # S1.37-F-09: the structural gate above lists paths by hand. This reconciles the
+      # three surfaces automatically — the route table AuthController actually declares,
+      # the generated OpenAPI document, and the generated TypeScript client — so a new
+      # endpoint can never again be added to the API without also reaching the contract.
+      # It runs here rather than in the unit job because both artifacts are build outputs
+      # produced by the steps above.
+      - name: Contract drift guard (controller vs OpenAPI vs generated client)
+        run: pnpm --filter @scs/api exec vitest run src/__tests__/unit/contracts-phase1.openapi.spec.ts
       # NOTE: the Dart half (`generate:dart`, openapi-generator-cli) needs Java 11+
       # and is validated locally; it is wired into the mobile job once the app
       # consumes the generated client (see the P2 mobile typed-models work).

@@ -19,6 +19,8 @@ import type {
   LoginPasswordResponse,
   SessionInfo,
   UserProfile,
+  EmailOtpRequestResponse,
+  AccountLinkResponse,
 } from '@scs/contracts';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
@@ -32,7 +34,15 @@ export type { AuthSession };
 
 export interface AuthUser {
   id: string;
-  phone: string;
+  /**
+   * Nullable from S1.35 onward. Migration 0064 drops the NOT NULL constraint on
+   * `users.phone` and `UserProfileSchema` therefore became `z.string().nullable()`,
+   * so an email-first account legitimately has no phone. Callers must not render or
+   * forward this as if it were always present.
+   */
+  phone: string | null;
+  /** Nullable — email-only accounts may have no phone; phone-only accounts may have no email. */
+  email: string | null;
   fullName: string;
   activeOrgId?: string;
   role?: string;
@@ -214,6 +224,7 @@ async function hydrateUserFromProfile(accessToken: string): Promise<void> {
     currentUser = {
       id: profile.id,
       phone: profile.phone,
+      email: profile.email,
       fullName: profile.fullName,
       activeOrgId: profile.activeOrgId ?? undefined,
       role: profile.role ?? undefined,
@@ -525,6 +536,141 @@ export async function revokeSessionsByDevice(deviceId: string): Promise<void> {
   });
 
   if (!res.ok) throw new Error(`Failed to revoke sessions: ${res.status}`);
+}
+
+// ── Email OTP flows (S1.35 Phase 1, S1.38 Web integration) ──
+
+/**
+ * Request an OTP to the given email address.
+ * Enumeration-safe: returns the same shape whether or not the email exists.
+ */
+export async function requestEmailOtp(
+  email: string,
+): Promise<EmailOtpRequestResponse> {
+  const res = await fetch(`${API_URL}/v1/auth/otp/email/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 400) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any).message || 'Invalid email address');
+    }
+    throw new Error(`Email OTP request failed: ${res.status}`);
+  }
+  return (await res.json()) as EmailOtpRequestResponse;
+}
+
+/**
+ * Verify an email OTP and create/resume a session.
+ * On success the server issues a JWT pair and the session is persisted locally.
+ */
+export async function verifyEmailOtp(
+  email: string,
+  otp: string,
+): Promise<AuthSession> {
+  const res = await fetch(`${API_URL}/v1/auth/otp/email/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many verification attempts.');
+    throw new Error(`Email OTP verify failed: ${res.status}`);
+  }
+  const data = (await res.json()) as AuthTokens;
+
+  const session: AuthSession = {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+  currentSession = session;
+  persistSession(session);
+  await hydrateUserFromProfile(session.accessToken);
+  return session;
+}
+
+// ── Account linking (S1.35 Phase 1, S1.38 Web integration) ──
+
+/** Link a verified email to the authenticated user's account. */
+export async function linkEmail(email: string, otp: string): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/link-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+    body: JSON.stringify({ email, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Link email failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Link a verified phone to the authenticated user's account. */
+export async function linkPhone(phone: string, otp: string): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/link-phone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+    body: JSON.stringify({ phone, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Link phone failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Unlink email from the authenticated user's account. */
+export async function unlinkEmail(): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/unlink-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Unlink email failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Unlink phone from the authenticated user's account. */
+export async function unlinkPhone(): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/unlink-phone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Unlink phone failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
 }
 
 // ── Authenticated fetch helper ───────────────────────────────

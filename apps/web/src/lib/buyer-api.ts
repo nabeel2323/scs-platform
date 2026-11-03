@@ -954,7 +954,8 @@ export async function removeSavedSupplier(storeId: string): Promise<unknown> {
 
 export interface UserProfile {
   id: string;
-  phone: string;
+  /** Nullable — email-first accounts (S1.35 migration 0064) may have no phone. */
+  phone: string | null;
   email: string | null;
   fullName: string;
   locale: string;

@@ -277,7 +277,7 @@ export function Navbar() {
                     minWidth: 180, zIndex: 200, overflow: 'hidden',
                   }}>
                     <div style={{ padding: '10px 14px', borderBottom: '1px solid #f0f4f6' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>{user.fullName || user.phone || 'Account'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f3340' }}>{user.fullName || user.phone || user.email || 'Account'}</div>
                     </div>
                     <Link
                       href="/account"
@@ -386,7 +386,7 @@ export function Navbar() {
             {user ? (
               <>
                 <Link href="/account" className="nav-link" style={{ padding: '12px 16px', fontSize: 15 }} onClick={closeMenu}>Account</Link>
-                <div style={{ padding: '8px 16px', fontSize: 13, color: '#5b6b74' }}>{user.fullName || user.phone}</div>
+                <div style={{ padding: '8px 16px', fontSize: 13, color: '#5b6b74' }}>{user.fullName || user.phone || user.email}</div>
                 <button onClick={() => { closeMenu(); handleLogout(); }} style={{
                   padding: '12px 16px', fontSize: 15, fontWeight: 500,
                   color: '#991b1b', background: 'none', border: 'none',

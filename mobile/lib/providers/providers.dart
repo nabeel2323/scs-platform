@@ -35,8 +35,31 @@ final realtimeServiceProvider = Provider<RealtimeService>((ref) {
 // ── Auth ────────────────────────────────────────────────────
 
 final isAuthenticatedProvider = StateProvider<bool>((ref) => false);
+
+/// Phone captured at login for email-only / phone-only identity display.
+/// Empty string means "no phone identity" — consumers must not treat it as
+/// a valid identifier.
 final currentUserPhoneProvider = StateProvider<String>((ref) => '');
+
+/// Email captured at login (S1.38.1 — email-first identity).
+/// Populated by password login and email-OTP login; never conflated with
+/// [currentUserPhoneProvider] so an email-only account does not appear to
+/// have a phone identity.
+final currentUserEmailProvider = StateProvider<String?>((ref) => null);
 final activeOrgIdProvider = StateProvider<String?>((ref) => null);
+
+/// Clears the login-identity cache (S1.38.2).
+///
+/// Both providers are written by `LoginScreen._completeLogin` so Home can show
+/// an identity before the profile fetch returns. They are deliberately *not*
+/// providers that recompute from storage, so nothing else resets them: without
+/// this call a signed-out device keeps showing the previous user's phone/email
+/// to whoever signs in next. Single helper on purpose — every logout or
+/// session-expiration path must drop phone and email together, never one.
+void resetIdentityProviders(WidgetRef ref) {
+  ref.read(currentUserPhoneProvider.notifier).state = '';
+  ref.read(currentUserEmailProvider.notifier).state = null;
+}
 
 /// Restores the authentication session from secure storage on cold start.
 ///

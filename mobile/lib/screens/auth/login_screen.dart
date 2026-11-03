@@ -24,17 +24,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _passwordController = TextEditingController();
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  // Email OTP state (S1.38 Flutter integration)
+  final _emailOtpEmailController = TextEditingController();
+  final _emailOtpCodeController = TextEditingController();
 
   bool _isLoading = false;
   String? _error;
   bool _obscurePassword = true;
   String? _otpPhone;
   bool _otpSent = false;
+  bool _emailOtpSent = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _checkAutoLogin();
   }
 
@@ -45,6 +49,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _passwordController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
+    _emailOtpEmailController.dispose();
+    _emailOtpCodeController.dispose();
     super.dispose();
   }
 
@@ -68,16 +74,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   /// Persist tokens + auth state after a successful login, then enter the app.
-  /// Shared by both auth methods so they behave identically; without this the
+  /// Shared by all auth methods so they behave identically; without this the
   /// router redirect bounces straight back to /login.
-  Future<void> _completeLogin(AuthTokens tokens, String phone) async {
+  ///
+  /// `phone` and `email` are the login identifier captured for display before
+  /// the profile fetch completes. They must not be conflated: an email-only
+  /// account must never populate [currentUserPhoneProvider] with an empty
+  /// placeholder (S1.38.1 fix — previously email OTP and password login both
+  /// passed `''` as the phone, which made `home_screen` show an empty line and
+  /// risked mislabeling the identity model).
+  Future<void> _completeLogin(
+    AuthTokens tokens, {
+    String? phone,
+    String? email,
+  }) async {
     await ref.read(authStorageProvider).saveTokens(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresAt: DateTime.now().add(AuthStorage.tokenLifetime));
     ref.read(apiClientProvider).setAccessToken(tokens.accessToken);
     ref.read(isAuthenticatedProvider.notifier).state = true;
-    ref.read(currentUserPhoneProvider.notifier).state = phone;
+    ref.read(currentUserPhoneProvider.notifier).state = phone ?? '';
+    ref.read(currentUserEmailProvider.notifier).state =
+        (email != null && email.isNotEmpty) ? email : null;
     ref.read(pushNotificationServiceProvider).initialize();
     if (mounted) context.go('/home');
   }
@@ -132,7 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('scs_last_email', _emailController.text);
-      await _completeLogin(tokens, '');
+      await _completeLogin(tokens, email: _emailController.text);
     } catch (e) {
       setState(() {
         _error = ApiService.errorMessage(e);
@@ -188,7 +207,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         await prefs.setString('scs_last_email', _emailController.text);
       }
 
-      await _completeLogin(data, _phoneController.text);
+      await _completeLogin(
+        data,
+        phone: _phoneController.text,
+        email: _emailController.text.isNotEmpty ? _emailController.text : null,
+      );
     } catch (e) {
       setState(() {
         _error = ApiService.errorMessage(e);
@@ -229,6 +252,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 tabs: const [
                   Tab(text: 'Email/Password'),
                   Tab(text: 'Phone OTP'),
+                  Tab(text: 'Email OTP'),
                 ],
               ),
               const SizedBox(height: 24),
@@ -252,6 +276,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   children: [
                     _buildPasswordLoginForm(),
                     _buildOtpLoginForm(),
+                    _buildEmailOtpLoginForm(),
                   ],
                 ),
               ),
@@ -313,8 +338,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: () => _tabController.index = 1,
-          child: const Text('Login with Phone OTP instead'),
+          onPressed: () => _tabController.index = 2,
+          child: const Text('Login with Email OTP instead'),
         ),
       ],
     );
@@ -403,6 +428,158 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         TextButton(
           onPressed: () => _tabController.index = 0,
           child: const Text('Login with Email/Password instead'),
+        ),
+        TextButton(
+          onPressed: () => _tabController.index = 2,
+          child: const Text('Login with Email OTP instead'),
+        ),
+      ],
+    );
+  }
+
+  // ── Email OTP login (S1.38 Flutter integration) ──
+
+  Future<void> _handleRequestEmailOtp() async {
+    if (_emailOtpEmailController.text.isEmpty) {
+      setState(() => _error = 'Please enter your email address');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.requestEmailOtp(_emailOtpEmailController.text);
+      setState(() {
+        _emailOtpSent = true;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = ApiService.errorMessage(e);
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleVerifyEmailOtp() async {
+    if (_emailOtpCodeController.text.isEmpty) {
+      setState(() => _error = 'Please enter the OTP code');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final api = ref.read(apiServiceProvider);
+      final tokens = await api.verifyEmailOtp(
+        _emailOtpEmailController.text,
+        _emailOtpCodeController.text,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('scs_last_email', _emailOtpEmailController.text);
+      await _completeLogin(tokens, email: _emailOtpEmailController.text);
+    } catch (e) {
+      setState(() {
+        _error = ApiService.errorMessage(e);
+        _isLoading = false;
+      });
+    }
+  }
+
+  Widget _buildEmailOtpLoginForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!_emailOtpSent) ...[
+          TextField(
+            controller: _emailOtpEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email address',
+              hintText: 'you@example.com',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.email),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'We\'ll send a 6-digit code to your email. Sign in or create an account instantly.',
+            style: TextStyle(fontSize: 13, color: TaifTokens.muted),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _handleRequestEmailOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TaifTokens.brandPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white)))
+                : const Text('Send code to email',
+                    style: TextStyle(fontSize: 16)),
+          ),
+        ] else ...[
+          Text(
+            'Code sent to ${_emailOtpEmailController.text}',
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _emailOtpCodeController,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, letterSpacing: 8),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _isLoading ? null : _handleVerifyEmailOtp,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TaifTokens.brandPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white)))
+                : const Text('Verify', style: TextStyle(fontSize: 16)),
+          ),
+          TextButton(
+            onPressed: () => setState(() {
+              _emailOtpSent = false;
+              _emailOtpCodeController.clear();
+            }),
+            child: const Text('Change email'),
+          ),
+        ],
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () => _tabController.index = 0,
+          child: const Text('Login with Email/Password instead'),
+        ),
+        TextButton(
+          onPressed: () => _tabController.index = 1,
+          child: const Text('Login with Phone OTP instead'),
         ),
       ],
     );

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
-import { isAuthenticated, switchOrg, hasMerchantAccess } from '../../lib/auth';
+import { isAuthenticated, switchOrg, hasMerchantAccess, requestEmailOtp, requestOtp, linkEmail, linkPhone, unlinkEmail, unlinkPhone } from '../../lib/auth';
 import { ErrorBanner } from '../../components/Shared';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
 
@@ -20,6 +20,18 @@ export default function AccountPage() {
   const [deviceAction, setDeviceAction] = useState<string | null>(null);
   const [switchingOrg, setSwitchingOrg] = useState<string | null>(null);
   const [orgError, setOrgError] = useState('');
+
+  // Account linking state (S1.38 F-17)
+  const [linkEmailAddr, setLinkEmailAddr] = useState('');
+  const [linkEmailOtp, setLinkEmailOtp] = useState('');
+  const [linkEmailStage, setLinkEmailStage] = useState<'idle' | 'verify'>('idle');
+  const [linkEmailError, setLinkEmailError] = useState('');
+  const [linkPhoneNum, setLinkPhoneNum] = useState('');
+  const [linkPhoneOtp, setLinkPhoneOtp] = useState('');
+  const [linkPhoneStage, setLinkPhoneStage] = useState<'idle' | 'verify'>('idle');
+  const [linkPhoneError, setLinkPhoneError] = useState('');
+  const [linkAction, setLinkAction] = useState<string | null>(null);
+  const [linkSuccess, setLinkSuccess] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -80,6 +92,101 @@ export default function AccountPage() {
     finally { setDeviceAction(null); }
   };
 
+  // ── Account linking handlers (S1.38 F-17) ──
+
+  const handleRequestLinkEmail = async () => {
+    setLinkEmailError('');
+    setLinkSuccess('');
+    if (!linkEmailAddr) return;
+    setLinkAction('req-email');
+    try {
+      await requestEmailOtp(linkEmailAddr);
+      setLinkEmailStage('verify');
+    } catch (err: any) {
+      setLinkEmailError(err.message || 'Failed to send OTP');
+    } finally { setLinkAction(null); }
+  };
+
+  const handleLinkEmail = async () => {
+    setLinkEmailError('');
+    setLinkSuccess('');
+    if (!linkEmailAddr || !linkEmailOtp) return;
+    setLinkAction('link-email');
+    try {
+      await linkEmail(linkEmailAddr, linkEmailOtp);
+      setLinkSuccess(`Email ${linkEmailAddr} linked successfully.`);
+      setLinkEmailAddr('');
+      setLinkEmailOtp('');
+      setLinkEmailStage('idle');
+      // Refresh profile to reflect new email
+      const p = await fetchProfile().catch(() => null);
+      if (p) setProfile(p);
+    } catch (err: any) {
+      setLinkEmailError(err.message || 'Failed to link email');
+    } finally { setLinkAction(null); }
+  };
+
+  const handleRequestLinkPhone = async () => {
+    setLinkPhoneError('');
+    setLinkSuccess('');
+    if (!linkPhoneNum) return;
+    setLinkAction('req-phone');
+    try {
+      await requestOtp(linkPhoneNum, 'sms');
+      setLinkPhoneStage('verify');
+    } catch (err: any) {
+      setLinkPhoneError(err.message || 'Failed to send OTP');
+    } finally { setLinkAction(null); }
+  };
+
+  const handleLinkPhone = async () => {
+    setLinkPhoneError('');
+    setLinkSuccess('');
+    if (!linkPhoneNum || !linkPhoneOtp) return;
+    setLinkAction('link-phone');
+    try {
+      await linkPhone(linkPhoneNum, linkPhoneOtp);
+      setLinkSuccess(`Phone ${linkPhoneNum} linked successfully.`);
+      setLinkPhoneNum('');
+      setLinkPhoneOtp('');
+      setLinkPhoneStage('idle');
+      const p = await fetchProfile().catch(() => null);
+      if (p) setProfile(p);
+    } catch (err: any) {
+      setLinkPhoneError(err.message || 'Failed to link phone');
+    } finally { setLinkAction(null); }
+  };
+
+  const handleUnlinkEmail = async () => {
+    if (!confirm('Remove email from your account? You will no longer be able to use email OTP to sign in.')) return;
+    setLinkEmailError('');
+    setLinkSuccess('');
+    setLinkAction('unlink-email');
+    try {
+      await unlinkEmail();
+      setLinkSuccess('Email removed from account.');
+      const p = await fetchProfile().catch(() => null);
+      if (p) setProfile(p);
+    } catch (err: any) {
+      setLinkEmailError(err.message || 'Failed to unlink email');
+    } finally { setLinkAction(null); }
+  };
+
+  const handleUnlinkPhone = async () => {
+    if (!confirm('Remove phone from your account? You will no longer be able to use phone OTP to sign in.')) return;
+    setLinkPhoneError('');
+    setLinkSuccess('');
+    setLinkAction('unlink-phone');
+    try {
+      await unlinkPhone();
+      setLinkSuccess('Phone removed from account.');
+      const p = await fetchProfile().catch(() => null);
+      if (p) setProfile(p);
+    } catch (err: any) {
+      setLinkPhoneError(err.message || 'Failed to unlink phone');
+    } finally { setLinkAction(null); }
+  };
+
   const getPlatformIcon = (platform: string) => {
     const p = platform.toLowerCase();
     if (p.includes('android')) return '🤖';
@@ -136,7 +243,7 @@ export default function AccountPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 14 }}>
             <div><span style={{ color: colors.muted, fontSize: 12 }}>Full Name</span><br />{profile.fullName}</div>
-            <div><span style={{ color: colors.muted, fontSize: 12 }}>Phone</span><br /><code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone}</code></div>
+            <div><span style={{ color: colors.muted, fontSize: 12 }}>Phone</span><br /><code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone || '—'}</code></div>
             <div><span style={{ color: colors.muted, fontSize: 12 }}>Email</span><br />{profile.email || '—'}</div>
             <div><span style={{ color: colors.muted, fontSize: 12 }}>Locale</span><br />{profile.locale === 'ar' ? 'العربية' : 'English'}</div>
             <div><span style={{ color: colors.muted, fontSize: 12 }}>Status</span><br />
@@ -149,6 +256,106 @@ export default function AccountPage() {
             <div><span style={{ color: colors.muted, fontSize: 12 }}>User ID</span><br /><code style={{ fontSize: 11, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.id.slice(0, 8)}...</code></div>
           </div>
         )}
+      </div>
+
+      {/* Authentication Methods (S1.38 F-17) */}
+      <div style={{ background: '#fff', border: `1px solid ${colors.border}`, borderRadius: 10, padding: 24, marginBottom: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Authentication Methods</h2>
+        <p style={{ color: colors.muted, fontSize: 13, marginTop: 0, marginBottom: 16 }}>
+          Link or remove sign-in methods. You must keep at least one active method.
+        </p>
+
+        {linkSuccess && (
+          <div style={{ background: colors.okBg, color: colors.ok, padding: '8px 14px', borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{linkSuccess}</div>
+        )}
+
+        {/* Email */}
+        <div style={{ padding: '12px 0', borderBottom: '1px solid #edf2f7' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 14 }}>
+              <span style={{ color: colors.muted, fontSize: 12 }}>Email</span><br />
+              {profile.email ? <code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.email}</code> : <span style={{ color: colors.muted }}>Not linked</span>}
+            </div>
+            {profile.email && (
+              <button onClick={handleUnlinkEmail} disabled={linkAction === 'unlink-email'}
+                style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: `1px solid ${colors.errBorder}`, borderRadius: 6, cursor: 'pointer' }}>
+                {linkAction === 'unlink-email' ? 'Removing...' : 'Remove'}
+              </button>
+            )}
+          </div>
+          {!profile.email && (
+            <div style={{ marginTop: 8 }}>
+              {linkEmailStage === 'idle' ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="email" value={linkEmailAddr} onChange={e => setLinkEmailAddr(e.target.value)} placeholder="you@example.com" style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                  <button onClick={handleRequestLinkEmail} disabled={!linkEmailAddr || linkAction === 'req-email'}
+                    style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {linkAction === 'req-email' ? 'Sending...' : 'Send OTP'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>Code sent to {linkEmailAddr}</span>
+                  <input type="text" value={linkEmailOtp} onChange={e => setLinkEmailOtp(e.target.value)} placeholder="123456" maxLength={6} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                  <button onClick={handleLinkEmail} disabled={!linkEmailOtp || linkAction === 'link-email'}
+                    style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                    {linkAction === 'link-email' ? 'Linking...' : 'Link'}
+                  </button>
+                  <button onClick={() => { setLinkEmailStage('idle'); setLinkEmailOtp(''); setLinkEmailError(''); }}
+                    style={{ padding: '8px 10px', fontSize: 12, background: '#edf2f7', color: '#374151', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {/* S1.38.2: an unlink failure happens while the identity is still linked,
+              so the message must render outside the “not linked” branch. */}
+          {linkEmailError && <div role="alert" style={{ color: colors.err, fontSize: 12, marginTop: 4 }}>{linkEmailError}</div>}
+        </div>
+
+        {/* Phone */}
+        <div style={{ padding: '12px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 14 }}>
+              <span style={{ color: colors.muted, fontSize: 12 }}>Phone</span><br />
+              {profile.phone ? <code style={{ fontSize: 13, background: '#f0f4f6', padding: '2px 6px', borderRadius: 4 }}>{profile.phone}</code> : <span style={{ color: colors.muted }}>Not linked</span>}
+            </div>
+            {profile.phone && (
+              <button onClick={handleUnlinkPhone} disabled={linkAction === 'unlink-phone'}
+                style={{ padding: '6px 12px', fontSize: 11, fontWeight: 600, background: '#fff', color: '#991b1b', border: `1px solid ${colors.errBorder}`, borderRadius: 6, cursor: 'pointer' }}>
+                {linkAction === 'unlink-phone' ? 'Removing...' : 'Remove'}
+              </button>
+            )}
+          </div>
+          {!profile.phone && (
+            <div style={{ marginTop: 8 }}>
+              {linkPhoneStage === 'idle' ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="tel" value={linkPhoneNum} onChange={e => setLinkPhoneNum(e.target.value)} placeholder="+966 5XX XXX XXXX" style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                  <button onClick={handleRequestLinkPhone} disabled={!linkPhoneNum || linkAction === 'req-phone'}
+                    style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: colors.brand[700], color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {linkAction === 'req-phone' ? 'Sending...' : 'Send OTP'}
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>Code sent to {linkPhoneNum}</span>
+                  <input type="text" value={linkPhoneOtp} onChange={e => setLinkPhoneOtp(e.target.value)} placeholder="123456" maxLength={6} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
+                  <button onClick={handleLinkPhone} disabled={!linkPhoneOtp || linkAction === 'link-phone'}
+                    style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                    {linkAction === 'link-phone' ? 'Linking...' : 'Link'}
+                  </button>
+                  <button onClick={() => { setLinkPhoneStage('idle'); setLinkPhoneOtp(''); setLinkPhoneError(''); }}
+                    style={{ padding: '8px 10px', fontSize: 12, background: '#edf2f7', color: '#374151', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {linkPhoneError && <div role="alert" style={{ color: colors.err, fontSize: 12, marginTop: 4 }}>{linkPhoneError}</div>}
+        </div>
       </div>
 
       {/* Organizations */}

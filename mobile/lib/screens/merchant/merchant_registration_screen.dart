@@ -459,7 +459,8 @@ class _MerchantRegistrationScreenState
           const SizedBox(height: 16),
           Consumer(builder: (_, ref, __) {
             final profile = ref.watch(profileProvider).valueOrNull;
-            if (profile == null) return const SizedBox.shrink();
+            if (profile == null || profile.phone == null)
+              return const SizedBox.shrink();
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(

@@ -33,10 +33,18 @@ class HomeScreen extends ConsumerWidget {
     final isMerchant = role == 'MERCHANT_OWNER' || role == 'MERCHANT_STAFF';
     final isDriver = role == 'DRIVER';
     final phone = ref.watch(currentUserPhoneProvider);
+    final email = ref.watch(currentUserEmailProvider);
     final fullName = profile?.fullName;
+    // S1.38.1: prefer the phone identity when the account has one; fall back to
+    // the login email for email-only accounts so the greeting subtitle and
+    // avatar letter never render an empty string as though it were a phone.
+    final displayIdentifier =
+        phone.isNotEmpty ? phone : (email ?? profile?.email ?? '');
     final avatarLetter = (fullName != null && fullName.isNotEmpty)
         ? fullName.substring(0, 1)
-        : (phone.isNotEmpty ? phone.substring(0, 1) : '?');
+        : (displayIdentifier.isNotEmpty
+            ? displayIdentifier.substring(0, 1)
+            : '?');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Smart Commerce'), actions: [
@@ -62,7 +70,7 @@ class HomeScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            _greeting(context, fullName, phone, avatarLetter),
+            _greeting(context, fullName, displayIdentifier, avatarLetter),
             if (activeOrg != null) ...[
               const SizedBox(height: 12),
               _orgBanner(context, activeOrg),

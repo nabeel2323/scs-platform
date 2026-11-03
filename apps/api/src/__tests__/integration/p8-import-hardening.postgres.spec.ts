@@ -1018,5 +1018,7 @@ describe('P8 — Import/Export Production Hardening (PostgreSQL)', () => {
     }
 
     expect(deterministic).toBe(50);
-  });
+  }, 30_000); // S1.15: 50 iterations × 4 queries (INSERT + 2 concurrent UPDATEs + SELECT)
+             // against Testcontainers PostgreSQL measured 5,160ms in S1.14. Default 5,000ms
+             // timeout is insufficient; 30,000ms provides ~5.8× margin.
 });
