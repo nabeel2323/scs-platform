@@ -16,9 +16,8 @@
 **Total estimated downtime:** 10-35 seconds (during index build in migration 0064)
 
 **Locking contract:**
-- Migration 0064: `ACCESS EXCLUSIVE` on `users` table during index creation (non-concurrent, inside transaction)
-- Migration 0065: `ACCESS EXCLUSIVE` on `account_link_log` during ALTER TABLE
-- Both migrations set `lock_timeout = '5s'` to abort rather than block writers
+- Migration 0064: `ACCESS EXCLUSIVE` on `users` table during index creation (non-concurrent, inside transaction), `lock_timeout = '5s'` to abort rather than block writers
+- Migration 0065: `ACCESS EXCLUSIVE` on `account_link_log` during ALTER TABLE (no explicit lock_timeout — table is append-only audit data with low write frequency, so lock contention is negligible)
 
 ---
 
@@ -146,7 +145,9 @@ docker compose --env-file .env.staging -f infra/docker-compose.prod.yml \
 - Each migration runs in its own transaction
 - `_migration_log` write is part of the same transaction (atomic)
 - If a migration fails, it is NOT logged and the runner exits non-zero
-- Migrations are idempotent (safe to re-run)
+- Migration runner prevents re-application: already-logged migrations are skipped
+- Migration 0064 is idempotent (safe to re-run if needed — uses `IF NOT EXISTS`, `IF EXISTS`, `ON CONFLICT DO NOTHING`)
+- Migration 0065 is NOT idempotent (`ADD COLUMN` without `IF NOT EXISTS`), but the runner will not re-run it if already logged
 
 ### 3.3 Post-Migration Validation
 
@@ -268,18 +269,60 @@ curl -X POST https://staging-api.your-domain.com/v1/auth/otp/request \
 
 ---
 
-### 4.2 Hard Rollback (Schema Revert) — LAST RESORT
+### 4.2 Hard Rollback (Schema Revert) — EXCEPTIONAL ONLY
 
-**When to use:** Data corruption, critical bugs, security vulnerabilities
+**⛔ STOP — READ BEFORE PROCEEDING:**
 
-**⚠️ WARNING:** This is a destructive operation. Requires database downtime. Not recommended unless absolutely necessary.
+Hard rollback is a **DESTRUCTIVE, OWNER-APPROVED, LAST-RESORT** operation. It is NOT a routine recovery step.
 
-**Procedure:**
+**When to consider:** ONLY for critical data corruption or security vulnerabilities that cannot be resolved through soft rollback (feature flag) + forward-fix.
 
-#### Step 1: Disable Feature Flag
+**When NOT to use:**
+- ❌ Email OTP flow issues → Use soft rollback (disable feature flag)
+- ❌ SMTP configuration problems → Use soft rollback + fix configuration
+- ❌ Rate limiting issues → Use soft rollback + investigate
+- ❌ Any issue where data loss is unacceptable → Use soft rollback
+
+**Mandatory prerequisites before hard rollback:**
+1. ✅ Soft rollback (feature flag disable) has been attempted and is insufficient
+2. ✅ Database owner has explicitly approved the destructive operation in writing
+3. ✅ Verified backup exists and has been tested for restorability
+4. ✅ Stakeholders have been notified of expected downtime (5-10 minutes)
+5. ✅ Rollback plan has been reviewed and approved by database owner
+
+**⚠️ CRITICAL DATA-LOSS WARNINGS:**
+
+1. **Email-only users will be affected:**
+   - Users created via email OTP (no phone) have `phone = NULL`
+   - Reverting migration 0064 makes `phone` NOT NULL again
+   - This will FAIL if any email-only users exist
+   - You MUST handle email-only users BEFORE reverting the schema
+
+2. **Handling email-only users (choose ONE):**
+   - **Option A (RECOMMENDED):** Keep email column nullable — do NOT revert migration 0064. Accept that the schema is forward-only and the old code tolerates nullable phone.
+   - **Option B (DESTRUCTIVE):** Delete email-only users — **THIS IS PERMANENT DATA LOSS**. Requires explicit owner approval.
+   - **Option C (NOT RECOMMENDED):** Assign placeholder phones — **THIS CREATES FAKE DATA** that violates the integrity model and may cause issues with SMS delivery, reporting, and user experience.
+
+3. **Audit trail will be lost:**
+   - `account_link_log` table will be dropped
+   - All link/unlink audit records are permanently lost
+   - This creates a compliance gap
+
+4. **Feature flag will be removed:**
+   - Cannot re-enable email OTP without re-applying migrations
+   - Re-applying migrations requires another maintenance window
+
+**Procedure (only after all prerequisites are met):**
+
+#### Step 1: Soft Rollback First
 
 ```sql
+-- Disable feature flag (immediate effect, no restart)
 UPDATE feature_flags SET enabled = false WHERE key = 'auth.email_otp.enabled';
+
+-- Verify
+SELECT key, enabled FROM feature_flags WHERE key = 'auth.email_otp.enabled';
+-- Expected: auth.email_otp.enabled | f
 ```
 
 #### Step 2: Stop Services
@@ -289,7 +332,39 @@ docker compose --env-file .env.staging -f infra/docker-compose.prod.yml \
   stop api web admin
 ```
 
-#### Step 3: Revert Migration 0065
+#### Step 3: Assess Email-Only Users
+
+```sql
+-- Check for users with NULL phone (email-only users)
+SELECT COUNT(*) AS email_only_users FROM users WHERE phone IS NULL;
+
+-- If count > 0, you MUST decide how to handle them BEFORE proceeding
+-- See "Handling email-only users" section above
+```
+
+#### Step 4: Handle Email-Only Users (if any exist)
+
+**If Option A (RECOMMENDED):** Stop here. Do NOT revert migration 0064. Keep the schema forward-compatible.
+
+**If Option B (DESTRUCTIVE — requires owner approval):**
+```sql
+-- ⛔ DESTRUCTIVE: Delete email-only users permanently
+-- Verify the count matches your expectation before executing
+BEGIN;
+SELECT id, email, created_at FROM users WHERE phone IS NULL;
+-- Review the list. If correct:
+DELETE FROM users WHERE phone IS NULL;
+COMMIT;
+```
+
+**If Option C (NOT RECOMMENDED):**
+```sql
+-- ⚠️ Creates fake data — violates integrity model
+-- Only use if absolutely necessary and with owner approval
+UPDATE users SET phone = '+0000000000' WHERE phone IS NULL;
+```
+
+#### Step 5: Revert Migration 0065 (only if Option B or C chosen)
 
 ```sql
 -- Remove hash_version column
@@ -302,36 +377,18 @@ ALTER TABLE account_link_log ALTER COLUMN identifier_hash TYPE varchar(64);
 DELETE FROM _migration_log WHERE migration_name = '0065_hmac_identifier_hash.sql';
 ```
 
-#### Step 4: Handle Users with Email-Only Identity
-
-**⚠️ CRITICAL:** Before reverting migration 0064, you must handle users who have only email (no phone).
+#### Step 6: Revert Migration 0064 (only if Option B or C chosen)
 
 ```sql
--- Check for users with NULL phone
-SELECT COUNT(*) FROM users WHERE phone IS NULL;
+-- ⛔ DESTRUCTIVE OPERATIONS BELOW — verify you have owner approval
 
--- If count > 0, you have three options:
-
--- Option A: Delete email-only users (DATA LOSS)
-DELETE FROM users WHERE phone IS NULL;
-
--- Option B: Add placeholder phone to email-only users
-UPDATE users SET phone = '+0000000000' WHERE phone IS NULL;
-
--- Option C: Keep email column nullable (do NOT revert migration 0064)
--- This is the recommended approach if you have email-only users
-```
-
-#### Step 5: Revert Migration 0064 (if Option A or B)
-
-```sql
--- Drop account_link_log table
+-- Drop account_link_log table (LOSES ALL AUDIT RECORDS)
 DROP TABLE IF EXISTS account_link_log;
 
 -- Drop case-insensitive email index
 DROP INDEX IF EXISTS idx_users_email_lower;
 
--- Make phone NOT NULL again
+-- Make phone NOT NULL again (fails if any users still have NULL phone)
 ALTER TABLE users ALTER COLUMN phone SET NOT NULL;
 
 -- Remove CHECK constraint
@@ -344,7 +401,7 @@ DELETE FROM feature_flags WHERE key = 'auth.email_otp.enabled';
 DELETE FROM _migration_log WHERE migration_name = '0064_email_identity.sql';
 ```
 
-#### Step 6: Deploy Previous Image
+#### Step 7: Deploy Previous Image
 
 ```bash
 SCS_IMAGE_TAG=<previous-known-good-tag> \
@@ -352,7 +409,7 @@ docker compose --env-file .env.staging -f infra/docker-compose.prod.yml \
   up -d api web admin
 ```
 
-#### Step 7: Verify
+#### Step 8: Verify
 
 ```bash
 curl https://staging-api.your-domain.com/v1/healthz
@@ -360,17 +417,17 @@ curl https://staging-api.your-domain.com/v1/healthz
 ```
 
 **Impact:**
-- ❌ All email identifiers removed from user accounts (if Option A/B)
-- ❌ Users with only email (no phone) will be deleted or given placeholder phones
-- ❌ Account link log lost — **AUDIT TRAIL GAP**
+- ❌ If Option B: All email-only users permanently deleted — **IRREVERSIBLE DATA LOSS**
+- ❌ If Option C: Fake phone numbers assigned — **DATA INTEGRITY VIOLATION**
+- ❌ Account link audit log lost — **COMPLIANCE GAP**
 - ❌ Feature flag removed — **CANNOT RE-ENABLE WITHOUT RE-APPLYING MIGRATIONS**
 - ❌ Requires database downtime (5-10 minutes)
 
 **Downtime:** 5-10 minutes
 
-**Data loss:** Potentially significant (email-only users)
+**Data loss:** Potentially significant (email-only users if Option B)
 
-**Recommendation:** Avoid hard rollback unless absolutely necessary. Prefer soft rollback + forward-fix.
+**⛔ RECOMMENDATION:** Avoid hard rollback unless absolutely necessary. Prefer soft rollback + forward-fix. If hard rollback is required, Option A (keep schema forward-compatible) is strongly preferred over Option B or C.
 
 ---
 
@@ -429,11 +486,18 @@ curl https://staging-api.your-domain.com/v1/healthz
 - Uses `IF NOT EXISTS` for table creation
 - Uses `ON CONFLICT DO NOTHING` for feature flag insertion
 - Uses `IF EXISTS` for constraint/index drops (in rollback)
-- Safe to re-run
+- Uses DO blocks that check existence before creating constraints/indexes
+- **Idempotent:** Safe to re-run if needed
 
 **Migration 0065:**
-- Uses `IF NOT EXISTS` for column additions
-- Safe to re-run
+- Uses `ALTER COLUMN TYPE` (idempotent — setting to same type is a no-op)
+- Uses `ADD COLUMN` without `IF NOT EXISTS` (NOT idempotent — will fail if column exists)
+- **Not fully idempotent**, but the migration runner prevents re-application by checking `_migration_log`
+
+**Migration runner protection:**
+- The runner checks `_migration_log` before applying each migration
+- Already-logged migrations are skipped, so idempotency is not required in practice
+- However, migration 0064's idempotency provides an additional safety margin if manual re-application is needed
 
 ### 5.2 Atomicity
 
@@ -497,11 +561,16 @@ docker compose down -v
 - ✅ Preflight checks pass
 - ✅ Schema changes are correct
 - ✅ Feature flag is seeded
-- ✅ Rollback procedures work
+- ✅ Idempotency (re-running migrations is safe)
+
+**CI does NOT verify:**
+- ❌ Rollback procedures (these require manual testing in a disposable environment)
+- ❌ Staging database compatibility (staging has real data that must pass preflight checks)
+- ❌ Production deployment scenarios
 
 **CI database:** Disposable (created and destroyed per test run)
 
-**Note:** CI migration success does NOT prove staging migration will succeed. Staging database has real data that must pass preflight checks.
+**Note:** CI migration success does NOT prove staging migration will succeed. Staging database has real data that must pass preflight checks. Rollback procedures must be tested separately in a disposable environment before relying on them.
 
 ---
 
@@ -533,11 +602,21 @@ UPDATE users SET email = email || '.dup1' WHERE id = <duplicate-user-id>;
 -- Find orphans
 SELECT id, phone, email FROM users WHERE phone IS NULL AND (email IS NULL OR BTRIM(email) = '');
 
--- Resolve orphans (delete or add identifier)
-DELETE FROM users WHERE id = <orphan-user-id>;
+-- ⚠️ BEFORE DELETING OR MODIFYING USERS:
+-- 1. Verify these are truly orphan test data, not real users
+-- 2. Get owner approval if deleting any users
+-- 3. Consider adding a valid identifier instead of deleting
+
+-- Option A (RECOMMENDED): Add valid identifier
+UPDATE users SET phone = '<valid-phone>' WHERE id = <orphan-user-id>;
 -- OR
-UPDATE users SET phone = '+0000000000' WHERE id = <orphan-user-id>;
+UPDATE users SET email = '<valid-email>' WHERE id = <orphan-user-id>;
+
+-- Option B (DESTRUCTIVE — requires owner approval): Delete orphans
+-- DELETE FROM users WHERE id = <orphan-user-id>;
 ```
+
+**Note:** Orphan users should not exist in a healthy database (phone was NOT NULL before migration 0064). If orphans are found, investigate the data integrity issue before proceeding.
 
 ### 7.3 Migration Fails with "lock timeout"
 

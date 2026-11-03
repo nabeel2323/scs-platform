@@ -88,16 +88,23 @@ git log --oneline origin/develop | grep -E "(1d90790|29bc970|9ad6b82)"
 
 | Check | Status | Evidence |
 |-------|--------|----------|
-| CI run for merge commit | ⚠️ NOT INDEPENDENTLY VERIFIED | Operator must confirm at GitHub Actions |
+| CI run for merge commit | ✅ INDEPENDENTLY VERIFIED | Workflow run `41621787969` for commit `428b8fa` |
 
-**Required CI checks:**
-- [ ] API typecheck passes
-- [ ] Web typecheck passes
-- [ ] All unit tests pass
-- [ ] All integration tests pass
-- [ ] Lint checks pass
+**Verified CI checks (all PASSED):**
+- ✅ Build
+- ✅ Container Build & Smoke Test
+- ✅ Contract Spec & Codegen
+- ✅ Migration Full Apply
+- ✅ Unit Tests + Coverage Gates
+- ✅ Integration Tests
+- ✅ Boundary Lint
+- ✅ Mobile
+- ✅ Lint & Typecheck
+- ⏭️ k6 Smoke Test: SKIPPED (as expected by workflow conditions)
 
-**Operator action:** Navigate to https://github.com/nabeel2323/scs-platform/actions and verify all checks passed for commit `428b8fa`.
+**Evidence:** https://github.com/nabeel2323/scs-platform/actions/runs/41621787969
+
+**Note:** CI passing proves repository-level correctness (tests, migrations, type safety). It does NOT prove staging deployment will succeed — staging has real data, real infrastructure, and real SMTP configuration that must be verified separately.
 
 ---
 
@@ -204,7 +211,7 @@ Every requirement in the deliverables cites the actual source file and line numb
 |-------------|----------|
 | CI pipeline exists | `.github/workflows/ci.yml` |
 | CI runs on PR | Confirmed in workflow file |
-| ⚠️ CI passed for merge commit | **NOT INDEPENDENTLY VERIFIED** — operator must confirm |
+| ✅ CI passed for merge commit | **VERIFIED** — Workflow run `41621787969` for commit `428b8fa`, all required checks passed |
 
 ### 5.3 Requires Staging Configuration
 
@@ -238,7 +245,6 @@ Every requirement in the deliverables cites the actual source file and line numb
 
 | Requirement | Reason |
 |-------------|--------|
-| CI passed for merge commit | Cannot access GitHub Actions from this environment |
 | Staging database accessible | No staging environment access |
 | Staging Redis accessible | No staging environment access |
 | SMTP provider configured | No SMTP provider set up yet |
@@ -346,7 +352,7 @@ Every requirement in the deliverables cites the actual source file and line numb
 - [x] Phase 1 contents verified in develop
 - [x] All unit tests pass (521 tests)
 - [x] Both typechecks pass
-- [ ] CI passed for merge commit (operator must verify)
+- [x] CI passed for merge commit (workflow run `41621787969`, all checks passed)
 
 ---
 

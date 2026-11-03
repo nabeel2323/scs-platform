@@ -30,22 +30,26 @@ git log --oneline origin/develop | grep -E "(1d90790|29bc970|9ad6b82)"
 
 ### 1.2 Verify CI Status
 
-**Status:** ⚠️ REQUIRES VERIFICATION
+**Status:** ✅ VERIFIED
 
-CI has not been independently verified for the merge commit. Operator must confirm:
+CI has been independently verified for the merge commit:
 
-```bash
-# Check GitHub Actions status for commit 428b8fa
-# Navigate to: https://github.com/nabeel2323/scs-platform/actions
-# Verify: All checks passed for commit 428b8fa
-```
+**Evidence:**
+- Workflow run: `https://github.com/nabeel2323/scs-platform/actions/runs/41621787969`
+- Commit: `428b8fadd4c3b1572896c73acbbb7c0a7a43af77`
+- All required checks PASSED:
+  - ✅ Build
+  - ✅ Container Build & Smoke Test
+  - ✅ Contract Spec & Codegen
+  - ✅ Migration Full Apply
+  - ✅ Unit Tests + Coverage Gates
+  - ✅ Integration Tests
+  - ✅ Boundary Lint
+  - ✅ Mobile
+  - ✅ Lint & Typecheck
+  - ⏭️ k6 Smoke Test: SKIPPED (as expected by workflow conditions)
 
-**Required CI checks:**
-- ✅ API typecheck (`tsc --noEmit`)
-- ✅ Web typecheck (`tsc --noEmit`)
-- ✅ Unit tests (463 tests)
-- ✅ Integration tests (1,570 tests)
-- ✅ Lint checks
+**Note:** CI passing proves repository-level correctness. It does NOT prove staging deployment will succeed — staging has real data, real infrastructure, and real SMTP configuration that must be verified separately.
 
 ### 1.3 Staging Environment Prerequisites
 
@@ -59,6 +63,191 @@ CI has not been independently verified for the merge commit. Operator must confi
 | OTP_HMAC_SECRET | ⚠️ Not set | Generate and set unique secret (see Section 2) |
 | Environment variables | ⚠️ Not configured | Set all required vars (see Environment Configuration Register) |
 | Docker Compose | ⚠️ Not verified | Confirm staging host has Docker + Compose v2 |
+
+---
+
+## 1A. Operational Acceptance Gates (S1.41 clarification)
+
+**⚠️ CRITICAL:** These gates are sequential and cumulative. Each gate must be satisfied before proceeding to the next. Do not conflate repository/CI readiness with staging/production readiness.
+
+### Gate 1: Repository and CI Readiness
+
+**Status:** ✅ SATISFIED
+
+**Evidence:**
+- PR #104 merged at commit `428b8fa`
+- All CI checks passed (workflow run `41621787969`)
+- All unit tests pass (521 tests)
+- All integration tests pass (1,570 tests)
+- Both typechecks pass (API + Web)
+- Migration files present and tested in CI
+
+**What this proves:**
+- ✅ Code is correct and tested
+- ✅ Migrations apply cleanly in a disposable CI database
+- ✅ No type errors or lint violations
+
+**What this does NOT prove:**
+- ❌ Staging database will accept migrations (staging has real data that must pass preflight checks)
+- ❌ Staging infrastructure is configured correctly
+- ❌ Email OTP will work in staging (requires SMTP configuration)
+
+---
+
+### Gate 2: Staging Infrastructure Readiness
+
+**Status:** ⚠️ REQUIRES OPERATOR ACTION
+
+**Prerequisites:**
+- [ ] PostgreSQL database accessible and backed up
+- [ ] Redis instance accessible
+- [ ] SMTP provider configured (credentials set)
+- [ ] Docker + Compose v2 available on staging host
+- [ ] Network connectivity verified (API can reach DB, Redis, SMTP)
+
+**Operator actions required:**
+1. Verify staging DB is accessible: `psql -U scs -h staging-db -d scs_platform -c "SELECT 1"`
+2. Verify staging Redis is accessible: `redis-cli -h staging-redis -a $REDIS_PASSWORD ping`
+3. Configure SMTP credentials (see Section 2.1)
+4. Generate and set OTP_HMAC_SECRET (see Section 2.2)
+5. Create and verify database backup (see Section 3.1)
+
+**What this proves:**
+- ✅ Staging infrastructure is available and configured
+- ✅ Secrets are set securely
+
+**What this does NOT prove:**
+- ❌ Migrations will apply successfully (requires Gate 3)
+- ❌ API will start successfully (requires Gate 4)
+- ❌ Email OTP will work end-to-end (requires Gate 5)
+
+---
+
+### Gate 3: Database Migration Readiness
+
+**Status:** ⚠️ REQUIRES OPERATOR ACTION
+
+**Prerequisites:**
+- [ ] Gate 2 satisfied (infrastructure ready)
+- [ ] Database backup created and verified restorable
+- [ ] Preflight checks pass (no duplicate emails, no orphan users)
+
+**Operator actions required:**
+1. Run preflight validation (see Migration Plan Section 2.2)
+2. Dry-run migration chain (see Migration Plan Section 3.1)
+3. Apply migrations (see Migration Plan Section 3.2)
+4. Verify migration state (see Migration Plan Section 3.3)
+
+**What this proves:**
+- ✅ Migrations apply successfully to staging database
+- ✅ Schema changes are correct
+- ✅ Feature flag is seeded (disabled by default)
+
+**What this does NOT prove:**
+- ❌ API will start successfully (requires Gate 4)
+- ❌ Email OTP will work (requires Gate 5)
+
+**Important:** CI migration success does NOT prove staging migration will succeed. CI uses a disposable database; staging has real data that must pass preflight checks.
+
+---
+
+### Gate 4: Staging Deployment Readiness
+
+**Status:** ⚠️ REQUIRES OPERATOR ACTION
+
+**Prerequisites:**
+- [ ] Gate 3 satisfied (migrations applied)
+- [ ] All environment variables configured (see Environment Configuration Register)
+- [ ] Docker images built with correct PUBLIC_API_URL
+
+**Operator actions required:**
+1. Build Docker images (see Section 4.1)
+2. Deploy services (see Section 4.2)
+3. Verify health and readiness endpoints (see Section 4.3)
+4. Verify feature flag is OFF (safe default)
+
+**What this proves:**
+- ✅ API starts successfully
+- ✅ Health checks pass
+- ✅ Feature flag is OFF (email OTP disabled)
+
+**What this does NOT prove:**
+- ❌ Email OTP will work when enabled (requires Gate 5)
+
+---
+
+### Gate 5: Email OTP Activation Readiness
+
+**Status:** ⚠️ REQUIRES OWNER APPROVAL
+
+**Prerequisites:**
+- [ ] Gate 4 satisfied (API deployed and healthy)
+- [ ] SMTP connectivity tested from staging
+- [ ] Owner has explicitly approved staging activation
+
+**⛔ CRITICAL:** The feature flag must remain OFF until this gate is satisfied. Do not enable email OTP without owner approval.
+
+**Operator actions required:**
+1. Test SMTP connectivity (see Environment Configuration Register Section 3.5)
+2. Obtain owner approval for staging activation
+3. Enable feature flag (see Section 5.2)
+4. Run smoke tests (see Smoke Test Plan)
+5. Monitor for 48 hours (see Section 7)
+
+**What this proves:**
+- ✅ Email OTP works end-to-end in staging
+- ✅ All security controls are enforced
+- ✅ No issues detected during monitoring period
+
+**What this does NOT prove:**
+- ❌ Production is ready (requires Gate 6)
+
+**Important:** Real email delivery requires explicit staging operator authorization. The feature flag enables real email sends — do not enable without verifying SMTP configuration and obtaining owner approval.
+
+---
+
+### Gate 6: Production Rollout Readiness
+
+**Status:** ⚠️ REQUIRES OWNER APPROVAL
+
+**Prerequisites:**
+- [ ] Gate 5 satisfied (staging monitored for 48 hours with no issues)
+- [ ] Production smtp credentials configured
+- [ ] Production OTP_HMAC_SECRET generated (different from staging)
+- [ ] Production database backup created
+- [ ] Owner has explicitly approved production activation
+
+**Operator actions required:**
+1. Review staging activation results
+2. Configure production environment (see Environment Configuration Register)
+3. Apply production migrations
+4. Deploy production services
+5. Enable production feature flag (with owner approval)
+6. Monitor production for 48 hours
+
+**What this proves:**
+- ✅ Production deployment successful
+- ✅ Email OTP works in production
+
+---
+
+### Gate Summary
+
+| Gate | Readiness Level | Who Approves | Blocking? |
+|------|----------------|--------------|-----------|
+| 1 | Repository/CI | Automated (CI) | NO — already satisfied |
+| 2 | Staging infrastructure | Operator | YES — cannot deploy without infrastructure |
+| 3 | Database migration | Operator | YES — cannot start API without schema |
+| 4 | Staging deployment | Operator | YES — cannot test without API running |
+| 5 | Email OTP activation | **Owner** | YES — cannot enable without owner approval |
+| 6 | Production rollout | **Owner** | YES — cannot deploy to production without owner approval |
+
+**Key principles:**
+1. CI readiness ≠ staging readiness ≠ production readiness
+2. Each gate builds on the previous — do not skip gates
+3. Owner approval is required for Gates 5 and 6 (activation decisions)
+4. Feature flag must remain OFF until Gate 5 is satisfied
+5. Staging must complete 48-hour monitoring before Gate 6 can be satisfied
 
 ---
 
@@ -498,24 +687,32 @@ docker logs api-service | grep "SMTP delivery"
    - Obtain access token
 
 2. **Link email to account:**
+
+   **Proof-of-control contract (verified against `identity.service.ts:1792-1843`):**
+   The `POST /v1/auth/account/link-email` endpoint itself consumes the OTP as proof-of-control. There is NO separate verify step for linking. The same OTP cannot be replayed after the link succeeds.
+
+   **Correct sequence:**
+
    ```bash
-   # First, request OTP for linking
+   # Step 1: Request OTP for the email to be linked
    curl -X POST https://staging-api.your-domain.com/v1/auth/otp/email/request \
      -H "Content-Type: application/json" \
      -d '{"email": "new-email@domain.com"}'
-   
-   # Verify OTP (this consumes the challenge)
-   curl -X POST https://staging-api.your-domain.com/v1/auth/otp/email/verify \
-     -H "Content-Type: application/json" \
-     -d '{"email": "new-email@domain.com", "otp": "123456"}'
-   
-   # Link email to account (requires OTP proof-of-control)
+   # Expected: 200 OK, {"success":true,"deliveryStatus":"accepted","possiblyDelivered":true}
+
+   # Step 2: Read OTP from email inbox (6-digit code)
+
+   # Step 3: Link email to account (consumes OTP as proof-of-control)
    curl -X POST https://staging-api.your-domain.com/v1/auth/account/link-email \
      -H "Authorization: Bearer <access-token>" \
      -H "Content-Type: application/json" \
      -d '{"email": "new-email@domain.com", "otp": "123456"}'
    # Expected: 200 OK, {"success":true}
    ```
+
+   **Important:** Do NOT verify the OTP separately before linking. The link endpoint consumes the OTP directly. Attempting to verify first will consume the challenge and cause the link to fail.
+
+   **Regression reference:** See `apps/api/src/__tests__/integration/account-linking.postgres.spec.ts` lines 150-224 for the exact test pattern.
 
 3. **Verify email is linked:**
    ```bash
@@ -658,83 +855,29 @@ curl -X POST https://staging-api.your-domain.com/v1/auth/otp/email/request \
 # Expected: 404 Not Found
 ```
 
-### 8.2 Hard Rollback (Schema Revert)
+### 8.2 Hard Rollback (Schema Revert) — EXCEPTIONAL ONLY
 
-**When to use:** Data corruption, critical bugs, security vulnerabilities
+**⛔ STOP — READ BEFORE PROCEEDING:**
 
-**⚠️ WARNING:** This is a destructive operation. Requires database downtime.
+Hard rollback is a **DESTRUCTIVE, OWNER-APPROVED, LAST-RESORT** operation. It is NOT a routine recovery step.
 
-**Procedure:**
+**When to consider:** ONLY for critical data corruption or security vulnerabilities that cannot be resolved through soft rollback (feature flag) + forward-fix.
 
-1. **Disable feature flag:**
-   ```sql
-   UPDATE feature_flags SET enabled = false WHERE key = 'auth.email_otp.enabled';
-   ```
+**Mandatory prerequisites:**
+1. ✅ Soft rollback has been attempted and is insufficient
+2. ✅ Database owner has explicitly approved in writing
+3. ✅ Verified backup exists and is restorable
+4. ✅ Stakeholders notified of downtime (5-10 minutes)
 
-2. **Stop services:**
-   ```bash
-   docker compose --env-file .env.staging -f infra/docker-compose.prod.yml \
-     stop api web admin
-   ```
+**⚠️ CRITICAL DATA-LOSS WARNINGS:**
 
-3. **Revert migration 0065:**
-   ```sql
-   -- Remove hash_version column
-   ALTER TABLE account_link_log DROP COLUMN IF EXISTS hash_version;
-   
-   -- Narrow identifier_hash back to varchar(64)
-   ALTER TABLE account_link_log ALTER COLUMN identifier_hash TYPE varchar(64);
-   
-   -- Remove from migration log
-   DELETE FROM _migration_log WHERE migration_name = '0065_hmac_identifier_hash.sql';
-   ```
+1. **Email-only users:** Reverting migration 0064 makes `phone` NOT NULL again, which FAILS if any email-only users exist. You MUST handle them first (see Migration Plan Section 4.2 for options).
 
-4. **Revert migration 0064:**
-   ```sql
-   -- Drop account_link_log table
-   DROP TABLE IF EXISTS account_link_log;
-   
-   -- Drop case-insensitive email index
-   DROP INDEX IF EXISTS idx_users_email_lower;
-   
-   -- Make phone NOT NULL again (WARNING: fails if any users have NULL phone)
-   -- First, check for users with NULL phone:
-   SELECT COUNT(*) FROM users WHERE phone IS NULL;
-   -- If count > 0, you must delete or update those users before proceeding
-   
-   -- Then make phone NOT NULL
-   ALTER TABLE users ALTER COLUMN phone SET NOT NULL;
-   
-   -- Remove CHECK constraint
-   ALTER TABLE users DROP CONSTRAINT IF EXISTS users_at_least_one_identifier;
-   
-   -- Remove feature flag
-   DELETE FROM feature_flags WHERE key = 'auth.email_otp.enabled';
-   
-   -- Remove from migration log
-   DELETE FROM _migration_log WHERE migration_name = '0064_email_identity.sql';
-   ```
+2. **Audit trail lost:** `account_link_log` table will be dropped — all link/unlink audit records are permanently lost.
 
-5. **Deploy previous image:**
-   ```bash
-   SCS_IMAGE_TAG=<previous-known-good-tag> \
-   docker compose --env-file .env.staging -f infra/docker-compose.prod.yml \
-     up -d api web admin
-   ```
+3. **Feature flag removed:** Cannot re-enable email OTP without re-applying migrations.
 
-6. **Verify:**
-   ```bash
-   curl https://staging-api.your-domain.com/v1/healthz
-   # Expected: {"status":"ok"}
-   ```
-
-**Impact:**
-- All email identifiers removed from user accounts
-- Users with only email (no phone) will be orphaned — **MANUAL INTERVENTION REQUIRED**
-- Account link log lost — **AUDIT TRAIL GAP**
-- Feature flag removed — **CANNOT RE-ENABLE WITHOUT RE-APPLYING MIGRATIONS**
-
-**Recommendation:** Avoid hard rollback unless absolutely necessary. Prefer soft rollback + forward-fix.
+**Recommendation:** Avoid hard rollback unless absolutely necessary. Prefer soft rollback + forward-fix. See `OTP-S1.40-MIGRATION-AND-ROLLBACK-PLAN.md` Section 4.2 for detailed procedure and safety gates.
 
 ---
 

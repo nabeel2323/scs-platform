@@ -276,29 +276,36 @@ curl -X POST https://staging-api.your-domain.com/v1/auth/otp/verify \
 
 ### Test 5.2: Link Email to Phone Account
 
+**Proof-of-control contract (verified against `identity.service.ts:1792-1843`):**
+The `POST /v1/auth/account/link-email` endpoint itself consumes the OTP as proof-of-control. There is NO separate verify step for linking. The same OTP cannot be replayed after the link succeeds.
+
+**Correct sequence:**
+
 ```bash
-# Request email OTP for linking
+# Step 1: Request email OTP for the email to be linked
 curl -X POST https://staging-api.your-domain.com/v1/auth/otp/email/request \
   -H "Content-Type: application/json" \
   -d '{"email": "link-test@your-domain.com"}'
+# Expected: 200 OK, {"success":true,"deliveryStatus":"accepted","possiblyDelivered":true}
 
-# Verify email OTP (consumes challenge)
-curl -X POST https://staging-api.your-domain.com/v1/auth/otp/email/verify \
-  -H "Content-Type: application/json" \
-  -d '{"email": "link-test@your-domain.com", "otp": "<code>"}'
+# Step 2: Read OTP from email inbox (6-digit code)
 
-# Link email to account (requires OTP proof-of-control)
+# Step 3: Link email to account (consumes OTP as proof-of-control)
 curl -X POST https://staging-api.your-domain.com/v1/auth/account/link-email \
   -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
-  -d '{"email": "link-test@your-domain.com", "otp": "<same-code>"}'
+  -d '{"email": "link-test@your-domain.com", "otp": "<6-digit-code>"}'
+# Expected: 200 OK, {"success":true}
 ```
 
-**Expected:** HTTP 200, `{"success": true}`
+**Important:** Do NOT verify the OTP separately before linking. The link endpoint consumes the OTP directly. Attempting to verify first will consume the challenge and cause the link to fail.
 
-**Note:** The OTP must be re-requested after verify consumes it. The link endpoint requires a fresh OTP that proves control.
+**Regression reference:** See `apps/api/src/__tests__/integration/account-linking.postgres.spec.ts` lines 150-224 for the exact test pattern:
+- `issueEmailOtp(email)` creates a challenge
+- `linkEmailToAccount(userId, email, otp)` consumes it as proof-of-control
+- Test at line 206 confirms the same OTP cannot be replayed
 
-**Classification:** Requires staging configuration
+**Classification:** Requires staging configuration (SMTP)
 
 ### Test 5.3: Verify Both Identifiers Present
 
@@ -493,19 +500,128 @@ UPDATE feature_flags SET enabled = true WHERE key = 'auth.email_otp.enabled';
 
 ## 10. Test Data Cleanup
 
-After smoke testing, clean up test data:
+**⚠️ CRITICAL SAFETY NOTICE:** Never use broad `LIKE` patterns to delete users. Always use explicitly created test-record identifiers and verify with `SELECT` before `DELETE`.
+
+### 10.1 Safe Cleanup Strategy
+
+**Principle:** Use a unique test-run identifier or unique test email namespace that cannot collide with real users.
+
+**Recommended test email namespace:**
+```
+smoke-test-<timestamp>@your-domain.com
+link-test-<timestamp>@your-domain.com
+```
+
+Example: `smoke-test-20261103-143000@your-domain.com`
+
+### 10.2 Pre-Cleanup Verification
+
+**Step 1: Preview users to be deleted (NEVER skip this)**
 
 ```sql
--- Delete smoke test users
-DELETE FROM users WHERE email LIKE '%smoke-test@%' OR email LIKE '%link-test@%' OR email LIKE '%rate-limit-test@%' OR email LIKE '%timing-test@%' OR email LIKE '%header-test@%' OR email LIKE '%Mixed.Case@%';
+-- Preview: List all test users by unique email pattern
+SELECT id, email, phone, created_at
+FROM users
+WHERE email LIKE 'smoke-test-%@your-domain.com'
+   OR email LIKE 'link-test-%@your-domain.com'
+   OR email LIKE 'rate-limit-test-%@your-domain.com'
+   OR email LIKE 'timing-test-%@your-domain.com'
+   OR email LIKE 'header-test-%@your-domain.com'
+   OR email LIKE 'Mixed.Case@Your-Domain.com'
+ORDER BY created_at;
 
--- Clean up audit log entries
-DELETE FROM account_link_log WHERE identifier_hash LIKE '%smoke-test%' OR identifier_hash LIKE '%link-test%';
+-- Verify: Count should match expected test users ONLY
+-- If any non-test users appear, STOP and investigate
+```
 
--- Verify cleanup
-SELECT COUNT(*) FROM users WHERE email LIKE '%test@%';
+**Step 2: Preview audit log entries**
+
+```sql
+-- Preview: List audit log entries for test users
+SELECT ll.id, ll.user_id, ll.action, ll.identifier_type, ll.created_at, u.email
+FROM account_link_log ll
+JOIN users u ON u.id = ll.user_id
+WHERE u.email LIKE 'smoke-test-%@your-domain.com'
+   OR u.email LIKE 'link-test-%@your-domain.com'
+   OR u.email LIKE 'rate-limit-test-%@your-domain.com'
+ORDER BY ll.created_at;
+```
+
+### 10.3 Transactional Cleanup
+
+**Step 3: Execute cleanup in a transaction**
+
+```sql
+BEGIN;
+
+-- Delete audit log entries for test users (foreign key will cascade, but explicit is safer)
+DELETE FROM account_link_log
+WHERE user_id IN (
+  SELECT id FROM users
+  WHERE email LIKE 'smoke-test-%@your-domain.com'
+     OR email LIKE 'link-test-%@your-domain.com'
+     OR email LIKE 'rate-limit-test-%@your-domain.com'
+     OR email LIKE 'timing-test-%@your-domain.com'
+     OR email LIKE 'header-test-%@your-domain.com'
+     OR email = 'Mixed.Case@Your-Domain.com'
+);
+
+-- Delete test users
+DELETE FROM users
+WHERE email LIKE 'smoke-test-%@your-domain.com'
+   OR email LIKE 'link-test-%@your-domain.com'
+   OR email LIKE 'rate-limit-test-%@your-domain.com'
+   OR email LIKE 'timing-test-%@your-domain.com'
+   OR email LIKE 'header-test-%@your-domain.com'
+   OR email = 'Mixed.Case@Your-Domain.com';
+
+-- Verify: Check row counts match preview
+-- If counts don't match, ROLLBACK immediately
+
+COMMIT;
+-- Only commit after verifying the counts match the SELECT preview
+```
+
+### 10.4 Post-Cleanup Verification
+
+```sql
+-- Verify no test users remain
+SELECT COUNT(*) AS remaining_test_users
+FROM users
+WHERE email LIKE 'smoke-test-%@your-domain.com'
+   OR email LIKE 'link-test-%@your-domain.com'
+   OR email LIKE 'rate-limit-test-%@your-domain.com';
+-- Expected: 0
+
+-- Verify no test audit logs remain
+SELECT COUNT(*) AS remaining_test_logs
+FROM account_link_log ll
+JOIN users u ON u.id = ll.user_id
+WHERE u.email LIKE 'smoke-test-%@your-domain.com'
+   OR u.email LIKE 'link-test-%@your-domain.com';
 -- Expected: 0
 ```
+
+### 10.5 Important Notes
+
+**Why this approach is safe:**
+- ✅ Uses unique test email namespace that cannot collide with real users
+- ✅ Requires SELECT preview before DELETE
+- ✅ Uses transaction for atomicity
+- ✅ Verifies row counts before committing
+- ✅ Does NOT use broad patterns like `%test@%` that could match real users
+
+**Why the old approach was unsafe:**
+- ❌ `email LIKE '%test@%'` could match real users with "test" in their email
+- ❌ `identifier_hash LIKE '%smoke-test%'` is wrong — hashes don't contain email addresses
+- ❌ No SELECT preview before DELETE
+- ❌ No transaction — partial deletion leaves orphaned data
+
+**If cleanup fails or counts don't match:**
+1. `ROLLBACK` immediately (if in transaction)
+2. Investigate the mismatch
+3. Manually review affected rows before retrying
+4. Never force-delete without understanding the discrepancy
 
 ---
 
