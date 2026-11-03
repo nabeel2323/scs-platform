@@ -46,7 +46,7 @@ export class RequestOtpDto {
   phone!: string;
 
   @ApiPropertyOptional({
-    enum: ['sms', 'whatsapp'],
+    enum: ['sms', 'whatsapp', 'email'],
     default: 'sms',
     description: 'Delivery channel for the OTP code',
   })
