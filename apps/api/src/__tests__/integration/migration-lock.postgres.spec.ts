@@ -6,10 +6,7 @@ import {
   MIGRATION_LOCK_NAMESPACE,
   releaseMigrationLock,
 } from '../../../infra/drizzle/migration-lock';
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 
 let container: StartedPostgreSqlContainer;
 let pool: Pool;
@@ -61,20 +58,22 @@ describe('migration advisory lock', () => {
 
     // Wait until PostgreSQL has observed the disconnected backend before
     // asserting that its session-scoped advisory lock has been released.
-    const ownerPid = backend.rows[0].pid;
+    const firstRow = backend.rows[0];
+    if (!firstRow) {
+      throw new Error('Failed to retrieve backend PID');
+    }
+    const ownerPid = firstRow.pid;
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
-      const stillConnected = await second.query(
-        'SELECT 1 FROM pg_stat_activity WHERE pid = $1',
-        [ownerPid],
-      );
+      const stillConnected = await second.query('SELECT 1 FROM pg_stat_activity WHERE pid = $1', [
+        ownerPid,
+      ]);
       if (stillConnected.rowCount === 0) break;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    const stillConnected = await second.query(
-      'SELECT 1 FROM pg_stat_activity WHERE pid = $1',
-      [ownerPid],
-    );
+    const stillConnected = await second.query('SELECT 1 FROM pg_stat_activity WHERE pid = $1', [
+      ownerPid,
+    ]);
     expect(stillConnected.rowCount).toBe(0);
 
     const result = await second.query<{ acquired: boolean }>(
