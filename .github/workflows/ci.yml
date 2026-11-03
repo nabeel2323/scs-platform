@@ -233,10 +233,10 @@ jobs:
       - name: Dry-run (validate ordering)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
   
-      # 2) ENFORCING: Full migration apply. All 63 migrations must apply cleanly,
+      # 2) ENFORCING: Full migration apply. All migration files must apply cleanly,
       #    including 0013 and 0018 which require pg_partman. No continue-on-error.
       #    If any migration fails, the gate fails and the PR cannot merge.
-      - name: Full migration apply (enforcing — all 63 files)
+      - name: Full migration apply (enforcing — all discovered files)
         run: pnpm --filter @scs/api run db:migrate:ci
   
       # 3) Verify pg_partman is configured after migration
