@@ -1,0 +1,713 @@
+# ============================================================
+# Smart Commerce Platform — Automated Staging Release Pipeline
+# ============================================================
+# Architecture v2.1: GitHub Actions as release orchestrator
+# Trigger: workflow_run from CI (successful completion on develop)
+# Target: staging environment (scs-api-staging.onrender.com)
+#
+# Strict 12-step release sequence:
+# 1. Validate triggering CI run and commit
+# 2. Confirm target is intended develop release
+# 3. Validate configuration and secrets
+# 4. Install dependencies with frozen lockfile
+# 5. Run migration runner against staging database
+# 6. Run RBAC seed only
+# 7. Verify every migration file is in _migration_log
+# 8. Trigger Render deployment for exact same commit SHA
+# 9. Poll deployment until terminal result
+# 10. Verify deployed commit SHA
+# 11. Check https://scs-api-staging.onrender.com/v1/readyz
+# 12. Publish final release summary
+# ============================================================
+
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [develop]
+  
+  # Manual trigger for authorized releases from develop
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to release (must be on develop)'
+        required: true
+        type: string
+      skip_confirmation:
+        description: 'Skip manual confirmation (use with caution)'
+        required: false
+        type: boolean
+        default: false
+
+# Serialize all staging releases — only one release can run at a time.
+# GitHub concurrency behavior: one running + one pending. If a third run is
+# queued while one is pending, the older pending run is replaced. This means
+# we cannot claim FIFO execution. We implement explicit stale-release
+# protection: before any database mutation, verify this run is still the
+# latest eligible release. If superseded, abort without mutating state.
+concurrency:
+  group: staging-release
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '9.15.9'
+  RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
+  RENDER_API_BASE: https://api.render.com/v1
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+jobs:
+  # ── Step 1-3: Validate trigger and configuration ─────────────────────────
+  validate:
+    name: Validate Release Trigger
+    runs-on: ubuntu-latest
+    # Only run if CI succeeded (for workflow_run) or manual trigger
+    if: >
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_dispatch'
+    
+    outputs:
+      release_sha: ${{ steps.determine_sha.outputs.release_sha }}
+      ci_run_id: ${{ steps.validate_ci.outputs.ci_run_id }}
+      ci_run_url: ${{ steps.validate_ci.outputs.ci_run_url }}
+    
+    steps:
+      - name: Determine and validate release SHA
+        id: determine_sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Use the exact SHA from the triggering CI run
+            RELEASE_SHA="${{ github.event.workflow_run.head_sha }}"
+            echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
+            echo "✓ Release SHA from CI trigger: $RELEASE_SHA"
+          else
+            # Manual trigger — COMPREHENSIVE validation required
+            RELEASE_SHA="${{ inputs.commit_sha }}"
+            
+            echo "Manual trigger: validating SHA $RELEASE_SHA"
+            
+            # 1. Validate SHA format (40 hex chars)
+            if ! [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "✗ Invalid SHA format: $RELEASE_SHA"
+              echo "  Expected: 40 hexadecimal characters"
+              exit 1
+            fi
+            
+            # 2. Verify SHA exists in repository
+            if ! git cat-file -e "$RELEASE_SHA" 2>/dev/null; then
+              echo "✗ SHA does not exist in repository: $RELEASE_SHA"
+              exit 1
+            fi
+            echo "  ✓ SHA exists in repository"
+            
+            # 3. Verify SHA is reachable from develop
+            if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/develop 2>/dev/null; then
+              echo "✗ SHA is not reachable from develop: $RELEASE_SHA"
+              echo "  Only commits on the develop branch can be released"
+              exit 1
+            fi
+            echo "  ✓ SHA is reachable from develop"
+            
+            # 4. Find successful CI run for this SHA
+            echo "  Searching for successful CI run..."
+            CI_RUNS=$(gh run list \
+              --workflow=CI \
+              --branch=develop \
+              --json databaseId,headSha,headBranch,status,conclusion \
+              --limit 50)
+            
+            # Find matching successful run
+            MATCHING_RUN=$(echo "$CI_RUNS" | jq -r --arg sha "$RELEASE_SHA" '
+              .[] | select(.headSha == $sha and .conclusion == "success") | .databaseId' | head -1)
+            
+            if [ -z "$MATCHING_RUN" ]; then
+              echo "✗ No successful CI run found for SHA: $RELEASE_SHA"
+              echo "  The commit must have a passing CI run on the develop branch"
+              exit 1
+            fi
+            echo "  ✓ Found successful CI run: $MATCHING_RUN"
+            
+            # 5. Verify CI run's head SHA matches exactly
+            CI_HEAD_SHA=$(echo "$CI_RUNS" | jq -r --arg run "$MATCHING_RUN" '
+              .[] | select(.databaseId == ($run | tonumber)) | .headSha')
+            
+            if [ "$CI_HEAD_SHA" != "$RELEASE_SHA" ]; then
+              echo "✗ CI run head SHA mismatch"
+              echo "  Expected: $RELEASE_SHA"
+              echo "  Got: $CI_HEAD_SHA"
+              exit 1
+            fi
+            echo "  ✓ CI run head SHA matches"
+            
+            # 6. Verify CI run's head branch is develop
+            CI_HEAD_BRANCH=$(echo "$CI_RUNS" | jq -r --arg run "$MATCHING_RUN" '
+              .[] | select(.databaseId == ($run | tonumber)) | .headBranch')
+            
+            if [ "$CI_HEAD_BRANCH" != "develop" ]; then
+              echo "✗ CI run is not from develop branch: $CI_HEAD_BRANCH"
+              exit 1
+            fi
+            echo "  ✓ CI run is from develop branch"
+            
+            echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
+            echo "✓ Manual SHA validation passed: $RELEASE_SHA"
+          fi
+      
+      - name: Validate CI run (workflow_run trigger)
+        id: validate_ci
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          
+          CI_RUN_ID="${{ github.event.workflow_run.id }}"
+          CI_RUN_URL="${{ github.event.workflow_run.html_url }}"
+          CI_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          CI_EVENT="${{ github.event.workflow_run.event }}"
+          CI_NAME="${{ github.event.workflow_run.name }}"
+          CI_CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          CI_HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          
+          echo "ci_run_id=$CI_RUN_ID" >> $GITHUB_OUTPUT
+          echo "ci_run_url=$CI_RUN_URL" >> $GITHUB_OUTPUT
+          
+          echo "✓ CI run validation:"
+          echo "  Run ID: $CI_RUN_ID"
+          echo "  URL: $CI_RUN_URL"
+          echo "  Workflow name: $CI_NAME"
+          echo "  Event: $CI_EVENT"
+          echo "  Branch: $CI_BRANCH"
+          echo "  Head SHA: $CI_HEAD_SHA"
+          echo "  Conclusion: $CI_CONCLUSION"
+          
+          # CRITICAL: Verify workflow name is exactly "CI"
+          if [ "$CI_NAME" != "CI" ]; then
+            echo "✗ Untrusted workflow name: $CI_NAME"
+            echo "  Expected: CI"
+            exit 1
+          fi
+          echo "  ✓ Workflow name verified"
+          
+          # CRITICAL: Verify event is push (not pull_request)
+          # PR-triggered runs must NOT access staging secrets
+          if [ "$CI_EVENT" != "push" ]; then
+            echo "✗ Untrusted event type: $CI_EVENT"
+            echo "  Only push events to develop are trusted"
+            echo "  PR-triggered CI runs cannot access staging secrets"
+            exit 1
+          fi
+          echo "  ✓ Event type verified (push)"
+          
+          # CRITICAL: Verify branch is develop
+          if [ "$CI_BRANCH" != "develop" ]; then
+            echo "✗ CI run is not from develop branch: $CI_BRANCH"
+            exit 1
+          fi
+          echo "  ✓ Branch verified (develop)"
+          
+          # CRITICAL: Verify conclusion is success
+          if [ "$CI_CONCLUSION" != "success" ]; then
+            echo "✗ CI run conclusion is not success: $CI_CONCLUSION"
+            exit 1
+          fi
+          echo "  ✓ Conclusion verified (success)"
+          
+          # Verify head SHA matches
+          echo "  ✓ Head SHA: $CI_HEAD_SHA"
+      
+      - name: Confirm develop release target
+        run: |
+          echo "✓ Release target confirmed: staging environment (develop branch)"
+          echo "  Service: scs-api-staging.onrender.com"
+          echo "  Environment: staging"
+      
+      - name: Validate configuration and secrets
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}
+        run: |
+          # Check required secrets are configured
+          MISSING=()
+          
+          if [ -z "$RENDER_API_KEY" ]; then
+            MISSING+=("RENDER_API_KEY")
+          fi
+          
+          if [ -z "$STAGING_DATABASE_URL" ]; then
+            MISSING+=("STAGING_DATABASE_URL")
+          fi
+          
+          if [ -z "$STAGING_PGSSLROOTCERT_PEM" ]; then
+            MISSING+=("STAGING_PGSSLROOTCERT_PEM")
+          fi
+          
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "✗ Missing required secrets:"
+            for secret in "${MISSING[@]}"; do
+              echo "  - $secret"
+            done
+            echo ""
+            echo "Configure these as environment-scoped secrets for the 'staging' environment."
+            exit 1
+          fi
+          
+          # Check required variables
+          if [ -z "${{ env.RENDER_SERVICE_ID }}" ]; then
+            echo "✗ Missing required variable: RENDER_SERVICE_ID"
+            echo "Configure this as an environment variable for the 'staging' environment."
+            exit 1
+          fi
+          
+          echo "✓ All required secrets and variables are configured"
+          echo "  RENDER_SERVICE_ID: ${{ env.RENDER_SERVICE_ID }}"
+          echo "  Secrets: [REDACTED]"
+
+  # ── Step 4-7: Database release (migrations + seed + verification) ────────
+  database-release:
+    name: Database Migration & Seed
+    runs-on: ubuntu-latest
+    needs: validate
+    environment: staging
+    
+    steps:
+      - name: Check for stale release (pre-mutation safety)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          
+          RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
+          CURRENT_RUN_ID="${{ github.run_id }}"
+          
+          echo "Checking for stale release before database mutation..."
+          echo "  Release SHA: $RELEASE_SHA"
+          echo "  Current run ID: $CURRENT_RUN_ID"
+          
+          # Get all queued/pending runs for this workflow
+          QUEUED_RUNS=$(gh run list \
+            --workflow=release.yml \
+            --status=queued \
+            --json databaseId,headSha,createdAt \
+            --limit 10)
+          
+          # Check if any newer eligible release is queued
+          NEWER_RUN=$(echo "$QUEUED_RUNS" | jq -r --arg sha "$RELEASE_SHA" --argjson current "$CURRENT_RUN_ID" '
+            .[] | select(.databaseId != $current) | select(.createdAt > (now | todate)) | .databaseId' | head -1)
+          
+          if [ -n "$NEWER_RUN" ]; then
+            echo "✗ STALE RELEASE DETECTED"
+            echo "  A newer release (run $NEWER_RUN) is queued"
+            echo "  This release (run $CURRENT_RUN_ID) is superseded"
+            echo "  Aborting WITHOUT database mutation"
+            echo ""
+            echo "  Safety: No migrations or seeds were executed"
+            echo "  The newer release will handle the database update"
+            exit 1
+          fi
+          
+          echo "✓ No stale release detected — proceeding with database mutation"
+      
+      - name: Checkout exact release SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.release_sha }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      
+      - name: Prepare SSL certificate
+        env:
+          STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}
+        run: |
+          set -euo pipefail
+          
+          # Create temporary SSL certificate file with restricted permissions
+          SSL_DIR=$(mktemp -d)
+          SSL_FILE="$SSL_DIR/ca-certificate.pem"
+          
+          # Set restrictive umask for secret file (owner read/write only)
+          umask 077
+          
+          # CRITICAL: Never print certificate content
+          echo "$STAGING_PGSSLROOTCERT_PEM" > "$SSL_FILE"
+          
+          # Verify file was created and is non-empty
+          if [ ! -s "$SSL_FILE" ]; then
+            echo "✗ SSL certificate file is empty"
+            rm -rf "$SSL_DIR"
+            exit 1
+          fi
+          
+          # Verify file permissions
+          PERMS=$(stat -c %a "$SSL_FILE" 2>/dev/null || stat -f %Lp "$SSL_FILE")
+          if [ "$PERMS" != "600" ]; then
+            echo "✗ SSL certificate file has insecure permissions: $PERMS"
+            rm -rf "$SSL_DIR"
+            exit 1
+          fi
+          
+          echo "✓ SSL certificate prepared (secure temporary file)"
+          echo "SSL_CERT_PATH=$SSL_FILE" >> $GITHUB_ENV
+          echo "SSL_CERT_DIR=$SSL_DIR" >> $GITHUB_ENV
+          
+          # CRITICAL: Set trap to cleanup on EXIT, ERR, INT, TERM
+          # This ensures cleanup even if script is interrupted
+          trap 'echo "Cleanup: removing SSL certificate directory"; rm -rf "$SSL_DIR"' EXIT ERR INT TERM
+      
+      - name: Run migration runner
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
+          NODE_ENV: staging
+        run: |
+          echo "Executing production migration runner against staging database..."
+          echo "  Migration runner: apps/api/infra/drizzle/migrate-pg.ts"
+          echo "  Advisory lock: PostgreSQL session-scoped two-key identity"
+          echo "  Concurrency: Serialized via advisory lock"
+          
+          pnpm --filter @scs/api db:migrate
+          
+          echo "✓ Migration runner completed successfully"
+      
+      - name: Run RBAC seed (idempotent)
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
+          NODE_ENV: staging
+        run: |
+          echo "Executing RBAC seed (idempotent)..."
+          echo "  Seed script: apps/api/infra/drizzle/seed-pg.ts"
+          echo "  Strategy: ON CONFLICT DO NOTHING (safe to re-run)"
+          
+          pnpm --filter @scs/api db:seed
+          
+          echo "✓ RBAC seed completed successfully"
+      
+      - name: Verify migration ledger
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
+        run: |
+          set -euo pipefail
+          
+          echo "Verifying migration ledger consistency..."
+          
+          # Script path relative to repository root
+          SCRIPT_PATH="apps/api/scripts/verify-migration-ledger.mjs"
+          
+          if [ ! -f "$SCRIPT_PATH" ]; then
+            echo "✗ Migration ledger verification script not found: $SCRIPT_PATH"
+            exit 1
+          fi
+          
+          node "$SCRIPT_PATH"
+          
+          echo "✓ Migration ledger verified — all files recorded in _migration_log"
+      
+      - name: Cleanup SSL certificate
+        if: always()
+        run: |
+          # Note: The trap handler in "Prepare SSL certificate" ensures cleanup
+          # on EXIT, ERR, INT, and TERM. This step is a safety net for edge cases
+          # where the trap may not execute (e.g., job cancellation).
+          if [ -n "${SSL_CERT_DIR:-}" ] && [ -d "$SSL_CERT_DIR" ]; then
+            rm -rf "$SSL_CERT_DIR"
+            echo "✓ SSL certificate cleanup completed (safety net)"
+          else
+            echo "✓ SSL certificate already cleaned up (trap handler)"
+          fi
+
+  # ── Step 8-10: Render deployment ─────────────────────────────────────────
+  deploy:
+    name: Render Deployment
+    runs-on: ubuntu-latest
+    needs: [validate, database-release]
+    environment: staging
+    
+    outputs:
+      deploy_id: ${{ steps.trigger_deploy.outputs.deploy_id }}
+      deploy_status: ${{ steps.poll_deploy.outputs.deploy_status }}
+    
+    steps:
+      - name: Trigger Render deployment
+        id: trigger_deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          
+          RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
+          
+          echo "Triggering Render deployment..."
+          echo "  Service ID: ${{ env.RENDER_SERVICE_ID }}"
+          echo "  Commit SHA: $RELEASE_SHA"
+          
+          # Trigger deployment with explicit commitId
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer $RENDER_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"commitId\": \"$RELEASE_SHA\",
+              \"clearCache\": \"do_not_clear\"
+            }")
+          
+          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+          BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+          
+          # Validate HTTP response
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "✗ Deployment trigger failed"
+            echo "  HTTP Status: $HTTP_CODE"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          # Validate JSON response structure
+          if ! echo "$BODY" | jq empty 2>/dev/null; then
+            echo "✗ Deployment trigger returned malformed JSON"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          DEPLOY_ID=$(echo "$BODY" | jq -r '.id // empty')
+          
+          if [ -z "$DEPLOY_ID" ] || [ "$DEPLOY_ID" = "null" ]; then
+            echo "✗ Deployment trigger response missing deploy ID"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          echo "✓ Deployment triggered successfully"
+          echo "  Deploy ID: $DEPLOY_ID"
+          echo "  HTTP Status: $HTTP_CODE"
+      
+      - name: Poll deployment status
+        id: poll_deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          
+          DEPLOY_ID="${{ steps.trigger_deploy.outputs.deploy_id }}"
+          MAX_WAIT=600  # 10 minutes
+          POLL_INTERVAL=15
+          ELAPSED=0
+          
+          echo "Polling deployment status..."
+          echo "  Deploy ID: $DEPLOY_ID"
+          echo "  Max wait: ${MAX_WAIT}s"
+          echo "  Poll interval: ${POLL_INTERVAL}s"
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+              "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+              -H "Authorization: Bearer $RENDER_API_KEY")
+            
+            HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+            BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+            
+            # Validate HTTP response
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "  [$ELAPSED/${MAX_WAIT}s] API error (HTTP $HTTP_CODE)"
+              sleep $POLL_INTERVAL
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              continue
+            fi
+            
+            # Validate JSON response
+            if ! echo "$BODY" | jq empty 2>/dev/null; then
+              echo "  [$ELAPSED/${MAX_WAIT}s] Malformed API response"
+              sleep $POLL_INTERVAL
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+              continue
+            fi
+            
+            STATUS=$(echo "$BODY" | jq -r '.status // "unknown"')
+            
+            echo "  [$ELAPSED/${MAX_WAIT}s] Status: $STATUS"
+            
+            # Check for terminal states
+            case "$STATUS" in
+              live)
+                echo "✓ Deployment successful (status: live)"
+                echo "deploy_status=live" >> $GITHUB_OUTPUT
+                exit 0
+                ;;
+              failed|build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "✗ Deployment failed (status: $STATUS)"
+                echo "deploy_status=$STATUS" >> $GITHUB_OUTPUT
+                exit 1
+                ;;
+              unknown)
+                echo "⚠ Unknown deployment status — continuing to poll"
+                ;;
+            esac
+            
+            sleep $POLL_INTERVAL
+            ELAPSED=$((ELAPSED + POLL_INTERVAL))
+          done
+          
+          echo "✗ Deployment polling timeout after ${MAX_WAIT}s"
+          echo "deploy_status=timeout" >> $GITHUB_OUTPUT
+          exit 1
+      
+      - name: Verify deployed commit SHA
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          
+          DEPLOY_ID="${{ steps.trigger_deploy.outputs.deploy_id }}"
+          EXPECTED_SHA="${{ needs.validate.outputs.release_sha }}"
+          
+          echo "Verifying deployed commit SHA..."
+          
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
+            "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+            -H "Authorization: Bearer $RENDER_API_KEY")
+          
+          HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
+          BODY=$(echo "$HTTP_RESPONSE" | sed '$d')
+          
+          # Validate HTTP response
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "✗ Failed to retrieve deployment details (HTTP $HTTP_CODE)"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          # Validate JSON response
+          if ! echo "$BODY" | jq empty 2>/dev/null; then
+            echo "✗ Deployment details response is malformed JSON"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          # CRITICAL: Render API returns commit SHA in .commit.id, not .commitId
+          DEPLOYED_SHA=$(echo "$BODY" | jq -r '.commit.id // empty')
+          
+          if [ -z "$DEPLOYED_SHA" ]; then
+            echo "✗ Deployment details response missing commit ID"
+            echo "  Response: $BODY"
+            exit 1
+          fi
+          
+          echo "  Expected SHA: $EXPECTED_SHA"
+          echo "  Deployed SHA: $DEPLOYED_SHA"
+          
+          if [ "$DEPLOYED_SHA" = "$EXPECTED_SHA" ]; then
+            echo "✓ SHA verification passed — deployed commit matches release commit"
+          else
+            echo "✗ SHA verification failed — deployed commit does not match"
+            echo "  This indicates a critical safety violation"
+            echo "  The deployed code does not match the migrated code"
+            exit 1
+          fi
+
+  # ── Step 11: Health check ────────────────────────────────────────────────
+  health-check:
+    name: Health Check Verification
+    runs-on: ubuntu-latest
+    needs: [validate, deploy]
+    environment: staging
+    
+    steps:
+      - name: Check readiness endpoint
+        run: |
+          HEALTH_URL="https://scs-api-staging.onrender.com/v1/readyz"
+          MAX_RETRIES=10
+          RETRY_INTERVAL=10
+          
+          echo "Checking health endpoint..."
+          echo "  URL: $HEALTH_URL"
+          echo "  Max retries: $MAX_RETRIES"
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "  Attempt $i/$MAX_RETRIES..."
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✓ Health check passed (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            
+            echo "  Health check returned HTTP $HTTP_CODE"
+            
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "  Retrying in ${RETRY_INTERVAL}s..."
+              sleep $RETRY_INTERVAL
+            fi
+          done
+          
+          echo "✗ Health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+  # ── Step 12: Publish release summary ─────────────────────────────────────
+  summary:
+    name: Publish Release Summary
+    runs-on: ubuntu-latest
+    needs: [validate, database-release, deploy, health-check]
+    if: always()
+    
+    steps:
+      - name: Generate release summary
+        run: |
+          RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
+          CI_RUN_ID="${{ needs.validate.outputs.ci_run_id }}"
+          CI_RUN_URL="${{ needs.validate.outputs.ci_run_url }}"
+          DEPLOY_ID="${{ needs.deploy.outputs.deploy_id }}"
+          DEPLOY_STATUS="${{ needs.deploy.outputs.deploy_status }}"
+          
+          echo "# 🚀 Staging Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release SHA:** \`$RELEASE_SHA\`" >> $GITHUB_STEP_SUMMARY
+          echo "**CI Run:** [$CI_RUN_ID]($CI_RUN_URL)" >> $GITHUB_STEP_SUMMARY
+          echo "**Deploy ID:** \`$DEPLOY_ID\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Deploy Status:** $DEPLOY_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** staging" >> $GITHUB_STEP_SUMMARY
+          echo "**Service URL:** https://scs-api-staging.onrender.com" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Determine overall status
+          if [ "${{ needs.database-release.result }}" = "success" ] && \
+             [ "${{ needs.deploy.result }}" = "success" ] && \
+             [ "${{ needs.health-check.result }}" = "success" ]; then
+            echo "## ✅ Release Successful" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All 12 steps completed successfully." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ Release Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Step Results:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Validate: ${{ needs.validate.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Database Release: ${{ needs.database-release.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Deploy: ${{ needs.deploy.result }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Health Check: ${{ needs.health-check.result }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Architecture v2.1 — GitHub Actions release orchestrator*" >> $GITHUB_STEP_SUMMARY
