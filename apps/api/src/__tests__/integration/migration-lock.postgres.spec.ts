@@ -56,7 +56,26 @@ describe('migration advisory lock', () => {
   it('releases the lock when the owning database session disconnects', async () => {
     const owner = await pool.connect();
     await acquireMigrationLock(owner);
+    const backend = await owner.query<{ pid: number }>('SELECT pg_backend_pid() AS pid');
     owner.release(true);
+
+    // Wait until PostgreSQL has observed the disconnected backend before
+    // asserting that its session-scoped advisory lock has been released.
+    const ownerPid = backend.rows[0].pid;
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      const stillConnected = await second.query(
+        'SELECT 1 FROM pg_stat_activity WHERE pid = $1',
+        [ownerPid],
+      );
+      if (stillConnected.rowCount === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    const stillConnected = await second.query(
+      'SELECT 1 FROM pg_stat_activity WHERE pid = $1',
+      [ownerPid],
+    );
+    expect(stillConnected.rowCount).toBe(0);
 
     const result = await second.query<{ acquired: boolean }>(
       'SELECT pg_try_advisory_lock($1, $2) AS acquired',
