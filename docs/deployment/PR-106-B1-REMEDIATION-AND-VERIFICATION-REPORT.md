@@ -1,10 +1,12 @@
 # PR #106 — B-1 Remediation and Verification Report
 
-**Report version:** v1.0  
+**Report version:** v1.1 (updated with hosted CI evidence)  
 **Date:** 2026-11-04  
-**Commit:** `c4cf56e`  
+**Remediation commit:** `c4cf56e`  
+**PR head commit:** `eb2b208` (includes remediation commit as ancestor)  
 **Branch:** `feature/automated-release-pipeline-v2.1`  
 **PR:** #106 (open against `develop`)  
+**CI run:** https://github.com/nabeel2323/scs-platform/actions/runs/41829149254 (success)  
 **Author:** Independent review and remediation session  
 
 ---
@@ -260,21 +262,55 @@ Successfully compiled: 432 files with swc (314.78ms)
 
 ## 6. CI Status
 
-**Commit:** `c4cf56e`  
-**Branch:** `feature/automated-release-pipeline-v2.1`  
-**Pushed:** 2026-11-04  
+**Report updated:** 2026-11-04 with hosted CI evidence from PR head `eb2b208`.
 
-**CI run:** Pending (monitor at https://github.com/nabeel2323/scs-platform/actions/workflows/ci.yml)
+### 6.1 Remediation Commit CI (c4cf56e)
 
-**Expected jobs:**
-- `test-api-unit` — should pass (92/92 unit tests)
-- `test-api-integration` — should pass (8/8 integration tests)
-- `test-web` — should pass (no web changes)
-- `test-mobile` — should pass (no mobile changes)
-- `build` — should pass (432 files compiled)
-- `lint` — should pass (0 errors)
-- `k6-load-test` — skipped (PR CI does not run load tests)
-- `Trigger Staging Release` — skipped (PR CI does not trigger releases)
+**Run ID:** 41826344794  
+**Run URL:** https://github.com/nabeel2323/scs-platform/actions/runs/41826344794  
+**SHA:** `c4cf56e2a23433e1590f99f706809c2887e23524`  
+**Event:** `pull_request`  
+**Status:** completed  
+**Conclusion:** cancelled  
+
+**Note:** The `Container Build & Smoke Test` job was cancelled during the "Start API container with safe defaults" step. This appears to be an infrastructure or timeout issue unrelated to the B-1 remediation code changes. All other jobs completed successfully.
+
+### 6.2 PR Head CI (eb2b208 — includes c4cf56e as ancestor)
+
+**Run ID:** 41829149254  
+**Run URL:** https://github.com/nabeel2323/scs-platform/actions/runs/41829149254  
+**SHA:** `eb2b2089de4e4c6cd30e82b2e9ed7770cee1d2c8`  
+**Event:** `pull_request`  
+**Status:** completed  
+**Conclusion:** success  
+**Created:** 2026-11-04T12:25:29Z  
+**Updated:** 2026-11-04T12:45:53Z  
+**Duration:** ~20 minutes
+
+**Job-by-job results:**
+
+| Job Name | Conclusion |
+|----------|------------|
+| Lint & Typecheck | success |
+| Mobile (flutter analyze · test) | success |
+| Unit Tests + Coverage Gates | success (92 tests passed) |
+| Integration Tests | success (8 tests passed) |
+| Migration Full Apply | success |
+| Boundary Lint (E6) | success |
+| Contract Spec & Codegen | success |
+| Container Build & Smoke Test | success |
+| Build | success (432 files compiled) |
+| k6 Smoke Test | skipped (expected on PR) |
+| Trigger Staging Release | skipped (expected on PR) |
+
+**Overall:** 9 jobs completed, 7 success, 2 skipped (expected), 0 failures.
+
+### 6.3 Ancestry Verification
+
+**Check:** `git merge-base --is-ancestor c4cf56e eb2b208`  
+**Result:** YES — `c4cf56e` is an ancestor of `eb2b208`
+
+**Conclusion:** The B-1 remediation commit is included in the PR head, and the PR head CI passed successfully.
 
 ---
 
