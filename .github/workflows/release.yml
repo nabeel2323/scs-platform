@@ -425,6 +425,7 @@ jobs:
         env:
           STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}
           STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           NODE_ENV: staging
         run: |
           set -euo pipefail

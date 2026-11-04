@@ -288,6 +288,38 @@ export function validateWorkflowStructure(repoRootIn) {
   push('stale-detection-uses-run-number', /select\(\.runNumber > \$current\)/.test(staleBody), '');
   push('stale-detection-allows-complete', !/exit 1/.test(staleBody) && /Allow current migration to complete/.test(staleBody), '');
 
+  // 21) Database-operation step must bind DATABASE_URL to secrets.STAGING_DATABASE_URL.
+  const dbStep = (rel.jobs?.['database-release']?.steps || []).find((s) =>
+    /Execute database operations/.test(s?.name || ''),
+  );
+  const dbEnv = dbStep?.env || {};
+  push('db-step-has-database-url', 'DATABASE_URL' in dbEnv, 'database-operation step must export DATABASE_URL');
+  push(
+    'db-step-database-url-maps-staging-secret',
+    dbEnv.DATABASE_URL === '${{ secrets.STAGING_DATABASE_URL }}',
+    `DATABASE_URL=${JSON.stringify(dbEnv.DATABASE_URL)} (expected \${{ secrets.STAGING_DATABASE_URL }})`,
+  );
+  push('db-step-has-node-env-staging', dbEnv.NODE_ENV === 'staging', `NODE_ENV=${JSON.stringify(dbEnv.NODE_ENV)}`);
+  push(
+    'db-step-has-ssl-cert-env',
+    'STAGING_PGSSLROOTCERT_PEM' in dbEnv && dbEnv.STAGING_PGSSLROOTCERT_PEM.includes('secrets.STAGING_PGSSLROOTCERT_PEM'),
+    'SSL certificate must be bound from staging secret',
+  );
+
+  // 22) Database-operation step must run migrate, seed, ledger verification in order.
+  const dbBody = dbStep?.run || '';
+  const migrateIdx = dbBody.indexOf('db:migrate');
+  const seedIdx = dbBody.indexOf('db:seed');
+  const ledgerIdx = dbBody.indexOf('verify-migration-ledger');
+  push('db-step-runs-migrate', migrateIdx !== -1, 'database-operation step must invoke db:migrate');
+  push('db-step-runs-seed', seedIdx !== -1, 'database-operation step must invoke db:seed');
+  push('db-step-runs-ledger', ledgerIdx !== -1, 'database-operation step must invoke verify-migration-ledger.mjs');
+  push(
+    'db-step-order-migrate-seed-ledger',
+    migrateIdx !== -1 && seedIdx !== -1 && ledgerIdx !== -1 && migrateIdx < seedIdx && seedIdx < ledgerIdx,
+    'migrate must precede seed, seed must precede ledger verification',
+  );
+
   const ok = results.every((r) => r.ok);
   return { ok, results, repoRoot };
 }

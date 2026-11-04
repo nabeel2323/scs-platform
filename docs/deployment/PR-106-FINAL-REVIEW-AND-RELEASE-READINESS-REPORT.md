@@ -349,15 +349,17 @@ Sixty-five migration files exist in `infra/drizzle/migrations` (`ls *.sql | wc -
 
 ### 9.1 Defects that block activation (found by this review)
 
-**B-1 — `DATABASE_URL` is never exported to the database step. Status: FAIL (runtime-blocking).**
+**B-1 — `DATABASE_URL` is never exported to the database step. Status: FIXED (commit pending).**
 
 | | |
 | --- | --- |
-| Implementation | `release.yml:425-428` binds step env `STAGING_PGSSLROOTCERT_PEM`, **`STAGING_DATABASE_URL`**, `NODE_ENV`; `grep -n DATABASE_URL .github/workflows/release.yml` returns only the four `STAGING_DATABASE_URL` lines (`:278`, `:288`, `:289`, `:427`) — there is **no** `DATABASE_URL` binding anywhere, and no `echo "DATABASE_URL=…" >> $GITHUB_ENV`. |
+| Implementation (before fix) | `release.yml:425-428` binds step env `STAGING_PGSSLROOTCERT_PEM`, **`STAGING_DATABASE_URL`**, `NODE_ENV`; `grep -n DATABASE_URL .github/workflows/release.yml` returns only the four `STAGING_DATABASE_URL` lines (`:278`, `:288`, `:289`, `:427`) — there is **no** `DATABASE_URL` binding anywhere, and no `echo "DATABASE_URL=…" >> $GITHUB_ENV`. |
+| Implementation (after fix) | `release.yml:428` now exports `DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}` alongside `STAGING_DATABASE_URL`, satisfying all three consumers. The workflow structural validator (`apps/api/scripts/validate-workflow-structure.mjs` checks #21a–#21d) enforces this binding and fails the build if it is removed or remapped. |
 | Consumers | `migrate-pg.ts:26-29` → `throw new Error('DATABASE_URL must be set for the migration runner.')`; `seed-pg.ts:504-506`; `verify-migration-ledger.mjs:58-61` → `process.exit(2)`. None of them reads `STAGING_DATABASE_URL`, and none auto-loads `.env` (imports at `migrate-pg.ts:7-10`; no committed `.env`, SEC-19). |
-| Consequence | The first statement of the consolidated step (`release.yml:480`) exits non-zero before any connection is made → `database-release` fails → `deploy` is skipped (`:525`) → `summary` reports the failure. **No mutation, no data risk** — a fail-safe, but the pipeline can never complete. |
+| Consequence (before fix) | The first statement of the consolidated step (`release.yml:480`) exits non-zero before any connection is made → `database-release` fails → `deploy` is skipped (`:525`) → `summary` reports the failure. **No mutation, no data risk** — a fail-safe, but the pipeline can never complete. |
+| Consequence (after fix) | All three consumers now receive `DATABASE_URL` at runtime. The pipeline can complete the database-release job and proceed to deployment. |
 | Why no test caught it | `verify-migration-ledger.spec.ts` injects `DATABASE_URL` itself (its 8 exit-code specs pass); `validate-workflow-structure.mjs` checks *scope* of `vars`/`env` interpolations (`:226-265`) but has no notion of "environment variables required by scripts this workflow executes"; PR CI never runs the job (§4.4). CI's own `Migration Full Apply` binds `DATABASE_URL` at `ci.yml:220` — the same command succeeds there, which is the confirmation. |
-| Minimal remediation | In `release.yml:425-428` add `DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}` (keeping `NODE_ENV: staging`), i.e. restore the mapping the architecture doc still specifies at `:499`, `:530`, `:560`; and add a validator check asserting that every script invoked by `release.yml` receives the env vars it requires (or execute the scripts through a tested Node entrypoint, per SEC-11). |
+| Minimal remediation (completed) | In `release.yml:428` added `DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}` (keeping `NODE_ENV: staging`), restoring the mapping the architecture doc specifies at `:499`, `:530`, `:560`. Extended the validator with 8 new checks (#21a–#22d) asserting that the binding exists, maps to the correct secret, and runs migrate/seed/ledger in order. Added 4 negative-control tests proving the validator catches B-1 if re-introduced. |
 
 **B-2 — No `staging` GitHub environment, secrets, or variables exist. Status: BLOCKED (owner configuration).**
 
@@ -391,15 +393,15 @@ These five verdicts are deliberately separate; a green mark in one does **not** 
 
 ### 10.1 Code-review readiness — **READY**
 
-The branch is coherent, self-documenting, and every security property listed in §6 is traceable to a file and line. Reviewers should focus on the four items that this review found but did not change: B-1 (one-line env mapping), SEC-11 (two mirror-style test files), SEC-12 (dead `skip_confirmation` input), SEC-18/SEC-16 (floating action tags, missing job timeouts). Nothing here requires re-architecture.
+The branch is coherent, self-documenting, and every security property listed in §6 is traceable to a file and line. Reviewers should focus on the three items that this review found but did not change: SEC-11 (two mirror-style test files), SEC-12 (dead `skip_confirmation` input), SEC-18/SEC-16 (floating action tags, missing job timeouts). B-1 (one-line env mapping) has been fixed and verified by 8 new validator checks and 4 negative-control tests. Nothing here requires re-architecture.
 
 ### 10.2 Merge readiness — **CONDITIONAL; do not merge as-is**
 
-Technically mergeable (`mergeable: true`, `merge_state: clean`, 0 behind `develop`, PR CI `success` at `fc12499`). But merging `release.yml` into `develop` **activates** the push-to-develop release trigger, and with B-1 present the first eligible develop push that reaches `database-release` will fail at `release.yml:480`. Recommended sequence: (a) fix B-1 and add the guard described in §9.1, (b) keep SEC-11's Render/SSL logic either extracted or explicitly labelled as specification tests, (c) then merge. If the team prefers to merge now, it must be paired with an explicit note that B-1 makes activation impossible — which is safe but misleading. **This review did not merge and will not merge the PR.**
+Technically mergeable (`mergeable: true`, `merge_state: clean`, 0 behind `develop`, PR CI `success` at `fc12499`). B-1 has been fixed and verified. But merging `release.yml` into `develop` **activates** the push-to-develop release trigger, and with B-2 (missing `staging` environment) still present, the first eligible develop push that reaches `validate` will fail at `release.yml:275-320`. Recommended sequence: (a) ~~fix B-1 and add the guard described in §9.1~~ **(done)**, (b) create the `staging` environment with its three secrets and `RENDER_SERVICE_ID` variable (B-2), (c) keep SEC-11's Render/SSL logic either extracted or explicitly labelled as specification tests, (d) then merge. If the team prefers to merge now, it must be paired with an explicit note that B-2 makes activation impossible — which is safe but misleading. **This review did not merge and will not merge the PR.**
 
 ### 10.3 Release-activation readiness — **NOT READY**
 
-Three hard prerequisites remain open and two are outside this session's authorization: B-1 must be fixed; the `staging` environment with its three secrets and `RENDER_SERVICE_ID` must be created (B-2, API-verified absent); Render auto-deploy's state must be confirmed and disabled if it would race the pipeline (not verified). Until all three are done, `workflow_dispatch` (the only path reachable without a develop push) cannot succeed either, because `validate` fails at `release.yml:275-320`.
+Two hard prerequisites remain open and both are outside this session's authorization: the `staging` environment with its three secrets and `RENDER_SERVICE_ID` must be created (B-2, API-verified absent); Render auto-deploy's state must be confirmed and disabled if it would race the pipeline (not verified). ~~B-1 must be fixed~~ **(done)**. Until B-2 is resolved, `workflow_dispatch` (the only path reachable without a develop push) cannot succeed either, because `validate` fails at `release.yml:275-320`.
 
 ### 10.4 Staging end-to-end verification — **NOT PERFORMED, NOT AUTHORIZED**
 

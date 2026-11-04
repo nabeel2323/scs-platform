@@ -142,6 +142,53 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
     expect(byName.get('stale-detection-allows-complete')?.ok).toBe(true);
   });
 
+  it('database-operation step binds DATABASE_URL to the staging secret and sets NODE_ENV=staging', () => {
+    expect(byName.get('db-step-has-database-url')?.ok).toBe(true);
+    expect(byName.get('db-step-database-url-maps-staging-secret')?.ok).toBe(true);
+    expect(byName.get('db-step-has-node-env-staging')?.ok).toBe(true);
+    expect(byName.get('db-step-has-ssl-cert-env')?.ok).toBe(true);
+  });
+
+  it('database-operation step runs migrate, seed, and ledger verification in order', () => {
+    expect(byName.get('db-step-runs-migrate')?.ok).toBe(true);
+    expect(byName.get('db-step-runs-seed')?.ok).toBe(true);
+    expect(byName.get('db-step-runs-ledger')?.ok).toBe(true);
+    expect(byName.get('db-step-order-migrate-seed-ledger')?.ok).toBe(true);
+  });
+
+  // Negative control for B-1 (activation blocker from PR #106 final review):
+  // The database-operation step must export DATABASE_URL mapped to secrets.STAGING_DATABASE_URL.
+  // If this mapping is missing, migrate-pg.ts, seed-pg.ts, and verify-migration-ledger.mjs
+  // all fail with "DATABASE_URL must be set" before any database mutation.
+  it('negative control: removing DATABASE_URL from the database step makes the validator fail', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(release);
+      // Remove the DATABASE_URL line from the database-operation step env.
+      const lines = release.split(e);
+      const filtered = lines.filter((l) => !l.trim().startsWith('DATABASE_URL:'));
+      return { ci, release: filtered.join(e) };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'db-step-has-database-url')?.ok).toBe(false);
+    expect(check(bad, 'db-step-database-url-maps-staging-secret')?.ok).toBe(false);
+  });
+
+  it('negative control: mapping DATABASE_URL to the wrong secret makes the validator fail', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      // Replace only the DATABASE_URL line (not STAGING_DATABASE_URL) in the database-operation step.
+      const lines = release.split('\n');
+      const modified = lines.map((line) => {
+        if (line.trim() === 'DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}') {
+          return line.replace('secrets.STAGING_DATABASE_URL', 'secrets.WRONG_SECRET');
+        }
+        return line;
+      });
+      return { ci, release: modified.join('\n') };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'db-step-database-url-maps-staging-secret')?.ok).toBe(false);
+  });
+
   it('grants the called workflow only scopes the caller also allows', () => {
     for (const name of [
       'caller-workflow-permissions-declared',
