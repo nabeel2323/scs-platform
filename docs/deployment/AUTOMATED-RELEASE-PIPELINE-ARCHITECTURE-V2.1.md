@@ -1,8 +1,8 @@
 # Automated Staging Release Pipeline — Architecture v2.1 (Implemented)
 
-**Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
+**Date:** 2026-11-03 (CI wiring + env scoping + stale-detection corrected 2026-11-04)  
 **Version:** 2.1 (Implemented)  
-**Status:** Pull Request under review — CI wiring corrected and verified locally. NOT production-ready and NOT an activated staging pipeline: the trigger/secret model has only been validated by an executable structural validator, typecheck, build and local tests. It has **not** yet completed a real CI run on `develop` followed by an authorized staging release, so full end-to-end verification is still outstanding.  
+**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification. The trigger/secret and variable-scoping model is validated only by an executable structural validator, typecheck, build and local tests. It has **not** yet completed a real CI run on `develop` followed by an authorized staging release, so end-to-end verification is still outstanding.  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
@@ -53,6 +53,14 @@ Key facts a reviewer must know:
   shadow environment secrets). Jobs that need them (`validate`, `database-release`, `deploy`,
   `health-check`) declare `environment: staging` and resolve secrets from the environment directly;
   the caller forwards the rest with `secrets: inherit`. Secret values are never printed.
+- **Environment-scoped variables** (`vars.RENDER_SERVICE_ID`) are bound at **job** level on each job
+  that uses them (`validate`, `deploy`), not in the workflow-level `env:` block. GitHub resolves an
+  environment variable only for a job bound to that environment; a workflow-scope `${{ vars.* }}`
+  reference can silently evaluate to an empty string and then be interpolated into a Render API URL.
+  Steps read the value from the shell environment (`${RENDER_SERVICE_ID:-}`) and each Render call
+  site fails fast when it is unset. `validate` — which runs before `database-release` — turns a
+  missing variable into a hard failure, so no database mutation happens with an unconfigured service.
+  The value is reported only as `[PRESENT]` / `[configured]`; it is never printed.
 - Manual (`workflow_dispatch`) releases validate the input SHA is a 40-hex commit, exists, is
   **reachable from `develop`**, and has an **exact successful CI run on `develop`** (`gh run list
   --workflow=ci.yml --branch=develop` matched on `headSha` + `conclusion == success` + `headBranch
@@ -66,14 +74,26 @@ ledger verification (`verify-migration-ledger.mjs`, now resolved against the rep
 verification, readiness health check, and documented "migrations-succeeded-but-deploy-failed"
 recovery. No automatic database rollback is introduced.
 
+**Stale-release detection reads the caller's queued runs.** Because `release.yml` is called as a
+reusable workflow, it executes as a job *inside* the `ci.yml` run and produces no standalone
+`release.yml` workflow runs; `github.run_id` / `github.run_number` inside it are the **ci.yml**
+identifiers. The pre-mutation step therefore queries `gh run list --workflow=ci.yml
+--branch=develop --status=queued --json databaseId,runNumber`, drops the current run
+(`select(.databaseId != $self)`) and counts strictly newer runs (`select(.runNumber > $current)`)
+— monotonic `run_number`, never `createdAt`. Finding a newer run only warns: the policy stays
+allow-complete, the current migration finishes, and a `gh`/API failure is likewise non-fatal so the
+informational check can never block a release. `apps/api/scripts/detect-stale-release.mjs` mirrors
+this logic and is exercised directly by `stale-release-helper.spec.ts`.
+
 **Verification actually performed (local, non-destructive):**
 
 - Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
-  real YAML with js-yaml): **29/29 checks pass**.
-- Release-pipeline unit tests: **74 pass** (includes new `workflow-structure.spec.ts` and rewritten
-  trust-boundary/stale specs that read the real workflow files).
+  real YAML with js-yaml): **44/44 checks pass** (includes job-vs-workflow `vars` scope, env
+  interpolation resolvability, pre-mutation variable guard and caller-targeted stale detection).
+- Release-pipeline unit tests: **82 pass** (includes `workflow-structure.spec.ts`, the rewritten
+  trust-boundary/stale specs that read the real workflow files, and the new helper spec).
 - Migration-ledger integration tests against a disposable Testcontainers PostgreSQL: **7 pass**.
-- `tsc --noEmit`: **0 errors**. `nest build`: **success (431 files)**. ESLint on changed specs: **clean**.
+- `tsc --noEmit`: **0 errors**. `nest build`: **success**. ESLint on changed specs: **clean**.
 
 **What is NOT yet verified:** a real GitHub Actions CI run on `develop` invoking the reusable
 workflow end to end, and any authorized staging deployment. Staging secrets, Render configuration,
@@ -300,7 +320,15 @@ schema); staging secrets resolve from `environment: staging`.
       exit 1
     fi
     
+    # Environment-scoped variable, bound at JOB level on this `environment: staging` job.
+    if [ -z "${RENDER_SERVICE_ID:-}" ]; then
+      echo "✗ Missing required variable: RENDER_SERVICE_ID"
+      exit 1
+    fi
+    
     echo "✓ All required secrets and variables are configured"
+    echo "  RENDER_SERVICE_ID: [PRESENT]"
+    echo "  Secrets: [REDACTED]"
 ```
 
 **Required secrets:**
@@ -309,9 +337,13 @@ schema); staging secrets resolve from `environment: staging`.
 - `STAGING_PGSSLROOTCERT_PEM` — SSL CA certificate (PEM-encoded)
 
 **Required variables:**
-- `RENDER_SERVICE_ID` — Render service identifier (e.g., `srv-abc123`)
+- `RENDER_SERVICE_ID` — Render service identifier (e.g., `srv-abc123`), configured as an
+  **environment-scoped variable** on the `staging` environment. It is bound in the `env:` block of
+  each job that uses it (`validate`, `deploy`) — never read from a workflow-level `${{ vars.* }}` —
+  and its value is never echoed.
 
-**Failure behavior:** Workflow stops with clear error message listing missing secrets.
+**Failure behavior:** Workflow stops in the read-only `validate` job with a clear error message
+listing missing secrets or the missing variable, before `database-release` can mutate the database.
 
 ---
 
@@ -478,7 +510,7 @@ schema); staging secrets resolve from `environment: staging`.
     RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
     
     RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-      "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
+      "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
       -H "Authorization: Bearer $RENDER_API_KEY" \
       -H "Content-Type: application/json" \
       -d "{
@@ -528,7 +560,7 @@ schema); staging secrets resolve from `environment: staging`.
     
     while [ $ELAPSED -lt $MAX_WAIT ]; do
       RESPONSE=$(curl -s -X GET \
-        "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+        "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/$DEPLOY_ID" \
         -H "Authorization: Bearer $RENDER_API_KEY")
       
       STATUS=$(echo "$RESPONSE" | jq -r '.status')
@@ -590,7 +622,7 @@ schema); staging secrets resolve from `environment: staging`.
     EXPECTED_SHA="${{ needs.validate.outputs.release_sha }}"
     
     RESPONSE=$(curl -s -X GET \
-      "https://api.render.com/v1/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+      "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/$DEPLOY_ID" \
       -H "Authorization: Bearer $RENDER_API_KEY")
     
     DEPLOYED_SHA=$(echo "$RESPONSE" | jq -r '.commitId')
@@ -1397,7 +1429,8 @@ node apps/api/scripts/verify-migration-ledger.mjs
 | **Testing** | None | Proposed | **Comprehensive** |
 | **Documentation** | Design only | Design only | **Implemented behavior** |
 
-**Recommendation:** v2.1 is production-ready and fully implemented.
+**Recommendation:** v2.1 is implemented and locally verified; it is awaiting PR CI on `develop` and
+an authorized staging release before it can be called verified end to end.
 
 ---
 
@@ -1420,12 +1453,13 @@ node apps/api/scripts/verify-migration-ledger.mjs
 3. ✅ **Executable structural validator:** `apps/api/scripts/validate-workflow-structure.mjs`
    - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (29 checks)
 
-4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs`
+4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs` (mirrors the workflow step: caller `ci.yml` runs, monotonic `runNumber`, self-exclusion, allow-complete)
 
 5. ✅ **Unit tests:** `apps/api/src/__tests__/unit/release-pipeline/`
    - `workflow-structure.spec.ts` (executes the validator against the real files)
    - `workflow-trust-boundary.spec.ts` (asserts the real caller/release guards — PRs cannot trigger)
-   - `stale-release-detection.spec.ts` (asserts the real embedded runNumber / allow-complete step)
+   - `stale-release-detection.spec.ts` (asserts the real embedded ci.yml / runNumber / allow-complete step)
+   - `stale-release-helper.spec.ts` (executes `detect-stale-release.mjs` in a real Node process)
    - `render-api.spec.ts`, `manual-sha-validation.spec.ts`, `ssl-certificate-handling.spec.ts`
 
 6. ✅ **Integration tests:** `apps/api/src/__tests__/integration/release-pipeline/`
@@ -1558,7 +1592,11 @@ curl -H "Authorization: Bearer rnd_..." \
 
 ## Conclusion
 
-**Architecture v2.1 is production-ready** and fully implemented. The release workflow automates the complete staging release pipeline with comprehensive safety checks, security measures, and audit trails.
+**Architecture v2.1 is implemented and locally verified; it is awaiting PR CI and authorized
+staging verification.** The release workflow automates the complete staging release pipeline with
+safety checks, security measures, and audit trails as designed — those designs are covered by local
+unit/integration tests and the structural validator, and have **not** yet been exercised by a real
+`develop` CI run or an authorized staging deployment.
 
 **Key achievements:**
 - ✅ Strict 12-step release sequence implemented
@@ -1573,13 +1611,14 @@ curl -H "Authorization: Bearer rnd_..." \
 - ✅ Cost analysis (within free tier)
 
 **Next steps:**
-1. Configure GitHub environment and secrets
-2. Disable Render auto-deploy
-3. Test workflow with manual trigger
-4. Monitor first automatic release
-5. Iterate based on operational experience
+1. Open the pull request against `develop` and let the real CI run execute the reusable call
+2. Configure the GitHub `staging` environment: secrets plus the `RENDER_SERVICE_ID` variable
+3. Disable Render auto-deploy
+4. Test the workflow with an authorized manual trigger
+5. Monitor the first automatic release and confirm each safeguard in production-like conditions
+6. Iterate based on operational experience
 
-**Safety guarantees:**
+**Safety mechanisms implemented (verified locally only, not yet exercised against staging):**
 - ✅ Advisory lock prevents concurrent migrations
 - ✅ Failed migration blocks deployment
 - ✅ SHA verification ensures code/schema match
@@ -1596,10 +1635,10 @@ curl -H "Authorization: Bearer rnd_..." \
 
 ---
 
-**Document version:** 2.1 (Implemented — CI wiring corrected)  
+**Document version:** 2.1 (Implemented — CI wiring, variable scoping and stale detection corrected)  
 **Last updated:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** PR under review — locally verified (validator 29/29, 74 unit + 7 integration tests, typecheck 0, build success). NOT production-ready / NOT activated: pending a real CI run on develop and an authorized staging release.  
+**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification (validator 44/44, 82 unit + 7 integration tests, typecheck 0 errors, build success).  
 **Implementation branch:** feature/automated-release-pipeline-v2.1  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

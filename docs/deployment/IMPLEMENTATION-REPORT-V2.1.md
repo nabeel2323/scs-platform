@@ -27,11 +27,11 @@ which is incompatible with develop-only releases. The **final** implementation i
 
 Where this section conflicts with `workflow_run` wording later in this report, this section is correct.
 
-**Verification performed (local, non-destructive):** executable structural validator **29/29**;
-release-pipeline unit tests **74 pass** (now executing real workflow files, not hard-coded
-constants); migration-ledger integration tests **7 pass** (Testcontainers); `tsc --noEmit` **0
-errors**; `nest build` **success**; ESLint on changed specs **clean**. No staging secrets, Render
-configuration, migrations, seeds, or deployments were touched.
+**Verification performed (local, non-destructive):** executable structural validator **44/44**;
+release-pipeline unit tests **82 pass** (now executing real workflow files and the real stale-release
+helper, not hard-coded constants); migration-ledger integration tests **7 pass** (Testcontainers);
+`tsc --noEmit` **0 errors**; `nest build` **success**; ESLint on changed specs **clean**. No staging
+secrets, Render configuration, migrations, seeds, or deployments were touched.
 
 ---
 
@@ -280,17 +280,15 @@ PR**, not a live/verified pipeline.
 
 ### Unit Tests
 
-**Workflow structure validation (executable validator — 29/29 checks pass):**
-- ✅ YAML parses (js-yaml)
+**Workflow structure validation (executable validator — 44/44 checks pass):**
+- ✅ Both workflows parse with a real YAML parser (js-yaml)
 - ✅ Reusable-workflow wiring correct: job-level `uses:` from ci.yml, no step-level invocation, caller declares no `steps`/`runs-on`/`environment`
 - ✅ Trigger configuration is correct (`workflow_call` inputs + `workflow_dispatch`; no `workflow_run`, and never assumes `event_name == 'workflow_call'`)
-- ✅ Concurrency control is configured
+- ✅ `needs` = the 8 mandatory develop gates, excluding the develop-skipped `k6-smoke`; every `needs` entry is a real ci.yml job
 - ✅ Staging secret jobs declare `environment: staging`; `workflow_call` has no secrets schema; caller uses `secrets: inherit`
-- ✅ `needs` = the 8 mandatory develop gates, excluding the develop-skipped `k6-smoke`
-- ✅ Permissions are least-privilege
-- ✅ SSL certificate handling is secure
-- ✅ Exact SHA checkout is used
-- ✅ Terminal state detection is comprehensive
+- ✅ Environment-scoped `${{ vars.* }}` appear only in job-level `env:` (never workflow `env:`), each consuming job binds `RENDER_SERVICE_ID`, and every `${{ env.* }}` interpolation resolves from workflow/job/step scope
+- ✅ The `validate` job fails on a missing `RENDER_SERVICE_ID`, and `database-release` depends on `validate` (guard precedes mutation)
+- ✅ Stale-release detection targets the caller (`--workflow=ci.yml --branch=develop`), orders by monotonic `runNumber`, excludes its own run, contains no `--workflow=release.yml`, and never exits non-zero (allow-complete)
 
 **Render API interaction:**
 - ✅ Deployment trigger request format is correct
@@ -740,7 +738,9 @@ an authorized staging release.
 
 **Key achievements (locally verified):**
 - ✅ Reusable-workflow trigger wired correctly (job-level `uses:`, `secrets: inherit`, develop-push gate)
-- ✅ Executable structural validator 29/29; 74 unit + 7 integration tests pass; typecheck 0; build success
+- ✅ Executable structural validator 44/44; 82 unit + 7 integration tests pass; typecheck 0 errors; build success
+- ✅ `RENDER_SERVICE_ID` bound at job level on the `environment: staging` jobs that use it, fail-fast before mutation, value never printed
+- ✅ Stale-release detection inspects the caller's queued `ci.yml` runs (monotonic `run_number`, allow-complete)
 - ✅ Strict 12-step release sequence with comprehensive safety checks
 - ✅ Exact SHA verification prevents code/schema mismatch
 - ✅ SSL certificate security with file-based handling and single-step lifecycle + trap
@@ -754,14 +754,15 @@ an authorized staging release.
 4. Perform a supervised manual release and the first automatic release; monitor
 5. Iterate based on operational experience
 
-**Recommendation:** **Ready for code review.** Do NOT treat as production-ready until steps 2–4
-(real CI on develop + authorized staging release) succeed.
+**Recommendation:** **Ready for code review.** The accurate status is *implemented and locally
+verified; awaiting PR CI and authorized staging verification* — steps 2–4 (real CI on develop +
+authorized staging release) have not run yet.
 
 ---
 
-**Report version:** 1.0  
-**Date:** 2026-11-03  
+**Report version:** 1.1  
+**Date:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** Complete — All Deliverables Produced  
+**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification  
 **Implementation branch:** feature/automated-release-pipeline-v2.1  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e

@@ -76,4 +76,27 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
       expect(byName.get(`release-job-env-${job}`)?.ok, `job ${job} must declare environment: staging`).toBe(true);
     }
   });
+
+  it('binds environment-scoped vars at job level and resolves every env interpolation', () => {
+    // `${{ vars.* }}` must never be read at workflow scope, and every job that
+    // consumes such a variable must bind it in its own `env:` block.
+    expect(byName.get('no-workflow-scope-vars')?.ok).toBe(true);
+    expect(byName.get('has-job-scoped-vars-binding')?.ok).toBe(true);
+    for (const job of ['validate', 'deploy']) {
+      expect(byName.get(`var-RENDER_SERVICE_ID-job-scope-${job}`)?.ok, `${job} must bind vars`).toBe(true);
+      expect(byName.get(`var-RENDER_SERVICE_ID-bound-in-${job}`)?.ok, `${job} must declare RENDER_SERVICE_ID`).toBe(true);
+    }
+    // Guards against `${{ env.X }}` silently evaluating to an empty string.
+    expect(byName.get('all-env-interpolations-resolvable')?.ok).toBe(true);
+    // A missing variable must fail before any database mutation.
+    expect(byName.get('validate-guards-render-service-id')?.ok).toBe(true);
+    expect(byName.get('validate-guard-precedes-database-release')?.ok).toBe(true);
+  });
+
+  it('detects stale releases against the caller workflow and keeps allow-complete', () => {
+    expect(byName.get('stale-detection-targets-caller')?.ok).toBe(true);
+    expect(byName.get('stale-detection-excludes-release-target')?.ok).toBe(true);
+    expect(byName.get('stale-detection-uses-run-number')?.ok).toBe(true);
+    expect(byName.get('stale-detection-allows-complete')?.ok).toBe(true);
+  });
 });

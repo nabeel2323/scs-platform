@@ -74,18 +74,26 @@ on:
 # queued while one is pending, the older pending run is replaced. This means
 # we cannot claim FIFO execution. We implement explicit stale-release
 # awareness: before any database mutation, detect whether a newer release is
-# queued (ordered by monotonic run_number). POLICY = allow-complete: if a newer
-# run is queued we do NOT abort an in-flight migration, because leaving the
-# schema half-migrated is worse than letting the current release finish for
+# queued (ordered by monotonic run_number). Because this workflow is called as
+# a reusable workflow, the queued runs to inspect belong to the CALLER (ci.yml
+# on develop) — the caller's run id/number are also what `github.run_id` /
+# `github.run_number` resolve to here. POLICY = allow-complete: if a newer run
+# is queued we do NOT abort an in-flight migration, because leaving the schema
+# half-migrated is worse than letting the current release finish for
 # consistency; the newer run then applies cleanly afterwards.
 concurrency:
   group: staging-release
   cancel-in-progress: false
 
+# Workflow-level env holds NON-environment-scoped constants only.
+# `${{ vars.* }}` values scoped to the `staging` environment are NOT reliably resolvable
+# at workflow scope — the environment is only bound per-job. Therefore RENDER_SERVICE_ID
+# is declared at JOB level on every job that (a) declares `environment: staging` and
+# (b) uses the variable (currently: `validate` for pre-mutation verification, `deploy`
+# for triggering / polling / SHA verification). Do NOT add `${{ vars.* }}` here.
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '9.15.9'
-  RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
   RENDER_API_BASE: https://api.render.com/v1
 
 permissions:
@@ -101,6 +109,11 @@ jobs:
     # Staging environment grants this job access to environment-scoped secrets
     # so it can verify their presence. The job is read-only (no DB mutation).
     environment: staging
+    # Environment-scoped `vars` are resolved only for a job bound to that
+    # environment, so RENDER_SERVICE_ID is declared here (JOB scope) rather than
+    # relying on workflow-level `env`. Steps below read it as shell $RENDER_SERVICE_ID.
+    env:
+      RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
     # Runs for both invocation modes:
     #   - workflow_call from CI  -> github.event_name mirrors the CALLER event ('push')
     #   - workflow_dispatch      -> github.event_name == 'workflow_dispatch'
@@ -280,15 +293,22 @@ jobs:
             exit 1
           fi
           
-          # Check required variables
-          if [ -z "${{ env.RENDER_SERVICE_ID }}" ]; then
+          # Check required environment-scoped variables.
+          # RENDER_SERVICE_ID is read from the shell environment: it is bound at
+          # JOB scope (`RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}`) on this
+          # `environment: staging` job. Do NOT interpolate `${{ vars.* }}` inline —
+          # workflow-scope resolution of environment vars is not guaranteed, and an
+          # empty interpolation would silently pass a value of "" downstream.
+          # This check lives in the read-only validate job so a missing variable
+          # fails BEFORE the database-release job performs any mutation.
+          if [ -z "${RENDER_SERVICE_ID:-}" ]; then
             echo "✗ Missing required variable: RENDER_SERVICE_ID"
-            echo "Configure this as an environment variable for the 'staging' environment."
+            echo "Configure it as an environment-scoped variable for the 'staging' environment."
             exit 1
           fi
           
           echo "✓ All required secrets and variables are configured"
-          echo "  RENDER_SERVICE_ID: ${{ env.RENDER_SERVICE_ID }}"
+          echo "  RENDER_SERVICE_ID: [PRESENT]"
           echo "  Secrets: [REDACTED]"
 
   # ── Step 4-7: Database release (migrations + seed + verification) ────────
@@ -314,31 +334,50 @@ jobs:
           echo "  Current run ID: $CURRENT_RUN_ID"
           echo "  Current run number: $CURRENT_RUN_NUMBER"
           
-          # FIX: Use run_number (monotonic ordering) instead of createdAt comparison
-          # Get all queued runs for this workflow
+          # This workflow is a REUSABLE workflow called by ci.yml, so it does not
+          # produce standalone release.yml runs. `github.run_id` / `github.run_number`
+          # above are the identifiers of the CALLER (ci.yml) run that this release is
+          # executing inside. Stale-release detection therefore has to inspect queued
+          # runs of ci.yml on develop — querying release.yml would always return an
+          # empty set and make the check a silent no-op.
+          #
+          # Ordering uses run_number (monotonic per workflow), never createdAt: two
+          # runs created in the same second are still strictly ordered by run_number.
           QUEUED_RUNS=$(gh run list \
-            --workflow=release.yml \
+            --workflow=ci.yml \
+            --branch=develop \
             --status=queued \
             --json databaseId,runNumber \
-            --limit 10)
+            --limit 10) || QUEUED_RUNS=''
           
-          # FIX: Check if any newer run is queued using run_number (not createdAt)
-          NEWER_RUNS=$(echo "$QUEUED_RUNS" | jq -r --argjson current "$CURRENT_RUN_NUMBER" '
-            [.[] | select(.runNumber > $current)] | length')
-          
-          if [ "$NEWER_RUNS" -gt 0 ]; then
-            NEWER_IDS=$(echo "$QUEUED_RUNS" | jq -r --argjson current "$CURRENT_RUN_NUMBER" '
-              [.[] | select(.runNumber > $current)] | map(.databaseId) | join(", ")')
-            
-            echo "⚠ NEWER RELEASE(S) QUEUED: $NEWER_RUNS run(s)"
-            echo "  Run IDs: $NEWER_IDS"
-            echo ""
+          if [ -z "$QUEUED_RUNS" ]; then
+            echo "⚠ Could not read queued ci.yml runs (gh unavailable or API error)"
             echo "  POLICY: Allow current migration to complete"
-            echo "  GitHub concurrency: one-running + one-pending (NOT FIFO)"
-            echo "  The newer run will queue after this completes"
-            echo "  No abort: current database operation should finish for consistency"
+            echo "  Stale detection is informational — it never aborts a release."
           else
-            echo "✓ No newer release queued — proceeding with database mutation"
+            # Exclude this run explicitly, then keep only strictly newer run numbers.
+            NEWER_RUNS=$(echo "$QUEUED_RUNS" | jq -r \
+              --argjson current "$CURRENT_RUN_NUMBER" \
+              --argjson self "$CURRENT_RUN_ID" '
+              [.[] | select(.databaseId != $self) | select(.runNumber > $current)] | length')
+            
+            if [ "$NEWER_RUNS" -gt 0 ]; then
+              NEWER_IDS=$(echo "$QUEUED_RUNS" | jq -r \
+                --argjson current "$CURRENT_RUN_NUMBER" \
+                --argjson self "$CURRENT_RUN_ID" '
+                [.[] | select(.databaseId != $self) | select(.runNumber > $current)]
+                | map(.databaseId) | join(", ")')
+              
+              echo "⚠ NEWER RELEASE(S) QUEUED: $NEWER_RUNS ci.yml run(s) on develop"
+              echo "  Run IDs: $NEWER_IDS"
+              echo ""
+              echo "  POLICY: Allow current migration to complete"
+              echo "  GitHub concurrency: one-running + one-pending (NOT FIFO)"
+              echo "  The newer run will queue after this completes"
+              echo "  No abort: current database operation should finish for consistency"
+            else
+              echo "✓ No newer ci.yml release queued — proceeding with database mutation"
+            fi
           fi
       
       - name: Checkout exact release SHA
@@ -475,6 +514,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, database-release]
     environment: staging
+    # Environment-scoped variable bound at JOB scope (same rule as `validate`):
+    # `${{ vars.* }}` for the `staging` environment resolves reliably only on a job
+    # that declares that environment. Steps below read it as shell $RENDER_SERVICE_ID.
+    env:
+      RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}
     
     outputs:
       deploy_id: ${{ steps.trigger_deploy.outputs.deploy_id }}
@@ -490,13 +534,20 @@ jobs:
           
           RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
           
+          # Scoped environment variable (see `deploy.env`). Fail loudly rather than
+          # calling /services//deploys with an empty id.
+          if [ -z "${RENDER_SERVICE_ID:-}" ]; then
+            echo "✗ RENDER_SERVICE_ID is not configured for the 'staging' environment"
+            exit 1
+          fi
+          
           echo "Triggering Render deployment..."
-          echo "  Service ID: ${{ env.RENDER_SERVICE_ID }}"
+          echo "  Service ID: [configured]"
           echo "  Commit SHA: $RELEASE_SHA"
           
           # Trigger deployment with explicit commitId
           HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys" \
+            "${{ env.RENDER_API_BASE }}/services/${RENDER_SERVICE_ID}/deploys" \
             -H "Authorization: Bearer $RENDER_API_KEY" \
             -H "Content-Type: application/json" \
             -d "{
@@ -547,6 +598,11 @@ jobs:
           POLL_INTERVAL=15
           ELAPSED=0
           
+          if [ -z "${RENDER_SERVICE_ID:-}" ]; then
+            echo "✗ RENDER_SERVICE_ID is not configured for the 'staging' environment"
+            exit 1
+          fi
+          
           echo "Polling deployment status..."
           echo "  Deploy ID: $DEPLOY_ID"
           echo "  Max wait: ${MAX_WAIT}s"
@@ -554,7 +610,7 @@ jobs:
           
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
-              "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+              "${{ env.RENDER_API_BASE }}/services/${RENDER_SERVICE_ID}/deploys/$DEPLOY_ID" \
               -H "Authorization: Bearer $RENDER_API_KEY")
             
             HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)
@@ -614,10 +670,15 @@ jobs:
           DEPLOY_ID="${{ steps.trigger_deploy.outputs.deploy_id }}"
           EXPECTED_SHA="${{ needs.validate.outputs.release_sha }}"
           
+          if [ -z "${RENDER_SERVICE_ID:-}" ]; then
+            echo "✗ RENDER_SERVICE_ID is not configured for the 'staging' environment"
+            exit 1
+          fi
+          
           echo "Verifying deployed commit SHA..."
           
           HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X GET \
-            "${{ env.RENDER_API_BASE }}/services/${{ env.RENDER_SERVICE_ID }}/deploys/$DEPLOY_ID" \
+            "${{ env.RENDER_API_BASE }}/services/${RENDER_SERVICE_ID}/deploys/$DEPLOY_ID" \
             -H "Authorization: Bearer $RENDER_API_KEY")
           
           HTTP_CODE=$(echo "$HTTP_RESPONSE" | tail -n1)

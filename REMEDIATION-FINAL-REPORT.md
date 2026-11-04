@@ -388,7 +388,7 @@ validate:
 ### Validation Requirements
 - ✅ Environment-scoped secrets only accessed by jobs with staging environment: All jobs now declare environment
 - ✅ Untrusted validation jobs do not receive secrets: validate job has environment, but only checks existence
-- ✅ RENDER_SERVICE_ID available in job context: Declared at workflow level via `vars.RENDER_SERVICE_ID`
+- ✅ RENDER_SERVICE_ID available in job context: Bound at **job** level (`env: RENDER_SERVICE_ID: ${{ vars.RENDER_SERVICE_ID }}`) on the `environment: staging` jobs that use it — environment-scoped `vars` are not reliably resolvable at workflow scope
 - ✅ Secrets out of outputs/logs: Only names checked, never values printed
 - ✅ Protection rules documented: See prerequisites section
 

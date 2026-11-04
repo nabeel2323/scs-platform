@@ -113,18 +113,20 @@ The workflow claimed "only one release can run at a time" with FIFO execution, b
 **Impact:**
 A stale release could execute database mutations after being superseded by a newer release, causing schema/code mismatch.
 
-**Fix Applied:**
-1. Corrected documentation to reflect actual GitHub concurrency behavior
-2. Added explicit stale-release protection step BEFORE any database mutation
-3. Stale check queries for newer queued runs and aborts if superseded
-4. Abort happens before migrations, seeds, or any database mutation
+**Fix Applied (final state):**
+1. Corrected documentation to reflect actual GitHub concurrency behavior (one-running + one-pending, not FIFO)
+2. Added an explicit stale-release check step BEFORE any database mutation
+3. The check queries the **caller** workflow's queued runs (`ci.yml` on `develop`, since a reusable
+   workflow has no standalone runs), orders by monotonic `runNumber`, and excludes its own run
+4. Policy is **allow-complete**: a newer queued release is reported but never aborts the current
+   release, because interrupting an in-flight migration risks a half-migrated schema
+5. The exact-SHA checkout, migration ledger and concurrency group remain the real protection against
+   releasing the wrong code
 
 **Test Coverage:**
-- `apps/api/src/__tests__/unit/release-pipeline/stale-release-detection.spec.ts`
-- Tests GitHub concurrency behavior (not FIFO)
-- Tests pending run replacement
-- Tests stale release detection before mutation
-- Tests safety guarantees
+- `apps/api/src/__tests__/unit/release-pipeline/stale-release-detection.spec.ts` (reads the real workflow step)
+- `apps/api/src/__tests__/unit/release-pipeline/stale-release-helper.spec.ts` (executes the helper script)
+- Structural validator checks `stale-detection-targets-caller`, `stale-detection-uses-run-number`, `stale-detection-allows-complete`
 
 ---
 
@@ -484,14 +486,18 @@ an authorized staging release after the owner configures GitHub secrets and Rend
 **Key achievements:**
 - ✅ Manual SHA validation (6-step comprehensive check)
 - ✅ PR-to-staging trust boundary via the reusable-workflow caller gate + release defense-in-depth
-- ✅ Stale release protection (pre-mutation check, allow-complete)
+- ✅ Stale release protection (pre-mutation check against the **caller** `ci.yml` queued runs,
+  monotonic `run_number`, allow-complete)
+- ✅ Environment-scoped `RENDER_SERVICE_ID` bound at job level (never workflow-scope `vars`),
+  fail-fast when unset before any database mutation, value never printed
 - ✅ SSL certificate security (umask 077, single-step lifecycle + trap handler)
 - ✅ Render API error handling (JSON validation, field checks)
 - ✅ SHA verification (correct .commit.id field)
-- ✅ Executable structural validator (29 checks) + rewritten real-file tests
+- ✅ Executable structural validator (44 checks) + rewritten real-file tests
 - ✅ Complete documentation (security review, failure modes)
 
-**Recommendation:** APPROVE FOR DEPLOYMENT after manual prerequisites are configured.
+**Recommendation:** APPROVE FOR CODE REVIEW. Do not treat as an activated staging pipeline until a
+real `develop` CI run and an authorized staging release have succeeded.
 
 ---
 

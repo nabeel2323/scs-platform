@@ -181,8 +181,136 @@ export function validateWorkflowStructure(repoRootIn) {
   // 16) Release validate job does not test for the non-existent 'workflow_call' event in an if.
   push('release-validate-no-invalid-job-if', !('if' in (rel.jobs?.validate || {})), 'validate should run for both invocation modes');
 
+  // 17) Environment-scoped `${{ vars.* }}` must be bound at JOB scope, never workflow scope.
+  // GitHub only reliably resolves environment-scoped variables for a job that declares
+  // that environment; a workflow-level `vars.*` can silently evaluate to an empty string.
+  const varRefs = [];
+  collectVarRefs(rel, [], varRefs);
+  push(
+    'no-workflow-scope-vars',
+    !varRefs.some((r) => r.scope === 'workflow'),
+    varRefs.map((r) => `${r.scope}:${r.name}@${r.job ?? '-'}`).join(', ') || 'no vars references found',
+  );
+  push(
+    'has-job-scoped-vars-binding',
+    varRefs.some((r) => r.scope === 'job'),
+    'at least one ${{ vars.* }} must be bound at job scope',
+  );
+  for (const ref of varRefs.filter((r) => r.scope === 'job')) {
+    const job = rel.jobs?.[ref.job] || {};
+    push(
+      `var-${ref.name}-job-scope-${ref.job}`,
+      typeof job.env?.[ref.name] === 'string' && job.env[ref.name].includes(`vars.${ref.name}`),
+      `job env=${JSON.stringify(job.env?.[ref.name])}`,
+    );
+    push(`var-${ref.name}-environment-${ref.job}`, job.environment === 'staging', `environment=${JSON.stringify(job.environment)}`);
+  }
+
+  // 18) Any job that consumes an environment variable name must receive it from job env.
+  // Usage = shell reference ($NAME / ${NAME}) or `${{ env.NAME }}` interpolation.
+  const consumed = collectEnvVarUsage(rel.jobs, [...new Set(varRefs.map((r) => r.name))]);
+  for (const { job: jobName, name } of consumed) {
+    const job = rel.jobs?.[jobName] || {};
+    push(
+      `var-${name}-bound-in-${jobName}`,
+      job.env != null && name in job.env,
+      `job declares env keys: ${Object.keys(job.env || {}).join(', ') || '(none)'}`,
+    );
+  }
+
+  // 18b) No interpolation may resolve to an empty string because the name is out of scope.
+  const unresolvedEnvRefs = collectUnresolvedEnvRefs(rel);
+  push('all-env-interpolations-resolvable', unresolvedEnvRefs.length === 0, unresolvedEnvRefs.join('; '));
+
+  // 19) A missing RENDER_SERVICE_ID must fail in the read-only validate job, before mutation.
+  const cfgStep = (rel.jobs?.validate?.steps || []).find((s) => /Validate configuration and secrets/.test(s?.name || ''));
+  const cfgBody = cfgStep?.run || '';
+  push('validate-guards-render-service-id', /-z "\$\{RENDER_SERVICE_ID:-\}"/.test(cfgBody) && /exit 1/.test(cfgBody), '');
+  push(
+    'validate-guard-precedes-database-release',
+    'needs' in (rel.jobs?.['database-release'] || {}) &&
+      (Array.isArray(rel.jobs['database-release'].needs)
+        ? rel.jobs['database-release'].needs
+        : [rel.jobs['database-release'].needs]
+      ).includes('validate'),
+    'database-release must depend on validate',
+  );
+
+  // 20) Stale-release detection inspects the CALLER workflow (reusable calls have no own runs).
+  const staleStep = (rel.jobs?.['database-release']?.steps || []).find((s) =>
+    /Check for stale release/.test(s?.name || ''),
+  );
+  const staleBody = staleStep?.run || '';
+  push('stale-detection-targets-caller', /--workflow=ci\.yml/.test(staleBody), '');
+  push('stale-detection-excludes-release-target', !/--workflow=release\.yml/.test(staleBody), 'release.yml has no standalone runs when reusable');
+  push('stale-detection-uses-run-number', /select\(\.runNumber > \$current\)/.test(staleBody), '');
+  push('stale-detection-allows-complete', !/exit 1/.test(staleBody) && /Allow current migration to complete/.test(staleBody), '');
+
   const ok = results.every((r) => r.ok);
   return { ok, results, repoRoot };
+}
+
+/** Collect `${{ vars.NAME }}` references with the scope they appear in. */
+function collectVarRefs(node, trail, out) {
+  if (typeof node === 'string') {
+    for (const m of node.matchAll(/\$\{\{\s*vars\.([A-Za-z0-9_]+)\s*\}\}/g)) {
+      const isJobEnv = trail[0] === 'jobs' && trail[2] === 'env';
+      const isWorkflowEnv = trail[0] === 'env';
+      out.push({ name: m[1], scope: isJobEnv ? 'job' : isWorkflowEnv ? 'workflow' : 'other', job: trail[0] === 'jobs' ? trail[1] : null });
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectVarRefs(item, trail, out);
+    return;
+  }
+  if (node && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node)) collectVarRefs(value, [...trail, key], out);
+  }
+}
+
+/**
+ * Find jobs that consume one of `names` (via `${{ env.NAME }}`, `$NAME` or `${NAME`),
+ * so each consumption can be checked against a job-level binding.
+ */
+function collectEnvVarUsage(jobs, names) {
+  const found = [];
+  for (const [jobName, job] of Object.entries(jobs || {})) {
+    const body = JSON.stringify(job ?? {});
+    for (const name of names) {
+      const used =
+        new RegExp(`\\$\\{\\{\\s*env\\.${name}\\s*\\}\\}`).test(body) ||
+        new RegExp(`\\$\\{${name}[:}]`).test(body) ||
+        new RegExp(`\\$${name}\\b`).test(body);
+      if (used) found.push({ job: jobName, name });
+    }
+  }
+  return found;
+}
+
+/**
+ * Every `${{ env.NAME }}` interpolation must resolve from workflow env, job env or
+ * the enclosing step env — otherwise GitHub substitutes an empty string.
+ */
+function collectUnresolvedEnvRefs(doc) {
+  const workflowEnv = Object.keys(doc.env || {});
+  const unresolved = [];
+  for (const [jobName, job] of Object.entries(doc.jobs || {})) {
+    const jobEnv = Object.keys(job?.env || {});
+    for (const step of job?.steps || []) {
+      const stepEnv = Object.keys(step?.env || {});
+      const haystack = [step?.name, step?.run, JSON.stringify(step?.with || {}), JSON.stringify(step?.env || {})]
+        .filter(Boolean)
+        .join('\n');
+      for (const m of haystack.matchAll(/\$\{\{\s*env\.([A-Za-z0-9_]+)\s*\}\}/g)) {
+        const name = m[1];
+        if (!workflowEnv.includes(name) && !jobEnv.includes(name) && !stepEnv.includes(name)) {
+          unresolved.push(`${jobName}/${step?.name || '?'} -> env.${name}`);
+        }
+      }
+    }
+  }
+  return unresolved;
 }
 
 // CLI entry

@@ -6,9 +6,12 @@
  * These tests read that REAL step from the workflow file and assert its invariants:
  *   1. Runs are ordered by monotonic `runNumber` (not wall-clock `createdAt`).
  *   2. A newer queued release is detected via `select(.runNumber > $current)`.
- *   3. Policy is "allow-complete": the step must NOT abort (no `exit 1`) when a newer
+ *   3. Because release.yml is a REUSABLE workflow invoked by ci.yml, it never produces
+ *      its own workflow runs — detection must inspect queued runs of the CALLER
+ *      workflow (ci.yml on develop), and must exclude the current run.
+ *   4. Policy is "allow-complete": the step must NOT abort (no `exit 1`) when a newer
  *      run is queued, because an in-flight migration must finish for consistency.
- *   4. The check runs BEFORE any database mutation (pre-mutation safety ordering).
+ *   5. The check runs BEFORE any database mutation (pre-mutation safety ordering).
  *
  * @see .github/workflows/release.yml (job: database-release)
  */
@@ -48,9 +51,31 @@ describe('Stale release detection (real workflow step)', () => {
     expect(staleStep).not.toMatch(/select\(\.createdAt/);
   });
 
-  it('queries only queued runs for the release workflow', () => {
-    expect(staleStep).toMatch(/--workflow=release\.yml/);
+  it('inspects queued runs of the CALLER workflow (ci.yml on develop)', () => {
+    // release.yml is called as a reusable workflow: it runs as a job inside the
+    // ci.yml run, so github.run_id/run_number below are ci.yml identifiers and the
+    // only queued runs that can represent a newer release belong to ci.yml.
+    expect(staleStep).toMatch(/--workflow=ci\.yml/);
+    expect(staleStep).toMatch(/--branch=develop/);
     expect(staleStep).toMatch(/--status=queued/);
+    // Regression guard: querying release.yml would always return an empty set and
+    // silently turn the check into a no-op.
+    expect(staleStep).not.toMatch(/--workflow=release\.yml/);
+  });
+
+  it('excludes the current run before comparing run numbers', () => {
+    expect(staleStep).toMatch(/CURRENT_RUN_ID="\$\{\{ github\.run_id \}\}/);
+    expect(staleStep).toMatch(/CURRENT_RUN_NUMBER="\$\{\{ github\.run_number \}\}/);
+    expect(staleStep).toMatch(/--argjson self "\$CURRENT_RUN_ID"/);
+    expect(staleStep).toMatch(/select\(\.databaseId != \$self\)/);
+    expect(staleStep).toMatch(/select\(\.runNumber > \$current\)/);
+  });
+
+  it('never aborts on a gh API error either (check is informational)', () => {
+    // A transient API failure must not fail the release before mutation: the
+    // outcome of a successful detection is "proceed anyway".
+    expect(staleStep).toMatch(/\|\| QUEUED_RUNS=''/);
+    expect(staleStep).toMatch(/Could not read queued ci\.yml runs/);
   });
 
   it('does NOT abort when a newer release is queued (allow-complete policy)', () => {
