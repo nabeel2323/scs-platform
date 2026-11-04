@@ -574,7 +574,7 @@ listing missing secrets or the missing variable, before `database-release` can m
 **Verification script:** `apps/api/scripts/verify-migration-ledger.mjs`
 
 **Logic:**
-1. List all `.sql` files in `apps/api/infra/drizzle/migrations/`
+1. List all `.sql` files in the repository-root `infra/drizzle/migrations/` directory — resolved from the script's own location (`verify-migration-ledger.mjs:44-50`), which is the same directory the migration runner reads (`migrate-pg.ts:12`), so the ledger it verifies reflects the migrations that were actually applied. `MIGRATIONS_DIR` overrides it for tests only.
 2. Query `_migration_log` table for applied migrations
 3. Compare file list vs log entries
 4. Exit with code 1 if any file is missing from log
@@ -584,6 +584,12 @@ listing missing secrets or the missing variable, before `database-release` can m
 - Missing file in log → Workflow stops (critical inconsistency)
 - Orphaned log entry → Warning only (non-critical)
 - Cleanup always runs (even on failure)
+
+**Implementation status note (verified against `release.yml` at `fc12499`; see [PR #106 Final Review and Release Readiness Report](./PR-106-FINAL-REVIEW-AND-RELEASE-READINESS-REPORT.md)):**
+
+Steps 5–7 above are **not** three separate steps in the shipped workflow. They are one consolidated step, `Execute database operations with SSL certificate` (`release.yml:424-519`), because the split layout deleted the certificate at a step boundary before the migration could use it (comment at `release.yml:411-423`). The lifecycle now runs inside a single script: `mktemp -d` → `umask 077` → write → assert non-empty and mode `600` → `db:migrate` → `db:seed` → `verify-migration-ledger.mjs`, with `trap cleanup_ssl EXIT ERR INT TERM` (`release.yml:439-470`, `:453`, `:480`, `:492`, `:503-509`). The `SSL_CERT_PATH` / `if: always()` cleanup pair shown above is therefore historical.
+
+Outstanding deviation, recorded as activation blocker **B-1** and **not yet fixed in code**: the consolidated step exports `STAGING_DATABASE_URL` (`release.yml:427`) while `migrate-pg.ts:26-29`, `seed-pg.ts:504-506` and `verify-migration-ledger.mjs:58-61` read `DATABASE_URL`, i.e. the `DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}` binding documented at Steps 5–7 above is absent from the workflow. The first database call exits non-zero before connecting (fail-safe: no mutation), so a real staging release cannot complete until that mapping is restored.
 
 ---
 
