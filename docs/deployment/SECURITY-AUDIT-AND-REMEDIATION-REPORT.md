@@ -493,7 +493,7 @@ an authorized staging release after the owner configures GitHub secrets and Rend
 - ✅ SSL certificate security (umask 077, single-step lifecycle + trap handler)
 - ✅ Render API error handling (JSON validation, field checks)
 - ✅ SHA verification (correct .commit.id field)
-- ✅ Executable structural validator (44 checks) + rewritten real-file tests
+- ✅ Executable structural validator (48 checks) + rewritten real-file tests
 - ✅ Complete documentation (security review, failure modes)
 
 **Recommendation:** APPROVE FOR CODE REVIEW. Do not treat as an activated staging pipeline until a

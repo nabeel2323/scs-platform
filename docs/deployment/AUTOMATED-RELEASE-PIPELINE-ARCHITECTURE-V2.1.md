@@ -88,12 +88,13 @@ this logic and is exercised directly by `stale-release-helper.spec.ts`.
 **Verification actually performed (local, non-destructive):**
 
 - Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
-  real YAML with js-yaml): **44/44 checks pass** (includes job-vs-workflow `vars` scope, env
-  interpolation resolvability, pre-mutation variable guard and caller-targeted stale detection).
-- Release-pipeline unit tests: **83 pass** (includes `workflow-structure.spec.ts`, the rewritten
-  trust-boundary/stale specs that read the real workflow files, the new helper spec, and a
-  negative-control test that mutates a throwaway copy of `ci.yml` back into the broken
-  reusable-workflow shape to prove the guards actually fire).
+  real YAML with js-yaml): **48/48 checks pass** (includes job-vs-workflow `vars` scope, env
+  interpolation resolvability, pre-mutation variable guard, caller-targeted stale detection and the
+  caller/callee `permissions:` intersection that GitHub enforces before a reusable call can start).
+- Release-pipeline unit tests: **85 pass** (includes `workflow-structure.spec.ts`, the rewritten
+  trust-boundary/stale specs that read the real workflow files, the new helper spec, and two
+  negative-control tests that mutate throwaway copies of `ci.yml` / `release.yml` back into the
+  shapes that broke CI runs #417 and #418, to prove the guards actually fire).
 - Migration/ledger integration specs (`migration-0064-email-identity`, `migration-0065-hmac-hash`,
   `migration-lock`) against a disposable Testcontainers PostgreSQL: **47 pass** (3 files, serial run).
 - `tsc --noEmit`: **0 errors**. `nest build`: **success** (432 files, 0 TSC issues). ESLint on changed
@@ -105,15 +106,68 @@ workflow end to end, and any authorized staging deployment. Staging secrets, Ren
 and auto-deploy were not touched, and no staging migration/seed/deploy was executed. Treat this
 branch as reviewable code, not a live pipeline.
 
-**CI evidence gathered (read-only, 2026-11-04):** the only Actions run associated with this work is
-**CI run #417** (`https://github.com/nabeel2323/scs-platform/actions/runs/41783899294`) at commit
-`44aa9a0`. It failed **before any job executed**, at workflow-file validation:
-`Invalid workflow file: ci.yml — Unexpected value 'secrets'`, i.e. the reusable-workflow caller was
-declaring `steps`/`secrets` in a shape GitHub rejects. That defect class is fixed in `a792c86` and is
-now covered by a negative-control test that rebuilds the broken caller shape and asserts the validator
-rejects it. Because `ci.yml` triggers only on `push`/`pull_request` targeting `main` or `develop`, no CI
-run can exist for `a792c86`, `d7857ab` or this branch's later commits until the pull request against
-`develop` is opened — the PR is the gate for real CI evidence, not another code change.
+### Permissions model (GITHUB_TOKEN)
+
+A **called** reusable workflow only ever receives the intersection of its own workflow-level
+`permissions:` and the **caller's workflow-level** `permissions:`. Job-level permissions never
+propagate into the callee, and a caller that declares no `permissions:` block falls back to the
+repository default — here `read`, i.e. `contents: read` + `packages: read`, which does **not**
+include `actions: read`.
+
+- `ci.yml` (caller), workflow level: `contents: read`, `packages: read`, `actions: read`.
+  Read-only is deliberate: no CI job pushes an image (`container-build` uses `push: false`),
+  posts PR comments, or uploads SARIF.
+- `release.yml` (callee), workflow level: `contents: read`, `actions: read`. `actions: read` is
+  required by the `gh run list` stale-release check. The former `deployments: write` was removed —
+  nothing writes a GitHub Deployment or Deployment status; deployment happens against Render's own
+  API with `RENDER_API_KEY`.
+
+If either list drifts, GitHub rejects the run **before any job starts** (`conclusion:
+startup_failure`, zero jobs). That is exactly what stopped PR run #418, and it is now covered by
+four executable checks — `caller-workflow-permissions-declared`,
+`caller-permissions-cover-called-workflow`, `caller-permissions-read-only`,
+`called-workflow-no-unneeded-write-scope` — each proven to fire by the negative control in
+`workflow-structure.spec.ts`.
+
+**CI evidence gathered from GitHub Actions** (hosted evidence, not local runs):
+
+| Run | Event | Head | Result | What it proved |
+| --- | --- | --- | --- | --- |
+| [#417](https://github.com/nabeel2323/scs-platform/actions/runs/41783899294) | push | `44aa9a0` | failed before any job | `Invalid workflow file: ci.yml — Unexpected value 'secrets'`: the caller mixed `steps`/`secrets` with a reusable-workflow `uses:`. Corrected in `a792c86`; now guarded by the #417 negative control. |
+| [#418](https://github.com/nabeel2323/scs-platform/actions/runs/41801495249) | pull_request | `365fb68` | `startup_failure`, 0 jobs | `Error calling workflow '…/release.yml'. The workflow is requesting 'actions: read, deployments: write', but is only allowed 'actions: none, deployments: none'` — the caller/callee permission intersection described above. Fixed in `9fa9b8c`; now guarded by four permission checks plus the #418 negative control. |
+| [#419](https://github.com/nabeel2323/scs-platform/actions/runs/41802705206) | pull_request | `9fa9b8c` | 10 of 11 jobs green; `test-unit` failed | The permission fix worked: the run started, both workflow files were accepted, and `Mobile`, `Lint & Typecheck`, `Migration Full Apply`, `Integration Tests`, `Boundary Lint` passed while **`Trigger Staging Release` was skipped** — the intended `pull_request` behaviour. Three test files then failed, none of them for a release-pipeline reason (below). |
+
+Hosted CI only became possible once pull request **#106** (→ `develop`) existed, because `ci.yml`
+triggers solely on `push` / `pull_request` targeting `main` or `develop`. Local runs never
+substitute for this evidence.
+
+### Test-isolation defects surfaced by run #419
+
+All three failures were **test defects, not release-pipeline or workflow defects** — and two of
+them were introduced by this branch's own specs:
+
+1. `verify-migration-ledger.spec.ts` simulated an empty migrations directory by renaming the real
+   `infra/drizzle/migrations` directory aside. Vitest runs test files in parallel, so
+   `seed-pg.postgres.spec.ts` read a migration file mid-listing and died with
+   `ENOENT … 0062_phase3_1_hardening.sql`. The ledger script now honours a `MIGRATIONS_DIR`
+   override (default path unchanged) and the spec points it at throwaway temp directories; a new
+   case covers the missing-directory exit. A spec may not mutate shared repository state.
+2. `manual-sha-validation.spec.ts` created a branch and committed a dummy file **into the real
+   working copy**. A GitHub-hosted runner has no ambient git author identity, so `git commit`
+   aborted the suite (`Author identity unknown`). The spec now drives the exported functions of
+   `validate-release-sha.mjs` against a sandbox repository in a temp directory — file-path remote,
+   repo-local identity, stubbed `gh` on `PATH` — and asserts the ordered gate
+   (format → exists → reachable → successful CI run) plus each short-circuit, replacing assertions
+   that compared literals to themselves. It also asserts the real repository gained neither
+   `test-dummy.txt` nor a `test/manual-sha-validation-*` branch.
+3. `p13-returns.postgres.spec.ts` P2-07 asserted `value.status` for **every** fulfilled concurrent
+   escalation attempt. `escalateReturn()` returns `undefined` on its documented idempotent path
+   (`if (ret.status !== 'REQUESTED') return;`, which sibling test P2-09 asserts on purpose), so the
+   case only passed when all three attempts read `REQUESTED` before the first commit — true on a
+   fast local machine, false under runner contention. It passed on `develop` run #416 and failed
+   here. The assertion now tolerates both documented outcomes and keeps the real invariant (every
+   returned copy is `ESCALATED`; exactly one `ESCALATED` event is written). This file is not
+   otherwise part of the release work; it is corrected here because it blocks the pull request.
 
 ---
 

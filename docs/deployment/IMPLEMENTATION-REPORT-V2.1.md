@@ -27,21 +27,46 @@ which is incompatible with develop-only releases. The **final** implementation i
 
 Where this section conflicts with `workflow_run` wording later in this report, this section is correct.
 
-**Verification performed (local, non-destructive):** executable structural validator **44/44**;
-release-pipeline unit tests **83 pass** (now executing real workflow files and the real stale-release
-helper, not hard-coded constants, plus a negative control that reproduces the CI #417 defect shape and
-proves the guards reject it); migration/postgres integration specs (0064, 0065, migration-lock)
+**Verification performed (local, non-destructive):** executable structural validator **48/48**;
+release-pipeline unit tests **85 pass** (now executing real workflow files and the real stale-release
+helper, not hard-coded constants, plus negative controls that reproduce the CI #417 caller defect and
+the CI #418 permission-intersection defect and prove the guards reject both);
+migration/postgres integration specs (0064, 0065, migration-lock)
 **47 pass** against disposable Testcontainers PostgreSQL;
 `tsc --noEmit` **0 errors**; `nest build` **success** (432 files, 0 TSC issues); ESLint on changed specs
 **and** workflow scripts **clean** (0 errors, 0 warnings). Full API unit suite: 126 files / 2,436 tests pass.
 No staging secrets, Render configuration, migrations, seeds, or deployments were touched.
 
-**GitHub Actions evidence (read-only):** the only run attached to this work is **CI run #417**
-(`actions/runs/41783899294`) at `44aa9a0`; it failed at workflow-file validation with
-`Invalid workflow file: ci.yml — Unexpected value 'secrets'` before any job ran. That shape is fixed in
-`a792c86` and is now guarded by the negative-control test. `ci.yml` triggers only on `push` /
-`pull_request` to `main` or `develop`, so a run for the corrected commits is only possible once the pull
-request against `develop` exists.
+**GitHub Actions evidence (hosted, not local):** pull request **#106** (`develop` ←
+`feature/automated-release-pipeline-v2.1`) is the first thing that can produce a real CI run, because
+`ci.yml` triggers only on `push` / `pull_request` to `main` or `develop`.
+
+- **Run #417** (push, `44aa9a0`) failed before any job: `Invalid workflow file: ci.yml — Unexpected
+  value 'secrets'` → corrected in `a792c86`.
+- **Run #418** (pull_request, `365fb68`) ended `startup_failure` with **zero jobs**:
+  `Error calling workflow '…/release.yml'. The workflow is requesting 'actions: read, deployments:
+  write', but is only allowed 'actions: none, deployments: none'`. A called reusable workflow gets
+  only the intersection of its own and the caller's **workflow-level** permissions, so `ci.yml` now
+  declares `contents: read`, `packages: read`, `actions: read` (read-only; nothing in CI writes) and
+  `release.yml` dropped the unused `deployments: write` — fixed in `9fa9b8c`, guarded by four new
+  validator checks and a negative control that reproduces all three regressions.
+- **Run #419** (pull_request, `9fa9b8c`) — the permission fix took: the run started with **11 jobs**,
+  both workflow files were accepted by GitHub, `Mobile`, `Lint & Typecheck`, `Migration Full Apply`,
+  `Integration Tests` and `Boundary Lint (E6)` all passed, and **`Trigger Staging Release` was
+  skipped**, which is the intended `pull_request` behaviour. `Unit Tests + Coverage Gates` failed on
+  three test files, all test defects rather than release-pipeline defects:
+  `verify-migration-ledger.spec.ts` renamed the real `infra/drizzle/migrations` directory while
+  `seed-pg.postgres.spec.ts` was reading it in a parallel worker (`ENOENT 0062_…sql`);
+  `manual-sha-validation.spec.ts` committed a dummy file into the real working copy and died on the
+  runner's missing git author identity; and `p13-returns.postgres.spec.ts` P2-07 asserted an
+  outcome (`value.status` for every concurrent attempt) that the documented idempotent
+  `escalateReturn()` path does not produce. Fixed by adding a `MIGRATIONS_DIR` override so the
+  ledger spec can use throwaway temp directories, rewriting the SHA spec to drive the real
+  `validate-release-sha.mjs` exports against a sandbox repository with a stubbed `gh`, and correcting
+  P2-07 to assert the actual invariant. Details in
+  `AUTOMATED-RELEASE-PIPELINE-ARCHITECTURE-V2.1.md` (**Test-isolation defects surfaced by run #419**).
+- The run for the corrected commit, with every mandatory job and the `trigger-staging-release`
+  skip, is recorded in `AUTOMATED-RELEASE-PIPELINE-ARCHITECTURE-V2.1.md` (**Final CI Wiring**).
 
 ---
 
@@ -290,7 +315,7 @@ PR**, not a live/verified pipeline.
 
 ### Unit Tests
 
-**Workflow structure validation (executable validator — 44/44 checks pass):**
+**Workflow structure validation (executable validator — 48/48 checks pass):**
 - ✅ Both workflows parse with a real YAML parser (js-yaml)
 - ✅ Reusable-workflow wiring correct: job-level `uses:` from ci.yml, no step-level invocation, caller declares no `steps`/`runs-on`/`environment`
 - ✅ Trigger configuration is correct (`workflow_call` inputs + `workflow_dispatch`; no `workflow_run`, and never assumes `event_name == 'workflow_call'`)
@@ -299,6 +324,7 @@ PR**, not a live/verified pipeline.
 - ✅ Environment-scoped `${{ vars.* }}` appear only in job-level `env:` (never workflow `env:`), each consuming job binds `RENDER_SERVICE_ID`, and every `${{ env.* }}` interpolation resolves from workflow/job/step scope
 - ✅ The `validate` job fails on a missing `RENDER_SERVICE_ID`, and `database-release` depends on `validate` (guard precedes mutation)
 - ✅ Stale-release detection targets the caller (`--workflow=ci.yml --branch=develop`), orders by monotonic `runNumber`, excludes its own run, contains no `--workflow=release.yml`, and never exits non-zero (allow-complete)
+- ✅ `GITHUB_TOKEN` permission intersection: `ci.yml` declares workflow-level permissions, they cover every scope `release.yml` requests, `ci.yml` stays read-only, and `release.yml` asks for no write scope
 
 **Render API interaction:**
 - ✅ Deployment trigger request format is correct
@@ -748,7 +774,8 @@ an authorized staging release.
 
 **Key achievements (locally verified):**
 - ✅ Reusable-workflow trigger wired correctly (job-level `uses:`, `secrets: inherit`, develop-push gate)
-- ✅ Executable structural validator 44/44; 83 unit + 47 integration tests pass; typecheck 0 errors; build success
+- ✅ Executable structural validator 48/48; 85 unit + 47 integration tests pass; typecheck 0 errors; build success
+- ✅ Caller/callee `GITHUB_TOKEN` permissions reconciled (read-only `ci.yml` grants `actions: read`; unused `deployments: write` removed from `release.yml`)
 - ✅ Negative-control test mutates a throwaway copy of `ci.yml` back into the broken caller shape that failed CI run #417 and asserts the validator rejects it
 - ✅ `RENDER_SERVICE_ID` bound at job level on the `environment: staging` jobs that use it, fail-fast before mutation, value never printed
 - ✅ Stale-release detection inspects the caller's queued `ci.yml` runs (monotonic `run_number`, allow-complete)

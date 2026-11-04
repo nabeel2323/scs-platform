@@ -33,17 +33,26 @@ const { Pool } = pg;
 // reads them from. Resolve from this script's location (apps/api/scripts) up to the
 // repo root, then into infra/drizzle/migrations — the SAME directory the runner uses,
 // so the ledger this script verifies reflects the migrations that were actually applied.
+//
+// MIGRATIONS_DIR overrides the resolved default. It exists so a test can point the
+// verifier at a throwaway directory: the alternative was a spec renaming the real
+// migrations directory out of the way, which raced with other specs reading it in the
+// same vitest run and made unrelated integration tests fail in CI. The default path is
+// what release.yml relies on, and it is unchanged.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const migrationsDir = path.resolve(
-  __dirname,
-  '..', '..', '..',
-  'infra', 'drizzle', 'migrations',
-);
+const migrationsDir = process.env['MIGRATIONS_DIR']
+  ? path.resolve(process.env['MIGRATIONS_DIR'])
+  : path.resolve(
+      __dirname,
+      '..', '..', '..',
+      'infra', 'drizzle', 'migrations',
+    );
 
 async function main() {
   console.log('Migration Ledger Verification');
   console.log('==============================\n');
+  console.log(`Migrations directory: ${migrationsDir}\n`);
 
   // Validate environment
   const connectionString = process.env['DATABASE_URL'];

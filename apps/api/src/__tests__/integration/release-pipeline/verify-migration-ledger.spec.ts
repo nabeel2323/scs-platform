@@ -8,6 +8,10 @@
  * - Orphaned log entry detection (log entry but no file)
  * - Error handling (missing env vars, connection failures)
  *
+ * Isolation rule: these specs may READ infra/drizzle/migrations but must never move,
+ * rename or delete it. The script's MIGRATIONS_DIR override exists precisely so the
+ * empty/missing-directory cases can be exercised against throwaway temp directories.
+ *
  * @see apps/api/scripts/verify-migration-ledger.mjs
  */
 
@@ -15,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { execSync, spawnSync } from 'node:child_process';
 
@@ -177,24 +182,53 @@ describe('Migration Ledger Verification', () => {
         )
       `);
 
-      // Temporarily rename migrations directory
-      const tempDir = `${migrationsDir}.tmp`;
-      fs.renameSync(migrationsDir, tempDir);
-      fs.mkdirSync(migrationsDir);
+      // Point the verifier at a throwaway EMPTY directory via MIGRATIONS_DIR.
+      // Renaming the real infra/drizzle/migrations directory out of the way is what
+      // CI run #419 did here, and it raced with other specs in the same vitest run
+      // that read migration SQL from that directory (seed-pg.postgres.spec.ts then
+      // failed with ENOENT on 0062_phase3_1_hardening.sql). Test isolation is the
+      // product requirement here: a spec must never mutate shared repository state.
+      const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scs-migrations-empty-'));
 
       try {
         const env = {
           ...process.env,
           DATABASE_URL: connectionString,
+          MIGRATIONS_DIR: emptyDir,
         };
 
         const output = execSync(`node ${scriptPath}`, { env, encoding: 'utf8' });
         expect(output).toContain('Found 0 migration file(s)');
         expect(output).toContain('VERIFICATION PASSED');
       } finally {
-        // Restore original directory
-        fs.rmdirSync(migrationsDir);
-        fs.renameSync(tempDir, migrationsDir);
+        fs.rmSync(emptyDir, { recursive: true, force: true });
+      }
+    });
+
+    it('should exit with code 2 when the migration directory does not exist', async () => {
+      // The real release gate must fail loudly rather than "verify" an empty set.
+      await pool.query(`
+        CREATE TABLE _migration_log (
+          name TEXT PRIMARY KEY,
+          applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+
+      const missingDir = path.join(os.tmpdir(), `scs-migrations-missing-${process.pid}-${Date.now()}`);
+      expect(fs.existsSync(missingDir)).toBe(false);
+
+      const env = {
+        ...process.env,
+        DATABASE_URL: connectionString,
+        MIGRATIONS_DIR: missingDir,
+      };
+
+      try {
+        execSync(`node ${scriptPath}`, { env, stdio: 'pipe' });
+        expect.fail('Script should have exited with code 2');
+      } catch (err: any) {
+        expect(err.status).toBe(2);
+        expect(err.stderr.toString()).toContain('Migrations directory not found');
       }
     });
 

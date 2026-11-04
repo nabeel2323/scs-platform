@@ -989,11 +989,23 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       Array.from({ length: 3 }, () => returnsService.escalateReturn(ret.id)),
     );
 
-    const succeeded = attempts.filter(a => a.status === 'fulfilled');
-    // At most one should have actually transitioned (others are idempotent)
-    // All should return ESCALATED status regardless
+    const succeeded = attempts.filter(
+      (a): a is PromiseFulfilledResult<any> => a.status === 'fulfilled',
+    );
+    expect(succeeded.length).toBeGreaterThan(0);
+
+    // escalateReturn() has two documented outcomes, and this test must allow both:
+    //   • the attempt that flipped REQUESTED → ESCALATED returns the re-read request;
+    //   • an attempt that found the row already past REQUESTED returns `undefined`
+    //     (`if (ret.status !== 'REQUESTED') return;`) — the idempotent no-op that
+    //     P2-09 asserts on purpose.
+    // Which interleaving happens depends on scheduling, so asserting `value.status` for
+    // every fulfilled attempt (CI run #419: TypeError: Cannot read properties of
+    // undefined) tested a race, not the invariant. The invariant is below: every request
+    // copy that came back is ESCALATED, and exactly one ESCALATED event was written.
     for (const a of succeeded) {
-      expect((a as PromiseFulfilledResult<any>).value.status).toBe('ESCALATED');
+      if (a.value === undefined) continue; // idempotent no-op — no transition, no payload
+      expect(a.value.status).toBe('ESCALATED');
     }
 
     // Verify final state
