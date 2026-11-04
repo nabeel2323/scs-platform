@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-03 (CI wiring + env scoping + stale-detection corrected 2026-11-04)  
 **Version:** 2.1 (Implemented)  
-**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification. The trigger/secret and variable-scoping model is validated only by an executable structural validator, typecheck, build and local tests. It has **not** yet completed a real CI run on `develop` followed by an authorized staging release, so end-to-end verification is still outstanding.  
+**Status:** Implemented, locally verified **and verified by GitHub Actions on the pull request** (PR #106, run #420, `conclusion=success`: every mandatory CI job passed and `Trigger Staging Release` was skipped as designed). **Staging end-to-end verification is still outstanding and has not been attempted or authorized** — no push to `develop` has yet invoked the reusable workflow, and no authorized staging release has run. The trigger/secret and variable-scoping model is validated by an executable structural validator, typecheck, build, local tests and hosted PR CI — not yet by a live staging deployment.  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
@@ -85,26 +85,47 @@ allow-complete, the current migration finishes, and a `gh`/API failure is likewi
 informational check can never block a release. `apps/api/scripts/detect-stale-release.mjs` mirrors
 this logic and is exercised directly by `stale-release-helper.spec.ts`.
 
-**Verification actually performed (local, non-destructive):**
+**Verification actually performed:**
+
+_Local, non-destructive:_
 
 - Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
   real YAML with js-yaml): **48/48 checks pass** (includes job-vs-workflow `vars` scope, env
   interpolation resolvability, pre-mutation variable guard, caller-targeted stale detection and the
   caller/callee `permissions:` intersection that GitHub enforces before a reusable call can start).
-- Release-pipeline unit tests: **85 pass** (includes `workflow-structure.spec.ts`, the rewritten
-  trust-boundary/stale specs that read the real workflow files, the new helper spec, and two
-  negative-control tests that mutate throwaway copies of `ci.yml` / `release.yml` back into the
-  shapes that broke CI runs #417 and #418, to prove the guards actually fire).
+- Release-pipeline specs (`src/__tests__/unit/release-pipeline` +
+  `src/__tests__/integration/release-pipeline`): **96 pass across 8 files** — `workflow-structure`
+  (10), `render-api` (19), `manual-sha-validation` (19, driving the real
+  `validate-release-sha.mjs` exports in a sandbox repository), `ssl-certificate-handling` (19),
+  `workflow-trust-boundary` (10), `stale-release-detection` (7), `stale-release-helper` (4),
+  `verify-migration-ledger` (8, Testcontainers PostgreSQL). Two negative-control tests mutate
+  throwaway copies of `ci.yml` / `release.yml` back into the shapes that broke CI runs #417 and
+  #418, to prove the guards actually fire.
 - Migration/ledger integration specs (`migration-0064-email-identity`, `migration-0065-hmac-hash`,
   `migration-lock`) against a disposable Testcontainers PostgreSQL: **47 pass** (3 files, serial run).
 - `tsc --noEmit`: **0 errors**. `nest build`: **success** (432 files, 0 TSC issues). ESLint on changed
   specs and workflow scripts: **clean** (0 errors, 0 warnings).
-- Full API unit suite (regression guard for the touched scripts): 126 files / **2,436 tests pass**.
+- Full API unit suite: on this workstation a whole-suite `vitest run` is contention-sensitive (parallel
+  stress specs have failed locally while other workstreams held files open), so the authoritative
+  whole-suite evidence is the hosted run below — **199 files / 4,045 tests pass** on GitHub Actions.
 
-**What is NOT yet verified:** a real GitHub Actions CI run on `develop` invoking the reusable
-workflow end to end, and any authorized staging deployment. Staging secrets, Render configuration,
-and auto-deploy were not touched, and no staging migration/seed/deploy was executed. Treat this
-branch as reviewable code, not a live pipeline.
+_PR CI verified on GitHub Actions (run #420, `pull_request`, commit `2079eab`):_
+
+- **Conclusion: success.** All nine executing mandatory jobs passed — `Lint & Typecheck`,
+  `Mobile (flutter analyze · test)`, `Boundary Lint (E6)`, `Unit Tests + Coverage Gates`
+  (**199 files / 4,045 tests passed**, 6 files skipped), `Migration Full Apply`,
+  `Integration Tests`, `Build`, `Container Build & Smoke Test`, `Contract Spec & Codegen`.
+- `Trigger Staging Release` completed as **skipped**, and `k6 Smoke Test` skipped (main-only). A
+  skipped `trigger-staging-release` on a `pull_request` event is the designed security behaviour,
+  not a failure.
+- GitHub accepted both workflow files and started every job, which is the hosted proof that the
+  reusable-workflow caller wiring (`a792c86`) and the caller/callee `permissions:` intersection
+  (`9fa9b8c`) are correct — neither was provable locally.
+
+**What is NOT yet verified:** an eligible **push to `develop`** invoking `release.yml` end to end
+(only reachable after merge), and any authorized staging deployment. Staging secrets, Render
+configuration and auto-deploy were not touched, and no staging migration/seed/deploy was executed.
+Treat this branch as reviewable code with green PR CI, not a live pipeline.
 
 ### Permissions model (GITHUB_TOKEN)
 
@@ -136,6 +157,7 @@ four executable checks — `caller-workflow-permissions-declared`,
 | [#417](https://github.com/nabeel2323/scs-platform/actions/runs/41783899294) | push | `44aa9a0` | failed before any job | `Invalid workflow file: ci.yml — Unexpected value 'secrets'`: the caller mixed `steps`/`secrets` with a reusable-workflow `uses:`. Corrected in `a792c86`; now guarded by the #417 negative control. |
 | [#418](https://github.com/nabeel2323/scs-platform/actions/runs/41801495249) | pull_request | `365fb68` | `startup_failure`, 0 jobs | `Error calling workflow '…/release.yml'. The workflow is requesting 'actions: read, deployments: write', but is only allowed 'actions: none, deployments: none'` — the caller/callee permission intersection described above. Fixed in `9fa9b8c`; now guarded by four permission checks plus the #418 negative control. |
 | [#419](https://github.com/nabeel2323/scs-platform/actions/runs/41802705206) | pull_request | `9fa9b8c` | 10 of 11 jobs green; `test-unit` failed | The permission fix worked: the run started, both workflow files were accepted, and `Mobile`, `Lint & Typecheck`, `Migration Full Apply`, `Integration Tests`, `Boundary Lint` passed while **`Trigger Staging Release` was skipped** — the intended `pull_request` behaviour. Three test files then failed, none of them for a release-pipeline reason (below). |
+| [#420](https://github.com/nabeel2323/scs-platform/actions/runs/41806580906) | pull_request | `2079eab` | **success** — 9 jobs passed, 2 skipped | PR validation gate is green: `Lint & Typecheck`, `Mobile`, `Boundary Lint (E6)`, `Unit Tests + Coverage Gates` (199 files / 4,045 tests), `Migration Full Apply`, `Integration Tests`, `Build`, `Container Build & Smoke Test`, `Contract Spec & Codegen` all succeeded; `k6 Smoke Test` skipped (main-only) and **`Trigger Staging Release` skipped by design on `pull_request`**. The three #419 test defects are gone. |
 
 Hosted CI only became possible once pull request **#106** (→ `develop`) existed, because `ci.yml`
 triggers solely on `push` / `pull_request` targeting `main` or `develop`. Local runs never
@@ -1498,8 +1520,9 @@ node apps/api/scripts/verify-migration-ledger.mjs
 | **Testing** | None | Proposed | **Comprehensive** |
 | **Documentation** | Design only | Design only | **Implemented behavior** |
 
-**Recommendation:** v2.1 is implemented and locally verified; it is awaiting PR CI on `develop` and
-an authorized staging release before it can be called verified end to end.
+**Recommendation:** v2.1 is implemented, locally verified and PR CI verified (run #420 success on
+PR #106). It is awaiting a develop-push run that invokes the reusable workflow and an authorized
+staging release before it can be called verified end to end.
 
 ---
 
@@ -1661,10 +1684,11 @@ curl -H "Authorization: Bearer rnd_..." \
 
 ## Conclusion
 
-**Architecture v2.1 is implemented and locally verified; it is awaiting PR CI and authorized
-staging verification.** The release workflow automates the complete staging release pipeline with
-safety checks, security measures, and audit trails as designed — those designs are covered by local
-unit/integration tests and the structural validator, and have **not** yet been exercised by a real
+**Architecture v2.1 is implemented, locally verified and PR CI verified; staging end-to-end
+verification is outstanding and not authorized.** The release workflow automates the complete staging
+release pipeline with safety checks, security measures, and audit trails as designed — those designs
+are covered by local unit/integration tests, the executable structural validator and a successful
+GitHub Actions run on the pull request (run #420), and have **not** yet been exercised by a real
 `develop` CI run or an authorized staging deployment.
 
 **Key achievements:**
@@ -1704,10 +1728,10 @@ unit/integration tests and the structural validator, and have **not** yet been e
 
 ---
 
-**Document version:** 2.1 (Implemented — CI wiring, variable scoping and stale detection corrected)  
+**Document version:** 2.1 (Implemented — CI wiring, token permissions, variable scoping, stale detection and test isolation corrected)  
 **Last updated:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification (validator 44/44, 83 unit + 47 integration tests, typecheck 0 errors, build success).  
-**Implementation branch:** feature/automated-release-pipeline-v2.1  
+**Status:** Implemented; **locally verified and PR CI verified** (validator 48/48, 96 release-pipeline specs + 47 migration/ledger integration tests, typecheck 0 errors, build success; PR run #420 green with `trigger-staging-release` skipped on `pull_request`). **Staging end-to-end not verified and not authorized.**  
+**Implementation branch:** feature/automated-release-pipeline-v2.1 (PR #106 → develop; release-code head `2079eab`, verified by PR CI run #420)  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

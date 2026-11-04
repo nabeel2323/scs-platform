@@ -3,7 +3,7 @@
 **Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
-**Status:** 🟡 Pull Request under review — deliverables produced and locally verified. NOT production-ready and NOT an activated pipeline: pending a real CI run on `develop` and an authorized staging release.  
+**Status:** 🟡 Pull Request under review — deliverables produced, locally verified and PR CI verified (run #420 success, `Trigger Staging Release` skipped on `pull_request`). NOT production-ready and NOT an activated pipeline: a real CI run on `develop` that invokes the reusable workflow, and an authorized staging release, have not happened and are not claimed.
 
 ---
 
@@ -27,14 +27,18 @@ which is incompatible with develop-only releases. The **final** implementation i
 
 Where this section conflicts with `workflow_run` wording later in this report, this section is correct.
 
-**Verification performed (local, non-destructive):** executable structural validator **48/48**;
-release-pipeline unit tests **85 pass** (now executing real workflow files and the real stale-release
-helper, not hard-coded constants, plus negative controls that reproduce the CI #417 caller defect and
+**Verification performed (local):** executable structural validator **48/48**;
+release-pipeline specs **96 pass across 8 files** (now executing real workflow files, the real
+stale-release helper and the real `validate-release-sha.mjs` exports in a sandbox git repository,
+not hard-coded constants, plus negative controls that reproduce the CI #417 caller defect and
 the CI #418 permission-intersection defect and prove the guards reject both);
 migration/postgres integration specs (0064, 0065, migration-lock)
 **47 pass** against disposable Testcontainers PostgreSQL;
 `tsc --noEmit` **0 errors**; `nest build` **success** (432 files, 0 TSC issues); ESLint on changed specs
-**and** workflow scripts **clean** (0 errors, 0 warnings). Full API unit suite: 126 files / 2,436 tests pass.
+**and** workflow scripts **clean** (0 errors, 0 warnings). A whole-suite local `vitest run` was not used
+as evidence: on this workstation the parallel concurrency-stress specs are contention-sensitive (they
+have failed locally while unrelated workstreams held the tree busy) and the same specs pass on hosted
+runners, so the full-suite signal comes from GitHub Actions below.
 No staging secrets, Render configuration, migrations, seeds, or deployments were touched.
 
 **GitHub Actions evidence (hosted, not local):** pull request **#106** (`develop` ←
@@ -65,8 +69,15 @@ No staging secrets, Render configuration, migrations, seeds, or deployments were
   `validate-release-sha.mjs` exports against a sandbox repository with a stubbed `gh`, and correcting
   P2-07 to assert the actual invariant. Details in
   `AUTOMATED-RELEASE-PIPELINE-ARCHITECTURE-V2.1.md` (**Test-isolation defects surfaced by run #419**).
-- The run for the corrected commit, with every mandatory job and the `trigger-staging-release`
-  skip, is recorded in `AUTOMATED-RELEASE-PIPELINE-ARCHITECTURE-V2.1.md` (**Final CI Wiring**).
+- **Run #420** (pull_request, `2079eab`) — **success**. Nine jobs passed (`Lint & Typecheck`,
+  `Mobile`, `Boundary Lint (E6)`, `Unit Tests + Coverage Gates` at **199 files / 4,045 tests**,
+  `Migration Full Apply`, `Integration Tests`, `Build`, `Container Build & Smoke Test`,
+  `Contract Spec & Codegen`); `k6 Smoke Test` skipped because it is main-only, and
+  **`Trigger Staging Release` skipped on the `pull_request` event, which is the intended security
+  behaviour rather than a failed check**. This is the hosted evidence that GitHub accepts both
+  workflow files, that the caller/callee permission intersection is satisfied, and that the three
+  #419 test defects are gone. What remains unverified is an eligible push to `develop` invoking
+  `release.yml`, and any staging deployment — neither is possible or authorized in this PR.
 
 ---
 
@@ -768,15 +779,18 @@ pnpm --filter @scs/api test:integration -- src/__tests__/integration/release-pip
 
 Architecture v2.1 has been **implemented** as an automated staging release pipeline that invokes
 `release.yml` as a reusable workflow after the mandatory develop CI gates succeed. The deliverables
-have been produced and **locally verified**, but this is a **reviewable pull request, not a
-verified or activated pipeline** — it has not yet completed a real CI run on `develop` followed by
-an authorized staging release.
+have been produced, **locally verified and verified by GitHub Actions on the pull request**
+(run #420, success), but this is still a **reviewable pull request, not an activated pipeline** —
+it has not completed a real CI run on `develop` followed by an authorized staging release, and that
+path is intentionally unreachable from a `pull_request` event.
 
 **Key achievements (locally verified):**
 - ✅ Reusable-workflow trigger wired correctly (job-level `uses:`, `secrets: inherit`, develop-push gate)
-- ✅ Executable structural validator 48/48; 85 unit + 47 integration tests pass; typecheck 0 errors; build success
+- ✅ Executable structural validator 48/48; 96 release-pipeline specs + 47 migration/ledger integration tests pass; typecheck 0 errors; build success
+- ✅ **PR CI verified on hosted runners**: run #420 green across nine mandatory jobs (`Unit Tests + Coverage Gates` 199 files / 4,045 tests), with `Trigger Staging Release` skipped on `pull_request` as designed
 - ✅ Caller/callee `GITHUB_TOKEN` permissions reconciled (read-only `ci.yml` grants `actions: read`; unused `deployments: write` removed from `release.yml`)
-- ✅ Negative-control test mutates a throwaway copy of `ci.yml` back into the broken caller shape that failed CI run #417 and asserts the validator rejects it
+- ✅ Negative-control tests mutate throwaway copies of `ci.yml` / `release.yml` back into the shapes that broke CI runs #417 and #418 and assert the validator rejects them
+- ✅ Release-pipeline specs no longer mutate shared repository state (`MIGRATIONS_DIR` override, sandbox git repository) — the defect class that failed CI run #419
 - ✅ `RENDER_SERVICE_ID` bound at job level on the `environment: staging` jobs that use it, fail-fast before mutation, value never printed
 - ✅ Stale-release detection inspects the caller's queued `ci.yml` runs (monotonic `run_number`, allow-complete)
 - ✅ Strict 12-step release sequence with comprehensive safety checks
@@ -792,15 +806,17 @@ an authorized staging release.
 4. Perform a supervised manual release and the first automatic release; monitor
 5. Iterate based on operational experience
 
-**Recommendation:** **Ready for code review.** The accurate status is *implemented and locally
-verified; awaiting PR CI and authorized staging verification* — steps 2–4 (real CI on develop +
-authorized staging release) have not run yet.
+**Recommendation:** **Ready for code review.** The accurate status is *implemented, locally verified
+and PR CI verified; staging end-to-end not verified and not authorized* — steps 2–4 (a real
+develop-push run invoking the reusable workflow + an authorized staging release) have not run yet,
+and no claim of staging verification is made anywhere in this report.
 
 ---
 
 **Report version:** 1.1  
 **Date:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification  
+**Status:** Implemented, locally verified and PR CI verified (run #420, success); staging
+end-to-end verification outstanding and not authorized  
 **Implementation branch:** feature/automated-release-pipeline-v2.1  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e
