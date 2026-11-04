@@ -1543,7 +1543,9 @@ staging release before it can be called verified end to end.
    - `needs:` = the 8 mandatory develop gates (develop-skipped `k6-smoke` excluded)
 
 3. ✅ **Executable structural validator:** `apps/api/scripts/validate-workflow-structure.mjs`
-   - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (29 checks)
+   - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (48 checks — the original
+     29 plus variable-scope, env-interpolation, pre-mutation-guard, stale-detection and
+     caller/callee `permissions:` checks added after CI runs #417–#418)
 
 4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs` (mirrors the workflow step: caller `ci.yml` runs, monotonic `runNumber`, self-exclusion, allow-complete)
 
