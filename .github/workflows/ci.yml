@@ -15,9 +15,48 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Supersede stale runs on every ref EXCEPT develop.
+#
+# Why develop is excluded: `trigger-staging-release` is not a separate workflow
+# run — it calls release.yml as a reusable workflow, so the release's jobs
+# (`validate`, `database-release`, `deploy`, `health-check`) execute as jobs of
+# THIS run. A `cancel-in-progress: true` on the develop group therefore meant a
+# second push to develop could terminate the run that was hosting an
+# in-flight `database-release` step, i.e. kill a migration mid-flight and leave
+# the staging schema half-migrated. (Audited as R-1 / finding F-2; the
+# cancellation mechanism was demonstrated live on run #424, where a newer run
+# in the same group cancelled the in-flight job and `Trigger Staging Release`
+# was recorded `skipped` at the identical timestamp.)
+#
+# Behaviour after this change:
+#   push events   -> group CI-develop: one run executes, a second queues behind
+#                    it (`cancel-in-progress` evaluates false, so the running
+#                    release is never interrupted).
+#   pull_request  -> group CI-<pr ref>: `cancel-in-progress` evaluates true, so
+#                    every new push to an open PR still replaces the older
+#                    in-progress run. Feature-branch and PR feedback speed is
+#                    unchanged — no release path exists on those events
+#                    (`trigger-staging-release` is gated to `push` + develop).
+#   push to main  -> also cancels in-progress main runs, as before; main cannot
+#                    start a staging release (the job `if` requires develop).
+#
+# `cancel-in-progress` accepts an expression; the permitted contexts for a
+# `concurrency` expression are `github`, `inputs` and `vars`, so `github.ref`
+# is available here.
+#
+# Deliberately NOT set on this workflow: `queue: max`. GitHub rejects the
+# combination of `queue: max` with `cancel-in-progress: true` at validation
+# time, and this workflow's value is an expression that evaluates to `true` for
+# most refs — so `queue: max` is applied instead to release.yml's own
+# always-literal-`false` `staging-release` group (see that file). The
+# consequence for develop is documented: the group holds one running run plus
+# at most ONE pending run, and a third push replaces the older pending run.
+# That is acceptable because a replaced run has not started, so nothing can be
+# mid-migration; see §"Remaining limitations" in
+# docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
 
 # Workflow-level GITHUB_TOKEN scopes.
 #

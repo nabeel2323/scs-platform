@@ -135,11 +135,39 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
     expect(byName.get('validate-guard-precedes-database-release')?.ok).toBe(true);
   });
 
-  it('detects stale releases against the caller workflow and keeps allow-complete', () => {
+  it('detects stale releases per execution path and keeps allow-complete', () => {
+    expect(byName.get('stale-detection-splits-execution-paths')?.ok).toBe(true);
     expect(byName.get('stale-detection-targets-caller')?.ok).toBe(true);
-    expect(byName.get('stale-detection-excludes-release-target')?.ok).toBe(true);
-    expect(byName.get('stale-detection-uses-run-number')?.ok).toBe(true);
+    expect(byName.get('stale-detection-automated-path-caller-only')?.ok).toBe(true);
+    expect(byName.get('stale-detection-dispatch-path-includes-own-runs')?.ok).toBe(true);
+    expect(byName.get('stale-detection-automated-orders-by-run-number')?.ok).toBe(true);
+    expect(byName.get('stale-detection-dispatch-orders-by-database-id')?.ok).toBe(true);
+    expect(byName.get('stale-detection-no-mixed-identifier-comparison')?.ok).toBe(true);
+    expect(byName.get('stale-detection-excludes-current-run')?.ok).toBe(true);
+    expect(byName.get('stale-detection-never-reads-createdAt')?.ok).toBe(true);
+    expect(byName.get('stale-detection-survives-query-failure')?.ok).toBe(true);
     expect(byName.get('stale-detection-allows-complete')?.ok).toBe(true);
+  });
+
+  it('cannot have a develop push cancel a run that may be mid-migration (R-1)', () => {
+    expect(byName.get('ci-concurrency-declared')?.ok).toBe(true);
+    expect(byName.get('ci-concurrency-scoped-to-workflow-and-ref')?.ok).toBe(true);
+    expect(byName.get('ci-develop-run-is-not-cancelled-by-a-newer-push')?.ok).toBe(true);
+    expect(byName.get('ci-non-develop-refs-still-cancel')?.ok).toBe(true);
+    expect(byName.get('release-concurrency-group-is-literal')?.ok).toBe(true);
+    expect(byName.get('release-concurrency-never-cancels-in-progress')?.ok).toBe(true);
+    expect(byName.get('release-concurrency-queues-instead-of-replacing')?.ok).toBe(true);
+    expect(byName.get('queue-max-requires-literal-false-cancellation')?.ok).toBe(true);
+  });
+
+  it('declares no dead dispatch affordance and keeps prerequisites able to block (F-1)', () => {
+    expect(byName.get('dispatch-inputs-all-consumed')?.ok).toBe(true);
+    expect(byName.get('release-no-skip-confirmation-input')?.ok).toBe(true);
+    expect(byName.get('dispatch-input-commit-sha-required')?.ok).toBe(true);
+    expect(byName.get('caller-prerequisites-can-block-release')?.ok).toBe(true);
+    for (const j of ['database-release', 'deploy', 'health-check']) {
+      expect(byName.get(`release-job-${j}-gated-by-needs`)?.ok, `${j} must stay needs-gated`).toBe(true);
+    }
   });
 
   it('database-operation step binds DATABASE_URL to the staging secret and sets NODE_ENV=staging', () => {
@@ -272,5 +300,179 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
     expect(wantsWrite.ok).toBe(false);
     expect(check(wantsWrite, 'called-workflow-no-unneeded-write-scope')?.ok).toBe(false);
     expect(check(wantsWrite, 'caller-permissions-cover-called-workflow')?.ok).toBe(false);
+  });
+
+  // ── Negative controls for the R-1 / F-1 / F-4 hardening ──────────────────────
+  // Each control re-introduces the exact defect the audit reported and proves the
+  // corresponding check lights up. A check that cannot fail proves nothing.
+
+  /** Replace the whole top-level `concurrency:` mapping of one workflow with `body`. */
+  function withConcurrency(raw: string, body: string): string {
+    const e = eolOf(raw);
+    const lines = raw.split(e);
+    const start = lines.findIndex((l) => l === 'concurrency:');
+    expect(start, 'workflow must declare a top-level concurrency block').toBeGreaterThan(-1);
+    let end = start + 1;
+    while (end < lines.length && ((lines[end] ?? '').startsWith('  ') || (lines[end] ?? '').trim() === '')) end++;
+    return [...lines.slice(0, start), 'concurrency:', ...body.split('\n'), ...lines.slice(end)].join(e);
+  }
+
+  // R-1: the pre-fix ci.yml cancelled every in-progress develop run, and the release's
+  // migrating jobs live inside that run (release.yml:audited §F-2, run #424 evidence).
+  it('negative control: unconditional cancel-in-progress on ci.yml makes R-1 fail', () => {
+    const bad = inSandbox(({ ci, release }) => ({
+      ci: withConcurrency(ci, ['  group: ${{ github.workflow }}-${{ github.ref }}', '  cancel-in-progress: true'].join('\n')),
+      release,
+    }));
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'ci-develop-run-is-not-cancelled-by-a-newer-push')?.ok).toBe(false);
+    // Non-develop refs still cancel, so the guard is about develop specifically —
+    // the fix must not be "never cancel anywhere".
+    expect(check(bad, 'ci-non-develop-refs-still-cancel')?.ok).toBe(true);
+  });
+
+  it('negative control: an inverted develop-only cancellation policy fails both ways', () => {
+    // `cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}` cancels exactly
+    // the run that must not be cancelled and preserves nothing on feature branches.
+    const bad = inSandbox(({ ci, release }) => ({
+      ci: withConcurrency(
+        ci,
+        ['  group: ${{ github.workflow }}-${{ github.ref }}', "  cancel-in-progress: ${{ github.ref == 'refs/heads/develop' }}"].join('\n'),
+      ),
+      release,
+    }));
+    expect(check(bad, 'ci-develop-run-is-not-cancelled-by-a-newer-push')?.ok).toBe(false);
+    expect(check(bad, 'ci-non-develop-refs-still-cancel')?.ok).toBe(false);
+  });
+
+  it('negative control: a cancelling or non-queueing release group makes R-1 fail', () => {
+    const cancelling = inSandbox(({ ci, release }) => ({
+      ci,
+      release: withConcurrency(
+        release,
+        ['  group: staging-release', '  cancel-in-progress: true', '  queue: max'].join('\n'),
+      ),
+    }));
+    expect(cancelling.ok).toBe(false);
+    expect(check(cancelling, 'release-concurrency-never-cancels-in-progress')?.ok).toBe(false);
+    // GitHub rejects `queue: max` together with `cancel-in-progress: true`, so a group
+    // that does both must be flagged as an invalid-workflow-file risk, not shipped.
+    expect(check(cancelling, 'queue-max-requires-literal-false-cancellation')?.ok).toBe(false);
+
+    const replacing = inSandbox(({ ci, release }) => ({
+      ci,
+      release: withConcurrency(
+        release,
+        ['  group: staging-release', '  cancel-in-progress: false'].join('\n'),
+      ),
+    }));
+    expect(replacing.ok).toBe(false);
+    expect(check(replacing, 'release-concurrency-queues-instead-of-replacing')?.ok).toBe(false);
+
+    // An expression-valued group would not be shared by both execution paths, so
+    // dispatch and automated releases would land in different groups.
+    const dynamicGroup = inSandbox(({ ci, release }) => ({
+      ci,
+      release: withConcurrency(
+        release,
+        ['  group: ${{ github.workflow }}-${{ github.ref }}', '  cancel-in-progress: false', '  queue: max'].join('\n'),
+      ),
+    }));
+    expect(check(dynamicGroup, 'release-concurrency-group-is-literal')?.ok).toBe(false);
+  });
+
+  // F-1: the dead `skip_confirmation` input implied a confirmation gate that never existed.
+  it('negative control: re-adding skip_confirmation makes F-1 fail', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(release);
+      const lines = release.split(e);
+      const anchor = lines.findIndex((l) => l.includes('must be on develop'));
+      expect(anchor).toBeGreaterThan(-1);
+      const typeLine = lines.findIndex((l, i) => i > anchor && l.includes('type: string'));
+      expect(typeLine).toBeGreaterThan(anchor);
+      const dead = [
+        '      skip_confirmation:',
+        "        description: 'Skip manual confirmation (use with caution)'",
+        '        required: false',
+        '        type: boolean',
+        '        default: false',
+      ];
+      return { ci, release: [...lines.slice(0, typeLine + 1), ...dead, ...lines.slice(typeLine + 1)].join(e) };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'release-no-skip-confirmation-input')?.ok).toBe(false);
+    expect(check(bad, 'dispatch-inputs-all-consumed')?.ok, 'an unread input is a dead affordance').toBe(false);
+    expect(check(bad, 'dispatch-inputs-all-consumed')?.detail).toMatch(/skip_confirmation/);
+  });
+
+  // F-4: the pre-fix step compared github.run_number against ci.yml run numbers on
+  // BOTH paths, which flagged every valid manual dispatch as a stale release.
+  it('negative control: making the dispatch path order by runNumber fails F-4', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(release);
+      const lines = release.split(e);
+      const start = lines.findIndex((l) => l.includes('if [ "$EVENT_NAME" = "workflow_dispatch" ]; then'));
+      expect(start).toBeGreaterThan(-1);
+      const fieldLine = lines.findIndex((l, i) => i > start && l.trim() === "ORDER_FIELD='databaseId'");
+      expect(fieldLine).toBeGreaterThan(start);
+      const basisLine = lines.findIndex((l, i) => i > fieldLine && l.trim() === 'COMPARISON_BASIS="$CURRENT_RUN_ID"');
+      expect(basisLine).toBeGreaterThan(fieldLine);
+      const mutated = [...lines];
+      mutated[fieldLine] = "            ORDER_FIELD='runNumber'";
+      mutated[basisLine] = '            COMPARISON_BASIS="$CURRENT_RUN_NUMBER"';
+      return { ci, release: mutated.join(e) };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'stale-detection-dispatch-orders-by-database-id')?.ok).toBe(false);
+    // The automated path must be untouched by this regression — the fix may not move
+    // the defect onto the other path.
+    expect(check(bad, 'stale-detection-automated-orders-by-run-number')?.ok).toBe(true);
+  });
+
+  it('negative control: dropping the path split entirely fails F-4 detection', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(release);
+      const lines = release.split(e);
+      const start = lines.findIndex((l) => l.includes('if [ "$EVENT_NAME" = "workflow_dispatch" ]; then'));
+      const end = lines.findIndex((l, i) => i > start && l === '          fi');
+      expect(start).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(start);
+      const collapsed = [
+        "          if [ \"1\" = \"1\" ]; then",
+        "            ORDER_FIELD='runNumber'",
+        '            COMPARISON_BASIS="$CURRENT_RUN_NUMBER"',
+        "            WORKFLOW_SPECS=('ci.yml:develop')",
+        '          fi',
+      ];
+      return { ci, release: [...lines.slice(0, start), ...collapsed, ...lines.slice(end + 1)].join(e) };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'stale-detection-splits-execution-paths')?.ok).toBe(false);
+    expect(check(bad, 'stale-detection-dispatch-orders-by-database-id')?.ok).toBe(false);
+    expect(check(bad, 'stale-detection-dispatch-path-includes-own-runs')?.ok).toBe(false);
+  });
+
+  // Requirement 7: a failed or cancelled prerequisite must be able to block the release.
+  it('negative control: `if: always()` on the release caller makes the gate useless', () => {
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(ci);
+      const lines = ci.split(e);
+      const idx = lines.findIndex((l) => l.trim().endsWith("github.repository == 'nabeel2323/scs-platform'"));
+      expect(idx, 'caller must keep its repository guard').toBeGreaterThan(-1);
+      lines[idx] = "          github.repository == 'nabeel2323/scs-platform' && always()";
+      return { ci: lines.join(e), release };
+    });
+    expect(bad.ok).toBe(false);
+    expect(check(bad, 'caller-prerequisites-can-block-release')?.ok).toBe(false);
+
+    const jobAlways = inSandbox(({ ci, release }) => {
+      const e = eolOf(release);
+      const lines = release.split(e);
+      const idx = lines.findIndex((l) => l === '    needs: validate');
+      expect(idx).toBeGreaterThan(-1);
+      lines.splice(idx + 1, 0, '    if: always()');
+      return { ci, release: lines.join(e) };
+    });
+    expect(check(jobAlways, 'release-job-database-release-gated-by-needs')?.ok).toBe(false);
   });
 });

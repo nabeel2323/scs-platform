@@ -278,15 +278,70 @@ export function validateWorkflowStructure(repoRootIn) {
     'database-release must depend on validate',
   );
 
-  // 20) Stale-release detection inspects the CALLER workflow (reusable calls have no own runs).
+  // 20) Stale-release detection must compare identifiers that are actually comparable
+  //   for the execution path in play (audit finding F-4).
+  //   `run_number` is monotonic per workflow FILE; `databaseId` is monotonic per
+  //   repository. A single unconditional `github.run_number` basis is therefore wrong
+  //   on the dispatch path, where the basis belongs to release.yml but the runs being
+  //   compared belong to ci.yml.
   const staleStep = (rel.jobs?.['database-release']?.steps || []).find((s) =>
     /Check for stale release/.test(s?.name || ''),
   );
   const staleBody = staleStep?.run || '';
-  push('stale-detection-targets-caller', /--workflow=ci\.yml/.test(staleBody), '');
-  push('stale-detection-excludes-release-target', !/--workflow=release\.yml/.test(staleBody), 'release.yml has no standalone runs when reusable');
-  push('stale-detection-uses-run-number', /select\(\.runNumber > \$current\)/.test(staleBody), '');
-  push('stale-detection-allows-complete', !/exit 1/.test(staleBody) && /Allow current migration to complete/.test(staleBody), '');
+  const stalePaths = splitDispatchBranch(staleBody);
+  push(
+    'stale-detection-splits-execution-paths',
+    stalePaths.found,
+    'step must branch on github.event_name between the dispatch and automated paths',
+  );
+  push(
+    'stale-detection-targets-caller',
+    /'ci\.yml:develop'/.test(staleBody),
+    'queued ci.yml develop runs must be inspected on both paths',
+  );
+  push(
+    'stale-detection-automated-path-caller-only',
+    /'ci\.yml:develop'/.test(stalePaths.automated) && !/release\.yml/.test(stalePaths.automated),
+    'a called reusable workflow produces no release.yml run, so Path A must not query it',
+  );
+  push(
+    'stale-detection-dispatch-path-includes-own-runs',
+    /'release\.yml:'/.test(stalePaths.dispatch) && /'ci\.yml:develop'/.test(stalePaths.dispatch),
+    'Path B must scan both dispatch runs of release.yml and queued ci.yml develop runs',
+  );
+  push(
+    'stale-detection-automated-orders-by-run-number',
+    /ORDER_FIELD='runNumber'/.test(stalePaths.automated) &&
+      /COMPARISON_BASIS="\$CURRENT_RUN_NUMBER"/.test(stalePaths.automated),
+    `automated branch: ${stalePaths.automated.trim().split('\n').join(' | ')}`,
+  );
+  push(
+    'stale-detection-dispatch-orders-by-database-id',
+    /ORDER_FIELD='databaseId'/.test(stalePaths.dispatch) &&
+      /COMPARISON_BASIS="\$CURRENT_RUN_ID"/.test(stalePaths.dispatch),
+    `dispatch branch: ${stalePaths.dispatch.trim().split('\n').join(' | ')}`,
+  );
+  push(
+    'stale-detection-no-mixed-identifier-comparison',
+    !/select\(\.runNumber\s*>\s*\$current\)/.test(staleBody) && /select\(\.\[\s*\$field\s*\]\s*>\s*\$basis\)/.test(staleBody),
+    'comparison must use the per-path field/basis pair, never a hard-coded runNumber vs $current',
+  );
+  push(
+    'stale-detection-excludes-current-run',
+    /--argjson self "\$CURRENT_RUN_ID"/.test(staleBody) && /select\(\.databaseId != \$self\)/.test(staleBody),
+    'the inspecting run must be excluded from its own newer-run set',
+  );
+  push('stale-detection-never-reads-createdAt', !/createdAt/.test(staleBody), 'wall-clock ordering is not a valid comparator');
+  push(
+    'stale-detection-allows-complete',
+    !/exit 1/.test(staleBody) && /Allow current migration to complete/.test(staleBody),
+    '',
+  );
+  push(
+    'stale-detection-survives-query-failure',
+    /QUERY_FAILURES=\$\(\(QUERY_FAILURES \+ 1\)\)/.test(staleBody) && /Could not read queued/.test(staleBody),
+    'an unreadable queued-run list must warn, never abort',
+  );
 
   // 21) Database-operation step must bind DATABASE_URL to secrets.STAGING_DATABASE_URL.
   const dbStep = (rel.jobs?.['database-release']?.steps || []).find((s) =>
@@ -320,8 +375,150 @@ export function validateWorkflowStructure(repoRootIn) {
     'migrate must precede seed, seed must precede ledger verification',
   );
 
+  // 23) R-1 — a newer push must not be able to cancel a run that is hosting a
+  // staging release. `trigger-staging-release` calls release.yml as a reusable
+  // workflow, so the release's mutating jobs are jobs of the CALLER's run and live
+  // or die by the caller's `concurrency.cancel-in-progress` value, not by the
+  // release workflow's own group.
+  const ciConc = concurrencyOf(ci);
+  const relConc = concurrencyOf(rel);
+  push(
+    'ci-concurrency-declared',
+    ciConc !== null && typeof ciConc.group === 'string' && ciConc.group.length > 0,
+    `ci.yml concurrency=${JSON.stringify(ci?.concurrency)}`,
+  );
+  push(
+    'ci-concurrency-scoped-to-workflow-and-ref',
+    ciConc !== null && /github\.workflow/.test(ciConc.group) && /github\.ref/.test(ciConc.group),
+    `group=${JSON.stringify(ciConc?.group)}`,
+  );
+  const cancelFor = (ref) => (ciConc ? evalCancelInProgress(ciConc['cancel-in-progress'], ref) : null);
+  push(
+    'ci-develop-run-is-not-cancelled-by-a-newer-push',
+    cancelFor('refs/heads/develop') === false,
+    `evaluated cancel-in-progress for develop=${JSON.stringify(cancelFor('refs/heads/develop'))} (must be false: an in-flight migration must finish)`,
+  );
+  push(
+    'ci-non-develop-refs-still-cancel',
+    cancelFor('refs/heads/main') === true && cancelFor('refs/heads/feature/x') === true && cancelFor('refs/pull/106/merge') === true,
+    `evaluated cancel-in-progress main=${JSON.stringify(cancelFor('refs/heads/main'))} feature=${JSON.stringify(
+      cancelFor('refs/heads/feature/x'),
+    )} pr=${JSON.stringify(cancelFor('refs/pull/106/merge'))} (all must stay true)`,
+  );
+  push(
+    'release-concurrency-group-is-literal',
+    relConc !== null && /^[A-Za-z0-9._-]+$/.test(String(relConc.group)),
+    `group=${JSON.stringify(relConc?.group)} — a literal group is shared by both execution paths`,
+  );
+  push(
+    'release-concurrency-never-cancels-in-progress',
+    relConc !== null && relConc['cancel-in-progress'] === false,
+    `cancel-in-progress=${JSON.stringify(relConc?.['cancel-in-progress'])} must be the literal boolean false`,
+  );
+  push(
+    'release-concurrency-queues-instead-of-replacing',
+    relConc !== null && relConc.queue === 'max',
+    `queue=${JSON.stringify(relConc?.queue)} — 'max' raises the pending ceiling from 1 (older pending replaced) to 100`,
+  );
+  // GitHub rejects `queue: max` combined with `cancel-in-progress: true` as a workflow
+  // validation error, so the combination may only ever appear on a group whose
+  // cancellation value is the literal false.
+  const queueMisuse = [
+    ['ci.yml', ciConc],
+    ['release.yml', relConc],
+  ]
+    .filter(([, c]) => c && c.queue !== undefined)
+    .filter(([, c]) => c['cancel-in-progress'] !== false)
+    .map(([file, c]) => `${file} sets queue=${JSON.stringify(c.queue)} with cancel-in-progress=${JSON.stringify(c['cancel-in-progress'])}`);
+  push('queue-max-requires-literal-false-cancellation', queueMisuse.length === 0, queueMisuse.join('; '));
+
+  // 24) F-1 — every declared workflow_dispatch input must be consumed by the file.
+  // A declared-but-never-read boolean reads as a safety affordance ("skip manual
+  // confirmation") that does not exist, and makes a real release look like a dry run.
+  const dispatchInputs = Object.keys(rel.on?.workflow_dispatch?.inputs || {});
+  const deadInputs = dispatchInputs.filter((name) => !new RegExp(`inputs\\.${name}\\b`).test(relRaw));
+  push(
+    'dispatch-inputs-all-consumed',
+    deadInputs.length === 0,
+    `declared but never read: ${deadInputs.join(', ') || '(none)'}`,
+  );
+  push(
+    'release-no-skip-confirmation-input',
+    !dispatchInputs.includes('skip_confirmation'),
+    'the removed dead input must not come back unless a real confirmation gate is implemented for both paths',
+  );
+  push('dispatch-input-commit-sha-required', rel.on?.workflow_dispatch?.inputs?.commit_sha?.required === true, '');
+
+  // 25) A failed OR cancelled prerequisite must still be able to block the release.
+  // GitHub skips a job when any `needs` job did not succeed — but only while the
+  // dependent job does not override that with `if: always()`.
+  const callerIfText = String(caller.if ?? '').replace(/\s+/g, ' ');
+  push(
+    'caller-prerequisites-can-block-release',
+    needs.length > 0 && !/always\(\)/.test(callerIfText),
+    `needs=${needs.length} if="${callerIfText}"`,
+  );
+  for (const j of ['database-release', 'deploy', 'health-check']) {
+    push(
+      `release-job-${j}-gated-by-needs`,
+      'needs' in (rel.jobs?.[j] || {}) && !/always\(\)/.test(String(rel.jobs?.[j]?.if ?? '')),
+      `${j} must inherit the default skip-on-unmet-needs rule`,
+    );
+  }
+
   const ok = results.every((r) => r.ok);
   return { ok, results, repoRoot };
+}
+
+/**
+ * Read a parsed workflow's `concurrency:` block in its two legal shapes:
+ * a bare group string, or a mapping of `group` / `cancel-in-progress` / `queue`.
+ */
+function concurrencyOf(doc) {
+  const c = doc?.concurrency;
+  if (typeof c === 'string') return { group: c, 'cancel-in-progress': undefined, queue: undefined };
+  if (c && typeof c === 'object' && !Array.isArray(c)) {
+    return { group: '', 'cancel-in-progress': undefined, queue: undefined, ...c };
+  }
+  return null;
+}
+
+/**
+ * Evaluate the one `cancel-in-progress` expression shape this repository is allowed to
+ * use — `${{ github.ref != '<ref>' }}` — for a given ref, so the check tests the
+ * resulting behaviour instead of pattern-matching prose. Returns null for any other
+ * shape, which makes the dependent checks fail rather than silently pass.
+ *
+ * GitHub documents `cancel-in-progress` as accepting an expression, with the `github`,
+ * `inputs` and `vars` contexts available to a `concurrency` expression.
+ */
+function evalCancelInProgress(value, ref) {
+  if (typeof value === 'boolean') return value;
+  const m = /^\$\{\{\s*github\.ref\s*!=\s*'([^']+)'\s*\}\}$/.exec(String(value ?? '').trim());
+  if (m) return m[1] !== ref;
+  return null;
+}
+
+/**
+ * Split a `run:` block on its top-level `if [ "$EVENT_NAME" = "workflow_dispatch" ]`
+ * branch, so path-specific invariants can be asserted about each branch separately.
+ * A block scalar is dedented by js-yaml, so top-level statements sit at column 0 and
+ * anything nested inside a loop/branch is indented — `^else$` / `^fi$` therefore match
+ * only this outermost if/else/fi.
+ */
+function splitDispatchBranch(body) {
+  const lines = String(body || '').split('\n');
+  const start = lines.findIndex((l) => /^if \[ "\$EVENT_NAME" = "workflow_dispatch" \]; then$/.test(l));
+  const mid = lines.findIndex((l, i) => i > start && start !== -1 && /^else$/.test(l));
+  const end = lines.findIndex((l, i) => i > mid && mid !== -1 && /^fi$/.test(l));
+  if (start === -1 || mid === -1 || end === -1) {
+    return { found: false, dispatch: '', automated: '' };
+  }
+  return {
+    found: true,
+    dispatch: lines.slice(start + 1, mid).join('\n'),
+    automated: lines.slice(mid + 1, end).join('\n'),
+  };
 }
 
 /** Collect `${{ vars.NAME }}` references with the scope they appear in. */

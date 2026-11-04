@@ -57,33 +57,64 @@ on:
         type: string
   
   # Manual trigger for authorized releases from develop.
+  #
+  # THIS IS NOT A DRY RUN. A `workflow_dispatch` run of this workflow performs the
+  # same real, mutating sequence as the automated path: `db:migrate` and `db:seed`
+  # against the staging database, the migration-ledger verification, a Render
+  # deployment of the dispatched SHA, and the `/v1/readyz` health check. There is
+  # no preview mode and no confirmation prompt in this file.
+  #
+  # The former `skip_confirmation` boolean input was removed (audit finding F-1 /
+  # register item SEC-12): it was declared but never read anywhere in the workflow,
+  # so it promised a manual-confirmation gate that does not exist and made a
+  # dispatch look like it could be run non-destructively. Leaving a dead input that
+  # implies a safety control is worse than having none.
+  #
+  # The real approval surface is GitHub environment protection rules on the
+  # `staging` environment (required reviewers), evaluated at job start for every
+  # job below that declares `environment: staging`. That is repository/owner
+  # configuration, not workflow code — see §"Approval and human-in-the-loop" in
+  # docs/deployment/AUTOMATED-RELEASE-PIPELINE-ARCHITECTURE-V2.1.md.
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: 'Commit SHA to release (must be on develop)'
+        description: 'Commit SHA to release (must be on develop) — a real staging release: migrates, seeds, deploys'
         required: true
         type: string
-      skip_confirmation:
-        description: 'Skip manual confirmation (use with caution)'
-        required: false
-        type: boolean
-        default: false
 
-# Serialize all staging releases — only one release can run at a time.
-# GitHub concurrency behavior: one running + one pending. If a third run is
-# queued while one is pending, the older pending run is replaced. This means
-# we cannot claim FIFO execution. We implement explicit stale-release
-# awareness: before any database mutation, detect whether a newer release is
-# queued (ordered by monotonic run_number). Because this workflow is called as
-# a reusable workflow, the queued runs to inspect belong to the CALLER (ci.yml
-# on develop) — the caller's run id/number are also what `github.run_id` /
-# `github.run_number` resolve to here. POLICY = allow-complete: if a newer run
-# is queued we do NOT abort an in-flight migration, because leaving the schema
-# half-migrated is worse than letting the current release finish for
-# consistency; the newer run then applies cleanly afterwards.
+# Serialize staging releases: `cancel-in-progress: false` means a queued or
+# running release is never superseded by a newer one, and `queue: max` raises the
+# pending ceiling from GitHub's default of ONE pending run (older pending replaced)
+# to up to 100 pending runs held in order. Extra runs beyond 100 are cancelled.
+#
+# `queue: max` is legal here and only here: GitHub rejects `queue: max` combined
+# with `cancel-in-progress: true` as a workflow validation error, which is why
+# this file pins the value to the literal `false` instead of an expression.
+#
+# Which path this actually protects:
+#   - Path B (workflow_dispatch): release.yml IS its own workflow run, so this
+#     group governs it — concurrent dispatches serialize instead of replacing.
+#   - Path A (workflow_call from ci.yml): the release's jobs run as jobs of the
+#     CALLER's run, so the caller's concurrency group is what is occupied; whether
+#     a called workflow's own `concurrency` block is evaluated at all is not
+#     documented by GitHub (audit risk R-3). Path A is protected by ci.yml's
+#     develop group no longer cancelling in progress. Do NOT rely on this block
+#     for Path A.
+#
+# The hard guarantee against overlapping staging mutations is NOT concurrency
+# configuration — it is the PostgreSQL advisory lock taken by the migration
+# runner plus the migration-ledger verification below. Stale-release awareness:
+# before any database mutation, detect whether a newer release is queued, using
+# identifiers that are comparable for the execution path in play (runNumber
+# within ci.yml on the automated path; the repository-global databaseId on the
+# dispatch path). POLICY = allow-complete: if a newer run is queued we do NOT
+# abort an in-flight migration, because leaving the schema half-migrated is worse
+# than letting the current release finish for consistency; the newer run then
+# applies cleanly afterwards.
 concurrency:
   group: staging-release
   cancel-in-progress: false
+  queue: max
 
 # Workflow-level env holds NON-environment-scoped constants only.
 # `${{ vars.* }}` values scoped to the `staging` environment are NOT reliably resolvable
@@ -338,56 +369,109 @@ jobs:
           RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
           CURRENT_RUN_ID="${{ github.run_id }}"
           CURRENT_RUN_NUMBER="${{ github.run_number }}"
+          EVENT_NAME="${{ github.event_name }}"
           
           echo "Checking for stale release before database mutation..."
-          echo "  Release SHA: $RELEASE_SHA"
-          echo "  Current run ID: $CURRENT_RUN_ID"
-          echo "  Current run number: $CURRENT_RUN_NUMBER"
+          echo "  Release SHA:   $RELEASE_SHA"
+          echo "  Event name:    $EVENT_NAME"
+          echo "  Run id:        $CURRENT_RUN_ID"
+          echo "  Run number:    $CURRENT_RUN_NUMBER"
           
-          # This workflow is a REUSABLE workflow called by ci.yml, so it does not
-          # produce standalone release.yml runs. `github.run_id` / `github.run_number`
-          # above are the identifiers of the CALLER (ci.yml) run that this release is
-          # executing inside. Stale-release detection therefore has to inspect queued
-          # runs of ci.yml on develop — querying release.yml would always return an
-          # empty set and make the check a silent no-op.
+          # ── The execution path decides which identifiers are comparable ──────────
+          # `run_number` is monotonic PER WORKFLOW FILE; `databaseId` (the run id) is
+          # monotonic ACROSS the repository. A basis taken from one workflow file may
+          # therefore only be compared against runs of that same file. Reading
+          # github.run_number unconditionally was the F-4 defect: on a
+          # workflow_dispatch of release.yml the basis is release.yml's own (small)
+          # counter while the runs being compared belong to ci.yml (large counter), so
+          # every valid manual dispatch reported a "newer release" that did not exist.
           #
-          # Ordering uses run_number (monotonic per workflow), never createdAt: two
-          # runs created in the same second are still strictly ordered by run_number.
-          QUEUED_RUNS=$(gh run list \
-            --workflow=ci.yml \
-            --branch=develop \
-            --status=queued \
-            --json databaseId,runNumber \
-            --limit 10) || QUEUED_RUNS=''
+          #   Path A — workflow_call from ci.yml. Inside a called reusable workflow
+          #     github.run_id / github.run_number / github.event_name all mirror the
+          #     CALLER, and release.yml produces no standalone run of its own. The only
+          #     queued runs that can start a staging mutation after this one are ci.yml
+          #     runs on develop, so compare their runNumber against the caller's run
+          #     number. Querying release.yml on this path would return an empty set and
+          #     silently turn the check into a no-op.
+          #   Path B — workflow_dispatch of release.yml. This run IS a release.yml run,
+          #     so ordering switches to the repository-global databaseId and BOTH
+          #     sources are scanned: queued release.yml dispatch runs (unfiltered by
+          #     branch — validate accepts a develop-reachable SHA no matter which ref
+          #     the dispatch was started from) and queued ci.yml develop runs, each of
+          #     which can invoke its own release.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            ORDER_FIELD='databaseId'
+            COMPARISON_BASIS="$CURRENT_RUN_ID"
+            WORKFLOW_SPECS=('release.yml:' 'ci.yml:develop')
+          else
+            ORDER_FIELD='runNumber'
+            COMPARISON_BASIS="$CURRENT_RUN_NUMBER"
+            WORKFLOW_SPECS=('ci.yml:develop')
+          fi
           
-          if [ -z "$QUEUED_RUNS" ]; then
-            echo "⚠ Could not read queued ci.yml runs (gh unavailable or API error)"
+          echo "  Ordering field: $ORDER_FIELD (basis: $COMPARISON_BASIS)"
+          
+          QUEUED_JSON=''
+          QUERY_SUCCESSES=0
+          QUERY_FAILURES=0
+          for SPEC in "${WORKFLOW_SPECS[@]}"; do
+            WF="${SPEC%%:*}"
+            BRANCH_FILTER="${SPEC#*:}"
+            if [ -n "$BRANCH_FILTER" ]; then
+              OUT=$(gh run list \
+                --workflow="$WF" \
+                --branch="$BRANCH_FILTER" \
+                --status=queued \
+                --json databaseId,runNumber \
+                --limit 10) || OUT=''
+            else
+              OUT=$(gh run list \
+                --workflow="$WF" \
+                --status=queued \
+                --json databaseId,runNumber \
+                --limit 10) || OUT=''
+            fi
+            if [ -z "$OUT" ]; then
+              QUERY_FAILURES=$((QUERY_FAILURES + 1))
+              echo "⚠ Could not read queued $WF runs (gh unavailable or API error)"
+            else
+              QUERY_SUCCESSES=$((QUERY_SUCCESSES + 1))
+              QUEUED_JSON+="$OUT"$'\n'
+            fi
+          done
+          
+          # Deduplicated union of every queued run inspected on this path.
+          QUEUED_RUNS=$(printf '%s' "$QUEUED_JSON" | jq -s 'add // [] | unique_by(.databaseId)')
+          
+          # Exclude this run explicitly, then keep only runs strictly newer than the
+          # basis, ordered on the field that is comparable for this path.
+          NEWER_JSON=$(echo "$QUEUED_RUNS" | jq -c \
+            --arg field "$ORDER_FIELD" \
+            --argjson basis "$COMPARISON_BASIS" \
+            --argjson self "$CURRENT_RUN_ID" '
+            [.[] | select(.databaseId != $self) | select(.[ $field ] > $basis)]')
+          NEWER_RUNS=$(echo "$NEWER_JSON" | jq 'length')
+          NEWER_IDS=$(echo "$NEWER_JSON" | jq -r 'map(.databaseId | tostring) | join(", ")')
+          
+          if [ "$QUERY_FAILURES" -gt 0 ]; then
+            echo "  Inspected $QUERY_SUCCESSES of ${#WORKFLOW_SPECS[@]} queued-run source(s)."
             echo "  POLICY: Allow current migration to complete"
             echo "  Stale detection is informational — it never aborts a release."
+          fi
+          
+          if [ "$NEWER_RUNS" -gt 0 ]; then
+            echo "⚠ NEWER RELEASE(S) QUEUED: $NEWER_RUNS run(s) ordered by $ORDER_FIELD beyond $COMPARISON_BASIS"
+            echo "  Run IDs: $NEWER_IDS"
+            echo ""
+            echo "  POLICY: Allow current migration to complete"
+            echo "  GitHub concurrency: CI-develop group = one running + one pending (NOT FIFO;"
+            echo "    an older PENDING run is replaced, but a run that never started cannot be"
+            echo "    mid-migration). staging-release group = one running + up to 100 pending"
+            echo "    (queue: max, cancel-in-progress: false) so queued dispatches are not lost."
+            echo "  The newer run will queue after this completes"
+            echo "  No abort: current database operation should finish for consistency"
           else
-            # Exclude this run explicitly, then keep only strictly newer run numbers.
-            NEWER_RUNS=$(echo "$QUEUED_RUNS" | jq -r \
-              --argjson current "$CURRENT_RUN_NUMBER" \
-              --argjson self "$CURRENT_RUN_ID" '
-              [.[] | select(.databaseId != $self) | select(.runNumber > $current)] | length')
-            
-            if [ "$NEWER_RUNS" -gt 0 ]; then
-              NEWER_IDS=$(echo "$QUEUED_RUNS" | jq -r \
-                --argjson current "$CURRENT_RUN_NUMBER" \
-                --argjson self "$CURRENT_RUN_ID" '
-                [.[] | select(.databaseId != $self) | select(.runNumber > $current)]
-                | map(.databaseId) | join(", ")')
-              
-              echo "⚠ NEWER RELEASE(S) QUEUED: $NEWER_RUNS ci.yml run(s) on develop"
-              echo "  Run IDs: $NEWER_IDS"
-              echo ""
-              echo "  POLICY: Allow current migration to complete"
-              echo "  GitHub concurrency: one-running + one-pending (NOT FIFO)"
-              echo "  The newer run will queue after this completes"
-              echo "  No abort: current database operation should finish for consistency"
-            else
-              echo "✓ No newer ci.yml release queued — proceeding with database mutation"
-            fi
+            echo "✓ No newer release queued (compared by $ORDER_FIELD) — proceeding with database mutation"
           fi
       
       - name: Checkout exact release SHA
