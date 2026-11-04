@@ -177,6 +177,43 @@ export function validateWorkflowStructure(repoRootIn) {
     push(`caller-with-${k}`, withKeys.includes(k), '');
   }
 
+  // 14b) GITHUB_TOKEN permission intersection. GitHub grants a CALLED reusable
+  // workflow only the scopes that BOTH its own workflow-level `permissions:` and
+  // the CALLER's workflow-level `permissions:` allow; job-level permissions never
+  // propagate into the callee. CI run #418 died at start-up (zero jobs) because
+  // release.yml asked for `actions: read` and ci.yml declared no permissions block:
+  // "requesting 'actions: read, deployments: write', but is only allowed
+  // 'actions: none, deployments: none'".
+  const PERM_RANK = { none: 0, read: 1, write: 2 };
+  const rankOf = (v) => (v === undefined ? -1 : PERM_RANK[String(v).toLowerCase()] ?? -1);
+  const callerPermBlock = ci.permissions;
+  const grantOf = (scope) => {
+    // Absent block => repository default, which is not provable from the file and
+    // has already been shown to exclude `actions: read`.
+    if (callerPermBlock === undefined || callerPermBlock === null) return undefined;
+    if (typeof callerPermBlock === 'string') return callerPermBlock;
+    return scope in callerPermBlock ? callerPermBlock[scope] : 'none';
+  };
+  const calledPermBlock = rel.permissions && typeof rel.permissions === 'object' ? rel.permissions : {};
+  const calledScopes = Object.entries(calledPermBlock).filter(([, want]) => String(want).toLowerCase() !== 'none');
+  const permGaps = calledScopes
+    .map(([scope, want]) => ({ scope, want, have: grantOf(scope) }))
+    .filter(({ want, have }) => have === undefined || rankOf(have) < rankOf(want))
+    .map(({ scope, want, have }) => `${scope}: release.yml needs ${want}, ci.yml grants ${have === undefined ? 'repo default (unprovable)' : have}`);
+  push('caller-workflow-permissions-declared', callerPermBlock !== undefined && callerPermBlock !== null, 'ci.yml must declare workflow-level permissions for the reusable call');
+  push('caller-permissions-cover-called-workflow', permGaps.length === 0, permGaps.join('; '));
+  const callerWriteScopes =
+    typeof callerPermBlock === 'object' && callerPermBlock !== null
+      ? Object.entries(callerPermBlock).filter(([, lvl]) => String(lvl).toLowerCase() === 'write').map(([s]) => s)
+      : typeof callerPermBlock === 'string'
+        ? ['* (workflow-level write shorthand)']
+        : [];
+  push('caller-permissions-read-only', callerWriteScopes.length === 0, callerWriteScopes.join(', '));
+  const calledWriteScopes = Object.entries(calledPermBlock)
+    .filter(([, lvl]) => String(lvl).toLowerCase() === 'write')
+    .map(([s]) => s);
+  push('called-workflow-no-unneeded-write-scope', calledWriteScopes.length === 0, `${calledWriteScopes.join(', ')} would have to be granted to every CI job`);
+
   // 15) Release staging jobs that touch secrets declare environment: staging.
   const stagingSecretJobs = ['validate', 'database-release', 'deploy', 'health-check'];
   for (const j of stagingSecretJobs) {

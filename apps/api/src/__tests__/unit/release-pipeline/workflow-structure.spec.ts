@@ -51,6 +51,38 @@ function runValidator(): ValidatorPayload {
   return runValidatorAt(repoRoot);
 }
 
+const eolOf = (text: string): string => (text.includes('\r\n') ? '\r\n' : '\n');
+
+interface WorkflowFiles {
+  ci: string;
+  release: string;
+}
+
+/**
+ * Copies both workflows into a throwaway tree, lets the caller rewrite them, and
+ * runs the REAL validator against that tree. Used for negative controls: a check
+ * that can never fail proves nothing.
+ */
+function inSandbox(mutate: (original: WorkflowFiles) => WorkflowFiles): ValidatorPayload {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'scs-wf-sandbox-'));
+  try {
+    const wfDir = path.join(sandbox, '.github', 'workflows');
+    fs.mkdirSync(wfDir, { recursive: true });
+    const mutated = mutate({
+      ci: fs.readFileSync(ciPath, 'utf8'),
+      release: fs.readFileSync(relPath, 'utf8'),
+    });
+    fs.writeFileSync(path.join(wfDir, 'ci.yml'), mutated.ci, 'utf8');
+    fs.writeFileSync(path.join(wfDir, 'release.yml'), mutated.release, 'utf8');
+    return runValidatorAt(sandbox);
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+}
+
+const check = (payload: ValidatorPayload, name: string): ValidatorResult | undefined =>
+  payload.results.find((r) => r.name === name);
+
 const payload = runValidator();
 const byName = new Map(payload.results.map((r) => [r.name, r]));
 
@@ -110,46 +142,88 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
     expect(byName.get('stale-detection-allows-complete')?.ok).toBe(true);
   });
 
+  it('grants the called workflow only scopes the caller also allows', () => {
+    for (const name of [
+      'caller-workflow-permissions-declared',
+      'caller-permissions-cover-called-workflow',
+      'caller-permissions-read-only',
+      'called-workflow-no-unneeded-write-scope',
+    ]) {
+      expect(check(payload, name)?.ok, `${name} must pass`).toBe(true);
+    }
+  });
+
   // Negative control: the checks above must be capable of failing. GitHub Actions
   // rejected the caller definition in CI run #417 (commit 44aa9a0) with
   // `Invalid workflow file: ci.yml — Unexpected value 'secrets'`, which was a job that
   // mixed `runs-on` + `steps` + `secrets` with a step-level reusable-workflow `uses:`.
   // Re-introducing that shape in a throwaway copy must light the guards up.
   it('negative control: the CI #417 caller defect makes the validator fail', () => {
-    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'scs-wf-guard-'));
-    try {
-      const wfDir = path.join(sandbox, '.github', 'workflows');
-      fs.mkdirSync(wfDir, { recursive: true });
-      fs.copyFileSync(relPath, path.join(wfDir, 'release.yml'));
+    const callerUsesLine = '    uses: ./.github/workflows/release.yml';
+    expect(fs.readFileSync(ciPath, 'utf8').split(eolOf(fs.readFileSync(ciPath, 'utf8')))).toContain(callerUsesLine);
 
-      const ciRaw = fs.readFileSync(ciPath, 'utf8');
-      const eol = ciRaw.includes('\r\n') ? '\r\n' : '\n';
+    const bad = inSandbox(({ ci, release }) => {
+      const e = eolOf(ci);
       const invalidCaller = [
         '    runs-on: ubuntu-latest',
         '    steps:',
         '      - uses: ./.github/workflows/release.yml',
         '        with:',
         '          commit_sha: ${{ github.sha }}',
-      ].join(eol);
-      const callerUsesLine = '    uses: ./.github/workflows/release.yml';
-      expect(ciRaw.split(eol)).toContain(callerUsesLine);
-      const mutated = ciRaw.replace(callerUsesLine, invalidCaller);
-      expect(mutated).not.toBe(ciRaw);
-      fs.writeFileSync(path.join(wfDir, 'ci.yml'), mutated, 'utf8');
+      ].join(e);
+      return { ci: ci.replace(callerUsesLine, invalidCaller), release };
+    });
 
-      const bad = runValidatorAt(sandbox);
-      const failed = new Set(bad.results.filter((r) => !r.ok).map((r) => r.name));
-      expect(bad.ok).toBe(false);
-      for (const check of [
-        'caller-job-level-uses',
-        'caller-no-steps',
-        'caller-no-runs-on',
-        'no-step-level-reusable-invocation',
-      ]) {
-        expect(failed.has(check), `${check} must fail for the #417 shape`).toBe(true);
-      }
-    } finally {
-      fs.rmSync(sandbox, { recursive: true, force: true });
+    expect(bad.ok).toBe(false);
+    for (const name of [
+      'caller-job-level-uses',
+      'caller-no-steps',
+      'caller-no-runs-on',
+      'no-step-level-reusable-invocation',
+    ]) {
+      expect(check(bad, name)?.ok, `${name} must fail for the #417 shape`).toBe(false);
     }
+  });
+
+  // Negative control for CI run #418 (PR event, zero jobs):
+  //   Error calling workflow '…/release.yml'. The workflow is requesting
+  //   'actions: read, deployments: write', but is only allowed
+  //   'actions: none, deployments: none'.
+  // A called reusable workflow only ever gets the intersection of its own and the
+  // caller's WORKFLOW-level permissions, so each of these regressions must fail.
+  it('negative control: the CI #418 permission-intersection defect makes the validator fail', () => {
+    const ciRaw = fs.readFileSync(ciPath, 'utf8');
+    const e = eolOf(ciRaw);
+    expect(ciRaw.split(e)).toContain('  actions: read');
+
+    // (a) the caller stops granting a scope the callee needs.
+    const narrowed = inSandbox(({ ci, release }) => ({ ci: ci.replace('  actions: read', '  actions: none'), release }));
+    expect(narrowed.ok).toBe(false);
+    expect(check(narrowed, 'caller-permissions-cover-called-workflow')?.ok).toBe(false);
+    expect(check(narrowed, 'caller-permissions-cover-called-workflow')?.detail).toMatch(
+      /actions: release\.yml needs read, ci\.yml grants none/,
+    );
+
+    // (b) the caller drops its permissions block entirely — the exact #418 shape.
+    const ungranted = inSandbox(({ ci, release }) => {
+      const lines = ci.split(e);
+      const start = lines.findIndex((l) => l === 'permissions:');
+      expect(start).toBeGreaterThan(-1);
+      const end = lines.findIndex((l, i) => i > start && l.trim() !== '' && !l.startsWith(' ') && !l.startsWith('#'));
+      expect(end).toBeGreaterThan(start);
+      return { ci: [...lines.slice(0, start), ...lines.slice(end)].join(e), release };
+    });
+    expect(ungranted.ok).toBe(false);
+    expect(check(ungranted, 'caller-workflow-permissions-declared')?.ok).toBe(false);
+    expect(check(ungranted, 'caller-permissions-cover-called-workflow')?.ok).toBe(false);
+
+    // (c) the callee asks for a write scope (deployments: write, the other half of #418).
+    const wantsWrite = inSandbox(({ ci, release }) => ({
+      ci,
+      release: release.replace('  actions: read', ['  actions: read', '  deployments: write'].join(eolOf(release))),
+    }));
+    expect(wantsWrite.ok).toBe(false);
+    expect(check(wantsWrite, 'called-workflow-no-unneeded-write-scope')?.ok).toBe(false);
+    expect(check(wantsWrite, 'caller-permissions-cover-called-workflow')?.ok).toBe(false);
   });
 });

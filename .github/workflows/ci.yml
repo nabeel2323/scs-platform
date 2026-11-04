@@ -19,6 +19,24 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Workflow-level GITHUB_TOKEN scopes.
+#
+# GitHub intersects a CALLED reusable workflow's `permissions:` with the
+# CALLER's workflow-level permissions — job-level permissions do not propagate
+# into the callee. `trigger-staging-release` calls release.yml, which needs
+# `actions: read` for its `gh run list` stale-release detection, so that scope
+# has to be granted here (CI run #418 failed at start-up precisely because it
+# was not: "requesting 'actions: read', but is only allowed 'actions: none'").
+#
+# This block mirrors the repository's read-only default
+# (`contents: read, packages: read`) and adds `actions: read`. Nothing in CI
+# writes: container-build uses `push: false`, and no job posts PR comments or
+# uploads SARIF. No write scope is granted anywhere here.
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
 env:
   NODE_VERSION: '22'
   PNPM_VERSION: '9.15.9'
