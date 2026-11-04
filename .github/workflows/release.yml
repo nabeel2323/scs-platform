@@ -32,12 +32,19 @@
 name: Staging Release
 
 on:
-  # REUSABLE WORKFLOW: Invoked by CI after all jobs succeed on develop
-  # This pattern solves the workflow_run default-branch requirement
+  # REUSABLE WORKFLOW: Invoked by CI after all mandatory gates succeed on develop.
+  # This pattern replaces workflow_run and avoids the default-branch trigger
+  # requirement — a reusable workflow is resolved by path, not by default branch.
+  #
+  # SECRETS: We intentionally do NOT declare staging secrets here. Environment-
+  # scoped staging secrets are resolved by each job below that declares
+  # `environment: staging` (the caller forwards the context via `secrets: inherit`).
+  # Declaring them as workflow_call inputs would let an environment-less caller
+  # pass empty values and shadow the real environment secrets.
   workflow_call:
     inputs:
       commit_sha:
-        description: 'Commit SHA to release (from CI run)'
+        description: 'Commit SHA to release (exact SHA whose CI succeeded)'
         required: true
         type: string
       ci_run_id:
@@ -48,15 +55,8 @@ on:
         description: 'CI run URL for audit trail'
         required: true
         type: string
-    secrets:
-      RENDER_API_KEY:
-        required: true
-      STAGING_DATABASE_URL:
-        required: true
-      STAGING_PGSSLROOTCERT_PEM:
-        required: true
   
-  # Manual trigger for authorized releases from develop
+  # Manual trigger for authorized releases from develop.
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -73,8 +73,11 @@ on:
 # GitHub concurrency behavior: one running + one pending. If a third run is
 # queued while one is pending, the older pending run is replaced. This means
 # we cannot claim FIFO execution. We implement explicit stale-release
-# protection: before any database mutation, verify this run is still the
-# latest eligible release. If superseded, abort without mutating state.
+# awareness: before any database mutation, detect whether a newer release is
+# queued (ordered by monotonic run_number). POLICY = allow-complete: if a newer
+# run is queued we do NOT abort an in-flight migration, because leaving the
+# schema half-migrated is worse than letting the current release finish for
+# consistency; the newer run then applies cleanly afterwards.
 concurrency:
   group: staging-release
   cancel-in-progress: false
@@ -95,42 +98,44 @@ jobs:
   validate:
     name: Validate Release Trigger
     runs-on: ubuntu-latest
-    # FIX: Add staging environment so this job can access environment-scoped secrets
+    # Staging environment grants this job access to environment-scoped secrets
+    # so it can verify their presence. The job is read-only (no DB mutation).
     environment: staging
-    # Only run if invoked by workflow_call or workflow_dispatch
-    if: >
-      github.event_name == 'workflow_call' ||
-      github.event_name == 'workflow_dispatch'
+    # Runs for both invocation modes:
+    #   - workflow_call from CI  -> github.event_name mirrors the CALLER event ('push')
+    #   - workflow_dispatch      -> github.event_name == 'workflow_dispatch'
+    # IMPORTANT: inside a called workflow github.event_name is the caller's event,
+    # NEVER the literal string 'workflow_call'. Conditions must not test for it.
     
     outputs:
       release_sha: ${{ steps.determine_sha.outputs.release_sha }}
-      ci_run_id: ${{ steps.validate_ci.outputs.ci_run_id }}
-      ci_run_url: ${{ steps.validate_ci.outputs.ci_run_url }}
+      ci_run_id: ${{ steps.determine_sha.outputs.ci_run_id }}
+      ci_run_url: ${{ steps.determine_sha.outputs.ci_run_url }}
     
     steps:
-      # FIX: Add checkout step so git commands work in validation
+      # Checkout so git reachability checks have a repository with full history
+      # (fetch-depth: 0 avoids shallow-clone false negatives on merge-base).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch full history for SHA reachability checks (avoid shallow clone)
           fetch-depth: 0
       
       - name: Determine and validate release SHA
         id: determine_sha
         env:
           GH_TOKEN: ${{ github.token }}
+          SERVER_URL: ${{ github.server_url }}
+          REPOSITORY: ${{ github.repository }}
+          THIS_REF: ${{ github.ref }}
+          THIS_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           
-          if [ "${{ github.event_name }}" = "workflow_call" ]; then
-            # Use the exact SHA from the calling CI workflow
+          EVENT="${{ github.event_name }}"
+          
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            # ===== MANUAL DISPATCH PATH — comprehensive validation =====
             RELEASE_SHA="${{ inputs.commit_sha }}"
-            echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
-            echo "✓ Release SHA from CI trigger: $RELEASE_SHA"
-          else
-            # Manual trigger — COMPREHENSIVE validation required
-            RELEASE_SHA="${{ inputs.commit_sha }}"
-            
             echo "Manual trigger: validating SHA $RELEASE_SHA"
             
             # 1. Validate SHA format (40 hex chars)
@@ -139,94 +144,104 @@ jobs:
               echo "  Expected: 40 hexadecimal characters"
               exit 1
             fi
+            echo "  ✓ SHA format valid"
             
-            # 2. Verify SHA exists in repository (FIX: now possible with checkout)
+            # 2. Verify SHA exists in repository
             if ! git cat-file -e "$RELEASE_SHA" 2>/dev/null; then
               echo "✗ SHA does not exist in repository: $RELEASE_SHA"
               exit 1
             fi
             echo "  ✓ SHA exists in repository"
             
-            # 3. Verify SHA is reachable from develop (FIX: now possible with checkout)
-            git fetch origin develop 2>/dev/null || true
-            if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/develop 2>/dev/null; then
+            # 3. Verify SHA is reachable from develop (populate origin/develop ref)
+            git fetch --force --no-tags origin '+develop:refs/remotes/origin/develop'
+            if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/develop; then
               echo "✗ SHA is not reachable from develop: $RELEASE_SHA"
               echo "  Only commits on the develop branch can be released"
               exit 1
             fi
             echo "  ✓ SHA is reachable from develop"
             
-            # 4. Find successful CI run for this SHA
+            # 4. Find a successful CI run for this exact SHA on develop
             echo "  Searching for successful CI run..."
             CI_RUNS=$(gh run list \
-              --workflow=CI \
+              --workflow=ci.yml \
               --branch=develop \
               --json databaseId,headSha,headBranch,status,conclusion \
               --limit 50)
             
-            # Find matching successful run
             MATCHING_RUN=$(echo "$CI_RUNS" | jq -r --arg sha "$RELEASE_SHA" '
-              .[] | select(.headSha == $sha and .conclusion == "success") | .databaseId' | head -1)
+              .[] | select(.headSha == $sha and .conclusion == "success" and .headBranch == "develop") | .databaseId' | head -1)
             
             if [ -z "$MATCHING_RUN" ]; then
-              echo "✗ No successful CI run found for SHA: $RELEASE_SHA"
-              echo "  The commit must have a passing CI run on the develop branch"
+              echo "✗ No successful CI run found on develop for SHA: $RELEASE_SHA"
+              echo "  Rejecting release: the commit must have a passing develop CI run"
               exit 1
             fi
-            echo "  ✓ Found successful CI run: $MATCHING_RUN"
-            
-            # 5. Verify CI run's head SHA matches exactly
-            CI_HEAD_SHA=$(echo "$CI_RUNS" | jq -r --arg run "$MATCHING_RUN" '
-              .[] | select(.databaseId == ($run | tonumber)) | .headSha')
-            
-            if [ "$CI_HEAD_SHA" != "$RELEASE_SHA" ]; then
-              echo "✗ CI run head SHA mismatch"
-              echo "  Expected: $RELEASE_SHA"
-              echo "  Got: $CI_HEAD_SHA"
-              exit 1
-            fi
-            echo "  ✓ CI run head SHA matches"
-            
-            # 6. Verify CI run's head branch is develop
-            CI_HEAD_BRANCH=$(echo "$CI_RUNS" | jq -r --arg run "$MATCHING_RUN" '
-              .[] | select(.databaseId == ($run | tonumber)) | .headBranch')
-            
-            if [ "$CI_HEAD_BRANCH" != "develop" ]; then
-              echo "✗ CI run is not from develop branch: $CI_HEAD_BRANCH"
-              exit 1
-            fi
-            echo "  ✓ CI run is from develop branch"
+            echo "  ✓ Found successful develop CI run: $MATCHING_RUN"
             
             echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
             echo "ci_run_id=$MATCHING_RUN" >> $GITHUB_OUTPUT
+            echo "ci_run_url=$SERVER_URL/$REPOSITORY/actions/runs/$MATCHING_RUN" >> $GITHUB_OUTPUT
             echo "✓ Manual SHA validation passed: $RELEASE_SHA"
+          else
+            # ===== AUTOMATED PATH — reusable workflow called by CI =====
+            # github.event_name here is the caller's event. For a legitimate
+            # develop release that is 'push'. Reject anything else (defense in depth:
+            # a PR or main-triggered caller must never reach this path).
+            if [ "$EVENT" != "push" ]; then
+              echo "✗ Automated release must originate from a push event; got '$EVENT'"
+              exit 1
+            fi
+            if [ "$THIS_REF" != "refs/heads/develop" ]; then
+              echo "✗ Automated release must target develop; got '$THIS_REF'"
+              exit 1
+            fi
+            if [ "$REPOSITORY" != "nabeel2323/scs-platform" ]; then
+              echo "✗ Unexpected repository context: $REPOSITORY"
+              exit 1
+            fi
+            
+            RELEASE_SHA="${{ inputs.commit_sha }}"
+            
+            # Exact-SHA binding: the input SHA must equal this run's own head SHA,
+            # i.e. the precise commit whose CI just succeeded.
+            if ! [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "✗ Invalid commit_sha input format: $RELEASE_SHA"
+              exit 1
+            fi
+            if [ "$RELEASE_SHA" != "$THIS_SHA" ]; then
+              echo "✗ commit_sha input does not match CI run head SHA"
+              echo "  input: $RELEASE_SHA"
+              echo "  run:   $THIS_SHA"
+              exit 1
+            fi
+            echo "  ✓ commit_sha matches the CI run head SHA ($RELEASE_SHA)"
+            
+            # Reachability guard against develop (defense in depth).
+            git fetch --force --no-tags origin '+develop:refs/remotes/origin/develop'
+            if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/develop; then
+              echo "✗ SHA is not reachable from develop: $RELEASE_SHA"
+              exit 1
+            fi
+            echo "  ✓ SHA is reachable from develop"
+            
+            echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
+            echo "ci_run_id=${{ inputs.ci_run_id }}" >> $GITHUB_OUTPUT
+            echo "ci_run_url=${{ inputs.ci_run_url }}" >> $GITHUB_OUTPUT
+            echo "✓ Automated release SHA accepted: $RELEASE_SHA"
+            echo "  CI Run: ${{ inputs.ci_run_id }}"
+            echo "  URL: ${{ inputs.ci_run_url }}"
           fi
       
-      - name: Validate CI run (workflow_call trigger)
-        id: validate_ci
-        if: github.event_name == 'workflow_call'
+      - name: Release audit metadata
         run: |
           set -euo pipefail
-          
-          CI_RUN_ID="${{ inputs.ci_run_id }}"
-          CI_RUN_URL="${{ inputs.ci_run_url }}"
-          CI_HEAD_SHA="${{ inputs.commit_sha }}"
-          
-          echo "ci_run_id=$CI_RUN_ID" >> $GITHUB_OUTPUT
-          echo "ci_run_url=$CI_RUN_URL" >> $GITHUB_OUTPUT
-          
-          echo "✓ CI run validation (workflow_call):"
-          echo "  Run ID: $CI_RUN_ID"
-          echo "  URL: $CI_RUN_URL"
-          echo "  Head SHA: $CI_HEAD_SHA"
-          echo ""
-          echo "  TRUST BOUNDARY: This workflow was invoked by CI after all jobs succeeded."
-          echo "  The CI workflow validated:"
-          echo "    - Event type: push to develop (not pull_request)"
-          echo "    - All CI jobs: lint, test, build, integration, contract"
-          echo "    - Branch: develop only"
-          echo ""
-          echo "  ✓ Reusable workflow pattern ensures trust without workflow_run"
+          echo "Release trigger audit:"
+          echo "  Trigger event: ${{ github.event_name }}"
+          echo "  Release SHA:   ${{ steps.determine_sha.outputs.release_sha }}"
+          echo "  CI Run ID:     ${{ steps.determine_sha.outputs.ci_run_id }}"
+          echo "  CI Run URL:    ${{ steps.determine_sha.outputs.ci_run_url }}"
       
       - name: Confirm develop release target
         run: |

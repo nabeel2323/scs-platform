@@ -1,21 +1,94 @@
 # Automated Staging Release Pipeline — Architecture v2.1 (Implemented)
 
-**Date:** 2026-11-03  
+**Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
 **Version:** 2.1 (Implemented)  
-**Status:** Production-Ready — Fully Implemented and Tested  
+**Status:** Pull Request under review — CI wiring corrected and verified locally. NOT production-ready and NOT an activated staging pipeline: the trigger/secret model has only been validated by an executable structural validator, typecheck, build and local tests. It has **not** yet completed a real CI run on `develop` followed by an authorized staging release, so full end-to-end verification is still outstanding.  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 
 ---
 
+## Final CI Wiring (authoritative — supersedes the `workflow_run` text below)
+
+This section describes the implementation **as it actually exists** on the branch after the
+CI-wiring correction. Historical sections later in this document still reference an earlier
+`workflow_run` design; where they conflict with this section, **this section is correct**.
+
+**Trigger architecture — reusable workflow, not `workflow_run`.**
+`workflow_run` was abandoned because the triggered workflow must exist on the repository's
+default branch to be discovered — incompatible with develop-only staging releases. CI now
+invokes `release.yml` as a **reusable workflow** via a job-level `uses:` in `ci.yml`:
+
+```yaml
+# ci.yml — the only automatic release path
+trigger-staging-release:
+  name: Trigger Staging Release
+  if: >
+    github.event_name == 'push' &&
+    github.ref == 'refs/heads/develop' &&
+    github.repository == 'nabeel2323/scs-platform'
+  needs: [lint, test-unit, test-integration, migration-gate, test-contract, build, mobile, container-build]
+  uses: ./.github/workflows/release.yml
+  with:
+    commit_sha: ${{ github.sha }}
+    ci_run_id: ${{ github.run_id }}
+    ci_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  secrets: inherit
+```
+
+Key facts a reviewer must know:
+
+- The call is **job-level `uses:`**. A reusable-workflow caller cannot declare `runs-on`, `steps`,
+  or `environment`, so `release.yml`'s caller here declares none.
+- `needs` lists the **8 mandatory develop gates**: `lint, test-unit, test-integration, migration-gate,
+  test-contract, build, mobile, container-build`. `boundary-lint` is advisory (its steps use
+  `continue-on-error`) and `k6-smoke` runs only on `main` — listing a develop-skipped job in `needs`
+  would cascade-skip the release, so it is deliberately excluded.
+- Inside the called workflow `github.event_name` mirrors the **caller's** event. For a develop push
+  it is `'push'`, **never** the literal string `'workflow_call'`. `release.yml` therefore branches on
+  `[ "$EVENT" = "workflow_dispatch" ]` (manual) vs the automated path, and the automated path
+  additionally re-asserts push/develop/repository identity as defense in depth.
+- **Staging secrets** are never passed through a `workflow_call.secrets` schema (that schema can
+  shadow environment secrets). Jobs that need them (`validate`, `database-release`, `deploy`,
+  `health-check`) declare `environment: staging` and resolve secrets from the environment directly;
+  the caller forwards the rest with `secrets: inherit`. Secret values are never printed.
+- Manual (`workflow_dispatch`) releases validate the input SHA is a 40-hex commit, exists, is
+  **reachable from `develop`**, and has an **exact successful CI run on `develop`** (`gh run list
+  --workflow=ci.yml --branch=develop` matched on `headSha` + `conclusion == success` + `headBranch
+  == develop`).
+
+**Preserved safeguards:** advisory lock (namespace 0x534353), single-step SSL lifecycle with a
+`cleanup_ssl` `trap` on EXIT/ERR/INT/TERM, `run_number`-based stale detection with an
+**allow-complete** policy (never aborts an in-flight migration), exact-SHA checkout, migration
+ledger verification (`verify-migration-ledger.mjs`, now resolved against the repo-root
+`infra/drizzle/migrations` — the same directory the real runner uses), Render `.commit.id`
+verification, readiness health check, and documented "migrations-succeeded-but-deploy-failed"
+recovery. No automatic database rollback is introduced.
+
+**Verification actually performed (local, non-destructive):**
+
+- Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
+  real YAML with js-yaml): **29/29 checks pass**.
+- Release-pipeline unit tests: **74 pass** (includes new `workflow-structure.spec.ts` and rewritten
+  trust-boundary/stale specs that read the real workflow files).
+- Migration-ledger integration tests against a disposable Testcontainers PostgreSQL: **7 pass**.
+- `tsc --noEmit`: **0 errors**. `nest build`: **success (431 files)**. ESLint on changed specs: **clean**.
+
+**What is NOT yet verified:** a real GitHub Actions CI run on `develop` invoking the reusable
+workflow end to end, and any authorized staging deployment. Staging secrets, Render configuration,
+and auto-deploy were not touched, and no staging migration/seed/deploy was executed. Treat this
+branch as reviewable code, not a live pipeline.
+
+---
+
 ## Executive Summary
 
-**Architecture v2.1 is fully implemented** as a GitHub Actions release orchestrator that automates the complete staging release pipeline. The workflow triggers after successful CI completion on the `develop` branch and executes a strict 12-step release sequence with comprehensive safety checks.
+**Architecture v2.1 is implemented** as a GitHub Actions release orchestrator that automates the complete staging release pipeline. CI invokes it as a **reusable workflow** (`workflow_call` via job-level `uses:`) after the mandatory develop gates succeed, and executes a strict 12-step release sequence with comprehensive safety checks. (See **Final CI Wiring** above — this supersedes the earlier `workflow_run` wording in the rest of this document.)
 
 **Key capabilities:**
-- ✅ Automated release after successful CI (workflow_run trigger)
-- ✅ Manual release support with explicit SHA specification
+- ✅ Automated release after successful CI (reusable-workflow `uses:` from the develop-push gate)
+- ✅ Manual release support with explicit SHA specification (workflow_dispatch)
 - ✅ Exact SHA verification (migrated code = deployed code)
 - ✅ Migration ledger verification (file system = database state)
 - ✅ SSL certificate security (file-based, restricted permissions, cleanup)
@@ -44,23 +117,43 @@
 
 ### Trigger Model
 
-**Automatic trigger:**
+> Superseded design note: this section originally documented a `workflow_run` trigger. The
+> implemented design invokes `release.yml` as a **reusable workflow** (`workflow_call`) from a
+> job-level `uses:` in `ci.yml`. `workflow_run` was rejected because the triggered workflow must be
+> present on the default branch to be discovered, which is incompatible with develop-only releases.
+
+**Automatic trigger** — `ci.yml` (a develop push that passed the mandatory gates calls the workflow):
 ```yaml
-on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [develop]
+trigger-staging-release:
+  if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.repository == 'nabeel2323/scs-platform'
+  needs: [lint, test-unit, test-integration, migration-gate, test-contract, build, mobile, container-build]
+  uses: ./.github/workflows/release.yml
+  with:
+    commit_sha: ${{ github.sha }}
+    ci_run_id: ${{ github.run_id }}
+    ci_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  secrets: inherit
 ```
 
-The release workflow triggers when the CI workflow completes successfully on the `develop` branch. This ensures:
+The release only runs after the mandatory develop gates succeed. This ensures:
 - Code quality gates pass before release
-- Exact SHA is captured from CI run (no race conditions)
+- Exact SHA is captured from the CI run context (`github.sha`), with no race conditions
 - Release is tied to validated code
 
-**Manual trigger:**
+**Manual trigger** — declared in `release.yml`:
 ```yaml
 on:
+  workflow_call:
+    inputs:
+      commit_sha:
+        required: true
+        type: string
+      ci_run_id:
+        required: true
+        type: string
+      ci_run_url:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       commit_sha:
@@ -69,7 +162,9 @@ on:
         type: string
 ```
 
-Manual trigger requires explicit SHA specification for authorized releases. The SHA must be a valid 40-character hexadecimal commit hash on the `develop` branch.
+Manual trigger requires an explicit SHA. It must be a valid 40-hex commit, reachable from `develop`,
+with an exact successful CI run on `develop`. `workflow_call` declares **inputs only** (no secrets
+schema); staging secrets resolve from `environment: staging`.
 
 ### High-Level Flow
 
@@ -80,7 +175,7 @@ Manual trigger requires explicit SHA specification for authorized releases. The 
 └─────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  Release Workflow Triggered (workflow_run)                   │
+│  Release Workflow Invoked (reusable workflow_call)           │
 │  (.github/workflows/release.yml)                             │
 │                                                              │
 │  Step 1-3: Validate Trigger                                  │
@@ -122,27 +217,28 @@ Manual trigger requires explicit SHA specification for authorized releases. The 
 
 **Implementation:**
 ```yaml
-- name: Determine release SHA
+- name: Determine and validate release SHA
   id: determine_sha
   run: |
-    if [ "${{ github.event_name }}" = "workflow_run" ]; then
-      RELEASE_SHA="${{ github.event.workflow_run.head_sha }}"
-    else
+    EVENT="${{ github.event_name }}"   # caller event: 'push' for a reusable call, or 'workflow_dispatch'
+    if [ "$EVENT" = "workflow_dispatch" ]; then
       RELEASE_SHA="${{ inputs.commit_sha }}"
-      # Validate SHA format
-      if ! [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-        echo "✗ Invalid SHA format"
-        exit 1
-      fi
+      # format ^[0-9a-f]{40}$, git cat-file -e, reachable from develop, exact successful develop CI run
+    else
+      # AUTOMATED path (reusable call from a develop push). Defense in depth:
+      [ "$EVENT" = "push" ] || { echo "✗ not a push"; exit 1; }
+      [ "${{ github.ref }}" = "refs/heads/develop" ] || { echo "✗ not develop"; exit 1; }
+      RELEASE_SHA="${{ inputs.commit_sha }}"
+      # assert RELEASE_SHA == this run's github.sha, then verify reachability from develop
     fi
     echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
 ```
 
 **Validation:**
-- Automatic trigger: SHA captured from `github.event.workflow_run.head_sha`
-- Manual trigger: SHA validated as 40-character hex string
-- Branch verification: CI run must be from `develop` branch
-- Conclusion verification: CI run must have `success` conclusion
+- Automated (reusable call): SHA is `github.sha` passed via `inputs.commit_sha`; `github.event_name` is the **caller's** event (`'push'`), never `'workflow_call'`
+- Manual (workflow_dispatch): SHA validated as 40-hex, existing, reachable from `develop`, with an exact successful develop CI run
+- Branch verification: automated path requires `refs/heads/develop`
+- Repository verification: pinned to `nabeel2323/scs-platform`
 
 **Failure behavior:** Workflow stops immediately. No database changes, no deployment.
 
@@ -745,7 +841,7 @@ Manual runner → Waits for lock → Acquires lock → Sees no pending → Relea
 
 **Symptoms:**
 - Lint, typecheck, or test failure in CI workflow
-- Release workflow not triggered (workflow_run requires success)
+- Release workflow not invoked (the reusable call is gated on all mandatory develop jobs succeeding)
 
 **Impact:**
 - No database changes
@@ -963,7 +1059,7 @@ Before merging migration to `develop`:
 **Trigger:** CI workflow completes successfully on `develop` branch
 
 **Automatic sequence:**
-1. Release workflow triggered (workflow_run)
+1. Release workflow invoked (reusable workflow_call from the gated develop push)
 2. Steps 1-3: Validate trigger and configuration
 3. Steps 4-7: Database migrations and seed
 4. Steps 8-10: Render deployment and verification
@@ -1291,7 +1387,7 @@ node apps/api/scripts/verify-migration-ledger.mjs
 | **Status** | Design (invalid) | Design | **Implemented** |
 | **Migration executor** | Render pre-deploy | GitHub Actions | GitHub Actions |
 | **Render plan required** | Paid | Free | **Free** |
-| **Trigger model** | Push to branch | Push to branch | **workflow_run** |
+| **Trigger model** | Push to branch | Push to branch | **Reusable workflow (`workflow_call`) from gated develop push** |
 | **SHA handling** | Branch tip | Branch tip | **Exact SHA** |
 | **SSL certificate** | Environment variable | Environment variable | **File-based (umask 077)** |
 | **Ledger verification** | None | Basic | **Comprehensive script** |
@@ -1309,34 +1405,31 @@ node apps/api/scripts/verify-migration-ledger.mjs
 
 ### Delivered Artifacts
 
-1. ✅ **Workflow file:** `.github/workflows/release.yml`
-   - 12-step release sequence
-   - workflow_run trigger
-   - Exact SHA checkout
-   - SSL certificate handling
-   - Migration ledger verification
-   - Render API integration
-   - Terminal state detection
-   - Health check verification
-   - Release summary publication
+1. ✅ **Reusable release workflow:** `.github/workflows/release.yml`
+   - `workflow_call` (inputs only, **no** secrets schema) + `workflow_dispatch` triggers
+   - Event discrimination on the caller event (`workflow_dispatch` vs automated `push`), never assuming `event_name == 'workflow_call'`
+   - Jobs that touch staging secrets declare `environment: staging`
+   - 12-step release sequence, exact SHA checkout, single-step SSL lifecycle with `cleanup_ssl` trap
+   - Migration ledger verification, Render API integration, terminal-state detection, health check, release summary
 
-2. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs`
-   - Ledger consistency verification
-   - Missing migration detection
-   - Orphaned log entry detection
-   - Error handling
+2. ✅ **CI caller:** `.github/workflows/ci.yml` → `trigger-staging-release`
+   - Job-level `uses: ./.github/workflows/release.yml` with `secrets: inherit`
+   - `if:` restricted to push + `refs/heads/develop` + repository identity
+   - `needs:` = the 8 mandatory develop gates (develop-skipped `k6-smoke` excluded)
 
-3. ✅ **Unit tests:** `apps/api/src/__tests__/unit/release-pipeline/`
-   - Workflow structure validation
-   - Render API interaction mocking
-   - Terminal state detection
-   - SHA verification logic
+3. ✅ **Executable structural validator:** `apps/api/scripts/validate-workflow-structure.mjs`
+   - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (29 checks)
 
-4. ✅ **Integration tests:** `apps/api/src/__tests__/integration/release-pipeline/`
-   - Migration ledger verification
-   - Disposable PostgreSQL (Testcontainers)
-   - Consistency detection
-   - Error handling
+4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs`
+
+5. ✅ **Unit tests:** `apps/api/src/__tests__/unit/release-pipeline/`
+   - `workflow-structure.spec.ts` (executes the validator against the real files)
+   - `workflow-trust-boundary.spec.ts` (asserts the real caller/release guards — PRs cannot trigger)
+   - `stale-release-detection.spec.ts` (asserts the real embedded runNumber / allow-complete step)
+   - `render-api.spec.ts`, `manual-sha-validation.spec.ts`, `ssl-certificate-handling.spec.ts`
+
+6. ✅ **Integration tests:** `apps/api/src/__tests__/integration/release-pipeline/`
+   - Migration ledger verification against disposable PostgreSQL (Testcontainers)
 
 5. ✅ **Architecture document:** This file (v2.1)
    - Implemented behavior (not proposed)
@@ -1503,10 +1596,10 @@ curl -H "Authorization: Bearer rnd_..." \
 
 ---
 
-**Document version:** 2.1 (Implemented)  
-**Last updated:** 2026-11-03  
+**Document version:** 2.1 (Implemented — CI wiring corrected)  
+**Last updated:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** Production-Ready — Fully Implemented and Tested  
+**Status:** PR under review — locally verified (validator 29/29, 74 unit + 7 integration tests, typecheck 0, build success). NOT production-ready / NOT activated: pending a real CI run on develop and an authorized staging release.  
 **Implementation branch:** feature/automated-release-pipeline-v2.1  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

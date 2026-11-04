@@ -26,11 +26,20 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
-// Resolve paths
+// Resolve paths.
+//
+// The migration SQL files live at the repository root (infra/drizzle/migrations),
+// which is where the real migration runner (apps/api/infra/drizzle/migrate-pg.ts)
+// reads them from. Resolve from this script's location (apps/api/scripts) up to the
+// repo root, then into infra/drizzle/migrations — the SAME directory the runner uses,
+// so the ledger this script verifies reflects the migrations that were actually applied.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const apiRoot = path.resolve(__dirname, '..');
-const migrationsDir = path.resolve(apiRoot, 'infra', 'drizzle', 'migrations');
+const migrationsDir = path.resolve(
+  __dirname,
+  '..', '..', '..',
+  'infra', 'drizzle', 'migrations',
+);
 
 async function main() {
   console.log('Migration Ledger Verification');

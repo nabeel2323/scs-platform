@@ -27,6 +27,12 @@ interface MockDeployState {
   };
 }
 
+// `Response.json()` is typed `Promise<unknown>` by the current @types/node. This spec
+// drives a local mock server whose response shapes are known here, so unwrap once.
+async function readJson(response: Response): Promise<any> {
+  return response.json();
+}
+
 describe('Render API Interaction', () => {
   let server: Server;
   let baseUrl: string;
@@ -104,14 +110,15 @@ describe('Render API Interaction', () => {
       });
 
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.id).toBe(MOCK_DEPLOY_ID);
 
       // Verify request format
       expect(requestLog).toHaveLength(1);
-      expect(requestLog[0].method).toBe('POST');
-      expect(requestLog[0].path).toBe(`/v1/services/${MOCK_SERVICE_ID}/deploys`);
-      expect(requestLog[0].body).toEqual({
+      const firstRequest = requestLog[0]!;
+      expect(firstRequest.method).toBe('POST');
+      expect(firstRequest.path).toBe(`/v1/services/${MOCK_SERVICE_ID}/deploys`);
+      expect(firstRequest.body).toEqual({
         commitId: MOCK_COMMIT_SHA,
         clearCache: 'do_not_clear',
       });
@@ -148,7 +155,7 @@ describe('Render API Interaction', () => {
         }),
       });
 
-      const data = await response.json();
+      const data = await readJson(response);
       
       // Validate response has required fields
       expect(data).toHaveProperty('id');
@@ -204,7 +211,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('live');
 
       // Verify polling logic would exit successfully
@@ -225,7 +232,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('failed');
 
       // Verify polling logic would exit with error
@@ -245,7 +252,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('build_failed');
     });
 
@@ -261,7 +268,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('update_failed');
     });
 
@@ -277,7 +284,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('pre_deploy_failed');
     });
 
@@ -293,7 +300,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('canceled');
     });
 
@@ -309,7 +316,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       expect(data.status).toBe('deactivated');
     });
 
@@ -357,7 +364,7 @@ describe('Render API Interaction', () => {
             },
           },
         );
-        const data = await response.json();
+        const data = await readJson(response);
         currentStatus = data.status;
         polls++;
       }
@@ -380,7 +387,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       
       // CRITICAL: Render API returns SHA in .commit.id, not .commitId
       expect(data.commit).toBeDefined();
@@ -405,7 +412,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       
       // CRITICAL: Render API returns SHA in .commit.id
       expect(data.commit.id).not.toBe(MOCK_COMMIT_SHA);
@@ -428,7 +435,7 @@ describe('Render API Interaction', () => {
         },
       );
 
-      const data = await response.json();
+      const data = await readJson(response);
       
       // Should handle missing commit.id gracefully
       const deployedSha = data.commit?.id;
@@ -581,7 +588,7 @@ describe('Render API Interaction', () => {
         );
         
         if (response.status >= 200 && response.status < 300) {
-          const data = await response.json();
+          const data = await readJson(response);
           if (data.status === 'live') {
             success = true;
             break;

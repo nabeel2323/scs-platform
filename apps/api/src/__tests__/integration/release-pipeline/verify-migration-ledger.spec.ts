@@ -12,45 +12,32 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { GenericContainer, Wait } from '@testcontainers/generic';
-import { StartedTestContainer } from '@testcontainers/core';
+import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import pg from 'pg';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 
 const { Pool } = pg;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const apiRoot = path.resolve(__dirname, '..', '..');
+// This spec lives at apps/api/src/__tests__/integration/release-pipeline/.
+// The ledger script lives at apps/api/scripts/, and the migration SQL files live at
+// the repository root (infra/drizzle/migrations) — the same directory the script reads.
+const apiRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const scriptPath = path.resolve(apiRoot, 'scripts', 'verify-migration-ledger.mjs');
-const migrationsDir = path.resolve(apiRoot, 'infra', 'drizzle', 'migrations');
+const migrationsDir = path.resolve(apiRoot, '..', '..', 'infra', 'drizzle', 'migrations');
 
 describe('Migration Ledger Verification', () => {
-  let container: StartedTestContainer;
+  let container: StartedPostgreSqlContainer;
   let pool: pg.Pool;
   let connectionString: string;
 
   beforeAll(async () => {
-    // Start disposable PostgreSQL
-    container = await new GenericContainer('postgres:16-alpine')
-      .withEnvironment({
-        POSTGRES_USER: 'test',
-        POSTGRES_PASSWORD: 'test',
-        POSTGRES_DB: 'test',
-      })
-      .withExposedPorts(5432)
-      .withWaitStrategy(Wait.forLogMessage('database system is ready to accept connections', 2))
-      .start();
-
-    const host = container.getHost();
-    const port = container.getMappedPort(5432);
-    connectionString = `postgresql://test:test@${host}:${port}/test`;
-
+    // Start disposable PostgreSQL (never staging/production credentials).
+    container = await new PostgreSqlContainer('postgres:16-alpine').start();
+    connectionString = container.getConnectionUri();
     pool = new Pool({ connectionString });
-  }, 60_000);
+  }, 120_000);
 
   afterAll(async () => {
     await pool?.end();
@@ -169,7 +156,11 @@ describe('Migration Ledger Verification', () => {
         DATABASE_URL: connectionString,
       };
 
-      const output = execSync(`node ${scriptPath}`, { env, encoding: 'utf8' });
+      // The script logs the summary to stdout and the orphan WARNING to stderr; merge
+      // both so this test asserts the exit-0-with-warning behavior end to end.
+      const run = spawnSync('node', [scriptPath], { env, encoding: 'utf8' });
+      const output = (run.stdout ?? '') + (run.stderr ?? '');
+      expect(run.status).toBe(0);
       expect(output).toContain('VERIFICATION PASSED');
       expect(output).toContain('WARNING: Orphaned _migration_log entries detected');
       expect(output).toContain('9999-orphaned-migration.sql');

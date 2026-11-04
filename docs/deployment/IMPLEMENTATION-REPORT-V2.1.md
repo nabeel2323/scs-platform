@@ -1,15 +1,48 @@
 # Implementation Report — Automated Staging Release Pipeline (Architecture v2.1)
 
-**Date:** 2026-11-03  
+**Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
-**Status:** ✅ Complete — All 12 Deliverables Produced  
+**Status:** 🟡 Pull Request under review — deliverables produced and locally verified. NOT production-ready and NOT an activated pipeline: pending a real CI run on `develop` and an authorized staging release.  
+
+---
+
+## CI Wiring Correction (final — authoritative)
+
+The original report described a `workflow_run` trigger. That design was replaced because a
+`workflow_run`-triggered workflow must exist on the repository default branch to be discovered,
+which is incompatible with develop-only releases. The **final** implementation invokes
+`release.yml` as a **reusable workflow** from `ci.yml`:
+
+- Caller: `trigger-staging-release` uses **job-level** `uses: ./.github/workflows/release.yml`
+  (no `runs-on`/`steps`/`environment`, which are illegal for reusable-workflow callers) and
+  `secrets: inherit`.
+- Caller `if:` = push + `refs/heads/develop` + `github.repository == 'nabeel2323/scs-platform'`.
+- Caller `needs:` = the **8 mandatory develop gates** `lint, test-unit, test-integration,
+  migration-gate, test-contract, build, mobile, container-build`. The develop-skipped `k6-smoke`
+  (main-only) is excluded so it cannot cascade-skip the release.
+- `release.yml` branches on the **caller's** event (`workflow_dispatch` vs automated `push`) and
+  never assumes `github.event_name == 'workflow_call'`. `workflow_call` declares inputs only (no
+  secrets schema); staging secrets resolve from jobs declaring `environment: staging`.
+
+Where this section conflicts with `workflow_run` wording later in this report, this section is correct.
+
+**Verification performed (local, non-destructive):** executable structural validator **29/29**;
+release-pipeline unit tests **74 pass** (now executing real workflow files, not hard-coded
+constants); migration-ledger integration tests **7 pass** (Testcontainers); `tsc --noEmit` **0
+errors**; `nest build` **success**; ESLint on changed specs **clean**. No staging secrets, Render
+configuration, migrations, seeds, or deployments were touched.
 
 ---
 
 ## Executive Summary
 
-Architecture v2.1 has been **fully implemented** as a production-ready automated staging release pipeline. The implementation delivers a GitHub Actions workflow that orchestrates the complete release sequence with comprehensive safety checks, security measures, and audit trails.
+Architecture v2.1 has been **implemented** as an automated staging release pipeline that invokes
+`release.yml` as a **reusable workflow** after the mandatory develop CI gates succeed. The
+implementation delivers a GitHub Actions workflow that orchestrates the complete release sequence
+with comprehensive safety checks, security measures, and audit trails. It is currently a **reviewable
+PR**, not a live/verified pipeline.
+
 
 **Key achievements:**
 - ✅ Strict 12-step release sequence implemented and tested
@@ -39,7 +72,7 @@ Architecture v2.1 has been **fully implemented** as a production-ready automated
 - `.github/workflows/release.yml` (473 lines)
   - 4 jobs: validate, database-release, deploy, health-check, summary
   - 12-step release sequence
-  - workflow_run trigger from CI
+  - Invoked as a reusable workflow (`workflow_call`) from ci.yml + manual `workflow_dispatch`
   - Manual trigger with SHA input
   - Concurrency control (serialized releases)
   - Environment-scoped secrets
@@ -128,19 +161,18 @@ Architecture v2.1 has been **fully implemented** as a production-ready automated
 
 ## Technical Decisions
 
-### Decision 1: workflow_run Trigger vs Push Trigger
+### Decision 1: Reusable Workflow (`workflow_call`) vs `workflow_run` vs Push Trigger
 
-**Choice:** Use `workflow_run` trigger from CI workflow
+**Choice:** Invoke `release.yml` as a **reusable workflow** from `ci.yml` via job-level `uses:`, gated by `needs:` on the mandatory develop jobs and an `if:` restricting to push + develop + repository identity.
 
 **Rationale:**
-- Ensures code quality gates pass before release
-- Captures exact SHA from CI run (no race conditions)
-- Ties release to validated code
-- Prevents releasing broken code
+- Ensures code quality gates pass before release (release only runs after `needs` succeed)
+- Captures the exact SHA from the CI run context (`github.sha`), no race conditions
+- Ties release to validated code, and the reusable call runs in the same event context as the develop push
 
-**Alternative considered:** Push trigger on `develop` branch
-- Rejected: Would release before CI validation
-- Rejected: Race condition between CI and release workflows
+**Alternatives considered:**
+- `workflow_run` trigger — **rejected**: the triggered workflow must exist on the repository's **default branch** to be discovered, which is incompatible with a develop-only release. It also runs in a detached context that complicates exact-SHA and trust-boundary checks.
+- Plain push trigger on `develop` — **rejected**: would release before CI validation.
 
 ---
 
@@ -248,13 +280,13 @@ Architecture v2.1 has been **fully implemented** as a production-ready automated
 
 ### Unit Tests
 
-**Workflow structure validation:**
-- ✅ YAML syntax is valid
-- ✅ All 12 required steps are present
-- ✅ Trigger configuration is correct (workflow_run + workflow_dispatch)
+**Workflow structure validation (executable validator — 29/29 checks pass):**
+- ✅ YAML parses (js-yaml)
+- ✅ Reusable-workflow wiring correct: job-level `uses:` from ci.yml, no step-level invocation, caller declares no `steps`/`runs-on`/`environment`
+- ✅ Trigger configuration is correct (`workflow_call` inputs + `workflow_dispatch`; no `workflow_run`, and never assumes `event_name == 'workflow_call'`)
 - ✅ Concurrency control is configured
-- ✅ Environment-scoped secrets are referenced
-- ✅ Job dependencies are correct
+- ✅ Staging secret jobs declare `environment: staging`; `workflow_call` has no secrets schema; caller uses `secrets: inherit`
+- ✅ `needs` = the 8 mandatory develop gates, excluding the develop-skipped `k6-smoke`
 - ✅ Permissions are least-privilege
 - ✅ SSL certificate handling is secure
 - ✅ Exact SHA checkout is used
@@ -700,28 +732,30 @@ pnpm --filter @scs/api test:integration -- src/__tests__/integration/release-pip
 
 ## Conclusion
 
-Architecture v2.1 has been **successfully implemented** as a production-ready automated staging release pipeline. All 12 required deliverables have been produced, tested, and documented.
+Architecture v2.1 has been **implemented** as an automated staging release pipeline that invokes
+`release.yml` as a reusable workflow after the mandatory develop CI gates succeed. The deliverables
+have been produced and **locally verified**, but this is a **reviewable pull request, not a
+verified or activated pipeline** — it has not yet completed a real CI run on `develop` followed by
+an authorized staging release.
 
-**Key achievements:**
+**Key achievements (locally verified):**
+- ✅ Reusable-workflow trigger wired correctly (job-level `uses:`, `secrets: inherit`, develop-push gate)
+- ✅ Executable structural validator 29/29; 74 unit + 7 integration tests pass; typecheck 0; build success
 - ✅ Strict 12-step release sequence with comprehensive safety checks
 - ✅ Exact SHA verification prevents code/schema mismatch
-- ✅ SSL certificate security with file-based handling
-- ✅ Migration ledger verification ensures database consistency
+- ✅ SSL certificate security with file-based handling and single-step lifecycle + trap
+- ✅ Migration ledger verification against the real runner's migrations directory
 - ✅ Terminal state detection for all 7 deployment states
-- ✅ Comprehensive test coverage (unit + integration)
-- ✅ Complete documentation (implemented behavior)
-- ✅ Operational runbook with failure modes and recovery
-- ✅ Security architecture review completed
-- ✅ Cost analysis within free tier
 
-**Next steps:**
-1. Configure GitHub environment and secrets
-2. Disable Render auto-deploy
-3. Test workflow with manual trigger
-4. Monitor first automatic release
+**Next steps (not yet done):**
+1. Review and merge the PR to `develop`
+2. Confirm a real CI run on `develop` invokes the reusable workflow end to end
+3. Configure GitHub `staging` environment secrets/variables and disable Render auto-deploy (owner action)
+4. Perform a supervised manual release and the first automatic release; monitor
 5. Iterate based on operational experience
 
-**Recommendation:** **APPROVE FOR DEPLOYMENT** — Architecture v2.1 is production-ready.
+**Recommendation:** **Ready for code review.** Do NOT treat as production-ready until steps 2–4
+(real CI on develop + authorized staging release) succeed.
 
 ---
 

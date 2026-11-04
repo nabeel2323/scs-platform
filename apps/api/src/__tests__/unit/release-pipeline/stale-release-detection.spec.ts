@@ -1,283 +1,76 @@
 /**
- * Stale Release Detection — Concurrency Tests
+ * Stale Release Detection — Executable Tests
  *
- * Tests the stale-release protection mechanism:
- * - GitHub concurrency behavior (one-running/one-pending, not FIFO)
- * - Stale release detection before database mutation
- * - Pending run replacement
- * - Abort without mutation when superseded
+ * The authoritative stale-release logic is embedded in release.yml (the
+ * "Check for stale release (pre-mutation safety)" step in the database-release job).
+ * These tests read that REAL step from the workflow file and assert its invariants:
+ *   1. Runs are ordered by monotonic `runNumber` (not wall-clock `createdAt`).
+ *   2. A newer queued release is detected via `select(.runNumber > $current)`.
+ *   3. Policy is "allow-complete": the step must NOT abort (no `exit 1`) when a newer
+ *      run is queued, because an in-flight migration must finish for consistency.
+ *   4. The check runs BEFORE any database mutation (pre-mutation safety ordering).
  *
- * These tests validate that a stale release is rejected BEFORE any
- * staging database mutation occurs.
+ * @see .github/workflows/release.yml (job: database-release)
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-describe('Stale Release Detection', () => {
-  describe('GitHub concurrency behavior', () => {
-    it('should document that GitHub concurrency is NOT FIFO', () => {
-      // GitHub concurrency: one running + one pending
-      // If a third run is queued while one is pending, the older pending
-      // run is REPLACED, not queued. This means we cannot claim FIFO.
-      
-      const concurrencyModel = {
-        running: 1,
-        pending: 1,
-        queued: 0, // No queue beyond pending
-        fifo: false,
-      };
-      
-      expect(concurrencyModel.fifo).toBe(false);
-      expect(concurrencyModel.running + concurrencyModel.pending).toBe(2);
-    });
+// Spec lives at apps/api/src/__tests__/unit/release-pipeline/.
+const repoRoot = path.resolve(__dirname, '..', '..', '..', '..', '..', '..');
+const relPath = path.join(repoRoot, '.github', 'workflows', 'release.yml');
+const relRaw = fs.readFileSync(relPath, 'utf8');
 
-    it('should document pending run replacement behavior', () => {
-      // Scenario:
-      // 1. Run A starts (running)
-      // 2. Run B is queued (pending)
-      // 3. Run C is queued → Run B is REPLACED by Run C (pending)
-      // 4. Run A completes
-      // 5. Run C starts (not Run B!)
-      
-      const runs = [
-        { id: 'A', status: 'running', createdAt: 1000 },
-        { id: 'B', status: 'pending', createdAt: 2000 },
-      ];
-      
-      // Run C is queued, replacing Run B
-      const runC = { id: 'C', status: 'pending', createdAt: 3000 };
-      
-      // Run B is replaced (not queued behind C)
-      const runBReplaced = true;
-      
-      expect(runBReplaced).toBe(true);
-      expect(runs.find((r) => r.id === 'B')?.status).toBe('pending');
-    });
+/** Extract a single step's YAML block (from its `- name:` up to the next `- name:`). */
+function extractStep(raw: string, stepName: string): string {
+  const lines = raw.split(/\r?\n/);
+  const start = lines.findIndex((l) => l.includes('- name:') && l.includes(stepName));
+  if (start === -1) throw new Error(`Workflow step not found: ${stepName}`);
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^\s*-\s+name:/.test(lines[i] ?? '')) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n');
+}
+
+const staleStep = extractStep(relRaw, 'Check for stale release');
+
+describe('Stale release detection (real workflow step)', () => {
+  it('orders runs by monotonic runNumber, not a fetched createdAt field', () => {
+    expect(staleStep).toMatch(/--json databaseId,runNumber/);
+    expect(staleStep).toMatch(/select\(\.runNumber > \$current\)/);
+    // createdAt must never be selected as a field or used as an ordering key.
+    expect(staleStep).not.toMatch(/--json[^\n]*createdAt/);
+    expect(staleStep).not.toMatch(/select\(\.createdAt/);
   });
 
-  describe('Stale release detection logic', () => {
-    it('should detect stale release before database mutation', () => {
-      const currentRunId = 100;
-      const currentRunSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-      
-      // Simulate queued runs
-      const queuedRuns = [
-        { databaseId: 101, headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', createdAt: '2026-11-03T21:00:00Z' },
-        { databaseId: 102, headSha: 'cccccccccccccccccccccccccccccccccccccccc', createdAt: '2026-11-03T21:05:00Z' },
-      ];
-      
-      // Check if any newer eligible release is queued
-      const newerRun = queuedRuns.find(
-        (run) => run.databaseId !== currentRunId && run.createdAt > '2026-11-03T20:00:00Z',
-      );
-      
-      // Stale release detected
-      const isStale = newerRun !== undefined;
-      expect(isStale).toBe(true);
-      
-      // Should abort WITHOUT database mutation
-      const shouldAbort = isStale;
-      expect(shouldAbort).toBe(true);
-    });
-
-    it('should proceed if no newer release is queued', () => {
-      const currentRunId = 102; // Latest run
-      const currentRunSha = 'cccccccccccccccccccccccccccccccccccccccc';
-      
-      // Simulate queued runs (none newer than current)
-      const queuedRuns = [
-        { databaseId: 100, headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', createdAt: '2026-11-03T20:00:00Z' },
-        { databaseId: 101, headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', createdAt: '2026-11-03T20:05:00Z' },
-      ];
-      
-      // Check if any newer eligible release is queued
-      const newerRun = queuedRuns.find(
-        (run) => run.databaseId !== currentRunId && run.createdAt > '2026-11-03T21:00:00Z',
-      );
-      
-      // No stale release detected
-      const isStale = newerRun !== undefined;
-      expect(isStale).toBe(false);
-      
-      // Should proceed with database mutation
-      const shouldProceed = !isStale;
-      expect(shouldProceed).toBe(true);
-    });
-
-    it('should exclude current run from stale check', () => {
-      const currentRunId = 101;
-      
-      const queuedRuns = [
-        { databaseId: 101, headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', createdAt: '2026-11-03T21:00:00Z' }, // Current run
-        { databaseId: 102, headSha: 'cccccccccccccccccccccccccccccccccccccccc', createdAt: '2026-11-03T21:05:00Z' },
-      ];
-      
-      // Filter out current run
-      const otherRuns = queuedRuns.filter((run) => run.databaseId !== currentRunId);
-      
-      expect(otherRuns).toHaveLength(1);
-      expect(otherRuns[0].databaseId).toBe(102);
-    });
+  it('queries only queued runs for the release workflow', () => {
+    expect(staleStep).toMatch(/--workflow=release\.yml/);
+    expect(staleStep).toMatch(/--status=queued/);
   });
 
-  describe('Database mutation safety', () => {
-    it('should abort before any database mutation if stale', () => {
-      const isStale = true;
-      
-      // Safety: No migrations or seeds were executed
-      const migrationsExecuted = false;
-      const seedExecuted = false;
-      
-      // If stale, abort immediately
-      if (isStale) {
-        expect(migrationsExecuted).toBe(false);
-        expect(seedExecuted).toBe(false);
-      }
-    });
-
-    it('should document that stale release abort is pre-mutation', () => {
-      // The stale check happens BEFORE:
-      // - Migration execution
-      // - Seed execution
-      // - Ledger verification
-      
-      const executionOrder = [
-        'stale_check',
-        'checkout',
-        'install_dependencies',
-        'prepare_ssl',
-        'run_migrations',
-        'run_seed',
-        'verify_ledger',
-      ];
-      
-      const staleCheckIndex = executionOrder.indexOf('stale_check');
-      const migrationIndex = executionOrder.indexOf('run_migrations');
-      
-      expect(staleCheckIndex).toBeLessThan(migrationIndex);
-      expect(staleCheckIndex).toBe(0); // First step
-    });
-
-    it('should ensure newer release handles database update', () => {
-      const currentRunId = 100;
-      const newerRunId = 102;
-      const isStale = true;
-      
-      if (isStale) {
-        // Current run aborts
-        const currentRunAborted = true;
-        expect(currentRunAborted).toBe(true);
-        
-        // Newer run will handle the database update
-        const newerRunWillHandle = true;
-        expect(newerRunWillHandle).toBe(true);
-        
-        // No duplicate mutations
-        const duplicateMutations = false;
-        expect(duplicateMutations).toBe(false);
-      }
-    });
+  it('does NOT abort when a newer release is queued (allow-complete policy)', () => {
+    // Pre-mutation safety must finish the current migration for consistency, so the
+    // newer-queued branch warns but never exits non-zero.
+    expect(staleStep).not.toMatch(/exit 1/);
+    expect(staleStep).toMatch(/Allow current migration to complete/);
+    expect(staleStep).toMatch(/No abort/);
   });
 
-  describe('Concurrency scenarios', () => {
-    it('should handle scenario: single workflow run', () => {
-      const runningRuns = 1;
-      const pendingRuns = 0;
-      
-      expect(runningRuns).toBe(1);
-      expect(pendingRuns).toBe(0);
-      
-      // No stale check needed (only one run)
-      const isStale = false;
-      expect(isStale).toBe(false);
-    });
-
-    it('should handle scenario: two concurrent runs (race condition)', () => {
-      const runningRuns = 1;
-      const pendingRuns = 1;
-      
-      expect(runningRuns + pendingRuns).toBe(2);
-      
-      // Pending run must check for stale state
-      const pendingRunId = 101;
-      const queuedRuns = [
-        { databaseId: 101, headSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', createdAt: '2026-11-03T21:00:00Z' },
-      ];
-      
-      // No newer run, so not stale
-      const newerRun = queuedRuns.find(
-        (run) => run.databaseId !== pendingRunId && run.createdAt > '2026-11-03T21:00:00Z',
-      );
-      
-      const isStale = newerRun !== undefined;
-      expect(isStale).toBe(false);
-    });
-
-    it('should handle scenario: pending run replaced by newer run', () => {
-      // Run A is running
-      // Run B is pending
-      // Run C is queued → Run B is replaced
-      
-      const runA = { id: 'A', status: 'running' };
-      const runB = { id: 'B', status: 'replaced' }; // Replaced by C
-      const runC = { id: 'C', status: 'pending' };
-      
-      expect(runA.status).toBe('running');
-      expect(runB.status).toBe('replaced');
-      expect(runC.status).toBe('pending');
-      
-      // Run B never executes database mutations
-      const runBMutationsExecuted = false;
-      expect(runBMutationsExecuted).toBe(false);
-    });
-
-    it('should handle scenario: workflow run + manual migration', () => {
-      // GitHub Actions workflow is running
-      // Manual migration is attempted (e.g., via CLI)
-      
-      const workflowRunning = true;
-      const manualMigrationAttempted = true;
-      
-      // Advisory lock prevents concurrent migrations
-      const advisoryLockHeld = workflowRunning;
-      expect(advisoryLockHeld).toBe(true);
-      
-      // Manual migration waits for lock
-      const manualMigrationWaits = true;
-      expect(manualMigrationWaits).toBe(true);
-    });
+  it('documents the GitHub one-running + one-pending (non-FIFO) concurrency model', () => {
+    expect(staleStep).toMatch(/one-running \+ one-pending/);
+    expect(staleStep).toMatch(/NOT FIFO/);
   });
 
-  describe('Safety guarantees', () => {
-    it('should guarantee no concurrent migrations via advisory lock', () => {
-      const advisoryLockNamespace = 0x534353; // "SCS"
-      const advisoryLockKey = 1;
-      
-      // Advisory lock ensures only one migration runs at a time
-      const lockHeld = true;
-      const concurrentMigrations = false;
-      
-      expect(lockHeld).toBe(true);
-      expect(concurrentMigrations).toBe(false);
-    });
-
-    it('should guarantee stale release aborts before mutation', () => {
-      const isStale = true;
-      const mutationExecuted = false;
-      
-      if (isStale) {
-        expect(mutationExecuted).toBe(false);
-      }
-    });
-
-    it('should guarantee exact SHA checkout prevents race conditions', () => {
-      const releaseSha = 'b11638b22150c44e6287b89ef580374f83a8180e';
-      const branchTip = 'cccccccccccccccccccccccccccccccccccccccc'; // New commit pushed
-      
-      // Workflow checks out exact SHA, not branch tip
-      const checkedOutSha = releaseSha;
-      expect(checkedOutSha).toBe(releaseSha);
-      expect(checkedOutSha).not.toBe(branchTip);
-    });
+  it('runs BEFORE the database-mutation step in the database-release job', () => {
+    const staleIdx = relRaw.indexOf('Check for stale release');
+    const migrateIdx = relRaw.indexOf('Execute database operations with SSL certificate');
+    expect(staleIdx).toBeGreaterThan(-1);
+    expect(migrateIdx).toBeGreaterThan(-1);
+    expect(staleIdx).toBeLessThan(migrateIdx);
   });
 });

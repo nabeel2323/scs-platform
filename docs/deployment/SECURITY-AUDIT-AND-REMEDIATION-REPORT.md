@@ -1,25 +1,40 @@
 # Security Audit and Remediation Report — Architecture v2.1
 
-**Date:** 2026-11-03  
+**Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
 **Audit Type:** Independent Security and Correctness Audit  
-**Status:** ✅ Complete — All Critical Defects Fixed  
+**Status:** 🟡 Defects remediated and locally verified; PR under review. NOT an activated/production pipeline — a real CI run on `develop` and an authorized staging release are still pending.  
+
+---
+
+## CI Wiring Correction — effect on the trust boundary (authoritative)
+
+This audit originally assumed a `workflow_run` trigger. The final implementation invokes
+`release.yml` as a **reusable workflow** from `ci.yml` (job-level `uses:`, `secrets: inherit`). The
+**security principle is unchanged** — a pull request must never reach the staging release path or
+obtain staging secrets — but the enforcement mechanism is now:
+
+1. **CI caller gate (primary):** `if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.repository == 'nabeel2323/scs-platform'` plus `needs:` on the mandatory develop jobs. A `pull_request` event never satisfies the `if`, so the reusable workflow is never invoked from PR CI.
+2. **Release-side defense in depth:** inside the called workflow `github.event_name` mirrors the **caller** event; the automated path re-asserts `push` + `refs/heads/develop` + repository identity and never assumes `event_name == 'workflow_call'`.
+3. **Secret scoping:** staging secrets resolve only from jobs declaring `environment: staging`; `workflow_call` declares inputs only (no secrets schema), so PR-context tokens cannot surface staging secrets.
+
+Where the "workflow_run" wording below conflicts with this section, this section is correct.
 
 ---
 
 ## Executive Summary
 
-An independent audit of the Architecture v2.1 implementation identified **7 critical security defects** and **10 correctness issues**. All defects have been remediated and comprehensive tests have been added to prevent regression.
+An independent audit of the Architecture v2.1 implementation identified **7 critical security defects** and **10 correctness issues**. All defects have been remediated and comprehensive tests have been added to prevent regression. The trust-boundary remediation (Defect 2) was subsequently re-expressed for the reusable-workflow trigger — see the correction section above.
 
 **Key findings:**
 - ❌ Manual SHA validation was completely missing (BLOCKING)
-- ❌ workflow_run trust boundary not enforced
+- ❌ PR-to-staging trust boundary not enforced (originally framed as workflow_run)
 - ❌ Concurrency model incorrectly claimed FIFO behavior
 - ❌ Render API SHA verification used wrong field
 - ❌ SSL certificate cleanup incomplete
 - ❌ Render API error handling weak
 - ❌ Migration ledger script path incorrect
 
-**All defects fixed and tested.**
+**All defects fixed and locally tested.**
 
 ---
 
@@ -57,32 +72,30 @@ Added comprehensive 6-step validation:
 
 ---
 
-### Defect 2: workflow_run Trust Boundary Not Enforced
+### Defect 2: PR-to-Staging Trust Boundary Not Enforced
 
 **Severity:** CRITICAL  
-**Location:** `.github/workflows/release.yml` lines 99-120  
+**Location:** `.github/workflows/ci.yml` (caller) + `.github/workflows/release.yml` (`determine_sha`)  
 
 **Issue:**
-The workflow_run trigger only validated the branch name but did NOT verify:
-- Workflow name is exactly "CI"
-- Event type is "push" (not "pull_request")
-- Conclusion is "success"
+The original design (a `workflow_run` trigger) validated only the branch name and did not prove
+that the releasing run originated from a **push to develop on this repository**. A pull-request
+context could, in principle, drive a release, violating the boundary between PR validation and
+staging deployment.
 
 **Impact:**
-PR-triggered CI runs could obtain staging environment secrets and trigger releases, violating the security boundary between PR validation and production deployment.
+PR-triggered CI runs could obtain staging environment secrets and trigger releases, violating the
+security boundary between PR validation and production deployment.
 
-**Fix Applied:**
-Added comprehensive trust boundary validation:
-1. Workflow name must be exactly "CI"
-2. Event type must be "push" (reject "pull_request", "workflow_dispatch", "schedule")
-3. Branch must be "develop"
-4. Conclusion must be "success"
-5. Head SHA format validation
+**Fix Applied (reusable-workflow model):**
+1. The `ci.yml` caller is gated by `if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && github.repository == 'nabeel2323/scs-platform'` — a `pull_request` never satisfies it, so the reusable workflow is never invoked from PR CI.
+2. `needs:` on the mandatory develop jobs ensures the release runs only after those gates succeed.
+3. Defense in depth in `release.yml`: the automated path re-asserts push/develop/repository and never assumes `event_name == 'workflow_call'`; the manual path requires the SHA be reachable from `develop` with an exact successful develop CI run.
+4. Staging secrets resolve only from `environment: staging`; `workflow_call` carries inputs only (no secrets schema) and the caller forwards with `secrets: inherit`.
 
 **Test Coverage:**
-- `apps/api/src/__tests__/unit/release-pipeline/workflow-trust-boundary.spec.ts`
-- Tests all trust boundary checks
-- Documents that PR-triggered runs cannot access staging secrets
+- `apps/api/src/__tests__/unit/release-pipeline/workflow-trust-boundary.spec.ts` (asserts the real caller `if` and release guards against the actual workflow files)
+- `apps/api/src/__tests__/unit/release-pipeline/workflow-structure.spec.ts` (executable structural validator over the real YAML)
 
 ---
 
@@ -387,14 +400,14 @@ fi
 - SHA must exist, be reachable from develop, have successful CI
 - CI run head SHA and branch must match
 
-✅ **workflow_run trust boundary is enforced**
-- Only push events to develop are trusted
-- PR-triggered runs cannot access staging secrets
-- Workflow name must be exactly "CI"
+✅ **PR-to-staging trust boundary is enforced (reusable-workflow model)**
+- The `ci.yml` caller `if:` requires push + `refs/heads/develop` + repository identity; PR CI never invokes the release
+- The release automated path re-asserts push/develop/repository as defense in depth
+- Staging secrets resolve only from `environment: staging`; no caller secrets schema
 
-✅ **Stale release protection implemented**
-- Explicit check before any database mutation
-- Abort without mutation if superseded
+✅ **Stale release protection implemented (allow-complete policy)**
+- Explicit check before any database mutation, ordered by monotonic `runNumber`
+- A newer queued run is reported but does NOT abort an in-flight migration (consistency)
 - Newer release handles database update
 
 ✅ **SSL certificate handling is secure**
@@ -462,18 +475,20 @@ Before first run, the following MUST be configured manually:
 
 ## Conclusion
 
-**All critical security defects have been fixed and tested.**
+**All critical security defects have been fixed and locally tested.**
 
-The implementation is now production-ready pending manual configuration of GitHub secrets and Render settings.
+The implementation is a **reviewable pull request**, not a production-ready or activated pipeline.
+Real end-to-end verification still requires a CI run on `develop` invoking the reusable workflow and
+an authorized staging release after the owner configures GitHub secrets and Render settings.
 
 **Key achievements:**
 - ✅ Manual SHA validation (6-step comprehensive check)
-- ✅ workflow_run trust boundary (reject PR-triggered runs)
-- ✅ Stale release protection (pre-mutation check)
-- ✅ SSL certificate security (umask 077, trap handler)
+- ✅ PR-to-staging trust boundary via the reusable-workflow caller gate + release defense-in-depth
+- ✅ Stale release protection (pre-mutation check, allow-complete)
+- ✅ SSL certificate security (umask 077, single-step lifecycle + trap handler)
 - ✅ Render API error handling (JSON validation, field checks)
 - ✅ SHA verification (correct .commit.id field)
-- ✅ Comprehensive test coverage (1,200+ lines)
+- ✅ Executable structural validator (29 checks) + rewritten real-file tests
 - ✅ Complete documentation (security review, failure modes)
 
 **Recommendation:** APPROVE FOR DEPLOYMENT after manual prerequisites are configured.
