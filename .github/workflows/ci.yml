@@ -485,3 +485,31 @@ jobs:
           docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
           docker network rm ci-smoke-net 2>/dev/null || true
           docker rmi scs-api:ci-test 2>/dev/null || true
+
+  # ── Staging Release (develop push only, after all CI jobs succeed) ─────
+  # CRITICAL: This job invokes release.yml as a REUSABLE WORKFLOW.
+  # Architecture: workflow_call replaces workflow_run to avoid the
+  # default-branch trigger requirement. Release only runs after verified
+  # CI success on develop branch.
+  trigger-staging-release:
+    name: Trigger Staging Release
+    runs-on: ubuntu-latest
+    # FIX: Only trigger on push to develop (never PRs, never main)
+    if: >
+      github.event_name == 'push' && 
+      github.ref == 'refs/heads/develop' &&
+      github.repository == 'nabeel2323/scs-platform'
+    needs: [lint, test-unit, test-integration, build]
+    environment: staging
+    
+    steps:
+      - name: Validate CI completion and invoke release
+        uses: ./.github/workflows/release.yml
+        with:
+          commit_sha: ${{ github.sha }}
+          ci_run_id: ${{ github.run_id }}
+          ci_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        secrets:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}

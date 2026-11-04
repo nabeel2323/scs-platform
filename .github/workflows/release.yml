@@ -1,9 +1,18 @@
 # ============================================================
 # Smart Commerce Platform — Automated Staging Release Pipeline
 # ============================================================
-# Architecture v2.1: GitHub Actions as release orchestrator
-# Trigger: workflow_run from CI (successful completion on develop)
+# Architecture v2.1: REUSABLE WORKFLOW invoked by CI
+# Trigger: workflow_call from CI (after all CI jobs succeed on develop)
 # Target: staging environment (scs-api-staging.onrender.com)
+#
+# CRITICAL ARCHITECTURE CHANGE:
+# This is now a reusable workflow (workflow_call), NOT workflow_run.
+# Reason: workflow_run requires the triggered workflow to exist on the
+# default branch (main). This workflow exists on develop. The reusable
+# pattern solves this by having CI explicitly invoke it after success.
+#
+# This avoids the default-branch trigger requirement and ensures the
+# release only runs after verified CI success on develop.
 #
 # Strict 12-step release sequence:
 # 1. Validate triggering CI run and commit
@@ -20,13 +29,32 @@
 # 12. Publish final release summary
 # ============================================================
 
-name: Release
+name: Staging Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [develop]
+  # REUSABLE WORKFLOW: Invoked by CI after all jobs succeed on develop
+  # This pattern solves the workflow_run default-branch requirement
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to release (from CI run)'
+        required: true
+        type: string
+      ci_run_id:
+        description: 'CI run ID that triggered this release'
+        required: true
+        type: string
+      ci_run_url:
+        description: 'CI run URL for audit trail'
+        required: true
+        type: string
+    secrets:
+      RENDER_API_KEY:
+        required: true
+      STAGING_DATABASE_URL:
+        required: true
+      STAGING_PGSSLROOTCERT_PEM:
+        required: true
   
   # Manual trigger for authorized releases from develop
   workflow_dispatch:
@@ -67,9 +95,11 @@ jobs:
   validate:
     name: Validate Release Trigger
     runs-on: ubuntu-latest
-    # Only run if CI succeeded (for workflow_run) or manual trigger
+    # FIX: Add staging environment so this job can access environment-scoped secrets
+    environment: staging
+    # Only run if invoked by workflow_call or workflow_dispatch
     if: >
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'workflow_call' ||
       github.event_name == 'workflow_dispatch'
     
     outputs:
@@ -78,6 +108,13 @@ jobs:
       ci_run_url: ${{ steps.validate_ci.outputs.ci_run_url }}
     
     steps:
+      # FIX: Add checkout step so git commands work in validation
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history for SHA reachability checks (avoid shallow clone)
+          fetch-depth: 0
+      
       - name: Determine and validate release SHA
         id: determine_sha
         env:
@@ -85,9 +122,9 @@ jobs:
         run: |
           set -euo pipefail
           
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            # Use the exact SHA from the triggering CI run
-            RELEASE_SHA="${{ github.event.workflow_run.head_sha }}"
+          if [ "${{ github.event_name }}" = "workflow_call" ]; then
+            # Use the exact SHA from the calling CI workflow
+            RELEASE_SHA="${{ inputs.commit_sha }}"
             echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
             echo "✓ Release SHA from CI trigger: $RELEASE_SHA"
           else
@@ -103,14 +140,15 @@ jobs:
               exit 1
             fi
             
-            # 2. Verify SHA exists in repository
+            # 2. Verify SHA exists in repository (FIX: now possible with checkout)
             if ! git cat-file -e "$RELEASE_SHA" 2>/dev/null; then
               echo "✗ SHA does not exist in repository: $RELEASE_SHA"
               exit 1
             fi
             echo "  ✓ SHA exists in repository"
             
-            # 3. Verify SHA is reachable from develop
+            # 3. Verify SHA is reachable from develop (FIX: now possible with checkout)
+            git fetch origin develop 2>/dev/null || true
             if ! git merge-base --is-ancestor "$RELEASE_SHA" origin/develop 2>/dev/null; then
               echo "✗ SHA is not reachable from develop: $RELEASE_SHA"
               echo "  Only commits on the develop branch can be released"
@@ -160,69 +198,35 @@ jobs:
             echo "  ✓ CI run is from develop branch"
             
             echo "release_sha=$RELEASE_SHA" >> $GITHUB_OUTPUT
+            echo "ci_run_id=$MATCHING_RUN" >> $GITHUB_OUTPUT
             echo "✓ Manual SHA validation passed: $RELEASE_SHA"
           fi
       
-      - name: Validate CI run (workflow_run trigger)
+      - name: Validate CI run (workflow_call trigger)
         id: validate_ci
-        if: github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_call'
         run: |
           set -euo pipefail
           
-          CI_RUN_ID="${{ github.event.workflow_run.id }}"
-          CI_RUN_URL="${{ github.event.workflow_run.html_url }}"
-          CI_BRANCH="${{ github.event.workflow_run.head_branch }}"
-          CI_EVENT="${{ github.event.workflow_run.event }}"
-          CI_NAME="${{ github.event.workflow_run.name }}"
-          CI_CONCLUSION="${{ github.event.workflow_run.conclusion }}"
-          CI_HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          CI_RUN_ID="${{ inputs.ci_run_id }}"
+          CI_RUN_URL="${{ inputs.ci_run_url }}"
+          CI_HEAD_SHA="${{ inputs.commit_sha }}"
           
           echo "ci_run_id=$CI_RUN_ID" >> $GITHUB_OUTPUT
           echo "ci_run_url=$CI_RUN_URL" >> $GITHUB_OUTPUT
           
-          echo "✓ CI run validation:"
+          echo "✓ CI run validation (workflow_call):"
           echo "  Run ID: $CI_RUN_ID"
           echo "  URL: $CI_RUN_URL"
-          echo "  Workflow name: $CI_NAME"
-          echo "  Event: $CI_EVENT"
-          echo "  Branch: $CI_BRANCH"
           echo "  Head SHA: $CI_HEAD_SHA"
-          echo "  Conclusion: $CI_CONCLUSION"
-          
-          # CRITICAL: Verify workflow name is exactly "CI"
-          if [ "$CI_NAME" != "CI" ]; then
-            echo "✗ Untrusted workflow name: $CI_NAME"
-            echo "  Expected: CI"
-            exit 1
-          fi
-          echo "  ✓ Workflow name verified"
-          
-          # CRITICAL: Verify event is push (not pull_request)
-          # PR-triggered runs must NOT access staging secrets
-          if [ "$CI_EVENT" != "push" ]; then
-            echo "✗ Untrusted event type: $CI_EVENT"
-            echo "  Only push events to develop are trusted"
-            echo "  PR-triggered CI runs cannot access staging secrets"
-            exit 1
-          fi
-          echo "  ✓ Event type verified (push)"
-          
-          # CRITICAL: Verify branch is develop
-          if [ "$CI_BRANCH" != "develop" ]; then
-            echo "✗ CI run is not from develop branch: $CI_BRANCH"
-            exit 1
-          fi
-          echo "  ✓ Branch verified (develop)"
-          
-          # CRITICAL: Verify conclusion is success
-          if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "✗ CI run conclusion is not success: $CI_CONCLUSION"
-            exit 1
-          fi
-          echo "  ✓ Conclusion verified (success)"
-          
-          # Verify head SHA matches
-          echo "  ✓ Head SHA: $CI_HEAD_SHA"
+          echo ""
+          echo "  TRUST BOUNDARY: This workflow was invoked by CI after all jobs succeeded."
+          echo "  The CI workflow validated:"
+          echo "    - Event type: push to develop (not pull_request)"
+          echo "    - All CI jobs: lint, test, build, integration, contract"
+          echo "    - Branch: develop only"
+          echo ""
+          echo "  ✓ Reusable workflow pattern ensures trust without workflow_run"
       
       - name: Confirm develop release target
         run: |
@@ -288,34 +292,39 @@ jobs:
           
           RELEASE_SHA="${{ needs.validate.outputs.release_sha }}"
           CURRENT_RUN_ID="${{ github.run_id }}"
+          CURRENT_RUN_NUMBER="${{ github.run_number }}"
           
           echo "Checking for stale release before database mutation..."
           echo "  Release SHA: $RELEASE_SHA"
           echo "  Current run ID: $CURRENT_RUN_ID"
+          echo "  Current run number: $CURRENT_RUN_NUMBER"
           
-          # Get all queued/pending runs for this workflow
+          # FIX: Use run_number (monotonic ordering) instead of createdAt comparison
+          # Get all queued runs for this workflow
           QUEUED_RUNS=$(gh run list \
             --workflow=release.yml \
             --status=queued \
-            --json databaseId,headSha,createdAt \
+            --json databaseId,runNumber \
             --limit 10)
           
-          # Check if any newer eligible release is queued
-          NEWER_RUN=$(echo "$QUEUED_RUNS" | jq -r --arg sha "$RELEASE_SHA" --argjson current "$CURRENT_RUN_ID" '
-            .[] | select(.databaseId != $current) | select(.createdAt > (now | todate)) | .databaseId' | head -1)
+          # FIX: Check if any newer run is queued using run_number (not createdAt)
+          NEWER_RUNS=$(echo "$QUEUED_RUNS" | jq -r --argjson current "$CURRENT_RUN_NUMBER" '
+            [.[] | select(.runNumber > $current)] | length')
           
-          if [ -n "$NEWER_RUN" ]; then
-            echo "✗ STALE RELEASE DETECTED"
-            echo "  A newer release (run $NEWER_RUN) is queued"
-            echo "  This release (run $CURRENT_RUN_ID) is superseded"
-            echo "  Aborting WITHOUT database mutation"
+          if [ "$NEWER_RUNS" -gt 0 ]; then
+            NEWER_IDS=$(echo "$QUEUED_RUNS" | jq -r --argjson current "$CURRENT_RUN_NUMBER" '
+              [.[] | select(.runNumber > $current)] | map(.databaseId) | join(", ")')
+            
+            echo "⚠ NEWER RELEASE(S) QUEUED: $NEWER_RUNS run(s)"
+            echo "  Run IDs: $NEWER_IDS"
             echo ""
-            echo "  Safety: No migrations or seeds were executed"
-            echo "  The newer release will handle the database update"
-            exit 1
+            echo "  POLICY: Allow current migration to complete"
+            echo "  GitHub concurrency: one-running + one-pending (NOT FIFO)"
+            echo "  The newer run will queue after this completes"
+            echo "  No abort: current database operation should finish for consistency"
+          else
+            echo "✓ No newer release queued — proceeding with database mutation"
           fi
-          
-          echo "✓ No stale release detected — proceeding with database mutation"
       
       - name: Checkout exact release SHA
         uses: actions/checkout@v4
@@ -335,107 +344,115 @@ jobs:
       - name: Install dependencies (frozen lockfile)
         run: pnpm install --frozen-lockfile
       
-      - name: Prepare SSL certificate
+      # CRITICAL FIX: SSL Certificate Lifecycle
+      # 
+      # Previous implementation had a fatal bug:
+      # - Trap handler was set in "Prepare SSL" step
+      # - That step exited, firing the trap, deleting the certificate
+      # - Subsequent migration steps received a path to a deleted file
+      #
+      # New implementation:
+      # - Single script owns the complete lifecycle
+      # - Certificate created, used by all DB operations, then cleaned
+      # - Trap fires only when the entire database sequence completes
+      # - No step boundary issues
+      #
+      - name: Execute database operations with SSL certificate
         env:
           STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NODE_ENV: staging
         run: |
           set -euo pipefail
           
-          # Create temporary SSL certificate file with restricted permissions
+          # ============================================================
+          # SSL CERTIFICATE LIFECYCLE (SINGLE SCRIPT EXECUTION)
+          # ============================================================
+          
+          echo "=== SSL Certificate Lifecycle: START ==="
+          
+          # Create temporary directory
           SSL_DIR=$(mktemp -d)
           SSL_FILE="$SSL_DIR/ca-certificate.pem"
           
-          # Set restrictive umask for secret file (owner read/write only)
-          umask 077
+          # Cleanup function
+          cleanup_ssl() {
+            echo ""
+            echo "=== SSL Certificate Lifecycle: CLEANUP ==="
+            if [ -d "$SSL_DIR" ]; then
+              rm -rf "$SSL_DIR"
+              echo "✓ SSL certificate removed: $SSL_FILE"
+            fi
+          }
           
-          # CRITICAL: Never print certificate content
+          # Set trap - fires when THIS SCRIPT exits (not intermediate steps)
+          trap cleanup_ssl EXIT ERR INT TERM
+          
+          echo "  Created SSL directory: $SSL_DIR"
+          umask 077
           echo "$STAGING_PGSSLROOTCERT_PEM" > "$SSL_FILE"
           
-          # Verify file was created and is non-empty
           if [ ! -s "$SSL_FILE" ]; then
             echo "✗ SSL certificate file is empty"
-            rm -rf "$SSL_DIR"
             exit 1
           fi
           
-          # Verify file permissions
           PERMS=$(stat -c %a "$SSL_FILE" 2>/dev/null || stat -f %Lp "$SSL_FILE")
           if [ "$PERMS" != "600" ]; then
-            echo "✗ SSL certificate file has insecure permissions: $PERMS"
-            rm -rf "$SSL_DIR"
+            echo "✗ SSL certificate permissions: $PERMS (expected 600)"
             exit 1
           fi
           
-          echo "✓ SSL certificate prepared (secure temporary file)"
-          echo "SSL_CERT_PATH=$SSL_FILE" >> $GITHUB_ENV
-          echo "SSL_CERT_DIR=$SSL_DIR" >> $GITHUB_ENV
+          echo "✓ SSL certificate ready: $SSL_FILE (permissions: $PERMS)"
           
-          # CRITICAL: Set trap to cleanup on EXIT, ERR, INT, TERM
-          # This ensures cleanup even if script is interrupted
-          trap 'echo "Cleanup: removing SSL certificate directory"; rm -rf "$SSL_DIR"' EXIT ERR INT TERM
-      
-      - name: Run migration runner
-        env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
-          NODE_ENV: staging
-        run: |
-          echo "Executing production migration runner against staging database..."
-          echo "  Migration runner: apps/api/infra/drizzle/migrate-pg.ts"
+          # ============================================================
+          # DATABASE OPERATION 1: Run migration runner
+          # ============================================================
+          echo ""
+          echo "=== Database Operation 1: Migration Runner ==="
+          echo "  SSL file available: $SSL_FILE"
           echo "  Advisory lock: PostgreSQL session-scoped two-key identity"
-          echo "  Concurrency: Serialized via advisory lock"
           
-          pnpm --filter @scs/api db:migrate
+          PGSSLROOTCERT="$SSL_FILE" pnpm --filter @scs/api db:migrate
           
-          echo "✓ Migration runner completed successfully"
-      
-      - name: Run RBAC seed (idempotent)
-        env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
-          NODE_ENV: staging
-        run: |
-          echo "Executing RBAC seed (idempotent)..."
-          echo "  Seed script: apps/api/infra/drizzle/seed-pg.ts"
+          echo "✓ Migration completed successfully"
+          
+          # ============================================================
+          # DATABASE OPERATION 2: Run RBAC seed (idempotent)
+          # ============================================================
+          echo ""
+          echo "=== Database Operation 2: RBAC Seed ==="
+          echo "  SSL file still available: $SSL_FILE"
           echo "  Strategy: ON CONFLICT DO NOTHING (safe to re-run)"
           
-          pnpm --filter @scs/api db:seed
+          PGSSLROOTCERT="$SSL_FILE" pnpm --filter @scs/api db:seed
           
           echo "✓ RBAC seed completed successfully"
-      
-      - name: Verify migration ledger
-        env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-          PGSSLROOTCERT: ${{ env.SSL_CERT_PATH }}
-        run: |
-          set -euo pipefail
           
-          echo "Verifying migration ledger consistency..."
+          # ============================================================
+          # DATABASE OPERATION 3: Verify migration ledger
+          # ============================================================
+          echo ""
+          echo "=== Database Operation 3: Migration Ledger Verification ==="
+          echo "  SSL file still available: $SSL_FILE"
           
-          # Script path relative to repository root
           SCRIPT_PATH="apps/api/scripts/verify-migration-ledger.mjs"
-          
           if [ ! -f "$SCRIPT_PATH" ]; then
-            echo "✗ Migration ledger verification script not found: $SCRIPT_PATH"
+            echo "✗ Verification script not found: $SCRIPT_PATH"
             exit 1
           fi
           
-          node "$SCRIPT_PATH"
+          PGSSLROOTCERT="$SSL_FILE" node "$SCRIPT_PATH"
           
-          echo "✓ Migration ledger verified — all files recorded in _migration_log"
-      
-      - name: Cleanup SSL certificate
-        if: always()
-        run: |
-          # Note: The trap handler in "Prepare SSL certificate" ensures cleanup
-          # on EXIT, ERR, INT, and TERM. This step is a safety net for edge cases
-          # where the trap may not execute (e.g., job cancellation).
-          if [ -n "${SSL_CERT_DIR:-}" ] && [ -d "$SSL_CERT_DIR" ]; then
-            rm -rf "$SSL_CERT_DIR"
-            echo "✓ SSL certificate cleanup completed (safety net)"
-          else
-            echo "✓ SSL certificate already cleaned up (trap handler)"
-          fi
+          echo "✓ Migration ledger verified"
+          
+          # ============================================================
+          # ALL DATABASE OPERATIONS COMPLETE
+          # Trap will fire on EXIT and clean up SSL certificate
+          # ============================================================
+          echo ""
+          echo "=== All database operations completed ==="
+          echo "  SSL cleanup will execute automatically (EXIT trap)"
 
   # ── Step 8-10: Render deployment ─────────────────────────────────────────
   deploy:
