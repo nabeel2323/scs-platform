@@ -91,6 +91,18 @@ eb2b208 (PR head, includes remediation report)
 
 **Note:** The c4cf56e run was cancelled, but this appears to be an infrastructure or timeout issue unrelated to the B-1 remediation code changes. The eb2b208 run (which includes c4cf56e as an ancestor) completed successfully with all jobs passing, confirming the remediation does not break CI.
 
+> **Cause corrected (v1.1, 2026-11-04):** the cancellation is not an unexplained
+> infrastructure or timeout fault — it is the `concurrency.cancel-in-progress: true`
+> behaviour documented in `ci.yml:18-20`. Timeline from the hosted API:
+> run #424 started 12:06:01Z; run #425 (`eb2b208`, same branch, same group
+> `CI-feature/automated-release-pipeline-v2.1`) was created 12:25:29Z; run #424's
+> `Container Build & Smoke Test` job then terminated `cancelled` at 12:26:52Z, and
+> `Trigger Staging Release` recorded `skipped` at the same 12:26:52Z. The newer run
+> superseded the in-flight older one. Conclusion is unchanged and in fact stronger:
+> a push to the same branch mid-run aborts the running job, and `needs` then prevents
+> `trigger-staging-release` from running (`ci.yml:526-535`). The successful #425 run
+> confirms the B-1 remediation does not break CI.
+
 ---
 
 ## 5. Job-by-Job Results (eb2b208 Run)
@@ -109,7 +121,15 @@ eb2b208 (PR head, includes remediation report)
 | k6 Smoke Test | skipped | Expected: load tests do not run on PR |
 | Trigger Staging Release | skipped | Expected: release trigger does not run on PR |
 
-**Overall:** 9 jobs completed, 7 success, 2 skipped (expected), 0 failures.
+**Overall:** 11 jobs total — 9 success, 2 skipped (expected), 0 failures.
+
+> **Correction (v1.1, re-verified 2026-11-04):** this line previously read "9 jobs
+> completed, 7 success, 2 skipped", which contradicted the table above it. The job
+> table was correct. Re-queried directly against the hosted run:
+> `GET /repos/nabeel2323/scs-platform/actions/runs/41829149254/jobs` →
+> `total_count: 11`, 9 jobs `success`, 2 jobs `skipped` (`k6 Smoke Test`,
+> `Trigger Staging Release`), 0 failed. Run number for this run is **#425**.
+> No run ID, SHA, URL, or per-job result below has been altered.
 
 ---
 
