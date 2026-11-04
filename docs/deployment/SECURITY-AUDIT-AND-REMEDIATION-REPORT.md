@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-03 (CI wiring corrected 2026-11-04)  
 **Audit Type:** Independent Security and Correctness Audit  
-**Status:** 🟡 Defects remediated and locally verified; PR under review. NOT an activated/production pipeline — a real CI run on `develop` and an authorized staging release are still pending.  
+**Status:** 🟡 Defects remediated, locally verified and PR CI verified (run #420 success); PR under review. NOT an activated/production pipeline — a real CI run on `develop` and an authorized staging release are still pending.
 
 ---
 

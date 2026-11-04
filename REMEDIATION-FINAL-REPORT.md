@@ -3,7 +3,7 @@
 **Date:** 2026-11-04  
 **Repository:** nabeel2323/scs-platform  
 **Feature Branch:** feature/automated-release-pipeline-v2.1  
-**Implementation Status:** ✅ Complete, Ready for PR Review
+**Implementation Status:** ✅ Complete — locally verified and PR CI verified (pull request #106, GitHub Actions run #420 `success`). Reviewable, **not** activated: an authorized staging release is still outstanding.
 
 ---
 
@@ -18,7 +18,7 @@ This remediation addressed **5 critical blocking defects** identified during ind
 4. Fixed stale-release detection (monotonic run_number ordering)
 5. Fixed environment handling (staging environment on validate job)
 
-**Status:** Implementation is now architecturally correct, testable, and ready for independent review. This is NOT production-ready until CI validates the changes and staging secrets are configured.
+**Status:** Implementation is architecturally correct, testable, locally verified and validated by hosted GitHub Actions on pull request #106 (run #420). This is **not** production-ready: a develop-push run that invokes the reusable workflow and an authorized staging release with configured staging secrets have not happened.
 
 ---
 
@@ -483,12 +483,16 @@ node detect-stale-release.mjs <run-id> <run-number> <gh-token>
 - [x] Testable helper scripts created
 - [x] Documentation updated (previous commit)
 
-### ⏳ Pending Verification (Requiring Real CI Run)
-- [ ] YAML syntax validation by GitHub Actions
-- [ ] Reusable workflow invocation test
-- [ ] Manual SHA validation end-to-end test
-- [ ] SSL lifecycle integration test with disposable DB
-- [ ] Stale-release detection test with concurrent runs
+### ✅ Verified by hosted CI (pull request #106, run #420 — success)
+- [x] YAML syntax validation by GitHub Actions — both workflow files accepted; the run started all jobs (#417 proved the opposite when the caller shape was wrong)
+- [x] Reusable workflow invocation accepted — `trigger-staging-release` resolved `ci.yml` → `release.yml` and was correctly **skipped** on `pull_request` (a `push` to `develop` is required to execute it)
+- [x] Whole-suite regression signal on hosted runners — `Unit Tests + Coverage Gates` 199 files / 4,045 tests pass, including the release-pipeline specs
+- [x] SSL certificate lifecycle specs executed on hosted runners (part of the hosted unit suite); migration/ledger behaviour against a disposable Testcontainers PostgreSQL verified locally, and the hosted `Migration Full Apply` + `Integration Tests` jobs both passed
+
+### ⏳ Still pending (cannot be produced by a pull request)
+- [ ] An eligible `push` to `develop` invoking `release.yml` end to end (only reachable after merge)
+- [ ] Manual SHA validation against a real successful `ci.yml` run for an exact develop SHA (needs `gh` auth + real run history)
+- [ ] Stale-release detection against concurrent real runs on `develop`
 
 ### ❌ Not Tested (Requiring Staging Configuration)
 - [ ] Real Render API integration
@@ -503,18 +507,15 @@ node detect-stale-release.mjs <run-id> <run-number> <gh-token>
 
 ### Known Limitations
 
-1. **Test File Typecheck Errors (34 errors)**
-   - Location: `apps/api/src/__tests__/unit/release-pipeline/*.spec.ts`
-   - Cause: Missing type annotations on mock data structures
-   - Impact: `tsc --noEmit` fails on test files, but vitest passes
-   - Status: Non-blocking for CI (vitest is what matters)
-   - Fix: Follow-up task to add proper types
+1. **~~Test File Typecheck Errors (34 errors)~~ — resolved**
+   - Was: missing type annotations on mock data structures in `apps/api/src/__tests__/unit/release-pipeline/*.spec.ts`
+   - Now: `tsc --noEmit -p apps/api/tsconfig.json` reports **0 errors** (the specs are in `src/**/*`, so they are type-checked), and hosted `Lint & Typecheck` passed on run #420
+   - The specs were also rewritten to call the real exported helpers instead of typed mock stand-ins
 
-2. **No YAML Structural Validation**
-   - Previous workflow-structure.spec.ts was deleted (required yaml package)
-   - GitHub validates YAML at runtime, not in CI tests
-   - Risk: Syntax errors only caught after push
-   - Fix: Consider adding `yaml` package to devDependencies
+2. **~~No YAML Structural Validation~~ — resolved**
+   - `apps/api/scripts/validate-workflow-structure.mjs` parses the real `ci.yml` / `release.yml` and runs **48 executable checks**, driven in CI by `workflow-structure.spec.ts`
+   - Two negative controls rebuild the exact shapes that broke hosted runs #417 (reusable-call caller syntax) and #418 (caller/callee `permissions:` intersection) and assert the validator rejects them
+   - Residual risk: the validator checks structure, not GitHub's own interpretation of every expression — which is why hosted runs are treated as the authoritative signal
 
 3. **Real Staging Configuration Required**
    - Secrets not configured (RENDER_API_KEY, STAGING_DATABASE_URL, etc.)
