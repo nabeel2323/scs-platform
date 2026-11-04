@@ -90,15 +90,30 @@ this logic and is exercised directly by `stale-release-helper.spec.ts`.
 - Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
   real YAML with js-yaml): **44/44 checks pass** (includes job-vs-workflow `vars` scope, env
   interpolation resolvability, pre-mutation variable guard and caller-targeted stale detection).
-- Release-pipeline unit tests: **82 pass** (includes `workflow-structure.spec.ts`, the rewritten
-  trust-boundary/stale specs that read the real workflow files, and the new helper spec).
-- Migration-ledger integration tests against a disposable Testcontainers PostgreSQL: **7 pass**.
-- `tsc --noEmit`: **0 errors**. `nest build`: **success**. ESLint on changed specs: **clean**.
+- Release-pipeline unit tests: **83 pass** (includes `workflow-structure.spec.ts`, the rewritten
+  trust-boundary/stale specs that read the real workflow files, the new helper spec, and a
+  negative-control test that mutates a throwaway copy of `ci.yml` back into the broken
+  reusable-workflow shape to prove the guards actually fire).
+- Migration/ledger integration specs (`migration-0064-email-identity`, `migration-0065-hmac-hash`,
+  `migration-lock`) against a disposable Testcontainers PostgreSQL: **47 pass** (3 files, serial run).
+- `tsc --noEmit`: **0 errors**. `nest build`: **success** (432 files, 0 TSC issues). ESLint on changed
+  specs and workflow scripts: **clean** (0 errors, 0 warnings).
+- Full API unit suite (regression guard for the touched scripts): 126 files / **2,436 tests pass**.
 
 **What is NOT yet verified:** a real GitHub Actions CI run on `develop` invoking the reusable
 workflow end to end, and any authorized staging deployment. Staging secrets, Render configuration,
 and auto-deploy were not touched, and no staging migration/seed/deploy was executed. Treat this
 branch as reviewable code, not a live pipeline.
+
+**CI evidence gathered (read-only, 2026-11-04):** the only Actions run associated with this work is
+**CI run #417** (`https://github.com/nabeel2323/scs-platform/actions/runs/41783899294`) at commit
+`44aa9a0`. It failed **before any job executed**, at workflow-file validation:
+`Invalid workflow file: ci.yml — Unexpected value 'secrets'`, i.e. the reusable-workflow caller was
+declaring `steps`/`secrets` in a shape GitHub rejects. That defect class is fixed in `a792c86` and is
+now covered by a negative-control test that rebuilds the broken caller shape and asserts the validator
+rejects it. Because `ci.yml` triggers only on `push`/`pull_request` targeting `main` or `develop`, no CI
+run can exist for `a792c86`, `d7857ab` or this branch's later commits until the pull request against
+`develop` is opened — the PR is the gate for real CI evidence, not another code change.
 
 ---
 
@@ -1638,7 +1653,7 @@ unit/integration tests and the structural validator, and have **not** yet been e
 **Document version:** 2.1 (Implemented — CI wiring, variable scoping and stale detection corrected)  
 **Last updated:** 2026-11-04  
 **Author:** Qoder AI Assistant  
-**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification (validator 44/44, 82 unit + 7 integration tests, typecheck 0 errors, build success).  
+**Status:** Implemented and locally verified; awaiting PR CI and authorized staging verification (validator 44/44, 83 unit + 47 integration tests, typecheck 0 errors, build success).  
 **Implementation branch:** feature/automated-release-pipeline-v2.1  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

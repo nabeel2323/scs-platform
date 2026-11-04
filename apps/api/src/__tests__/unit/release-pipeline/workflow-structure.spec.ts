@@ -13,6 +13,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -20,6 +22,8 @@ import { execFileSync } from 'node:child_process';
 const apiRoot = path.resolve(__dirname, '..', '..', '..', '..'); // → apps/api
 const repoRoot = path.resolve(apiRoot, '..', '..'); // → repository root
 const validator = path.resolve(apiRoot, 'scripts', 'validate-workflow-structure.mjs');
+const ciPath = path.resolve(repoRoot, '.github', 'workflows', 'ci.yml');
+const relPath = path.resolve(repoRoot, '.github', 'workflows', 'release.yml');
 
 interface ValidatorResult {
   name: string;
@@ -32,13 +36,19 @@ interface ValidatorPayload {
   repoRoot?: string;
 }
 
-function runValidator(): ValidatorPayload {
-  // The validator exits 0 when every check passes and prints the payload as JSON.
-  const stdout = execFileSync('node', [validator, '--json', repoRoot], {
-    encoding: 'utf8',
-    cwd: repoRoot,
-  });
+function runValidatorAt(root: string): ValidatorPayload {
+  // The validator exits 1 (not throws) when a check fails, so read stdout either way.
+  let stdout = '';
+  try {
+    stdout = execFileSync('node', [validator, '--json', root], { encoding: 'utf8', cwd: root });
+  } catch (err) {
+    stdout = (err as { stdout?: string }).stdout ?? '';
+  }
   return JSON.parse(stdout) as ValidatorPayload;
+}
+
+function runValidator(): ValidatorPayload {
+  return runValidatorAt(repoRoot);
 }
 
 const payload = runValidator();
@@ -98,5 +108,48 @@ describe('Workflow structure (real ci.yml + release.yml)', () => {
     expect(byName.get('stale-detection-excludes-release-target')?.ok).toBe(true);
     expect(byName.get('stale-detection-uses-run-number')?.ok).toBe(true);
     expect(byName.get('stale-detection-allows-complete')?.ok).toBe(true);
+  });
+
+  // Negative control: the checks above must be capable of failing. GitHub Actions
+  // rejected the caller definition in CI run #417 (commit 44aa9a0) with
+  // `Invalid workflow file: ci.yml — Unexpected value 'secrets'`, which was a job that
+  // mixed `runs-on` + `steps` + `secrets` with a step-level reusable-workflow `uses:`.
+  // Re-introducing that shape in a throwaway copy must light the guards up.
+  it('negative control: the CI #417 caller defect makes the validator fail', () => {
+    const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'scs-wf-guard-'));
+    try {
+      const wfDir = path.join(sandbox, '.github', 'workflows');
+      fs.mkdirSync(wfDir, { recursive: true });
+      fs.copyFileSync(relPath, path.join(wfDir, 'release.yml'));
+
+      const ciRaw = fs.readFileSync(ciPath, 'utf8');
+      const eol = ciRaw.includes('\r\n') ? '\r\n' : '\n';
+      const invalidCaller = [
+        '    runs-on: ubuntu-latest',
+        '    steps:',
+        '      - uses: ./.github/workflows/release.yml',
+        '        with:',
+        '          commit_sha: ${{ github.sha }}',
+      ].join(eol);
+      const callerUsesLine = '    uses: ./.github/workflows/release.yml';
+      expect(ciRaw.split(eol)).toContain(callerUsesLine);
+      const mutated = ciRaw.replace(callerUsesLine, invalidCaller);
+      expect(mutated).not.toBe(ciRaw);
+      fs.writeFileSync(path.join(wfDir, 'ci.yml'), mutated, 'utf8');
+
+      const bad = runValidatorAt(sandbox);
+      const failed = new Set(bad.results.filter((r) => !r.ok).map((r) => r.name));
+      expect(bad.ok).toBe(false);
+      for (const check of [
+        'caller-job-level-uses',
+        'caller-no-steps',
+        'caller-no-runs-on',
+        'no-step-level-reusable-invocation',
+      ]) {
+        expect(failed.has(check), `${check} must fail for the #417 shape`).toBe(true);
+      }
+    } finally {
+      fs.rmSync(sandbox, { recursive: true, force: true });
+    }
   });
 });

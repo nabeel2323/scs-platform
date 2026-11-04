@@ -28,10 +28,20 @@ which is incompatible with develop-only releases. The **final** implementation i
 Where this section conflicts with `workflow_run` wording later in this report, this section is correct.
 
 **Verification performed (local, non-destructive):** executable structural validator **44/44**;
-release-pipeline unit tests **82 pass** (now executing real workflow files and the real stale-release
-helper, not hard-coded constants); migration-ledger integration tests **7 pass** (Testcontainers);
-`tsc --noEmit` **0 errors**; `nest build` **success**; ESLint on changed specs **clean**. No staging
-secrets, Render configuration, migrations, seeds, or deployments were touched.
+release-pipeline unit tests **83 pass** (now executing real workflow files and the real stale-release
+helper, not hard-coded constants, plus a negative control that reproduces the CI #417 defect shape and
+proves the guards reject it); migration/postgres integration specs (0064, 0065, migration-lock)
+**47 pass** against disposable Testcontainers PostgreSQL;
+`tsc --noEmit` **0 errors**; `nest build` **success** (432 files, 0 TSC issues); ESLint on changed specs
+**and** workflow scripts **clean** (0 errors, 0 warnings). Full API unit suite: 126 files / 2,436 tests pass.
+No staging secrets, Render configuration, migrations, seeds, or deployments were touched.
+
+**GitHub Actions evidence (read-only):** the only run attached to this work is **CI run #417**
+(`actions/runs/41783899294`) at `44aa9a0`; it failed at workflow-file validation with
+`Invalid workflow file: ci.yml — Unexpected value 'secrets'` before any job ran. That shape is fixed in
+`a792c86` and is now guarded by the negative-control test. `ci.yml` triggers only on `push` /
+`pull_request` to `main` or `develop`, so a run for the corrected commits is only possible once the pull
+request against `develop` exists.
 
 ---
 
@@ -738,7 +748,8 @@ an authorized staging release.
 
 **Key achievements (locally verified):**
 - ✅ Reusable-workflow trigger wired correctly (job-level `uses:`, `secrets: inherit`, develop-push gate)
-- ✅ Executable structural validator 44/44; 82 unit + 7 integration tests pass; typecheck 0 errors; build success
+- ✅ Executable structural validator 44/44; 83 unit + 47 integration tests pass; typecheck 0 errors; build success
+- ✅ Negative-control test mutates a throwaway copy of `ci.yml` back into the broken caller shape that failed CI run #417 and asserts the validator rejects it
 - ✅ `RENDER_SERVICE_ID` bound at job level on the `environment: staging` jobs that use it, fail-fast before mutation, value never printed
 - ✅ Stale-release detection inspects the caller's queued `ci.yml` runs (monotonic `run_number`, allow-complete)
 - ✅ Strict 12-step release sequence with comprehensive safety checks

@@ -11,7 +11,7 @@
  * These tests validate the security requirements for SSL certificate handling.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -169,7 +169,7 @@ describe('SSL Certificate Handling', () => {
       // Simulate failure cleanup
       try {
         throw new Error('Simulated failure');
-      } catch (err) {
+      } catch {
         // Cleanup in finally block
         if (fs.existsSync(certDir)) {
           fs.rmSync(certDir, { recursive: true, force: true });

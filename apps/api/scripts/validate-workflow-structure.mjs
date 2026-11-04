@@ -51,7 +51,8 @@ function loadJsYaml(repoRoot) {
   }
   for (const c of candidates) {
     try {
-      if (fs.existsSync(c)) return require(c);
+      // require() treats a bare relative path as a module name, so resolve first.
+      if (fs.existsSync(c)) return require(path.resolve(c));
     } catch {
       /* keep trying */
     }
@@ -83,7 +84,11 @@ const DEVELOP_SKIPPED_JOBS = ['k6-smoke'];
  * Run all structural checks. Returns { ok, results: [{ name, ok, detail }] }.
  */
 export function validateWorkflowStructure(repoRootIn) {
-  const repoRoot = repoRootIn || findRepoRoot(process.cwd()) || findRepoRoot(path.dirname(createRequire(import.meta.url).module?.path || process.cwd()));
+  const resolvedRoot =
+    repoRootIn ||
+    findRepoRoot(process.cwd()) ||
+    findRepoRoot(path.dirname(createRequire(import.meta.url).module?.path || process.cwd()));
+  const repoRoot = resolvedRoot ? path.resolve(resolvedRoot) : resolvedRoot;
   const results = [];
   const push = (name, ok, detail = '') => results.push({ name, ok, detail });
 
