@@ -6,7 +6,8 @@
 **PR:** https://github.com/nabeel2323/scs-platform/pull/106
 **Branch:** `feature/automated-release-pipeline-v2.1`
 **Base:** `develop`
-**Audited head SHA (local + remote):** `303ff064b506d365082eccc3d11a4f80914239f7`
+**Workflow code audited at SHA:** `303ff064b506d365082eccc3d11a4f80914239f7`
+**This report committed & verified at SHA:** `eed728dafd2dfcd3e6f6c8bafdc05792f6236d98` (hosted CI run #427, §7.1)
 **Scope:** First controlled staging activation safety. Analysis and documentation only — nothing in this session merged, deployed, configured an environment, or touched staging data.
 
 ---
@@ -267,6 +268,48 @@ Unit suites executed: `workflow-structure` (14), `manual-sha-validation` (19), `
 
 **Limitation.** These tests assert *workflow structure* and *helper logic*; they parse the YAML and exercise mirrored `.mjs` helpers (`validate-workflow-structure.mjs`, `validate-release-sha.mjs`, `detect-stale-release.mjs`). They do not execute GitHub Actions semantics. No claim in this report about runtime behavior (environment auto-creation, `needs`-skip, caller cancellation, secret resolution) rests on them; each such claim cites **[CODE]**, **[RUN]**, or **[DOC]**.
 
+### 7.1 Post-commit hosted CI verification (Part E, recorded after push)
+
+The documentation changes in this audit were committed as **`eed728dafd2dfcd3e6f6c8bafdc05792f6236d98`** (`docs(release): add first staging activation safety audit and correct CI job counts`, 2 files, +455/−1) and pushed to `feature/automated-release-pipeline-v2.1`. PR #106 head moved from `303ff06` to `eed728d`; state `open`, `mergeable: true`, 15 commits. **[RUN] + [API]**
+
+**Resulting PR-head run — exact record:**
+
+| Field | Value |
+|---|---|
+| Run ID | **41866322375** |
+| Run number | **#427** |
+| URL | https://github.com/nabeel2323/scs-platform/actions/runs/41866322375 |
+| Workflow | CI |
+| Event | `pull_request` |
+| Head SHA | `eed728dafd2dfcd3e6f6c8bafdc05792f6236d98` |
+| Head branch | `feature/automated-release-pipeline-v2.1` |
+| Status / conclusion | completed / **success** |
+| Created | 2026-11-04T16:20:58Z |
+| Last job completed | 2026-11-04T16:39:44Z (**18.7 min** job-span; 2 jobs started 16:21:01Z) |
+| Jobs | **11 total — 9 success, 2 skipped, 0 failures** |
+
+| Job | Conclusion |
+|---|---|
+| Lint & Typecheck | success |
+| Mobile (flutter analyze · test) | success |
+| Unit Tests + Coverage Gates | success |
+| Migration Full Apply | success |
+| Boundary Lint (E6) | success |
+| Integration Tests | success |
+| Contract Spec & Codegen | success |
+| Build | success |
+| Container Build & Smoke Test | success |
+| k6 Smoke Test | skipped (main-only, `ci.yml:365`) |
+| Trigger Staging Release | **skipped** (`if` at `ci.yml:522-525` requires a develop push) |
+
+Two points from this run are directly relevant to the audit's conclusions:
+
+1. **`Trigger Staging Release` = `skipped` on a `pull_request` event** reconfirms §2.2 on the current code — documentation-only pushes to this branch cannot reach the release path.
+2. **The 11 / 9 / 2 shape reproduces on run #426 as well** (`41858810259`, SHA `303ff064`, completed success, same 9 success + 2 skipped), which independently corroborates the Part A correction: the "7 success" summary line was wrong, the table was right, and neither run ever executed a release job.
+
+Note on API observation: the run-level `status` field reported `queued` for ~13 minutes while jobs were already executing (earliest job start `16:21:01Z`). Any CI watcher that polls only the run object may therefore misjudge timing; job-level timestamps are authoritative. This was checked, not assumed. **[RUN]**
+
+
 ---
 
 ## 8. Findings
@@ -369,7 +412,7 @@ Performed (all read-only or documentation/local-test only): **[RUN] + [API]**
 - Read `release.yml`, `ci.yml`, validators, helpers, `api.Dockerfile`, deployment docs; grepped for every trigger keyword.
 - Unauthenticated read-only GitHub API: repository visibility, PR #106 metadata, run #425 + #424 job records, run listing on `develop`, `develop` workflow file contents, `environments` list, `environments/staging`, `actions/secrets`, `actions/variables` (the last four returned 401/404 as recorded).
 - Local structural validator, release-pipeline unit tests, migration-ledger integration test against disposable Testcontainers Postgres.
-- Edited `docs/deployment/PR-106-CI-VERIFICATION-AND-BRANCH-SYNCHRONIZATION-REPORT.md` (Part A) and added this report; committed and pushed **only** these two files to the feature branch.
+- Edited `docs/deployment/PR-106-CI-VERIFICATION-AND-BRANCH-SYNCHRONIZATION-REPORT.md` (Part A) and added this report; committed as `eed728d` and pushed **only** those two files to `feature/automated-release-pipeline-v2.1`. The follow-up recording of run #427 (§7.1) touches this report alone. No other file was staged; the pre-existing unrelated working-tree modifications remain untouched.
 
 Not performed:
 
@@ -423,6 +466,8 @@ The honest caveat is that this safety comes entirely from B-2 being **unresolved
 | `release.yml` absent on develop (404); `ci.yml` there lacks the wiring | `GET /repos/…/contents/.github/workflows/{release,ci}.yml?ref=develop` |
 | Validator 56/56 | `node apps/api/scripts/validate-workflow-structure.mjs` |
 | 92 unit / 8 integration passed | `vitest run src/__tests__/unit/release-pipeline`, `…/integration/release-pipeline/verify-migration-ledger.spec.ts` |
+| Post-push CI verification — run #427, SHA `eed728d`, 11 jobs / 9 success / 2 skipped | https://github.com/nabeel2323/scs-platform/actions/runs/41866322375 |
+| Corroborating prior docs run #426, SHA `303ff06`, identical 11 / 9 / 2 | https://github.com/nabeel2323/scs-platform/actions/runs/41858810259 |
 
 Sources (GitHub documentation used to establish runtime behavior):
 - [Environments — GitHub Actions](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) — auto-creation of referenced-but-missing environments; protection rules gate both running and secret access; environment-secret scoping.
