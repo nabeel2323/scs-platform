@@ -1,13 +1,14 @@
 # PR #106 — First Staging Activation Safety Audit
 
-**Report version:** v1.0
-**Date:** 2026-11-04
+**Report version:** v1.1 (v1.0 = the audit; v1.1 adds the remediation status of F-1/F-2/F-4 and R-1/R-3/R-4 — see §15. No v1.0 finding, citation or evidence tag has been altered.)
+**Date:** 2026-11-04 (audit) · 2026-11-05 (remediation addendum, §15)
 **Repository:** `nabeel2323/scs-platform`
 **PR:** https://github.com/nabeel2323/scs-platform/pull/106
 **Branch:** `feature/automated-release-pipeline-v2.1`
 **Base:** `develop`
 **Workflow code audited at SHA:** `303ff064b506d365082eccc3d11a4f80914239f7`
 **This report committed & verified at SHA:** `eed728dafd2dfcd3e6f6c8bafdc05792f6236d98` (hosted CI run #427, §7.1)
+**Remediation commit (code, §15):** `d05b29e12443a20572d48f95c66c279080ca0264` — R-1, F-1, F-4
 **Scope:** First controlled staging activation safety. Analysis and documentation only — nothing in this session merged, deployed, configured an environment, or touched staging data.
 
 ---
@@ -48,7 +49,7 @@ That is a *fail-safe*, not a *feature gate*. The moment the owner configures `st
 | Trigger | Lines | Condition to proceed |
 |---|---|---|
 | `workflow_call` | `release.yml:44-57` | Must be invoked by another workflow. Required string inputs: `commit_sha`, `ci_run_id`, `ci_run_url`. |
-| `workflow_dispatch` | `release.yml:60-70` | Manual run. Required input: `commit_sha`. Optional input: `skip_confirmation` (see §8, finding F-1 — it is never read). |
+| `workflow_dispatch` | `release.yml:60-70` | Manual run. Required input: `commit_sha`. Optional input: `skip_confirmation` (see §8, finding F-1 — it is never read). **[REMEDIATED `d05b29e`: `skip_confirmation` deleted; `commit_sha`'s description now states the dispatch is a real release — §15.2]** |
 
 There is **no `push`, no `pull_request`, no `workflow_run`, no `repository_dispatch`, and no `schedule`** trigger anywhere in `release.yml`. Verified by reading the whole `on:` block and by grepping every workflow file for trigger keys — the only matches for `workflow_run`, `repository_dispatch`, and `schedule:` are inside prose comments (`release.yml:9`, `:10`, `:36`). **[CODE]**
 
@@ -143,13 +144,13 @@ The chain `validate → database-release → deploy → health-check` is enforce
 
 ### 5.2 Gates that are weaker than they appear
 
-**W1 — No human approval anywhere in the code.** The only manual-confirmation control is the `skip_confirmation` dispatch input (`release.yml:66-70`), which is declared and never read (§8 F-1). The real approval surface is GitHub environment protection rules, which do not exist yet. **[CODE] + [API]**
+**W1 — No human approval anywhere in the code.** The only manual-confirmation control is the `skip_confirmation` dispatch input (`release.yml:66-70`), which is declared and never read (§8 F-1). The real approval surface is GitHub environment protection rules, which do not exist yet. **[CODE] + [API]** **[UPDATED by `d05b29e`: the dead input is gone, so the workflow no longer implies a code-level confirmation exists. Environment protection rules remain the only approval mechanism and remain an owner action — §15.2, §15.4.]**
 
-**W2 — Stale-release detection is advisory by design.** `release.yml:332-391` never aborts; the policy is stated at `:80-83` and repeated at `:365-366` and `:384-387`, and a `gh` failure is swallowed by `|| QUEUED_RUNS=''` (`:361`) into a warning path (`:363-366`). It cannot prevent overlapping schema mutations; it only records that they are possible. **[CODE]**
+**W2 — Stale-release detection is advisory by design.** `release.yml:332-391` never aborts; the policy is stated at `:80-83` and repeated at `:365-366` and `:384-387`, and a `gh` failure is swallowed by `|| QUEUED_RUNS=''` (`:361`) into a warning path (`:363-366`). It cannot prevent overlapping schema mutations; it only records that they are possible. **[CODE]** **[POLICY UNCHANGED by `d05b29e` — still advisory, still never blocks; what changed is which identifiers it compares and what it reports (§15.3). The hard serializer remains the PostgreSQL advisory lock in `migrate-pg.ts`.]**
 
-**W3 — The `staging-release` concurrency group does not shield the release from its caller.** `release.yml:84-86` uses `group: staging-release`, `cancel-in-progress: false`. But `ci.yml:18-20` uses `group: ${{ github.workflow }}-${{ github.ref }}` with **`cancel-in-progress: true`**, and the release jobs execute *inside* the caller's run. A second push to `develop` therefore cancels the run that is hosting the in-flight release. See §8 F-2 and the live demonstration in §5.3. **[CODE] + [RUN] + [DOC]**
+**W3 — The `staging-release` concurrency group does not shield the release from its caller.** `release.yml:84-86` uses `group: staging-release`, `cancel-in-progress: false`. But `ci.yml:18-20` uses `group: ${{ github.workflow }}-${{ github.ref }}` with **`cancel-in-progress: true`**, and the release jobs execute *inside* the caller's run. A second push to `develop` therefore cancels the run that is hosting the in-flight release. See §8 F-2 and the live demonstration in §5.3. **[CODE] + [RUN] + [DOC]** **[FIXED IN CODE `d05b29e`: `ci.yml` now evaluates `cancel-in-progress` as `github.ref != 'refs/heads/develop'`, so a `develop` run — the only run that can host a release — is never superseded; `release.yml`'s group is a literal `staging-release` with `cancel-in-progress: false` + `queue: max`. §15.1.]**
 
-**W4 — Repo-level secrets can satisfy the environment check.** GitHub documents that when a reusable-workflow job declares an environment, *"the caller workflow must still pass the secret"* via `secrets: inherit` (present at `ci.yml:540`), that *"if an environment secret shares a name with a repo/org secret, the environment secret takes precedence"*, and — critically — that a secret the caller never passed simply *"resolves to an empty string"* with no error. **[DOC]** `release.yml:39-43` relies on exactly this. The consequence: **repository-level** secrets with the same four names would let `validate` pass even with the `staging` environment unconfigured and unprotected. Whether any exist is `[NOT VERIFIED]` here — `GET /repos/…/actions/secrets` and `…/actions/variables` both returned **401 Requires authentication** (see §6.3). **[CODE] + [DOC] + [API]**
+**W4 — Repo-level secrets can satisfy the environment check.** GitHub documents that when a reusable-workflow job declares an environment, *"the caller workflow must still pass the secret"* via `secrets: inherit` (present at `ci.yml:540`), that *"if an environment secret shares a name with a repo/org secret, the environment secret takes precedence"*, and — critically — that a secret the caller never passed simply *"resolves to an empty string"* with no error. **[DOC]** `release.yml:39-43` relies on exactly this. The consequence: **repository-level** secrets with the same four names would let `validate` pass even with the `staging` environment unconfigured and unprotected. Whether any exist is `[NOT VERIFIED]` here — `GET /repos/…/actions/secrets` and `…/actions/variables` both returned **401 Requires authentication** (see §6.3). **[CODE] + [DOC] + [API]** **[NOT A CODE DEFECT — unchanged and unchangeable from the repository: this is GitHub's documented resolution order. Owner verification action, §15.4.]**
 
 ### 5.3 Live evidence for the cancellation mechanism
 
@@ -316,11 +317,19 @@ Note on API observation: the run-level `status` field reported `queued` for ~13 
 
 **F-1 — `skip_confirmation` is dead input (medium, governance).** Declared at `release.yml:66-70` as "Skip manual confirmation (use with caution)", default `false`. Grepping all of `.github/` finds it **only** at its declaration — no step, expression, or `if:` reads `inputs.skip_confirmation`. Confirmed positively: the only `inputs.*` reads in the entire file are `commit_sha` (`:161`, `:228`), `ci_run_id` (`:253`, `:256`) and `ci_run_url` (`:254`, `:257`). There is therefore **no in-workflow confirmation step to skip**, and the input's presence implies a protection that does not exist. The structural validator has no guard for this (its only dispatch-related check is `release-has-workflow_dispatch`, `apps/api/scripts/validate-workflow-structure.mjs:118`, which merely asserts the trigger exists). Recommend: either implement the gate (require an explicit confirmation token in `validate`) or delete the input so the UI stops advertising a safety that isn't there.
 
+**→ REMEDIATED IN CODE, `d05b29e` (deletion route): the input is deleted, `commit_sha`'s description states the dispatch is a real release, and two validator checks (`release-no-skip-confirmation-input`, `dispatch-inputs-all-consumed`) plus a negative control keep it dead. Environment protection rules are documented as the approval mechanism. Detail: §15.2.**
+
 **F-2 — The release inherits `ci.yml`'s `cancel-in-progress: true` (high, but currently theoretical).** See §5.2 W3 and §5.3. A merge to `develop` followed quickly by a second `develop` push can cancel `database-release` mid-migration; `release.yml:84-86` cannot prevent it because the jobs live in the caller's run. Mitigations available to the owner: avoid stacking `develop` pushes during the first activations; or scope `cancel-in-progress` so it never applies to `refs/heads/develop` runs that have reached the release job (a workflow change, out of scope here); or rely on the advisory-lock + ledger-verification pair at `release.yml:479` and `:504-512` to make a resumed run converge.
+
+**→ FIXED IN CODE, `d05b29e`: the second mitigation is now implemented — `ci.yml` evaluates `cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}`, so the run that can host a release is never superseded by a newer push, while feature/PR runs keep cancelling. The risk is no longer theoretical in the other direction either: the `develop` exemption is asserted by 8 validator checks and 3 negative controls. Residual limits (§15.1, §15.5): cancellation of the *callee* run on Path B, and the unresolved R-3. Detail: §15.1.**
 
 **F-3 — Merging silently creates an unprotected `staging` environment (medium).** Per **[DOC]**, referencing a nonexistent environment auto-creates it with no protection rules and no secrets. The merge's own CI run will produce a `staging` environment that is *visible as configured* in Settings while offering no protection, and any later secrets added to it will be live immediately. Recommend: create and configure `staging` **with required reviewers** *before* the merge, so the environment is never auto-created unprotected.
 
+**→ NOT A CODE DEFECT — owner action, unchanged by `d05b29e` (this session created and modified no environment). It remains a prerequisite of the merge; runbook step 2. Detail: §15.4.**
+
 **F-4 — Stale-release check misbehaves on the dispatch path (low).** `release.yml:339-340` reads `github.run_number` of *this* run, and on a `workflow_dispatch` run of `release.yml` that is release.yml's own counter — while `:356-361` lists `ci.yml` run numbers (currently in the 420s). The comparison at `:372` is therefore apples-to-oranges on Path B and will usually print "NEWER RELEASE(S) QUEUED" spuriously. Harmless in effect (the policy never aborts, `:384-387`) but it produces misleading audit output during exactly the run where a human is watching. On Path A the comment at `:346-352` is correct: the identifiers belong to the caller.
+
+**→ FIXED IN CODE, `d05b29e`: the step now branches on `$EVENT_NAME` and compares like with like — Path A keeps `runNumber` against caller `ci.yml` runs, Path B orders by repository-wide `databaseId` and reads both `release.yml` and `ci.yml:develop` runs. The advisory-only policy is untouched. Proven at runtime, not only structurally: on a fabricated run population the pre-fix expression reports 2 newer releases while Path B correctly reports none. Detail: §15.3.**
 
 **F-5 — No in-repo runtime evidence exists for the release path at all (informational, but decisive for how confident we may be).** `develop` has never contained `release.yml` (**[API]** 404), and every PR run shows `Trigger Staging Release` = `skipped` (**[RUN]** #424, #425). So `validate`, `database-release`, `deploy`, `health-check` and `summary` have **never executed**. The merge commit will be the first real test of all four gates, on production-adjacent infrastructure. This is the core argument for the staged sequence in §10.
 
@@ -368,10 +377,10 @@ Only if **both** `validate` and `database-release` reached `success` (`needs: [v
 
 **8. Any concurrency, duplicate-deployment, or auto-deploy race conditions?**
 Yes, four, ranked:
-- **R-1 (high):** `ci.yml` `cancel-in-progress: true` on `CI-<ref>` can cancel the `develop` run mid-`database-release`, since the release jobs are part of that run (`ci.yml:18-20` vs `release.yml:84-86`). Demonstrated mid-flight on run #424 (§5.3). **[CODE] + [RUN] + [DOC]**
-- **R-2 (high, external):** Render auto-deploy on the linked branch is a second, ungated deploy trigger; if a Render pre-deploy `db:migrate` is also configured, it is a second, ungated schema mutation. Both race the pipeline's SHA-pinned deploy. **[NOT VERIFIED]** — must be confirmed in the Render dashboard (§6.4).
-- **R-3 (medium):** No anti-overlap control actually stops. The stale-release detector is advisory-only by policy and swallows `gh` failures into a warning (`release.yml:361`, `:363-366`, `:384-387`). And whether the called workflow's top-level `concurrency` even applies when invoked via `workflow_call` is **not covered by GitHub's concurrency or reuse documentation** — I could not establish it either way from a primary source, so R-1's protection must not be assumed to exist. **[DOC gap] + [INFER]**
-- **R-4 (low):** Two develop pushes in one minute also interact with the "one running + one pending, older *pending* replaced" documented group behavior **[DOC]** — a queued release can be dropped silently. Its audit trail is the run listing, not a failure.
+- **R-1 (high):** `ci.yml` `cancel-in-progress: true` on `CI-<ref>` can cancel the `develop` run mid-`database-release`, since the release jobs are part of that run (`ci.yml:18-20` vs `release.yml:84-86`). Demonstrated mid-flight on run #424 (§5.3). **[CODE] + [RUN] + [DOC]** → **fixed in code, `d05b29e` (§15.1).**
+- **R-2 (high, external):** Render auto-deploy on the linked branch is a second, ungated deploy trigger; if a Render pre-deploy `db:migrate` is also configured, it is a second, ungated schema mutation. Both race the pipeline's SHA-pinned deploy. **[NOT VERIFIED]** — must be confirmed in the Render dashboard (§6.4). → **owner action; no code change can reach it (§15.4). Still the highest unresolved risk.**
+- **R-3 (medium):** No anti-overlap control actually stops. The stale-release detector is advisory-only by policy and swallows `gh` failures into a warning (`release.yml:361`, `:363-366`, `:384-387`). And whether the called workflow's top-level `concurrency` even applies when invoked via `workflow_call` is **not covered by GitHub's concurrency or reuse documentation** — I could not establish it either way from a primary source, so R-1's protection must not be assumed to exist. **[DOC gap] + [INFER]** → **partially addressed (§15.1: R-1 no longer *depends* on callee concurrency, and the group is now a literal so both paths share it; the `workflow_call` semantics question itself remains an architectural unknown, §15.5).**
+- **R-4 (low):** Two develop pushes in one minute also interact with the "one running + one pending, older *pending* replaced" documented group behavior **[DOC]** — a queued release can be dropped silently. Its audit trail is the run listing, not a failure. → **mitigated in code, `d05b29e`: `release.yml` now declares `queue: max` with `cancel-in-progress: false`, raising the pending ceiling from 1 to 100 so a queued release is not replaced (§15.1). Not eliminated: `ci.yml`'s group deliberately keeps default queueing, and GitHub does not document FIFO ordering.**
 - Positive control worth noting: `summary` uses `if: always()` (`:777`), so an interrupted or failed release is *reported* rather than vanishing. **[CODE]**
 
 **9. Safest first-activation sequence** — see §11, stated as an ordered runbook with owners.
@@ -389,8 +398,8 @@ Each step names who performs it. **None of these steps were performed in this se
 5. **Do not stack pushes to `develop`** while any release attempt is in flight; treat the merge and each activation as single-file events. *(R-1, R-4.)*
 6. **Owner, GitHub:** add the three environment **secrets** and the **environment variable** to `staging` only when you are ready to activate — and keep the required reviewer in place.
 7. **Owner, first activation:** run one **authorized `workflow_dispatch`** against the exact develop SHA, approving job by job: read `validate`'s printed SHA/CI-run audit (`release.yml:260-267`) and its `[PRESENT]`/`[REDACTED]` config verdict before approving; then approve `database-release` and watch migrate → seed → ledger (`:481-512`); only then approve `deploy`; then `health-check`. *(Q6, Q9.)*
-8. **Owner, evidence:** capture run ID, URL, `validate` outputs, the three DB operation logs, Render deploy id/status, `.commit.id` equality result, `/v1/readyz` HTTP code, and the `summary` verdict. Expect R-3's spurious "NEWER RELEASE(S) QUEUED" warning on this path and discount it (F-4).
-9. **Then, and only then,** treat a merge-to-`develop` push as a normal automated release — ideally after deciding explicitly whether F-1 (dead confirmation input) and F-2 (caller-side cancellation) get code fixes first.
+8. **Owner, evidence:** capture run ID, URL, `validate` outputs, the three DB operation logs, Render deploy id/status, `.commit.id` equality result, `/v1/readyz` HTTP code, and the `summary` verdict. ~~Expect R-3's spurious "NEWER RELEASE(S) QUEUED" warning on this path and discount it (F-4).~~ **Updated by `d05b29e`: on this path the check now orders by `databaseId`, so "NEWER RELEASE(S) QUEUED" is a *real* signal — treat it as a stop-and-investigate indicator, not noise (§15.3).**
+9. **Then, and only then,** treat a merge-to-`develop` push as a normal automated release — ~~ideally after deciding explicitly whether F-1 (dead confirmation input) and F-2 (caller-side cancellation) get code fixes first.~~ **F-1 and F-2 are fixed in `d05b29e`, so this step no longer waits on that decision; it still waits on steps 1–6 and on a green hosted run for the hardening head.**
 
 ---
 
@@ -402,8 +411,8 @@ Each step names who performs it. **None of these steps were performed in this se
 - **Verifying the absence of repository-level** namesakes for those four names. *(W4, D-3)*
 - **Deciding to merge** PR #106, and choosing inert-vs-paused merge posture. *(Q7)*
 - **Performing the first `workflow_dispatch`** and approving each environment job. *(Q6)*
-- **Scheduling develop pushes** so no release is cancelled mid-migration, or authorizing a `ci.yml` concurrency change. *(R-1)*
-- **Authorizing fixes** for the dead `skip_confirmation` input and the dispatch-path stale check. *(F-1, F-4)*
+- **Scheduling develop pushes** so no release is cancelled mid-migration — **reduced by `d05b29e`, not removed**: a newer `develop` push no longer cancels the in-flight run, but overlapping *queued* releases are still possible, so the "one release at a time" discipline still applies while R-3 is unresolved. *(R-1, §15.1, §15.5)*
+- ~~**Authorizing fixes** for the dead `skip_confirmation` input and the dispatch-path stale check.~~ **Done in code as `d05b29e` (F-1, F-4) — nothing left to authorize; what remains is reviewing the diff and the hosted CI evidence for it.** *(§15.2, §15.3)*
 
 ## 13. Authorization boundary confirmation
 
@@ -433,6 +442,136 @@ Not performed:
 Merging today is safe in the operational sense: `release.yml` has no `push`/`pull_request` trigger of its own, `ci.yml` only calls it on a green develop push, and `validate` fails closed on absent configuration before any migration or Render call. That has now been verified against the code and against live hosted data, not inferred from earlier reports.
 
 The honest caveat is that this safety comes entirely from B-2 being **unresolved**, not from any approval gate in the pipeline — there is none, since `skip_confirmation` is dead code (F-1). The instant `staging` gains its four configuration values, every push to `develop`, merge commits included, becomes an unattended live staging release. So the required owner authorization before merge is narrow and specific: **confirm Render auto-deploy is disabled** (the one trigger that bypasses GitHub Actions completely) and **add a required reviewer to `staging` before merging rather than letting the merge auto-create it unprotected**. With those two in place, the merge is inert and the first activation is a deliberate, per-job, human-approved event.
+
+**v1.1 update to this recommendation.** The diagnosis still holds; two of its supporting facts moved. (a) The dead `skip_confirmation` input is now deleted, so the pipeline no longer even *implies* a code-level confirmation — the sentence "there is none" is now literally true of the workflow's UI as well as its logic (F-1 → §15.2). (b) "Unattended" is now slightly less unattended: a second `develop` push can no longer cancel the release run mid-migration (R-1 → §15.1), which was the failure mode that made an unattended release dangerous even when it was supposed to be the only one. **Neither merge prerequisite changed**: both remain owner-side, both remain unperformed, and this audit's verdict on merging — safe *only* with those two in place — is unchanged by `d05b29e`.
+
+## 15. Remediation addendum (v1.1) — R-1, F-1 and F-4 fixed in code
+
+Added 2026-11-05. **Everything in §1–§14 above is left exactly as audited**; this section records what changed afterwards, so the audit's evidence trail stays intact and citable.
+
+**Remediation commit (code):** `d05b29e12443a20572d48f95c66c279080ca0264` — *fix(release): harden staging release safety (R-1, F-1, F-4)*, 7 files, +1042/−157: `.github/workflows/ci.yml`, `.github/workflows/release.yml`, `apps/api/scripts/validate-workflow-structure.mjs`, `apps/api/scripts/detect-stale-release.mjs` and the three release-pipeline specs that assert them.
+
+All `file:line` citations below are against that commit, not against `303ff06`. Where a §1–§14 line reference has moved, the old reference is not rewritten — it is superseded in the note that annotates it.
+
+### 15.1 R-1 / F-2 — a newer push can no longer cancel the run that hosts a release **[CODE] + [DOC]**
+
+The audited defect was that `ci.yml` cancelled every in-progress run of `CI-<ref>`, and the release's migrating jobs live *inside* that run. F-2's second mitigation option ("scope `cancel-in-progress` so it never applies to `refs/heads/develop`") is now implemented:
+
+`.github/workflows/ci.yml:57-59`
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+```
+
+| Ref | Old | New | Why |
+|---|---|---|---|
+| `refs/heads/develop` | cancelled by a newer push | **never cancelled** | the only ref whose run can reach `database-release` |
+| feature branches, `main`, PRs | cancelled | **still cancelled** | preserves the useful behaviour R-1's fix must not sacrifice |
+
+`cancel-in-progress` accepts an expression, and the permitted contexts for it are `github`, `inputs` and `vars` — `github.ref` is therefore legal here **[DOC]**; `ci.yml:22-56` records that constraint so nobody "simplifies" it into an unsupported context. The group is unchanged (`github.workflow`-scoped), which matters: the fix does **not** move the cancellation risk into another workflow, because `release.yml` is not a group member on Path A — the caller's run is, and that run is now the one that cannot be superseded.
+
+`.github/workflows/release.yml:114-117`
+
+```yaml
+concurrency:
+  group: staging-release
+  cancel-in-progress: false
+  queue: max
+```
+
+Three deliberate properties, each now enforced by a validator check:
+
+1. **Literal group.** `${{ github.workflow }}-${{ github.ref }}` inside a *called* workflow resolves to the caller's values (community discussion #30708 reports `github.workflow` resolving to the caller's name **[DOC, non-staff]**), so an expression group here could collapse onto `CI-…` and inherit the caller's cancellation. A literal `staging-release` cannot collide with anything and is shared by both execution paths. → `release-concurrency-group-is-literal`.
+2. **Never cancels.** `cancel-in-progress` is the literal boolean `false`, not an expression. → `release-concurrency-never-cancels-in-progress`.
+3. **Queues instead of replacing (R-4).** GitHub's documented default group holds one running + one pending member and *replaces the older pending one*; `queue: max` raises the pending ceiling to 100. It is legal only alongside literal `cancel-in-progress: false` — `queue: max` with `cancel-in-progress: true` is a workflow validation error **[DOC]**, which is exactly why property 2 is a literal. → `release-concurrency-queues-instead-of-replacing`, `queue-max-requires-literal-false-cancellation`.
+
+`ci.yml` deliberately does **not** gain `queue: max`: it would be invalid against an expression that can evaluate to `true`, and default queueing is the right behaviour for feature branches. That asymmetry is asserted by `ci-develop-run-is-not-cancelled-by-a-newer-push` and `ci-non-develop-refs-still-cancel`, both of which *evaluate* the expression for `refs/heads/develop`, `refs/heads/main` and a feature/PR ref rather than string-matching it.
+
+**What this does not claim.** It removes the demonstrated cancellation path (run #424, §5.3). It does not make two overlapping releases impossible — see §15.5.
+
+### 15.2 F-1 — `skip_confirmation` removed (deletion route) **[CODE]**
+
+`.github/workflows/release.yml:78-83` now declares exactly one dispatch input:
+
+```yaml
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to release (must be on develop) — a real staging release: migrates, seeds, deploys'
+        required: true
+        type: string
+```
+
+The audit's two options were "implement the gate" or "delete the input". **Deletion was chosen**, because an in-workflow confirmation token would be a second, weaker copy of the approval surface GitHub already provides: a workflow that can read its own `inputs` can read them as "confirmed", so the token would gate nothing that `validate` does not already gate, while *appearing* to add a human step. Real approval lives in `staging` environment protection rules — required reviewers (and optionally a wait timer and deployment-branch policy) — which pause each of the four `environment: staging` jobs independently and cannot be satisfied by anything in the repository. That is documented in the architecture doc ("Approval and human-in-the-loop") and in `release.yml:60-77`.
+
+The dead input cannot silently come back: `release-no-skip-confirmation-input` forbids the name, and `dispatch-inputs-all-consumed` fails if any declared dispatch input is never read — which is the general form of F-1. `dispatch-input-commit-sha-required` keeps the SHA mandatory. `workflow-structure.spec.ts` reproduces the defect (re-adding the input) and proves the guard fires.
+
+**A dispatch is not a dry run, and now says so in the UI.** §10 Q6's answer stands unchanged: with B-2 configured, one valid dispatch is a full live release (migrate → seed → ledger → Render deploy → health check). The `commit_sha` description is the first thing the person typing the SHA reads, and it now states that.
+
+### 15.3 F-4 — stale-release detection compares like with like **[CODE] + [RUN]**
+
+The defect was a cross-workflow `runNumber` comparison on Path B. The step (`.github/workflows/release.yml:363-476`) now branches on the event:
+
+`.github/workflows/release.yml:402-410`
+
+```bash
+if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+  ORDER_FIELD='databaseId'
+  COMPARISON_BASIS="$CURRENT_RUN_ID"
+  WORKFLOW_SPECS=('release.yml:' 'ci.yml:develop')
+else
+  ORDER_FIELD='runNumber'
+  COMPARISON_BASIS="$CURRENT_RUN_NUMBER"
+  WORKFLOW_SPECS=('ci.yml:develop')
+fi
+```
+
+- **Path A (automated) is unchanged in substance** — still caller `ci.yml` runs on `develop`, still `runNumber`, which is monotonic *within* one workflow file and therefore valid only for same-file comparisons. The fix does not weaken it: `stale-detection-automated-path-caller-only` asserts Path A reads nothing but `ci.yml:develop`.
+- **Path B orders by `databaseId`**, which is monotonic per **repository**, so it is the only identifier sound across `release.yml` and `ci.yml` runs. Path B reads its own workflow's queued runs *and* the caller's, merged and deduplicated with `unique_by(.databaseId)`.
+- Both paths exclude the current run by `databaseId != $self` (never by position in a list) and neither reads `createdAt`, which is not monotonic under retries and clock skew → `stale-detection-excludes-current-run`, `stale-detection-never-reads-createdAt`.
+- The comparator is one expression parameterised by `$field`, so the two paths cannot drift into different arithmetic → `stale-detection-no-mixed-identifier-comparison`.
+- **Advisory policy preserved** (§5.2 W2): no `exit 1`, `gh` failures increment `QUERY_FAILURES` and downgrade to a warning, and the step still says the current migration should finish → `stale-detection-allows-complete`, `stale-detection-survives-query-failure`.
+
+**Runtime evidence, not only structural.** `detect-stale-release.mjs` mirrors the step and is executed in real Node processes against a fabricated run population (`MIXED_POPULATION`: `databaseId` 490/500/510 against `runNumber` 3/430/431 — deliberately contradictory orderings):
+- Path A flags the 2 runs newer by `runNumber`; Path B, on the *same* state, correctly reports none of them newer by `databaseId`. The two paths disagree by construction, which is the point.
+- Replaying the **pre-fix** expression (`select(.runNumber > $current)` with `current` = release.yml's own counter, i.e. 3) on that state returns **2** — the exact false positive F-4 described, reproduced rather than asserted.
+- A genuinely newer dispatch run *is* still detected on Path B (detection not weakened), a clean dispatch reports nothing, `gh` failure and partial failure both warn with exit code 0.
+
+`stale-release-detection.spec.ts` (13) asserts both branches inside the real YAML; `stale-release-helper.spec.ts` (9) executes the helper; `workflow-structure.spec.ts` carries three negative controls — un-branching the step, ordering Path B by `runNumber`, and reintroducing the mixed comparison — each of which must make the validator fail.
+
+### 15.4 Reassessment of the non-code risks: unchanged, and why
+
+- **R-2 (Render auto-deploy) — owner action, unchanged, still the top risk.** Nothing in this repository can read or disable it; no Render endpoint was called in this session. Its severity is *higher* than §10 stated relative to R-1, now that R-1 is closed: it is the only remaining trigger that bypasses GitHub's gates entirely. Gate 1 of §11 is unchanged. **[NOT VERIFIED]**
+- **R-3 (does called-workflow `concurrency` apply?) — still an architectural unknown.** §10's honesty is retained: GitHub's concurrency and reuse documentation does not state whether a called workflow's top-level `concurrency` participates in grouping, and no primary source was found either way. What changed is *dependency*: R-1 no longer relies on that unknown, because the protection now sits in the caller's own `cancel-in-progress`. The literal group from §15.1 additionally means that *if* callee concurrency does apply, it behaves as intended on both paths; if it does not, the caller-side fix still holds. The advisory stale check remains advisory. **[DOC gap]**
+- **R-4 (pending replacement) — mitigated in code, not removed.** `queue: max` + literal `cancel-in-progress: false` on `staging-release` removes the "older pending run is replaced" behaviour for releases queued into that group. Two caveats: runs beyond the 100-pending ceiling are cancelled, and GitHub does not document FIFO ordering within a queue, so "queued" is not "in the order you pushed". `ci.yml`'s group keeps default behaviour by design. **[CODE] + [DOC]**
+- **W4 (repo-level namesakes bypass the environment gate) — not a code defect, owner verification.** GitHub's documented resolution order is what it is; `d05b29e` changes no secret or variable and reads none. §6.3's 401s still stand; D-3 still needs the owner to look. **[DOC] + [NOT VERIFIED]**
+- **F-3 (merge auto-creates an unprotected `staging`) — unchanged owner action.** No environment was created or modified in this session, so the merge is still capable of auto-creating it. §11 step 2 is still the correct order of operations. **[DOC]**
+- **F-5 (no runtime evidence for the release jobs) — still true.** `validate`, `database-release`, `deploy`, `health-check` and `summary` have still never executed, and this remediation did not and could not change that without authorization. Consequence: R-1's fix is proven at the *workflow-configuration* level and by the #424 demonstration of the mechanism it removes — it is **not** proven by an in-flight staging release, because none exists. **[RUN] + [CODE]**
+
+### 15.5 Residual limitations, stated plainly
+
+1. Two releases can still overlap if the second is *manually dispatched* while a develop-hosted release runs: the caller-side protection applies to Path A's run, and whether `staging-release` serialises a `workflow_dispatch` run against a called run depends on the §15.4 R-3 unknown.
+2. Cancellation of Path B's own run (a human pressing "Cancel workflow" on a dispatch run, or a required-reviewer timeout) is outside any `concurrency` setting. The mitigation is the one the audit already recommended: the PostgreSQL session advisory lock in `apps/api/infra/drizzle/migration-lock.ts`, held for the whole ledger-check/apply sequence in `migrate-pg.ts:54` and released at `:122`, plus per-migration `BEGIN`/`COMMIT` with the `_migration_log` insert in the same transaction (`migrate-pg.ts:97-100`). That lock — not Actions concurrency — is what makes a cancelled-and-resumed migration converge, and it is the reason the stale check stayed advisory.
+3. Nothing here has hosted runtime proof, because proof would require the staging activation this session is not authorized to perform. §15.6 lists what *is* proven; the merge and the first dispatch remain the first real test.
+
+### 15.6 Verification at `d05b29e` (local; supersedes §7 for this tree only)
+
+| Check | Command | Result |
+|---|---|---|
+| Structural validator | `node apps/api/scripts/validate-workflow-structure.mjs` | **78/78 checks passed** (was 56/56 at `303ff06`; +22 for R-1/F-1/F-4 and `needs`-gating) |
+| Release-pipeline unit | `npx vitest run src/__tests__/unit/release-pipeline` | **7 files / 112 tests passed**, exit 0 |
+| Stale-detection runtime | real Node processes + real `jq` against fabricated run state | both paths correct; pre-fix expression reproduces the F-4 false positive; §15.3 |
+| Migration-ledger integration | Testcontainers PostgreSQL | **NOT RE-RUN at this head.** The Docker Desktop daemon went down mid-run (`failed to connect to the docker API at npipe:…`), so no local integration evidence exists for `d05b29e`; the ledger code path is untouched by the commit and the same 8 tests passed at `303ff06` (§7). Hosted `Integration Tests` result: §15.7 |
+| Typecheck / lint / build | `tsc --noEmit` · ESLint on the changed scripts and specs · `nest build` | **0 errors** · **0 errors, 0 warnings** · build success (432 files) |
+| Hosted CI | see §15.7 | recorded after the push |
+
+### 15.7 Post-commit hosted CI verification of the hardening head
+
+_RECORD PENDING — to be completed from the Actions run for the PR head carrying `d05b29e`, and committed in the follow-up documentation commit. Full job-by-job results are recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9._
+
+---
 
 ## Appendix: evidence index
 

@@ -1,6 +1,8 @@
 # Automated Staging Release Pipeline — Architecture v2.1 (Implemented)
 
-**Date:** 2026-11-03 (CI wiring + env scoping + stale-detection corrected 2026-11-04)  
+**Date:** 2026-11-03 (CI wiring + env scoping + stale-detection corrected 2026-11-04; release-safety
+hardening R-1/F-1/F-4 added 2026-11-04 — see
+`docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md`)  
 **Version:** 2.1 (Implemented)  
 **Status:** Implemented, locally verified **and verified by GitHub Actions on the pull request** (PR #106, run #420, `conclusion=success`: every mandatory CI job passed and `Trigger Staging Release` was skipped as designed). **Staging end-to-end verification is still outstanding and has not been attempted or authorized** — no push to `develop` has yet invoked the reusable workflow, and no authorized staging release has run. The trigger/secret and variable-scoping model is validated by an executable structural validator, typecheck, build, local tests and hosted PR CI — not yet by a live staging deployment.  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)  
@@ -67,40 +69,58 @@ Key facts a reviewer must know:
   == develop`).
 
 **Preserved safeguards:** advisory lock (namespace 0x534353), single-step SSL lifecycle with a
-`cleanup_ssl` `trap` on EXIT/ERR/INT/TERM, `run_number`-based stale detection with an
+`cleanup_ssl` `trap` on EXIT/ERR/INT/TERM, path-aware stale detection with an
 **allow-complete** policy (never aborts an in-flight migration), exact-SHA checkout, migration
 ledger verification (`verify-migration-ledger.mjs`, now resolved against the repo-root
 `infra/drizzle/migrations` — the same directory the real runner uses), Render `.commit.id`
 verification, readiness health check, and documented "migrations-succeeded-but-deploy-failed"
 recovery. No automatic database rollback is introduced.
 
-**Stale-release detection reads the caller's queued runs.** Because `release.yml` is called as a
-reusable workflow, it executes as a job *inside* the `ci.yml` run and produces no standalone
-`release.yml` workflow runs; `github.run_id` / `github.run_number` inside it are the **ci.yml**
-identifiers. The pre-mutation step therefore queries `gh run list --workflow=ci.yml
---branch=develop --status=queued --json databaseId,runNumber`, drops the current run
-(`select(.databaseId != $self)`) and counts strictly newer runs (`select(.runNumber > $current)`)
-— monotonic `run_number`, never `createdAt`. Finding a newer run only warns: the policy stays
-allow-complete, the current migration finishes, and a `gh`/API failure is likewise non-fatal so the
-informational check can never block a release. `apps/api/scripts/detect-stale-release.mjs` mirrors
-this logic and is exercised directly by `stale-release-helper.spec.ts`.
+**Stale-release detection compares identifiers that are comparable for the path in play.**
+`run_number` is monotonic **per workflow file**; `databaseId` (the run id) is monotonic **across
+the repository**. Reading `github.run_number` unconditionally was wrong for one of the two paths:
+
+- **Automated (`workflow_call` from `ci.yml`).** A reusable workflow executes as a job *inside* the
+  `ci.yml` run and produces no standalone `release.yml` runs; `github.run_id` / `github.run_number`
+  / `github.event_name` inside it are the **caller's** values. Detection queries
+  `gh run list --workflow=ci.yml --branch=develop --status=queued`, drops the current run
+  (`select(.databaseId != $self)`) and counts strictly newer runs by **`runNumber`** against the
+  caller's own run number. Querying `release.yml` here would return an empty set and silently
+  no-op the check.
+- **Manual (`workflow_dispatch` of `release.yml`).** The run *is* a `release.yml` run, so its
+  `run_number` belongs to a different file's counter (release.yml is in single digits while
+  `ci.yml` is in the hundreds) and comparing the two flagged **every** valid dispatch as "newer
+  release queued". Ordering therefore switches to **`databaseId`** and both populations are
+  scanned: queued `release.yml` dispatch runs (unfiltered by branch — `validate` accepts a
+  develop-reachable SHA regardless of the ref the dispatch was started from) and queued
+  `ci.yml`/`develop` runs, deduplicated by `unique_by(.databaseId)`.
+
+Either way the finding only warns: the policy stays allow-complete, the current migration finishes,
+and a `gh`/API failure is likewise non-fatal (the step counts partially-read sources and proceeds)
+so the informational check can never block a release. `apps/api/scripts/detect-stale-release.mjs`
+mirrors this logic — same per-path field, same sources, same self-exclusion — and is exercised
+directly by `stale-release-helper.spec.ts`.
 
 **Verification actually performed:**
 
 _Local, non-destructive:_
 
 - Executable structural validator `apps/api/scripts/validate-workflow-structure.mjs` (parses the
-  real YAML with js-yaml): **48/48 checks pass** (includes job-vs-workflow `vars` scope, env
-  interpolation resolvability, pre-mutation variable guard, caller-targeted stale detection and the
-  caller/callee `permissions:` intersection that GitHub enforces before a reusable call can start).
+  real YAML with js-yaml): **78/78 checks pass** (includes job-vs-workflow `vars` scope, env
+  interpolation resolvability, pre-mutation variable guard, caller-targeted stale detection, the
+  caller/callee `permissions:` intersection that GitHub enforces before a reusable call can start,
+  and the safety-hardening families added in `d05b29e`: 8 concurrency checks over both workflows,
+  3 dispatch-input checks, 11 path-aware stale-release checks and 4 `needs`-gating checks).
 - Release-pipeline specs (`src/__tests__/unit/release-pipeline` +
-  `src/__tests__/integration/release-pipeline`): **96 pass across 8 files** — `workflow-structure`
-  (10), `render-api` (19), `manual-sha-validation` (19, driving the real
+  `src/__tests__/integration/release-pipeline`): **120 pass across 8 files** — `workflow-structure`
+  (23), `render-api` (19), `manual-sha-validation` (19, driving the real
   `validate-release-sha.mjs` exports in a sandbox repository), `ssl-certificate-handling` (19),
-  `workflow-trust-boundary` (10), `stale-release-detection` (7), `stale-release-helper` (4),
-  `verify-migration-ledger` (8, Testcontainers PostgreSQL). Two negative-control tests mutate
+  `workflow-trust-boundary` (10), `stale-release-detection` (13), `stale-release-helper` (9),
+  `verify-migration-ledger` (8, Testcontainers PostgreSQL). **11 negative-control tests** mutate
   throwaway copies of `ci.yml` / `release.yml` back into the shapes that broke CI runs #417 and
-  #418, to prove the guards actually fire.
+  #418, and into the pre-fix shapes of R-1 (unconditional cancellation), F-1 (a re-added
+  `skip_confirmation` input) and F-4 (a dispatch path ordered by `runNumber`, or the path split
+  removed), to prove the guards actually fire.
 - Migration/ledger integration specs (`migration-0064-email-identity`, `migration-0065-hmac-hash`,
   `migration-lock`) against a disposable Testcontainers PostgreSQL: **47 pass** (3 files, serial run).
 - `tsc --noEmit`: **0 errors**. `nest build`: **success** (432 files, 0 TSC issues). ESLint on changed
@@ -203,7 +223,9 @@ them were introduced by this branch's own specs:
 - ✅ Exact SHA verification (migrated code = deployed code)
 - ✅ Migration ledger verification (file system = database state)
 - ✅ SSL certificate security (file-based, restricted permissions, cleanup)
-- ✅ Concurrency control (serialized releases, stale run detection)
+- ✅ Concurrency control — `develop` releases are no longer cancellable by a newer push, the
+  `staging-release` group queues instead of replacing, and the PostgreSQL advisory lock is the hard
+  serializer; stale-run detection stays advisory (allow-complete)
 - ✅ Comprehensive audit trail (GitHub Actions summary)
 - ✅ Health check verification (readiness endpoint)
 - ✅ Terminal state detection (7 deployment states)
@@ -276,6 +298,41 @@ on:
 Manual trigger requires an explicit SHA. It must be a valid 40-hex commit, reachable from `develop`,
 with an exact successful CI run on `develop`. `workflow_call` declares **inputs only** (no secrets
 schema); staging secrets resolve from `environment: staging`.
+
+**A dispatch is a real release, not a dry run.** `workflow_dispatch` runs the same mutating sequence
+as the automated path: `db:migrate`, `db:seed`, ledger verification, a Render deployment of the
+dispatched SHA and the `/v1/readyz` check. There is no preview mode, no `--dry-run` input and no
+confirmation prompt anywhere in the file. The workflow previously declared a
+`skip_confirmation: boolean` input that no step ever read (audit finding F-1); it implied a
+confirmation gate that did not exist and made a destructive run look optional, so it has been
+removed rather than wired up — see **Approval and human-in-the-loop** below. The structural
+validator now enforces the general rule (`dispatch-inputs-all-consumed`,
+`release-no-skip-confirmation-input`): a declared-but-unread `workflow_dispatch` input fails
+validation.
+
+### Approval and human-in-the-loop
+
+**There is no approval gate in workflow code on either path.** The real approval surface is GitHub
+environment protection rules on the `staging` environment, which GitHub evaluates when a job
+declares `environment: staging` — all four release jobs (`validate`, `database-release`, `deploy`,
+`health-check`) do:
+
+- **Required reviewers** — a designated reviewer must approve each job before it starts. This is
+  the only mechanism that puts a human between "CI went green on `develop`" and "migrations ran
+  against staging".
+- **Wait timer** — hold the job for a fixed delay, which lets an operator cancel a release that is
+  queued for a SHA they did not intend to ship.
+- **Deployment branches / visible to repository** — restrict which refs may use the environment at
+  all.
+
+Because the workflow only needs those four jobs to be gated, adding protection rules requires no
+workflow change. Two consequences that must not be glossed over:
+
+1. While the `staging` environment **does not exist**, GitHub creates it implicitly on first use
+   *with no protection rules* — so an unprotected auto-created environment plus a configured
+   secret set means every push to `develop` releases to staging with nobody approving.
+2. A `workflow_dispatch` run is subject to the same rules as the automated path. Choosing "Run
+   workflow" in the Actions UI is not a rehearsal; it is a release attempt.
 
 ### High-Level Flow
 
@@ -912,25 +969,79 @@ rm -rf "$SSL_DIR"
 
 ### Concurrency Control
 
-**Workflow concurrency:**
+Two groups are involved, and the caller's is the one that matters for an automated release.
+
+**`release.yml` (the release itself):**
+
 ```yaml
 concurrency:
-  group: staging-release
-  cancel-in-progress: false
+  group: staging-release          # literal: shared by BOTH execution paths
+  cancel-in-progress: false       # never supersede a running or queued release
+  queue: max                      # up to 100 pending runs instead of 1 replaced pending
 ```
 
-**Behavior:**
-- Only one release workflow can run at a time
-- New runs queue behind running workflow
-- `cancel-in-progress: false` ensures running workflow completes
-- Prevents concurrent migrations (advisory lock provides additional safety)
+- The group name is a **literal string**, deliberately not `${{ github.workflow }}-${{ github.ref }}`.
+  A called reusable workflow resolves `github.workflow` to the **caller's** name, so an
+  expression-based group inside `release.yml` would collide with `ci.yml`'s own group — the failure
+  mode reported in GitHub community discussion #30708. A validator check
+  (`release-concurrency-group-is-literal`) refuses a non-literal group here.
+- `cancel-in-progress` is pinned to the literal boolean `false` rather than an expression because
+  GitHub rejects `queue: max` combined with `cancel-in-progress: true` as a **workflow validation
+  error** (`queue-max-requires-literal-false-cancellation` enforces that rule for both files).
+- `queue: max` raises the pending ceiling from GitHub's default of one pending run — where a third
+  queued run *cancels and replaces* the older pending one — to up to 100 pending runs, so queued
+  manual dispatches stop silently disappearing (audit finding R-4). Beyond 100, runs are still
+  cancelled; ordering is still **not** guaranteed FIFO.
+- Whether a called workflow's own workflow-level `concurrency` is honoured under
+  `workflow_call` is **not documented by GitHub** (audit risk R-3). The community thread implies it
+  is evaluated (that is how the collision arose), but nothing official confirms the grouping
+  semantics for a run that has no workflow run of its own. **Do not rely on this block for the
+  automated path.** Its proven value is the dispatch path, where `release.yml` really does own the
+  run.
+
+**`ci.yml` (the caller that hosts the automated release):**
+
+```yaml
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+```
+
+`trigger-staging-release` calls `release.yml` at **job** level, so the release's mutating jobs
+(`database-release`, `deploy`) are jobs *of the `ci.yml` run* — they are cancelled whenever that run
+is cancelled. Superseding a `develop` run therefore used to be able to kill a migration mid-flight
+(audited as R-1 / finding F-2, demonstrated live on run #424 where a newer run in the same group
+cancelled the in-flight job). `cancel-in-progress` accepts an expression — the permitted contexts
+are `github`, `inputs` and `vars` — so the value is now `false` exactly on `develop`, where a
+release can be in progress, and stays `true` everywhere else:
+
+| Event / ref | Superseded by a newer push? | Can it reach a staging release? |
+|---|---|---|
+| `pull_request` (`refs/pull/N/merge`) | **Yes** — unchanged, fast PR feedback keeps running | No (`if` requires `push`) |
+| `push` to a feature branch | **Yes** — unchanged | No |
+| `push` to `main` | **Yes** — unchanged | No (`if` requires `refs/heads/develop`) |
+| `push` to `develop` | **No** — a second push queues behind the running release | **Yes** |
+
+Validator checks: `ci-develop-run-is-not-cancelled-by-a-newer-push` and
+`ci-non-develop-refs-still-cancel` evaluate the expression for representative refs rather than
+pattern-matching the line, and negative controls re-introduce both the unconditional `true` and the
+inverted `==` form to prove the checks fire.
+
+**Residual limitation (documented, not fixed).** `ci.yml`'s `develop` group still holds one running
+plus **at most one** pending run, and a third push replaces that older pending run. This is
+acceptable because the replaced entity has not started, so nothing can be mid-migration inside it.
+Making the develop group queue (`queue: max`) is not possible while its `cancel-in-progress` is an
+expression that evaluates to `true` for PRs. The hard serialization guarantee for staging is
+therefore **not** Actions concurrency at all — it is the PostgreSQL session-scoped advisory lock
+(`pg_advisory_lock(0x534353, 1)`, held for the whole ledger-check/apply sequence) combined with each
+migration running in its own transaction and recorded in `_migration_log` in that same transaction.
 
 **Stale run detection:**
-- Workflow checks out exact SHA from CI run (not branch tip)
-- If new commit pushed during workflow execution, stale run continues with old SHA
-- New workflow run queues behind stale run
-- Stale run completes, then new run executes with new SHA
-- Prevents race conditions and ensures SHA consistency
+- Workflow checks out the exact SHA from the CI run (not the branch tip)
+- If a new commit is pushed during workflow execution, the running release continues with its
+  validated SHA; detection only warns about the newer queued run (allow-complete)
+- The newer run then executes with the new SHA
+- Overlapping mutations are prevented by the advisory lock, not by the detection step
 
 ---
 
@@ -1098,7 +1209,9 @@ Manual runner → Waits for lock → Acquires lock → Sees no pending → Relea
 4. Verify SHA matches
 
 **Prevention:**
-- Workflow concurrency control (`cancel-in-progress: false`)
+- Workflow concurrency control: `release.yml` `cancel-in-progress: false` + `queue: max`, and
+  `ci.yml` never cancels a `develop` run (the caller group is what governs an automated release)
+- PostgreSQL advisory lock held for the whole ledger-check/apply sequence — the actual serializer
 - Exact SHA checkout (not branch tip)
 - SHA verification catches mismatch before health check
 
@@ -1477,10 +1590,15 @@ node apps/api/scripts/verify-migration-ledger.mjs
 1. Click "Add variable"
 2. Add `RENDER_SERVICE_ID` (e.g., `srv-abc123`)
 
-**Optional: Protection rules:**
-- Required reviewers: Add team members who must approve releases
+**Protection rules (required before first activation, not optional):**
+- Required reviewers: Add team members who must approve releases — this is the *only* human gate in
+  the pipeline; the workflow itself contains no confirmation step
 - Wait timer: Add delay before deployment (e.g., 5 minutes)
 - Deployment branches: Restrict to `develop` only
+
+Without reviewers, configuring the four values makes every successful push to `develop` an
+unapproved staging release, because `cancel-in-progress` being false only orders releases — it does
+not pause for a person.
 
 ---
 
@@ -1549,18 +1667,20 @@ staging release before it can be called verified end to end.
    - `needs:` = the 8 mandatory develop gates (develop-skipped `k6-smoke` excluded)
 
 3. ✅ **Executable structural validator:** `apps/api/scripts/validate-workflow-structure.mjs`
-   - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (48 checks — the original
-     29 plus variable-scope, env-interpolation, pre-mutation-guard, stale-detection and
-     caller/callee `permissions:` checks added after CI runs #417–#418)
+   - Parses the real YAML with js-yaml and asserts the reusable-workflow wiring (78 checks — the
+     original 29, plus variable-scope, env-interpolation, pre-mutation-guard, stale-detection and
+     caller/callee `permissions:` checks added after CI runs #417–#418, plus the safety-hardening
+     checks added in `d05b29e`: R-1 concurrency across both workflows, F-1 dispatch-input liveness,
+     F-4 path-aware stale detection, and `needs`-gating of the release job)
 
-4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs` (mirrors the workflow step: caller `ci.yml` runs, monotonic `runNumber`, self-exclusion, allow-complete)
+4. ✅ **Helper scripts:** `apps/api/scripts/verify-migration-ledger.mjs` (now resolves the repo-root `infra/drizzle/migrations` that the real runner uses), `validate-release-sha.mjs`, `detect-stale-release.mjs` (mirrors the workflow step per execution path: caller `ci.yml` runs, `runNumber` on the automated path and repository-wide `databaseId` on the dispatch path, self-exclusion, allow-complete)
 
-5. ✅ **Unit tests:** `apps/api/src/__tests__/unit/release-pipeline/`
-   - `workflow-structure.spec.ts` (executes the validator against the real files)
-   - `workflow-trust-boundary.spec.ts` (asserts the real caller/release guards — PRs cannot trigger)
-   - `stale-release-detection.spec.ts` (asserts the real embedded ci.yml / runNumber / allow-complete step)
-   - `stale-release-helper.spec.ts` (executes `detect-stale-release.mjs` in a real Node process)
-   - `render-api.spec.ts`, `manual-sha-validation.spec.ts`, `ssl-certificate-handling.spec.ts`
+5. ✅ **Unit tests:** `apps/api/src/__tests__/unit/release-pipeline/` (112 tests, 7 files)
+   - `workflow-structure.spec.ts` (23 — executes the validator against the real files; 11 negative controls)
+   - `workflow-trust-boundary.spec.ts` (10 — asserts the real caller/release guards — PRs cannot trigger)
+   - `stale-release-detection.spec.ts` (13 — asserts both embedded paths: per-path `ORDER_FIELD`, basis, sources, self-exclusion, advisory-only policy, pre-mutation ordering)
+   - `stale-release-helper.spec.ts` (9 — executes `detect-stale-release.mjs` in a real Node process, including the automated-vs-dispatch disagreement case)
+   - `render-api.spec.ts` (19), `manual-sha-validation.spec.ts` (19), `ssl-certificate-handling.spec.ts` (19)
 
 6. ✅ **Integration tests:** `apps/api/src/__tests__/integration/release-pipeline/`
    - Migration ledger verification against disposable PostgreSQL (Testcontainers)
@@ -1633,10 +1753,14 @@ staging release before it can be called verified end to end.
    - Click "Add variable"
    - Add `RENDER_SERVICE_ID` with value
 
-4. **Optional: Protection rules:**
-   - Add required reviewers
+4. **Protection rules (required, not optional):**
+   - Add required reviewers — the workflow has no confirmation step of its own, so this is the only
+     human approval gate before a staging mutation
    - Add wait timer
    - Restrict deployment branches
+
+   Do not merge or push to `develop` with the environment configured but unprotected: with no
+   reviewers, every successful `develop` push becomes an unapproved staging release.
 
 ---
 
@@ -1736,10 +1860,10 @@ GitHub Actions run on the pull request (run #420), and have **not** yet been exe
 
 ---
 
-**Document version:** 2.1 (Implemented — CI wiring, token permissions, variable scoping, stale detection and test isolation corrected)  
-**Last updated:** 2026-11-04  
+**Document version:** 2.1 (Implemented — CI wiring, token permissions, variable scoping, stale detection and test isolation corrected; release-safety hardening R-1/F-1/F-4 added at `d05b29e`)  
+**Last updated:** 2026-11-05  
 **Author:** Qoder AI Assistant  
-**Status:** Implemented; **locally verified and PR CI verified** (validator 48/48, 96 release-pipeline specs + 47 migration/ledger integration tests, typecheck 0 errors, build success; PR run #420 green with `trigger-staging-release` skipped on `pull_request`). **Staging end-to-end not verified and not authorized.**  
-**Implementation branch:** feature/automated-release-pipeline-v2.1 (PR #106 → develop; release-code head `2079eab`, verified by PR CI run #420)  
+**Status:** Implemented; **locally verified and PR CI verified** (validator 78/78 at `d05b29e` — was 48/48 —, 112 release-pipeline unit specs across 7 files + the 8 migration/ledger integration specs, typecheck 0 errors, ESLint clean, build success; PR run #420 green with `trigger-staging-release` skipped on `pull_request`, plus the run for the current head recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9). **Staging end-to-end not verified and not authorized.**  
+**Implementation branch:** feature/automated-release-pipeline-v2.1 (PR #106 → develop; release-code head `2079eab` verified by PR CI run #420; safety-hardening head `d05b29e` — the current PR head CI run is recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9)  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

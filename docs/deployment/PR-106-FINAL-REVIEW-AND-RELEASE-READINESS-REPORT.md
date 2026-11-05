@@ -4,9 +4,9 @@
 **Subject:** Automated Staging Release Pipeline v2.1 (`workflow_call` orchestrator)
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)
 **Pull request:** [#106](https://github.com/nabeel2323/scs-platform/pull/106) → `develop`
-**Evidence head SHA:** `fc12499e251d016bfe8f46ba1c1e1a49874755d1`
-**Report version:** v1.0
-**Generated:** 2026-11-04
+**Evidence head SHA:** `fc12499e251d016bfe8f46ba1c1e1a49874755d1` (v1.0 review basis)
+**Report version:** v1.1 — v1.0 (2026-11-04) is the review; v1.1 (2026-11-05) records the outcome of the follow-on first-activation safety audit and the `d05b29e` hardening commit in §9.3 and the §10 notes. All v1.0 evidence, SHA citations and verdicts above it are preserved as written.
+**Generated:** 2026-11-04 (v1.0) · 2026-11-05 (v1.1 addendum)
 **Author:** Qoder review session (evidence collected read-only from the repository, the GitHub REST API and hosted Actions logs)
 
 ---
@@ -169,11 +169,11 @@ All values were read live during this review; none are copied from an earlier re
 | `:733-769` | `health-check`: `https://scs-api-staging.onrender.com/v1/readyz`, 10 attempts × 10 s, passes only on HTTP `200` |
 | `:772-816` | `summary`: `if: always()`, writes the SHA / CI run link / deploy id / deploy status / environment / service URL to `$GITHUB_STEP_SUMMARY`, and on failure prints each job's result `:798-812` |
 
-### 3.3 `apps/api/scripts/validate-workflow-structure.mjs` (384 lines, 48 checks)
+### 3.3 `apps/api/scripts/validate-workflow-structure.mjs` (384 lines, 48 checks) *[v1.1 → `d05b29e`: 78 checks]*
 
 An **executable** validator that parses the real `ci.yml` and `release.yml` with `js-yaml` and asserts wiring invariants (it does not hard-code constants). Coverage map: YAML parse `:104-113`; `workflow_call` present and `workflow_run` absent `:115-119`; required inputs `:121-125`; no secret schema `:127-132`; forbidden `'workflow_call'` event assumption `:134-136`; caller job-level `uses` `:138-140`; caller has no `steps`/`runs-on`/`environment` `:142-145`; no step-level reusable invocation `:147-149`; all eight mandatory gates in `needs` `:151-154` (`MANDATORY_DEVELOP_GATES` `:68-77`); develop-skipped jobs excluded `:156-158`; `needs` resolve to real jobs `:160-163`; `secrets: inherit` `:165-166`; caller `if` requires push/develop/repository `:168-172`; `with` keys `:174-178`; **caller/callee permission intersection** `:180-215`; every secret-touching release job declares `environment: staging` `:217-221`; `validate` has no invalid job-level `if` `:223-224`; environment `vars` bound at **job** scope only `:226-249`; consumed env names are bound in that job `:251-261`; every `${{ env.X }}` interpolation resolvable `:263-265`; missing `RENDER_SERVICE_ID` fails in the read-only job and `database-release` `needs` `validate` `:267-279`; stale-detection targets `ci.yml`, never `release.yml`, orders by `runNumber`, and cannot `exit 1` `:281-289`.
 
-**EXEC (this review):** `node scripts/validate-workflow-structure.mjs` → **`48/48 checks passed`**.
+**EXEC (this review):** `node scripts/validate-workflow-structure.mjs` → **`48/48 checks passed`**. **[v1.1] At `d05b29e` the same command reports `78/78 checks passed` — 22 checks added for R-1 concurrency (both workflows), F-1 dispatch-input liveness, F-4 path-aware stale detection and `needs`-gating of the release job.**
 
 ### 3.4 `apps/api/scripts/validate-release-sha.mjs` (178 lines)
 
@@ -184,6 +184,10 @@ Exports `validateSHAFormat` (40-hex, `:26-36`), `validateSHAExists` (`git cat-fi
 The one helper the workflow **does** execute (`release.yml:503-509`). Requires `DATABASE_URL` (`:58-62`), optional `PGSSLROOTCERT` (`:64`), builds a `pg` pool with `max: 1`, 5 s idle and 10 s connect timeouts and **`rejectUnauthorized: true`** when SSL is used (`:67-78`); verifies connectivity `:81-88`; fails with exit 2 if `_migration_log` is absent (`:91-102`); reads `*.sql` from the migrations directory **defaulting to the same `infra/drizzle/migrations` the runner uses**, overridable by `MIGRATIONS_DIR` (`:29-50`, rationale comment `:36-41`); compares file list vs ledger, **exit 1 on any missing migration** with an explicit cause list (`:137-153`), **warns but exits 0 on orphaned ledger entries** (`:155-165`); unexpected errors → exit 2 (`:170-175`).
 
 ### 3.6 `apps/api/scripts/detect-stale-release.mjs` (114 lines)
+
+### 3.6 `apps/api/scripts/detect-stale-release.mjs` (114 lines)
+
+**[v1.1 — superseded by `d05b29e`; the description below is the `fc12499` state, kept for the audit trail.]** The helper is now path-aware: `orderFieldForEvent` / `comparisonBasisForEvent` select `runNumber` vs repository-wide `databaseId` per execution path, `queuedRunSources` returns `ci.yml:develop` on Path A and both `release.yml` + `ci.yml:develop` on Path B, `mergeQueuedRuns` deduplicates by `databaseId`, `getQueuedRuns` returns **`null`** on failure instead of an empty list so callers can count partial reads, and `detectStaleRelease` reports `orderField`, `comparisonBasis`, `sourcesRead` and `sourcesFailed` alongside the unchanged `isStale: false` / `policy: 'allow-complete'`. SEC-11's "mirror, not runtime authority" characterisation still applies.
 
 Pure `findNewerRuns` (`:40-48`: numeric coercion, self-exclusion by `databaseId`, strict `runNumber >`, ascending sort), `getQueuedRuns` (`:53-68`, `gh run list --workflow=ci.yml --branch=develop --status=queued … --limit 10`, returns `[]` and logs to stderr on any failure), and `detectStaleRelease` (`:79-99`) which **always** returns `isStale: false` with `policy: 'allow-complete'`. Constants `CALLER_WORKFLOW_FILE = 'ci.yml'` `:30`, `CALLER_BRANCH = 'develop'` `:32`. Like §3.4, this is a test-visible mirror; the workflow's bash (`release.yml:356-391`) is the runtime authority (finding SEC-11).
 
@@ -199,6 +203,8 @@ Pure `findNewerRuns` (`:40-48`: numeric coercion, self-exclusion by `databaseId`
 | `unit/release-pipeline/render-api.spec.ts` | 19 | A local `node:http` mock server against **spec-local re-implementations** of the trigger/poll/verify logic (no `release.yml` read) |
 | `unit/release-pipeline/ssl-certificate-handling.spec.ts` | 19 | Node-level emulation (`process.umask(0o077)` `:39`, manual trap-style handler `:235`) of the SSL lifecycle — **not** bash execution |
 | `integration/release-pipeline/verify-migration-ledger.spec.ts` | 8 | Spawns the **real script** against a **real PostgreSQL** (Testcontainers): exit 2 without `DATABASE_URL`, exit 2 without `_migration_log`, exit 0 consistent, exit 1 missing file, warn+0 for orphans, empty dir, missing dir, case-sensitive matching |
+
+**[v1.1 — counts at `d05b29e`.]** `workflow-structure` **10 → 23** (adds R-1/F-1/F-4 positives and 7 further negative controls; 11 in total), `stale-release-detection` **7 → 13** (both execution paths asserted inside the real YAML step), `stale-release-helper` **4 → 9** (adds the automated-vs-dispatch disagreement case and the pre-fix false-positive replay); `workflow-trust-boundary` 10, `manual-sha-validation` 19, `render-api` 19, `ssl-certificate-handling` 19 and the integration file 8 are unchanged. Unit total **88 → 112** across the same 7 files (this table's per-file counts are the `fc12499` state; the `eed728d` audit already showed `workflow-structure` at 14 after the B-1 controls). SEC-11's characterisation of `render-api` and `ssl-certificate-handling` as specification tests rather than runtime execution still stands.
 
 ### 3.8 Documentation
 
@@ -382,8 +388,27 @@ API evidence: `GET /repos/nabeel2323/scs-platform/environments` → 5 environmen
 | `staging` environment protection rules / required reviewers | **NOT VERIFIED (not configured on any environment)** | API shows `protection_rules: []` for all 5 existing environments; `staging` absent |
 | Actions allowlist / SHA-pinned third-party actions | **PARTIAL — repository-wide gap** | API 409 "All actions and workflows are allowed"; `release.yml:142/394/399/404` use `@v4` tags (SEC-18) |
 | Job-level `timeout-minutes` on release jobs | **PARTIAL** | Absent from `release.yml` (present once in `ci.yml:409`) — SEC-16 |
-| `skip_confirmation` affordance | **PARTIAL** | Declared `release.yml:66-70`, never consumed — SEC-12 |
+| `skip_confirmation` affordance | **RESOLVED — removed in `d05b29e`** | Was: declared `release.yml:66-70`, never consumed (SEC-12). Now deleted; `release.yml:78-83` declares only `commit_sha`, whose description states the dispatch is a real release. `release-no-skip-confirmation-input` + `dispatch-inputs-all-consumed` prevent regression. See §9.3 |
+| In-flight release cancellable by a newer `develop` push (R-1) | **RESOLVED in code — `d05b29e`** | `ci.yml:57-59` now evaluates `cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}`. See §9.3 |
+| Stale-release detection compared unlike identifiers on the dispatch path (F-4) | **RESOLVED in code — `d05b29e`** | `release.yml:402-410` branches per execution path. See §9.3 |
 | No automatic DB rollback (by design) | **VERIFIED — intended behavior preserved** | `migrate-pg.ts:103-111` (per-migration rollback only); nothing in `release.yml` issues a downgrade/reset |
+
+### 9.3 Defects surfaced by the first-activation safety audit, and their status (v1.1)
+
+`PR-106-FIRST-STAGING-ACTIVATION-SAFETY-AUDIT.md` re-derived the activation behaviour from the workflow files at `303ff06` and found three defects this review had either rated lower or expressed only as an affordance. All three are now closed in code by **`d05b29e12443a20572d48f95c66c279080ca0264`**; the audit's §15 addendum carries the full technical detail, so this table records only the readiness consequence.
+
+| ID | Defect | Class | Status after `d05b29e` |
+| --- | --- | --- | --- |
+| **R-1 / F-2** | `ci.yml`'s unconditional `cancel-in-progress: true` could cancel the very run hosting `database-release` when a second push landed on `develop` — demonstrated live on run #424, where a job terminated `cancelled` mid-run. | Code defect | **Fixed.** Cancellation is now scoped by ref: `develop` runs (the only ones that can host a release) are never superseded; feature/PR/`main` runs keep cancelling. `release.yml` adds a literal `staging-release` group with `cancel-in-progress: false` + `queue: max`. Guarded by 8 validator checks and 3 negative controls. |
+| **F-1 / SEC-12** | The `skip_confirmation` dispatch input was never read by any step, so the dispatch UI advertised a confirmation gate that did not exist. | Code defect (governance) | **Fixed by deletion.** The input is gone; approval is documented where it actually lives — `staging` environment protection rules with required reviewers. Two validator checks keep it dead. |
+| **F-4** | On the dispatch path the stale-release check compared `release.yml`'s own `runNumber` against `ci.yml` run numbers, so it printed a false "NEWER RELEASE(S) QUEUED" during exactly the run a human is watching. | Code defect (diagnostic) | **Fixed.** Path A keeps caller `ci.yml` + `runNumber`; Path B orders by repository-wide `databaseId` over `release.yml` and `ci.yml:develop` runs. Advisory-only policy deliberately unchanged. Proven by executing the mirrored helper against fabricated run state, including a replay of the pre-fix expression that reproduces the false positive. |
+| **R-2** | Render auto-deploy on the linked branch is a second, ungated deploy trigger. | Owner configuration | **Unchanged, and now the top remaining risk** — the only trigger that bypasses GitHub Actions entirely. Not verifiable or fixable from the repository. |
+| **R-3** | Whether a *called* workflow's top-level `concurrency` participates in grouping is not covered by GitHub's documentation. | Architectural unknown | **Not resolved, and no longer depended upon.** R-1's protection moved to the caller, where the semantics are documented. The literal group means the release behaves correctly under either interpretation. |
+| **R-4** | Default concurrency groups hold only one pending member and replace the older pending run, so a queued release can be dropped silently. | Code defect (low) | **Mitigated.** `queue: max` raises the ceiling to 100 pending on `staging-release`. Still not FIFO-documented; "one release at a time" discipline remains advisable. |
+| **F-3 / W4** | Merging auto-creates an unprotected `staging` environment; repository-level secrets with the same names would satisfy `validate` and bypass the environment gate. | Owner configuration | **Unchanged.** No environment, secret or variable was created, read or modified in this session. |
+| **F-5** | The release jobs have never executed anywhere. | Evidence gap | **Unchanged by design.** Closing it requires the merge and an authorized activation. |
+
+Line-number note: `release.yml` citations in §3.2, §6, §7 and §9.1 of this report refer to the `fc12499` layout. In `d05b29e` the dispatch inputs moved to `:78-83`, the concurrency block to `:114-117`, and the stale-release step to `:363-476`; the additions are comment-and-YAML only, so no other logic shifted meaning.
 
 ---
 
@@ -395,13 +420,19 @@ These five verdicts are deliberately separate; a green mark in one does **not** 
 
 The branch is coherent, self-documenting, and every security property listed in §6 is traceable to a file and line. Reviewers should focus on the three items that this review found but did not change: SEC-11 (two mirror-style test files), SEC-12 (dead `skip_confirmation` input), SEC-18/SEC-16 (floating action tags, missing job timeouts). B-1 (one-line env mapping) has been fixed and verified by 8 new validator checks and 4 negative-control tests. Nothing here requires re-architecture.
 
+**[v1.1]** Two of those three items moved. **SEC-12 is closed** — `skip_confirmation` is deleted rather than retained as decoration (§9.3). The reviewer focus list is now: **SEC-11** (unchanged — `render-api` and `ssl-certificate-handling` still re-implement logic instead of executing `release.yml`), **SEC-18/SEC-16** (unchanged — floating `@v4` tags, no job timeouts), and the new **§9.3 diff itself**: the `ci.yml` cancellation scoping and the `release.yml` stale-release path split are the two places where a reviewer can most usefully try to break the reasoning, because both are guarded by validator checks *and* negative controls rather than by runtime evidence.
+
 ### 10.2 Merge readiness — **CONDITIONAL; do not merge as-is**
 
 Technically mergeable (`mergeable: true`, `merge_state: clean`, 0 behind `develop`, PR CI `success` at `fc12499`). B-1 has been fixed and verified. But merging `release.yml` into `develop` **activates** the push-to-develop release trigger, and with B-2 (missing `staging` environment) still present, the first eligible develop push that reaches `validate` will fail at `release.yml:275-320`. Recommended sequence: (a) ~~fix B-1 and add the guard described in §9.1~~ **(done)**, (b) create the `staging` environment with its three secrets and `RENDER_SERVICE_ID` variable (B-2), (c) keep SEC-11's Render/SSL logic either extracted or explicitly labelled as specification tests, (d) then merge. If the team prefers to merge now, it must be paired with an explicit note that B-2 makes activation impossible — which is safe but misleading. **This review did not merge and will not merge the PR.**
 
+**[v1.1] The verdict is unchanged, with two refinements.** (1) "PR CI `success`" was evidenced at `fc12499`; since then the branch has taken B-1's remediation, this report's own commits, the safety audit and now `d05b29e`, so merge readiness depends on a **green hosted run for the current PR head**, which is recorded in §10.6 below rather than assumed. (2) The activation hazard described here is narrower than it was: once merged, a second `develop` push can no longer cancel a release mid-migration (R-1, §9.3), and the dispatch UI no longer implies a confirmation step that does not exist (F-1). What still makes merging a *decision* rather than a formality is exactly what v1.0 said — B-2's four configuration values turn every develop push into a live staging release. The audit's ordering (Render auto-deploy confirmed disabled → `staging` created **with a required reviewer and no secrets** → then merge) supersedes step (b)+(d) sequencing in this paragraph.
+
 ### 10.3 Release-activation readiness — **NOT READY**
 
 Two hard prerequisites remain open and both are outside this session's authorization: the `staging` environment with its three secrets and `RENDER_SERVICE_ID` must be created (B-2, API-verified absent); Render auto-deploy's state must be confirmed and disabled if it would race the pipeline (not verified). ~~B-1 must be fixed~~ **(done)**. Until B-2 is resolved, `workflow_dispatch` (the only path reachable without a develop push) cannot succeed either, because `validate` fails at `release.yml:275-320`.
+
+**[v1.1] NOT READY — and the reasons are now better understood.** `d05b29e` changed no prerequisite; it removed two of the hazards that would have made the *first* activation unsafe once they are met, and it corrected a diagnostic that would have misled the person approving that run (F-4). Two additions to this verdict, both from the follow-on audit: (1) **environment protection rules are now the only human gate**, because the input that looked like one is gone — creating `staging` *with a required reviewer before merging* is the recommended posture so the merge cannot auto-create it unprotected; (2) a successful dispatch **is** a live release (migrate → seed → deploy → health check) with no dry-run mode, and the `commit_sha` description now says so.
 
 ### 10.4 Staging end-to-end verification — **NOT PERFORMED, NOT AUTHORIZED**
 
@@ -410,6 +441,10 @@ Required to close the loop, in order: (1) eligible `push` to `develop` after the
 ### 10.5 Production readiness — **NOT READY AND OUT OF SCOPE**
 
 This pipeline targets **staging only**: staging secrets (`:425-428`), a staging service URL (`:742`), no approval gate (§SEC-12, §9.2 "no protection rules"), no rollback, no canary or traffic shift, no monitoring hooks, and no production path in either workflow. A production release would need environment protection with required reviewers, a separate `production` workflow with its own concurrency group, SHA-pinned actions, an allowlist, and a tested migration-forward-only failure story. Claiming production readiness from run #422 would be unsupported, and no document in this PR makes that claim (they explicitly say otherwise — §3.8).
+
+### 10.6 Hardening verification (v1.1)
+
+The R-1 / F-1 / F-4 remediation is documented in full in `docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` — root causes, exact diffs with line references, the concurrency design and its limits, the F-1 decision, the F-4 correction with runtime evidence, the test results, and the remaining risk classification. The hosted CI run for the PR head that carries `d05b29e` and this report's commits is recorded there, in the section titled "Hosted CI verification of the hardening head".
 
 ---
 
