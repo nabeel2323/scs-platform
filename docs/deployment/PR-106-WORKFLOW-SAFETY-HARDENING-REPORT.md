@@ -311,6 +311,20 @@ Two readings that a passing run can hide:
 
 **Does not prove:** that any release job ran. `validate`, `database-release`, `deploy`, `health-check` and `summary` have still never executed anywhere (finding F-5 is unchanged by this run), and the stale-release step in particular did **not** execute here — it lives inside the skipped `trigger-staging-release` job — so its per-path Bash is verified by the mirrored-helper runs of §8.3 and the per-path structural checks of §8.1, not by a runner. The R-1 cancellation behaviour has still only been demonstrated in the *negative* direction (run #424 cancelled a develop-bound release; this change removes the cancellation from that ref). Reading #429 as staging verification would be exactly the conflation this report exists to prevent.
 
+### 9.3 The record commit's own run (#430), and where the recording stops
+
+This section is itself a commit, so the head it lands on is no longer `87f5589`. That new head was verified too, and the fact is recorded here rather than left implied:
+
+| Field | Value |
+| --- | --- |
+| Run | **#430** — https://github.com/nabeel2323/scs-platform/actions/runs/41990496036 (id `41990496036`) |
+| Head SHA | `da89aaf03def6d88f25f84c549c8011183bbd188` — *docs(release): close the hosted-CI record for the safety hardening (run #429)*: 4 markdown files, +96/−22, no workflow, script, test or configuration file touched |
+| Conclusion | **success** · 11 jobs: 9 success, 2 skipped, 0 failures · `07:54:16Z` → `08:11:40Z` (17m 24s) |
+| Jobs | `Lint & Typecheck` 127121307713 · `Mobile` 127121306986 · `Unit Tests + Coverage Gates` 127122156065 · `Integration Tests` 127122155721 · `Migration Full Apply` 127122155853 · `Boundary Lint (E6)` 127122155755 · `Build` 127125292333 · `Contract Spec & Codegen` 127125292412 · `Container Build & Smoke Test` 127125292411 — all success; `k6 Smoke Test` 127125868709 and `Trigger Staging Release` 127128094812 — both skipped |
+| PR state at the same API read | `open`, `merged: false`, `mergeable: true`, `mergeable_state: clean`, base `develop` at `b11638b`, 19 commits |
+
+Two things worth naming rather than glossing. First, #430 re-verifies the *same* workflow files as #429 — the only difference is prose — so it adds nothing to what the hardening proves; it is the evidence that recording the evidence broke nothing. Second, **this is where the recording stops.** The commit carrying §9.3 will itself start a run, and that run is deliberately not written into this document: doing so would require another commit, which would require another run. The convention adopted here is that §9 is authoritative for the head carrying the code (`87f5589`, run #429) and for the head carrying this record (`da89aaf`, run #430), and the CI status of any later **markdown-only** commit is reported to the reviewer in the handoff message rather than chased into the file. A later commit that touches `ci.yml`, `release.yml`, the validator or any spec must restart the chain and get its own recorded run.
+
 ---
 
 ## 10. Authorization boundary for this task

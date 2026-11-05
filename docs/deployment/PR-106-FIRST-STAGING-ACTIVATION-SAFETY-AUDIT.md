@@ -582,7 +582,7 @@ Consequences for this audit:
 3. `Trigger Staging Release` skipped on `pull_request` is the designed behaviour and **not** release evidence. F-5 — the release jobs have never executed — **remains open after this run**, exactly as §12 predicted; closing it still requires the merge plus an authorized activation.
 4. The single "1 error" annotation on the run is the advisory `pnpm format:check` step (`continue-on-error: true`, `ci.yml:109-110`) failing on pre-existing CRLF/Prettier debt, not a blocking failure — the job is green.
 
-Full job-id links, durations and the reasoning about what #429 proves versus what it does not are in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9–§9.2.
+Full job-id links, durations and the reasoning about what #429 proves versus what it does not are in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9–§9.2. That report's §9.3 additionally records **run #430** (id `41990496036`, head `da89aaf…`, the commit carrying the record, 4 markdown files) — **success**, 17m 24s, 11 jobs / 9 success / 2 skipped — and states the convention that the recording follows: only commits that touch the workflows, the validator or the specs require a newly recorded run; markdown-only follow-ups are reported in the handoff.
 
 ---
 

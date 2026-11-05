@@ -161,6 +161,12 @@ _PR CI re-verified after the safety hardening (run #429, `pull_request`, head `8
   `trigger-staging-release` job — so its per-path behaviour rests on the mirrored-helper
   executions and the structural checks, not on a runner. Full job-by-job record:
   `docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9.
+- The commit that wrote the record moved the head again and was verified in turn: **run #430**
+  (https://github.com/nabeel2323/scs-platform/actions/runs/41990496036), head `da89aaf`, markdown
+  only, **success**, 17m 24s, 11 jobs / 9 success / 2 skipped. Recording stops there by
+  convention — further markdown-only commits are reported in the handoff, while any commit that
+  touches `ci.yml`, `release.yml`, the validator or a spec must earn its own recorded run
+  (hardening report §9.3).
 
 **What is NOT yet verified:** an eligible **push to `develop`** invoking `release.yml` end to end
 (only reachable after merge), and any authorized staging deployment. Staging secrets, Render

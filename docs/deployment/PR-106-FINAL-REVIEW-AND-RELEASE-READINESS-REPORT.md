@@ -452,7 +452,9 @@ The R-1 / F-1 / F-4 remediation is documented in full in `docs/deployment/PR-106
 
 Two effects on this report's verdicts. First, the local integration gap left open by the hardening session (Docker daemon down) is closed by the hosted `Integration Tests` pass at this head. Second, **F-5 is still open**: `Trigger Staging Release` skipped, so the five `release.yml` jobs — including the rewritten stale-release step — have still never executed anywhere, and #429 must not be read as staging verification.
 
-Fresh PR state at the time of writing (same API read, 2026-11-05): `state: open`, `merged: false`, `mergeable: true`, `mergeable_state: clean`, base `develop` at `b11638b` (the unchanged v2.1 base commit), head `87f5589`, 18 commits / 24 files. So §10.2's "technically mergeable" clause still holds at the new head — the conditions on merging are the owner actions in §10.3, not anything in the diff.
+Fresh PR state at the time of writing (same API read, 2026-11-05): `state: open`, `merged: false`, `mergeable: true`, `mergeable_state: clean`, base `develop` at `b11638b` (the unchanged v2.1 base commit), 19 commits / 24 files. So §10.2's "technically mergeable" clause still holds at the current head — the conditions on merging are the owner actions in §10.3, not anything in the diff.
+
+The record commit itself moved the head once more, and that head is verified as well: **run #430**, head `da89aaf03def6d88f25f84c549c8011183bbd188` (four markdown files, +96/−22, no workflow or code change), **success**, 17m 24s, 11 jobs / 9 success / 2 skipped — https://github.com/nabeel2323/scs-platform/actions/runs/41990496036. The hardening report's §9.3 records it and states the convention that ends the chain: further markdown-only commits are reported in the handoff, not chased into a file; any commit touching the workflows, the validator or the specs must earn its own recorded run.
 
 ---
 
