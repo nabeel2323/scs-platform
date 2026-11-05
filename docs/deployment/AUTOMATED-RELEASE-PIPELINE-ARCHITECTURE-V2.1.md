@@ -4,7 +4,7 @@
 hardening R-1/F-1/F-4 added 2026-11-04 — see
 `docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md`)  
 **Version:** 2.1 (Implemented)  
-**Status:** Implemented, locally verified **and verified by GitHub Actions on the pull request** (PR #106, run #420, `conclusion=success`: every mandatory CI job passed and `Trigger Staging Release` was skipped as designed). **Staging end-to-end verification is still outstanding and has not been attempted or authorized** — no push to `develop` has yet invoked the reusable workflow, and no authorized staging release has run. The trigger/secret and variable-scoping model is validated by an executable structural validator, typecheck, build, local tests and hosted PR CI — not yet by a live staging deployment.  
+**Status:** Implemented, locally verified **and verified by GitHub Actions on the pull request** (PR #106. Run #420, `conclusion=success`, verified the release wiring at `2079eab`; run #429, `conclusion=success`, 19m 20s, verified the head `87f5589` that carries the R-1/F-1/F-4 safety hardening — in both runs every mandatory CI job passed and `Trigger Staging Release` was skipped as designed). **Staging end-to-end verification is still outstanding and has not been attempted or authorized** — no push to `develop` has yet invoked the reusable workflow, and no authorized staging release has run. The trigger/secret and variable-scoping model is validated by an executable structural validator, typecheck, build, local tests and hosted PR CI — not yet by a live staging deployment.  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)  
 **Implementation Branch:** feature/automated-release-pipeline-v2.1  
 **Base Commit:** b11638b22150c44e6287b89ef580374f83a8180e  
@@ -141,6 +141,26 @@ _PR CI verified on GitHub Actions (run #420, `pull_request`, commit `2079eab`):_
 - GitHub accepted both workflow files and started every job, which is the hosted proof that the
   reusable-workflow caller wiring (`a792c86`) and the caller/callee `permissions:` intersection
   (`9fa9b8c`) are correct — neither was provable locally.
+
+_PR CI re-verified after the safety hardening (run #429, `pull_request`, head `87f5589`, parent
+`d05b29e`; https://github.com/nabeel2323/scs-platform/actions/runs/41984518789):_
+
+- **Conclusion: success**, 19m 20s, 11 jobs — 9 success, 2 skipped, 0 failures. Nine executing jobs
+  passed — `Lint & Typecheck`, `Mobile`, `Unit Tests + Coverage Gates`, `Integration Tests`,
+  `Migration Full Apply`, `Boundary Lint (E6)`, `Build`, `Container Build & Smoke Test`,
+  `Contract Spec & Codegen` — and `k6 Smoke Test` plus `Trigger Staging Release` skipped, the same
+  designed shape as run #420.
+- The two files carrying the new `concurrency:` blocks (`ci.yml:57-59`, `release.yml:114-117`)
+  parsed and scheduled, so `cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}` and
+  `queue: max` alongside `cancel-in-progress: false` are accepted by GitHub's workflow validator —
+  the failure mode that produced `startup_failure` with zero jobs on run #418.
+- The hosted `Integration Tests` job passed on this tree, which is the integration evidence the
+  local session could not produce (the Docker Desktop daemon was down; the local Testcontainers
+  re-run did not happen and is not claimed).
+- The stale-release step itself **did not run** — it lives inside the skipped
+  `trigger-staging-release` job — so its per-path behaviour rests on the mirrored-helper
+  executions and the structural checks, not on a runner. Full job-by-job record:
+  `docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9.
 
 **What is NOT yet verified:** an eligible **push to `develop`** invoking `release.yml` end to end
 (only reachable after merge), and any authorized staging deployment. Staging secrets, Render
@@ -1863,7 +1883,7 @@ GitHub Actions run on the pull request (run #420), and have **not** yet been exe
 **Document version:** 2.1 (Implemented — CI wiring, token permissions, variable scoping, stale detection and test isolation corrected; release-safety hardening R-1/F-1/F-4 added at `d05b29e`)  
 **Last updated:** 2026-11-05  
 **Author:** Qoder AI Assistant  
-**Status:** Implemented; **locally verified and PR CI verified** (validator 78/78 at `d05b29e` — was 48/48 —, 112 release-pipeline unit specs across 7 files + the 8 migration/ledger integration specs, typecheck 0 errors, ESLint clean, build success; PR run #420 green with `trigger-staging-release` skipped on `pull_request`, plus the run for the current head recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9). **Staging end-to-end not verified and not authorized.**  
-**Implementation branch:** feature/automated-release-pipeline-v2.1 (PR #106 → develop; release-code head `2079eab` verified by PR CI run #420; safety-hardening head `d05b29e` — the current PR head CI run is recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9)  
+**Status:** Implemented; **locally verified and PR CI verified** (validator 78/78 at `d05b29e` — was 48/48 —, 112 release-pipeline unit specs across 7 files + the 8 migration/ledger integration specs — the integration pass is the hosted `Integration Tests` job, not a local one, because the local Docker daemon was down —, typecheck 0 errors, ESLint clean, build success; PR run #420 green and PR run #429 green, both with `trigger-staging-release` skipped on `pull_request` as designed; job-by-job record in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9). **Staging end-to-end not verified and not authorized.**  
+**Implementation branch:** feature/automated-release-pipeline-v2.1 (PR #106 → develop; release-code head `2079eab` verified by PR CI run #420; safety-hardening code commit `d05b29e`, current PR head `87f5589` verified by PR CI run #429 — `success`, 19m 20s, https://github.com/nabeel2323/scs-platform/actions/runs/41984518789)  
 **Base commit:** b11638b22150c44e6287b89ef580374f83a8180e  
 **Supersedes:** v2.0 (Design Proposal), v1.0 (Render Pre-Deploy Architecture)

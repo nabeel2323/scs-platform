@@ -202,13 +202,13 @@ The instruction "do not introduce a concurrency design that merely moves the can
 
 | Risk | Classification after `d05b29e` | Evidence | Basis |
 | --- | --- | --- | --- |
-| **R-1** | **Fixed in code** | `ci.yml:57-59`; 8 validator checks; 3 negative controls; run #424 demonstrates the removed mechanism | **[CODE] + [RUN] + [DOC]** |
+| **R-1** | **Fixed in code** | `ci.yml:57-59`; 8 validator checks; 3 negative controls; run #424 demonstrates the removed mechanism; run #429 shows GitHub accepts and schedules the expression form (§9.2) | **[CODE] + [RUN] + [DOC]** |
 | **R-4** | **Mitigated in code**, not eliminated | `release.yml:114-117` `queue: max`; `ci.yml` default group documented | **[CODE] + [DOC]** |
 | **R-3** | **Architectural limitation — no longer depended upon** | GitHub does not document whether a called workflow's top-level `concurrency` participates in grouping; the only direct signal is community discussion #30708 (non-staff) reporting `github.workflow` resolving to the caller's name. The literal group is correct under either interpretation. | **[DOC gap] + [INFER]** |
 | **R-2** | **Owner action — now the highest unresolved risk.** No code change can reach it; no Render endpoint was called in this session. | audit §6.4; `api.Dockerfile` has no ENTRYPOINT/CMD, so a Render pre-deploy command would have to be dashboard-configured and is unverifiable from the repository | **[NOT VERIFIED]** |
 | **W4** | **Owner verification action**, not a defect. GitHub's documented resolution order (environment secret wins over repo/org namesake; an unset secret is an empty string) is what `validate` relies on; the repository cannot change it. | audit §5.2 W4, §6.3 (401s on `actions/secrets` and `actions/variables`) | **[DOC] + [CODE]** |
 | **F-3** | **Owner action, unchanged.** This session created and modified no environment, so merging still auto-creates `staging` unprotected if it does not exist first. | **[DOC]** |
-| **F-5** | **Unchanged by design.** `validate`, `database-release`, `deploy`, `health-check`, `summary` have still never executed; closing this requires the merge and an authorized activation. | **[RUN] + [API]** |
+| **F-5** | **Unchanged by design, and unchanged by run #429.** `validate`, `database-release`, `deploy`, `health-check`, `summary` have still never executed — #429 skipped `trigger-staging-release` on `pull_request`, exactly as designed (§9.1). Closing this requires the merge and an authorized activation. | **[RUN] + [API]** |
 | **SEC-11** (mirror helpers) | **Unchanged, acknowledged.** `detect-stale-release.mjs` and `validate-release-sha.mjs` remain test-visible mirrors; the YAML remains the runtime authority. The mirror is now *differential-tested* against the YAML rather than only described. | **[CODE]** |
 | **SEC-18 / SEC-16** (floating `@v4` tags, no job `timeout-minutes`) | **Out of scope, untouched.** Not part of R-1/F-1/F-4; deliberately not mixed into this diff. | **[CODE]** |
 
@@ -259,27 +259,57 @@ The mirrored detector was run in real Node processes with real `jq` against fabr
 
 `tsc --noEmit -p tsconfig.json` → **exit 0** (re-run on this tree). ESLint over `validate-workflow-structure.mjs`, `detect-stale-release.mjs` and all seven release-pipeline specs → **exit 0, no warnings**. `nest build` → **exit 0**, 432 files emitted, 0 TSC issues. Both workflow files are parsed by `js-yaml` in §8.1, which is the syntax check, and the trigger/job structure they encode is what the 78 checks assert.
 
+Re-run at the final tree (`87f5589`, working tree = pushed head) with the same commands CI uses: `pnpm lint` (`turbo run lint`, 5 package tasks) → **exit 0, 0 errors / 313 warnings** — the warnings are the repo's pre-existing `no-unused-vars` debt in files this change does not touch; `pnpm typecheck` (`turbo run typecheck`, 9 tasks) → **exit 0**, with `@scs/api:tsc --noEmit` executing uncached. `pnpm format:check` remains failing on CRLF debt and is advisory in CI (`ci.yml:109-110`), which is why it does not appear as a defect anywhere in this report.
+
 ### 8.5 Integration and the local-suite caveat — stated honestly
 
-- The **release-pipeline integration spec** (`verify-migration-ledger.spec.ts`, 8 tests, Testcontainers PostgreSQL 16 + PostGIS) **could not be re-run to completion in this session**: the Docker Desktop daemon went down partway through the run (`failed to connect to the docker API at npipe:…`, zero `node.exe` processes remaining, no results file written). No integration pass is claimed for `d05b29e` locally. The migration/ledger code path itself is untouched by this commit — the diff is confined to two workflow files, two `scripts/*.mjs`, and three specs — and the same 8 tests passed against this unchanged ledger logic at `303ff06` (audit §7).
+- The **release-pipeline integration spec** (`verify-migration-ledger.spec.ts`, 8 tests, Testcontainers PostgreSQL 16 + PostGIS) **could not be re-run to completion in this session**: the Docker Desktop daemon went down partway through the run (`failed to connect to the docker API at npipe:…`, zero `node.exe` processes remaining, no results file written), and it was still down when this section was written (`docker info` → `failed to connect to the docker API at npipe:…`). Starting Docker Desktop is a machine-level change outside this task's scope, so it was not started. No integration pass is claimed for `d05b29e` **locally**. The migration/ledger code path itself is untouched by this commit — the diff is confined to two workflow files, two `scripts/*.mjs`, and three specs — and the same 8 tests passed against this unchanged ledger logic at `303ff06` (audit §7).
 - The **full unit suite** was run locally and showed contention flakiness (6 failures on one pass, 1 on another, across `shipping/*`, `webhook-rate-limiting` and `render-api`); every one of those files passes when run individually (131/131), and all are tracked and unmodified by this commit. This workstation's whole-suite runs are therefore not the authoritative evidence; the hosted `Unit Tests + Coverage Gates` job is (§9).
-- Consequently the integration claim in this report is limited to: **no local integration evidence at this head; hosted CI `Integration Tests` result recorded in §9.**
+- Consequently the integration claim in this report is limited to: **no local integration evidence at this head; the authoritative integration pass is the hosted `Integration Tests` job — success, 9m 10s, at run #429 (§9.1)** — which runs the entire `src/__tests__/integration` tree, release-pipeline specs included, against a disposable PostGIS service container rather than a developer machine.
 
 ---
 
 ## 9. Hosted CI verification of the hardening head
 
-_RECORD PENDING — this section is completed from the GitHub Actions run(s) triggered by the push of `d05b29e` and this report, and is committed in the follow-up documentation commit._
+**One push carried both commits, so one run covers both.** `d05b29e…` (the code) and `87f5589…` (this report plus the three document updates) were pushed together as `6a90126..87f5589`; GitHub raised a single `synchronize` event for PR #106 whose head is the docs commit. There is therefore **no separate hosted run for `d05b29e`** — the run below executed a tree that contains the hardening, which is the evidence this section was written to produce.
 
 | Field | Value |
 | --- | --- |
-| Commit(s) | `d05b29e…` (code) + this report's docs commit |
-| PR head SHA | _to be recorded_ |
-| Run ID / URL | _to be recorded_ |
-| Event / conclusion | _to be recorded_ |
-| `trigger-staging-release` | expected **skipped** on `pull_request` (designed behaviour; must not be read as release evidence) |
+| Run | **#429** — https://github.com/nabeel2323/scs-platform/actions/runs/41984518789 (numeric run id `41984518789`) |
+| Workflow / event | `.github/workflows/ci.yml` · `pull_request` / `synchronize`, PR #106, branch `feature/automated-release-pipeline-v2.1` |
+| PR head SHA | `87f558958e68ca50b2d4c5cae532a38f34b67f98` (parent — the hardening itself: `d05b29e12443a20572d48f95c66c279080ca0264`) |
+| Conclusion | **success** · **11 jobs: 9 success, 2 skipped, 0 failures** · started `2026-11-05T07:03:14Z`, last job completed `07:22:33Z` (run `updated_at` `07:22:34Z`), total duration **19m 20s** · 1 artifact · no remediation commits were required |
+| `trigger-staging-release` | **skipped** (API conclusion `skipped`, job id `127109278641`, started and completed at `07:22:33Z` — i.e. the instant the last mandatory job finished). Its five inner `release.yml` jobs (`validate`, `database-release`, `deploy`, `health-check`, `summary`) appear in the graph only as not-run placeholders and are absent from the run's job list, because the reusable workflow never started. See §9.2 — this is **not** release evidence. |
+| Previous head | run **#428** (id `41870206868`, 17m 49s) covered `6a90126`, i.e. the branch *before* the hardening. It is the control, not the verification. |
 
-Job-by-job results, and any remediation commits arising from failures, are appended below this table when the run completes.
+### 9.1 Job-by-job results at head `87f5589`
+
+Conclusions, durations and job ids below were read from the rendered run page and then cross-checked against `GET /repos/nabeel2323/scs-platform/actions/runs/41984518789/jobs` (2026-11-05, 11 jobs, matching exactly). Timestamps are the API's `started_at` → `completed_at` in UTC.
+
+| `ci.yml` job | Conclusion | Duration | Window (UTC) | Job id |
+| --- | --- | --- | --- | --- |
+| Lint & Typecheck | **success** | 2m 19s | 07:03:16 → 07:05:35 | [127102032595](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102032595) |
+| Mobile (flutter analyze · test) | **success** | 53s | 07:03:16 → 07:04:09 | [127102032379](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102032379) |
+| Unit Tests + Coverage Gates | **success** | 6m 14s | 07:05:37 → 07:11:51 | [127102902618](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102902618) |
+| Integration Tests | **success** | 9m 10s | 07:05:37 → 07:14:47 | [127102901882](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102901882) |
+| Migration Full Apply | **success** | 50s | 07:05:37 → 07:06:27 | [127102901937](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102901937) |
+| Boundary Lint (E6) | **success** | 20s | 07:05:37 → 07:05:57 | [127102901910](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127102901910) |
+| Build | **success** | 1m 7s | 07:14:49 → 07:15:56 | [127106323980](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127106323980) |
+| Contract Spec & Codegen | **success** | 35s | 07:14:49 → 07:15:24 | [127106323910](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127106323910) |
+| Container Build & Smoke Test | **success** | 7m 43s | 07:14:50 → 07:22:33 | [127106323996](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127106323996) |
+| k6 Smoke Test | **skipped** (main-only, `ci.yml:401-404`) | 0s | 07:15:57 → 07:15:57 | [127106758853](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127106758853) |
+| Trigger Staging Release (`uses: ./.github/workflows/release.yml`, `if:` at `ci.yml:561-564`) | **skipped** | 0s | 07:22:33 → 07:22:33 | [127109278641](https://github.com/nabeel2323/scs-platform/actions/runs/41984518789/job/127109278641) |
+
+Two readings that a passing run can hide:
+
+- **The single "error" annotation on this run is not a failure.** The run page reports "1 error, 24 warnings, and 4 notices"; the error is `Process completed with exit code 1` at `Lint & Typecheck` **step 8**, which is `pnpm format:check` — declared `continue-on-error: true` at `.github/workflows/ci.yml:109-110` precisely because of the repo's pre-existing CRLF/Prettier debt. The blocking steps (`pnpm lint`, `pnpm typecheck`) are what make the job green, and the job is green. The warnings are `no-unused-vars` in untouched files such as `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts`; §8.4 records the same local picture (0 errors, 313 warnings).
+- **`Integration Tests` and `Unit Tests + Coverage Gates` passing here is what closes §8.5.** The local Docker daemon was unavailable, so the integration evidence for this head is hosted, not local — and the hosted job runs the whole `src/__tests__/integration` tree (`.github/workflows/ci.yml:235`, `pnpm --filter @scs/api test:integration`) against a `postgis/postgis:16-3.4` service container, which includes `integration/release-pipeline/verify-migration-ledger.spec.ts`. The unit job runs the coverage-gated `src/__tests__/unit` tree, which includes all eight release-pipeline specs and therefore the 112 tests of §8.2. The `trigger-staging-release` caller job sits at `.github/workflows/ci.yml:557` with its `if:` at `:561-564` (`push` + `refs/heads/develop` + this repository), eight mandatory `needs` at `:565-573` and its `uses:` at `:574`. That `if:` is false on a `pull_request`, which is why the job is skipped here and why it would run on a develop push.
+
+### 9.2 What run #429 proves, and what it does not
+
+**Proves:** GitHub parses and schedules both rewritten workflow files — `ci.yml:57-59` (expression `cancel-in-progress`) and `release.yml:114-117` (`staging-release`, `cancel-in-progress: false`, `queue: max`) are accepted, so neither is a workflow-validation error, which is the failure class that stopped run #418 at `startup_failure` with zero jobs. The caller/callee `permissions:` intersection still holds around the rewritten `release.yml`. The mandatory CI surface — lint, typecheck, unit + coverage, integration, migration apply, build, container smoke, contract — is green on top of the hardening, so nothing in §4 broke the repository.
+
+**Does not prove:** that any release job ran. `validate`, `database-release`, `deploy`, `health-check` and `summary` have still never executed anywhere (finding F-5 is unchanged by this run), and the stale-release step in particular did **not** execute here — it lives inside the skipped `trigger-staging-release` job — so its per-path Bash is verified by the mirrored-helper runs of §8.3 and the per-path structural checks of §8.1, not by a runner. The R-1 cancellation behaviour has still only been demonstrated in the *negative* direction (run #424 cancelled a develop-bound release; this change removes the cancellation from that ref). Reading #429 as staging verification would be exactly the conflation this report exists to prevent.
 
 ---
 

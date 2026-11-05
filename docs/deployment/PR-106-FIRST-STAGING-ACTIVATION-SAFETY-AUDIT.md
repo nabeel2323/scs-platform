@@ -563,13 +563,26 @@ fi
 | Structural validator | `node apps/api/scripts/validate-workflow-structure.mjs` | **78/78 checks passed** (was 56/56 at `303ff06`; +22 for R-1/F-1/F-4 and `needs`-gating) |
 | Release-pipeline unit | `npx vitest run src/__tests__/unit/release-pipeline` | **7 files / 112 tests passed**, exit 0 |
 | Stale-detection runtime | real Node processes + real `jq` against fabricated run state | both paths correct; pre-fix expression reproduces the F-4 false positive; §15.3 |
-| Migration-ledger integration | Testcontainers PostgreSQL | **NOT RE-RUN at this head.** The Docker Desktop daemon went down mid-run (`failed to connect to the docker API at npipe:…`), so no local integration evidence exists for `d05b29e`; the ledger code path is untouched by the commit and the same 8 tests passed at `303ff06` (§7). Hosted `Integration Tests` result: §15.7 |
-| Typecheck / lint / build | `tsc --noEmit` · ESLint on the changed scripts and specs · `nest build` | **0 errors** · **0 errors, 0 warnings** · build success (432 files) |
-| Hosted CI | see §15.7 | recorded after the push |
+| Migration-ledger integration | Testcontainers PostgreSQL | **NOT RE-RUN locally at this head.** The Docker Desktop daemon went down mid-run (`failed to connect to the docker API at npipe:…`) and was still down when the record was written, so no *local* integration evidence exists for `d05b29e`; the ledger code path is untouched by the commit and the same 8 tests passed at `303ff06` (§7). The hosted `Integration Tests` job **successed** on the tree that contains it — run #429, §15.7 |
+| Typecheck / lint / build | `tsc --noEmit` · ESLint on the changed scripts and specs · `nest build` | **0 errors** · **0 errors, 0 warnings** · build success (432 files). Repo-wide re-run at the pushed head: `pnpm lint` exit 0 (0 errors / 313 pre-existing warnings), `pnpm typecheck` exit 0 |
+| Hosted CI | see §15.7 | **run #429, `success`, 19m 20s, head `87f5589`** |
 
 ### 15.7 Post-commit hosted CI verification of the hardening head
 
-_RECORD PENDING — to be completed from the Actions run for the PR head carrying `d05b29e`, and committed in the follow-up documentation commit. Full job-by-job results are recorded in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9._
+**Run #429 — https://github.com/nabeel2323/scs-platform/actions/runs/41984518789 — `pull_request` / `synchronize` on PR #106, head `87f558958e68ca50b2d4c5cae532a38f34b67f98`, conclusion `success`, total duration 19m 20s.**
+
+`d05b29e` (the code) and `87f5589` (the documentation) went up in one push, so GitHub raised one run for the pair and **no run exists for `d05b29e` alone**; head `87f5589` carries the hardening as its parent, and that is the tree CI verified. The immediately preceding run, **#428** (id `41870206868`, 17m 49s), covers `6a90126` — the branch *before* the hardening — so it is the control, not the verification.
+
+Job-by-job — read from the rendered run page and cross-checked against `GET /repos/…/actions/runs/41984518789/jobs`, which returns **11 jobs: 9 success, 2 skipped, 0 failures** — `Lint & Typecheck` success 2m 19s · `Mobile (flutter analyze · test)` success 53s · `Unit Tests + Coverage Gates` success 6m 14s · **`Integration Tests` success 9m 10s** · `Migration Full Apply` success 50s · `Boundary Lint (E6)` success 20s · `Build` success 1m 7s · `Contract Spec & Codegen` success 35s · `Container Build & Smoke Test` success 7m 43s · `k6 Smoke Test` skipped (main-only gate, `ci.yml:401-404` at this head) · `Trigger Staging Release` skipped (job `127109278641`, `if:` at `ci.yml:561-564` requires a develop push; it flipped to skipped at `07:22:33Z`, the instant `Container Build & Smoke Test` — the last outstanding `needs` — finished). The five inner `release.yml` jobs appear in the graph only as not-run placeholders and are absent from the API job list, because the reusable workflow never started.
+
+Consequences for this audit:
+
+1. Both rewritten workflow files parse and schedule on GitHub's runners, so neither the `ci.yml` cancellation expression nor the `release.yml` `queue: max` block is a workflow-validation error — the failure mode that produced `startup_failure` with zero jobs on run #418 **[RUN]**.
+2. The hosted `Integration Tests` pass **closes the §15.6 gap for the tree as shipped**: the job runs `pnpm --filter @scs/api test:integration` over the whole `src/__tests__/integration` tree, `verify-migration-ledger.spec.ts` included, against a disposable `postgis/postgis:16-3.4` service container. The *local* re-run never happened, and is not claimed.
+3. `Trigger Staging Release` skipped on `pull_request` is the designed behaviour and **not** release evidence. F-5 — the release jobs have never executed — **remains open after this run**, exactly as §12 predicted; closing it still requires the merge plus an authorized activation.
+4. The single "1 error" annotation on the run is the advisory `pnpm format:check` step (`continue-on-error: true`, `ci.yml:109-110`) failing on pre-existing CRLF/Prettier debt, not a blocking failure — the job is green.
+
+Full job-id links, durations and the reasoning about what #429 proves versus what it does not are in `PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md` §9–§9.2.
 
 ---
 
@@ -577,6 +590,7 @@ _RECORD PENDING — to be completed from the Actions run for the PR head carryin
 
 | Evidence | Locator |
 |---|---|
+| **Locator vintage** | every `release.yml` / `ci.yml` row below is **as audited at `303ff06`**. After `d05b29e` the dispatch inputs moved to `release.yml:78-83`, the release concurrency block to `:114-117` and the stale-release step to `:363-476`, `skip_confirmation` no longer exists, and `ci.yml`'s concurrency moved to `:57-59`; §15 restates each locator it supersedes. |
 | Release triggers (`workflow_call`, `workflow_dispatch`, no push/PR) | `.github/workflows/release.yml:34-70` |
 | Dead `skip_confirmation` input | `.github/workflows/release.yml:66-70` (no reader anywhere in `.github/`) |
 | Release concurrency group | `.github/workflows/release.yml:84-86` |
@@ -606,6 +620,8 @@ _RECORD PENDING — to be completed from the Actions run for the PR head carryin
 | Validator 56/56 | `node apps/api/scripts/validate-workflow-structure.mjs` |
 | 92 unit / 8 integration passed | `vitest run src/__tests__/unit/release-pipeline`, `…/integration/release-pipeline/verify-migration-ledger.spec.ts` |
 | Post-push CI verification — run #427, SHA `eed728d`, 11 jobs / 9 success / 2 skipped | https://github.com/nabeel2323/scs-platform/actions/runs/41866322375 |
+| **Hardening verification — run #429, head `87f5589` (contains code commit `d05b29e`), success, 19m 20s, 11 jobs / 9 success / 2 skipped (`k6 Smoke Test`, `Trigger Staging Release`), `Integration Tests` success** | https://github.com/nabeel2323/scs-platform/actions/runs/41984518789 |
+| Prior head, pre-hardening control — run #428, SHA `6a90126`, 17m 49s | https://github.com/nabeel2323/scs-platform/actions/runs/41870206868 |
 | Corroborating prior docs run #426, SHA `303ff06`, identical 11 / 9 / 2 | https://github.com/nabeel2323/scs-platform/actions/runs/41858810259 |
 
 Sources (GitHub documentation used to establish runtime behavior):
