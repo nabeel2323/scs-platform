@@ -15,9 +15,66 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Supersede stale runs on every ref EXCEPT develop.
+#
+# Why develop is excluded: `trigger-staging-release` is not a separate workflow
+# run — it calls release.yml as a reusable workflow, so the release's jobs
+# (`validate`, `database-release`, `deploy`, `health-check`) execute as jobs of
+# THIS run. A `cancel-in-progress: true` on the develop group therefore meant a
+# second push to develop could terminate the run that was hosting an
+# in-flight `database-release` step, i.e. kill a migration mid-flight and leave
+# the staging schema half-migrated. (Audited as R-1 / finding F-2; the
+# cancellation mechanism was demonstrated live on run #424, where a newer run
+# in the same group cancelled the in-flight job and `Trigger Staging Release`
+# was recorded `skipped` at the identical timestamp.)
+#
+# Behaviour after this change:
+#   push events   -> group CI-develop: one run executes, a second queues behind
+#                    it (`cancel-in-progress` evaluates false, so the running
+#                    release is never interrupted).
+#   pull_request  -> group CI-<pr ref>: `cancel-in-progress` evaluates true, so
+#                    every new push to an open PR still replaces the older
+#                    in-progress run. Feature-branch and PR feedback speed is
+#                    unchanged — no release path exists on those events
+#                    (`trigger-staging-release` is gated to `push` + develop).
+#   push to main  -> also cancels in-progress main runs, as before; main cannot
+#                    start a staging release (the job `if` requires develop).
+#
+# `cancel-in-progress` accepts an expression; the permitted contexts for a
+# `concurrency` expression are `github`, `inputs` and `vars`, so `github.ref`
+# is available here.
+#
+# Deliberately NOT set on this workflow: `queue: max`. GitHub rejects the
+# combination of `queue: max` with `cancel-in-progress: true` at validation
+# time, and this workflow's value is an expression that evaluates to `true` for
+# most refs — so `queue: max` is applied instead to release.yml's own
+# always-literal-`false` `staging-release` group (see that file). The
+# consequence for develop is documented: the group holds one running run plus
+# at most ONE pending run, and a third push replaces the older pending run.
+# That is acceptable because a replaced run has not started, so nothing can be
+# mid-migration; see §"Remaining limitations" in
+# docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+# Workflow-level GITHUB_TOKEN scopes.
+#
+# GitHub intersects a CALLED reusable workflow's `permissions:` with the
+# CALLER's workflow-level permissions — job-level permissions do not propagate
+# into the callee. `trigger-staging-release` calls release.yml, which needs
+# `actions: read` for its `gh run list` stale-release detection, so that scope
+# has to be granted here (CI run #418 failed at start-up precisely because it
+# was not: "requesting 'actions: read', but is only allowed 'actions: none'").
+#
+# This block mirrors the repository's read-only default
+# (`contents: read, packages: read`) and adds `actions: read`. Nothing in CI
+# writes: container-build uses `push: false`, and no job posts PR comments or
+# uploads SARIF. No write scope is granted anywhere here.
+permissions:
+  contents: read
+  packages: read
+  actions: read
 
 env:
   NODE_VERSION: '22'
@@ -485,3 +542,38 @@ jobs:
           docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
           docker network rm ci-smoke-net 2>/dev/null || true
           docker rmi scs-api:ci-test 2>/dev/null || true
+
+  # ── Staging Release (develop push only, after all mandatory CI gates) ────
+  # This job invokes release.yml as a REUSABLE WORKFLOW via job-level `uses:`.
+  # A job that calls a reusable workflow CANNOT declare runs-on/steps/environment;
+  # the reusable workflow owns its own runners and jobs. Staging secrets are
+  # resolved by the called workflow's jobs that each declare `environment: staging`,
+  # so the caller forwards them with `secrets: inherit`.
+  #
+  # Depend on every MANDATORY gate that runs on develop. k6-smoke is intentionally
+  # EXCLUDED: it is main-only (`if: github.ref == 'refs/heads/main'`) and is skipped
+  # on develop; listing a skipped job in `needs` would cascade-skip this job and the
+  # release would never trigger.
+  trigger-staging-release:
+    name: Trigger Staging Release
+    # Only a push to develop in THIS repository can invoke the release.
+    # Pull requests and main pushes never reach the release path.
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop' &&
+      github.repository == 'nabeel2323/scs-platform'
+    needs:
+      - lint
+      - test-unit
+      - test-integration
+      - migration-gate
+      - test-contract
+      - build
+      - mobile
+      - container-build
+    uses: ./.github/workflows/release.yml
+    with:
+      commit_sha: ${{ github.sha }}
+      ci_run_id: ${{ github.run_id }}
+      ci_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    secrets: inherit
