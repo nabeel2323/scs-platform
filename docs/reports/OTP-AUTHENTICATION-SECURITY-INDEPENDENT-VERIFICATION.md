@@ -11,6 +11,8 @@
 | Change surface | 41 files (`git diff --name-only 02b59d43..HEAD`), API + contracts + web/admin/mobile clients + migration 0066 + docs |
 | Verdict | **NOT READY FOR STAGING PREPARATION** |
 
+The SHA verified is `2437936a…`, which was the branch tip when every command in this report ran. This file was then committed on top of it as a documentation-only commit, so no code, migration or test differs between the two.
+
 This report is independent verification. Every claim below is either a command that was executed in this session with its recorded output, a `file:line` citation from the code, or a cited external source. Design intent is never presented as runtime proof, and where an objective could not be satisfied the gap is stated as a gap.
 
 ---
