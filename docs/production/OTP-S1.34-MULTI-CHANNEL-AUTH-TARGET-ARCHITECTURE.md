@@ -1298,7 +1298,8 @@ Passkey authentication follows the same JWT issuance flow as other methods:
 | POST | `/v1/auth/otp/request` | ✅ Unchanged (phone OTP) |
 | POST | `/v1/auth/otp/verify` | ⚠️ Request contract unchanged; a successful verify now also enrols the device (issues the S-1 credential) |
 | POST | `/v1/auth/refresh` | ✅ Unchanged |
-| POST | `/v1/auth/logout` | ⚠️ Request contract unchanged; now also revokes and clears the device-trust credential |
+| POST | `/v1/auth/logout` | ⚠️ Request contract unchanged; now also revokes the device-trust credential through **two** paths — the one the request presents *and* the one the closing session earned via `created_by_session` — and clears the cookie if either fired. De-trust no longer depends on the browser presenting anything |
+| POST | `/v1/me/credentials/change-password` | ⚠️ Request and response contracts unchanged; a **successful** change now also revokes every live device-trust credential for the account (`PASSWORD_CHANGE`) and, when the count is non-zero, writes an `auth.device_trust_revoked` audit event. A failed change revokes nothing. Session-revocation behaviour is unchanged |
 | POST | `/v1/auth/switch-org` | ✅ Unchanged |
 | POST | `/v1/auth/login/password` | ⚠️ Response gained `otpDelivery: 'accepted' \| 'uncertain'`; trust read from the credential (S-1) |
 | POST | `/v1/auth/login/device-check` | ⚠️ **Contract changed** — constant `{checked: true}`, own throttler profile (S-2) |
