@@ -315,8 +315,10 @@ describe('applyDeviceTrustCookie', () => {
     expect(res.list[0]).toContain(CREDENTIAL);
   });
 
-  it('does nothing for a live credential or an absent instruction', () => {
-    for (const trust of [{ keep: true }, undefined]) {
+  it('does nothing for an empty instruction or no instruction at all', () => {
+    // The two shapes that mean "this response says nothing about device trust".
+    // `{}` used to be `{ keep: true }`, a variant nothing ever produced.
+    for (const trust of [{}, undefined]) {
       const res = responseStub();
       applyDeviceTrustCookie(res, trust, CFG);
       expect(res.list).toHaveLength(0);

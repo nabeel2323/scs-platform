@@ -163,7 +163,11 @@ export const deviceCredentials = pgTable('device_credentials', {
   // Non-secret display label only; never used in a security decision.
   deviceLabel: varchar('device_label', { length: 160 }),
   /**
-   * The session whose successful authentication enrolled this device.
+   * The session this credential is bound to — set to the session whose
+   * authentication enrolled the device, then carried forward by refresh-token
+   * rotation so it keeps naming that browser's live session. It is how logout
+   * de-trusts a browser that presents no cookie, and how "sign this device out"
+   * finds the trust the device earned (finding B6).
    * SET NULL (not cascade) so credential rows survive session pruning and
    * stay auditable, while explicit revocation of that session still
    * de-trusts the device via revoke-by-session.
@@ -179,7 +183,9 @@ export const deviceCredentials = pgTable('device_credentials', {
   hardExpiresAt: timestamp('hard_expires_at', { withTimezone: true }).notNull(),
   /** NULL = live. Revoked rows are retained so the digest keeps being rejected. */
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
-  // LOGOUT | SESSION_REVOKED | MANUAL | ROTATION_REUSE | EXPIRED
+  // LOGOUT | SESSION_REVOKED | MANUAL | ROTATION_REUSE | PASSWORD_CHANGE | EXPIRED
+  // (see migration 0066 for what each one means; the column is unconstrained
+  // VARCHAR so a new reason is a code change, not a migration)
   revokedReason: varchar('revoked_reason', { length: 32 }),
 });
 

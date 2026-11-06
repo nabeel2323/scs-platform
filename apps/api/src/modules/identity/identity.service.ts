@@ -912,6 +912,14 @@ export class IdentityService {
     // rotation never costs a legitimate user their trusted-device status.
     const trust = await this.validateDeviceCredential(presentedCredential, session.userId);
 
+    // Keep the session anchor pointing at the browser's LIVE session: rotation
+    // replaced the session row above, and a stale anchor would leave logout
+    // unable to find the credential this session earned (finding B6). Only a
+    // credential that just validated as trusted is moved.
+    if (trust.status === 'trusted') {
+      await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
+    }
+
     return {
       accessToken,
       newRefreshToken,
@@ -934,6 +942,21 @@ export class IdentityService {
    * The cost is explicit: the next login from this device asks for OTP once.
    * Trust still survives refresh-token rotation and access-token expiry — only
    * an actual logout (or revocation) ends it.
+   *
+   * Two independent paths end it, and logout applies both (finding B6):
+   *  1. the credential the request is PRESENTING, which needs the cookie plus the
+   *     proof header; and
+   *  2. the credential the session being closed ENROLLED, looked up by
+   *     device_credentials.created_by_session — a server-side link.
+   *
+   * Path 2 is what makes logout authoritative rather than courtesy. A request
+   * that carries no cookie (deliberately stripped, a cookie jar cleared by
+   * another tab, a non-browser client holding only the refresh token) used to
+   * close the session and leave the second-factor exemption alive in that
+   * browser's storage — the exact shared-profile case requirement 10 exists to
+   * close. Revocation stays ownership-bound: the session's user must match the
+   * credential's user, and credentials enrolled by other sessions (other
+   * devices) are untouched.
    */
   async logout(
     refreshToken: string,
@@ -952,11 +975,17 @@ export class IdentityService {
       .set({ revokedAt: new Date() })
       .where(eq(sessions.tokenHash, tokenHash));
 
-    const cleared = await this.revokePresentedCredential(
-      presentedCredential,
-      session?.userId ?? null,
-      'LOGOUT',
-    );
+    // Path 2 first: what this session earned, whether or not anything was presented.
+    const anchored = session
+      ? (await this.revokeCredentialsBySession(session.id, session.userId)) > 0
+      : false;
+
+    const cleared =
+      (await this.revokePresentedCredential(
+        presentedCredential,
+        session?.userId ?? null,
+        'LOGOUT',
+      )) || anchored;
 
     return { success: true, deviceTrust: cleared ? { clear: true } : undefined };
   }
@@ -1663,13 +1692,25 @@ export class IdentityService {
 
   /**
    * Revoke every live credential for an account.
-   * Used by refresh-token reuse detection: a replayed refresh token means the
-   * token store is compromised, and device trust lives in the same browser, so
-   * the second-factor exemption is revoked with it (requirement 6).
+   *
+   * Two callers, one shared rule — the OTP exemption must not outlive the
+   * authentication it was earned by:
+   *  * refresh-token reuse detection (ROTATION_REUSE): a replayed refresh token
+   *    means the token store is compromised, and device trust lives in the same
+   *    browser, so the second-factor exemption is revoked with it (requirement 6).
+   *  * password change (PASSWORD_CHANGE): the credential that produced every
+   *    exemption was just replaced, so no browser keeps an OTP-free login path
+   *    built on the old secret (finding B5).
+   *
+   * Returns the number of credentials revoked so the caller can audit it.
    */
   async revokeAllDeviceCredentials(
     userId: string,
-    reason: 'ROTATION_REUSE' | 'MANUAL' | 'SESSION_REVOKED' = 'ROTATION_REUSE',
+    reason:
+      | 'ROTATION_REUSE'
+      | 'MANUAL'
+      | 'SESSION_REVOKED'
+      | 'PASSWORD_CHANGE' = 'ROTATION_REUSE',
   ): Promise<number> {
     const result = await this.db.db
       .update(deviceCredentials)
@@ -1702,6 +1743,72 @@ export class IdentityService {
       expiresAt: row.expiresAt,
       hardExpiresAt: row.hardExpiresAt,
     }));
+  }
+
+  /**
+   * Keep a credential's session anchor pointing at the session the browser now
+   * holds, after rotation or a trusted password login replaced it.
+   *
+   * `created_by_session` is what lets logout de-trust a browser that presents
+   * nothing (finding B6), and a browser's session row is short-lived: rotation
+   * replaces it every refresh, and a trusted password login creates a new one.
+   * An anchor that only ever names the enrolment session would be stale within
+   * minutes, so the link is maintained rather than frozen at enrolment.
+   *
+   * Who can move an anchor, and why that is acceptable: only a request that
+   * presents the credential itself AND passes the ownership check — i.e. the
+   * browser that already holds the second-factor exemption. The anchor is a
+   * lookup key for de-trust, never a proof of trust: `validateDeviceCredential`
+   * ignores it entirely, so moving it cannot grant, extend or weaken trust for
+   * any request. If a credential is suspected copied, revoke account-wide
+   * (password change, B5) or per-device from the device list; neither depends
+   * on where the anchor currently points.
+   */
+  private async anchorCredentialToSession(
+    presented: string | null | undefined,
+    userId: string,
+    sessionId: string,
+  ): Promise<void> {
+    if (!presented) return;
+    await this.db.db
+      .update(deviceCredentials)
+      .set({ createdBySession: sessionId })
+      .where(
+        and(
+          eq(deviceCredentials.credentialHash, this.hashToken(presented)),
+          eq(deviceCredentials.userId, userId),
+        ),
+      );
+  }
+
+  /**
+   * Revoke the live credential that a specific session enrolled, identified by
+   * `device_credentials.created_by_session`.
+   *
+   * Nothing here is client-influenced: the caller passes the id of the session
+   * row this request resolved from its own refresh-token digest, and the write is
+   * bound to that session's user. So a logout (or a device sign-out) de-trusts
+   * exactly the browser that earned it through that session, and cannot reach
+   * another device's credential or another account's.
+   *
+   * @returns the number of credentials revoked (0 when the session enrolled none).
+   */
+  private async revokeCredentialsBySession(
+    sessionId: string,
+    userId: string,
+    reason: 'LOGOUT' = 'LOGOUT',
+  ): Promise<number> {
+    const result = await this.db.db
+      .update(deviceCredentials)
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(
+        and(
+          eq(deviceCredentials.createdBySession, sessionId),
+          eq(deviceCredentials.userId, userId),
+          isNull(deviceCredentials.revokedAt),
+        ),
+      );
+    return result['rowCount'] || 0;
   }
 
   /**
@@ -1929,6 +2036,13 @@ export class IdentityService {
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
+    // This login was authenticated by the credential, so the credential's
+    // session anchor moves to the session just created. Without it, a browser
+    // that enrolled long ago would log out of a session its credential never
+    // named, and the session-anchored half of logout revocation (finding B6)
+    // would find nothing.
+    await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
+
     // Reset rate limit on successful login
     await this.rateLimitService.resetAttempts('password_login', email);
 
@@ -2026,9 +2140,18 @@ export class IdentityService {
     // Log audit entry
     await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
 
-    // NOTE: Do NOT revoke existing sessions here. The OTP session that established
-    // device trust (with deviceId) must remain valid so password login works.
-    // Revoking it would break device trust and force OTP on every login.
+    // NOTE: Do NOT revoke existing sessions here.
+    //
+    // Corrected for the S-1 model: the comment used to justify this by saying the
+    // OTP session "established device trust (with deviceId)", which is the
+    // pre-remediation claim the audit rejected. Trust comes from the credential
+    // minted by that OTP verification (device_credentials.created_by_session), not
+    // from the session row or the client-supplied deviceId. What is still true, and
+    // is the reason the behaviour stays, is that the caller is authenticated by
+    // this very session — revoking it would kill the access and refresh tokens in
+    // use mid-request. Setting a password for the first time is not a compromise
+    // event, so neither sessions nor credentials are revoked here; contrast
+    // changePassword, which revokes both (finding B5).
 
     return { success: true, message: 'Credentials set up successfully' };
   }
@@ -2086,7 +2209,44 @@ export class IdentityService {
     // Log audit entry
     await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
 
-    // Invalidate all other sessions (keep current device if specified)
+    // Every device-trust credential this account holds is revoked (finding B5).
+    // The exemption means "this browser already completed the second factor",
+    // and that conclusion was reached using the secret that has just been
+    // replaced — including in the case that motivated the finding: an account
+    // whose owner changed the password because the device or the old password
+    // may have been compromised. Keeping the exemption alive there would let the
+    // next password-only login skip OTP exactly as before. A previously trusted
+    // browser therefore gets one OTP challenge on its next login.
+    //
+    // This runs only on the success path: an incorrect current password, a
+    // rejected strength check or an unknown user all throw above, so a failed
+    // password change revokes nothing.
+    const deTrustedCount = await this.revokeAllDeviceCredentials(
+      userId,
+      'PASSWORD_CHANGE',
+    );
+    if (deTrustedCount > 0) {
+      await this.audit.record({
+        actorType: 'SYSTEM',
+        actorId: userId,
+        action: 'auth.device_trust_revoked',
+        resource: 'auth',
+        metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
+      });
+    }
+
+    // Sessions (behaviour unchanged from the baseline; only the comment is
+    // corrected). Naming a device revokes the sessions recorded under that
+    // client-supplied `deviceId` — the caller's own device — and leaves other
+    // devices signed in; naming none revokes every session for the account. The
+    // previous comment ("keep current device if specified") described the
+    // opposite of the code below, which is why it is gone rather than the code.
+    //
+    // Known asymmetry, recorded rather than silently fixed: session revocation is
+    // `deviceId`-scoped while credential revocation above is account-wide, so a
+    // password change signs other browsers out of trust but not out of their
+    // access/refresh sessions. Changing that is a session-semantics change
+    // outside this finding's scope.
     if (deviceId) {
       await this.db.db
         .update(sessions)

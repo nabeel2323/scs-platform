@@ -161,9 +161,10 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
   describe('Trusted device login', () => {
     it('issues a JWT pair when the account presents its own credential', async () => {
       const deviceId = 'trusted-device-001';
-      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
-        label: 'trusted-phone-user',
-      });
+      const { credential, maxAgeSeconds: issuedMaxAge } = await service.issueDeviceCredential(
+        phoneUser.id,
+        { label: 'trusted-phone-user' },
+      );
 
       const result = await service.loginWithPassword(
         phoneUser.email, phoneUser.password, deviceId,
@@ -175,9 +176,20 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
       expect(result.requiresOtp).toBeUndefined();
-      // A live credential must not be re-minted on every login; the transport
-      // is told to leave the cookie alone.
-      expect(result.deviceTrust).toEqual({ keep: true });
+      // Transport, as it actually works: a trusted login re-issues the SAME
+      // secret so the browser's absolute `Max-Age` follows the server-side
+      // slide, clamped at the ceiling. It does not mint a replacement, and an
+      // earlier `{ keep: true }` convention that no code implemented is gone.
+      expect(result.deviceTrust?.credential).toBe(credential);
+      expect(result.deviceTrust?.clear).toBeUndefined();
+      expect(result.deviceTrust?.maxAgeSeconds).toBeGreaterThan(0);
+      expect(result.deviceTrust?.maxAgeSeconds).toBeLessThanOrEqual(issuedMaxAge);
+
+      const live = await pool.query(
+        `SELECT credential_hash FROM device_credentials WHERE user_id = $1 AND revoked_at IS NULL`,
+        [phoneUser.id],
+      );
+      expect(live.rowCount).toBe(1);
 
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
       await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
@@ -491,25 +503,50 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
     }, 30_000);
 
     it('audit records the address as a hash, never in clear (S1.37-F-13)', async () => {
+      // S-1 moved WHICH event a password attempt writes: an untrusted device
+      // now produces `auth.otp_challenge` (a second factor was demanded), and a
+      // trusted device produces `auth.login` with `trustedDevice: true`. The
+      // property this test exists for is unchanged — the identifier is only ever
+      // stored as a keyed hash — so both events are asserted. Monitoring note:
+      // anything that counted password attempts through `auth.login` must now
+      // read both actions; see the follow-up report.
       const deviceId = 'audit-hash-device';
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), phoneUser.id, 'e'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
+
+      await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, deviceId,
+        { platform: 'web', userAgent: 'audit-hash' },
       );
 
-      await service.loginWithPassword(phoneUser.email, phoneUser.password, deviceId, {
-        platform: 'web', userAgent: 'audit-hash',
+      const challenge = mockAudit.record.mock.calls
+        .map((c) => c[0] as any)
+        .find((a) => a.action === 'auth.otp_challenge');
+      expect(challenge).toBeDefined();
+      expect(challenge.metadata.emailHash).toMatch(/^v2:[0-9a-f]{64}$/);
+      expect(challenge.metadata.reason).toBe('absent');
+      expect(JSON.stringify(challenge)).not.toContain(phoneUser.email);
+
+      mockAudit.record.mockClear();
+
+      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
+        label: 'audit-hash-trusted',
       });
+      await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, deviceId,
+        { platform: 'web', userAgent: 'audit-hash' },
+        undefined,
+        credential,
+      );
 
       const loginAudit = mockAudit.record.mock.calls
         .map((c) => c[0] as any)
         .find((a) => a.action === 'auth.login');
       expect(loginAudit).toBeDefined();
       expect(loginAudit.metadata.emailHash).toMatch(/^v2:[0-9a-f]{64}$/);
+      expect(loginAudit.metadata.trustedDevice).toBe(true);
       expect(JSON.stringify(loginAudit)).not.toContain(phoneUser.email);
 
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
     });
   });
 
@@ -518,21 +555,43 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
   describe('Email normalization on login (S1.37-F-08)', () => {
     it('accepts a case-variant and padded address for the same account', async () => {
       const deviceId = 'normalized-login-device';
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), phoneUser.id, 'f'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
-      );
+
+      // S-1 consequence: an untrusted device no longer receives a token pair
+      // from this endpoint, so normalization can no longer be proven by a JWT
+      // alone. It is proven three ways here — the challenge is issued for THIS
+      // account's phone, the rate-limit key is the normalized address rather
+      // than the raw input, and a trusted presentation of the same messy
+      // address still completes into a real session.
+      const messy = `  ${phoneUser.email.toUpperCase()}  ` as never;
 
       const result = await service.loginWithPassword(
-        `  ${phoneUser.email.toUpperCase()}  ` as never, phoneUser.password, deviceId,
+        messy, phoneUser.password, deviceId,
         { platform: 'web', userAgent: 'normalized' },
       );
 
-      expect(result.accessToken).toBeTruthy();
-      expect(result.requiresOtp).toBeFalsy();
+      expect(result.requiresOtp).toBe(true);
+      expect(result.accessToken).toBe('');
+      expect(result.otpPhone).toBe(phoneUser.phone);
+      expect(mockRateLimit.checkAndIncrement).toHaveBeenCalledWith(
+        'password_login', phoneUser.email, 5, 900,
+      );
+
+      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
+        label: 'normalized-trusted',
+      });
+      const trusted = await service.loginWithPassword(
+        messy, phoneUser.password, deviceId,
+        { platform: 'web', userAgent: 'normalized' },
+        undefined,
+        credential,
+      );
+
+      expect(trusted.accessToken).toBeTruthy();
+      expect(trusted.refreshToken).toBeTruthy();
+      expect(trusted.requiresOtp).toBeUndefined();
 
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
     });
 
     it('counts an unknown address against the normalized rate-limit key', async () => {

@@ -27,9 +27,11 @@
 --     row, hence to exactly one user. Cross-user reuse is structurally
 --     impossible, not just checked at runtime.
 --   * user_id ... ON DELETE CASCADE: deleting a user deletes their trust.
---   * created_by_session -> sessions ON DELETE SET NULL: revoking the
---     session that enrolled a device also de-trusts that device (the link
---     the old model lacked), while keeping the credential row for audit.
+--   * created_by_session -> sessions ON DELETE SET NULL: the credential is bound
+--     to the session that enrolled it and, after refresh rotation, to that
+--     session's replacement. Revoking or logging out of that session therefore
+--     de-trusts the device even when the request presents no cookie (the link the
+--     old model lacked), while keeping the credential row for audit.
 --   * expires_at (sliding horizon) and hard_expires_at (absolute cap) are
 --     separate columns so a long-lived active device still hits a ceiling;
 --     CHECK enforces the ordering so a bug cannot produce a credential that
@@ -99,9 +101,13 @@ CREATE TABLE IF NOT EXISTS public.device_credentials (
   -- Never used in a security decision.
   device_label    VARCHAR(160),
 
-  -- Provenance: the session whose successful authentication enrolled the
-  -- device. SET NULL (not CASCADE) so credential rows survive session pruning
-  -- and remain auditable; explicit session revocation de-trusts via the index.
+  -- Provenance: the session this credential is currently bound to. It is set to
+  -- the session that enrolled the device at OTP verification and carried forward
+  -- when refresh-token rotation replaces that session row, so it always names the
+  -- browser's live session and logout can de-trust it without the browser
+  -- presenting anything. SET NULL (not CASCADE) so credential rows survive session
+  -- pruning and remain auditable; explicit session revocation de-trusts via the
+  -- index.
   created_by_session UUID
                     REFERENCES public.sessions(id) ON DELETE SET NULL,
 
@@ -118,7 +124,17 @@ CREATE TABLE IF NOT EXISTS public.device_credentials (
 
   -- Durable, explainable revocation. NULL = live.
   revoked_at      TIMESTAMPTZ,
-  revoked_reason  VARCHAR(32),   -- LOGOUT | SESSION_REVOKED | MANUAL | ROTATION_REUSE | EXPIRED
+  -- Values written by the service. Unconstrained VARCHAR so that adding a
+  -- reason is a code change, not a migration; the list is the contract, and
+  -- an unexpected value is a bug to fix in the writer, not data to reject.
+  --   LOGOUT            the session that earned it ended, or it was presented
+  --                     by a request that logged out
+  --   SESSION_REVOKED   an explicit "sign this device out" / session revoke
+  --   MANUAL            the account owner removed the device from the list
+  --   ROTATION_REUSE    the refresh token was replayed: token store compromised
+  --   PASSWORD_CHANGE   the secret behind every exemption was replaced
+  --   EXPIRED           slid past its horizon or ceiling; durably retired
+  revoked_reason  VARCHAR(32),
 
   -- A live credential must not outlive its own hard cap.
   CONSTRAINT device_credentials_expiry_ordered

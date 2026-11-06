@@ -284,14 +284,21 @@ export function buildClearDeviceTrustCookie(cfg: DeviceTrustCookieConfig): strin
   return serializeDeviceTrustCookie('clear', cfg, 0);
 }
 
-/** What the service layer hands the transport for the current response. */
+/**
+ * What the service layer hands the transport for the current response.
+ *
+ * Exactly three things can happen to the cookie: install a credential, expire
+ * it, or nothing at all (`undefined`). An earlier `keep?: boolean` variant was
+ * removed: nothing ever set it, `applyDeviceTrustCookie` never read it, and the
+ * behaviour it described ("leave the cookie alone") is the same observable
+ * outcome as no instruction — while the live case actually needs a re-issue, so
+ * that the browser's absolute `Max-Age` tracks the server-side slide.
+ */
 export interface DeviceTrustTransportInstruction {
   /** New or refreshed credential to install. */
   credential?: string;
   /** Lifetime for `credential`; omitted => hard lifetime of the credential. */
   maxAgeSeconds?: number;
-  /** Present a live credential but do not touch the cookie. */
-  keep?: boolean;
   /** Remove a credential the browser was still presenting. */
   clear?: boolean;
 }

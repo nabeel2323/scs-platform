@@ -259,11 +259,13 @@ describe('AuthController', () => {
       expect(jar.cookies[0]).toContain('Max-Age=0');
     });
 
-    it('leaves the cookie untouched while the presented credential is still valid', async () => {
+    it('writes no cookie when the service has nothing to say about device trust', async () => {
+      // The only no-op instruction is `undefined`: a live credential that is
+      // still being slid is re-installed (next test), not silently skipped.
       svc.refreshToken.mockResolvedValue({
         accessToken: 'a',
         newRefreshToken: 'r2',
-        deviceTrust: { keep: true },
+        deviceTrust: undefined,
       });
       const jar = cookieJar();
       const body = await controller.refreshToken(
