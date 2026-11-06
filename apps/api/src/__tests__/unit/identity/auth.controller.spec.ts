@@ -2,6 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { AuthController } from '../../../modules/identity/auth.controller';
 import { IdentityService } from '../../../modules/identity/identity.service';
+import {
+  DEVICE_TRUST_COOKIE_NAME,
+  DEVICE_TRUST_PROOF_HEADER,
+  DEVICE_TRUST_PROOF_VALUE,
+} from '../../../common/auth/device-trust-cookie';
 import type { JwtPayload } from '../../../common/guards/current-user.decorator';
 
 /**
@@ -58,6 +63,42 @@ const payload = (over: Partial<JwtPayload> = {}): JwtPayload => ({
 const req = (ip = '1.2.3.4', ua = 'vitest') =>
   ({ ip, get: (name: string) => (name === 'user-agent' ? ua : undefined) }) as any;
 
+/** A request that presents a device credential the way a trusted browser does. */
+const presentingReq = (credential: string, withProof = true) =>
+  ({
+    ip: '1.2.3.4',
+    headers: {
+      cookie: `${DEVICE_TRUST_COOKIE_NAME}=${credential}`,
+      ...(withProof ? { [DEVICE_TRUST_PROOF_HEADER]: DEVICE_TRUST_PROOF_VALUE } : {}),
+    },
+    get: (name: string) => (name === 'user-agent' ? 'vitest' : undefined),
+  }) as any;
+
+/** Stand-in for `@Res({ passthrough: true })`, recording what would go on the wire. */
+function cookieJar() {
+  const headers: Record<string, string | string[]> = {};
+  return {
+    setHeader(name: string, value: string | string[]) {
+      headers[name.toLowerCase()] = value;
+    },
+    getHeader(name: string) {
+      return headers[name.toLowerCase()];
+    },
+    /** Every Set-Cookie value, flattened (appendSetCookie stores an array). */
+    get cookies(): string[] {
+      const raw = headers['set-cookie'];
+      if (raw === undefined) return [];
+      return Array.isArray(raw) ? raw : [String(raw)];
+    },
+  };
+}
+
+// Exactly 43 characters of base64url — the only shape the transport accepts as
+// ours (device-trust-cookie.ts CREDENTIAL_PATTERN). A 44-char stand-in is
+// treated as a foreign cookie value: read as no credential at all on input and
+// refused outright on output, which is the point of the pattern.
+const CREDENTIAL = 'a1B2c3D4e5F6g7H8i9J0kLmNoPqRsTuVwXyZ0123456';
+
 describe('AuthController', () => {
   let svc: ReturnType<typeof mockIdentityService>;
   let controller: AuthController;
@@ -91,14 +132,14 @@ describe('AuthController', () => {
     );
   });
 
-  it('refreshToken forwards the refresh token', async () => {
-    await controller.refreshToken({ refreshToken: 'r1' } as any);
-    expect(svc.refreshToken).toHaveBeenCalledWith('r1');
+  it('refreshToken forwards the token and a null credential for an ordinary request', async () => {
+    await controller.refreshToken({ refreshToken: 'r1' } as any, req());
+    expect(svc.refreshToken).toHaveBeenCalledWith('r1', null);
   });
 
-  it('logout forwards the refresh token', async () => {
-    await controller.logout({ refreshToken: 'r1' } as any);
-    expect(svc.logout).toHaveBeenCalledWith('r1');
+  it('logout forwards the token and a null credential for an ordinary request', async () => {
+    await controller.logout({ refreshToken: 'r1' } as any, req());
+    expect(svc.logout).toHaveBeenCalledWith('r1', null);
   });
 
   it('switchOrg forwards sub, orgId, sid and the presenting token jti/exp (API-B9 + WEB-B3)', async () => {
@@ -112,7 +153,7 @@ describe('AuthController', () => {
     });
   });
 
-  it('loginPassword forwards credentials + device + request context', async () => {
+  it('loginPassword forwards credentials + device + context + presented credential', async () => {
     await controller.loginPassword(
       {
         email: 'a@b.c',
@@ -128,12 +169,152 @@ describe('AuthController', () => {
       'dev-1',
       { platform: 'web' },
       { ip: '5.5.5.5', userAgent: 'safari' },
+      null,
     );
   });
 
-  it('checkDeviceLogin forwards email + deviceId', async () => {
+  it('checkDeviceLogin forwards ONLY the email (S-2: no device in, no trust out)', async () => {
     await controller.checkDeviceLogin({ email: 'a@b.c', deviceId: 'dev-1' } as any);
-    expect(svc.checkDeviceLogin).toHaveBeenCalledWith('a@b.c', 'dev-1');
+    expect(svc.checkDeviceLogin).toHaveBeenCalledWith('a@b.c');
+    expect(svc.checkDeviceLogin.mock.calls[0]).toHaveLength(1);
+  });
+
+  // ── S-1: device-trust transport ───────────────────────────────────────
+  //
+  // The credential is a second-factor bypass, so what crosses the wire around
+  // it is security behaviour and is tested as such: it is read only with the
+  // same-origin proof, it is never serialized into a body, and the response
+  // attributes are the ones that keep it out of page script.
+
+  describe('device-trust transport (S-1)', () => {
+    const session = { accessToken: 'a', refreshToken: 'r' };
+
+    /**
+     * The positional argument that carries the credential the browser presented.
+     * Read from the recorded call rather than the typed signature so a parameter
+     * reorder fails loudly instead of silently comparing against `undefined`.
+     */
+    const presentedArgument = () => {
+      const call = svc.loginWithPassword.mock.calls[0];
+      if (!call) throw new Error('loginWithPassword was never called');
+      return call[5];
+    };
+
+    it('forwards a presented credential on password login', async () => {
+      svc.loginWithPassword.mockResolvedValue(session);
+      await controller.loginPassword(
+        { email: 'a@b.c', password: 'pw', deviceId: 'dev-1' } as any,
+        presentingReq(CREDENTIAL),
+        cookieJar(),
+      );
+      expect(presentedArgument()).toBe(CREDENTIAL);
+    });
+
+    it('ignores a credential presented without the same-origin proof header', async () => {
+      svc.loginWithPassword.mockResolvedValue(session);
+      await controller.loginPassword(
+        { email: 'a@b.c', password: 'pw', deviceId: 'dev-1' } as any,
+        presentingReq(CREDENTIAL, false),
+        cookieJar(),
+      );
+      expect(presentedArgument()).toBeNull();
+    });
+
+    it('installs a minted credential as an HttpOnly cookie and strips it from the body', async () => {
+      svc.verifyOtp.mockResolvedValue({
+        ...session,
+        deviceTrust: { credential: CREDENTIAL, maxAgeSeconds: 3600 },
+      });
+      const jar = cookieJar();
+      const body = await controller.verifyOtp(
+        { phone: '+966500000000', otp: '123456', deviceId: 'dev-1' } as any,
+        req(),
+        jar,
+      );
+      expect(body).toEqual(session);
+      expect(JSON.stringify(body)).not.toContain(CREDENTIAL);
+      expect(jar.cookies).toHaveLength(1);
+      expect(jar.cookies[0]).toContain(`${DEVICE_TRUST_COOKIE_NAME}=${CREDENTIAL}`);
+      expect(jar.cookies[0]).toContain('HttpOnly');
+      expect(jar.cookies[0]).toContain('Max-Age=3600');
+      expect(jar.cookies[0]).not.toMatch(/Domain=/);
+    });
+
+    it('clears the cookie when the service reports a dead credential', async () => {
+      svc.loginWithPassword.mockResolvedValue({
+        accessToken: '',
+        refreshToken: '',
+        requiresOtp: true,
+        otpPhone: '+966500000000',
+        deviceTrust: { clear: true },
+      });
+      const jar = cookieJar();
+      const body: any = await controller.loginPassword(
+        { email: 'a@b.c', password: 'pw', deviceId: 'dev-1' } as any,
+        presentingReq(CREDENTIAL),
+        jar,
+      );
+      expect(body.deviceTrust).toBeUndefined();
+      expect(jar.cookies).toHaveLength(1);
+      expect(jar.cookies[0]).toContain('Max-Age=0');
+    });
+
+    it('leaves the cookie untouched while the presented credential is still valid', async () => {
+      svc.refreshToken.mockResolvedValue({
+        accessToken: 'a',
+        newRefreshToken: 'r2',
+        deviceTrust: { keep: true },
+      });
+      const jar = cookieJar();
+      const body = await controller.refreshToken(
+        { refreshToken: 'r1' } as any,
+        presentingReq(CREDENTIAL),
+        jar,
+      );
+      expect(svc.refreshToken).toHaveBeenCalledWith('r1', CREDENTIAL);
+      expect(body).toEqual({ accessToken: 'a', newRefreshToken: 'r2' });
+      expect(jar.cookies).toHaveLength(0);
+    });
+
+    it('re-installs a slid credential on refresh so the two clocks stay in step', async () => {
+      svc.refreshToken.mockResolvedValue({
+        accessToken: 'a',
+        newRefreshToken: 'r2',
+        deviceTrust: { credential: CREDENTIAL, maxAgeSeconds: 7200 },
+      });
+      const jar = cookieJar();
+      await controller.refreshToken(
+        { refreshToken: 'r1' } as any,
+        presentingReq(CREDENTIAL),
+        jar,
+      );
+      expect(jar.cookies[0]).toContain('Max-Age=7200');
+    });
+
+    it('revokes the presented credential on logout and clears the cookie', async () => {
+      svc.logout.mockResolvedValue({ success: true, deviceTrust: { clear: true } });
+      const jar = cookieJar();
+      const body = await controller.logout(
+        { refreshToken: 'r1' } as any,
+        presentingReq(CREDENTIAL),
+        jar,
+      );
+      expect(svc.logout).toHaveBeenCalledWith('r1', CREDENTIAL);
+      expect(body).toEqual({ success: true });
+      expect(jar.cookies[0]).toContain('Max-Age=0');
+    });
+
+    it('still keeps the secret out of the body when no response object is injected', async () => {
+      svc.verifyOtp.mockResolvedValue({
+        ...session,
+        deviceTrust: { credential: CREDENTIAL },
+      });
+      const body = await controller.verifyOtp(
+        { phone: '+966500000000', otp: '123456', deviceId: 'dev-1' } as any,
+        req(),
+      );
+      expect(JSON.stringify(body)).not.toContain(CREDENTIAL);
+    });
   });
 
   // ── S1.37: Phase 1 feature-flag gating ────────────────────────────

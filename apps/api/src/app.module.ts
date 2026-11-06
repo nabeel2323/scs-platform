@@ -62,6 +62,19 @@ import { OperationsModule } from './modules/operations/operations.module';
             ttl: 60_000,
             limit: 40,
           },
+          {
+            // Device-check pre-flight (S-2 remediation). This route had no
+            // throttler of any kind and used to answer account-state questions
+            // to unauthenticated callers. The body is now constant, so this
+            // limit exists to bound the per-request cost (rate-limit round
+            // trip + audit write) an anonymous caller can impose, and to make
+            // sustained probing visible in the logs. Exceeding it answers 429
+            // for an endpoint whose answer is always the same, which discloses
+            // nothing; clients already treat a failed pre-flight as a no-op.
+            name: 'device-check',
+            ttl: parseInt(process.env['DEVICE_CHECK_THROTTLE_TTL_MS'] || '60000', 10),
+            limit: parseInt(process.env['DEVICE_CHECK_THROTTLE_LIMIT'] || '10', 10),
+          },
         ],
         storage: new RedisThrottlerStorageService(redisService),
       }),

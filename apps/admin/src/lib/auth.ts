@@ -8,12 +8,14 @@
  */
 
 import { getDeviceId } from './device-id';
+import { DEVICE_TRUST_PROOF_HEADER, DEVICE_TRUST_PROOF_VALUE } from '@scs/contracts';
 import type {
   AuthSession,
   AuthTokens,
   RefreshResponse,
   DeviceCheckResponse,
   LoginPasswordResponse,
+  OtpRequestResponse,
   SessionInfo,
   UserProfile,
 } from '@scs/contracts';
@@ -21,6 +23,41 @@ import type {
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_admin_session';
 const USER_KEY = 'scs_admin_user';
+
+// ── Device-trust transport (S-1) ─────────────────────────────
+
+/**
+ * Request init for the four calls where device trust matters: OTP verify,
+ * password login, refresh and logout.
+ *
+ * Two things are needed for the server-issued credential to reach the API, and
+ * the admin console previously did neither:
+ *
+ *  - `credentials: 'include'` — without it the browser neither attaches a
+ *    cookie to a cross-origin request nor accepts a `Set-Cookie` in the reply.
+ *    The API already sends `Access-Control-Allow-Credentials: true`, so this is
+ *    the client half of that.
+ *  - the `x-device-trust` proof header — with `SameSite=None` (the only
+ *    attribute that works with the frontend and API on different sites) a
+ *    third-party page can make the browser attach the cookie, so the server
+ *    ignores it unless this header is present too. It is a constant, not a
+ *    secret.
+ *
+ * Omitting both is safe but useless: the device simply counts as untrusted and
+ * an OTP is required. That is the fail-closed direction.
+ */
+function trustRequest(body: unknown, extraHeaders?: Record<string, string>): RequestInit {
+  return {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      [DEVICE_TRUST_PROOF_HEADER]: DEVICE_TRUST_PROOF_VALUE,
+      ...extraHeaders,
+    },
+    body: JSON.stringify(body),
+  };
+}
 
 // Session envelope + auth wire types are shared from @scs/contracts (ADM-B3) so
 // web, admin and mobile stop redefining them. Re-exported to keep this module's
@@ -165,7 +202,16 @@ export function isAuthenticated(): boolean {
   return session !== null && session.expiresAt > Date.now();
 }
 
-export async function requestOtp(phone: string): Promise<{ success: boolean }> {
+/**
+ * Request an OTP on the admin console's SMS channel.
+ *
+ * Returns the WHOLE delivery outcome, not a bare `{success}`: HTTP 200 on this
+ * route means the request was processed, not that a code reached the phone. The
+ * audit found the admin UI discarding this and advancing to code entry after a
+ * provider failure (finding S-1/§4), so the caller is expected to run the
+ * result through `classifyOtpDelivery` and say what actually happened.
+ */
+export async function requestOtp(phone: string): Promise<OtpRequestResponse> {
   const res = await fetch(`${API_URL}/v1/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -175,14 +221,15 @@ export async function requestOtp(phone: string): Promise<{ success: boolean }> {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
     throw new Error(`OTP request failed: ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as OtpRequestResponse;
 }
 
 export async function verifyOtp(phone: string, otp: string): Promise<AuthSession> {
-  const res = await fetch(`${API_URL}/v1/auth/otp/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // A verified OTP enrols this browser: the credential arrives in Set-Cookie,
+  // which is only honoured when the request is made with credentials included.
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/verify`,
+    trustRequest({
       phone,
       otp,
       deviceId: getDeviceId(),
@@ -191,7 +238,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       },
     }),
-  });
+  );
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
   const data = (await res.json()) as AuthTokens;
 
@@ -223,14 +270,17 @@ async function performRefresh(): Promise<AuthSession> {
   if (!currentSession) throw new Error('No session to refresh');
 
   const refreshTokenUsed = currentSession.refreshToken;
-  const res = await fetch(`${API_URL}/v1/auth/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${currentSession.accessToken}`,
-    },
-    body: JSON.stringify({ refreshToken: refreshTokenUsed }),
-  });
+  // Rotation is where device trust would silently decay: the access token is
+  // short-lived, so a refresh happens constantly on a used device. Presenting
+  // (and getting back) the credential here is what keeps the sliding horizon in
+  // step with the session and stops the next login from asking for an OTP.
+  const res = await fetch(
+    `${API_URL}/v1/auth/refresh`,
+    trustRequest(
+      { refreshToken: refreshTokenUsed },
+      { Authorization: `Bearer ${currentSession.accessToken}` },
+    ),
+  );
   if (!res.ok) {
     currentSession = null;
     currentUser = null;
@@ -257,14 +307,16 @@ async function performRefresh(): Promise<AuthSession> {
 export async function logout(): Promise<void> {
   if (!currentSession) return;
   try {
-    await fetch(`${API_URL}/v1/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentSession.accessToken}`,
-      },
-      body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
-    });
+    // The reply carries a clearing Set-Cookie: logout revokes this device's
+    // credential server-side, so the browser must drop it in the same breath
+    // (otherwise a shared profile would stay "trusted" after signing out).
+    await fetch(
+      `${API_URL}/v1/auth/logout`,
+      trustRequest(
+        { refreshToken: currentSession.refreshToken },
+        { Authorization: `Bearer ${currentSession.accessToken}` },
+      ),
+    );
   } catch {
     /* ignore */
   }
@@ -278,16 +330,20 @@ export async function logout(): Promise<void> {
 // ── Dual Authentication (Password Login) ────────────────────
 
 /**
- * Pre-flight device-trust check for a given email.
+ * POST /v1/auth/login/device-check — kept only because the route is published.
+ *
+ * The answer is a CONSTANT (`{checked: true}`) and carries no information: the
+ * caller has proved nothing, so it is told nothing about whether the address
+ * exists, has a password, or has ever been trusted (finding S-2). That is why
+ * the login page no longer calls this on mount and why nothing here branches on
+ * the result. Device trust is decided server-side, from the HttpOnly credential,
+ * when the password is actually checked.
  */
-export async function checkDeviceLogin(
-  email: string,
-  deviceId: string,
-): Promise<DeviceCheckResponse> {
+export async function checkDeviceLogin(email: string): Promise<DeviceCheckResponse> {
   const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, deviceId }),
+    body: JSON.stringify({ email }),
   });
   if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
   return (await res.json()) as DeviceCheckResponse;
@@ -295,26 +351,35 @@ export async function checkDeviceLogin(
 
 /**
  * Login with email and password. Returns a session when the device is trusted,
- * or { requiresOtp, otpPhone } when the device is new and OTP is required.
+ * or { requiresOtp, otpPhone } when it is not.
+ *
+ * `deviceId` remains in the body and in `X-Device-Id` as session provenance.
+ * It is NOT what produces `requiresOtp` any more: that is the server-issued
+ * cookie plus the proof header, so copying a trusted browser's device id — the
+ * exact weakness in finding S-1 — changes nothing.
  */
 export async function loginPassword(
   email: string,
   password: string,
   deviceId: string,
-): Promise<AuthSession | { requiresOtp: true; otpPhone: string }> {
-  const res = await fetch(`${API_URL}/v1/auth/login/password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
-    body: JSON.stringify({
-      email,
-      password,
-      deviceId,
-      deviceInfo: {
-        platform: 'admin-web',
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+): Promise<
+  AuthSession | { requiresOtp: true; otpPhone: string; otpDelivery?: 'accepted' | 'uncertain' }
+> {
+  const res = await fetch(
+    `${API_URL}/v1/auth/login/password`,
+    trustRequest(
+      {
+        email,
+        password,
+        deviceId,
+        deviceInfo: {
+          platform: 'admin-web',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        },
       },
-    }),
-  });
+      { 'X-Device-Id': deviceId },
+    ),
+  );
 
   if (!res.ok) {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many login attempts.');
@@ -324,7 +389,7 @@ export async function loginPassword(
 
   const data = (await res.json()) as LoginPasswordResponse;
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone ?? '' };
+    return { requiresOtp: true, otpPhone: data.otpPhone ?? '', otpDelivery: data.otpDelivery };
   }
 
   currentSession = {

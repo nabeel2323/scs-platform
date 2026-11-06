@@ -3,19 +3,25 @@
  *
  * Proves that the existing password login flow is unchanged after the email OTP
  * additions. Tests against a real Postgres container with mock Redis:
- *  - Password login with trusted device → JWT pair
- *  - Password login with untrusted device → requires OTP (phone path)
- *  - Password login with untrusted device + email-only user → requires OTP (email path)
+ *  - Password login with a server-issued device credential → JWT pair
+ *  - Password login with an untrusted device → requires OTP (phone path)
+ *  - Password login with an untrusted device + email-only user → requires OTP (email path)
  *  - Wrong password rejection
  *  - Non-existent user rejection (same error message — enumeration prevention)
  *  - Rate limiting on login attempts
  *  - Session persistence
- *  - Device trust check
+ *  - Device-check non-disclosure (S-2)
  *
  * S1.37 audit additions: the three rejection branches are proven indistinguishable
  * (the no-password branch used to disclose that an address has an account, which
  * every email-only Phase 1 account is), and a case-variant address is proven to
  * resolve the same account because the service normalizes before it queries.
+ *
+ * S-1 remediation rewrote the trust half of this file. Trust now comes only from
+ * a credential the server minted and the browser presented; the client-supplied
+ * `deviceId` is proven inert as a trust input, including against a live session
+ * row that the pre-remediation code would have honoured. The migration under test
+ * is applied to a throwaway container, never to staging.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Pool } from 'pg';
@@ -146,47 +152,91 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
   });
 
   // ── 1. Trusted Device Login ───────────────────────────────────────
+  //
+  // Rewritten for S-1: the previous version established trust by inserting a
+  // `sessions` row with a matching `device_id`, which is exactly the defect —
+  // any client that could name a UUID seen elsewhere was treated as trusted.
+  // Trust now comes only from a credential the service minted itself.
 
   describe('Trusted device login', () => {
-    it('issues JWT pair when device is trusted (phone user)', async () => {
-      // Create a session to establish device trust
+    it('issues a JWT pair when the account presents its own credential', async () => {
       const deviceId = 'trusted-device-001';
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), phoneUser.id, 'a'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
-      );
+      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
+        label: 'trusted-phone-user',
+      });
 
       const result = await service.loginWithPassword(
         phoneUser.email, phoneUser.password, deviceId,
         { platform: 'web', userAgent: 'test' },
+        undefined,
+        credential,
       );
 
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
       expect(result.requiresOtp).toBeUndefined();
+      // A live credential must not be re-minted on every login; the transport
+      // is told to leave the cookie alone.
+      expect(result.deviceTrust).toEqual({ keep: true });
 
-      // Cleanup sessions
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
     });
 
-    it('issues JWT pair when device is trusted (email-only user)', async () => {
-      const deviceId = 'trusted-device-002';
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), emailOnlyUser.id, 'b'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
-      );
+    it('issues a JWT pair for an email-only user with its own credential', async () => {
+      const { credential } = await service.issueDeviceCredential(emailOnlyUser.id, {
+        label: 'trusted-email-only',
+      });
 
       const result = await service.loginWithPassword(
-        emailOnlyUser.email, emailOnlyUser.password, deviceId,
+        emailOnlyUser.email, emailOnlyUser.password, 'trusted-device-002',
         { platform: 'web', userAgent: 'test' },
+        undefined,
+        credential,
       );
 
       expect(result.accessToken).toBeTruthy();
       expect(result.refreshToken).toBeTruthy();
 
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [emailOnlyUser.id]);
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [emailOnlyUser.id]);
+    });
+
+    it('a copied deviceId does not bypass OTP even with a live session (S-1)', async () => {
+      // The historical bypass: an active session row carrying this device_id.
+      const stolenDeviceId = 'stolen-from-another-browser';
+      await pool.query(
+        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
+         VALUES ($1, $2, $3, 'web', $4, $5)`,
+        [randomUUID(), phoneUser.id, 'e'.repeat(64), stolenDeviceId, new Date(Date.now() + 86400000)],
+      );
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, stolenDeviceId,
+        { platform: 'web', userAgent: 'attacker' },
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.accessToken).toBe('');
+
+      await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+    });
+
+    it("another account's credential does not establish trust (S-1 req 8)", async () => {
+      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
+        label: 'issued-to-phone-user',
+      });
+
+      const result = await service.loginWithPassword(
+        emailOnlyUser.email, emailOnlyUser.password, 'any-device',
+        undefined, undefined, credential,
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      // The presentation is refused and the browser is told to drop it.
+      expect(result.deviceTrust).toEqual({ clear: true });
+
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
     });
   });
 
@@ -204,6 +254,29 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
       expect(result.refreshToken).toBe('');
       // Phone user should get phone OTP
       expect(result.otpPhone).toBe(phoneUser.phone);
+      // The provider accepted the send in this fixture, so the client is
+      // allowed to say a code was sent — and only because the service said so.
+      expect(result.otpDelivery).toBe('accepted');
+      // Nothing was presented, so there is nothing to clear.
+      expect(result.deviceTrust).toBeUndefined();
+    });
+
+    it('reports an unconfirmed send as uncertain rather than accepted', async () => {
+      // A provider timeout. `deliveryOutcome: 'unknown'` is the only value the
+      // service treats as unconfirmed (identity.service.ts:265); a definite
+      // failure throws instead of returning a challenge.
+      mockDelivery.deliverOtp.mockResolvedValueOnce({
+        success: false,
+        status: 'timeout',
+        deliveryOutcome: 'unknown',
+      });
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, 'new-device-timeout',
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.otpDelivery).toBe('uncertain');
     });
 
     it('returns requiresOtp with masked email for email-only user', async () => {
@@ -267,12 +340,10 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
   describe('Session persistence', () => {
     it('creates session record on successful login', async () => {
       const deviceId = 'session-test-device';
-      // Establish trust first
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), phoneUser.id, 'c'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
-      );
+      // Trust is established by the credential, not by a pre-existing session.
+      const { credential } = await service.issueDeviceCredential(phoneUser.id, {
+        label: 'session-test',
+      });
 
       const before = await pool.query(`SELECT COUNT(*) FROM sessions WHERE user_id = $1`, [phoneUser.id]);
       const countBefore = parseInt(before.rows[0].count, 10);
@@ -280,6 +351,8 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
       await service.loginWithPassword(
         phoneUser.email, phoneUser.password, deviceId,
         { platform: 'web', userAgent: 'session-test' },
+        undefined,
+        credential,
       );
 
       const after = await pool.query(`SELECT COUNT(*) FROM sessions WHERE user_id = $1`, [phoneUser.id]);
@@ -287,29 +360,73 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
 
       // Cleanup
       await pool.query(`DELETE FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+      await pool.query(`DELETE FROM device_credentials WHERE user_id = $1`, [phoneUser.id]);
+    });
+
+    it('an OTP-challenged login creates no session', async () => {
+      const before = await pool.query(`SELECT COUNT(*) FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, 'never-seen-device',
+        { platform: 'web', userAgent: 'ua' },
+      );
+      expect(result.requiresOtp).toBe(true);
+
+      const after = await pool.query(`SELECT COUNT(*) FROM sessions WHERE user_id = $1`, [phoneUser.id]);
+      expect(parseInt(after.rows[0].count, 10)).toBe(parseInt(before.rows[0].count, 10));
     });
   });
 
-  // ── 6. Device Trust Check ─────────────────────────────────────────
+  // ── 6. Device-check answers nothing (S-2) ─────────────────────────
 
-  describe('Device trust', () => {
-    it('checkDeviceTrust returns true for recent session', async () => {
-      const deviceId = 'trust-check-001';
-      await pool.query(
-        `INSERT INTO sessions (id, user_id, token_hash, device, device_id, expires_at)
-         VALUES ($1, $2, $3, 'web', $4, $5)`,
-        [randomUUID(), phoneUser.id, 'd'.repeat(64), deviceId, new Date(Date.now() + 86400000)],
-      );
+  describe('Device-check non-disclosure (S-2)', () => {
+    it('answers the same constant for an existing account and an unknown one', async () => {
+      const known = await service.checkDeviceLogin(phoneUser.email);
+      const unknown = await service.checkDeviceLogin('nobody-at-all@test.com');
 
-      const trusted = await service.checkDeviceTrust(phoneUser.id, deviceId);
-      expect(trusted).toBe(true);
-
-      await pool.query(`DELETE FROM sessions WHERE user_id = $1 AND device_id = $2`, [phoneUser.id, deviceId]);
+      expect(known).toEqual({ checked: true });
+      expect(unknown).toEqual({ checked: true });
+      expect(JSON.stringify(known)).toBe(JSON.stringify(unknown));
     });
 
-    it('checkDeviceTrust returns false for unknown device', async () => {
-      const trusted = await service.checkDeviceTrust(phoneUser.id, 'never-seen-device');
-      expect(trusted).toBe(false);
+    it('the answer carries no trust or password information', async () => {
+      const answer: any = await service.checkDeviceLogin(emailOnlyUser.email);
+      expect(Object.keys(answer)).toEqual(['checked']);
+      expect(answer.hasPassword).toBeUndefined();
+      expect(answer.canAutoLogin).toBeUndefined();
+      expect(answer.requiresOtp).toBeUndefined();
+    });
+
+    it('normalizes the identifier before rate limiting, so case variants share one bucket', async () => {
+      mockRateLimit.checkAndIncrement.mockClear();
+      await service.checkDeviceLogin('  PhoneUser@TEST.com  ');
+      expect(mockRateLimit.checkAndIncrement).toHaveBeenCalledWith(
+        'device_check',
+        'phoneuser@test.com',
+        expect.any(Number),
+        expect.any(Number),
+      );
+    });
+
+    it('an over-limit identifier still answers identically (no oracle)', async () => {
+      // The per-identifier budget is a backstop, not a signal: refusing loudly
+      // would tell a probe "this address exists and is being checked", which is
+      // the disclosure the endpoint just stopped making.
+      mockRateLimit.checkAndIncrement.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+      const answer = await service.checkDeviceLogin(phoneUser.email);
+      expect(answer).toEqual({ checked: true });
+    });
+
+    it('audit records a hashed identifier, never the address', async () => {
+      await service.checkDeviceLogin(phoneUser.email);
+      const recorded = mockAudit.record.mock.calls
+        .map((call: any[]) => call[0])
+        .find((entry: any) => entry?.action === 'auth.device_check');
+      expect(recorded).toBeDefined();
+      const serialized = JSON.stringify(recorded);
+      expect(serialized).not.toContain(phoneUser.email);
+      expect(recorded.metadata.emailHash).toBeTruthy();
+      expect(recorded.metadata.deviceId).toBeUndefined();
     });
   });
 

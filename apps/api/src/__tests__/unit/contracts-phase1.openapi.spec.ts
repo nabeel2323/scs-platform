@@ -73,6 +73,16 @@ interface Operation {
   responses: Record<string, unknown>;
 }
 
+/** A response object as emitted by the generator, with its header map. */
+interface ResponseLike {
+  headers?: Record<string, unknown>;
+}
+
+/** Operations that participate in device trust also declare cookie/header params. */
+interface TrustAwareOperation extends Operation {
+  parameters?: Array<{ name: string; in: string }>;
+}
+
 interface OpenApiDoc {
   paths: Record<string, Partial<Record<string, Operation>>>;
   components: {
@@ -267,8 +277,20 @@ suite('Phase 1 API contract drift (S1.37-F-09)', () => {
       ...controllerRoutes.map((r) => `${AUTH_PREFIX}/${r.path}`),
       '/v1/me',
       '/v1/me/sessions',
+      // S-1 remediation: the trusted-device lifecycle is only usable if the
+      // generated clients can see it. A route that exists in the API but not in
+      // the contract is exactly the Phase 1 defect this guard was written for.
+      '/v1/me/trusted-devices',
+      '/v1/me/trusted-devices/{credentialId}',
+      '/v1/me/sessions/revoke-by-device/{deviceId}',
     ])('client declares the %s path', (routePath) => {
       expect(client, `generated api.d.ts is missing ${routePath}`).toContain(`"${routePath}"`);
+    });
+
+    it('client declares the device-trust and OTP delivery schemas', () => {
+      for (const name of ['TrustedDevice', 'OtpRequestResponse', 'DeviceCheckResponse']) {
+        expect(client, `generated api.d.ts has no ${name} component`).toContain(`${name}:`);
+      }
     });
 
     it('client declares the Phase 1 request schemas', () => {
@@ -300,5 +322,97 @@ suite('Phase 1 API contract drift (S1.37-F-09)', () => {
       expect(inController, `${route} is not declared by AuthController`).toBe(true);
       expect(operation(doc, route), `${route} is not in openapi.json`).toBeDefined();
     }
+  });
+
+  // ── 6. S-1: device trust is a cookie, never a body field ───────────
+
+  describe('device-trust transport (S-1)', () => {
+    /** Auth routes whose answer depends on, or which change, device trust. */
+    const TRUST_BEARING_ROUTES = [
+      'login/password',
+      'otp/verify',
+      'otp/email/verify',
+      'refresh',
+      'logout',
+    ] as const;
+
+    const DEVICE_TRUST_COOKIE = 'scs_device_trust';
+    const DEVICE_TRUST_PROOF_HEADER = 'x-device-trust';
+
+    it.each(TRUST_BEARING_ROUTES)(
+      '%s documents the cookie and the same-origin proof header it is gated on',
+      (route) => {
+        const params = (operation(doc, route) as unknown as TrustAwareOperation).parameters ?? [];
+        const names = params.map((p) => `${p.in}:${p.name}`);
+        expect(names, `${route} omits the ${DEVICE_TRUST_COOKIE} cookie parameter`).toContain(
+          `cookie:${DEVICE_TRUST_COOKIE}`,
+        );
+        expect(names, `${route} omits the ${DEVICE_TRUST_PROOF_HEADER} proof parameter`).toContain(
+          `header:${DEVICE_TRUST_PROOF_HEADER}`,
+        );
+      },
+    );
+
+    it.each(TRUST_BEARING_ROUTES)(
+      '%s advertises Set-Cookie, so the credential is documented as transport',
+      (route) => {
+        const responses = operation(doc, route)!.responses as Record<string, ResponseLike>;
+        const ok = responses['200'];
+        expect(ok?.headers?.['Set-Cookie'], `${route} 200 has no Set-Cookie header`).toBeDefined();
+      },
+    );
+
+    it('no auth response body carries a device credential', () => {
+      // The whole point of S-1 is that the secret lives in an HttpOnly cookie.
+      // A `credential`/`deviceTrust` body property would put it back within
+      // reach of page script, so the contract must not describe one.
+      const docJson = JSON.stringify(
+        Object.fromEntries(
+          Object.entries(doc.paths).filter(([p]) => p.startsWith(`${AUTH_PREFIX}/`)),
+        ),
+      );
+      const bodySchemas = Object.entries(doc.components.schemas)
+        .filter(([name]) => /^(LoginPasswordResponse|AuthTokens|RefreshResponse|OtpRequestResponse|DeviceCheckResponse|TrustedDevice)$/.test(name))
+        .flatMap(([, schema]) => Object.keys(schema.properties ?? {}));
+
+      for (const forbidden of ['credential', 'deviceTrust', 'credentialHash', 'deviceTrustCookie']) {
+        expect(
+          bodySchemas,
+          `a response schema exposes ${forbidden} — device trust must be cookie-only`,
+        ).not.toContain(forbidden);
+      }
+      expect(docJson).toContain(DEVICE_TRUST_COOKIE);
+    });
+
+    it('TrustedDevice exposes lifecycle only, never the digest', () => {
+      const schema = schemaOf(doc, 'TrustedDevice');
+      expect(Object.keys(schema.properties ?? {}).sort()).toEqual(
+        ['createdAt', 'deviceLabel', 'expiresAt', 'hardExpiresAt', 'id', 'lastUsedAt'].sort(),
+      );
+    });
+  });
+
+  // ── 7. S-2: the unauthenticated pre-flight discloses nothing ───────
+
+  describe('device-check non-disclosure (S-2)', () => {
+    it('DeviceCheckResponse has exactly one constant property', () => {
+      const schema = schemaOf(doc, 'DeviceCheckResponse');
+      expect(Object.keys(schema.properties ?? {})).toEqual(['checked']);
+      expect(schema.required).toEqual(['checked']);
+      expect(JSON.stringify(schema.properties?.['checked'])).toMatch(/true/);
+    });
+
+    it('device-check documents a throttling response', () => {
+      const op = operation(doc, 'login/device-check')!;
+      expect(Object.keys(op.responses)).toContain('429');
+    });
+
+    it('no auth schema leaks account-existence signals through device-check', () => {
+      const op = operation(doc, 'login/device-check')!;
+      const raw = JSON.stringify(op.responses['200']);
+      for (const leak of ['hasPassword', 'canAutoLogin', 'requiresOtp']) {
+        expect(raw, `device-check response still describes ${leak}`).not.toContain(leak);
+      }
+    });
   });
 });

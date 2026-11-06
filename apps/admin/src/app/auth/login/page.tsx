@@ -1,12 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { classifyOtpDelivery, type OtpDeliveryOutcome } from '@scs/contracts';
 import {
   requestOtp,
   verifyOtp,
   loginPassword,
-  checkDeviceLogin,
   LoginRateLimitError,
 } from '@/lib/auth';
 import { getDeviceId } from '@/lib/device-id';
@@ -25,6 +25,27 @@ function formatWait(seconds: number): string {
   return `${Math.ceil(seconds / 60)} min`;
 }
 
+/**
+ * What to tell the admin when the OTP request came back without a code.
+ *
+ * The rule this exists to enforce: never say a code was sent unless the API
+ * said the delivery was accepted. `deliveryStatus` strings are provider
+ * vocabulary and are deliberately not shown — an admin does not need
+ * `SMS_PROVIDER_NOT_CONFIGURED`, they need to know whether to wait, retry, or
+ * stop. (`OtpDeliveryOutcome` classification lives in @scs/contracts so web and
+ * admin cannot disagree about what the same response means.)
+ */
+function deliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>, phone: string): string {
+  switch (outcome) {
+    case 'unavailable':
+      return `OTP delivery isn't configured in this environment, so nothing was sent to ${phone}. Sign in with email and password, or ask the platform team to enable the SMS provider.`;
+    case 'uncertain':
+      return `We couldn't confirm that a code reached ${phone}. It may still arrive — if it does, you can enter it below.`;
+    default:
+      return `The code couldn't be sent to ${phone}. Check the number and try again.`;
+  }
+}
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<LoginMode>('password');
@@ -38,6 +59,13 @@ export default function AdminLoginPage() {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
 
+  /**
+   * How the code got here, so the verify step can describe it truthfully.
+   * 'sent' only ever follows an accepted delivery; 'uncertain' follows a
+   * timeout where the code may or may not have been delivered.
+   */
+  const [deliveryNote, setDeliveryNote] = useState<'sent' | 'uncertain' | null>(null);
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [rateLimit, setRateLimit] = useState<{
@@ -45,15 +73,44 @@ export default function AdminLoginPage() {
     remaining: number;
     retryAfter: number;
   } | null>(null);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
 
-  // Pre-fill the last admin email and probe device trust for auto-login.
+  // Second-by-second countdown while the server has us locked out, so the
+  // retry affordance disappears exactly when the API says it may work again.
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const t = setTimeout(() => setLockoutRemaining((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [lockoutRemaining]);
+
+  /**
+   * Guards duplicate sends. A double-click or a re-submitted form used to fire
+   * two OTP requests, which burned the caller's rate budget and left two
+   * challenges live for one number. Checked synchronously, before any await,
+   * because React state only settles after the handler returns.
+   */
+  const otpInFlight = useRef(false);
+
+  // Pre-fill the last admin email. Nothing else happens on mount: the
+  // device-trust pre-flight this used to make asked an unauthenticated endpoint
+  // whether the account had a password and whether the device was trusted,
+  // which is exactly the disclosure finding S-2 removed. The login call itself
+  // now answers all of it.
   useEffect(() => {
     const storedEmail =
       typeof window !== 'undefined' ? localStorage.getItem('scs_last_email') : null;
-    if (!storedEmail) return;
-    setEmail(storedEmail);
-    checkDeviceLogin(storedEmail, getDeviceId()).catch(() => {});
+    if (storedEmail) setEmail(storedEmail);
   }, []);
+
+  /** Records a 429 and starts the countdown the retry affordance obeys. */
+  function noteRateLimit(err: LoginRateLimitError) {
+    setRateLimit({
+      message: err.message,
+      remaining: err.remainingAttempts,
+      retryAfter: err.retryAfterSeconds,
+    });
+    setLockoutRemaining(err.remainingAttempts > 0 ? 0 : err.retryAfterSeconds);
+  }
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -66,7 +123,15 @@ export default function AdminLoginPage() {
         setPhone(result.otpPhone);
         setMode('otp');
         setOtpStage('verify');
-        setError('New device detected. Enter the OTP sent to your phone to continue.');
+        // The server requested this challenge itself, so it also reports
+        // whether the provider confirmed the send. 'uncertain' gets the
+        // maybe-arrived wording; only 'accepted' may claim a code was sent.
+        setDeliveryNote(result.otpDelivery === 'accepted' ? 'sent' : 'uncertain');
+        setError(
+          result.otpDelivery === 'accepted'
+            ? 'New device detected. Enter the OTP sent to your phone to continue.'
+            : 'This device needs a second factor. We could not confirm the code was delivered, but you can enter it if it arrives.',
+        );
         setLoading(false);
         return;
       }
@@ -74,11 +139,7 @@ export default function AdminLoginPage() {
       router.push('/');
     } catch (err: any) {
       if (err instanceof LoginRateLimitError) {
-        setRateLimit({
-          message: err.message,
-          remaining: err.remainingAttempts,
-          retryAfter: err.retryAfterSeconds,
-        });
+        noteRateLimit(err);
       } else {
         setError(err.message || 'Login failed');
       }
@@ -88,29 +149,43 @@ export default function AdminLoginPage() {
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (otpInFlight.current || lockoutRemaining > 0) return;
+    otpInFlight.current = true;
     setError('');
     setRateLimit(null);
+    setDeliveryNote(null);
     setLoading(true);
     try {
-      await requestOtp(phone);
-      setOtpStage('verify');
+      // HTTP 200 here is not delivery: the API reports the provider's answer in
+      // the body. Only an accepted outcome moves to code entry (finding S-1's
+      // "silently treated as success" defect). A timeout is NOT advanced past:
+      // delivery is unknown, so the admin stays on this step and is offered an
+      // explicit, un-urged choice to enter a code that happens to arrive.
+      const result = await requestOtp(phone);
+      const outcome = classifyOtpDelivery(result);
+      if (outcome === 'delivered') {
+        setDeliveryNote('sent');
+        setOtpStage('verify');
+      } else {
+        setDeliveryNote(outcome === 'uncertain' ? 'uncertain' : null);
+        setError(deliveryMessage(outcome, phone));
+      }
     } catch (err: any) {
       if (err instanceof LoginRateLimitError) {
-        setRateLimit({
-          message: err.message,
-          remaining: err.remainingAttempts,
-          retryAfter: err.retryAfterSeconds,
-        });
+        noteRateLimit(err);
       } else {
         setError(err.message || 'Failed to send OTP');
       }
     } finally {
+      otpInFlight.current = false;
       setLoading(false);
     }
   }
 
   async function handleVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
+    if (otpInFlight.current) return;
+    otpInFlight.current = true;
     setError('');
     setLoading(true);
     try {
@@ -120,6 +195,8 @@ export default function AdminLoginPage() {
     } catch (err: any) {
       setError(err.message || 'Invalid OTP');
       setLoading(false);
+    } finally {
+      otpInFlight.current = false;
     }
   }
 
@@ -217,7 +294,7 @@ export default function AdminLoginPage() {
               <div style={{ marginTop: 4, ...typeScale.bodySm }}>
                 {rateLimit.remaining > 0
                   ? `${rateLimit.remaining} attempt${rateLimit.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
-                  : `Locked temporarily. Try again in ${formatWait(rateLimit.retryAfter)}.`}
+                  : `Locked temporarily. Try again in ${formatWait(lockoutRemaining || rateLimit.retryAfter)}.`}
               </div>
             </div>
           )}
@@ -267,13 +344,46 @@ export default function AdminLoginPage() {
                 required
                 style={{ marginBottom: 16 }}
               />
-              <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
-                {loading ? 'Sending...' : 'Send OTP'}
+              <Button
+                type="submit"
+                disabled={loading || lockoutRemaining > 0}
+                size="lg"
+                style={{ width: '100%', marginBottom: 8 }}
+              >
+                {lockoutRemaining > 0
+                  ? `Try again in ${formatWait(lockoutRemaining)}`
+                  : loading
+                    ? 'Sending...'
+                    : 'Send OTP'}
               </Button>
+              {/*
+                  Only reached when the API reported an UNCONFIRMED delivery.
+                  The code may exist in the admin's inbox, so offer the entry
+                  step without ever stating that it was sent — and without
+                  re-firing a request that would spend rate budget.
+              */}
+              {deliveryNote === 'uncertain' && (
+                <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                  Already have a code?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setOtpStage('verify')}
+                    style={linkBtnStyle}
+                  >
+                    Enter it
+                  </button>
+                </p>
+              )}
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp}>
-              <p style={{ color: colors.muted, ...typeScale.body, marginBottom: 16 }}>Code sent to {phone}</p>
+              <p style={{ color: colors.muted, ...typeScale.body, marginBottom: 16 }}>
+                {/* The wording tracks what the server actually reported. Never
+                    "Code sent" after a timeout or a rejection. */}
+                {deliveryNote === 'uncertain'
+                  ? `If a code arrived for ${phone}, enter it below.`
+                  : `Code sent to ${phone}`}
+              </p>
               <TextInput
                 label="OTP code"
                 type="text"
@@ -291,7 +401,11 @@ export default function AdminLoginPage() {
                 type="button"
                 variant="secondary"
                 size="lg"
-                onClick={() => setOtpStage('request')}
+                onClick={() => {
+                  setOtpStage('request');
+                  setDeliveryNote(null);
+                  setError('');
+                }}
                 style={{ width: '100%' }}
               >
                 Change number

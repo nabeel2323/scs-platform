@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:scs_platform/models/models.dart';
 import 'package:scs_platform/screens/auth/login_screen.dart';
 
 import 'widget_test_harness.dart';
@@ -228,6 +229,130 @@ void main() {
     });
   });
 
+  // Remediation S-3 / admin OTP finding, mobile half: the login screen used to
+  // treat any 2xx from a code request as proof the code was delivered. These
+  // run the four delivery outcomes the API can report through both tabs.
+  group('delivery outcomes are reported as what they are', () {
+    testWidgets('an unconfigured email provider does not advance',
+        (tester) async {
+      harness.requestEmailOtpDelivery(TestHarness.emailProviderUnavailable());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Email OTP');
+      await tester.enterText(
+          harness.labeledField('Email address'), 'buyer-a@test.invalid');
+      await tester.tap(harness.emailOtpSendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("no code was sent"), findsOneWidget);
+      expect(find.text('Code sent to buyer-a@test.invalid'), findsNothing);
+      expect(harness.emailOtpVerifyButton, findsNothing);
+      // Back to the address step: the user can retry or pick another method.
+      expect(harness.labeledField('Email address'), findsOneWidget);
+    });
+
+    testWidgets('a rejected email send does not advance', (tester) async {
+      harness.requestEmailOtpDelivery(TestHarness.deliveryRejected());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Email OTP');
+      await tester.enterText(
+          harness.labeledField('Email address'), 'buyer-a@test.invalid');
+      await tester.tap(harness.emailOtpSendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("couldn't be sent"), findsOneWidget);
+      expect(harness.emailOtpVerifyButton, findsNothing);
+    });
+
+    testWidgets('an uncertain email send offers entry without claiming it',
+        (tester) async {
+      harness.requestEmailOtpDelivery(TestHarness.deliveryUncertain());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Email OTP');
+      await tester.enterText(
+          harness.labeledField('Email address'), 'buyer-a@test.invalid');
+      await tester.tap(harness.emailOtpSendButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.emailOtpVerifyButton, findsOneWidget);
+      expect(find.text('Code sent to buyer-a@test.invalid'), findsNothing);
+      expect(
+          find.text('If a code arrived for buyer-a@test.invalid, '
+              'enter it below.'),
+          findsOneWidget);
+    });
+
+    testWidgets('an unconfigured SMS provider keeps the phone tab on input',
+        (tester) async {
+      harness.requestPhoneOtpDelivery(TestHarness.phoneProviderUnavailable());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Phone OTP');
+      await tester.enterText(
+          harness.labeledField('Phone Number'), '+966500000022');
+      await tester.tap(harness.phoneSendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Sign in with email and password'),
+          findsOneWidget);
+      expect(find.textContaining('Enter OTP sent to'), findsNothing);
+      expect(harness.phoneVerifyButton, findsNothing);
+      expect(harness.labeledField('Phone Number'), findsOneWidget);
+    });
+
+    testWidgets('a rejected SMS send does not say a code was sent',
+        (tester) async {
+      harness.requestPhoneOtpDelivery(TestHarness.deliveryRejected());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Phone OTP');
+      await tester.enterText(
+          harness.labeledField('Phone Number'), '+966500000022');
+      await tester.tap(harness.phoneSendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("couldn't be sent"), findsOneWidget);
+      expect(find.textContaining('Enter OTP sent to'), findsNothing);
+      expect(harness.phoneVerifyButton, findsNothing);
+    });
+
+    testWidgets('an uncertain SMS send offers entry with honest wording',
+        (tester) async {
+      harness.requestPhoneOtpDelivery(TestHarness.deliveryUncertain());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Phone OTP');
+      await tester.enterText(
+          harness.labeledField('Phone Number'), '+966500000022');
+      await tester.tap(harness.phoneSendButton);
+      await tester.pumpAndSettle();
+
+      expect(harness.phoneVerifyButton, findsOneWidget);
+      expect(find.textContaining('Enter OTP sent to'), findsNothing);
+      expect(
+          find.text('If a code arrived for +966500000022, enter it below.'),
+          findsOneWidget);
+    });
+
+    testWidgets('returning to the phone step clears the uncertainty note',
+        (tester) async {
+      harness.requestPhoneOtpDelivery(TestHarness.deliveryUncertain());
+      await harness.pump(tester, const LoginScreen());
+      await harness.openTab(tester, 'Phone OTP');
+      await tester.enterText(
+          harness.labeledField('Phone Number'), '+966500000022');
+      await tester.tap(harness.phoneSendButton);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('If a code arrived'), findsOneWidget);
+
+      // A later accepted send must be able to say "sent" again.
+      harness.requestPhoneOtpDelivery(OtpRequestResponse(success: true));
+      await tester.tap(find.text('Change phone number'));
+      await tester.pumpAndSettle();
+      await tester.tap(harness.phoneSendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter OTP sent to +966500000022'), findsOneWidget);
+      expect(find.textContaining('If a code arrived'), findsNothing);
+    });
+  });
+
   group('existing login methods are unaffected', () {
     testWidgets('password login still opens a session', (tester) async {
       await harness.pump(tester, const LoginScreen());
@@ -248,7 +373,7 @@ void main() {
 
     testWidgets('password login on a new device falls back to phone OTP',
         (tester) async {
-      harness.loginPasswordRequiresOtp('+966500000022');
+      harness.loginPasswordRequiresOtp('+966500000022', delivery: 'accepted');
       await harness.pump(tester, const LoginScreen());
       await tester.enterText(
           harness.labeledField('Email'), 'buyer-a@test.invalid');
@@ -267,6 +392,27 @@ void main() {
 
       expect(harness.isAuthenticated, isTrue);
       expect(harness.currentPhone, '+966500000022');
+    });
+
+    testWidgets(
+        'an unconfirmed server-side code offer never claims it was sent',
+        (tester) async {
+      harness.loginPasswordRequiresOtp('+966500000022', delivery: 'uncertain');
+      await harness.pump(tester, const LoginScreen());
+      await tester.enterText(
+          harness.labeledField('Email'), 'buyer-a@test.invalid');
+      await tester.enterText(harness.labeledField('Password'), 'hunter2!');
+      await tester.tap(harness.passwordLoginButton);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("couldn't confirm the code was delivered"),
+          findsOneWidget);
+      expect(find.textContaining('Enter OTP sent to'), findsNothing);
+      // Entry is still offered — the code may well have arrived.
+      expect(
+          find.text('If a code arrived for +966500000022, enter it below.'),
+          findsOneWidget);
+      expect(harness.isAuthenticated, isFalse);
     });
 
     testWidgets('phone OTP login still works and keeps the phone identity',

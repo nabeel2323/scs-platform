@@ -74,12 +74,14 @@ DioException networkError() => DioException(
 
 /// A Future the test controls, for observing in-flight UI state.
 class CompleterSlot {
-  final Completer<Map<String, dynamic>> _completer =
-      Completer<Map<String, dynamic>>();
-  Future<Map<String, dynamic>> get future => _completer.future;
+  final Completer<OtpRequestResponse> _completer =
+      Completer<OtpRequestResponse>();
+  Future<OtpRequestResponse> get future => _completer.future;
   bool get isCompleted => _completer.isCompleted;
   void complete() {
-    if (!_completer.isCompleted) _completer.complete(<String, dynamic>{});
+    if (!_completer.isCompleted) {
+      _completer.complete(OtpRequestResponse(success: true));
+    }
   }
 }
 
@@ -155,18 +157,21 @@ class TestHarness {
   void _stubApi() {
     when(() => api.fetchProfile()).thenAnswer((_) async => account.profile);
     when(() => api.requestEmailOtp(any()))
-        .thenAnswer((_) async => <String, dynamic>{'success': true});
+        .thenAnswer((_) async => OtpRequestResponse(success: true));
     when(() => api.verifyEmailOtp(any(), any())).thenAnswer((_) async =>
         AuthTokens(accessToken: 'access-email', refreshToken: 'refresh-email'));
-    when(() => api.requestOtp(any())).thenAnswer((_) async {});
+    when(() => api.requestOtp(any()))
+        .thenAnswer((_) async => OtpRequestResponse(success: true));
     when(() => api.verifyOtp(any(), any())).thenAnswer((_) async =>
         AuthTokens(accessToken: 'access-phone', refreshToken: 'refresh-phone'));
     when(() => api.loginPassword(any(), any(), any(), any())).thenAnswer(
         (_) async => LoginPasswordResponse(
             accessToken: 'access-password', refreshToken: 'refresh-password'));
-    when(() => api.checkDeviceLogin(any(), any())).thenAnswer((_) async =>
-        DeviceCheckResponse(
-            canAutoLogin: false, requiresOtp: false, hasPassword: true));
+    // S-2: the probe takes only an email and answers a constant acknowledgement.
+    // No screen branches on it any more; the stub exists so a stray call is
+    // visible as a stubbed no-op rather than a missing-stub TypeError.
+    when(() => api.checkDeviceLogin(any()))
+        .thenAnswer((_) async => DeviceCheckResponse());
     when(() => api.linkEmail(any(), any()))
         .thenAnswer((_) async => AccountLinkResponse(success: true));
     when(() => api.linkPhone(any(), any()))
@@ -180,6 +185,35 @@ class TestHarness {
   void requestEmailOtpFails(Object error) =>
       when(() => api.requestEmailOtp(any()))
           .thenAnswer((_) async => throw error);
+
+  /// Answers an email code request with the given delivery outcome, i.e. the
+  /// shape the API returns when the provider did not confirm a send.
+  void requestEmailOtpDelivery(OtpRequestResponse result) =>
+      when(() => api.requestEmailOtp(any())).thenAnswer((_) async => result);
+
+  /// Answers a phone code request with the given delivery outcome.
+  void requestPhoneOtpDelivery(OtpRequestResponse result) =>
+      when(() => api.requestOtp(any())).thenAnswer((_) async => result);
+
+  /// The two replies that must never be presented as "OTP sent": a provider
+  /// that is not configured at all, and a send that failed outright.
+  ///
+  /// Status strings are the ones the API actually emits: the delivery router
+  /// keys by CHANNEL (sms/email/whatsapp), so a caller sees
+  /// `SMS_PROVIDER_NOT_CONFIGURED`, never a vendor-prefixed name.
+  static OtpRequestResponse emailProviderUnavailable() => OtpRequestResponse(
+      success: false, deliveryStatus: 'EMAIL_PROVIDER_NOT_CONFIGURED');
+
+  static OtpRequestResponse phoneProviderUnavailable() => OtpRequestResponse(
+      success: false, deliveryStatus: 'SMS_PROVIDER_NOT_CONFIGURED');
+
+  static OtpRequestResponse deliveryRejected() =>
+      OtpRequestResponse(success: false, deliveryStatus: 'DELIVERY_FAILED');
+
+  static OtpRequestResponse deliveryUncertain() => OtpRequestResponse(
+      success: false,
+      deliveryStatus: 'DELIVERY_TIMEOUT',
+      possiblyDelivered: true);
 
   void verifyEmailOtpFails(Object error) =>
       when(() => api.verifyEmailOtp(any(), any()))
@@ -195,10 +229,14 @@ class TestHarness {
       when(() => api.loginPassword(any(), any(), any(), any()))
           .thenAnswer((_) async => throw error);
 
-  void loginPasswordRequiresOtp(String otpPhone) =>
+  /// Password login from a device the server does not trust: no session, an
+  /// OTP challenge instead, plus the server's own account of how confidently
+  /// that code went out (`delivery`: 'accepted' | 'uncertain' | null, where
+  /// null models an older API that never said).
+  void loginPasswordRequiresOtp(String otpPhone, {String? delivery}) =>
       when(() => api.loginPassword(any(), any(), any(), any())).thenAnswer(
-          (_) async =>
-              LoginPasswordResponse(requiresOtp: true, otpPhone: otpPhone));
+          (_) async => LoginPasswordResponse(
+              requiresOtp: true, otpPhone: otpPhone, otpDelivery: delivery));
 
   void linkEmailFails(Object error) => when(() => api.linkEmail(any(), any()))
       .thenAnswer((_) async => throw error);
@@ -264,7 +302,7 @@ class TestHarness {
 
   /// Restores the default successful behaviour after a failure stub.
   void requestEmailOtpSucceeds() => when(() => api.requestEmailOtp(any()))
-      .thenAnswer((_) async => <String, dynamic>{'success': true});
+      .thenAnswer((_) async => OtpRequestResponse(success: true));
 
   // ── Pumping ─────────────────────────────────────────────────
 

@@ -39,7 +39,9 @@ vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),
   loginPassword: vi.fn(),
-  checkDeviceLogin: vi.fn().mockResolvedValue({ trusted: false }),
+  // Unused by the page since S-2 removed the mount-time probe; present so the
+  // module mock matches the real lib surface.
+  checkDeviceLogin: vi.fn(),
   LoginRateLimitError: FakeLoginRateLimitError,
 }));
 
@@ -201,9 +203,13 @@ describe('Login — delivery channel switch (L-06)', () => {
     await toOtpRequestStage();
 
     fireEvent.click(screen.getByRole('button', { name: /Send via SMS/ }));
+    // Says what is true (nothing was sent), names the channel rather than the
+    // provider, and offers a way forward.
     await waitFor(() =>
-      expect(screen.getByText(/currently unavailable/i)).toBeTruthy(),
+      expect(screen.getByText(/delivery isn't available right now, so nothing was sent/i)).toBeTruthy(),
     );
+    expect(screen.queryByText(/Code sent/)).toBeNull();
+    expect(document.body.textContent).not.toContain('TWILIO_NOT_CONFIGURED');
   });
 
   it('surfaces rate limiting with retry guidance', async () => {

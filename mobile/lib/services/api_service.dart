@@ -66,11 +66,26 @@ class ApiService {
   }
 
   // ── Auth ──────────────────────────────────────────────────
-  Future<void> requestOtp(String phone) async =>
-      _dio.post('/v1/auth/otp/request', data: {'phone': phone});
+  /// Request an OTP for [phone].
+  ///
+  /// Returns the delivery outcome rather than nothing: a 2xx on this route only
+  /// means the API processed the request, and the caller has to know whether
+  /// the provider actually accepted the send before it says "code sent".
+  Future<OtpRequestResponse> requestOtp(String phone) async =>
+      OtpRequestResponse.fromJson(
+          (await _dio.post('/v1/auth/otp/request', data: {'phone': phone}))
+              .data
+              .cast<String, dynamic>());
 
-  /// Verify OTP. Attaches deviceId + deviceInfo so the session is
-  /// registered as a trusted device for future password logins.
+  /// Verify OTP and exchange it for a session.
+  ///
+  /// `deviceId`/`deviceInfo` are recorded as SESSION PROVENANCE only (which
+  /// device this session came from, for the revoke-by-device list). They no
+  /// longer establish device trust: since the S-1 remediation trust comes from
+  /// a server-issued HttpOnly cookie, and this app does not run a cookie jar,
+  /// so a mobile install is treated as an untrusted device and answers an OTP
+  /// at each password login. That is the fail-closed direction — see the
+  /// remediation report's "mobile" limitation.
   Future<AuthTokens> verifyOtp(String phone, String otp) async {
     final deviceId = await DeviceIdService.instance.getDeviceId();
     final deviceInfo = await DeviceIdService.instance.getDeviceInfo();
@@ -105,13 +120,18 @@ class ApiService {
     return LoginPasswordResponse.fromJson(response.data);
   }
 
-  /// Pre-flight check for device-based login.
-  Future<DeviceCheckResponse> checkDeviceLogin(
-          String email, String deviceId) async =>
+  /// Non-disclosing acknowledgement endpoint (finding S-2).
+  ///
+  /// Nothing in the app calls this any more: the pre-flight used to ask an
+  /// unauthenticated endpoint whether the address had a password and whether
+  /// the device was trusted, which is the disclosure that was removed. It is
+  /// kept because the route is published and older installs still hit it; the
+  /// answer is a constant, so there is nothing to branch on.
+  Future<DeviceCheckResponse> checkDeviceLogin(String email) async =>
       DeviceCheckResponse.fromJson((await _dio.post(
-              '/v1/auth/login/device-check',
-              data: {'email': email, 'deviceId': deviceId}))
-          .data);
+              '/v1/auth/login/device-check', data: {'email': email}))
+          .data
+          .cast<String, dynamic>());
 
   /// Set up email and password credentials.
   Future<void> setupCredentials(
@@ -156,11 +176,14 @@ class ApiService {
   // ── Email OTP (S1.35 Phase 1, S1.38 Flutter integration) ─────
 
   /// Request an OTP to the given email address.
-  /// Enumeration-safe: returns the same shape whether or not the email exists.
-  Future<Map<String, dynamic>> requestEmailOtp(String email) async =>
-      (await _dio.post('/v1/auth/otp/email/request', data: {'email': email}))
-          .data
-          .cast<String, dynamic>();
+  /// Enumeration-safe: returns the same shape whether or not the email exists —
+  /// including the delivery outcome, which the caller must read before saying
+  /// anything was sent.
+  Future<OtpRequestResponse> requestEmailOtp(String email) async =>
+      OtpRequestResponse.fromJson(
+          (await _dio.post('/v1/auth/otp/email/request', data: {'email': email}))
+              .data
+              .cast<String, dynamic>());
 
   /// Verify an email OTP and obtain a session.
   Future<AuthTokens> verifyEmailOtp(String email, String otp) async {

@@ -258,3 +258,62 @@ describe('Credential DTO validation', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+/**
+ * POST /v1/auth/login/device-check request contract (finding S-2).
+ *
+ * The endpoint is reachable without a session, so its body is the only input an
+ * anonymous caller controls. These cases pin that the input is bounded and that
+ * nothing in it can carry a trust claim: the response is a constant, and the
+ * server decides trust from the credential cookie, not from a field.
+ */
+describe('Device-check DTO validation (S-2)', () => {
+  it('accepts an email-only body: deviceId is optional', async () => {
+    const dto = await pipe.transform({ email: 'a@b.com' }, body(DeviceCheckDto));
+    expect(dto).toBeInstanceOf(DeviceCheckDto);
+    expect((dto as DeviceCheckDto).deviceId).toBeUndefined();
+  });
+
+  it('still accepts a legacy deviceId so deployed clients do not start failing', async () => {
+    // `forbidNonWhitelisted` would make removing the field a breaking change for
+    // no security gain; the service ignores the value.
+    const dto = await pipe.transform(
+      { email: 'a@b.com', deviceId: 'desktop-chrome-uuid' },
+      body(DeviceCheckDto),
+    );
+    expect((dto as DeviceCheckDto).deviceId).toBe('desktop-chrome-uuid');
+  });
+
+  it('rejects a malformed email', async () => {
+    await expect(pipe.transform({ email: 'not-an-email' }, body(DeviceCheckDto))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a missing email', async () => {
+    await expect(pipe.transform({}, body(DeviceCheckDto))).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it.each([
+    ['an email over 254 characters', { email: `${'a'.repeat(250)}@b.com` }],
+    ['a deviceId over 128 characters', { email: 'a@b.com', deviceId: 'd'.repeat(129) }],
+    ['a non-string deviceId', { email: 'a@b.com', deviceId: { nested: true } }],
+  ])('rejects %s before the service sees it', (_label, value) => {
+    // Bounded input is what lets the service skip its own length validation
+    // before spending a lookup and a rate-limit slot on the value.
+    return expect(pipe.transform(value, body(DeviceCheckDto))).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a caller-supplied trust claim', async () => {
+    // The pre-remediation client contract had `trusted`/`hasPassword` on the
+    // RESPONSE. They must not be accepted as request fields: trust is issued by
+    // the server, and an account-existence flag is what S-2 removed.
+    for (const injected of [{ trusted: true }, { hasPassword: true }, { canAutoLogin: true }]) {
+      await expect(
+        pipe.transform({ email: 'a@b.com', ...injected }, body(DeviceCheckDto)),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    }
+  });
+});

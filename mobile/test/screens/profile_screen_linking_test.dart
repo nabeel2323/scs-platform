@@ -175,6 +175,61 @@ void main() {
       expect(harness.labeledField('Email address'), findsOneWidget);
     });
 
+    testWidgets('an unconfigured email provider stops the link at the address',
+        (tester) async {
+      harness.account.email = null;
+      harness.account.phone = '+966500000022';
+      harness.requestEmailOtpDelivery(TestHarness.emailProviderUnavailable());
+      await harness.pump(tester, const ProfileScreen());
+
+      await harness.openLinkDialog(tester, email: true);
+      await tester.enterText(
+          harness.labeledField('Email address'), 'buyer-new@test.invalid');
+      await harness.sendDialogOtp(tester);
+
+      expect(find.textContaining('no code was sent'), findsOneWidget);
+      expect(find.text('Code sent to buyer-new@test.invalid'), findsNothing);
+      expect(harness.labeledField('OTP'), findsNothing);
+      expect(harness.labeledField('Email address'), findsOneWidget);
+    });
+
+    testWidgets('an unconfirmed send still offers the code box, with a hedge',
+        (tester) async {
+      harness.account.email = null;
+      harness.account.phone = '+966500000022';
+      harness.requestEmailOtpDelivery(TestHarness.deliveryUncertain());
+      await harness.pump(tester, const ProfileScreen());
+
+      await harness.openLinkDialog(tester, email: true);
+      await tester.enterText(
+          harness.labeledField('Email address'), 'buyer-new@test.invalid');
+      await harness.sendDialogOtp(tester);
+
+      expect(harness.labeledField('OTP'), findsOneWidget);
+      expect(find.text('Code sent to buyer-new@test.invalid'), findsNothing);
+      expect(
+          find.text(
+              'If a code arrived for buyer-new@test.invalid, enter it below.'),
+          findsOneWidget);
+    });
+
+    testWidgets('a rejected SMS send keeps the phone link dialog on input',
+        (tester) async {
+      harness.account.email = 'buyer-a@test.invalid';
+      harness.account.phone = null;
+      harness.requestPhoneOtpDelivery(TestHarness.deliveryRejected());
+      await harness.pump(tester, const ProfileScreen());
+
+      await harness.openLinkDialog(tester, email: false);
+      await tester.enterText(
+          harness.labeledField('Phone number'), '+971501234567');
+      await harness.sendDialogOtp(tester);
+
+      expect(find.textContaining("couldn't be sent"), findsOneWidget);
+      expect(find.text('Code sent to +971501234567'), findsNothing);
+      expect(harness.labeledField('OTP'), findsNothing);
+    });
+
     testWidgets('linking never starts a new session or merges accounts',
         (tester) async {
       harness.account.email = null;

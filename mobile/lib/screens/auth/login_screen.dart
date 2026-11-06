@@ -35,11 +35,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _otpSent = false;
   bool _emailOtpSent = false;
 
+  /// True when the API could not confirm that a code was delivered. The
+  /// code-entry step then says "if a code arrived" instead of "OTP sent",
+  /// because promising delivery we do not know about is how a failed provider
+  /// looks like a working one.
+  bool _otpUncertain = false;
+  bool _emailOtpUncertain = false;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _checkAutoLogin();
+    // No device-trust pre-flight here any more. It queried an unauthenticated
+    // endpoint about whether this address has a password and whether this
+    // device had been trusted before — the disclosure finding S-2 removed. The
+    // password request itself now answers all of it, server-side.
+    _prefillLastEmail();
+  }
+
+  Future<void> _prefillLastEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastEmail = prefs.getString('scs_last_email');
+    if (lastEmail == null || lastEmail.isEmpty || !mounted) return;
+    _emailController.text = lastEmail;
   }
 
   @override
@@ -52,25 +70,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     _emailOtpEmailController.dispose();
     _emailOtpCodeController.dispose();
     super.dispose();
-  }
-
-  Future<void> _checkAutoLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastEmail = prefs.getString('scs_last_email');
-    if (lastEmail == null || lastEmail.isEmpty) return;
-
-    final deviceId = await DeviceIdService.instance.getDeviceId();
-    try {
-      final api = ref.read(apiServiceProvider);
-      final result = await api.checkDeviceLogin(lastEmail, deviceId);
-
-      if (result.canAutoLogin) {
-        _emailController.text = lastEmail;
-        // User will need to enter password
-      }
-    } catch (e) {
-      // Ignore errors
-    }
   }
 
   /// Persist tokens + auth state after a successful login, then enter the app.
@@ -133,8 +132,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           _otpPhone = otpPhone;
           _phoneController.text = otpPhone;
           _otpSent = true;
+          // The server requested this challenge itself and reports how
+          // confidently it went out, so mirror that instead of assuming.
+          _otpUncertain = !result.otpConfirmed;
           _tabController.index = 1; // Switch to OTP tab
-          _error = 'New device detected. Please verify with OTP.';
+          _error = result.otpConfirmed
+              ? 'New device detected. Please verify with OTP.'
+              : 'This device needs a second factor. We couldn\'t confirm the '
+                  'code was delivered, but you can enter it if it arrives.';
           _isLoading = false;
         });
         return;
@@ -173,10 +178,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.requestOtp(_phoneController.text);
+      final result = await api.requestOtp(_phoneController.text);
+      // A 2xx is not a delivery: read what the provider said. Only an accepted
+      // send may be presented as "OTP sent".
       setState(() {
-        _otpSent = true;
         _isLoading = false;
+        _otpUncertain = false;
+        switch (result.outcome) {
+          case 'accepted':
+            _otpSent = true;
+            _error = null;
+            break;
+          case 'uncertain':
+            // The challenge exists and may still arrive, so code entry is
+            // offered — with wording that does not claim a send.
+            _otpSent = true;
+            _otpUncertain = true;
+            _error = null;
+            break;
+          case 'unavailable':
+            _otpSent = false;
+            _error =
+                'SMS delivery isn\'t available in this environment, so no code was sent. '
+                'Sign in with email and password, or try the email option.';
+            break;
+          default:
+            _otpSent = false;
+            _error = 'The code couldn\'t be sent. Check the number and try again.';
+        }
       });
     } catch (e) {
       setState(() {
@@ -381,7 +410,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ] else ...[
           Text(
-            'Enter OTP sent to ${_otpPhone ?? _phoneController.text}',
+            _otpUncertain
+                ? 'If a code arrived for ${_otpPhone ?? _phoneController.text},'
+                    ' enter it below.'
+                : 'Enter OTP sent to ${_otpPhone ?? _phoneController.text}',
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -419,6 +451,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           TextButton(
             onPressed: () => setState(() {
               _otpSent = false;
+              _otpUncertain = false;
               _otpController.clear();
             }),
             child: const Text('Change phone number'),
@@ -450,10 +483,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
     try {
       final api = ref.read(apiServiceProvider);
-      await api.requestEmailOtp(_emailOtpEmailController.text);
+      final result = await api.requestEmailOtp(_emailOtpEmailController.text);
+      // Same rule as the phone tab: the HTTP status only says the API took the
+      // request. Whether a code left the building comes from the delivery fields.
       setState(() {
-        _emailOtpSent = true;
         _isLoading = false;
+        _emailOtpUncertain = false;
+        switch (result.outcome) {
+          case 'accepted':
+            _emailOtpSent = true;
+            _error = null;
+            break;
+          case 'uncertain':
+            _emailOtpSent = true;
+            _emailOtpUncertain = true;
+            _error = null;
+            break;
+          case 'unavailable':
+            _emailOtpSent = false;
+            _error =
+                'Email delivery isn\'t configured in this environment, so no code was sent. '
+                'Sign in with a password or use phone OTP.';
+            break;
+          default:
+            _emailOtpSent = false;
+            _error =
+                'The code couldn\'t be sent. Check the address and try again.';
+        }
       });
     } catch (e) {
       setState(() {
@@ -530,7 +586,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ] else ...[
           Text(
-            'Code sent to ${_emailOtpEmailController.text}',
+            _emailOtpUncertain
+                ? 'If a code arrived for ${_emailOtpEmailController.text},'
+                    ' enter it below.'
+                : 'Code sent to ${_emailOtpEmailController.text}',
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -567,6 +626,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           TextButton(
             onPressed: () => setState(() {
               _emailOtpSent = false;
+              _emailOtpUncertain = false;
               _emailOtpCodeController.clear();
             }),
             child: const Text('Change email'),

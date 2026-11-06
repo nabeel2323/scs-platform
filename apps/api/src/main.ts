@@ -7,6 +7,10 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, resolveTrustProxy } from './config/env-gate';
+import {
+  DEVICE_TRUST_PROOF_HEADER,
+  resolveDeviceTrustCookieConfig,
+} from './common/auth/device-trust-cookie';
 
 async function bootstrap() {
   // Fail fast on insecure JWT configuration (API-B7) before creating the app,
@@ -27,6 +31,24 @@ async function bootstrap() {
   new Logger('Bootstrap').log(
     `P13 alert channel: ${alertSink.channel}` +
       (alertSink.configured ? '' : ' (no webhook configured — alerts are persisted and logged only)'),
+  );
+
+  // S-1 remediation: device trust is carried by a server-issued HttpOnly
+  // cookie. Resolve and validate its attributes before anything is bound,
+  // because the two failure modes are silent: `SameSite=None` without `Secure`
+  // is discarded by every browser, and `Secure=false` in a deployed
+  // environment would send the credential in cleartext. Either way the
+  // consequence is a trust model that looks configured and is not, so this
+  // throws rather than degrading.
+  const deviceTrustCookie = resolveDeviceTrustCookieConfig({
+    nodeEnv: process.env['NODE_ENV'],
+    sameSite: process.env['DEVICE_TRUST_COOKIE_SAME_SITE'],
+    secure: process.env['DEVICE_TRUST_COOKIE_SECURE'],
+  });
+  new Logger('Bootstrap').log(
+    `Device-trust cookie: SameSite=${deviceTrustCookie.sameSite}` +
+      `, Secure=${deviceTrustCookie.secure}, HttpOnly=true` +
+      ` (CSRF proof header: ${DEVICE_TRUST_PROOF_HEADER})`,
   );
 
   const app = await NestFactory.create(AppModule, {
@@ -61,7 +83,21 @@ async function bootstrap() {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'If-Match', 'X-Device-Id'],
+    // X-Device-Id remains allowed: deployed clients still send it, and it is
+    // still recorded as session provenance. It grants no trust (S-1).
+    // DEVICE_TRUST_PROOF_HEADER is the CSRF control for the device-trust
+    // cookie — with SameSite=None the browser will attach that cookie to a
+    // cross-site request, so trust is only evaluated when this non-safelisted
+    // header is also present. A third-party page has to pass a preflight to set
+    // it, and this origin allowlist is what rejects that preflight.
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Idempotency-Key',
+      'If-Match',
+      'X-Device-Id',
+      DEVICE_TRUST_PROOF_HEADER,
+    ],
     exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
   });
 
