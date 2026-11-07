@@ -562,5 +562,5 @@ The code is ready for an email-only staging release. The environment is not. Act
 **Report authored:** 2026-11-07
 **Branch:** `feature/otp-auth-security-hardening`
 **Baseline commit:** `3c246e70dfb3d6e33fd069d812e44ce69a0ee8f6`
-**Commit SHA:** (to be filled after commit)
-**Changed files:** 10 new, 14 modified (see §9)
+**Commit SHA:** `751b708`
+**Changed files:** 10 new, 13 modified (see §9)
