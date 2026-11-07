@@ -350,3 +350,12 @@ When the business approves SMS spend, activation is configuration plus verificat
 | Deployment | **Not authorized, not performed** | §1 |
 
 **Bottom line:** the code is ready for an email-only staging release; the environment is not, and mobile is not. This report does not claim the branch is staging-ready on the strength of local tests.
+
+---
+
+## 11. Delivery
+
+- Implementation and this report were committed together as **`3c246e70dfb3d6e33fd069d812e44ce69a0ee8f6`** on `feature/otp-auth-security-hardening` and pushed to `origin` (32 files, +3305/−89).
+- All verification in §8 was executed against the working tree whose staged content became that commit. No source file changed between the test runs and the commit.
+- Unrelated working-tree changes (the `returns` services and the P13 production documents) were deliberately left unstaged and uncommitted.
+- No merge, no deploy, no PR action, no environment configuration, no migration application. Hosted CI on `3c246e7` has not been observed and is not claimed.
