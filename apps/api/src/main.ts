@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, resolveTrustProxy } from './config/env-gate';
+import { assertOtpDeliveryConfig } from './config/otp-delivery-gate';
 import {
   DEVICE_TRUST_PROOF_HEADER,
   resolveDeviceTrustCookieConfig,
@@ -49,6 +50,17 @@ async function bootstrap() {
     `Device-trust cookie: SameSite=${deviceTrustCookie.sameSite}` +
       `, Secure=${deviceTrustCookie.secure}, HttpOnly=true` +
       ` (CSRF proof header: ${DEVICE_TRUST_PROOF_HEADER})`,
+  );
+
+  // Email-only staging release: refuse to boot a deployed process that has no
+  // permitted OTP delivery channel, and report an actionable error naming the
+  // missing SMTP variables. Absent Twilio/WhatsApp credentials are the expected
+  // state while those channels are not permitted and never block startup.
+  // No-op outside production-like NODE_ENV.
+  const otpReadiness = assertOtpDeliveryConfig();
+  new Logger('Bootstrap').log(
+    `OTP delivery: ${otpReadiness.ready ? 'ready' : 'not ready (non-production)'}` +
+      ` — permitted channels: ${process.env['OTP_CHANNELS']?.trim() || 'email (default)'}`,
   );
 
   const app = await NestFactory.create(AppModule, {

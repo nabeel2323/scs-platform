@@ -460,7 +460,19 @@ export async function loginPassword(
   password: string,
   deviceId: string,
 ): Promise<
-  AuthSession | { requiresOtp: true; otpPhone: string; otpDelivery?: 'accepted' | 'uncertain' }
+  AuthSession | {
+    requiresOtp: true;
+    /** Empty when the challenge went by email — see `otpEmail`. */
+    otpPhone: string;
+    /**
+     * Masked address the API sent the second factor to. Present only on the
+     * email channel, which is the only channel the initial staging release
+     * permits. Dropping it left the page rendering a phone prompt for a
+     * challenge that lives under an email key and can never be verified there.
+     */
+    otpEmail?: string;
+    otpDelivery?: 'accepted' | 'uncertain';
+  }
 > {
   const res = await fetch(
     `${API_URL}/v1/auth/login/password`,
@@ -486,10 +498,17 @@ export async function loginPassword(
 
   const data = (await res.json()) as LoginPasswordResponse;
 
-  // If OTP required, return that info — including whether delivery was
-  // confirmed, so the UI never writes "code sent" when the API did not say so.
+  // If OTP required, return that info — including which channel carried the
+  // challenge and whether delivery was confirmed, so the UI never writes "code
+  // sent" when the API did not say so, and never renders a phone prompt for a
+  // challenge that was issued against an email address.
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone ?? '', otpDelivery: data.otpDelivery };
+    return {
+      requiresOtp: true,
+      otpPhone: data.otpPhone ?? '',
+      otpEmail: data.otpEmail,
+      otpDelivery: data.otpDelivery,
+    };
   }
 
   // Otherwise, create session

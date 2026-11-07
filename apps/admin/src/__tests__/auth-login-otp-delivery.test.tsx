@@ -43,6 +43,8 @@ const { ctl, FakeLoginRateLimitError } = vi.hoisted(() => {
     ctl: {
       requestOtp: vi.fn(),
       verifyOtp: vi.fn(),
+      requestEmailOtp: vi.fn(),
+      verifyEmailOtp: vi.fn(),
       loginPassword: vi.fn(),
       checkDeviceLogin: vi.fn(),
       push: vi.fn(),
@@ -58,6 +60,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),
+  requestEmailOtp: (...args: unknown[]) => ctl.requestEmailOtp(...args),
+  verifyEmailOtp: (...args: unknown[]) => ctl.verifyEmailOtp(...args),
   loginPassword: (...args: unknown[]) => ctl.loginPassword(...args),
   checkDeviceLogin: (...args: unknown[]) => ctl.checkDeviceLogin(...args),
   LoginRateLimitError: FakeLoginRateLimitError,
@@ -72,9 +76,13 @@ const EMAIL_FIELD = 'admin@example.com';
 const PASSWORD_FIELD = '••••••••••••';
 const PHONE = '+966500000000';
 
-/** Move to the Phone OTP tab and type a number. */
+/** Move to the Phone OTP view and type a number.
+ * Fixture updated for the email-only release: the OTP tab now defaults to
+ * EMAIL, and the preserved phone path is reached via the explicit secondary
+ * "Use phone number instead" choice. Assertions below are unchanged. */
 async function toRequestStage() {
-  fireEvent.click(screen.getByRole('button', { name: 'Phone OTP' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Email OTP' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Use phone number instead' }));
   fireEvent.change(screen.getByPlaceholderText(PHONE_FIELD), { target: { value: PHONE } });
 }
 
@@ -98,6 +106,8 @@ describe('Admin login — OTP delivery outcomes', () => {
   beforeEach(() => {
     ctl.requestOtp.mockReset();
     ctl.verifyOtp.mockReset();
+    ctl.requestEmailOtp.mockReset();
+    ctl.verifyEmailOtp.mockReset();
     ctl.loginPassword.mockReset();
     ctl.checkDeviceLogin.mockReset();
     ctl.push.mockReset();

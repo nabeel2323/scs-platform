@@ -1950,15 +1950,44 @@ export class IdentityService {
 
     if (!isTrustedDevice) {
       // Device not trusted - require OTP verification.
-      // Prefer phone (existing behaviour); fall back to email for email-only accounts.
+      //
+      // Email-only staging release: the second factor follows the channels this
+      // release PERMITS, not the shape of the account. The historical rule was
+      // "prefer phone, fall back to email for email-only accounts", which under
+      // `OTP_CHANNELS=email` locks out every account that happens to have a phone
+      // number — the SMS send is refused as a disabled channel, that counts as a
+      // definite delivery failure, and login throws while a working email channel
+      // sits unused.
+      //
+      // Phone keeps its historical precedence when it is genuinely usable, so a
+      // later phase that re-enables SMS restores the previous behaviour unchanged
+      // (requirement 11). "Usable" means permitted AND configured: an operator who
+      // lists `sms` without Twilio credentials must not lose the email path.
+      //
+      // This is channel SELECTION, not fallback. Exactly one request is made, and
+      // a failed send on the chosen channel is never retried on the other one
+      // (requirement 4).
       let otpResult: { success: boolean; deliveryStatus: string; possiblyDelivered?: boolean };
       let otpChannel: 'phone' | 'email' = 'phone';
 
-      if (user.phone) {
-        otpResult = await this.requestOtp(user.phone);
-      } else if (user.email) {
+      const phoneUsable =
+        !!user.phone &&
+        this.providerRegistry.isChannelPermitted('sms') &&
+        this.providerRegistry.isChannelAvailable('sms');
+      const emailUsable =
+        !!user.email && this.providerRegistry.isChannelPermitted('email');
+
+      if (phoneUsable) {
+        otpResult = await this.requestOtp(user.phone as string);
+      } else if (emailUsable) {
         otpResult = await this.requestEmailOtp(user.email as string, context?.ip ?? undefined);
         otpChannel = 'email';
+      } else if (user.phone || user.email) {
+        // The account has an identifier, but no permitted channel can carry a
+        // code to it. Say so without disclosing which identifiers exist.
+        throw new UnauthorizedException(
+          'OTP delivery is currently unavailable. Please contact support or use a trusted device.',
+        );
       } else {
         throw new UnauthorizedException(
           'Account has no phone or email for OTP delivery. Contact support.',

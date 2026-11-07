@@ -78,6 +78,20 @@ describe('classifyOtpDelivery — the only reading clients may make', () => {
     }
   });
 
+  it('reads a channel the release has disabled as unavailable, not a wrong address', () => {
+    // otp-delivery.service.ts refuses non-permitted channels before touching a
+    // provider. During the email-only staging release SMS answers with
+    // SMS_CHANNEL_DISABLED; telling the user to "check the number" would send
+    // them retrying something the deployment will never do.
+    for (const status of [
+      'SMS_CHANNEL_DISABLED',
+      'WHATSAPP_CHANNEL_DISABLED',
+      'EMAIL_CHANNEL_DISABLED',
+    ]) {
+      expect(classify({ success: false, deliveryStatus: status })).toBe('unavailable');
+    }
+  });
+
   it('keeps a genuine rejection distinct from an unavailable channel', () => {
     expect(classify({ success: false, deliveryStatus: 'DELIVERY_FAILED' })).toBe('rejected');
     expect(classify({ success: false, deliveryStatus: 'MISSING_PHONE' })).toBe('rejected');

@@ -12,6 +12,11 @@
  * - Returns explicit failure when no provider is configured.
  * - Returns deliveryOutcome classification for safe OTP lifecycle management.
  * - Mock provider is accessible only through internal test injection.
+ * - Refuses channels the release does not permit (`OTP_CHANNELS`) before any
+ *   provider is invoked.
+ * - There is NO cross-channel fallback. One request produces at most one
+ *   delivery attempt on exactly the requested channel; an email failure is
+ *   reported as an email failure and is never retried over SMS.
  */
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -137,6 +142,22 @@ export class OtpDeliveryService {
     }
 
     try {
+      // A channel that this release does not permit is refused BEFORE any
+      // provider is touched. This is what keeps SMS dormant during the
+      // email-only phase even if Twilio credentials happen to be present, and
+      // it is reported distinctly from "permitted but misconfigured" so an
+      // operator is not sent chasing credentials they deliberately never set.
+      if (this.isPublicChannel(channel) && !this.registry.isChannelPermitted(channel as OtpDeliveryChannel)) {
+        this.logger.warn(`Channel '${channel}' is not permitted by OTP_CHANNELS — delivery refused`);
+        return {
+          success: false,
+          status: 'failed',
+          errorReason: `${channel.toUpperCase()}_CHANNEL_DISABLED`,
+          retryable: false,
+          deliveryOutcome: 'rejected' as const,
+        };
+      }
+
       // Route through the appropriate registry accessor
       const provider = this.isPublicChannel(channel)
         ? this.registry.getForChannel(channel as OtpDeliveryChannel)

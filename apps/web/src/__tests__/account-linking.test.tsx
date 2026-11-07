@@ -235,6 +235,96 @@ describe('Account — authentication methods (S1.38.2)', () => {
     );
   });
 
+  // ── Delivery honesty (email-only staging release) ──────────────
+  //
+  // A 2xx from the OTP request route means "processed", not "sent". These
+  // locks exist because the linking handlers used to discard the response body
+  // and unconditionally render "Code sent to …", which is the same
+  // silent-success defect the login pages were remediated for.
+
+  it('does not claim a code was sent when the email provider rejected the request', async () => {
+    ctl.fetchProfile.mockResolvedValue(baseProfile({ email: null }));
+    ctl.requestEmailOtp.mockResolvedValue({
+      success: false,
+      deliveryStatus: 'SMTP_RECIPIENT_REJECTED',
+    });
+    await renderAccount();
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'new@test.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
+
+    await waitFor(() => expect(ctl.requestEmailOtp).toHaveBeenCalled());
+    expect(screen.queryByText(/Code sent to/)).toBeNull();
+    expect(screen.queryByPlaceholderText('123456')).toBeNull();
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/couldn't be sent/i));
+    // A failed email send must never be retried over SMS.
+    expect(ctl.requestOtp).not.toHaveBeenCalled();
+  });
+
+  it('says nothing was sent when the email provider is not configured', async () => {
+    ctl.fetchProfile.mockResolvedValue(baseProfile({ email: null }));
+    ctl.requestEmailOtp.mockResolvedValue({
+      success: false,
+      deliveryStatus: 'EMAIL_PROVIDER_NOT_CONFIGURED',
+    });
+    await renderAccount();
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'new@test.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toMatch(/nothing was sent/i),
+    );
+    expect(screen.queryByText(/Code sent to/)).toBeNull();
+    expect(screen.queryByPlaceholderText('123456')).toBeNull();
+    expect(ctl.requestOtp).not.toHaveBeenCalled();
+  });
+
+  it('offers code entry on an uncertain email send without claiming it was sent', async () => {
+    ctl.fetchProfile.mockResolvedValue(baseProfile({ email: null }));
+    ctl.requestEmailOtp.mockResolvedValue({
+      success: false,
+      deliveryStatus: 'DELIVERY_TIMEOUT',
+      possiblyDelivered: true,
+    });
+    await renderAccount();
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'new@test.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
+
+    // The challenge is live, so a code that arrives can still be entered.
+    await waitFor(() => expect(screen.getByPlaceholderText('123456')).toBeTruthy());
+    expect(screen.queryByText(/Code sent to/)).toBeNull();
+    expect(screen.getByText(/couldn't confirm|may still arrive/i)).toBeTruthy();
+    expect(ctl.requestOtp).not.toHaveBeenCalled();
+  });
+
+  it('does not claim a code was sent when the phone channel is disabled for this release', async () => {
+    ctl.fetchProfile.mockResolvedValue(baseProfile({ phone: null }));
+    ctl.requestOtp.mockResolvedValue({
+      success: false,
+      deliveryStatus: 'SMS_CHANNEL_DISABLED',
+    });
+    await renderAccount();
+
+    fireEvent.change(screen.getByPlaceholderText('+966 5XX XXX XXXX'), {
+      target: { value: '+966500000099' },
+    });
+    fireEvent.click(
+      requireElement(screen.getAllByRole('button', { name: 'Send OTP' })[0], 'phone Send OTP button'),
+    );
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/nothing was sent/i));
+    expect(screen.queryByText(/Code sent to/)).toBeNull();
+    expect(screen.queryByPlaceholderText('123456')).toBeNull();
+  });
+
   it('re-renders the linked identity from the refreshed profile, not from local input state', async () => {
     let emailLinked = false;
     ctl.fetchProfile.mockImplementation(async () =>

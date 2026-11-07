@@ -14,6 +14,7 @@ import type {
   AuthTokens,
   RefreshResponse,
   DeviceCheckResponse,
+  EmailOtpRequestResponse,
   LoginPasswordResponse,
   OtpRequestResponse,
   SessionInfo,
@@ -167,8 +168,13 @@ restoreSession();
  * JWT client-side — that was fragile (relied on token internals) and duplicated
  * claim logic the server already owns. Best-effort: a failed fetch simply leaves
  * the user to be populated on the next authenticated profile read.
+ *
+ * `fallbackContact` is the identifier the admin signed in with (phone OR email,
+ * mirroring loginPassword which already passes an email): it only fills the
+ * display contact when /v1/me omits one. The role ALWAYS comes from the server,
+ * so an email-only login hydrates exactly like a phone login.
  */
-async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<void> {
+async function hydrateUser(accessToken: string, fallbackContact: string): Promise<void> {
   try {
     const res = await fetch(`${API_URL}/v1/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -177,7 +183,7 @@ async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<
     const profile = (await res.json()) as UserProfile;
     currentUser = {
       id: profile.id,
-      phone: profile.phone || fallbackPhone,
+      phone: profile.phone || fallbackContact,
       fullName: profile.fullName || 'Admin',
       role: profile.role || 'ADMIN',
       perms: profile.perms ?? undefined,
@@ -204,6 +210,10 @@ export function isAuthenticated(): boolean {
 
 /**
  * Request an OTP on the admin console's SMS channel.
+ *
+ * DEFERRED (email-only release): the staging deployment allowlists EMAIL only
+ * (`OTP_CHANNELS`), so this route answers `SMS_CHANNEL_DISABLED` by default.
+ * Kept for the later SMS phase — the login UI no longer offers it by default.
  *
  * Returns the WHOLE delivery outcome, not a bare `{success}`: HTTP 200 on this
  * route means the request was processed, not that a code reached the phone. The
@@ -252,6 +262,82 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   // Hydrate the admin user from GET /v1/me (server-resolved role) instead of
   // decoding the access-token JWT client-side.
   await hydrateUser(data.accessToken, phone);
+
+  return currentSession;
+}
+
+// ── Email OTP (default channel for the email-only release) ───
+
+/**
+ * Both email-OTP routes sit behind the server feature flag FLAG_AUTH_EMAIL_OTP
+ * and answer 404 when it is off. That is an environment fact, not a transient
+ * failure, so it gets its own actionable message instead of "failed: 404".
+ * Deliberately NOT a client-side env var: the server is the source of truth.
+ */
+const EMAIL_OTP_DISABLED_MESSAGE =
+  'Email sign-in is not enabled in this environment. Ask the platform team to enable it, or sign in with email and password.';
+
+/**
+ * Request an OTP to the given admin email — the default sign-in challenge for
+ * the email-only release. Mirrors requestOtp's honesty contract: HTTP 200 is
+ * NOT delivery. The WHOLE `{success, deliveryStatus, possiblyDelivered?}` body
+ * is returned so the caller classifies it with `classifyOtpDelivery` and only
+ * claims a code is on its way when the API said success:true.
+ */
+export async function requestEmailOtp(email: string): Promise<EmailOtpRequestResponse> {
+  const res = await fetch(`${API_URL}/v1/auth/otp/email/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 404) throw new Error(EMAIL_OTP_DISABLED_MESSAGE);
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      throw new Error(String(body['message'] || body['detail'] || 'Invalid email address'));
+    }
+    throw new Error(`Email OTP request failed: ${res.status}`);
+  }
+  return (await res.json()) as EmailOtpRequestResponse;
+}
+
+/**
+ * Verify an email OTP and establish the admin session. Like verifyOtp, the
+ * reply enrols this browser via Set-Cookie, so it goes through trustRequest
+ * (credentials included + device-trust proof header). The admin role is
+ * hydrated from GET /v1/me — never from the JWT — with the email as the
+ * fallback contact, exactly as loginPassword already does.
+ */
+export async function verifyEmailOtp(email: string, otp: string): Promise<AuthSession> {
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/email/verify`,
+    trustRequest({
+      email,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'admin-web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
+  );
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many verification attempts.');
+    if (res.status === 404) throw new Error(EMAIL_OTP_DISABLED_MESSAGE);
+    throw new Error(`Email OTP verify failed: ${res.status}`);
+  }
+  const data = (await res.json()) as AuthTokens;
+
+  currentSession = {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+  persistSession(currentSession);
+
+  // Server-resolved role, same hydration path as the phone and password flows.
+  await hydrateUser(data.accessToken, email);
 
   return currentSession;
 }
@@ -363,7 +449,19 @@ export async function loginPassword(
   password: string,
   deviceId: string,
 ): Promise<
-  AuthSession | { requiresOtp: true; otpPhone: string; otpDelivery?: 'accepted' | 'uncertain' }
+  AuthSession | {
+    requiresOtp: true;
+    /** Empty when the challenge went by email — see `otpEmail`. */
+    otpPhone: string;
+    /**
+     * Masked address the API sent the second factor to. Present only on the
+     * email channel, which is the only channel the initial staging release
+     * permits. Discarding it left the page rendering a phone prompt for a
+     * challenge stored under an email key, which that form can never verify.
+     */
+    otpEmail?: string;
+    otpDelivery?: 'accepted' | 'uncertain';
+  }
 > {
   const res = await fetch(
     `${API_URL}/v1/auth/login/password`,
@@ -389,7 +487,16 @@ export async function loginPassword(
 
   const data = (await res.json()) as LoginPasswordResponse;
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone ?? '', otpDelivery: data.otpDelivery };
+    // Carry the channel, not just the challenge: the initial staging release
+    // permits email only, so an admin account with a phone number still gets
+    // its second factor by email. Dropping `otpEmail` made the page render a
+    // phone prompt for a code stored under an email key.
+    return {
+      requiresOtp: true,
+      otpPhone: data.otpPhone ?? '',
+      otpEmail: data.otpEmail,
+      otpDelivery: data.otpDelivery,
+    };
   }
 
   currentSession = {

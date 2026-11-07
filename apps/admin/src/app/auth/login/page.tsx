@@ -6,6 +6,8 @@ import { classifyOtpDelivery, type OtpDeliveryOutcome } from '@scs/contracts';
 import {
   requestOtp,
   verifyOtp,
+  requestEmailOtp,
+  verifyEmailOtp,
   loginPassword,
   LoginRateLimitError,
 } from '@/lib/auth';
@@ -15,7 +17,10 @@ import {
   colors, typeScale, radii, shadows, transitions, brand,
 } from '@scs/ui-kit';
 
-type LoginMode = 'password' | 'otp';
+// 'otp' is the preserved phone/SMS path, deferred to a later phase: it is only
+// reachable through an explicit secondary choice inside the Email OTP view.
+// 'email-otp' is the default OTP channel for the email-only release.
+type LoginMode = 'password' | 'otp' | 'email-otp';
 type OtpStage = 'request' | 'verify';
 
 /** Human-friendly wait time for the lockout countdown. */
@@ -46,6 +51,23 @@ function deliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>, phon
   }
 }
 
+/**
+ * Same honesty rule for the EMAIL channel (the default for the email-only
+ * release): never claim a code was sent unless the API said success:true.
+ * 'unavailable' (provider not configured, or the channel disabled by the
+ * deployment's OTP_CHANNELS allowlist) must not pitch a retry that cannot work.
+ */
+function emailDeliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>, email: string): string {
+  switch (outcome) {
+    case 'unavailable':
+      return `Email delivery isn't available in this environment, so nothing was sent to ${email}. Sign in with email and password, or ask the platform team to enable email delivery.`;
+    case 'uncertain':
+      return `We couldn't confirm that a code reached ${email}. It may still arrive — if it does, you can enter it below.`;
+    default:
+      return `The code couldn't be sent to ${email}. Check the address and try again.`;
+  }
+}
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<LoginMode>('password');
@@ -58,6 +80,12 @@ export default function AdminLoginPage() {
   // OTP state
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+
+  // Email OTP state (default OTP channel). The address reuses `email` above,
+  // shared with the password tab exactly as the web app does.
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailOtpStage, setEmailOtpStage] = useState<OtpStage>('request');
+  const [emailDeliveryNote, setEmailDeliveryNote] = useState<'sent' | 'uncertain' | null>(null);
 
   /**
    * How the code got here, so the verify step can describe it truthfully.
@@ -120,18 +148,41 @@ export default function AdminLoginPage() {
     try {
       const result = await loginPassword(email, password, getDeviceId());
       if ('requiresOtp' in result) {
-        setPhone(result.otpPhone);
-        setMode('otp');
-        setOtpStage('verify');
-        // The server requested this challenge itself, so it also reports
-        // whether the provider confirmed the send. 'uncertain' gets the
-        // maybe-arrived wording; only 'accepted' may claim a code was sent.
-        setDeliveryNote(result.otpDelivery === 'accepted' ? 'sent' : 'uncertain');
-        setError(
-          result.otpDelivery === 'accepted'
-            ? 'New device detected. Enter the OTP sent to your phone to continue.'
-            : 'This device needs a second factor. We could not confirm the code was delivered, but you can enter it if it arrives.',
-        );
+        // The server chose the channel from this release's allowlist and
+        // reports how confidently the send went. Mirror BOTH instead of
+        // assuming phone: under `OTP_CHANNELS=email` an admin account that
+        // also has a phone number receives its second factor by email, and a
+        // phone form could never verify a challenge stored under an email key.
+        const accepted = result.otpDelivery === 'accepted';
+        const unconfirmedMessage =
+          'This device needs a second factor. We could not confirm the code was delivered, but you can enter it if it arrives.';
+
+        if (!result.otpPhone && result.otpEmail) {
+          // `otpEmail` is masked and only signals the channel. The verify
+          // endpoint takes the address from the body, and the page already
+          // holds the full address the admin authenticated with.
+          setMode('email-otp');
+          setEmailOtpStage('verify');
+          setEmailOtp('');
+          setEmailDeliveryNote(accepted ? 'sent' : 'uncertain');
+          setError(
+            accepted
+              ? 'New device detected. Enter the code emailed to you to continue.'
+              : unconfirmedMessage,
+          );
+        } else {
+          setPhone(result.otpPhone);
+          setMode('otp');
+          setOtpStage('verify');
+          // 'uncertain' gets the maybe-arrived wording; only 'accepted' may
+          // claim a code was sent.
+          setDeliveryNote(accepted ? 'sent' : 'uncertain');
+          setError(
+            accepted
+              ? 'New device detected. Enter the OTP sent to your phone to continue.'
+              : unconfirmedMessage,
+          );
+        }
         setLoading(false);
         return;
       }
@@ -200,6 +251,64 @@ export default function AdminLoginPage() {
     }
   }
 
+  async function handleRequestEmailOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (otpInFlight.current || lockoutRemaining > 0) return;
+    otpInFlight.current = true;
+    setError('');
+    setRateLimit(null);
+    setEmailDeliveryNote(null);
+    setLoading(true);
+    try {
+      // Identical contract to the phone channel: HTTP 200 is not delivery.
+      // Only success:true (classified 'delivered') advances to code entry; an
+      // ambiguous timeout stays here with an explicit, un-urged "Enter it"
+      // choice, and unavailable/rejected get their own honest copy.
+      const result = await requestEmailOtp(email);
+      const outcome = classifyOtpDelivery(result);
+      if (outcome === 'delivered') {
+        setEmailDeliveryNote('sent');
+        setEmailOtpStage('verify');
+      } else {
+        setEmailDeliveryNote(outcome === 'uncertain' ? 'uncertain' : null);
+        setError(emailDeliveryMessage(outcome, email));
+      }
+    } catch (err: any) {
+      if (err instanceof LoginRateLimitError) {
+        noteRateLimit(err);
+      } else {
+        // A 404 arrives here as the lib's "not enabled in this environment"
+        // message (server feature flag off) — shown verbatim, not genericised.
+        setError(err.message || 'Failed to send email code');
+      }
+    } finally {
+      otpInFlight.current = false;
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyEmailOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (otpInFlight.current) return;
+    otpInFlight.current = true;
+    setError('');
+    setLoading(true);
+    try {
+      await verifyEmailOtp(email, emailOtp);
+      localStorage.setItem('scs_last_email', email);
+      router.push('/');
+    } catch (err: any) {
+      if (err instanceof LoginRateLimitError) {
+        noteRateLimit(err);
+      } else {
+        setError(err.message || 'Invalid OTP');
+      }
+      setLoading(false);
+    } finally {
+      otpInFlight.current = false;
+    }
+  }
+
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${brand[900]} 0%, ${brand[500]} 50%, ${brand[900]} 100%)` }}>
       <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
@@ -255,10 +364,10 @@ export default function AdminLoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => { setMode('otp'); setError(''); }}
-              style={tabStyle(mode === 'otp')}
+              onClick={() => { setMode('email-otp'); setError(''); }}
+              style={tabStyle(mode !== 'password')}
             >
-              Phone OTP
+              Email OTP
             </button>
           </div>
 
@@ -326,13 +435,102 @@ export default function AdminLoginPage() {
                 Don&apos;t have a password yet?{' '}
                 <button
                   type="button"
-                  onClick={() => { setMode('otp'); setError(''); }}
+                  onClick={() => { setMode('email-otp'); setError(''); }}
                   style={linkBtnStyle}
                 >
                   Sign in with OTP
                 </button>
               </p>
             </form>
+          ) : mode === 'email-otp' ? (
+            emailOtpStage === 'request' ? (
+              <form onSubmit={handleRequestEmailOtp}>
+                <TextInput
+                  label="Admin email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  style={{ marginBottom: 16 }}
+                />
+                <Button
+                  type="submit"
+                  disabled={loading || lockoutRemaining > 0}
+                  size="lg"
+                  style={{ width: '100%', marginBottom: 8 }}
+                >
+                  {lockoutRemaining > 0
+                    ? `Try again in ${formatWait(lockoutRemaining)}`
+                    : loading
+                      ? 'Sending...'
+                      : 'Send code to email'}
+                </Button>
+                {/* Same un-urged affordance as the phone channel: only shown
+                    after an UNCONFIRMED delivery, never claims a code exists. */}
+                {emailDeliveryNote === 'uncertain' && (
+                  <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                    Already have a code?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setEmailOtpStage('verify')}
+                      style={linkBtnStyle}
+                    >
+                      Enter it
+                    </button>
+                  </p>
+                )}
+                {/* The phone/SMS path is preserved for a later phase but is
+                    deliberately NOT the default: the email-only release
+                    allowlists EMAIL, so this is an explicit secondary choice. */}
+                <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('otp'); setError(''); }}
+                    style={linkBtnStyle}
+                  >
+                    Use phone number instead
+                  </button>
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyEmailOtp}>
+                <p style={{ color: colors.muted, ...typeScale.body, marginBottom: 16 }}>
+                  {/* 'sent' only follows success:true, and even then the copy
+                      says "on its way" — the provider accepted, not delivered. */}
+                  {emailDeliveryNote === 'uncertain'
+                    ? `If a code arrived for ${email}, enter it below.`
+                    : `A code is on its way to ${email}. Enter it below.`}
+                </p>
+                <TextInput
+                  label="OTP code"
+                  type="text"
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value)}
+                  placeholder="123456"
+                  maxLength={6}
+                  required
+                  style={{ marginBottom: 16 }}
+                />
+                <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
+                  {loading ? 'Verifying...' : 'Verify'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  onClick={() => {
+                    setEmailOtpStage('request');
+                    setEmailOtp('');
+                    setEmailDeliveryNote(null);
+                    setError('');
+                  }}
+                  style={{ width: '100%' }}
+                >
+                  Change email
+                </Button>
+              </form>
+            )
           ) : otpStage === 'request' ? (
             <form onSubmit={handleRequestOtp}>
               <TextInput
@@ -374,6 +572,15 @@ export default function AdminLoginPage() {
                   </button>
                 </p>
               )}
+              <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => { setMode('email-otp'); setError(''); }}
+                  style={linkBtnStyle}
+                >
+                  Use email instead
+                </button>
+              </p>
             </form>
           ) : (
             <form onSubmit={handleVerifyOtp}>
@@ -413,7 +620,7 @@ export default function AdminLoginPage() {
             </form>
           )}
 
-          {mode === 'otp' && (
+          {(mode === 'otp' || mode === 'email-otp') && (
             <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
               Have a password?{' '}
               <button

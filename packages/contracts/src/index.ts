@@ -61,6 +61,11 @@ export const OtpRequestSchema = z.object({
  *                                          Same conclusion as above, and the
  *                                          reason this family is matched by
  *                                          suffix rather than by one literal.
+ *   - '<CHANNEL>_CHANNEL_DISABLED'       — the deployment does not permit this
+ *                                          channel (`OTP_CHANNELS`). During the
+ *                                          email-only staging release SMS
+ *                                          answers this way. No credential is
+ *                                          missing; retrying is still futile.
  *   - 'UNKNOWN_CHANNEL'                  — the requested channel does not exist.
  *   - 'DELIVERY_ERROR'                   — transport failure, outcome unknown.
  *   - any provider reason string, or 'DELIVERY_FAILED' — definitively rejected.
@@ -98,12 +103,18 @@ export function classifyOtpDelivery(
   if (result.success === true) return 'delivered';
 
   const status = typeof result.deliveryStatus === 'string' ? result.deliveryStatus : '';
-  // "This environment cannot deliver on this channel" arrives under TWO shapes:
-  // the delivery router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED` and the providers'
-  // own `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`. Both mean a retry cannot help,
-  // so they are matched by suffix — enumerating one literal is how the other
-  // family used to fall through to 'rejected' and be shown as "check the number".
-  if (status === 'UNKNOWN_CHANNEL' || status.endsWith('_NOT_CONFIGURED')) {
+  // "This environment cannot deliver on this channel" arrives under THREE shapes:
+  // the delivery router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED`, the providers'
+  // own `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`, and — since the email-only
+  // release — the router's `<CHANNEL>_CHANNEL_DISABLED` for a channel the
+  // deployment deliberately does not permit. All three mean a retry cannot help,
+  // so they are matched by suffix; enumerating one literal is how the other
+  // families used to fall through to 'rejected' and be shown as "check the number".
+  if (
+    status === 'UNKNOWN_CHANNEL' ||
+    status.endsWith('_NOT_CONFIGURED') ||
+    status.endsWith('_CHANNEL_DISABLED')
+  ) {
     return 'unavailable';
   }
   if (

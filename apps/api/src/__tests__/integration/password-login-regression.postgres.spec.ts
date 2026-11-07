@@ -75,6 +75,10 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
     getMockProvider: vi.fn().mockReturnValue(null),
     getAvailableChannels: vi.fn().mockReturnValue(['sms', 'whatsapp', 'email']),
     isChannelAvailable: vi.fn().mockReturnValue(true),
+    // The email-only release added channel PERMISSION as an axis independent of
+    // credential presence. These pre-existing cases predate it and describe a
+    // release where every channel is allowed, so the fixture says so explicitly.
+    isChannelPermitted: vi.fn().mockReturnValue(true),
   };
 
   beforeAll(async () => {
@@ -137,6 +141,10 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
     mockDelivery.deliverEmailOtp.mockResolvedValue({
       success: true, status: 'delivered', deliveryOutcome: 'delivered' as const,
     });
+    // Every pre-existing case in this file describes a release that permits all
+    // channels; the email-only cases below override this per test.
+    mockRegistry.isChannelPermitted.mockReturnValue(true);
+    mockRegistry.isChannelAvailable.mockReturnValue(true);
 
     const jwt = new JwtService({ secret: 'test-jwt-secret-min-32-chars!!', signOptions: { expiresIn: '15m' } });
 
@@ -318,6 +326,116 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
       );
 
       expect(mockDelivery.deliverEmailOtp).toHaveBeenCalled();
+    });
+  });
+
+  // ── 2b. Email-only release: the second factor follows OTP_CHANNELS ──
+  //
+  // Requirement 10 of the email-only staging release. The historical rule was
+  // "prefer phone, fall back to email for email-only accounts", which under an
+  // email-only release locks out every account that happens to have a phone
+  // number: the SMS send is refused as a disabled channel, the service treats
+  // that as a definite delivery failure, and password login on a new device
+  // throws even though a perfectly good email channel exists.
+
+  describe('Second factor channel selection (email-only release)', () => {
+    /** Permit exactly the named channels; everything else is refused. */
+    function permitOnly(...channels: string[]) {
+      mockRegistry.isChannelPermitted.mockImplementation((c: string) => channels.includes(c));
+    }
+
+    it('sends the second factor by email for a dual-identifier account when SMS is not permitted', async () => {
+      permitOnly('email');
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, 'email-only-device-001',
+        { platform: 'web', userAgent: 'test' },
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.accessToken).toBe('');
+      // The challenge went to the address, not the phone.
+      expect(result.otpEmail).toBeDefined();
+      expect(result.otpEmail).toContain('***');
+      expect(result.otpPhone).toBeUndefined();
+      expect(result.otpDelivery).toBe('accepted');
+      expect(mockDelivery.deliverEmailOtp).toHaveBeenCalled();
+      // Requirement 11: the preserved SMS implementation is never invoked.
+      expect(mockDelivery.deliverOtp).not.toHaveBeenCalled();
+    });
+
+    it('still sends by email for an email-only account when SMS is not permitted', async () => {
+      permitOnly('email');
+
+      const result = await service.loginWithPassword(
+        emailOnlyUser.email, emailOnlyUser.password, 'email-only-device-002',
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.otpEmail).toContain('***');
+      expect(mockDelivery.deliverOtp).not.toHaveBeenCalled();
+    });
+
+    it('does not fall back to SMS when the email second factor is rejected', async () => {
+      // SMS is deliberately left AVAILABLE (credentials present) but not
+      // PERMITTED, so a fallback would be both possible and tempting.
+      permitOnly('email');
+      mockRegistry.isChannelAvailable.mockImplementation((c: string) => c === 'sms' || c === 'email');
+      mockDelivery.deliverEmailOtp.mockResolvedValueOnce({
+        success: false,
+        status: 'failed',
+        errorReason: 'SMTP_RECIPIENT_REJECTED',
+        deliveryOutcome: 'rejected',
+      });
+
+      await expect(
+        service.loginWithPassword(
+          phoneUser.email, phoneUser.password, 'email-only-device-003',
+        ),
+      ).rejects.toThrow(/OTP delivery is currently unavailable/i);
+
+      expect(mockDelivery.deliverOtp).not.toHaveBeenCalled();
+    });
+
+    it('refuses when no channel is permitted, without invoking any provider', async () => {
+      permitOnly();
+
+      await expect(
+        service.loginWithPassword(
+          phoneUser.email, phoneUser.password, 'email-only-device-005',
+        ),
+      ).rejects.toThrow(/OTP delivery is currently unavailable/i);
+
+      expect(mockDelivery.deliverOtp).not.toHaveBeenCalled();
+      expect(mockDelivery.deliverEmailOtp).not.toHaveBeenCalled();
+    });
+
+    it('keeps the phone second factor when a later phase re-enables SMS (requirement 11)', async () => {
+      permitOnly('email', 'sms');
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, 'sms-reactivated-device-001',
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.otpPhone).toBe(phoneUser.phone);
+      expect(mockDelivery.deliverOtp).toHaveBeenCalled();
+    });
+
+    it('does not choose SMS when it is permitted but has no provider configured', async () => {
+      // An operator who lists sms in OTP_CHANNELS without Twilio credentials
+      // must not lock dual-identifier users out of a working email channel.
+      permitOnly('email', 'sms');
+      mockRegistry.isChannelAvailable.mockImplementation((c: string) => c === 'email');
+
+      const result = await service.loginWithPassword(
+        phoneUser.email, phoneUser.password, 'sms-unconfigured-device-001',
+      );
+
+      expect(result.requiresOtp).toBe(true);
+      expect(result.otpEmail).toContain('***');
+      expect(result.otpPhone).toBeUndefined();
+      expect(mockDelivery.deliverOtp).not.toHaveBeenCalled();
     });
   });
 

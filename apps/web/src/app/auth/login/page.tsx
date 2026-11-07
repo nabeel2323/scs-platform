@@ -119,17 +119,38 @@ export default function LoginPage() {
       const result = await loginPassword(email, password, getDeviceId());
       if ('requiresOtp' in result) {
         // Correct password but untrusted device — the backend requested the OTP
-        // itself and reports how confidently it went out, so mirror that rather
-        // than assuming it was delivered.
-        setPhone(result.otpPhone);
-        setMode('otp');
-        setOtpStage('verify');
-        setDeliveryNote(result.otpDelivery === 'accepted' ? 'sent' : 'uncertain');
-        setError(
-          result.otpDelivery === 'accepted'
-            ? 'New device detected. Enter the OTP sent to your phone to continue.'
-            : 'This device needs a second factor. We could not confirm the code was delivered, but you can enter it if it arrives.',
-        );
+        // itself, chose the channel from the release's allowlist, and reports how
+        // confidently it went out. Mirror both instead of assuming a phone send:
+        // the initial staging release permits email only, so an account that also
+        // has a phone number now receives its second factor by email.
+        const accepted = result.otpDelivery === 'accepted';
+        const unconfirmedMessage =
+          'This device needs a second factor. We could not confirm the code was delivered, but you can enter it if it arrives.';
+
+        if (!result.otpPhone && result.otpEmail) {
+          // The email verify endpoint takes the address from the request body and
+          // the page already holds the full address the user authenticated with;
+          // `otpEmail` is masked and serves only as the channel signal.
+          setMode('email-otp');
+          setEmailOtpStage('verify');
+          setEmailOtp('');
+          setEmailDeliveryNote(accepted ? 'sent' : 'uncertain');
+          setError(
+            accepted
+              ? 'New device detected. Enter the code sent to your email to continue.'
+              : unconfirmedMessage,
+          );
+        } else {
+          setPhone(result.otpPhone);
+          setMode('otp');
+          setOtpStage('verify');
+          setDeliveryNote(accepted ? 'sent' : 'uncertain');
+          setError(
+            accepted
+              ? 'New device detected. Enter the OTP sent to your phone to continue.'
+              : unconfirmedMessage,
+          );
+        }
         setLoading(false);
         return;
       }
@@ -284,16 +305,9 @@ export default function LoginPage() {
           >
             Email/Password
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('otp');
-              setError('');
-            }}
-            style={tabStyle(mode === 'otp')}
-          >
-            Phone OTP
-          </button>
+          {/* Email OTP is the release's only permitted delivery channel, so it is
+              the primary passwordless tab. Phone OTP stays reachable but dormant
+              (requirement 11) until a later phase re-enables SMS. */}
           <button
             type="button"
             onClick={() => {
@@ -305,6 +319,16 @@ export default function LoginPage() {
             style={tabStyle(mode === 'email-otp')}
           >
             Email OTP
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('otp');
+              setError('');
+            }}
+            style={tabStyle(mode === 'otp')}
+          >
+            Phone OTP
           </button>
         </div>
       )}
@@ -380,12 +404,17 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => {
-                setMode('otp');
+                // Email-only release: the primary passwordless entry point must
+                // not open the phone tab, which asks for a number and then sends
+                // over a channel this release refuses.
+                setMode('email-otp');
+                setEmailOtpStage('request');
+                setEmailOtp('');
                 setError('');
               }}
               style={linkBtnStyle}
             >
-              Sign in with OTP
+              Sign in with email OTP
             </button>
           </p>
         </form>

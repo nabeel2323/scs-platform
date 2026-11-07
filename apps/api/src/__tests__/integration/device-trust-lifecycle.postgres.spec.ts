@@ -96,6 +96,14 @@ describe('Device-trust credential lifecycle (S-1)', () => {
     getMockProvider: vi.fn().mockReturnValue(null),
     getAvailableChannels: vi.fn().mockReturnValue(['sms', 'whatsapp', 'email']),
     isChannelAvailable: vi.fn().mockReturnValue(true),
+    // The email-only release added channel PERMISSION as an axis independent of
+    // credential presence, and password login now consults it when choosing the
+    // second factor. Every case in this file predates that axis and describes a
+    // release where all channels are allowed, so the fixture says so explicitly.
+    // The email-only selection itself is proven in
+    // password-login-regression.postgres.spec.ts ("Second factor channel
+    // selection"); nothing here is about channel choice.
+    isChannelPermitted: vi.fn().mockReturnValue(true),
   };
 
   /** Every test owns its credential rows; nothing here is shared state. */

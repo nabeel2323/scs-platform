@@ -30,6 +30,9 @@ describe('OTP Delivery Providers', () => {
         authToken: 'test-token',
         fromNumber: '+15551234567',
         enabled: true,
+        // Channel permission is now a separate axis from credential presence.
+        // These provider-level cases supply credentials and assume they are used.
+        credentialsPresent: true,
       };
       provider = new TwilioSmsProvider(config);
     });
@@ -188,6 +191,7 @@ describe('OTP Delivery Providers', () => {
         templateName: 'authentication',
         apiVersion: 'v18.0',
         enabled: true,
+        credentialsPresent: true,
       };
       provider = new WhatsAppProvider(config);
     });
@@ -354,7 +358,10 @@ describe('OTP Delivery Providers', () => {
     let service: OtpDeliveryService;
 
     beforeEach(() => {
-      // Set up environment with both providers configured
+      // Set up environment with both providers configured AND permitted.
+      // Permission is explicit since the email-only release: credentials alone
+      // no longer enable a channel, so these routing tests name the allowlist.
+      process.env['OTP_CHANNELS'] = 'email,sms,whatsapp';
       process.env['TWILIO_ACCOUNT_SID'] = 'ACtest';
       process.env['TWILIO_AUTH_TOKEN'] = 'token';
       process.env['TWILIO_FROM_NUMBER'] = '+15551234567';
@@ -366,6 +373,7 @@ describe('OTP Delivery Providers', () => {
     });
 
     afterEach(() => {
+      delete process.env['OTP_CHANNELS'];
       delete process.env['TWILIO_ACCOUNT_SID'];
       delete process.env['TWILIO_AUTH_TOKEN'];
       delete process.env['TWILIO_FROM_NUMBER'];

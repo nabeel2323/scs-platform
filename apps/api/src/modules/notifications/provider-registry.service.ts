@@ -20,7 +20,10 @@ import {
 } from './providers/provider.interface';
 import {
   NotificationProviderConfig,
+  OtpReadiness,
+  isChannelPermitted,
   resolveNotificationConfig,
+  resolveOtpReadiness,
 } from './providers/provider.config';
 import { TwilioSmsProvider } from './providers/twilio-sms.provider';
 import { WhatsAppProvider } from './providers/whatsapp.provider';
@@ -132,6 +135,29 @@ export class ProviderRegistryService {
   isChannelAvailable(channel: OtpDeliveryChannel): boolean {
     const provider = this.publicProviders.get(channel);
     return provider?.isConfigured() || false;
+  }
+
+  /**
+   * Whether the release permits this channel at all (`OTP_CHANNELS`).
+   *
+   * This is deliberately separate from `isChannelAvailable`: a channel can be
+   * permitted but unconfigured (an operator error worth reporting) or simply not
+   * part of this release (the expected state for SMS, which needs no credentials
+   * and must never be treated as a misconfiguration).
+   */
+  isChannelPermitted(channel: OtpDeliveryChannel): boolean {
+    return isChannelPermitted(this.config.policy, channel);
+  }
+
+  /**
+   * Actionable OTP delivery readiness for this process.
+   *
+   * The mock provider counts as a delivery path only when it was actually
+   * instantiated, which requires a non-production NODE_ENV plus explicit opt-in.
+   * Messages name missing variables; they never contain credential values.
+   */
+  getOtpReadiness(): OtpReadiness {
+    return resolveOtpReadiness(this.config, { mockAvailable: this.mockProvider !== null });
   }
 
   private logStatus(): void {

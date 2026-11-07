@@ -44,7 +44,9 @@ describe('SmtpEmailProvider', () => {
       user: 'smtp-user',
       password: 'smtp-pass',
       from: 'noreply@scs.example.com',
+      fromName: '',
       enabled: true,
+      credentialsPresent: true,
     };
   });
 
@@ -179,6 +181,60 @@ describe('SmtpEmailProvider', () => {
       expect(mailOptions.text).toContain('333444');
       // HTML should mention 5-minute expiry
       expect(mailOptions.html).toContain('5 minutes');
+    });
+  });
+
+  // ── Sender Display Name (SMTP_FROM_NAME) ───────────────────────
+
+  describe('sender display name', () => {
+    const request = {
+      otp: '123456',
+      channel: 'email' as const,
+      email: 'user@example.com',
+    };
+
+    it('uses the configured display name alongside the sender address', async () => {
+      mockSendMail.mockResolvedValue({ messageId: 'msg-name-1' });
+      const provider = new SmtpEmailProvider({ ...config, fromName: 'SCS Platform' });
+
+      await provider.sendOtp(request);
+
+      expect(mockSendMail.mock.calls[0]![0]!.from).toEqual({
+        name: 'SCS Platform',
+        address: 'noreply@scs.example.com',
+      });
+    });
+
+    it('sends a bare address when no display name is configured', async () => {
+      mockSendMail.mockResolvedValue({ messageId: 'msg-name-2' });
+      const provider = new SmtpEmailProvider(config);
+
+      await provider.sendOtp(request);
+
+      expect(mockSendMail.mock.calls[0]![0]!.from).toBe('noreply@scs.example.com');
+    });
+
+    it('strips CR/LF from the display name so it cannot inject mail headers', async () => {
+      mockSendMail.mockResolvedValue({ messageId: 'msg-name-3' });
+      const provider = new SmtpEmailProvider({
+        ...config,
+        fromName: 'SCS\r\nBcc: attacker@example.com',
+      });
+
+      await provider.sendOtp(request);
+
+      const from = mockSendMail.mock.calls[0]![0]!.from as { name: string; address: string };
+      expect(from.name).not.toMatch(/[\r\n]/);
+      expect(from.address).toBe('noreply@scs.example.com');
+    });
+
+    it('does not let a display name affect enablement', () => {
+      const provider = new SmtpEmailProvider({
+        ...config,
+        enabled: false,
+        fromName: 'SCS Platform',
+      });
+      expect(provider.isConfigured()).toBe(false);
     });
   });
 
