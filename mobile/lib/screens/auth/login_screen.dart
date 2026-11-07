@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/device_id_service.dart';
 import '../../services/api_service.dart';
 import '../../core/theme.dart';
+import '../../core/auth_channels.dart';
 import '../../models/models.dart';
 import '../../providers/providers.dart';
 
@@ -18,7 +19,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen>
-    with SingleTickerProviderStateMixin {
+    // Not SingleTickerProviderStateMixin: mounting the phone tab for a
+    // server-issued challenge creates a second TabController (the first is
+    // disposed after the frame), and the single-ticker mixin asserts on a
+    // second Ticker even when the first is on its way out.
+    with TickerProviderStateMixin {
   late TabController _tabController;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,6 +40,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _otpSent = false;
   bool _emailOtpSent = false;
 
+  /// Whether the Phone OTP tab is mounted. Starts from the release's UI policy
+  /// ([phoneOtpUiEnabledProvider]) and is forced on when the SERVER issues a
+  /// phone challenge: the allowlist is server-side, and hiding a challenge that
+  /// has already been sent would trap the user mid-login.
+  bool _showPhoneTab = false;
+
   /// True when the API could not confirm that a code was delivered. The
   /// code-entry step then says "if a code arrived" instead of "OTP sent",
   /// because promising delivery we do not know about is how a failed provider
@@ -45,7 +56,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _showPhoneTab = ref.read(phoneOtpUiEnabledProvider);
+    _tabController =
+        TabController(length: _showPhoneTab ? 3 : 2, vsync: this);
     // No device-trust pre-flight here any more. It queried an unauthenticated
     // endpoint about whether this address has a password and whether this
     // device had been trusted before — the disclosure finding S-2 removed. The
@@ -59,6 +72,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (lastEmail == null || lastEmail.isEmpty || !mounted) return;
     _emailController.text = lastEmail;
   }
+
+  /// Index of the Email OTP tab, which shifts left when the phone tab is absent.
+  /// Hard-coded indices are how a hidden tab turns into a dead end.
+  int get _emailOtpTabIndex => _showPhoneTab ? 2 : 1;
+
+  /// Replaces the tab controller when the number of tabs changes.
+  ///
+  /// `TabController.length` is final, so mounting the phone tab for a
+  /// server-issued challenge needs a new controller. The previous one is
+  /// disposed AFTER the frame: TabBar and TabBarView detach from it during
+  /// `didUpdateWidget`, and disposing it first would pull the animation out
+  /// from under widgets that still hold a reference.
+  void _resizeTabs(int length, {int initialIndex = 0}) {
+    final previous = _tabController;
+    _tabController =
+        TabController(length: length, vsync: this, initialIndex: initialIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+  }
+
+  /// A pragmatic address check, not an RFC 5322 parser: one `@`, no whitespace,
+  /// and a dot in the domain. The API's `EmailOtpRequestDto` is the authority
+  /// (`@IsEmail()`, max 254); this only stops obviously unusable input from
+  /// spending a throttled request.
+  static final _emailPattern = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 
   @override
   void dispose() {
@@ -124,11 +161,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       );
 
       if (result.requiresOtp) {
-        // Device not trusted — the backend already sent an OTP to the
-        // account's phone. Prefill it so the verify step targets the right
-        // number, then switch to the OTP tab.
+        // The server chose the channel from its own allowlist. Read which one
+        // it used rather than assuming phone: in the email-only release even a
+        // dual-identifier account is challenged by email, and steering the user
+        // to a phone step would be a dead end.
+        if (result.hasEmailChallenge) {
+          setState(() {
+            // `otpEmail` is MASKED by the API and is for display only. The
+            // verify endpoint takes the address from the request body, so code
+            // entry keeps the address the user actually authenticated with.
+            _emailOtpEmailController.text = _emailController.text.trim();
+            _emailOtpCodeController.clear();
+            _emailOtpSent = true;
+            _emailOtpUncertain = !result.otpConfirmed;
+            _tabController.index = _emailOtpTabIndex;
+            _error = result.otpConfirmed
+                ? 'New device detected. Enter the code sent to '
+                    '${result.otpEmail}.'
+                : 'This device needs a second factor. We couldn\'t confirm the '
+                    'code was delivered to ${result.otpEmail}, but you can '
+                    'enter it if it arrives.';
+            _isLoading = false;
+          });
+          return;
+        }
+
+        // A phone challenge the server issued itself. The tab is hidden by the
+        // release's UI policy, so mount it for this challenge only — the code
+        // has already been sent and the user must be able to answer it.
         final otpPhone = result.otpPhone ?? '';
         setState(() {
+          if (!_showPhoneTab) {
+            _showPhoneTab = true;
+            _resizeTabs(3, initialIndex: 1);
+          }
           _otpPhone = otpPhone;
           _phoneController.text = otpPhone;
           _otpSent = true;
@@ -278,10 +344,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               const SizedBox(height: 32),
               TabBar(
                 controller: _tabController,
-                tabs: const [
-                  Tab(text: 'Email/Password'),
-                  Tab(text: 'Phone OTP'),
-                  Tab(text: 'Email OTP'),
+                tabs: [
+                  const Tab(text: 'Email/Password'),
+                  if (_showPhoneTab) const Tab(text: 'Phone OTP'),
+                  const Tab(text: 'Email OTP'),
                 ],
               ),
               const SizedBox(height: 24),
@@ -304,7 +370,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   controller: _tabController,
                   children: [
                     _buildPasswordLoginForm(),
-                    _buildOtpLoginForm(),
+                    if (_showPhoneTab) _buildOtpLoginForm(),
                     _buildEmailOtpLoginForm(),
                   ],
                 ),
@@ -367,7 +433,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         const SizedBox(height: 16),
         TextButton(
-          onPressed: () => _tabController.index = 2,
+          onPressed: () => _tabController.index = _emailOtpTabIndex,
           child: const Text('Login with Email OTP instead'),
         ),
       ],
@@ -463,7 +529,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           child: const Text('Login with Email/Password instead'),
         ),
         TextButton(
-          onPressed: () => _tabController.index = 2,
+          onPressed: () => _tabController.index = _emailOtpTabIndex,
           child: const Text('Login with Email OTP instead'),
         ),
       ],
@@ -473,17 +539,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   // ── Email OTP login (S1.38 Flutter integration) ──
 
   Future<void> _handleRequestEmailOtp() async {
-    if (_emailOtpEmailController.text.isEmpty) {
+    final email = _emailOtpEmailController.text.trim();
+    if (email.isEmpty) {
       setState(() => _error = 'Please enter your email address');
       return;
     }
+    // Validate before spending a throttled request on an address the API's
+    // `@IsEmail()` guard would reject anyway.
+    if (!_emailPattern.hasMatch(email)) {
+      setState(() => _error = 'Please enter a valid email address');
+      return;
+    }
+    // Normalise the field so the confirmation copy and the verify request both
+    // use the trimmed address rather than whatever whitespace was pasted in.
+    _emailOtpEmailController.text = email;
     setState(() {
       _isLoading = true;
       _error = null;
     });
     try {
       final api = ref.read(apiServiceProvider);
-      final result = await api.requestEmailOtp(_emailOtpEmailController.text);
+      final result = await api.requestEmailOtp(email);
       // Same rule as the phone tab: the HTTP status only says the API took the
       // request. Whether a code left the building comes from the delivery fields.
       setState(() {
@@ -501,9 +577,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             break;
           case 'unavailable':
             _emailOtpSent = false;
+            // Covers both EMAIL_PROVIDER_NOT_CONFIGURED and the allowlist's
+            // EMAIL_CHANNEL_DISABLED. Neither is the user's address being
+            // wrong, and neither may be answered by offering a disabled
+            // channel as a fallback.
             _error =
-                'Email delivery isn\'t configured in this environment, so no code was sent. '
-                'Sign in with a password or use phone OTP.';
+                'Email delivery isn\'t available in this environment, so no code was sent. '
+                'Sign in with your password instead, or contact support.';
             break;
           default:
             _emailOtpSent = false;
@@ -623,6 +703,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             AlwaysStoppedAnimation<Color>(Colors.white)))
                 : const Text('Verify', style: TextStyle(fontSize: 16)),
           ),
+          // Resend goes back through the same request endpoint, so the server's
+          // existing `otp-request` throttle applies unchanged — a 429 surfaces
+          // as the rate-limit message and leaves code entry in place. No client
+          // side cooldown is invented, and no second channel is tried.
+          TextButton(
+            onPressed: _isLoading ? null : _handleRequestEmailOtp,
+            child: const Text('Resend code'),
+          ),
           TextButton(
             onPressed: () => setState(() {
               _emailOtpSent = false;
@@ -637,10 +725,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           onPressed: () => _tabController.index = 0,
           child: const Text('Login with Email/Password instead'),
         ),
-        TextButton(
-          onPressed: () => _tabController.index = 1,
-          child: const Text('Login with Phone OTP instead'),
-        ),
+        if (_showPhoneTab)
+          TextButton(
+            onPressed: () => _tabController.index = 1,
+            child: const Text('Login with Phone OTP instead'),
+          ),
       ],
     );
   }

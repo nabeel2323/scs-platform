@@ -1082,10 +1082,17 @@ class AuthTokens {
 }
 
 /// Response of POST /v1/auth/login/password. A trusted device yields a token
-/// pair; a new device instead returns `requiresOtp` with the `otpPhone` the code
-/// was sent to (tokens absent in that branch — hence nullable).
+/// pair; a new device instead returns `requiresOtp` plus the identifier the
+/// server chose to challenge (tokens absent in that branch — hence nullable).
+///
+/// Exactly one of [otpPhone] / [otpEmail] is populated. The server picks the
+/// channel from its own `OTP_CHANNELS` allowlist, so the client must read which
+/// one arrived instead of assuming phone. [otpEmail] is MASKED by the API
+/// (`identity.service.ts`, the `requiresOtp` return): it is for display only and
+/// must never be sent back to the verify endpoint — the address the user
+/// authenticated with is the one that endpoint expects.
 class LoginPasswordResponse {
-  final String? accessToken, refreshToken, otpPhone;
+  final String? accessToken, refreshToken, otpPhone, otpEmail;
   final bool requiresOtp;
 
   /// How confidently the server delivered the challenge behind [requiresOtp]:
@@ -1097,6 +1104,7 @@ class LoginPasswordResponse {
     this.accessToken,
     this.refreshToken,
     this.otpPhone,
+    this.otpEmail,
     this.requiresOtp = false,
     this.otpDelivery,
   });
@@ -1105,9 +1113,18 @@ class LoginPasswordResponse {
         accessToken: j['accessToken'] as String?,
         refreshToken: j['refreshToken'] as String?,
         otpPhone: j['otpPhone'] as String?,
+        otpEmail: j['otpEmail'] as String?,
         requiresOtp: j['requiresOtp'] as bool? ?? false,
         otpDelivery: j['otpDelivery'] as String?,
       );
+
+  /// The server challenged this login by email. An empty string is treated as
+  /// absent: some gateways normalise the API's `undefined` to `''`, and neither
+  /// spelling means "a code went out on this channel".
+  bool get hasEmailChallenge => otpEmail != null && otpEmail!.isNotEmpty;
+
+  /// The server challenged this login on the phone channel.
+  bool get hasPhoneChallenge => otpPhone != null && otpPhone!.isNotEmpty;
 
   /// True only when the server said the code actually went out. A missing
   /// field (an older API) counts as unconfirmed: claiming a delivery we know
@@ -1154,12 +1171,15 @@ class OtpRequestResponse {
   /// 'accepted' | 'uncertain' | 'unavailable' | 'rejected' — see above.
   String get outcome {
     if (success) return 'accepted';
-    // Two spellings of "this environment cannot deliver on this channel": the
-    // router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED` and the providers' own
-    // `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`. Matched by suffix so neither can
-    // fall through to 'rejected' and be shown as a bad phone number.
+    // Three spellings of "this environment cannot deliver on this channel":
+    // the router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED`, the providers' own
+    // `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`, and the allowlist refusal
+    // `<CHANNEL>_CHANNEL_DISABLED` (a channel that is configured but not
+    // permitted — the email-only staging release). Matched by suffix so none of
+    // them can fall through to 'rejected' and be shown as a bad address.
     if (deliveryStatus == 'UNKNOWN_CHANNEL' ||
-        deliveryStatus.endsWith('_NOT_CONFIGURED')) {
+        deliveryStatus.endsWith('_NOT_CONFIGURED') ||
+        deliveryStatus.endsWith('_CHANNEL_DISABLED')) {
       return 'unavailable';
     }
     if (possiblyDelivered ||

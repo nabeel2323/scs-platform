@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_core/mobile_core.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:scs_platform/core/auth_channels.dart';
 import 'package:scs_platform/models/models.dart';
 import 'package:scs_platform/providers/providers.dart';
 import 'package:scs_platform/services/api_service.dart';
@@ -88,7 +89,11 @@ class CompleterSlot {
 /// Reusable widget-test harness: mocked providers plus a GoRouter whose
 /// destinations are observable, so `context.go(...)` can be asserted.
 class TestHarness {
-  TestHarness() {
+  /// [phoneOtpUiEnabled] mirrors `phoneOtpUiEnabledProvider`. It defaults to the
+  /// production value (false: email-only staging) so every test exercises the
+  /// surface a real install shows; a test that needs the dormant phone path
+  /// opts in explicitly.
+  TestHarness({bool phoneOtpUiEnabled = false}) {
     api = MockApiService();
     storage = MockAuthStorage();
     client = MockApiClient();
@@ -104,6 +109,7 @@ class TestHarness {
       authStorageProvider.overrideWithValue(storage),
       apiClientProvider.overrideWithValue(client),
       pushNotificationServiceProvider.overrideWithValue(push),
+      phoneOtpUiEnabledProvider.overrideWithValue(phoneOtpUiEnabled),
     ]);
   }
 

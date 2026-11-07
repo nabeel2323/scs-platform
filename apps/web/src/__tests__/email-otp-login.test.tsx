@@ -44,6 +44,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: ctl.routerPush, replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
+// Several cases below prove the preserved Phone OTP tab still works (the dormant
+// path a future SMS phase re-enables). The email-only release hides it behind
+// PHONE_OTP_UI_ENABLED=false, so mock the flag true to keep those cases green.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
+
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),

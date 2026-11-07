@@ -12,13 +12,16 @@ import {
   LoginRateLimitError,
 } from '@/lib/auth';
 import { getDeviceId } from '@/lib/device-id';
+import { PHONE_OTP_UI_ENABLED } from '@/lib/auth-channels';
 import {
   Button, TextInput,
   colors, typeScale, radii, shadows, transitions, brand,
 } from '@scs/ui-kit';
 
-// 'otp' is the preserved phone/SMS path, deferred to a later phase: it is only
-// reachable through an explicit secondary choice inside the Email OTP view.
+// 'otp' is the preserved phone/SMS path, deferred to the separately approved
+// SMS phase: user-initiated entry points are gated on PHONE_OTP_UI_ENABLED
+// (default false for the email-only release). A SERVER-ISSUED phone challenge
+// still reaches the verify step regardless of the flag.
 // 'email-otp' is the default OTP channel for the email-only release.
 type LoginMode = 'password' | 'otp' | 'email-otp';
 type OtpStage = 'request' | 'verify';
@@ -43,7 +46,10 @@ function formatWait(seconds: number): string {
 function deliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>, phone: string): string {
   switch (outcome) {
     case 'unavailable':
-      return `OTP delivery isn't configured in this environment, so nothing was sent to ${phone}. Sign in with email and password, or ask the platform team to enable the SMS provider.`;
+      // Email-only release: the allowlist refuses this channel before any
+      // provider is touched, so "enable the SMS provider" would be advice that
+      // cannot apply. Point at the channel that IS available instead.
+      return `OTP delivery isn't available in this environment, so nothing was sent to ${phone}. Sign in with email instead.`;
     case 'uncertain':
       return `We couldn't confirm that a code reached ${phone}. It may still arrive — if it does, you can enter it below.`;
     default:
@@ -200,6 +206,9 @@ export default function AdminLoginPage() {
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
+    // Belt-and-braces: the UI entry points are already gated, but no admin
+    // action may reach the phone endpoint while the release is email-only.
+    if (!PHONE_OTP_UI_ENABLED) return;
     if (otpInFlight.current || lockoutRemaining > 0) return;
     otpInFlight.current = true;
     setError('');
@@ -480,18 +489,21 @@ export default function AdminLoginPage() {
                     </button>
                   </p>
                 )}
-                {/* The phone/SMS path is preserved for a later phase but is
-                    deliberately NOT the default: the email-only release
-                    allowlists EMAIL, so this is an explicit secondary choice. */}
-                <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => { setMode('otp'); setError(''); }}
-                    style={linkBtnStyle}
-                  >
-                    Use phone number instead
-                  </button>
-                </p>
+                {/* The phone/SMS path is preserved for the separately approved
+                    SMS phase but is NOT user-selectable in the email-only
+                    release: the server allowlist refuses the channel, so the
+                    affordance only renders when PHONE_OTP_UI_ENABLED is on. */}
+                {PHONE_OTP_UI_ENABLED && (
+                  <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setMode('otp'); setError(''); }}
+                      style={linkBtnStyle}
+                    >
+                      Use phone number instead
+                    </button>
+                  </p>
+                )}
               </form>
             ) : (
               <form onSubmit={handleVerifyEmailOtp}>
@@ -604,19 +616,25 @@ export default function AdminLoginPage() {
               <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
                 {loading ? 'Verifying...' : 'Verify'}
               </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                onClick={() => {
-                  setOtpStage('request');
-                  setDeliveryNote(null);
-                  setError('');
-                }}
-                style={{ width: '100%' }}
-              >
-                Change number
-              </Button>
+              {/* "Change number" re-opens the phone REQUEST form — a
+                  user-initiated SMS send the email-only release refuses — so
+                  it is gated on the same flag. The verify step itself stays
+                  reachable for a server-issued phone challenge. */}
+              {PHONE_OTP_UI_ENABLED && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  onClick={() => {
+                    setOtpStage('request');
+                    setDeliveryNote(null);
+                    setError('');
+                  }}
+                  style={{ width: '100%' }}
+                >
+                  Change number
+                </Button>
+              )}
             </form>
           )}
 

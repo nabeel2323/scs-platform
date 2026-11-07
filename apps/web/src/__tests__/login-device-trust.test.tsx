@@ -59,6 +59,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: ctl.routerPush, replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
+// The duplicate-send and rate-limit cases drive the preserved Phone OTP tab. The
+// email-only release hides it behind PHONE_OTP_UI_ENABLED=false, so mock the flag
+// true to keep exercising that dormant path; the server-challenge cases below are
+// unaffected because the phone verify step renders regardless of the flag.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
+
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),

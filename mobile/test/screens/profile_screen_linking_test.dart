@@ -13,6 +13,16 @@ void main() {
   setUp(() => harness = TestHarness());
   tearDown(() => harness.dispose());
 
+  /// The phone-identity cleanup cases below deliberately exercise the dormant
+  /// SMS channel: the email-only release hides the Phone OTP tab, but the
+  /// implementation stays for a separately approved phase, and signing out must
+  /// still clear a phone identity left behind by an earlier session. Opting in
+  /// here keeps that coverage instead of deleting it.
+  void enablePhoneChannel() {
+    harness.dispose();
+    harness = TestHarness(phoneOtpUiEnabled: true);
+  }
+
   group('identity display', () {
     testWidgets('linked email and phone are both shown', (tester) async {
       harness.account.email = 'buyer-a@test.invalid';
@@ -357,6 +367,7 @@ void main() {
 
     testWidgets('signing out clears the previous user\'s phone identity',
         (tester) async {
+      enablePhoneChannel();
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
       await tester.enterText(
@@ -391,6 +402,7 @@ void main() {
 
     testWidgets('the next user on the same device sees only their own identity',
         (tester) async {
+      enablePhoneChannel();
       // User A signs in with email OTP, then signs out.
       await harness.pump(tester, const LoginScreen());
       await harness.loginWithEmailOtp(tester, email: 'buyer-a@test.invalid');

@@ -12,8 +12,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  * contract from the operator's point of view:
  *
  *   delivered   → code-entry step, and the sentence "Code sent to <number>";
- *   unavailable → STAYS on the number step, says delivery isn't configured,
- *                 and points at the password path;
+ *   unavailable → STAYS on the number step, says the channel isn't available
+ *                 in this environment, and points at email sign-in;
  *   rejected    → STAYS on the number step with an actionable retry message;
  *   uncertain   → STAYS, and offers code entry only as an explicit, un-urged
  *                 choice, worded as "if a code arrived";
@@ -68,6 +68,13 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/device-id', () => ({ getDeviceId: () => 'test-device' }));
+
+// This file exercises the PRESERVED phone implementation. The email-only
+// release hides user-initiated phone selection (PHONE_OTP_UI_ENABLED defaults
+// to false), so the flag is mocked on here — the same one-line flip the future
+// SMS phase will make. Delivery-outcome assertions are unchanged except the
+// 'unavailable' copy, which no longer tells admins to enable the SMS provider.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
 
 import AdminLoginPage from '@/app/auth/login/page';
 
@@ -162,13 +169,15 @@ describe('Admin login — OTP delivery outcomes', () => {
     await submitSend();
 
     await waitFor(() =>
-      expect(screen.getByText(/isn't configured in this environment, so nothing was sent/)).toBeTruthy(),
+      expect(screen.getByText(/isn't available in this environment, so nothing was sent/)).toBeTruthy(),
     );
-    // No code entry, no "code sent" claim, and the password path is offered.
+    // No code entry, no "code sent" claim, and email sign-in is offered
+    // instead of advice (enabling SMS) that cannot apply to this release.
     expect(screen.queryByPlaceholderText('123456')).toBeNull();
     expect(screen.queryByText(/Code sent/)).toBeNull();
     expect(screen.getByPlaceholderText(PHONE_FIELD)).toBeTruthy();
-    expect(screen.getByText(/Sign in with email and password/)).toBeTruthy();
+    expect(screen.getByText(/Sign in with email instead/)).toBeTruthy();
+    expect(document.body.textContent).not.toContain('enable the SMS provider');
   });
 
   it('does not leak provider vocabulary into the message', async () => {

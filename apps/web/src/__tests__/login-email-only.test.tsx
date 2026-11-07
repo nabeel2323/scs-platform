@@ -16,14 +16,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  *     shown an empty phone prompt and a Verify button wired to the phone
  *     endpoint, which cannot find an email challenge.
  *
- * The phone tab itself is deliberately preserved (requirement 11) so a later
- * phase can re-enable SMS without rebuilding the screen.
+ * The phone tab itself is deliberately preserved (requirement 11) but hidden
+ * behind PHONE_OTP_UI_ENABLED=false in the initial release, so a later phase can
+ * re-enable SMS with a one-line flip without rebuilding the screen. A
+ * server-issued phone challenge still verifies regardless of the flag.
  *
  * Convention follows login-device-trust.test.tsx: RTL + Vitest core matchers
  * only (jest-dom is not installed in this app), boundaries mocked at module level.
  */
 
-const { ctl, FakeLoginRateLimitError } = vi.hoisted(() => {
+const { ctl, FakeLoginRateLimitError, channelState } = vi.hoisted(() => {
   class FakeLoginRateLimitError extends Error {
     remainingAttempts: number;
     retryAfterSeconds: number;
@@ -46,11 +48,22 @@ const { ctl, FakeLoginRateLimitError } = vi.hoisted(() => {
       routerPush: vi.fn(),
     },
     FakeLoginRateLimitError,
+    // Mutable so individual cases can flip the preserved phone UI on. Defaults
+    // to false to match the real release constant.
+    channelState: { phoneUiEnabled: false },
   };
 });
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: ctl.routerPush, replace: vi.fn(), prefetch: vi.fn() }),
+}));
+
+// Live getter so a case can enable the dormant phone UI before rendering. The
+// default (false) matches the real module; the page reads it on each render.
+vi.mock('@/lib/auth-channels', () => ({
+  get PHONE_OTP_UI_ENABLED() {
+    return channelState.phoneUiEnabled;
+  },
 }));
 
 vi.mock('@/lib/auth', () => ({
@@ -109,6 +122,7 @@ describe('Web login — email is the release channel (requirement 10)', () => {
   beforeEach(() => {
     Object.values(ctl).forEach((fn) => fn.mockReset());
     ctl.fetchProfile.mockResolvedValue({ organizations: [{ id: 'o1' }] });
+    channelState.phoneUiEnabled = false;
     window.localStorage.clear();
   });
 
@@ -147,6 +161,10 @@ describe('Web login — email is the release channel (requirement 10)', () => {
   });
 
   it('lists Email OTP before Phone OTP so the permitted channel is the primary one', () => {
+    // Ordering only matters when both tabs exist; the phone tab is hidden by
+    // default in the email-only release, so enable the preserved UI to prove the
+    // future-phase ordering still puts the permitted channel first.
+    channelState.phoneUiEnabled = true;
     render(<LoginPage />);
     const tabs = screen
       .getAllByRole('button')
@@ -247,9 +265,25 @@ describe('Web login — email is the release channel (requirement 10)', () => {
     expect(ctl.verifyEmailOtp).not.toHaveBeenCalled();
   });
 
-  // ── The dormant phone tab is still reachable, and still dormant ──
+  // ── The phone tab is hidden by default, preserved for the future phase ──
 
-  it('preserves the Phone OTP tab for a future phase without sending anything on open', async () => {
+  it('hides the Phone OTP tab by default in the email-only release', () => {
+    // Updated expectation: the initial release must not invite users into a
+    // channel the server refuses. The tab (and its request form/radios) is gone
+    // at the default flag value; nothing is sent on open.
+    render(<LoginPage />);
+
+    expect(screen.queryByRole('button', { name: 'Phone OTP' })).toBeNull();
+    expect(screen.queryByPlaceholderText(PHONE_FIELD)).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Delivery channel' })).toBeNull();
+    expect(ctl.requestOtp).not.toHaveBeenCalled();
+    expect(ctl.requestEmailOtp).not.toHaveBeenCalled();
+  });
+
+  it('preserves the Phone OTP tab for a future phase when the flag is enabled, without sending anything on open', () => {
+    // The dormant path is preserved, not deleted: flipping PHONE_OTP_UI_ENABLED
+    // (mocked true here) brings the tab, request form and radios back unchanged.
+    channelState.phoneUiEnabled = true;
     render(<LoginPage />);
     fireEvent.click(screen.getByRole('button', { name: 'Phone OTP' }));
 

@@ -16,13 +16,29 @@ void main() {
   setUp(() => harness = TestHarness());
   tearDown(() => harness.dispose());
 
+  /// Opts into the dormant phone channel.
+  ///
+  /// The email-only staging release hides user-initiated phone OTP, so a test
+  /// that exercises the preserved SMS implementation must enable the UI flag
+  /// explicitly — exactly what a separately approved future SMS phase would do.
+  /// The assertions below are unchanged: this proves the code was hidden, not
+  /// deleted or weakened.
+  void enablePhoneChannel() {
+    harness.dispose();
+    harness = TestHarness(phoneOtpUiEnabled: true);
+  }
+
   group('Email OTP login', () {
-    testWidgets('the three login tabs are visible and Email OTP is selectable',
+    testWidgets('the supported login tabs are visible and Email OTP is selectable',
         (tester) async {
       await harness.pump(tester, const LoginScreen());
 
       expect(find.text('Email/Password'), findsOneWidget);
-      expect(find.text('Phone OTP'), findsOneWidget);
+      // Deliberate expectation change for the email-only release: the Phone OTP
+      // tab is no longer offered, because SMS/WhatsApp are not permitted
+      // channels. `login_screen_email_only_test.dart` covers the new surface and
+      // the server-issued-challenge exception.
+      expect(find.text('Phone OTP'), findsNothing);
       expect(find.text('Email OTP'), findsOneWidget);
 
       await harness.openTab(tester, 'Email OTP');
@@ -283,6 +299,7 @@ void main() {
 
     testWidgets('an unconfigured SMS provider keeps the phone tab on input',
         (tester) async {
+      enablePhoneChannel();
       harness.requestPhoneOtpDelivery(TestHarness.phoneProviderUnavailable());
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
@@ -300,6 +317,7 @@ void main() {
 
     testWidgets('a rejected SMS send does not say a code was sent',
         (tester) async {
+      enablePhoneChannel();
       harness.requestPhoneOtpDelivery(TestHarness.deliveryRejected());
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
@@ -315,6 +333,7 @@ void main() {
 
     testWidgets('an uncertain SMS send offers entry with honest wording',
         (tester) async {
+      enablePhoneChannel();
       harness.requestPhoneOtpDelivery(TestHarness.deliveryUncertain());
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
@@ -332,6 +351,7 @@ void main() {
 
     testWidgets('returning to the phone step clears the uncertainty note',
         (tester) async {
+      enablePhoneChannel();
       harness.requestPhoneOtpDelivery(TestHarness.deliveryUncertain());
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
@@ -371,7 +391,10 @@ void main() {
       expect(harness.navigated, contains('home'));
     });
 
-    testWidgets('password login on a new device falls back to phone OTP',
+    // Renamed from "falls back to phone OTP": this is not a fallback. The server
+    // selected the phone channel from its own allowlist, and the client must
+    // still render that challenge even though the release hides the phone tab.
+    testWidgets('a server-issued phone challenge is still answerable',
         (tester) async {
       harness.loginPasswordRequiresOtp('+966500000022', delivery: 'accepted');
       await harness.pump(tester, const LoginScreen());
@@ -417,6 +440,7 @@ void main() {
 
     testWidgets('phone OTP login still works and keeps the phone identity',
         (tester) async {
+      enablePhoneChannel();
       await harness.pump(tester, const LoginScreen());
       await harness.openTab(tester, 'Phone OTP');
       await tester.enterText(

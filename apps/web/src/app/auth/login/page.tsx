@@ -13,6 +13,7 @@ import {
 } from '@/lib/auth';
 import { getDeviceId } from '@/lib/device-id';
 import { fetchProfile } from '@/lib/api';
+import { PHONE_OTP_UI_ENABLED } from '@/lib/auth-channels';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
 
 type LoginMode = 'password' | 'otp' | 'email-otp';
@@ -179,6 +180,11 @@ export default function LoginPage() {
 
   async function handleRequestOtp(e: React.FormEvent) {
     e.preventDefault();
+    // Email-only release: no user action may reach the phone OTP endpoint while
+    // the phone UI is disabled. The request stage is already unreachable (the
+    // tab, "Change number" and channel-switch resend buttons are all gated), so
+    // this is a belt-and-braces guard that keeps the invariant local.
+    if (!PHONE_OTP_UI_ENABLED) return;
     if (otpInFlight.current) return;
     otpInFlight.current = true;
     setError('');
@@ -306,8 +312,9 @@ export default function LoginPage() {
             Email/Password
           </button>
           {/* Email OTP is the release's only permitted delivery channel, so it is
-              the primary passwordless tab. Phone OTP stays reachable but dormant
-              (requirement 11) until a later phase re-enables SMS. */}
+              the primary passwordless tab. The Phone OTP tab is preserved but
+              hidden behind PHONE_OTP_UI_ENABLED until the approved SMS phase
+              flips that one constant; the server allowlist stays the authority. */}
           <button
             type="button"
             onClick={() => {
@@ -320,16 +327,18 @@ export default function LoginPage() {
           >
             Email OTP
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('otp');
-              setError('');
-            }}
-            style={tabStyle(mode === 'otp')}
-          >
-            Phone OTP
-          </button>
+          {PHONE_OTP_UI_ENABLED && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode('otp');
+                setError('');
+              }}
+              style={tabStyle(mode === 'otp')}
+            >
+              Phone OTP
+            </button>
+          )}
         </div>
       )}
 
@@ -432,37 +441,41 @@ export default function LoginPage() {
             disabled={loading}
             style={inputStyle}
           />
-          <fieldset style={{ marginBottom: 16, padding: 0, border: 'none' }} role="radiogroup" aria-label="Delivery channel">
-            <legend style={{ fontSize: 13, fontWeight: 600, color: colors.brand[700], marginBottom: 6 }}>
-              Send code via
-            </legend>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-                <input
-                  type="radio"
-                  name="channel"
-                  value="sms"
-                  checked={channel === 'sms'}
-                  onChange={() => setChannel('sms')}
-                  disabled={loading}
-                  aria-label="SMS"
-                />
-                SMS
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
-                <input
-                  type="radio"
-                  name="channel"
-                  value="whatsapp"
-                  checked={channel === 'whatsapp'}
-                  onChange={() => setChannel('whatsapp')}
-                  disabled={loading}
-                  aria-label="WhatsApp"
-                />
-                WhatsApp
-              </label>
-            </div>
-          </fieldset>
+          {/* User-initiated channel selection is hidden in the email-only
+              release; preserved verbatim for the future SMS phase. */}
+          {PHONE_OTP_UI_ENABLED && (
+            <fieldset style={{ marginBottom: 16, padding: 0, border: 'none' }} role="radiogroup" aria-label="Delivery channel">
+              <legend style={{ fontSize: 13, fontWeight: 600, color: colors.brand[700], marginBottom: 6 }}>
+                Send code via
+              </legend>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+                  <input
+                    type="radio"
+                    name="channel"
+                    value="sms"
+                    checked={channel === 'sms'}
+                    onChange={() => setChannel('sms')}
+                    disabled={loading}
+                    aria-label="SMS"
+                  />
+                  SMS
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14 }}>
+                  <input
+                    type="radio"
+                    name="channel"
+                    value="whatsapp"
+                    checked={channel === 'whatsapp'}
+                    onChange={() => setChannel('whatsapp')}
+                    disabled={loading}
+                    aria-label="WhatsApp"
+                  />
+                  WhatsApp
+                </label>
+              </div>
+            </fieldset>
+          )}
           <button type="submit" disabled={loading} style={buttonStyle}>
             {loading ? `Sending via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}...` : `Send via ${channel === 'sms' ? 'SMS' : 'WhatsApp'}`}
           </button>
@@ -488,7 +501,9 @@ export default function LoginPage() {
               role="alert"
               aria-live="polite"
             >
-              Delivery status uncertain &mdash; you may have received the code. If not, try resending via a different channel.
+              {PHONE_OTP_UI_ENABLED
+                ? 'Delivery status uncertain — you may have received the code. If not, try resending via a different channel.'
+                : 'Delivery status uncertain — you may have received the code. If it does not arrive, sign in with email and password instead.'}
             </div>
           )}
           <label style={labelStyle}>OTP code</label>
@@ -505,46 +520,52 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} style={buttonStyle}>
             {loading ? 'Verifying...' : 'Verify'}
           </button>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setOtpStage('request');
-                setError('');
-                setDeliveryNote(null);
-              }}
-              style={{
-                ...buttonStyle,
-                flex: 1,
-                background: 'transparent',
-                color: colors.brand[500],
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              Change number
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                // L-06: the label promises the opposite channel, so actually switch to
-                // it and return to the request stage where the selection is shown and
-                // used for the next OTP request.
-                setChannel(channel === 'sms' ? 'whatsapp' : 'sms');
-                setOtpStage('request');
-                setError('');
-                setDeliveryNote(null);
-              }}
-              style={{
-                ...buttonStyle,
-                flex: 1,
-                background: 'transparent',
-                color: colors.brand[500],
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              Resend via {channel === 'sms' ? 'WhatsApp' : 'SMS'}
-            </button>
-          </div>
+          {/* Channel-switch resend and "Change number" both lead back to the
+              user-initiated phone request stage, so they are hidden in the
+              email-only release. A server-issued phone challenge still renders
+              the code entry + Verify above; only these affordances are gated. */}
+          {PHONE_OTP_UI_ENABLED && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpStage('request');
+                  setError('');
+                  setDeliveryNote(null);
+                }}
+                style={{
+                  ...buttonStyle,
+                  flex: 1,
+                  background: 'transparent',
+                  color: colors.brand[500],
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                Change number
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // L-06: the label promises the opposite channel, so actually switch to
+                  // it and return to the request stage where the selection is shown and
+                  // used for the next OTP request.
+                  setChannel(channel === 'sms' ? 'whatsapp' : 'sms');
+                  setOtpStage('request');
+                  setError('');
+                  setDeliveryNote(null);
+                }}
+                style={{
+                  ...buttonStyle,
+                  flex: 1,
+                  background: 'transparent',
+                  color: colors.brand[500],
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                Resend via {channel === 'sms' ? 'WhatsApp' : 'SMS'}
+              </button>
+            </div>
+          )}
         </form>
       ) : null}
 
@@ -614,7 +635,13 @@ export default function LoginPage() {
         </form>
       )}
 
-      {!verified && mode === 'otp' && (
+      {/* The phone footer is a user-initiated affordance in the request stage,
+          so it is hidden with the phone UI in the email-only release. On a
+          server-issued phone challenge (verify stage) it is instead an escape
+          hatch back to a supported mode and must stay, or the user is trapped
+          (requirement 4). With the flag false the request stage is unreachable,
+          so this only ever renders for a challenge the server actually issued. */}
+      {!verified && mode === 'otp' && (PHONE_OTP_UI_ENABLED || otpStage === 'verify') && (
         <p style={hintStyle}>
           Have a password?{' '}
           <button

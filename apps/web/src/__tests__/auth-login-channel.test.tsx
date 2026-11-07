@@ -35,6 +35,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
+// This suite proves the PRESERVED dormant phone path (SMS↔WhatsApp switch). The
+// email-only release hides that UI behind PHONE_OTP_UI_ENABLED=false, so mock the
+// flag true here to keep exercising the code a future SMS phase re-enables with a
+// one-line flip. Without this the tab/radios/resend buttons would not render.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
+
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),
