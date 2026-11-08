@@ -284,7 +284,7 @@ jobs:
             docker exec ci-migration-pg pg_isready -U scs -d scs_test && break
             sleep 1
           done
-  
+
       # 1) Enforcing gate: validate every migration file exists, is ordered and
       #    non-empty, and that the DB is reachable — without writing.
       - name: Dry-run (validate ordering)
@@ -488,11 +488,18 @@ jobs:
 
       # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
       # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
-      # when OTP_HMAC_SECRET is missing, is the `.env.example` placeholder, or is
+      # when OTP_HMAC_SECRET missing, is the `.env.example` placeholder, or is
       # shorter than 32 chars. The container-build smoke test starts the image with
       # NODE_ENV=production, so the CI value below must satisfy the same rules as
       # any deployment: non-empty, >= 32 chars, not the dev placeholder. It is a
       # throwaway per-run value — no secret material is stored in the workflow.
+      #
+      # S1.42 CI remediation: `assertOtpDeliveryConfig()` (email-only release,
+      # commit 3c246e7) refuses to boot a production process that has no permitted
+      # OTP delivery channel. The default channel is email, and SMTP is considered
+      # configured when SMTP_HOST and SMTP_FROM are both set (provider.config.ts
+      # line 299). The smoke test never sends email, so throwaway values satisfy
+      # the gate without incurring any real SMTP dependency.
       - name: Start API container with safe defaults
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
@@ -501,6 +508,8 @@ jobs:
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
             -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
+            -e SMTP_HOST=smtp.ci-test.local \
+            -e SMTP_FROM=otp@ci-test.local \
             -e S3_ENDPOINT=http://minio:9000 \
             -e S3_ACCESS_KEY=ci-test-key \
             -e S3_SECRET_KEY=ci-test-secret \
@@ -512,11 +521,26 @@ jobs:
 
       - name: Verify health endpoints
         run: |
+          echo "=== Container State ==="
+          docker inspect ci-api --format='{{.State.Status}} (exit code: {{.State.ExitCode}})' || true
+          echo ""
           echo "=== Liveness ==="
-          docker exec ci-api curl -fsS http://localhost:3000/v1/healthz
+          docker exec ci-api curl -fsS http://localhost:3000/v1/healthz || {
+            echo "ERROR: Liveness check failed"
+            echo ""
+            echo "=== API Container Logs (last 50 lines) ==="
+            docker logs --tail 50 ci-api 2>&1 || true
+            exit 1
+          }
           echo ""
           echo "=== Readiness ==="
-          docker exec ci-api curl -fsS http://localhost:3000/v1/readyz
+          docker exec ci-api curl -fsS http://localhost:3000/v1/readyz || {
+            echo "ERROR: Readiness check failed"
+            echo ""
+            echo "=== API Container Logs (last 50 lines) ==="
+            docker logs --tail 50 ci-api 2>&1 || true
+            exit 1
+          }
           echo ""
 
       - name: Verify P13 configuration
