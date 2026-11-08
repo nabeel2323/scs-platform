@@ -34,7 +34,10 @@ function mockIdentityService() {
     logout: vi.fn().mockResolvedValue(undefined),
     switchOrg: vi.fn().mockResolvedValue({ accessToken: 'new' }),
     loginWithPassword: vi.fn().mockResolvedValue({ accessToken: 't', refreshToken: 'r' }),
-    checkDeviceLogin: vi.fn().mockResolvedValue({ autoLogin: false }),
+    // S-2: the service now answers a constant acknowledgement. The previous
+    // shape ({autoLogin, requiresOtp, hasPassword}) is exactly what the
+    // endpoint stopped returning.
+    checkDeviceLogin: vi.fn().mockResolvedValue({ checked: true }),
   };
 }
 
@@ -256,6 +259,105 @@ describe('IP-scoped OTP rate limiting — HTTP enforcement (S1.5)', () => {
       const res = await postJson('/auth/refresh', { refreshToken: 'r1' });
       expect(res.status).toBe(201);
     }
+  });
+});
+
+// ─── Layer 2b: device-check throttling and non-disclosure (S-2) ─────────────
+//
+// A separate application, deliberately: every profile declared on
+// ThrottlerModule.forRoot applies to every route, so adding the device-check
+// profile to the OTP harness above would have shrunk the OTP budgets instead of
+// testing the device-check one. Production wires the profiles side by side in
+// app.module.ts for the same reason the limits are per-name, not per-route-
+// exclusive.
+
+describe('Device-check throttling and non-disclosure (S-2)', () => {
+  let app: INestApplication;
+  let baseUrl: string;
+  let svc: ReturnType<typeof mockIdentityService>;
+
+  beforeEach(async () => {
+    svc = mockIdentityService();
+    Reflect.defineMetadata('design:paramtypes', [IdentityService], AuthController);
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        ThrottlerModule.forRoot([
+          { name: 'default', ttl: 60_000, limit: 100 },
+          // Low for speed; production default is 10 / 60s
+          // (apps/api/src/app.module.ts:74-77).
+          { name: 'device-check', ttl: 60_000, limit: 3 },
+        ]),
+      ],
+      controllers: [AuthController],
+      providers: [IdentityService],
+    })
+      .overrideProvider(IdentityService)
+      .useValue(svc)
+      .compile();
+
+    app = module.createNestApplication();
+    await app.listen(0, '127.0.0.1');
+    const server = app.getHttpServer() as { address(): AddressInfo };
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  }, 30_000);
+
+  afterEach(async () => {
+    if (app) await app.close();
+  });
+
+  const deviceCheck = (email: string) =>
+    fetch(`${baseUrl}/auth/login/device-check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+
+  it('is IP-throttled at all (it previously had no guard on the route)', async () => {
+    for (let i = 0; i < 3; i++) {
+      const res = await deviceCheck('buyer@example.com');
+      expect(res.status).toBe(201);
+    }
+    expect((await deviceCheck('buyer@example.com')).status).toBe(429);
+    // Confirms the service was not even reached once the budget ran out.
+    expect(svc.checkDeviceLogin).toHaveBeenCalledTimes(3);
+  });
+
+  it('cycling different addresses cannot reset the per-ip budget', async () => {
+    // The enumeration shape the old endpoint was defenceless against: one
+    // probe per address, forever. Now the budget is keyed to the caller.
+    for (let i = 0; i < 3; i++) {
+      await deviceCheck(`user${i}@example.com`);
+    }
+    expect((await deviceCheck('victim@example.com')).status).toBe(429);
+  });
+
+  it('answers an identical constant body within the budget', async () => {
+    const bodies: unknown[] = [];
+    for (let i = 0; i < 3; i++) {
+      const res = await deviceCheck(`user${i}@example.com`);
+      expect(res.status).toBe(201);
+      bodies.push(await res.json());
+    }
+    // Same body for a real account and a fictional one, so the response cannot
+    // be a signal about either.
+    expect(bodies).toEqual([{ checked: true }, { checked: true }, { checked: true }]);
+  });
+
+  it('a throttled answer reveals no more than an allowed one', async () => {
+    for (let i = 0; i < 3; i++) await deviceCheck('buyer@example.com');
+    const throttled = await deviceCheck('buyer@example.com');
+    expect(throttled.status).toBe(429);
+    const text = JSON.stringify(await throttled.json());
+    expect(text).not.toContain('buyer@example.com');
+    expect(text).not.toMatch(/trusted|hasPassword|canAutoLogin|requiresOtp/i);
+  });
+
+  it('never returns the removed disclosure fields', async () => {
+    const res = await deviceCheck('buyer@example.com');
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(Object.keys(body)).toEqual(['checked']);
+    expect(svc.checkDeviceLogin).toHaveBeenCalledWith('buyer@example.com');
   });
 });
 

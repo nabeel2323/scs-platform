@@ -9,6 +9,25 @@
 - `OTP-S1.34-MULTI-CHANNEL-AUTH-IMPLEMENTATION-ROADMAP.md` (Parts G–I)
 - `OTP-S1.34-MULTI-CHANNEL-AUTH-SECURITY-AND-RELEASE-GATES.md` (acceptance criteria)
 
+**Amended 2026-11-06 — device trust and the device-check contract.** Two
+statements in this document no longer describe the shipped system:
+
+1. *Device trust* is no longer evaluated from the client-supplied
+   `X-Device-Id` / `sessions.device_id` value. It is evaluated from a
+   server-issued 256-bit credential that the browser holds in a host-only
+   `HttpOnly` cookie and proves with a custom header. `X-Device-Id` is still
+   accepted and recorded as session provenance, and grants nothing. See
+   `docs/architecture/ADR-0004-SERVER-ISSUED-DEVICE-TRUST-CREDENTIAL.md`.
+2. `POST /v1/auth/login/device-check` is **not** "unchanged": it now answers the
+   constant `{checked: true}` to unauthenticated callers instead of
+   `{canAutoLogin, requiresOtp, hasPassword}`, and it has its own throttler
+   profile. No client branches on it; the login call decides trust itself.
+
+Design principle 1 ("backward compatible … endpoints remain unchanged") still
+holds for the JWT, session and OTP flows. It never held for the trust model,
+which was the weakness being remediated (audit finding S-1/S-2,
+`docs/reports/OTP-AUTHENTICATION-SECURITY-REMEDIATION-REPORT.md`).
+
 ---
 
 ## Executive Summary
@@ -1252,7 +1271,8 @@ Passkey authentication follows the same JWT issuance flow as other methods:
 1. Verify WebAuthn assertion
 2. Update credential counter
 3. Find user by credential ID
-4. Check device trust (existing flow)
+4. Check device trust (as amended above: from the server-issued credential,
+   not from a client-supplied device id)
 5. Issue JWT access + refresh tokens
 6. Create session record with `authMethod: 'passkey'`
 
@@ -1276,12 +1296,13 @@ Passkey authentication follows the same JWT issuance flow as other methods:
 | Method | Path | Status |
 |--------|------|--------|
 | POST | `/v1/auth/otp/request` | ✅ Unchanged (phone OTP) |
-| POST | `/v1/auth/otp/verify` | ✅ Unchanged (phone OTP) |
+| POST | `/v1/auth/otp/verify` | ⚠️ Request contract unchanged; a successful verify now also enrols the device (issues the S-1 credential) |
 | POST | `/v1/auth/refresh` | ✅ Unchanged |
-| POST | `/v1/auth/logout` | ✅ Unchanged |
+| POST | `/v1/auth/logout` | ⚠️ Request contract unchanged; now also revokes the device-trust credential through **two** paths — the one the request presents *and* the one the closing session earned via `created_by_session` — and clears the cookie if either fired. De-trust no longer depends on the browser presenting anything |
+| POST | `/v1/me/credentials/change-password` | ⚠️ Request and response contracts unchanged; a **successful** change now also revokes every live device-trust credential for the account (`PASSWORD_CHANGE`) and, when the count is non-zero, writes an `auth.device_trust_revoked` audit event. A failed change revokes nothing. Session-revocation behaviour is unchanged |
 | POST | `/v1/auth/switch-org` | ✅ Unchanged |
-| POST | `/v1/auth/login/password` | ✅ Unchanged |
-| POST | `/v1/auth/login/device-check` | ✅ Unchanged |
+| POST | `/v1/auth/login/password` | ⚠️ Response gained `otpDelivery: 'accepted' \| 'uncertain'`; trust read from the credential (S-1) |
+| POST | `/v1/auth/login/device-check` | ⚠️ **Contract changed** — constant `{checked: true}`, own throttler profile (S-2) |
 
 ### G.2 New Endpoints
 

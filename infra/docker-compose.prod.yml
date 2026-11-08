@@ -196,8 +196,20 @@ services:
       - api
 
   # ── Infrastructure ─────────────────────────────────────────
+  # PRODUCTION IMAGE REQUIREMENT: Must include PostGIS 3.4 AND pg_partman 5.x
+  # The stock postgis/postgis:16-3.4 image does NOT include pg_partman, which is
+  # required by migration 0013_analytics.sql (analytics_events partitioning).
+  # Using an image without pg_partman will cause production deployment to fail
+  # at migration 0013 with: ERROR: extension "pg_partman" is not available
+  #
+  # The custom image built from deploy/ci-postgres.Dockerfile includes both
+  # PostGIS 3.4 and pg_partman 5.x from the PGDG repository. This is the same
+  # image used by CI migration-gate and local development.
   postgres:
-    image: postgis/postgis:16-3.4
+    build:
+      context: .
+      dockerfile: deploy/ci-postgres.Dockerfile
+    image: scs-postgres-prod:latest
     restart: unless-stopped
     environment:
       POSTGRES_USER: scs

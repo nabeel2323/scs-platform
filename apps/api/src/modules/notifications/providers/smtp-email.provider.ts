@@ -95,7 +95,23 @@ export class SmtpEmailProvider implements NotificationProvider {
 
   private transporter: Transporter | null = null;
 
+  /**
+   * Sender identity handed to Nodemailer.
+   *
+   * `SMTP_FROM_NAME` is purely presentational. When it is set we pass the
+   * structured `{ name, address }` form so Nodemailer performs RFC 2047 encoding
+   * and quoting for us; CR/LF are stripped first so a misconfigured display name
+   * can never inject additional mail headers. When it is unset we keep the bare
+   * address form, which is what a plain relay expects.
+   */
+  private readonly sender: string | { name: string; address: string };
+
   constructor(private readonly config: SmtpConfig) {
+    const displayName = (config.fromName || '').replace(/[\r\n]+/g, ' ').trim();
+    this.sender = displayName
+      ? { name: displayName, address: config.from }
+      : config.from;
+
     if (config.enabled) {
       this.transporter = nodemailer.createTransport({
         host: config.host,
@@ -143,7 +159,7 @@ export class SmtpEmailProvider implements NotificationProvider {
       logger.log(`Sending email OTP to ${masked} (correlation: ${correlationId || 'none'})`);
 
       const info = await this.transporter!.sendMail({
-        from: this.config.from,
+        from: this.sender,
         to: email,
         subject: 'Your verification code',
         text: buildOtpEmailText(otp),

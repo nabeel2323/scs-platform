@@ -123,18 +123,31 @@ export class LoginPasswordDto {
   deviceInfo?: DeviceInfoDto;
 }
 
-/** POST /v1/auth/login/device-check */
+/**
+ * POST /v1/auth/login/device-check
+ *
+ * `deviceId` is still accepted so clients already deployed (web, admin, iOS,
+ * Android) do not start failing against the new server: the global pipe runs
+ * with `forbidNonWhitelisted`, so removing a field would be a breaking change
+ * for no security gain. It is validated as an opaque bounded string and then
+ * IGNORED — the endpoint answers a constant body, and the value establishes no
+ * trust anywhere in the S-1 model.
+ */
 export class DeviceCheckDto {
   @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   @MaxLength(254)
   email!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Accepted for backwards compatibility and ignored. Device trust is carried by a ' +
+      'server-issued HttpOnly cookie, not by a client-generated identifier.',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(128)
-  deviceId!: string;
+  deviceId?: string;
 }
 
 // ── Email OTP DTOs (S1.35 Phase 1) ───────────────────────────

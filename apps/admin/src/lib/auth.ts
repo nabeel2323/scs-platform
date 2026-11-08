@@ -8,12 +8,15 @@
  */
 
 import { getDeviceId } from './device-id';
+import { DEVICE_TRUST_PROOF_HEADER, DEVICE_TRUST_PROOF_VALUE } from '@scs/contracts';
 import type {
   AuthSession,
   AuthTokens,
   RefreshResponse,
   DeviceCheckResponse,
+  EmailOtpRequestResponse,
   LoginPasswordResponse,
+  OtpRequestResponse,
   SessionInfo,
   UserProfile,
 } from '@scs/contracts';
@@ -21,6 +24,41 @@ import type {
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
 const SESSION_KEY = 'scs_admin_session';
 const USER_KEY = 'scs_admin_user';
+
+// ── Device-trust transport (S-1) ─────────────────────────────
+
+/**
+ * Request init for the four calls where device trust matters: OTP verify,
+ * password login, refresh and logout.
+ *
+ * Two things are needed for the server-issued credential to reach the API, and
+ * the admin console previously did neither:
+ *
+ *  - `credentials: 'include'` — without it the browser neither attaches a
+ *    cookie to a cross-origin request nor accepts a `Set-Cookie` in the reply.
+ *    The API already sends `Access-Control-Allow-Credentials: true`, so this is
+ *    the client half of that.
+ *  - the `x-device-trust` proof header — with `SameSite=None` (the only
+ *    attribute that works with the frontend and API on different sites) a
+ *    third-party page can make the browser attach the cookie, so the server
+ *    ignores it unless this header is present too. It is a constant, not a
+ *    secret.
+ *
+ * Omitting both is safe but useless: the device simply counts as untrusted and
+ * an OTP is required. That is the fail-closed direction.
+ */
+function trustRequest(body: unknown, extraHeaders?: Record<string, string>): RequestInit {
+  return {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      [DEVICE_TRUST_PROOF_HEADER]: DEVICE_TRUST_PROOF_VALUE,
+      ...extraHeaders,
+    },
+    body: JSON.stringify(body),
+  };
+}
 
 // Session envelope + auth wire types are shared from @scs/contracts (ADM-B3) so
 // web, admin and mobile stop redefining them. Re-exported to keep this module's
@@ -130,8 +168,13 @@ restoreSession();
  * JWT client-side — that was fragile (relied on token internals) and duplicated
  * claim logic the server already owns. Best-effort: a failed fetch simply leaves
  * the user to be populated on the next authenticated profile read.
+ *
+ * `fallbackContact` is the identifier the admin signed in with (phone OR email,
+ * mirroring loginPassword which already passes an email): it only fills the
+ * display contact when /v1/me omits one. The role ALWAYS comes from the server,
+ * so an email-only login hydrates exactly like a phone login.
  */
-async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<void> {
+async function hydrateUser(accessToken: string, fallbackContact: string): Promise<void> {
   try {
     const res = await fetch(`${API_URL}/v1/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -140,7 +183,7 @@ async function hydrateUser(accessToken: string, fallbackPhone: string): Promise<
     const profile = (await res.json()) as UserProfile;
     currentUser = {
       id: profile.id,
-      phone: profile.phone || fallbackPhone,
+      phone: profile.phone || fallbackContact,
       fullName: profile.fullName || 'Admin',
       role: profile.role || 'ADMIN',
       perms: profile.perms ?? undefined,
@@ -165,7 +208,20 @@ export function isAuthenticated(): boolean {
   return session !== null && session.expiresAt > Date.now();
 }
 
-export async function requestOtp(phone: string): Promise<{ success: boolean }> {
+/**
+ * Request an OTP on the admin console's SMS channel.
+ *
+ * DEFERRED (email-only release): the staging deployment allowlists EMAIL only
+ * (`OTP_CHANNELS`), so this route answers `SMS_CHANNEL_DISABLED` by default.
+ * Kept for the later SMS phase — the login UI no longer offers it by default.
+ *
+ * Returns the WHOLE delivery outcome, not a bare `{success}`: HTTP 200 on this
+ * route means the request was processed, not that a code reached the phone. The
+ * audit found the admin UI discarding this and advancing to code entry after a
+ * provider failure (finding S-1/§4), so the caller is expected to run the
+ * result through `classifyOtpDelivery` and say what actually happened.
+ */
+export async function requestOtp(phone: string): Promise<OtpRequestResponse> {
   const res = await fetch(`${API_URL}/v1/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -175,14 +231,15 @@ export async function requestOtp(phone: string): Promise<{ success: boolean }> {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
     throw new Error(`OTP request failed: ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as OtpRequestResponse;
 }
 
 export async function verifyOtp(phone: string, otp: string): Promise<AuthSession> {
-  const res = await fetch(`${API_URL}/v1/auth/otp/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // A verified OTP enrols this browser: the credential arrives in Set-Cookie,
+  // which is only honoured when the request is made with credentials included.
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/verify`,
+    trustRequest({
       phone,
       otp,
       deviceId: getDeviceId(),
@@ -191,7 +248,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       },
     }),
-  });
+  );
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
   const data = (await res.json()) as AuthTokens;
 
@@ -205,6 +262,82 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
   // Hydrate the admin user from GET /v1/me (server-resolved role) instead of
   // decoding the access-token JWT client-side.
   await hydrateUser(data.accessToken, phone);
+
+  return currentSession;
+}
+
+// ── Email OTP (default channel for the email-only release) ───
+
+/**
+ * Both email-OTP routes sit behind the server feature flag FLAG_AUTH_EMAIL_OTP
+ * and answer 404 when it is off. That is an environment fact, not a transient
+ * failure, so it gets its own actionable message instead of "failed: 404".
+ * Deliberately NOT a client-side env var: the server is the source of truth.
+ */
+const EMAIL_OTP_DISABLED_MESSAGE =
+  'Email sign-in is not enabled in this environment. Ask the platform team to enable it, or sign in with email and password.';
+
+/**
+ * Request an OTP to the given admin email — the default sign-in challenge for
+ * the email-only release. Mirrors requestOtp's honesty contract: HTTP 200 is
+ * NOT delivery. The WHOLE `{success, deliveryStatus, possiblyDelivered?}` body
+ * is returned so the caller classifies it with `classifyOtpDelivery` and only
+ * claims a code is on its way when the API said success:true.
+ */
+export async function requestEmailOtp(email: string): Promise<EmailOtpRequestResponse> {
+  const res = await fetch(`${API_URL}/v1/auth/otp/email/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 404) throw new Error(EMAIL_OTP_DISABLED_MESSAGE);
+    if (res.status === 400) {
+      const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      throw new Error(String(body['message'] || body['detail'] || 'Invalid email address'));
+    }
+    throw new Error(`Email OTP request failed: ${res.status}`);
+  }
+  return (await res.json()) as EmailOtpRequestResponse;
+}
+
+/**
+ * Verify an email OTP and establish the admin session. Like verifyOtp, the
+ * reply enrols this browser via Set-Cookie, so it goes through trustRequest
+ * (credentials included + device-trust proof header). The admin role is
+ * hydrated from GET /v1/me — never from the JWT — with the email as the
+ * fallback contact, exactly as loginPassword already does.
+ */
+export async function verifyEmailOtp(email: string, otp: string): Promise<AuthSession> {
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/email/verify`,
+    trustRequest({
+      email,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'admin-web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
+  );
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many verification attempts.');
+    if (res.status === 404) throw new Error(EMAIL_OTP_DISABLED_MESSAGE);
+    throw new Error(`Email OTP verify failed: ${res.status}`);
+  }
+  const data = (await res.json()) as AuthTokens;
+
+  currentSession = {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+  persistSession(currentSession);
+
+  // Server-resolved role, same hydration path as the phone and password flows.
+  await hydrateUser(data.accessToken, email);
 
   return currentSession;
 }
@@ -223,14 +356,17 @@ async function performRefresh(): Promise<AuthSession> {
   if (!currentSession) throw new Error('No session to refresh');
 
   const refreshTokenUsed = currentSession.refreshToken;
-  const res = await fetch(`${API_URL}/v1/auth/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${currentSession.accessToken}`,
-    },
-    body: JSON.stringify({ refreshToken: refreshTokenUsed }),
-  });
+  // Rotation is where device trust would silently decay: the access token is
+  // short-lived, so a refresh happens constantly on a used device. Presenting
+  // (and getting back) the credential here is what keeps the sliding horizon in
+  // step with the session and stops the next login from asking for an OTP.
+  const res = await fetch(
+    `${API_URL}/v1/auth/refresh`,
+    trustRequest(
+      { refreshToken: refreshTokenUsed },
+      { Authorization: `Bearer ${currentSession.accessToken}` },
+    ),
+  );
   if (!res.ok) {
     currentSession = null;
     currentUser = null;
@@ -257,14 +393,16 @@ async function performRefresh(): Promise<AuthSession> {
 export async function logout(): Promise<void> {
   if (!currentSession) return;
   try {
-    await fetch(`${API_URL}/v1/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentSession.accessToken}`,
-      },
-      body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
-    });
+    // The reply carries a clearing Set-Cookie: logout revokes this device's
+    // credential server-side, so the browser must drop it in the same breath
+    // (otherwise a shared profile would stay "trusted" after signing out).
+    await fetch(
+      `${API_URL}/v1/auth/logout`,
+      trustRequest(
+        { refreshToken: currentSession.refreshToken },
+        { Authorization: `Bearer ${currentSession.accessToken}` },
+      ),
+    );
   } catch {
     /* ignore */
   }
@@ -278,16 +416,20 @@ export async function logout(): Promise<void> {
 // ── Dual Authentication (Password Login) ────────────────────
 
 /**
- * Pre-flight device-trust check for a given email.
+ * POST /v1/auth/login/device-check — kept only because the route is published.
+ *
+ * The answer is a CONSTANT (`{checked: true}`) and carries no information: the
+ * caller has proved nothing, so it is told nothing about whether the address
+ * exists, has a password, or has ever been trusted (finding S-2). That is why
+ * the login page no longer calls this on mount and why nothing here branches on
+ * the result. Device trust is decided server-side, from the HttpOnly credential,
+ * when the password is actually checked.
  */
-export async function checkDeviceLogin(
-  email: string,
-  deviceId: string,
-): Promise<DeviceCheckResponse> {
+export async function checkDeviceLogin(email: string): Promise<DeviceCheckResponse> {
   const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, deviceId }),
+    body: JSON.stringify({ email }),
   });
   if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
   return (await res.json()) as DeviceCheckResponse;
@@ -295,26 +437,47 @@ export async function checkDeviceLogin(
 
 /**
  * Login with email and password. Returns a session when the device is trusted,
- * or { requiresOtp, otpPhone } when the device is new and OTP is required.
+ * or { requiresOtp, otpPhone } when it is not.
+ *
+ * `deviceId` remains in the body and in `X-Device-Id` as session provenance.
+ * It is NOT what produces `requiresOtp` any more: that is the server-issued
+ * cookie plus the proof header, so copying a trusted browser's device id — the
+ * exact weakness in finding S-1 — changes nothing.
  */
 export async function loginPassword(
   email: string,
   password: string,
   deviceId: string,
-): Promise<AuthSession | { requiresOtp: true; otpPhone: string }> {
-  const res = await fetch(`${API_URL}/v1/auth/login/password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Device-Id': deviceId },
-    body: JSON.stringify({
-      email,
-      password,
-      deviceId,
-      deviceInfo: {
-        platform: 'admin-web',
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+): Promise<
+  AuthSession | {
+    requiresOtp: true;
+    /** Empty when the challenge went by email — see `otpEmail`. */
+    otpPhone: string;
+    /**
+     * Masked address the API sent the second factor to. Present only on the
+     * email channel, which is the only channel the initial staging release
+     * permits. Discarding it left the page rendering a phone prompt for a
+     * challenge stored under an email key, which that form can never verify.
+     */
+    otpEmail?: string;
+    otpDelivery?: 'accepted' | 'uncertain';
+  }
+> {
+  const res = await fetch(
+    `${API_URL}/v1/auth/login/password`,
+    trustRequest(
+      {
+        email,
+        password,
+        deviceId,
+        deviceInfo: {
+          platform: 'admin-web',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        },
       },
-    }),
-  });
+      { 'X-Device-Id': deviceId },
+    ),
+  );
 
   if (!res.ok) {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many login attempts.');
@@ -324,7 +487,16 @@ export async function loginPassword(
 
   const data = (await res.json()) as LoginPasswordResponse;
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone ?? '' };
+    // Carry the channel, not just the challenge: the initial staging release
+    // permits email only, so an admin account with a phone number still gets
+    // its second factor by email. Dropping `otpEmail` made the page render a
+    // phone prompt for a code stored under an email key.
+    return {
+      requiresOtp: true,
+      otpPhone: data.otpPhone ?? '',
+      otpEmail: data.otpEmail,
+      otpDelivery: data.otpDelivery,
+    };
   }
 
   currentSession = {

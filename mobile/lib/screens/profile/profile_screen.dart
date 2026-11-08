@@ -7,6 +7,38 @@ import '../../providers/providers.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
+/// What a code-request reply means for the link dialogs.
+///
+/// An HTTP 200 only says the API accepted the request; the delivery fields say
+/// whether a code actually left. `advance` = show the code box, `uncertain` =
+/// show it but word the heading as "if a code arrived" rather than claiming a
+/// send we cannot confirm, `message` = what to tell the user instead of
+/// advancing.
+({bool advance, bool uncertain, String? message}) _otpSendOutcome(
+    OtpRequestResponse result,
+    {required String channel,
+    required String target}) {
+  switch (result.outcome) {
+    case 'accepted':
+      return (advance: true, uncertain: false, message: null);
+    case 'uncertain':
+      return (advance: true, uncertain: true, message: null);
+    case 'unavailable':
+      return (
+        advance: false,
+        uncertain: false,
+        message:
+            "$channel delivery isn't configured in this environment, so no code was sent.",
+      );
+    default:
+      return (
+        advance: false,
+        uncertain: false,
+        message: "The code couldn't be sent. Check the $target and try again.",
+      );
+  }
+}
+
 class ProfileScreen extends ConsumerStatefulWidget {
   /// When embedded as the merchant console's Account tab, the "Merchant
   /// Dashboard" entry is hidden so it cannot recursively push the shell it is
@@ -361,6 +393,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final emailCtrl = _linkValueCtrl..clear();
     final otpCtrl = _linkCodeCtrl..clear();
     bool otpSent = false;
+    bool codeUncertain = false;
     String? localError;
 
     await showDialog<void>(
@@ -385,7 +418,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       labelText: 'Email address', border: OutlineInputBorder()),
                 ),
               ] else ...[
-                Text('Code sent to ${emailCtrl.text}'),
+                Text(codeUncertain
+                    ? 'If a code arrived for ${emailCtrl.text}, enter it below.'
+                    : 'Code sent to ${emailCtrl.text}'),
                 const SizedBox(height: 8),
                 TextField(
                   controller: otpCtrl,
@@ -412,11 +447,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     localError = null;
                   });
                   try {
-                    await ref
+                    final result = await ref
                         .read(apiServiceProvider)
                         .requestEmailOtp(emailCtrl.text);
+                    final send = _otpSendOutcome(result,
+                        channel: 'Email', target: 'address');
                     setDialogState(() {
-                      otpSent = true;
+                      otpSent = send.advance;
+                      codeUncertain = send.uncertain;
+                      localError = send.message;
                     });
                   } catch (e) {
                     setDialogState(() {
@@ -457,6 +496,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final phoneCtrl = _linkValueCtrl..clear();
     final otpCtrl = _linkCodeCtrl..clear();
     bool otpSent = false;
+    bool codeUncertain = false;
     String? localError;
 
     await showDialog<void>(
@@ -483,7 +523,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       border: OutlineInputBorder()),
                 ),
               ] else ...[
-                Text('Code sent to ${phoneCtrl.text}'),
+                Text(codeUncertain
+                    ? 'If a code arrived for ${phoneCtrl.text}, enter it below.'
+                    : 'Code sent to ${phoneCtrl.text}'),
                 const SizedBox(height: 8),
                 TextField(
                   controller: otpCtrl,
@@ -510,11 +552,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     localError = null;
                   });
                   try {
-                    await ref
+                    final result = await ref
                         .read(apiServiceProvider)
                         .requestOtp(phoneCtrl.text);
+                    final send = _otpSendOutcome(result,
+                        channel: 'SMS', target: 'number');
                     setDialogState(() {
-                      otpSent = true;
+                      otpSent = send.advance;
+                      codeUncertain = send.uncertain;
+                      localError = send.message;
                     });
                   } catch (e) {
                     setDialogState(() {

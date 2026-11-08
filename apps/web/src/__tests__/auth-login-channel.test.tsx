@@ -35,11 +35,19 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
+// This suite proves the PRESERVED dormant phone path (SMS↔WhatsApp switch). The
+// email-only release hides that UI behind PHONE_OTP_UI_ENABLED=false, so mock the
+// flag true here to keep exercising the code a future SMS phase re-enables with a
+// one-line flip. Without this the tab/radios/resend buttons would not render.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
+
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),
   loginPassword: vi.fn(),
-  checkDeviceLogin: vi.fn().mockResolvedValue({ trusted: false }),
+  // Unused by the page since S-2 removed the mount-time probe; present so the
+  // module mock matches the real lib surface.
+  checkDeviceLogin: vi.fn(),
   LoginRateLimitError: FakeLoginRateLimitError,
 }));
 
@@ -201,9 +209,13 @@ describe('Login — delivery channel switch (L-06)', () => {
     await toOtpRequestStage();
 
     fireEvent.click(screen.getByRole('button', { name: /Send via SMS/ }));
+    // Says what is true (nothing was sent), names the channel rather than the
+    // provider, and offers a way forward.
     await waitFor(() =>
-      expect(screen.getByText(/currently unavailable/i)).toBeTruthy(),
+      expect(screen.getByText(/delivery isn't available right now, so nothing was sent/i)).toBeTruthy(),
     );
+    expect(screen.queryByText(/Code sent/)).toBeNull();
+    expect(document.body.textContent).not.toContain('TWILIO_NOT_CONFIGURED');
   });
 
   it('surfaces rate limiting with retry guidance', async () => {

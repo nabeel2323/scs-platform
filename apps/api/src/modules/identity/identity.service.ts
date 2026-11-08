@@ -22,8 +22,9 @@ import {
   permissions,
   credentialAuditLog,
   accountLinkLog,
+  deviceCredentials,
 } from './identity.schema';
-import { eq, and, desc, inArray, sql } from 'drizzle-orm';
+import { eq, and, desc, inArray, isNull, sql } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { validatePasswordStrength } from '../../common/utils/password-validation';
@@ -44,9 +45,62 @@ import {
   CLEANUP_CHALLENGE,
   VERIFY_AND_CONSUME,
 } from '../../common/redis/otp-lua';
+import type { DeviceTrustTransportInstruction } from '../../common/auth/device-trust-cookie';
 
 /** Feature flag key for email OTP (S1.35 Phase 1). */
 const FLAG_AUTH_EMAIL_OTP = 'auth.email_otp.enabled';
+
+/**
+ * Device-trust lifetimes (audit finding S-1 remediation; migration 0066).
+ *
+ * Two independent clocks, because they answer different questions:
+ *   - the SLIDING horizon answers "has this device been seen recently?" and is
+ *     pushed forward on every validated use, so an actively used browser is not
+ *     re-prompted every 30 days;
+ *   - the HARD ceiling answers "how long ago did this device prove itself with
+ *     a second factor?" and never moves, so continuous use cannot make an
+ *     OTP-free state permanent.
+ * The database CHECK on device_credentials enforces sliding <= hard, and the
+ * slide computation clamps to the ceiling, so neither can outlive the other.
+ */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEVICE_TRUST_SLIDING_DAYS = 30;
+const DEVICE_TRUST_HARD_DAYS = 90;
+const DEVICE_TRUST_SLIDING_MS = DEVICE_TRUST_SLIDING_DAYS * MS_PER_DAY;
+const DEVICE_TRUST_HARD_MS = DEVICE_TRUST_HARD_DAYS * MS_PER_DAY;
+
+/** Entropy of a minted credential: 32 bytes = 256 bits, base64url-encoded. */
+const DEVICE_CREDENTIAL_BYTES = 32;
+
+/**
+ * Device-check probe ceiling (S-2). The response is constant, so this limit is
+ * not an enumeration control any more — it bounds the cost one address can be
+ * made to impose (rate-limit round trip + audit write per call) when probes are
+ * distributed across source IPs, and it makes sustained probing observable in
+ * the logs.
+ */
+const DEVICE_CHECK_LIMIT = 20;
+const DEVICE_CHECK_WINDOW_SECONDS = 900;
+
+/**
+ * Outcome of validating a presented credential. Every value is a distinct
+ * reason the device is NOT trusted, except 'trusted'; callers only ever branch
+ * on `status === 'trusted'`, and the reason is used for logging and for the
+ * device list, never returned to an unauthenticated client.
+ */
+export type DeviceTrustStatus =
+  /** Nothing presented (no cookie, or no same-origin proof header). */
+  | 'absent'
+  /** The digest matches no credential row. */
+  | 'unknown'
+  /** Live, unexpired and owned by the expected account. */
+  | 'trusted'
+  /** Explicitly revoked — logout, session revocation, reuse detection, admin. */
+  | 'revoked'
+  /** Past the sliding horizon or the hard ceiling; recorded as revoked. */
+  | 'expired'
+  /** Resolves to a DIFFERENT account. Cross-user reuse: never trusted. */
+  | 'user_mismatch';
 
 /**
  * Roles assignable through the organization-membership endpoint
@@ -260,8 +314,11 @@ export class IdentityService {
    * Steps 1-5 are executed by `consumePhoneChallenge`, the same gate account
    * linking uses, so the verification rules cannot diverge between the two.
    *
-   * Persists deviceId on the session so the device becomes trusted
-   * for future email/password logins.
+   * A verified OTP IS the second factor, so this path enrols the browser: it
+   * mints a server-issued device credential (migration 0066) that the
+   * controller installs as an HttpOnly cookie. `deviceId` is stored on the
+   * session as provenance only — under the S-1 model it establishes no trust by
+   * itself.
    */
   async verifyOtp(
     phone: string,
@@ -269,7 +326,11 @@ export class IdentityService {
     deviceId?: string,
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    deviceTrust?: DeviceTrustTransportInstruction;
+  }> {
     // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure-limit
     // enforcement, rate-limit key cleanup) are delegated to consumePhoneChallenge
     // so that this login path and the account-linking path can never drift apart
@@ -315,7 +376,8 @@ export class IdentityService {
       jti: crypto.randomUUID(),
     });
 
-    // Store session (deviceId establishes device trust for password login)
+    // Store session. deviceId is provenance for revoke-by-device; it does not
+    // establish trust (S-1) — the credential minted below does.
     await this.db.db.insert(sessions).values({
       id: sessionId,
       userId,
@@ -336,7 +398,17 @@ export class IdentityService {
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
 
-    return { accessToken, refreshToken };
+    // Second factor satisfied -> enrol this device for future password logins.
+    const issued = await this.issueDeviceCredential(userId, {
+      sessionId,
+      label: deviceInfo?.platform ?? 'web',
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      deviceTrust: { credential: issued.credential, maxAgeSeconds: issued.maxAgeSeconds },
+    };
   }
 
   // ── Email OTP (S1.35 Phase 1) ───────────────────────────────
@@ -679,6 +751,9 @@ export class IdentityService {
    * Lifecycle mirrors phone verifyOtp but uses email-keyed Redis entries
    * and 300s challenge TTL. On success, resolves the user by email —
    * creating an email-only account if no user exists yet.
+   *
+   * Like the phone path, a verified OTP is the second factor, so the browser is
+   * enrolled with a server-issued device credential (S-1).
    */
   async verifyEmailOtp(
     rawEmail: string,
@@ -686,7 +761,11 @@ export class IdentityService {
     deviceId?: string,
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    deviceTrust?: DeviceTrustTransportInstruction;
+  }> {
     // Steps 1-5 (challenge read, HMAC compare, atomic consume, failure limits,
     // rate-limit key cleanup) live in consumeEmailChallenge so linking proves
     // mailbox control through exactly the same gate.
@@ -748,17 +827,38 @@ export class IdentityService {
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
 
-    return { accessToken, refreshToken };
+    const issued = await this.issueDeviceCredential(userId, {
+      sessionId,
+      label: deviceInfo?.platform ?? 'web',
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      deviceTrust: { credential: issued.credential, maxAgeSeconds: issued.maxAgeSeconds },
+    };
   }
 
   /**
    * Refresh access token using refresh token.
    * Rotation: issues new refresh token, revokes old one.
-   * Reuse detection: if old token already revoked, revoke entire chain.
+   * Reuse detection: if old token already revoked, revoke entire chain AND every
+   * device-trust credential for the account — a replayed refresh token means the
+   * token store is compromised, and the credential lives in the same browser, so
+   * the OTP exemption has to go with it (S-1 requirement 6).
+   *
+   * Device trust is preserved across refresh (requirement 9): a live presented
+   * credential is validated, slid, and re-issued as a cookie so an active user is
+   * never forced through OTP by a token rotation alone.
    */
   async refreshToken(
     refreshToken: string,
-  ): Promise<{ accessToken: string; newRefreshToken: string }> {
+    presentedCredential?: string | null,
+  ): Promise<{
+    accessToken: string;
+    newRefreshToken: string;
+    deviceTrust?: DeviceTrustTransportInstruction;
+  }> {
     const tokenHash = this.hashToken(refreshToken);
 
     const session = await this.db.db.query.sessions.findFirst({
@@ -769,6 +869,7 @@ export class IdentityService {
       // Reuse detected — revoke entire chain
       if (session?.revokedAt) {
         await this.revokeChain(session.userId);
+        await this.revokeAllDeviceCredentials(session.userId, 'ROTATION_REUSE');
       }
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -794,7 +895,7 @@ export class IdentityService {
       userId: session.userId,
       tokenHash: newTokenHash,
       device: session.device,
-      deviceId: session.deviceId, // Carry forward device trust (migration 0010)
+      deviceId: session.deviceId, // Provenance carried forward; trust is the credential, not this value
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
@@ -807,21 +908,86 @@ export class IdentityService {
       jti: crypto.randomUUID(),
     });
 
-    return { accessToken, newRefreshToken };
+    // Validate-and-slide the device credential the browser presented, so a
+    // rotation never costs a legitimate user their trusted-device status.
+    const trust = await this.validateDeviceCredential(presentedCredential, session.userId);
+
+    // Keep the session anchor pointing at the browser's LIVE session: rotation
+    // replaced the session row above, and a stale anchor would leave logout
+    // unable to find the credential this session earned (finding B6). Only a
+    // credential that just validated as trusted is moved.
+    if (trust.status === 'trusted') {
+      await this.anchorCredentialToSession(presentedCredential, session.userId, newSessionId);
+    }
+
+    return {
+      accessToken,
+      newRefreshToken,
+      deviceTrust: this.keepTrustedCredential(presentedCredential, trust),
+    };
   }
 
   /**
-   * Logout — revoke current session.
+   * Logout — revoke the current session, and (S-1, requirement 10) revoke the
+   * device-trust credential this browser is presenting.
+   *
+   * The previous model deliberately kept trust alive after logout ("has this
+   * device authenticated this user before"), which is unsafe on any browser
+   * profile more than one person can open: after logging out, the next person
+   * needed only the password, because the second factor was already waived by a
+   * value sitting in that profile's storage. Logout now ends the trust it
+   * created, and the cookie is cleared so the browser stops presenting a dead
+   * credential.
+   *
+   * The cost is explicit: the next login from this device asks for OTP once.
+   * Trust still survives refresh-token rotation and access-token expiry — only
+   * an actual logout (or revocation) ends it.
+   *
+   * Two independent paths end it, and logout applies both (finding B6):
+   *  1. the credential the request is PRESENTING, which needs the cookie plus the
+   *     proof header; and
+   *  2. the credential the session being closed ENROLLED, looked up by
+   *     device_credentials.created_by_session — a server-side link.
+   *
+   * Path 2 is what makes logout authoritative rather than courtesy. A request
+   * that carries no cookie (deliberately stripped, a cookie jar cleared by
+   * another tab, a non-browser client holding only the refresh token) used to
+   * close the session and leave the second-factor exemption alive in that
+   * browser's storage — the exact shared-profile case requirement 10 exists to
+   * close. Revocation stays ownership-bound: the session's user must match the
+   * credential's user, and credentials enrolled by other sessions (other
+   * devices) are untouched.
    */
-  async logout(refreshToken: string): Promise<{ success: boolean }> {
+  async logout(
+    refreshToken: string,
+    presentedCredential?: string | null,
+  ): Promise<{ success: boolean; deviceTrust?: DeviceTrustTransportInstruction }> {
     const tokenHash = this.hashToken(refreshToken);
+
+    // Resolve the owner first: credential revocation must be ownership-bound,
+    // so a logout cannot be used to revoke someone else's credential.
+    const session = await this.db.db.query.sessions.findFirst({
+      where: eq(sessions.tokenHash, tokenHash),
+    });
 
     await this.db.db
       .update(sessions)
       .set({ revokedAt: new Date() })
       .where(eq(sessions.tokenHash, tokenHash));
 
-    return { success: true };
+    // Path 2 first: what this session earned, whether or not anything was presented.
+    const anchored = session
+      ? (await this.revokeCredentialsBySession(session.id, session.userId)) > 0
+      : false;
+
+    const cleared =
+      (await this.revokePresentedCredential(
+        presentedCredential,
+        session?.userId ?? null,
+        'LOGOUT',
+      )) || anchored;
+
+    return { success: true, deviceTrust: cleared ? { clear: true } : undefined };
   }
 
   /**
@@ -1372,11 +1538,334 @@ export class IdentityService {
     }));
   }
 
+  // ── Device Trust (audit finding S-1 remediation; migration 0066) ──────
+
+  /**
+   * Mint a server-issued device credential and store ONLY its digest.
+   *
+   * Called after a second factor has actually been satisfied (OTP verified),
+   * never from a client-supplied identifier. The secret crosses the wire once,
+   * via a Set-Cookie header the controller applies (see AuthController), and is
+   * never written to a response body, an audit row or a log line.
+   *
+   * @param opts.sessionId the session whose authentication enrolled the device;
+   *        revoking that session de-trusts the device (requirement 5).
+   * @param opts.label non-secret display label for the device list.
+   */
+  async issueDeviceCredential(
+    userId: string,
+    opts: { sessionId?: string; label?: string } = {},
+  ): Promise<{ credential: string; maxAgeSeconds: number }> {
+    const credential = crypto
+      .randomBytes(DEVICE_CREDENTIAL_BYTES)
+      .toString('base64url');
+
+    const issuedAt = Date.now();
+    const expiresAt = new Date(issuedAt + DEVICE_TRUST_SLIDING_MS);
+    const hardExpiresAt = new Date(issuedAt + DEVICE_TRUST_HARD_MS);
+
+    await this.db.db.insert(deviceCredentials).values({
+      userId,
+      credentialHash: this.hashToken(credential),
+      // Truncated, not validated: it is display metadata only and never feeds
+      // a security decision, so it must never be able to fail a login.
+      deviceLabel: (opts.label ?? 'unlabelled').slice(0, 160),
+      createdBySession: opts.sessionId ?? null,
+      expiresAt,
+      hardExpiresAt,
+    });
+
+    return {
+      credential,
+      // The browser cookie must die with the absolute ceiling, not the sliding
+      // horizon: Max-Age is absolute, so a shorter cookie lifetime would drop a
+      // credential the server still considers live and re-prompt needless OTPs.
+      maxAgeSeconds: Math.floor((hardExpiresAt.getTime() - issuedAt) / 1000),
+    };
+  }
+
+  /**
+   * Validate a presented credential and, when it is live, slide its horizon.
+   *
+   * The lookup is by SHA-256 digest, so this function never holds the plaintext
+   * longer than the caller's own argument, and a database read cannot yield
+   * something replayable.
+   *
+   * Failure modes deliberately collapse into "not trusted": an unknown digest,
+   * a revoked digest, an expired digest and a digest belonging to another
+   * account all produce the same observable behaviour (OTP required), so the
+   * endpoint is not an oracle for "does this credential exist?".
+   */
+  async validateDeviceCredential(
+    presented: string | null | undefined,
+    userId: string,
+  ): Promise<{
+    status: DeviceTrustStatus;
+    expiresAt?: Date;
+    hardExpiresAt?: Date;
+  }> {
+    if (!presented) return { status: 'absent' };
+
+    const row = await this.db.db.query.deviceCredentials.findFirst({
+      where: eq(deviceCredentials.credentialHash, this.hashToken(presented)),
+    });
+
+    if (!row) return { status: 'unknown' };
+
+    // Cross-user reuse (requirement 8). The unique digest index means at most
+    // one account can own a credential; if that owner is not the account being
+    // authenticated, the presentation is rejected. The reason is logged without
+    // the identifier or the owner, and never returned to the client.
+    if (row.userId !== userId) {
+      this.logger.warn(
+        'Rejected a device-trust credential presented by a different account ' +
+          `(credential ${row.id} is not bound to the authenticating user)`,
+      );
+      return { status: 'user_mismatch' };
+    }
+
+    if (row.revokedAt) return { status: 'revoked' };
+
+    const now = Date.now();
+    if (now > row.hardExpiresAt.getTime() || now > row.expiresAt.getTime()) {
+      // Expire durably rather than just refusing: the row stops being a live
+      // entry, so the device list cannot show trust that does not exist and the
+      // digest cannot be re-activated by further presentations.
+      await this.db.db
+        .update(deviceCredentials)
+        .set({ revokedAt: new Date(now), revokedReason: 'EXPIRED' })
+        .where(eq(deviceCredentials.id, row.id));
+      return { status: 'expired' };
+    }
+
+    // Sliding use, clamped at the absolute ceiling (requirement 7).
+    const expiresAt = new Date(
+      Math.min(now + DEVICE_TRUST_SLIDING_MS, row.hardExpiresAt.getTime()),
+    );
+    await this.db.db
+      .update(deviceCredentials)
+      .set({ lastUsedAt: new Date(now), expiresAt })
+      .where(eq(deviceCredentials.id, row.id));
+
+    return { status: 'trusted', expiresAt, hardExpiresAt: row.hardExpiresAt };
+  }
+
+  /**
+   * Revoke one of the caller's own credentials by id (device list "remove").
+   * Scoped by user_id in the same statement, so an id belonging to another
+   * account revokes nothing and is reported as not found.
+   */
+  async revokeDeviceCredentialById(
+    userId: string,
+    credentialId: string,
+  ): Promise<{ success: boolean; revokedCount: number }> {
+    const result = await this.db.db
+      .update(deviceCredentials)
+      .set({ revokedAt: new Date(), revokedReason: 'MANUAL' })
+      .where(
+        and(
+          eq(deviceCredentials.id, credentialId),
+          eq(deviceCredentials.userId, userId),
+          isNull(deviceCredentials.revokedAt),
+        ),
+      );
+
+    const revokedCount = result['rowCount'] || 0;
+
+    // Recorded because "a device stopped being trusted" is a security-relevant
+    // change the account owner (or an investigator) will want to see, and it is
+    // the one event that explains a suddenly unexpected OTP prompt. No
+    // credential material, not even a digest prefix, is written here.
+    if (revokedCount > 0) {
+      await this.audit.record({
+        actorType: 'SYSTEM',
+        actorId: userId,
+        action: 'auth.device_trust_revoked',
+        resource: 'auth',
+        resourceId: credentialId,
+        metadata: { revokedCount, reason: 'MANUAL' },
+      });
+    }
+
+    return { success: true, revokedCount };
+  }
+
+  /**
+   * Revoke every live credential for an account.
+   *
+   * Two callers, one shared rule — the OTP exemption must not outlive the
+   * authentication it was earned by:
+   *  * refresh-token reuse detection (ROTATION_REUSE): a replayed refresh token
+   *    means the token store is compromised, and device trust lives in the same
+   *    browser, so the second-factor exemption is revoked with it (requirement 6).
+   *  * password change (PASSWORD_CHANGE): the credential that produced every
+   *    exemption was just replaced, so no browser keeps an OTP-free login path
+   *    built on the old secret (finding B5).
+   *
+   * Returns the number of credentials revoked so the caller can audit it.
+   */
+  async revokeAllDeviceCredentials(
+    userId: string,
+    reason:
+      | 'ROTATION_REUSE'
+      | 'MANUAL'
+      | 'SESSION_REVOKED'
+      | 'PASSWORD_CHANGE' = 'ROTATION_REUSE',
+  ): Promise<number> {
+    const result = await this.db.db
+      .update(deviceCredentials)
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(
+        and(
+          eq(deviceCredentials.userId, userId),
+          isNull(deviceCredentials.revokedAt),
+        ),
+      );
+    return result['rowCount'] || 0;
+  }
+
+  /**
+   * The caller's trusted-device list — non-secret fields only.
+   * `lastFour` of the digest is omitted entirely: even a truncated credential
+   * digest would give an attacker candidate material to brute-force against.
+   */
+  async listDeviceCredentials(userId: string) {
+    const rows = await this.db.db.query.deviceCredentials.findMany({
+      where: and(eq(deviceCredentials.userId, userId), isNull(deviceCredentials.revokedAt)),
+      orderBy: [desc(deviceCredentials.lastUsedAt)],
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      deviceLabel: row.deviceLabel,
+      createdAt: row.createdAt,
+      lastUsedAt: row.lastUsedAt,
+      expiresAt: row.expiresAt,
+      hardExpiresAt: row.hardExpiresAt,
+    }));
+  }
+
+  /**
+   * Keep a credential's session anchor pointing at the session the browser now
+   * holds, after rotation or a trusted password login replaced it.
+   *
+   * `created_by_session` is what lets logout de-trust a browser that presents
+   * nothing (finding B6), and a browser's session row is short-lived: rotation
+   * replaces it every refresh, and a trusted password login creates a new one.
+   * An anchor that only ever names the enrolment session would be stale within
+   * minutes, so the link is maintained rather than frozen at enrolment.
+   *
+   * Who can move an anchor, and why that is acceptable: only a request that
+   * presents the credential itself AND passes the ownership check — i.e. the
+   * browser that already holds the second-factor exemption. The anchor is a
+   * lookup key for de-trust, never a proof of trust: `validateDeviceCredential`
+   * ignores it entirely, so moving it cannot grant, extend or weaken trust for
+   * any request. If a credential is suspected copied, revoke account-wide
+   * (password change, B5) or per-device from the device list; neither depends
+   * on where the anchor currently points.
+   */
+  private async anchorCredentialToSession(
+    presented: string | null | undefined,
+    userId: string,
+    sessionId: string,
+  ): Promise<void> {
+    if (!presented) return;
+    await this.db.db
+      .update(deviceCredentials)
+      .set({ createdBySession: sessionId })
+      .where(
+        and(
+          eq(deviceCredentials.credentialHash, this.hashToken(presented)),
+          eq(deviceCredentials.userId, userId),
+        ),
+      );
+  }
+
+  /**
+   * Revoke the live credential that a specific session enrolled, identified by
+   * `device_credentials.created_by_session`.
+   *
+   * Nothing here is client-influenced: the caller passes the id of the session
+   * row this request resolved from its own refresh-token digest, and the write is
+   * bound to that session's user. So a logout (or a device sign-out) de-trusts
+   * exactly the browser that earned it through that session, and cannot reach
+   * another device's credential or another account's.
+   *
+   * @returns the number of credentials revoked (0 when the session enrolled none).
+   */
+  private async revokeCredentialsBySession(
+    sessionId: string,
+    userId: string,
+    reason: 'LOGOUT' = 'LOGOUT',
+  ): Promise<number> {
+    const result = await this.db.db
+      .update(deviceCredentials)
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(
+        and(
+          eq(deviceCredentials.createdBySession, sessionId),
+          eq(deviceCredentials.userId, userId),
+          isNull(deviceCredentials.revokedAt),
+        ),
+      );
+    return result['rowCount'] || 0;
+  }
+
+  /**
+   * Revoke the credential a browser is presenting, if it belongs to this
+   * account. Returns whether a cookie should be cleared from the response.
+   *
+   * Ownership is re-checked before the write, so a presented digest that lives
+   * under another account is left untouched (and untrusted) rather than being a
+   * remote revocation primitive against other users.
+   */
+  private async revokePresentedCredential(
+    presented: string | null | undefined,
+    userId: string | null,
+    reason: 'LOGOUT' | 'MANUAL',
+  ): Promise<boolean> {
+    if (!presented || !userId) return false;
+
+    const row = await this.db.db.query.deviceCredentials.findFirst({
+      where: eq(deviceCredentials.credentialHash, this.hashToken(presented)),
+    });
+    if (!row) return true; // nothing to revoke; still retire the dead cookie
+    if (row.userId !== userId) return false; // not ours to revoke
+
+    await this.db.db
+      .update(deviceCredentials)
+      .set({ revokedAt: new Date(), revokedReason: reason })
+      .where(and(eq(deviceCredentials.id, row.id), isNull(deviceCredentials.revokedAt)));
+
+    return true;
+  }
+
+  /**
+   * Translate a trusted presentation into the transport instruction that keeps
+   * the browser cookie in sync with the server-side slide, clamped at the
+   * absolute ceiling.
+   */
+  private keepTrustedCredential(
+    presented: string | null | undefined,
+    trust: { hardExpiresAt?: Date },
+  ): DeviceTrustTransportInstruction | undefined {
+    if (!presented || !trust.hardExpiresAt) return undefined;
+    const remaining = Math.floor((trust.hardExpiresAt.getTime() - Date.now()) / 1000);
+    if (remaining <= 0) return { clear: true };
+    return { credential: presented, maxAgeSeconds: remaining };
+  }
+
   // ── Dual Authentication (Password Login) ──────────────────
 
   /**
    * Login with email and password.
-   * Checks device trust and requires OTP if device changed.
+   *
+   * Device trust (S-1 remediation): a request is treated as coming from a
+   * trusted device ONLY when it presents a server-issued credential that
+   * validates for this exact account. The `deviceId` argument is retained
+   * purely as session provenance (which session row to attach, and what
+   * `revoke-by-device` can later target); it has no influence on the trust
+   * decision, so copying a UUID from another browser buys nothing.
    */
   async loginWithPassword(
     rawEmail: string,
@@ -1384,12 +1873,20 @@ export class IdentityService {
     deviceId: string,
     deviceInfo?: { platform: string; userAgent: string },
     context?: AuditRequestContext,
+    presentedCredential?: string | null,
   ): Promise<{
     accessToken: string;
     refreshToken: string;
     requiresOtp?: boolean;
     otpPhone?: string;
     otpEmail?: string;
+    /**
+     * Only set on the OTP-challenge branch. 'accepted' = a provider confirmed
+     * the send; 'uncertain' = the request is live but delivery is unproven.
+     * Clients must not write "code sent" for the second one.
+     */
+    otpDelivery?: 'accepted' | 'uncertain';
+    deviceTrust?: DeviceTrustTransportInstruction;
   }> {
     // Normalize through the same rule the email OTP path uses, so one identity
     // has one rate-limit bucket and one lookup key across both auth methods
@@ -1445,20 +1942,52 @@ export class IdentityService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // Check device trust
-    const isTrustedDevice = await this.checkDeviceTrust(user.id, deviceId);
+    // Device trust is decided ONLY by a server-issued credential (S-1). The
+    // client-supplied deviceId is not consulted here: it is written to the
+    // session as provenance and used by revoke-by-device, nothing more.
+    const trust = await this.validateDeviceCredential(presentedCredential, user.id);
+    const isTrustedDevice = trust.status === 'trusted';
 
     if (!isTrustedDevice) {
       // Device not trusted - require OTP verification.
-      // Prefer phone (existing behaviour); fall back to email for email-only accounts.
+      //
+      // Email-only staging release: the second factor follows the channels this
+      // release PERMITS, not the shape of the account. The historical rule was
+      // "prefer phone, fall back to email for email-only accounts", which under
+      // `OTP_CHANNELS=email` locks out every account that happens to have a phone
+      // number — the SMS send is refused as a disabled channel, that counts as a
+      // definite delivery failure, and login throws while a working email channel
+      // sits unused.
+      //
+      // Phone keeps its historical precedence when it is genuinely usable, so a
+      // later phase that re-enables SMS restores the previous behaviour unchanged
+      // (requirement 11). "Usable" means permitted AND configured: an operator who
+      // lists `sms` without Twilio credentials must not lose the email path.
+      //
+      // This is channel SELECTION, not fallback. Exactly one request is made, and
+      // a failed send on the chosen channel is never retried on the other one
+      // (requirement 4).
       let otpResult: { success: boolean; deliveryStatus: string; possiblyDelivered?: boolean };
       let otpChannel: 'phone' | 'email' = 'phone';
 
-      if (user.phone) {
-        otpResult = await this.requestOtp(user.phone);
-      } else if (user.email) {
+      const phoneUsable =
+        !!user.phone &&
+        this.providerRegistry.isChannelPermitted('sms') &&
+        this.providerRegistry.isChannelAvailable('sms');
+      const emailUsable =
+        !!user.email && this.providerRegistry.isChannelPermitted('email');
+
+      if (phoneUsable) {
+        otpResult = await this.requestOtp(user.phone as string);
+      } else if (emailUsable) {
         otpResult = await this.requestEmailOtp(user.email as string, context?.ip ?? undefined);
         otpChannel = 'email';
+      } else if (user.phone || user.email) {
+        // The account has an identifier, but no permitted channel can carry a
+        // code to it. Say so without disclosing which identifiers exist.
+        throw new UnauthorizedException(
+          'OTP delivery is currently unavailable. Please contact support or use a trusted device.',
+        );
       } else {
         throw new UnauthorizedException(
           'Account has no phone or email for OTP delivery. Contact support.',
@@ -1475,12 +2004,14 @@ export class IdentityService {
       // The user may have received the OTP and should be allowed to verify.
 
       // Password was correct but the device is unknown — record the challenge.
+      // The reason is stored as a coarse status: it explains the challenge to an
+      // investigator without turning the response into an oracle.
       await this.audit.record({
         actorType: 'SYSTEM',
         actorId: user.id,
         action: 'auth.otp_challenge',
         resource: 'auth',
-        metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, reason: 'untrusted_device' },
+        metadata: { method: 'password', emailHash: hashIdentifier(email, this.hmacSecret, 'email'), deviceId, reason: trust.status },
         ip: context?.ip,
         userAgent: context?.userAgent ?? deviceInfo?.userAgent,
       });
@@ -1489,6 +2020,9 @@ export class IdentityService {
         accessToken: '',
         refreshToken: '',
         requiresOtp: true,
+        // A browser still presenting a dead credential is told to drop it, so a
+        // revoked or expired value cannot be re-attempted on every login.
+        deviceTrust: presentedCredential ? { clear: true } : undefined,
         // NOTE: otpPhone returns the full phone number (not masked) because the
         // client needs it for OTP verification — the verify endpoint looks up the
         // challenge by phone. The user already authenticated with the correct
@@ -1497,6 +2031,10 @@ export class IdentityService {
         // the email directly from the request body.
         otpPhone: otpChannel === 'phone' ? (user.phone ?? undefined) : undefined,
         otpEmail: otpChannel === 'email' ? maskEmail(user.email ?? '') : undefined,
+        // Tells the client whether it may say "code sent". Definite failures
+        // threw above, so `success === false` here can only mean the unconfirmed
+        // timeout case — which the UI must present as uncertainty, not delivery.
+        otpDelivery: otpResult.success ? ('accepted' as const) : ('uncertain' as const),
       };
     }
 
@@ -1527,6 +2065,13 @@ export class IdentityService {
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
+    // This login was authenticated by the credential, so the credential's
+    // session anchor moves to the session just created. Without it, a browser
+    // that enrolled long ago would log out of a session its credential never
+    // named, and the session-anchored half of logout revocation (finding B6)
+    // would find nothing.
+    await this.anchorCredentialToSession(presentedCredential, user.id, sessionId);
+
     // Reset rate limit on successful login
     await this.rateLimitService.resetAttempts('password_login', email);
 
@@ -1541,30 +2086,32 @@ export class IdentityService {
       userAgent: context?.userAgent ?? deviceInfo?.userAgent,
     });
 
-    return { accessToken, refreshToken };
+    // The credential was already validated-and-slided above; re-set the same
+    // secret so the browser's absolute Max-Age tracks the new horizon, clamped
+    // at the hard ceiling. No new credential is minted on a trusted login:
+    // minting one per login would let an attacker who can read the response
+    // body... which they cannot, but it would also pile up live rows for one
+    // physical device.
+    return {
+      accessToken,
+      refreshToken,
+      deviceTrust: this.keepTrustedCredential(presentedCredential, trust),
+    };
   }
 
   /**
-   * Check if device is trusted for a user.
-   * Trusted if device_id has authenticated this user within 30 days.
-   * NOTE: We check ALL sessions (including revoked) because logout revokes
-   * sessions but shouldn't break device trust. The trust is based on
-   * "has this device authenticated this user before", not "is there an active session".
+   * `checkDeviceTrust(userId, deviceId)` is REMOVED (audit finding S-1).
+   *
+   * It answered "has any session ever carried this client-supplied UUID for
+   * this user within 30 days", so the trust anchor was a value the browser
+   * invented in localStorage. Anyone who obtained one — a copied string, a
+   * logged header, an XSS-read device id — permanently skipped the second
+   * factor, and revoking a session did not revoke the trust it had created.
+   * There is deliberately no compatibility shim: the replacement is
+   * {@link validateDeviceCredential}, which only accepts a credential this
+   * server issued. A legacy UUID-bearing request therefore evaluates as
+   * `absent` and is required to verify OTP once.
    */
-  async checkDeviceTrust(userId: string, deviceId: string): Promise<boolean> {
-    const lastSession = await this.db.db.query.sessions.findFirst({
-      where: and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)),
-      orderBy: [desc(sessions.createdAt)],
-    });
-
-    if (!lastSession) {
-      return false;
-    }
-
-    // Check if device authenticated this user within 30 days
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    return lastSession.createdAt > thirtyDaysAgo;
-  }
 
   /**
    * Set up email and password credentials for a user.
@@ -1622,9 +2169,18 @@ export class IdentityService {
     // Log audit entry
     await this.logCredentialAudit(userId, 'CREDENTIAL_SETUP', deviceId);
 
-    // NOTE: Do NOT revoke existing sessions here. The OTP session that established
-    // device trust (with deviceId) must remain valid so password login works.
-    // Revoking it would break device trust and force OTP on every login.
+    // NOTE: Do NOT revoke existing sessions here.
+    //
+    // Corrected for the S-1 model: the comment used to justify this by saying the
+    // OTP session "established device trust (with deviceId)", which is the
+    // pre-remediation claim the audit rejected. Trust comes from the credential
+    // minted by that OTP verification (device_credentials.created_by_session), not
+    // from the session row or the client-supplied deviceId. What is still true, and
+    // is the reason the behaviour stays, is that the caller is authenticated by
+    // this very session — revoking it would kill the access and refresh tokens in
+    // use mid-request. Setting a password for the first time is not a compromise
+    // event, so neither sessions nor credentials are revoked here; contrast
+    // changePassword, which revokes both (finding B5).
 
     return { success: true, message: 'Credentials set up successfully' };
   }
@@ -1682,7 +2238,44 @@ export class IdentityService {
     // Log audit entry
     await this.logCredentialAudit(userId, 'PASSWORD_CHANGE', deviceId);
 
-    // Invalidate all other sessions (keep current device if specified)
+    // Every device-trust credential this account holds is revoked (finding B5).
+    // The exemption means "this browser already completed the second factor",
+    // and that conclusion was reached using the secret that has just been
+    // replaced — including in the case that motivated the finding: an account
+    // whose owner changed the password because the device or the old password
+    // may have been compromised. Keeping the exemption alive there would let the
+    // next password-only login skip OTP exactly as before. A previously trusted
+    // browser therefore gets one OTP challenge on its next login.
+    //
+    // This runs only on the success path: an incorrect current password, a
+    // rejected strength check or an unknown user all throw above, so a failed
+    // password change revokes nothing.
+    const deTrustedCount = await this.revokeAllDeviceCredentials(
+      userId,
+      'PASSWORD_CHANGE',
+    );
+    if (deTrustedCount > 0) {
+      await this.audit.record({
+        actorType: 'SYSTEM',
+        actorId: userId,
+        action: 'auth.device_trust_revoked',
+        resource: 'auth',
+        metadata: { revokedCount: deTrustedCount, reason: 'PASSWORD_CHANGE' },
+      });
+    }
+
+    // Sessions (behaviour unchanged from the baseline; only the comment is
+    // corrected). Naming a device revokes the sessions recorded under that
+    // client-supplied `deviceId` — the caller's own device — and leaves other
+    // devices signed in; naming none revokes every session for the account. The
+    // previous comment ("keep current device if specified") described the
+    // opposite of the code below, which is why it is gone rather than the code.
+    //
+    // Known asymmetry, recorded rather than silently fixed: session revocation is
+    // `deviceId`-scoped while credential revocation above is account-wide, so a
+    // password change signs other browsers out of trust but not out of their
+    // access/refresh sessions. Changing that is a session-semantics change
+    // outside this finding's scope.
     if (deviceId) {
       await this.db.db
         .update(sessions)
@@ -1711,33 +2304,60 @@ export class IdentityService {
   }
 
   /**
-   * Check if device can auto-login for a given email.
-   * Pre-flight check before showing login form.
+   * Device-check pre-flight (audit finding S-2) — a CONSTANT acknowledgement.
+   *
+   * WHAT IT USED TO LEAK
+   * The old body answered `{canAutoLogin, requiresOtp, hasPassword}` from an
+   * unauthenticated POST. `hasPassword: false` distinguished "no such account"
+   * from "account with no password", and `canAutoLogin: true` confirmed that a
+   * specific address exists AND has an already-trusted device, so an attacker
+   * could enumerate accounts, then pick the ones whose second factor was
+   * password-only, then aim the OTP endpoints at the ones that were not — with
+   * no credential required and, before this change, no throttler of its own.
+   *
+   * WHY REMOVING THE FIELDS COSTS NOTHING
+   * No client ever read them: both the admin and the web login pages awaited
+   * the call and discarded the result, and device trust is now carried by the
+   * server-issued cookie, which the browser presents automatically. The login
+   * flow therefore works exactly as before — `POST /v1/auth/login/password`
+   * still decides trust and still returns `requiresOtp` when it must.
+   *
+   * The identifier is normalized with the same rule every other auth path uses
+   * (so `A@B.com` and `a@b.com` cannot be told apart by rate-limit buckets), and
+   * the audit/security log records only a keyed hash of it.
    */
-  async checkDeviceLogin(
-    email: string,
-    deviceId: string,
-  ): Promise<{ canAutoLogin: boolean; requiresOtp: boolean; hasPassword: boolean }> {
-    const user = await this.db.db.query.users.findFirst({
-      where: eq(users.email, email),
+  async checkDeviceLogin(rawEmail: string): Promise<{ checked: true }> {
+    const email = normalizeEmail(rawEmail);
+
+    // Per-identifier backstop on top of the per-IP ThrottlerGuard: one address
+    // cannot be probed in bulk even from a pool of source IPs, and the answer
+    // does not change, so exceeding the limit is indistinguishable from being
+    // allowed.
+    const rateCheck = await this.rateLimitService.checkAndIncrement(
+      'device_check',
+      email,
+      DEVICE_CHECK_LIMIT,
+      DEVICE_CHECK_WINDOW_SECONDS,
+    );
+    if (!rateCheck.allowed) {
+      this.logger.warn(
+        `Device-check limit reached for identifier ${hashIdentifier(email, this.hmacSecret, 'email')}`,
+      );
+    }
+
+    await this.audit.record({
+      actorType: 'SYSTEM',
+      action: 'auth.device_check',
+      resource: 'auth',
+      // Hashed only: this endpoint is reachable unauthenticated, so a raw
+      // address here would turn the audit trail into the enumeration store the
+      // response stopped being. The caller's deviceId is not recorded at all —
+      // under the S-1 model it drives no decision, so logging it would add an
+      // identifier without adding investigative value.
+      metadata: { emailHash: hashIdentifier(email, this.hmacSecret, 'email') },
     });
 
-    if (!user) {
-      return { canAutoLogin: false, requiresOtp: true, hasPassword: false };
-    }
-
-    const hasPassword = !!user.passwordHash;
-    if (!hasPassword) {
-      return { canAutoLogin: false, requiresOtp: true, hasPassword: false };
-    }
-
-    const isTrustedDevice = await this.checkDeviceTrust(user.id, deviceId);
-
-    return {
-      canAutoLogin: isTrustedDevice,
-      requiresOtp: !isTrustedDevice,
-      hasPassword: true,
-    };
+    return { checked: true };
   }
 
   /**
@@ -1762,18 +2382,49 @@ export class IdentityService {
   }
 
   /**
-   * Revoke sessions by device ID.
+   * Revoke sessions by device id, and de-trust the devices they enrolled.
+   *
+   * `deviceId` here is the operator-facing handle for "this browser": the
+   * client-supplied value stored on session rows as provenance. Revoking the
+   * sessions it names used to leave the trust behind — the credential minted by
+   * one of those very sessions kept granting OTP-free logins after the user
+   * clicked "sign this device out". Both halves now go together (S-1
+   * requirement 6), keyed on device_credentials.created_by_session, which is
+   * the server-side link the client cannot influence.
    */
   async revokeSessionsByDevice(
     userId: string,
     deviceId: string,
-  ): Promise<{ success: boolean; revokedCount: number }> {
+  ): Promise<{ success: boolean; revokedCount: number; deTrustedCount: number }> {
+    const matching = await this.db.db.query.sessions.findMany({
+      where: and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)),
+      columns: { id: true },
+    });
+
     const result = await this.db.db
       .update(sessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceId)));
 
-    return { success: true, revokedCount: result['rowCount'] || 0 };
+    let deTrustedCount = 0;
+    if (matching.length > 0) {
+      const revoked = await this.db.db
+        .update(deviceCredentials)
+        .set({ revokedAt: new Date(), revokedReason: 'SESSION_REVOKED' })
+        .where(
+          and(
+            inArray(deviceCredentials.createdBySession, matching.map((s) => s.id)),
+            isNull(deviceCredentials.revokedAt),
+          ),
+        );
+      deTrustedCount = revoked['rowCount'] || 0;
+    }
+
+    return {
+      success: true,
+      revokedCount: result['rowCount'] || 0,
+      deTrustedCount,
+    };
   }
 
   // ── Account Linking / Unlinking (S1.35 Phase 1) ────────────

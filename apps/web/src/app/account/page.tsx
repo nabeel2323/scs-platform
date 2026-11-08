@@ -6,7 +6,37 @@ import Link from 'next/link';
 import { fetchProfile, updateProfile, fetchMyOrganizations, fetchDevices, unregisterDevice, UserProfile, DeviceToken } from '../../lib/buyer-api';
 import { isAuthenticated, switchOrg, hasMerchantAccess, requestEmailOtp, requestOtp, linkEmail, linkPhone, unlinkEmail, unlinkPhone } from '../../lib/auth';
 import { ErrorBanner } from '../../components/Shared';
+import { classifyOtpDelivery, type OtpDeliveryOutcome } from '@scs/contracts';
 import { PageHeader, colors, radii } from '@scs/ui-kit';
+
+/**
+ * What the user is told when an OTP request was NOT accepted.
+ *
+ * A 2xx from the request route means "processed", not "sent" — the provider's
+ * answer travels in the body. Mirrors the login page's wording so the two
+ * surfaces cannot drift apart.
+ */
+function linkDeliveryMessage(
+  outcome: Exclude<OtpDeliveryOutcome, 'delivered'>,
+  destination: string,
+  channelLabel: string,
+): string {
+  switch (outcome) {
+    case 'unavailable':
+      return `${channelLabel} delivery isn't available right now, so nothing was sent to ${destination}.`;
+    case 'uncertain':
+      return `We couldn't confirm that a code reached ${destination}. It may still arrive — if it does, you can enter it.`;
+    default:
+      return `The code couldn't be sent to ${destination}. Check the address and try again.`;
+  }
+}
+
+/** Label shown next to the code field once a challenge exists. */
+function linkDeliveryLabel(note: 'sent' | 'uncertain', destination: string): string {
+  return note === 'sent'
+    ? `Code sent to ${destination}`
+    : `Code not confirmed for ${destination} — it may still arrive`;
+}
 
 export default function AccountPage() {
   const router = useRouter();
@@ -25,10 +55,12 @@ export default function AccountPage() {
   const [linkEmailAddr, setLinkEmailAddr] = useState('');
   const [linkEmailOtp, setLinkEmailOtp] = useState('');
   const [linkEmailStage, setLinkEmailStage] = useState<'idle' | 'verify'>('idle');
+  const [linkEmailNote, setLinkEmailNote] = useState<'sent' | 'uncertain'>('sent');
   const [linkEmailError, setLinkEmailError] = useState('');
   const [linkPhoneNum, setLinkPhoneNum] = useState('');
   const [linkPhoneOtp, setLinkPhoneOtp] = useState('');
   const [linkPhoneStage, setLinkPhoneStage] = useState<'idle' | 'verify'>('idle');
+  const [linkPhoneNote, setLinkPhoneNote] = useState<'sent' | 'uncertain'>('sent');
   const [linkPhoneError, setLinkPhoneError] = useState('');
   const [linkAction, setLinkAction] = useState<string | null>(null);
   const [linkSuccess, setLinkSuccess] = useState('');
@@ -100,8 +132,15 @@ export default function AccountPage() {
     if (!linkEmailAddr) return;
     setLinkAction('req-email');
     try {
-      await requestEmailOtp(linkEmailAddr);
-      setLinkEmailStage('verify');
+      // Only an accepted send is a send. An uncertain outcome still leaves a
+      // live challenge, so code entry is offered but labelled unconfirmed.
+      const outcome = classifyOtpDelivery(await requestEmailOtp(linkEmailAddr));
+      if (outcome === 'delivered' || outcome === 'uncertain') {
+        setLinkEmailNote(outcome === 'delivered' ? 'sent' : 'uncertain');
+        setLinkEmailStage('verify');
+      } else {
+        setLinkEmailError(linkDeliveryMessage(outcome, linkEmailAddr, 'Email'));
+      }
     } catch (err: any) {
       setLinkEmailError(err.message || 'Failed to send OTP');
     } finally { setLinkAction(null); }
@@ -132,8 +171,16 @@ export default function AccountPage() {
     if (!linkPhoneNum) return;
     setLinkAction('req-phone');
     try {
-      await requestOtp(linkPhoneNum, 'sms');
-      setLinkPhoneStage('verify');
+      // Phone linking stays available for the future SMS phase, but under the
+      // email-only release the API answers SMS_CHANNEL_DISABLED. That must be
+      // reported as "nothing was sent", never as a code on its way.
+      const outcome = classifyOtpDelivery(await requestOtp(linkPhoneNum, 'sms'));
+      if (outcome === 'delivered' || outcome === 'uncertain') {
+        setLinkPhoneNote(outcome === 'delivered' ? 'sent' : 'uncertain');
+        setLinkPhoneStage('verify');
+      } else {
+        setLinkPhoneError(linkDeliveryMessage(outcome, linkPhoneNum, 'SMS'));
+      }
     } catch (err: any) {
       setLinkPhoneError(err.message || 'Failed to send OTP');
     } finally { setLinkAction(null); }
@@ -295,7 +342,7 @@ export default function AccountPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>Code sent to {linkEmailAddr}</span>
+                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>{linkDeliveryLabel(linkEmailNote, linkEmailAddr)}</span>
                   <input type="text" value={linkEmailOtp} onChange={e => setLinkEmailOtp(e.target.value)} placeholder="123456" maxLength={6} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
                   <button onClick={handleLinkEmail} disabled={!linkEmailOtp || linkAction === 'link-email'}
                     style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
@@ -340,7 +387,7 @@ export default function AccountPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>Code sent to {linkPhoneNum}</span>
+                  <span style={{ fontSize: 12, color: colors.muted, whiteSpace: 'nowrap' }}>{linkDeliveryLabel(linkPhoneNote, linkPhoneNum)}</span>
                   <input type="text" value={linkPhoneOtp} onChange={e => setLinkPhoneOtp(e.target.value)} placeholder="123456" maxLength={6} style={{ ...inputStyle, marginBottom: 0, flex: 1 }} />
                   <button onClick={handleLinkPhone} disabled={!linkPhoneOtp || linkAction === 'link-phone'}
                     style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: '#065f46', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>

@@ -28,6 +28,9 @@ describe('OTP Delivery Timeout Handling (S1.2)', () => {
         authToken: 'test-token',
         fromNumber: '+15551234567',
         enabled: true,
+        // Channel permission is now a separate axis from credential presence.
+        // These timeout cases supply credentials and assume they are used.
+        credentialsPresent: true,
       };
       provider = new TwilioSmsProvider(config);
     });
@@ -131,6 +134,7 @@ describe('OTP Delivery Timeout Handling (S1.2)', () => {
         templateName: 'authentication',
         apiVersion: 'v18.0',
         enabled: true,
+        credentialsPresent: true,
       };
       provider = new WhatsAppProvider(config);
     });
@@ -210,6 +214,9 @@ describe('OTP Delivery Timeout Handling (S1.2)', () => {
     let service: OtpDeliveryService;
 
     beforeEach(() => {
+      // Permission is explicit since the email-only release: credentials alone
+      // no longer enable a channel, so these pass-through tests name the allowlist.
+      process.env['OTP_CHANNELS'] = 'email,sms,whatsapp';
       process.env['TWILIO_ACCOUNT_SID'] = 'ACtest';
       process.env['TWILIO_AUTH_TOKEN'] = 'token';
       process.env['TWILIO_FROM_NUMBER'] = '+15551234567';
@@ -221,6 +228,7 @@ describe('OTP Delivery Timeout Handling (S1.2)', () => {
     });
 
     afterEach(() => {
+      delete process.env['OTP_CHANNELS'];
       delete process.env['TWILIO_ACCOUNT_SID'];
       delete process.env['TWILIO_AUTH_TOKEN'];
       delete process.env['TWILIO_FROM_NUMBER'];

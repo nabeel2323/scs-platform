@@ -44,6 +44,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: ctl.routerPush, replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
+// Several cases below prove the preserved Phone OTP tab still works (the dormant
+// path a future SMS phase re-enables). The email-only release hides it behind
+// PHONE_OTP_UI_ENABLED=false, so mock the flag true to keep those cases green.
+vi.mock('@/lib/auth-channels', () => ({ PHONE_OTP_UI_ENABLED: true }));
+
 vi.mock('@/lib/auth', () => ({
   requestOtp: (...args: unknown[]) => ctl.requestOtp(...args),
   verifyOtp: (...args: unknown[]) => ctl.verifyOtp(...args),
@@ -103,7 +108,9 @@ describe('Login — Email OTP tab (S1.38.2)', () => {
     ctl.requestEmailOtp.mockReset();
     ctl.verifyEmailOtp.mockReset();
     ctl.loginPassword.mockReset();
-    ctl.checkDeviceLogin.mockReset().mockResolvedValue({ trusted: false });
+    // The page must never call this (finding S-2 removed the mount probe); the
+    // spy exists so login-device-trust.test.tsx can prove it stays uncalled.
+    ctl.checkDeviceLogin.mockReset();
     ctl.fetchProfile.mockReset().mockResolvedValue({ organizations: [{ id: 'o1' }] });
     ctl.routerPush.mockReset();
     // localStorage in jsdom persists across tests unless cleared.
@@ -271,9 +278,12 @@ describe('Login — Email OTP tab (S1.38.2)', () => {
   it('reaching the verify stage from a stale Phone OTP session shows only the email form', async () => {
     // Password login on an untrusted device leaves otpStage === 'verify'; the
     // Email OTP tab must not inherit that phone verify panel.
+    // otpDelivery 'accepted' is what the API reports when its own send was
+    // accepted — without it the page correctly refuses to claim a code was sent.
     ctl.loginPassword.mockResolvedValue({
       requiresOtp: true,
       otpPhone: '+966500000009',
+      otpDelivery: 'accepted',
     });
     render(<LoginPage />);
     fireEvent.change(screen.getByPlaceholderText(EMAIL_FIELD), {

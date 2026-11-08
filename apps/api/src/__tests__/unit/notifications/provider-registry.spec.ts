@@ -38,6 +38,9 @@ describe('ProviderRegistryService', () => {
   });
 
   function setAllProvidersConfigured() {
+    // Permission is explicit since the email-only release: credentials alone no
+    // longer enable a channel, so this helper names the full allowlist.
+    process.env['OTP_CHANNELS'] = 'email,sms,whatsapp';
     process.env['TWILIO_ACCOUNT_SID'] = 'ACtest';
     process.env['TWILIO_AUTH_TOKEN'] = 'token';
     process.env['TWILIO_FROM_NUMBER'] = '+15551234567';
