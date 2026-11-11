@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { isAuthenticated, getUser, logout } from '../lib/auth';
+import './AdminSidebar.css';
 import {
   IconHome, IconUsers, IconPackage, IconStore, IconBuilding,
   IconShield, IconFolder, IconTag, IconScale, IconBox,
@@ -87,17 +88,6 @@ export function AdminSidebar() {
 
   const sidebarContent = (
     <>
-      <style>{`
-        .admin-sidebar-nav::-webkit-scrollbar { width: 4px; }
-        .admin-sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
-        .admin-sidebar-link { display: flex; align-items: center; gap: 10px; text-decoration: none; transition: background 0.15s ease, color 0.15s ease; position: relative; }
-        .admin-sidebar-link:hover { background: rgba(255,255,255,0.08); }
-        .admin-sidebar-link[data-active="true"] { background: rgba(255,255,255,0.12); }
-        .admin-sidebar-link[data-active="true"]::before { content: ''; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3px; background: #38bdf8; border-radius: 0 2px 2px 0; }
-        .admin-sidebar-tooltip { display: none; position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); background: #0c2831; color: #fff; font-size: 12px; padding: 4px 10px; border-radius: 4px; white-space: nowrap; z-index: 1001; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .admin-sidebar-collapsed .admin-sidebar-link:hover .admin-sidebar-tooltip { display: block; }
-      `}</style>
-
       {/* Header */}
       <div style={{ padding: collapsed && !isMobile ? '24px 12px 20px' : '24px 20px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: collapsed && !isMobile ? 'center' : 'space-between' }}>
         {(!collapsed || isMobile) && (

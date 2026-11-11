@@ -170,6 +170,64 @@ jobs:
           name: coverage-unit
           path: apps/api/coverage/
 
+  # ---- Web & Admin App Tests (Phase 1 hydration remediation) ----
+  #
+  # Why this job exists: before Phase 1 the CI pipeline ran only the API suites
+  # (`test-unit` and `test-integration` both target @scs/api) and the root
+  # `pnpm test` task was never invoked. `lint` does run `pnpm lint` +
+  # `pnpm typecheck` over every package through turbo, so the two Next apps were
+  # type-checked and linted but had no test gate at all -- a regression in the
+  # root-layout CSS or the Admin dashboard clock could have merged green.
+  #
+  # It gates PR/push checks only. Nothing here touches the release path:
+  # `trigger-staging-release` still calls release.yml unchanged, and the `build`
+  # job's `needs` list is unchanged, so this adds a check rather than re-wiring
+  # an existing one.
+  test-web-admin:
+    name: Web & Admin App Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Both apps import the generated client from @scs/contracts, whose
+      # package.json resolves to ./dist/src/index.js -- the built output, not the
+      # source (@scs/ui-kit and @scs/env resolve to src and need no build). These
+      # steps bypass turbo so the vitest command lines stay explicit, which also
+      # means the dependency build that turbo's `test` task would pull in through
+      # `dependsOn: ['^build']` has to happen here instead. Same reasoning the
+      # integration job documents at S1.28 D-CI-3.
+      - run: pnpm contracts:build
+      # apps/web: the whole suite runs. It was green at the Phase 1 baseline, and
+      # Phase 1 added the Buyer document-root hydration specs to it.
+      - run: pnpm --filter @scs/web test
+      # apps/admin: position-filtered to the Phase 1 files rather than the whole
+      # package, because 2 tests in src/__tests__/management.test.tsx were
+      # already failing at baseline 09f6d7d5 (verified by running that file
+      # against an untouched checkout of the same commit: the same 2 failures,
+      # with a byte-identical 6-file import graph). They assert on the shared
+      # management components, not on hydration, and fixing them is outside
+      # Phase 1's scope. Tracked as a remaining issue; when they are fixed,
+      # replace this step with `pnpm --filter @scs/admin test`.
+      - name: Admin hydration + global-styles regression tests
+        run: >
+          pnpm --filter @scs/admin test --
+          src/__tests__/hydration-document-root.test.tsx
+          src/__tests__/global-styles.test.tsx
+          src/__tests__/sidebar-styles.test.tsx
+          src/__tests__/hydration-admin-clock.test.tsx
+          src/__tests__/hydration-admin-session.test.tsx
+          src/__tests__/hydration-admin-perms.test.tsx
+
   # â”€â”€ Integration Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-integration:
     name: Integration Tests

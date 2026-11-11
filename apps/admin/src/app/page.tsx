@@ -16,6 +16,14 @@ export default function AdminHomePage() {
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [updateReqs, setUpdateReqs] = useState<AdminOrgUpdateRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  // Effect-initialized like the Buyer home page: the server and the first
+  // client render both emit no clock, so a wall-clock or timezone difference
+  // between the two passes can no longer produce mismatched text at the root.
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -26,7 +34,6 @@ export default function AdminHomePage() {
 
   const fmt = (n: number) =>
     (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
-  const now = new Date();
 
   return (
     <>
@@ -35,14 +42,16 @@ export default function AdminHomePage() {
         title="Dashboard"
         subtitle="Platform overview & quick access"
         trailing={
-          <div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>
-              {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          now ? (
+            <div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>
+                {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div style={{ fontSize: typeScale.caption.fontSize, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
-            <div style={{ fontSize: typeScale.caption.fontSize, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-              {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-            </div>
-          </div>
+          ) : undefined
         }
       />
 
