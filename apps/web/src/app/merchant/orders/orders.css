@@ -1,0 +1,33 @@
+/*
+ * Merchant orders screen — responsive overrides.
+ *
+ * Previously authored as the text child of a `<style>` element inside
+ * `page.tsx`. React escapes `' " < > &` in text children, but the HTML parser
+ * treats `<style>` as a raw-text element and does not decode character
+ * references there, so `.mo-filterbar > * { flex: 0 0 auto; }` was served as
+ * `.mo-filterbar &gt; * …`. The DOM text then differed from the React text
+ * child and hydration failed with #425 → #418 → #423, replacing the whole
+ * Buyer root. Every declaration below is preserved verbatim from the baseline.
+ */
+
+@media (max-width: 768px) {
+  .mo-filterbar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  .mo-filterbar > * {
+    flex: 0 0 auto;
+  }
+
+  .mo-card-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .mo-row-actions {
+    justify-content: flex-start !important;
+  }
+}
