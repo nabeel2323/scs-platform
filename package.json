@@ -31,6 +31,10 @@
     "clean": "turbo run clean"
   },
   "devDependencies": {
+    "@swc/cli": "0.5.2",
+    "@swc/core": "1.11.22",
+    "@swc/core-win32-x64-msvc": "1.11.22",
+    "has-flag": "4.0.0",
     "prettier": "^3.3.3",
     "turbo": "^2.1.0",
     "typescript": "^5.5.4"

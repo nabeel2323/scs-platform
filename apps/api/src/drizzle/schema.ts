@@ -28,3 +28,4 @@ export * from '../modules/returns/returns.schema';
 export * from '../modules/returns/business-calendar.schema';
 export * from '../modules/returns/financial.schema';
 export * from '../modules/operations/operations.schema';
+export * from '../modules/system/bootstrap.schema';

@@ -11,6 +11,7 @@ import {
   loginPassword,
   LoginRateLimitError,
 } from '@/lib/auth';
+import { fetchBootstrapStatus, type BootstrapStatus } from '@/lib/bootstrap';
 import { getDeviceId } from '@/lib/device-id';
 import { PHONE_OTP_UI_ENABLED } from '@/lib/auth-channels';
 import {
@@ -18,13 +19,7 @@ import {
   colors, typeScale, radii, shadows, transitions, brand,
 } from '@scs/ui-kit';
 
-// 'otp' is the preserved phone/SMS path, deferred to the separately approved
-// SMS phase: user-initiated entry points are gated on PHONE_OTP_UI_ENABLED
-// (default false for the email-only release). A SERVER-ISSUED phone challenge
-// still reaches the verify step regardless of the flag.
-// 'email-otp' is the default OTP channel for the email-only release.
-type LoginMode = 'password' | 'otp' | 'email-otp';
-type OtpStage = 'request' | 'verify';
+type PageStatus = 'loading' | 'initialized' | 'setup-required' | 'error';
 
 /** Human-friendly wait time for the lockout countdown. */
 function formatWait(seconds: number): string {
@@ -33,15 +28,14 @@ function formatWait(seconds: number): string {
   return `${Math.ceil(seconds / 60)} min`;
 }
 
+/** Platform initialization gate — API-owned, never localStorage/config. */
+type InitStatus = 'loading' | 'initialized' | 'setup-required' | 'error';
+
+type LoginMode = 'password' | 'otp' | 'email-otp';
+type OtpStage = 'request' | 'verify';
+
 /**
  * What to tell the admin when the OTP request came back without a code.
- *
- * The rule this exists to enforce: never say a code was sent unless the API
- * said the delivery was accepted. `deliveryStatus` strings are provider
- * vocabulary and are deliberately not shown — an admin does not need
- * `SMS_PROVIDER_NOT_CONFIGURED`, they need to know whether to wait, retry, or
- * stop. (`OtpDeliveryOutcome` classification lives in @scs/contracts so web and
- * admin cannot disagree about what the same response means.)
  */
 function deliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>, phone: string): string {
   switch (outcome) {
@@ -77,7 +71,7 @@ function emailDeliveryMessage(outcome: Exclude<OtpDeliveryOutcome, 'delivered'>,
 export default function AdminLoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<LoginMode>('password');
-  const [otpStage, setOtpStage] = useState<OtpStage>('request');
+  const [otpStage, setOtpStage] = useState<'request' | 'verify'>('request');
 
   // Email/password state
   const [email, setEmail] = useState('');
@@ -90,7 +84,7 @@ export default function AdminLoginPage() {
   // Email OTP state (default OTP channel). The address reuses `email` above,
   // shared with the password tab exactly as the web app does.
   const [emailOtp, setEmailOtp] = useState('');
-  const [emailOtpStage, setEmailOtpStage] = useState<OtpStage>('request');
+  const [emailOtpStage, setEmailOtpStage] = useState<'request' | 'verify'>('request');
   const [emailDeliveryNote, setEmailDeliveryNote] = useState<'sent' | 'uncertain' | null>(null);
 
   /**
@@ -108,6 +102,12 @@ export default function AdminLoginPage() {
     retryAfter: number;
   } | null>(null);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+
+  // Platform initialization gate — API-owned. The frontend must never decide
+  // initialization from localStorage or config. If no Super Admin exists,
+  // route to first-time setup instead of login.
+  const [initStatus, setInitStatus] = useState<InitStatus>('loading');
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Second-by-second countdown while the server has us locked out, so the
   // retry affordance disappears exactly when the API says it may work again.
@@ -135,6 +135,32 @@ export default function AdminLoginPage() {
       typeof window !== 'undefined' ? localStorage.getItem('scs_last_email') : null;
     if (storedEmail) setEmail(storedEmail);
   }, []);
+
+  // Platform initialization gate — API-owned. The frontend must never decide
+  // initialization from localStorage or config. If no Super Admin exists,
+  // route to first-time setup instead of login.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await fetchBootstrapStatus();
+        if (cancelled) return;
+        if (status.setupRequired) {
+          setInitStatus('setup-required');
+          void router.push('/bootstrap');
+        } else {
+          setInitStatus('initialized');
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setInitStatus('error');
+        setInitError(
+          err?.message || 'Unable to reach the platform. Please check your connection and try again.',
+        );
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [router]);
 
   /** Records a 429 and starts the countdown the retry affordance obeys. */
   function noteRateLimit(err: LoginRateLimitError) {
@@ -408,11 +434,11 @@ export default function AdminLoginPage() {
                 ...typeScale.body,
               }}
             >
-              <strong>{rateLimit.message}</strong>
+              <strong>{rateLimit!.message}</strong>
               <div style={{ marginTop: 4, ...typeScale.bodySm }}>
-                {rateLimit.remaining > 0
-                  ? `${rateLimit.remaining} attempt${rateLimit.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
-                  : `Locked temporarily. Try again in ${formatWait(lockoutRemaining || rateLimit.retryAfter)}.`}
+                {rateLimit!.remaining > 0
+                  ? `${rateLimit!.remaining} attempt${rateLimit!.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
+                  : `Locked temporarily. Try again in ${formatWait(lockoutRemaining || rateLimit!.retryAfter)}.`}
               </div>
             </div>
           )}
@@ -654,8 +680,364 @@ export default function AdminLoginPage() {
       </div>
     </main>
   );
-}
 
+  // ── initialization gating ────────────────────────────────────────
+  // If setup is required and we haven't redirected yet (defensive), go to
+  // bootstrap. If the API is unreachable, do NOT assume uninitialized — show
+  // the error state instead.
+  if (initStatus === 'loading') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: colors.bgSubtle, color: colors.muted, ...typeScale.body }}>
+        Checking platform…
+      </div>
+    );
+  }
+
+  if (initStatus === 'setup-required') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: colors.bgSubtle, color: colors.muted, ...typeScale.body }}>
+        Opening administrator setup…
+      </div>
+    );
+  }
+
+  if (initStatus === 'error') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: colors.bgSubtle, padding: '0 24px' }}>
+        <div style={{ maxWidth: 520, width: '100%', textAlign: 'center', padding: '40px 32px', background: colors.surface, borderRadius: radii.lg + 2, border: `1px solid ${colors.border}`, boxShadow: '0 24px 48px rgba(0,0,0,0.12)' }}>
+          <div style={{ ...typeScale.h3, color: colors.ink, margin: '0 0 10px' }}>{initError}</div>
+          <button
+            onClick={() => { setInitError(null); setInitStatus('loading'); }}
+            style={{ marginTop: 14, background: brand[700], color: '#fff', border: 'none', padding: '8px 18px', borderRadius: radii.sm, cursor: 'pointer', fontWeight: 600 }}
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (initStatus !== 'initialized') {
+    return null;
+  }
+
+  return (
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${brand[900]} 0%, ${brand[500]} 50%, ${brand[900]} 100%)`, padding: '0 24px' }}>
+      <div style={{ width: '100%', maxWidth: 420, padding: '0 24px' }}>
+        {/* Logo / Brand */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 56, height: 56, borderRadius: radii.lg,
+            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)',
+            marginBottom: 16, backdropFilter: 'blur(8px)',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <div>
+            <span
+              style={{
+                display: 'inline-block',
+                padding: '4px 12px',
+                background: 'rgba(255,255,255,0.12)',
+                color: 'rgba(255,255,255,0.8)',
+                borderRadius: radii.sm,
+                ...typeScale.caption,
+                fontWeight: 700,
+                letterSpacing: '0.5px',
+              }}
+            >
+              ADMIN CONSOLE
+            </span>
+          </div>
+          <h1 style={{ ...typeScale.display, color: '#fff', margin: '16px 0 4px' }}>
+            Welcome back
+          </h1>
+          <p style={{ ...typeScale.body, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+            Sign in to your admin account
+          </p>
+        </div>
+
+        {/* Card */}
+        <div style={{
+          background: colors.surface, borderRadius: radii.lg + 2, padding: '32px 28px',
+          boxShadow: shadows.xl,
+        }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', borderBottom: `1px solid ${colors.border}`, marginBottom: 24 }}>
+            <button
+              type="button"
+              onClick={() => { setMode('password'); setError(''); }}
+              style={tabStyle(mode === 'password')}
+            >
+              Email/Password
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('email-otp'); setError(''); }}
+              style={tabStyle(mode !== 'password')}
+            >
+              Email OTP
+            </button>
+          </div>
+
+          {error && (
+            <div
+              style={{
+                background: colors.errBg,
+                color: colors.err,
+                padding: '10px 14px',
+                borderRadius: radii.sm,
+                marginBottom: 16,
+                ...typeScale.body,
+                border: `1px solid ${colors.err}33`,
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {rateLimit && (
+            <div
+              style={{
+                background: colors.warnBg,
+                color: colors.warn,
+                border: `1px solid ${colors.amber}`,
+                padding: '10px 14px',
+                borderRadius: radii.sm,
+                marginBottom: 16,
+                ...typeScale.body,
+              }}
+            >
+              <strong>{rateLimit!.message}</strong>
+              <div style={{ marginTop: 4, ...typeScale.bodySm }}>
+                {rateLimit!.remaining > 0
+                  ? `${rateLimit!.remaining} attempt${rateLimit!.remaining === 1 ? '' : 's'} remaining before a temporary lock.`
+                  : `Locked temporarily. Try again in ${formatWait(lockoutRemaining || rateLimit!.retryAfter)}.`}
+              </div>
+            </div>
+          )}
+
+          {mode === 'password' ? (
+            <form onSubmit={handlePasswordLogin}>
+              <TextInput
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@example.com"
+                required
+                style={{ marginBottom: 16 }}
+              />
+              <TextInput
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                required
+                style={{ marginBottom: 16 }}
+              />
+              <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
+                {loading ? 'Logging in...' : 'Login'}
+              </Button>
+              <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                Don&apos;t have a password yet?{' '}
+                <button
+                  type="button"
+                  onClick={() => { setMode('email-otp'); setError(''); }}
+                  style={linkBtnStyle}
+                >
+                  Sign in with OTP
+                </button>
+              </p>
+            </form>
+          ) : mode === 'email-otp' ? (
+            emailOtpStage === 'request' ? (
+              <form onSubmit={handleRequestEmailOtp}>
+                <TextInput
+                  label="Admin email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@example.com"
+                  required
+                  style={{ marginBottom: 16 }}
+                />
+                <Button
+                  type="submit"
+                  disabled={loading || lockoutRemaining > 0}
+                  size="lg"
+                  style={{ width: '100%', marginBottom: 8 }}
+                >
+                  {lockoutRemaining > 0
+                    ? `Try again in ${formatWait(lockoutRemaining)}`
+                    : loading
+                      ? 'Sending...'
+                      : 'Send code to email'}
+                </Button>
+                {emailDeliveryNote === 'uncertain' && (
+                  <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                    Already have a code?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setEmailOtpStage('verify')}
+                      style={linkBtnStyle}
+                    >
+                      Enter it
+                    </button>
+                  </p>
+                )}
+                {PHONE_OTP_UI_ENABLED && (
+                  <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setMode('otp'); setError(''); }}
+                      style={linkBtnStyle}
+                    >
+                      Use phone number instead
+                    </button>
+                  </p>
+                )}
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyEmailOtp}>
+                <p style={{ color: colors.muted, ...typeScale.body, marginBottom: 16 }}>
+                  {emailDeliveryNote === 'uncertain'
+                    ? `If a code arrived for ${email}, enter it below.`
+                    : `A code is on its way to ${email}. Enter it below.`}
+                </p>
+                <TextInput
+                  label="OTP code"
+                  type="text"
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value)}
+                  placeholder="123456"
+                  maxLength={6}
+                  required
+                  style={{ marginBottom: 16 }}
+                />
+                <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
+                  {loading ? 'Verifying...' : 'Verify'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  onClick={() => {
+                    setEmailOtpStage('request');
+                    setEmailOtp('');
+                    setEmailDeliveryNote(null);
+                    setError('');
+                  }}
+                  style={{ width: '100%' }}
+                >
+                  Change email
+                </Button>
+              </form>
+            )
+          ) : otpStage === 'request' ? (
+            <form onSubmit={handleRequestOtp}>
+              <TextInput
+                label="Admin phone number"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+966 5XX XXX XXXX"
+                required
+                style={{ marginBottom: 16 }}
+              />
+              <Button
+                type="submit"
+                disabled={loading || lockoutRemaining > 0}
+                size="lg"
+                style={{ width: '100%', marginBottom: 8 }}
+              >
+                {lockoutRemaining > 0
+                  ? `Try again in ${formatWait(lockoutRemaining)}`
+                  : loading
+                    ? 'Sending...'
+                    : 'Send OTP'}
+                </Button>
+                {deliveryNote === 'uncertain' && (
+                  <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                    Already have a code?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setOtpStage('verify')}
+                      style={linkBtnStyle}
+                    >
+                      Enter it
+                    </button>
+                  </p>
+                )}
+                <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('email-otp'); setError(''); }}
+                    style={linkBtnStyle}
+                  >
+                    Use email instead
+                  </button>
+                </p>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp}>
+              <p style={{ color: colors.muted, ...typeScale.body, marginBottom: 16 }}>
+                {deliveryNote === 'uncertain'
+                  ? `If a code arrived for ${phone}, enter it below.`
+                  : `Code sent to ${phone}`}
+              </p>
+              <TextInput
+                label="OTP code"
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                placeholder="123456"
+                maxLength={6}
+                required
+                style={{ marginBottom: 16 }}
+              />
+              <Button type="submit" disabled={loading} size="lg" style={{ width: '100%', marginBottom: 8 }}>
+                {loading ? 'Verifying...' : 'Verify'}
+              </Button>
+              {PHONE_OTP_UI_ENABLED && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  onClick={() => {
+                    setOtpStage('request');
+                    setDeliveryNote(null);
+                    setError('');
+                  }}
+                  style={{ width: '100%' }}
+                >
+                  Change number
+                </Button>
+              )}
+            </form>
+          )}
+
+          {(mode === 'otp' || mode === 'email-otp') && (
+            <p style={{ ...typeScale.bodySm, color: colors.muted, textAlign: 'center', marginTop: 12 }}>
+              Have a password?{' '}
+              <button
+                type="button"
+                onClick={() => { setMode('password'); setError(''); }}
+                style={linkBtnStyle}
+              >
+                Sign in with Email/Password
+              </button>
+            </p>
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}
 const tabStyle = (active: boolean): React.CSSProperties => ({
   flex: 1,
   padding: '10px 0',
@@ -663,7 +1045,7 @@ const tabStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: 600,
   background: 'transparent',
   border: 'none',
-  borderBottom: active ? `2px solid ${brand[700]}` : '2px solid transparent',
+  borderBottom: active ? `2px solid ${brand[700]}` : `2px solid transparent`,
   color: active ? brand[700] : colors.muted,
   cursor: 'pointer',
   marginBottom: -1,
