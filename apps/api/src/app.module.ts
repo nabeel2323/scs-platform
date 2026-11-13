@@ -28,6 +28,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ReturnsModule } from './modules/returns/returns.module';
 import { OperationsModule } from './modules/operations/operations.module';
+import { BootstrapModule } from './modules/system/bootstrap.module';
 
 @Module({
   imports: [
@@ -110,6 +111,8 @@ import { OperationsModule } from './modules/operations/operations.module';
     // P13 Phase 4: worker lease, ops controls, alerting and pilot gate. ReturnsModule
     // imports it too; Nest dedupes the module so there is exactly one instance.
     OperationsModule,
+    // ADR-0004: secure initial Super Admin bootstrap (system bootstrap).
+    BootstrapModule,
   ],
   controllers: [HealthController],
 })
