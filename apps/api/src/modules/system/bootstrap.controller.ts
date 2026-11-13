@@ -16,7 +16,7 @@ import {
   Res,
   HttpCode,
 } from '@nestjs/common';
-import { Response, Request } from 'express';
+import type { Response, Request } from 'express';
 import { BootstrapService } from './bootstrap.service';
 import { CreateSuperAdminDto, BootstrapStatusResponseDto } from './dto/bootstrap.dto';
 import { RateLimitService } from '../../common/services/rate-limit.service';
