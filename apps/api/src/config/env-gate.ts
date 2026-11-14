@@ -299,6 +299,70 @@ export function describeAlertSink(webhookUrl?: string): AlertSinkStatus {
 }
 
 /**
+ * Resolve and validate the configured bootstrap owner email (SCS_BOOTSTRAP_OWNER_EMAIL).
+ *
+ * This address is the root of trust for initial platform ownership: the bootstrap
+ * OTP is sent ONLY to it, and an arbitrary visitor's email is never accepted as
+ * proof of ownership.
+ *
+ * - Missing: returns null in development/test (local DX); throws outside them
+ *   (fail closed — a deployed platform cannot initialize without an owner).
+ * - Invalid format: throws in every environment (an invalid owner address is
+ *   always a configuration error).
+ * - Valid: returns the normalized (lowercased, trimmed) address.
+ *
+ * Pure (no `process.env` reads) so it can be unit tested directly.
+ */
+export interface BootstrapOwnerEmailGateInput {
+  /** Value of NODE_ENV; defaults to 'development' when unset. */
+  nodeEnv?: string;
+  /** Value of SCS_BOOTSTRAP_OWNER_EMAIL. */
+  email?: string;
+}
+
+const OWNER_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function resolveBootstrapOwnerEmail(
+  input: BootstrapOwnerEmailGateInput = {},
+): string | null {
+  const { nodeEnv, email: raw } = input;
+  const email = raw?.trim();
+
+  if (!email) {
+    if (isProductionLikeEnv(nodeEnv)) {
+      throw new Error(
+        'SCS_BOOTSTRAP_OWNER_EMAIL must be set outside development. ' +
+          'Refusing to boot — a fresh deployment cannot be initialized without a configured owner address.',
+      );
+    }
+    return null;
+  }
+
+  const normalized = email.toLowerCase();
+  if (!OWNER_EMAIL_RE.test(normalized)) {
+    throw new Error(
+      'SCS_BOOTSTRAP_OWNER_EMAIL is not a valid email address. ' +
+        'Configure a valid address for the platform owner.',
+    );
+  }
+
+  return normalized;
+}
+
+/**
+ * Validate bootstrap owner configuration from the ambient environment and fail
+ * fast on misconfiguration. Never echoes the address value.
+ */
+export function assertBootstrapOwnerEmail(
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  return resolveBootstrapOwnerEmail({
+    nodeEnv: env['NODE_ENV'],
+    email: env['SCS_BOOTSTRAP_OWNER_EMAIL'],
+  });
+}
+
+/**
  * Full production configuration gate. Called from `main.ts` immediately after
  * {@link assertJwtConfig}, before the app is created.
  *

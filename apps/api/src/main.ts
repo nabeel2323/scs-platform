@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, resolveTrustProxy } from './config/env-gate';
+import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, assertBootstrapOwnerEmail, resolveTrustProxy } from './config/env-gate';
 import { assertOtpDeliveryConfig } from './config/otp-delivery-gate';
 import {
   DEVICE_TRUST_PROOF_HEADER,
@@ -23,6 +23,11 @@ async function bootstrap() {
   // every code, so refuse to boot a deployed process that is not configured with a
   // unique strong secret. No-op (dev fallback) in development/test.
   assertOtpHmacConfig();
+
+  // Bootstrap ownership: SCS_BOOTSTRAP_OWNER_EMAIL is the root of trust for initial
+  // platform ownership. Fail closed outside development/test — a fresh deployment
+  // cannot be initialized without a configured owner address. No-op in dev/test.
+  assertBootstrapOwnerEmail();
 
   // P13 Phase 4.1: refuse to boot a deployed process that would silently fall back to
   // the development PostgreSQL/Redis endpoints, and refuse one whose alert webhook is

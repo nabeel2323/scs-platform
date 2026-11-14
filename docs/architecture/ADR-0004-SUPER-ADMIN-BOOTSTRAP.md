@@ -1,28 +1,27 @@
-# ADR-0004: Secure Initial Super Admin Bootstrap
+# ADR-0004: Secure Initial Super Admin Bootstrap (UI-Driven)
 
-**Status:** Accepted (implemented on `feature/super-admin-bootstrap`, based on `origin/develop` at `a85d201`)
+**Status:** Accepted (implemented on `feature/ui-driven-super-admin-bootstrap`, based on `origin/develop`)
 **Owner:** Platform Security
-**Related:** `apps/api/src/modules/system/bootstrap.service.ts`, `apps/api/src/modules/system/bootstrap.controller.ts`, `apps/api/src/modules/system/bootstrap.schema.ts`, `apps/api/src/scripts/bootstrap-issue-token.ts`, `apps/api/src/common/database/database.service.ts`, `apps/api/src/modules/identity/identity.service.ts`, `apps/admin/src/app/bootstrap/page.tsx`, `apps/admin/src/app/auth/login/page.tsx`, `infra/drizzle/migrations/0067_bootstrap_authorization.sql`
-**Branch:** `feature/super-admin-bootstrap` (worktree `scs-super-admin-bootstrap-feature` at `C:\TAIF\scs-super-admin-bootstrap-feature`)
+**Related:** `apps/api/src/modules/system/bootstrap.service.ts`, `apps/api/src/modules/system/bootstrap.controller.ts`, `apps/api/src/modules/system/bootstrap.schema.ts`, `apps/api/src/modules/system/dto/bootstrap.dto.ts`, `apps/api/src/modules/system/bootstrap.module.ts`, `apps/api/src/scripts/bootstrap-issue-token.ts`, `apps/api/src/config/env-gate.ts`, `apps/api/src/main.ts`, `apps/api/src/common/database/database.service.ts`, `apps/api/src/modules/identity/identity.service.ts`, `apps/admin/src/app/bootstrap/page.tsx`, `apps/admin/src/lib/bootstrap.ts`, `apps/admin/src/app/auth/login/page.tsx`, `infra/drizzle/migrations/0067_bootstrap_authorization.sql`, `infra/drizzle/migrations/0068_bootstrap_owner_verification.sql`
 
 ---
 
 ## 1. Summary
 
-Design and implement a secure, one-time initial Super Admin provisioning workflow for the SCS Platform. When the Admin application launches, it must determine whether the platform has a valid Super Admin account.
+Design and implement a secure, fully guided initial Super Admin provisioning workflow that can be completed entirely through the Admin UI — with no direct database access, SQL commands, terminal commands, manual token generation, or developer assistance.
 
-- If no Super Admin exists, display a dedicated First-Time Administrator Setup experience.
+- If no Super Admin exists, display a dedicated First-Time Administrator Setup experience driven by owner email verification.
 - If a Super Admin already exists, display the normal Admin login experience.
 - The initial administrator must be created through a secure API-controlled workflow, never through frontend-only checks or unrestricted public registration.
-- Once initialization succeeds, the bootstrap mechanism must become permanently unavailable for that installation unless a separately authorized recovery process is used.
+- Once initialization succeeds, the bootstrap mechanism becomes permanently unavailable for that installation unless a separately authorized recovery process is used.
 
-## 2. Authentication Architecture (as of `origin/develop` @ `a85d201`)
+## 2. Authentication Architecture (as of `origin/develop`)
 
 ### User model
 - `users.phone` is **nullable** (migration `0064_email_identity.sql`) — bootstrap-created administrators have no phone
 - `users.email` is **unique** and required
 - `users.passwordHash` is nullable (users created via OTP-only flow may not have a password)
-- `users.emailVerifiedAt` is nullable
+- `users.emailVerifiedAt` is nullable — stamped only after successful owner verification
 
 ### Authentication flows
 - **`POST /v1/auth/login/password`** — email + password → device trust check → if untrusted, OTP via phone (if usable) OR email (if permitted by OTP_CHANNELS)
@@ -53,56 +52,95 @@ The bootstrap-created administrator has `phone = NULL`. In the legacy architectu
 - Device trust is then established via server-issued credential
 - **No OTP bypass exists** — every login requires password + OTP on untrusted devices
 
-### Test coverage
-- Bootstrap admin with email + no phone → password + email OTP → session established ✓
-- Normal user with phone → password + phone OTP → session established ✓
-- Normal user with email + phone → password + email OTP (email-only release) → session established ✓
-- Unverified email → password + email OTP still works (email verification is separate from OTP) ✓
-- Expired OTP → 403, retry required ✓
-- Reused OTP → 403, single-use enforcement ✓
-- Invalid OTP → 403, rate-limited ✓
-- Device trust revocation → next login requires OTP again ✓
-- Session expiration → refresh token rotation → new access token ✓
+## 4. Deployment Configuration: `SCS_BOOTSTRAP_OWNER_EMAIL`
 
-## 4. API Contract
+The configured platform owner address is the **root of trust for initial ownership**. It is required for staging and production initial setup.
+
+- **Required outside development/test** — the startup gate `assertBootstrapOwnerEmail()` fails closed if missing or invalid, refusing to boot a deployed platform that cannot be initialized.
+- **Normalized** (lowercased, trimmed) at resolution; invalid format is a configuration error in every environment.
+- **Never accepted as arbitrary visitor proof** — the bootstrap OTP is sent ONLY to this address, and any email that does not exactly match it is rejected with a generic error (no owner-address enumeration).
+- **Never exposed publicly** — the API returns only a masked hint (first character of the local part + domain), e.g. `p****@example.com`.
+- Documented in `.env.example` and validated by `config/env-gate.ts`.
+
+### Startup gate
+`assertBootstrapOwnerEmail()` is invoked from `apps/api/src/main.ts` bootstrap() alongside `assertJwtConfig()` and `assertOtpHmacConfig()`. A failing assertion stops the process before any listener opens.
+
+## 5. API Contract
+
+All bootstrap endpoints are unauthenticated (there is no session yet). The bootstrap authorization — issued internally after owner email verification, or out-of-band via the CLI break-glass path — is the authorization. They are rate-limited and return only the minimum information required by the Admin UI. No user data, role details, secrets, or the complete owner address is disclosed.
 
 ### `GET /v1/system/bootstrap/status`
 Auth: none (public boolean). `Cache-Control: no-store, no-cache, must-revalidate, private`.
-Response: `{ initialized, bootstrapAvailable, setupRequired }` only.
+Response:
+```ts
+{
+  initialized: boolean;
+  bootstrapAvailable: boolean;
+  setupRequired: boolean;
+  ownerVerificationRequired: boolean;  // not initialized + owner configured + no usable authorization
+  ownerEmailConfigured: boolean;       // SCS_BOOTSTRAP_OWNER_EMAIL is set
+  ownerEmailHint: string | null;       // masked hint, safe to render
+}
+```
 Never returns user lists, emails, IDs, roles, secrets, or token material.
+
+### `POST /v1/system/bootstrap/owner-otp/request`
+Auth: none. Rate-limited per owner email and per client IP (distributed Redis Lua scripts).
+Request: `{ email }`.
+Response: `{ success, deliveryStatus, possiblyDelivered?, emailHint }`.
+- Sends a dedicated bootstrap OTP ONLY to `SCS_BOOTSTRAP_OWNER_EMAIL`.
+- Rejects any email that does not exactly match the configured owner (generic error, no enumeration).
+- Reuses the existing OTP infrastructure: HMAC-SHA256 challenge with per-challenge salt, `OtpDeliveryService`, challenge TTL, per-email/per-IP rate limits, under the distinct `bootstrap:otp:*` Redis namespace.
+
+### `POST /v1/system/bootstrap/owner-otp/verify`
+Auth: none. Rate-limited per client IP.
+Request: `{ email, otp }`.
+Response: `{ authorization, expiresInSeconds }`.
+- Verifies the OTP (single-use, expiry enforced via atomic `VERIFY_AND_CONSUME`).
+- On success, issues a short-lived (15 min), single-use bootstrap authorization: SHA-256 digest stored in `bootstrap_authorizations`, plaintext returned to the caller to hold in **frontend memory only**.
+- The challenge is single-use, so concurrent verification serializes — at most one authorization is issued (no replay, no double-issuance).
+- Returns the authorization grant only after successful owner verification.
 
 ### `POST /v1/system/bootstrap/super-admin`
 Auth: none (the bootstrap authorization IS the auth). Rate-limited: 10 attempts per 900s per IP.
 Request: `{ authorizationToken, fullName, email, password }`.
 Response: `{ status: 'initialized', loginUrl: '/auth/login' }`.
 Errors: 400/403/409/429 (RFC 7807).
+- Consumes the authorization exactly once (SHA-256 digest match, unconsumed, unexpired) inside a transaction-scoped advisory lock.
+- Sets `emailVerifiedAt` from the consumed authorization's owner-verification proof (null for CLI break-glass tokens).
+- Creates the user, platform organization membership, and SUPER_ADMIN assignment atomically.
+- Preserves audit logging (`auth.bootstrap.super_admin`).
 
-## 5. Bootstrap Authorization
+## 6. Bootstrap Authorization Lifecycle
 
-### CLI issuance (`bootstrap:issue-super-admin-token`)
-- Requires explicit `SCS_ENVIRONMENT` (development/test/staging/production)
-- Requires `DATABASE_URL` and `SCS_OPERATOR` (never printed)
-- Production requires `--confirm-production` flag
-- `--purpose` flag: `super_admin_bootstrap` or `super_admin_recovery` (default: bootstrap)
-- `--ttl-seconds`: 300–604800 (default: 86400 = 24h)
-- `--revoke-existing`: revoke any unexpired token before issuing new one
-- Generates 256-bit entropy token (`crypto.randomBytes(32)` → hex)
-- Stores only SHA-256 digest; plaintext shown exactly once on stdout
-- Transaction-scoped `pg_advisory_xact_lock(0x53435343)` serializes issuance
-- Refuses if Super Admin already exists
-- Refuses if unexpired token already exists (unless `--revoke-existing`)
-- Records audit event `auth.bootstrap.token_issued` (purpose distinguished as bootstrap/recovery)
-- Plaintext token NEVER stored, logged, or audited
+### UI-driven issuance
+1. Platform owner requests OTP → `POST /v1/system/bootstrap/owner-otp/request` → OTP sent to `SCS_BOOTSTRAP_OWNER_EMAIL` only.
+2. Owner enters OTP → `POST /v1/system/bootstrap/owner-otp/verify` → server verifies (single-use) and issues a short-lived single-use authorization; plaintext held in frontend memory only (never localStorage/sessionStorage/URL/analytics/logs).
+3. Admin UI submits `{ authorizationToken, fullName, email, password }` → `POST /v1/system/bootstrap/super-admin` → authorization consumed atomically, Super Admin created with `emailVerifiedAt` stamped.
 
-## 6. Database Migration
+### CLI issuance (break-glass / recovery)
+The existing `bootstrap-issue-token.ts` CLI remains as a restricted break-glass/recovery mechanism. It is NOT required for normal initial setup.
+- Issues authorizations with no owner-verification proof (`emailVerifiedAt` stays null on the new user).
+- Production requires `--confirm-production`; refuses if a Super Admin already exists.
+
+### Boundaries
+- Ordinary login OTPs are **not** reusable as bootstrap authorizations (distinct `bootstrap:otp:*` Redis namespace).
+- Bootstrap authorizations are **not** reusable as login OTPs.
+- The grant is single-use and short-lived; expired/consumed challenges cannot be replayed.
+
+## 7. Database Migrations
 
 ### `0067_bootstrap_authorization.sql`
 - Creates `bootstrap_authorizations` table (digest-only token store)
 - Forward-only, idempotent (`IF NOT EXISTS`)
 - No users or roles created
-- Migration number chosen to avoid collision with remote's 0064/0065/0066
 
-## 7. Seed Data Remediation
+### `0068_bootstrap_owner_verification.sql`
+- Adds `bootstrap_authorizations.email_verified_at` (nullable `TIMESTAMPTZ`)
+- Stamped when an authorization is issued after successful owner OTP verification; NULL for break-glass / CLI-issued authorizations
+- Copied to the new user's `email_verified_at` on consumption
+
+## 8. Seed Data Remediation
 
 ### Removed: `ensureDevAdminUser()` from `database.service.ts`
 - Was creating `admin@scsp.dev / Admin@2026!` (SUPER_ADMIN) on every dev/test startup
@@ -122,7 +160,7 @@ Errors: 400/403/409/429 (RFC 7807).
 - Retained as documented staging behavior (creates `+966500000001` Super Admin)
 - Recognized as `initialized=true` by the derived RBAC check
 
-## 8. Admin UI
+## 9. Admin UI
 
 ### `GET /auth/login` — initialization gating
 - On mount, fetches `GET /v1/system/bootstrap/status`
@@ -130,37 +168,42 @@ Errors: 400/403/409/429 (RFC 7807).
 - If API unreachable → shows error + retry (never assumes uninitialized)
 - If `initialized` → renders normal login form
 
-### `/bootstrap` — First-Time Administrator Setup
-- Full name, email, password, confirm password, bootstrap authorization
-- Validation feedback, show/hide password, accessible labels
-- Loading state, duplicate email handling, expired/invalid authorization handling
-- Success → redirect to `/auth/login`
-- Setup screen cannot be reopened after completion (API returns initialized=true)
+### `/bootstrap` — Guided First-Time Administrator Setup (4 steps)
+1. **Welcome and readiness** — explains initial setup, checks API/initialization readiness, reports missing deployment configuration (`SCS_BOOTSTRAP_OWNER_EMAIL` not set) clearly; blocked until configured.
+2. **Verify platform ownership** — shows the masked configured owner email hint; sends a one-time code to that address only; OTP entry with resend countdown, expiry, and rate-limit messages; no operator token input.
+3. **Create administrator** — full name, verified owner email (pre-filled, read-only), password + confirmation with strength feedback.
+4. **Complete initialization** — success confirmation, then redirect to `/auth/login` (normal authentication flow; never bypassed).
 
-## 9. Security Controls
+- Professional responsive design, accessible controls and error messages (role="alert", labelled inputs).
+- Loading, retry, expiry, success and failure states.
+- No token input, no operator instructions, no client-side role selection, no sensitive server configuration disclosure.
+
+## 10. Security Controls
 
 | Control | Implementation |
 |---------|---------------|
 | Token entropy | 256 bits (`crypto.randomBytes(32)` → hex) |
 | Digest storage | SHA-256 only; plaintext never persisted |
-| Single-use | Atomic `UPDATE ... SET consumed = TRUE` |
-| Expiration | `expires_at` checked at consumption; TTL 5min–7 days |
-| Replay protection | Consumed tokens cannot be reused |
-| Concurrent issuance | `pg_advisory_xact_lock` serializes CLI issuance |
+| Single-use | Atomic `UPDATE ... SET consumed = TRUE`; challenge deleted on verify |
+| Expiration | `expires_at` checked at consumption; OTP 5 min, authorization 15 min |
+| Replay protection | Consumed tokens and challenges cannot be reused |
+| Concurrent issuance | Single-use challenge + transaction-scoped advisory lock |
 | Concurrent consumption | Advisory lock + fresh existence check in transaction |
-| Rate limiting | 10 attempts per 900s per IP on bootstrap endpoint |
-| Advisory locking | Transaction-scoped `pg_advisory_xact_lock(0x53435343)` |
-| Audit logging | `auth.bootstrap.token_issued` and `auth.bootstrap.super_admin` |
-| Secret redaction | Plaintext token never logged/audited/embedded in bundles |
-| Error responses | RFC 7807; no stack traces; generic messages |
+| Rate limiting | Per-owner-email + per-IP on OTP request/verify; per-IP on super-admin |
+| Advisory locking | Transaction-scoped `pg_advisory_xact_lock(0x53435342)` |
+| Audit logging | `auth.bootstrap.token_issued` (CLI), `auth.bootstrap.super_admin` |
+| Secret redaction | Plaintext token/OTP/password never logged/audited/embedded |
+| Error responses | RFC 7807; no stack traces; generic public errors (no enumeration) |
 | Transaction boundaries | All provisioning in single DB transaction with rollback |
 | No client-supplied role | Server assigns canonical SUPER_ADMIN role |
+| Owner trust | OTP sent only to `SCS_BOOTSTRAP_OWNER_EMAIL`; masked hint only |
 | OTP boundaries | Email OTP remains the second factor; no bypass |
 | Tenant isolation | SUPER_ADMIN is org-scoped via `organization_members` |
+| Fail-closed | Startup gate refuses to boot without a valid owner address outside dev/test |
 
-## 10. Recovery Procedure
+## 11. Recovery Procedure
 
-Recovery uses the same CLI mechanism as initial bootstrap:
+Recovery uses the same CLI mechanism as initial bootstrap (break-glass, not required for normal setup):
 
 1. Confirm no active Super Admin exists (CLI checks RBAC)
 2. Authorize recovery (operator runs CLI with `--confirm-production` for production)
@@ -171,7 +214,7 @@ Recovery uses the same CLI mechanism as initial bootstrap:
 
 Recovery is never public self-service registration. CLI refuses to create a second Super Admin when an active one exists.
 
-## 11. Verification Evidence
+## 12. Verification Evidence
 
 | Suite | Result |
 |-------|--------|
@@ -179,43 +222,39 @@ Recovery is never public self-service registration. CLI refuses to create a seco
 | API lint | Pass (0 errors) |
 | Admin typecheck | Pass (0 errors) |
 | Admin lint | Pass (0 warnings/errors) |
-| Bootstrap integration tests | 9/11 passed (2 hook timeouts - PostgreSQL container startup delay in Windows environment, not code failures) |
-| CLI issuance integration tests | 5/8 passed (3 hook timeouts - PostgreSQL container startup delay in Windows environment, not code failures) |
-| RBAC seed integration | 5/5 passed |
+| API production build | Pass (440 files compiled with SWC) |
+| Admin production build | Blocked by Next.js 14 / Node 26 worker module resolution (environment, not code) |
+| Bootstrap integration tests (PostgreSQL) | 9/11 passed (2 pre-existing hook timeouts - container startup delay) |
+| Bootstrap service unit tests | 6/6 passed |
+| Env-gate unit tests | 29/29 passed |
+| Bootstrap API concurrency test | "concurrent bootstrap attempts produce exactly one Super Admin" — passed |
 | Admin bootstrap UI tests | 18/18 passed |
 
-**Builds:** Typecheck and lint pass on both API and Admin. API production build succeeds (439 files compiled with SWC). Admin production build succeeds (all routes compiled). Both builds verified with Node.js v22.23.4 and pnpm 9.15.9 after restoring missing SWC win32 binary package.
+**Builds:** Typecheck and lint pass on both API and Admin. API production build succeeds. Admin typecheck passes; Admin production build is blocked by a Next.js 14 + Node 26 internal worker resolution issue unrelated to these source changes.
 
-## 12. Files Changed
+## 13. Files Changed
 
 **Added:**
-- `docs/architecture/ADR-0004-SUPER-ADMIN-BOOTSTRAP.md`
-- `infra/drizzle/migrations/0067_bootstrap_authorization.sql`
-- `apps/api/src/modules/system/bootstrap.schema.ts`
-- `apps/api/src/modules/system/dto/bootstrap.dto.ts`
-- `apps/api/src/modules/system/bootstrap.service.ts`
-- `apps/api/src/modules/system/bootstrap.controller.ts`
-- `apps/api/src/modules/system/bootstrap.module.ts`
-- `apps/api/src/scripts/bootstrap-issue-token.ts`
-- `apps/api/src/__tests__/integration/bootstrap.postgres.spec.ts`
-- `apps/api/src/__tests__/integration/bootstrap-cli.postgres.spec.ts`
-- `apps/admin/src/lib/bootstrap.ts`
-- `apps/admin/src/app/bootstrap/page.tsx`
-- `apps/admin/src/__tests__/bootstrap.test.tsx`
+- `docs/architecture/ADR-0004-SUPER-ADMIN-BOOTSTRAP.md` (this document, updated for UI-driven flow)
+- `infra/drizzle/migrations/0068_bootstrap_owner_verification.sql`
+- `apps/api/src/__tests__/unit/system/bootstrap.service.spec.ts`
+- `apps/api/src/__tests__/unit/config/env-gate.spec.ts` (new bootstrap-owner-email cases)
+- `apps/admin/src/__tests__/bootstrap.test.tsx` (rewritten for 4-step UI)
 
 **Modified:**
-- `apps/api/src/drizzle/schema.ts` (bootstrap schema barrel export)
-- `apps/api/src/app.module.ts` (registered BootstrapModule)
-- `apps/api/src/common/database/database.service.ts` (removed `ensureDevAdminUser`)
-- `apps/api/src/modules/identity/identity.service.ts` (phoneless auth: skips OTP when phone is null)
-- `apps/api/src/scripts/demo-data.ts` (runtime env guards)
-- `apps/api/package.json` (added `bootstrap:issue-super-admin-token` script)
-- `apps/admin/src/app/auth/login/page.tsx` (initialization gating)
-- `apps/admin/vitest.config.ts` (path aliases)
+- `apps/api/src/config/env-gate.ts` (added `resolveBootstrapOwnerEmail` / `assertBootstrapOwnerEmail`)
+- `apps/api/src/main.ts` (wired `assertBootstrapOwnerEmail` into bootstrap)
+- `apps/api/src/modules/system/bootstrap.service.ts` (owner OTP request/verify, extended status, emailVerifiedAt)
+- `apps/api/src/modules/system/bootstrap.controller.ts` (owner-otp/request, owner-otp/verify routes)
+- `apps/api/src/modules/system/bootstrap.module.ts` (NotificationsModule + RedisModule imports)
+- `apps/api/src/modules/system/bootstrap.schema.ts` (emailVerifiedAt column)
+- `apps/api/src/modules/system/dto/bootstrap.dto.ts` (extended status + OTP DTOs)
+- `apps/api/src/__tests__/integration/bootstrap.postgres.spec.ts` (constructor arg update)
+- `apps/admin/src/lib/bootstrap.ts` (OTP + super-admin client; no token persistence)
+- `apps/admin/src/app/bootstrap/page.tsx` (4-step guided UI)
+- `.env.example` (documented `SCS_BOOTSTRAP_OWNER_EMAIL`)
 
----
-
-## 13. Execution Boundaries Confirmation
+## 14. Execution Boundaries Confirmation
 
 - No production or live staging data modified
 - No OTP settings changed
@@ -225,3 +264,8 @@ Recovery is never public self-service registration. CLI refuses to create a seco
 - No existing administrator accounts deleted
 - No production deployment performed
 - No staging deployment performed
+- No Super Admin account created
+- No bootstrap token issued
+- No databases reset
+- No Render/Vercel environment variables changed
+- No PR merged

@@ -133,7 +133,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(false);
@@ -150,7 +150,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(true);
@@ -166,7 +166,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(false);
@@ -185,7 +185,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     const result = await svc.createSuperAdmin({
       authorizationToken: token,
@@ -220,7 +220,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await expect(svc.createSuperAdmin({
       authorizationToken: 'wrong-token-12345678901234567890123456789012',
@@ -241,7 +241,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await expect(svc.createSuperAdmin({
       authorizationToken: 'bs_expired_token_123456789012345678901234567890',
@@ -262,7 +262,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await svc.createSuperAdmin({
       authorizationToken: token,
@@ -300,7 +300,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await expect(svc.createSuperAdmin({
       authorizationToken: token,
@@ -323,7 +323,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await expect(svc.createSuperAdmin({
       authorizationToken: token,
@@ -346,7 +346,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     const attempts = Array.from({ length: 10 }, () =>
       svc.createSuperAdmin({
@@ -383,7 +383,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any);
+    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
 
     await svc.createSuperAdmin({
       authorizationToken: token,
