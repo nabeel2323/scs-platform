@@ -573,6 +573,7 @@ jobs:
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
             -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
+            -e SCS_BOOTSTRAP_OWNER_EMAIL='ci-owner@example.com' \
             -e SMTP_HOST=smtp.ci-test.local \
             -e SMTP_FROM=otp@ci-test.local \
             -e S3_ENDPOINT=http://minio:9000 \
