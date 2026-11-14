@@ -17,18 +17,33 @@ function makeService(overrides: {
   redis?: any;
 } = {}): BootstrapService {
   const insert = insertStub();
-  return new BootstrapService(
-    { db: { insert }, transaction: vi.fn(async (fn: any) => fn({ insert })) } as any,
-    { record: vi.fn() } as any,
-    { checkAndIncrement: vi.fn(async () => ({ allowed: true, remaining: 9 })) } as any,
-    overrides.redis ?? createMockRedisStore(),
-    {
-      deliverEmailOtp: vi.fn(async () => ({ success: true })),
-      deliverToTestChannel: vi.fn(async () => ({ success: true })),
-    } as any,
-    { getMockProvider: vi.fn(() => ({ id: 'mock' })) } as any,
-    overrides.ownerEmail ?? OWNER_EMAIL,
-  );
+  const prevEmail = process.env['SCS_BOOTSTRAP_OWNER_EMAIL'];
+  if (overrides.ownerEmail !== undefined && overrides.ownerEmail !== null) {
+    process.env['SCS_BOOTSTRAP_OWNER_EMAIL'] = overrides.ownerEmail;
+  } else if (overrides.ownerEmail === null) {
+    delete process.env['SCS_BOOTSTRAP_OWNER_EMAIL'];
+  } else {
+    process.env['SCS_BOOTSTRAP_OWNER_EMAIL'] = OWNER_EMAIL;
+  }
+  try {
+    return new BootstrapService(
+      { db: { insert }, transaction: vi.fn(async (fn: any) => fn({ insert })) } as any,
+      { record: vi.fn() } as any,
+      { checkAndIncrement: vi.fn(async () => ({ allowed: true, remaining: 9 })) } as any,
+      overrides.redis ?? createMockRedisStore(),
+      {
+        deliverEmailOtp: vi.fn(async () => ({ success: true })),
+        deliverToTestChannel: vi.fn(async () => ({ success: true })),
+      } as any,
+      { getMockProvider: vi.fn(() => ({ id: 'mock' })) } as any,
+    );
+  } finally {
+    if (prevEmail === undefined) {
+      delete process.env['SCS_BOOTSTRAP_OWNER_EMAIL'];
+    } else {
+      process.env['SCS_BOOTSTRAP_OWNER_EMAIL'] = prevEmail;
+    }
+  }
 }
 
 describe('BootstrapService — owner OTP (unit)', () => {

@@ -55,7 +55,10 @@ import { RedisService } from '../../common/redis/redis.service';
 import { OtpDeliveryService } from '../notifications/otp-delivery.service';
 import { ProviderRegistryService } from '../notifications/provider-registry.service';
 import { normalizeEmail, maskEmail } from '../../common/utils/email-normalization';
-import { resolveOtpHmacSecret } from '../../config/env-gate';
+import {
+  resolveBootstrapOwnerEmail,
+  resolveOtpHmacSecret,
+} from '../../config/env-gate';
 import {
   ACQUIRE_RATE_LIMIT,
   CREATE_CHALLENGE,
@@ -125,38 +128,18 @@ export class BootstrapService {
     private readonly redis: RedisService,
     private readonly delivery: OtpDeliveryService,
     private readonly registry: ProviderRegistryService,
-    ownerEmailInput?: string,
   ) {
     // Owner address is normalized once. Invalid format is a config error;
     // absent outside dev/test is fail-closed at boot via assertBootstrapOwnerEmail.
-    this.ownerEmail = ownerEmailInput
-      ? this.normalizeOwnerEmail(ownerEmailInput)
-      : this.ownerEmailFromEnv();
+    this.ownerEmail = resolveBootstrapOwnerEmail({
+      nodeEnv: process.env['NODE_ENV'],
+      email: process.env['SCS_BOOTSTRAP_OWNER_EMAIL'],
+    });
 
     this.hmacSecret = resolveOtpHmacSecret({
       nodeEnv: process.env['NODE_ENV'],
       secret: process.env['OTP_HMAC_SECRET'],
     });
-  }
-
-  private normalizeOwnerEmail(raw: string): string {
-    try {
-      return normalizeEmail(raw);
-    } catch {
-      throw new Error(
-        'SCS_BOOTSTRAP_OWNER_EMAIL is not a valid email address. Configure a valid address for the platform owner.',
-      );
-    }
-  }
-
-  private ownerEmailFromEnv(): string | null {
-    const raw = process.env['SCS_BOOTSTRAP_OWNER_EMAIL'];
-    if (!raw || typeof raw !== 'string') return null;
-    try {
-      return normalizeEmail(raw);
-    } catch {
-      return null;
-    }
   }
 
   /** Authoritative initialization status. No user data is disclosed. */

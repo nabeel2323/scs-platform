@@ -13,7 +13,7 @@
  *   - Rate limiting
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Pool } from 'pg';
 import { readFile } from 'node:fs/promises';
@@ -121,6 +121,10 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
 
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
+  beforeEach(() => {
+    process.env['SCS_BOOTSTRAP_OWNER_EMAIL'] = 'owner@example.com';
+  });
+
   afterEach(async () => {
     await pool.query(`TRUNCATE organization_members, users, bootstrap_authorizations, organizations RESTART IDENTITY CASCADE`);
   });
@@ -133,7 +137,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(false);
@@ -150,7 +154,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(true);
@@ -166,7 +170,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     const status = await svc.getStatus();
     expect(status.initialized).toBe(false);
@@ -185,7 +189,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     const result = await svc.createSuperAdmin({
       authorizationToken: token,
@@ -220,7 +224,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await expect(svc.createSuperAdmin({
       authorizationToken: 'wrong-token-12345678901234567890123456789012',
@@ -241,7 +245,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await expect(svc.createSuperAdmin({
       authorizationToken: 'bs_expired_token_123456789012345678901234567890',
@@ -262,7 +266,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await svc.createSuperAdmin({
       authorizationToken: token,
@@ -300,7 +304,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await expect(svc.createSuperAdmin({
       authorizationToken: token,
@@ -323,7 +327,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await expect(svc.createSuperAdmin({
       authorizationToken: token,
@@ -346,7 +350,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     const attempts = Array.from({ length: 10 }, () =>
       svc.createSuperAdmin({
@@ -383,7 +387,7 @@ describe('Bootstrap API integration (PostgreSQL)', () => {
     (db as any).db = drizzle(pool, { schema });
     const svc = new BootstrapService(db, { record: async () => {} } as any, {
       checkAndIncrement: async () => ({ allowed: true, remaining: 9 }),
-    } as any, {} as any, {} as any, {} as any, 'owner@example.com');
+    } as any, {} as any, {} as any, {} as any);
 
     await svc.createSuperAdmin({
       authorizationToken: token,
