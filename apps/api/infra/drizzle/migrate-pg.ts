@@ -1,33 +1,15 @@
 /**
- * CI database migration runner (DATABASE_URL-based).
- *
- * The local `migrate.ts` shells out to `docker exec scs-postgres psql ...`,
- * which assumes a named dev container. CI has no such container, so this runner
- * connects directly via DATABASE_URL to whatever Postgres the pipeline provides
- * (e.g. a GitHub Actions service container) and applies the same ordered SQL
- * migrations. Each file runs in its own transaction; any failure rolls back and
- * exits non-zero, so the pipeline's "migration dry-run" gate proves the full
- * migration set applies cleanly to a fresh database.
- *
- * Usage:
- *   pnpm --filter @scs/api db:migrate:ci              # apply pending migrations
- *   pnpm --filter @scs/api db:migrate:ci -- --dry-run # report only, no writes
- *
- * Requires: DATABASE_URL
+ * DATABASE_URL-based migration runner.
+ * Each migration and its ledger insert run in one transaction. A session-level
+ * advisory lock serializes the ledger check and complete migration sequence
+ * across independent processes and service instances.
  */
-
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
+import { acquireMigrationLock, releaseMigrationLock } from './migration-lock';
 
-// Migrations live at repo root: infra/drizzle/migrations/
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
-
-// Phase 4.1.4: The CI migration gate now builds a custom Postgres image
-// (infra/deploy/ci-postgres.Dockerfile) that includes pg_partman alongside
-// PostGIS. All 63 migrations apply cleanly — no exclusions needed.
-// The local runner (migrate.ts) still skips 0013/0018 because the dev
-// docker-compose image (postgis/postgis:16-3.4) lacks pg_partman.
 
 function isDryRun(): boolean {
   return process.argv.includes('--dry-run');
@@ -35,45 +17,43 @@ function isDryRun(): boolean {
 
 function listMigrationFiles(): string[] {
   if (!fs.existsSync(MIGRATIONS_DIR)) {
-    console.error(`❌ Migrations directory not found: ${MIGRATIONS_DIR}`);
-    process.exit(1);
+    throw new Error(`Migrations directory not found: ${MIGRATIONS_DIR}`);
   }
-  return fs
-    .readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith('.sql'))
-    .sort();
+  return fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort();
 }
 
-async function main() {
+async function main(): Promise<void> {
   const connectionString = process.env['DATABASE_URL'];
   if (!connectionString) {
-    console.error('❌ DATABASE_URL must be set for the CI migration runner.');
-    process.exit(1);
+    throw new Error('DATABASE_URL must be set for the migration runner.');
   }
 
   const dryRun = isDryRun();
   const files = listMigrationFiles();
-
-  console.log(`\n📦 Smart Commerce — CI Migration Runner${dryRun ? ' (dry-run)' : ''}`);
+  console.log(`\n📦 Smart Commerce — Migration Runner${dryRun ? ' (dry-run)' : ''}`);
   console.log(`   Migrations dir: ${MIGRATIONS_DIR}`);
   console.log(`   Files found: ${files.length}\n`);
+
   const sslCaFile = process.env['PGSSLROOTCERT'];
-
   const pool = new Pool({
-  connectionString,
-  connectionTimeoutMillis: 10_000,
-  ...(sslCaFile && {
-    ssl: {
-      ca: fs.readFileSync(sslCaFile, 'utf8'),
-      rejectUnauthorized: true,
-    },
-  }),
-});
-  const client = await pool.connect();
+    connectionString,
+    connectionTimeoutMillis: 10_000,
+    ...(sslCaFile && {
+      ssl: { ca: fs.readFileSync(sslCaFile, 'utf8'), rejectUnauthorized: true },
+    }),
+  });
 
+  let client: PoolClient | undefined;
+  let lockAcquired = false;
   try {
-    // Prove connectivity early with a clear error.
+    client = await pool.connect();
     await client.query('SELECT 1');
+
+    // Hold this session lock for the entire ledger-check/apply sequence.
+    // PostgreSQL releases it automatically if this process or connection dies.
+    await acquireMigrationLock(client);
+    lockAcquired = true;
+    console.log('   🔒 Migration lock acquired');
 
     if (!dryRun) {
       await client.query(`CREATE TABLE IF NOT EXISTS _migration_log (
@@ -86,11 +66,9 @@ async function main() {
       ? { rows: [] as { name: string }[] }
       : await client.query('SELECT name FROM _migration_log ORDER BY name');
     const applied = new Set(appliedRes.rows.map((r) => r.name));
-
     const pending = files.filter((f) => !applied.has(f));
 
     if (dryRun) {
-      // Validate every migration file is present and non-empty; apply nothing.
       let invalid = 0;
       for (const file of files) {
         const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
@@ -102,10 +80,7 @@ async function main() {
         `\n🔎 Dry-run complete — ${files.length} migration(s) validated, ` +
           `${pending.length} would apply, ${applied.size} already logged.`,
       );
-      if (invalid > 0) {
-        console.error(`❌ ${invalid} empty/invalid migration file(s).`);
-        process.exit(1);
-      }
+      if (invalid > 0) throw new Error(`${invalid} empty/invalid migration file(s).`);
       return;
     }
 
@@ -126,10 +101,13 @@ async function main() {
         console.log(`   ✅ ${file} applied`);
         count++;
       } catch (err) {
-        await client.query('ROLLBACK');
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Preserve the original error if the connection has already failed.
+        }
         const message = err instanceof Error ? err.message : String(err);
-        console.error(`\n❌ Migration ${file} FAILED: ${message}`);
-        process.exit(1);
+        throw new Error(`Migration ${file} FAILED: ${message}`, { cause: err });
       }
     }
 
@@ -138,12 +116,25 @@ async function main() {
         `(total ${files.length}).\n`,
     );
   } finally {
-    client.release();
+    if (client) {
+      if (lockAcquired) {
+        try {
+          await releaseMigrationLock(client);
+          console.log('   🔓 Migration lock released');
+        } catch (err) {
+          console.error(
+            '⚠️ Could not explicitly release migration lock; closing DB session:',
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+      }
+      client.release();
+    }
     await pool.end();
   }
 }
 
 main().catch((err) => {
-  console.error('Fatal error:', err instanceof Error ? err.message : err);
-  process.exit(1);
+  console.error('Fatal migration error:', err instanceof Error ? err.message : err);
+  process.exitCode = 1;
 });

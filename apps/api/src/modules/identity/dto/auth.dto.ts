@@ -7,6 +7,7 @@ import {
   MaxLength,
   Matches,
   ValidateNested,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -43,6 +44,16 @@ export class RequestOtpDto {
   @IsNotEmpty()
   @MaxLength(20)
   phone!: string;
+
+  @ApiPropertyOptional({
+    enum: ['sms', 'whatsapp', 'email'],
+    default: 'sms',
+    description: 'Delivery channel for the OTP code',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['sms', 'whatsapp', 'email'])
+  channel?: 'sms' | 'whatsapp' | 'email';
 }
 
 /** POST /v1/auth/otp/verify */
@@ -112,16 +123,107 @@ export class LoginPasswordDto {
   deviceInfo?: DeviceInfoDto;
 }
 
-/** POST /v1/auth/login/device-check */
+/**
+ * POST /v1/auth/login/device-check
+ *
+ * `deviceId` is still accepted so clients already deployed (web, admin, iOS,
+ * Android) do not start failing against the new server: the global pipe runs
+ * with `forbidNonWhitelisted`, so removing a field would be a breaking change
+ * for no security gain. It is validated as an opaque bounded string and then
+ * IGNORED — the endpoint answers a constant body, and the value establishes no
+ * trust anywhere in the S-1 model.
+ */
 export class DeviceCheckDto {
   @ApiProperty({ example: 'admin@example.com' })
   @IsEmail()
   @MaxLength(254)
   email!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Accepted for backwards compatibility and ignored. Device trust is carried by a ' +
+      'server-issued HttpOnly cookie, not by a client-generated identifier.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  deviceId?: string;
+}
+
+// ── Email OTP DTOs (S1.35 Phase 1) ───────────────────────────
+
+/** POST /v1/auth/otp/email/request */
+export class EmailOtpRequestDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+}
+
+/** POST /v1/auth/otp/email/verify */
+export class EmailOtpVerifyDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp must be a 6-digit code' })
+  otp!: string;
+
+  @ApiPropertyOptional({ description: 'Stable per-device id establishing device trust' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  deviceId?: string;
+
+  @ApiPropertyOptional({ type: DeviceInfoDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeviceInfoDto)
+  deviceInfo?: DeviceInfoDto;
+}
+
+// ── Account Linking DTOs (S1.35 Phase 1) ─────────────────────
+
+/** POST /v1/auth/account/link-email */
+export class LinkEmailDto {
+  @ApiProperty({ example: 'user@example.com' })
+  @IsEmail()
+  @MaxLength(254)
+  email!: string;
+
+  @ApiProperty({
+    example: '123456',
+    description:
+      'A live, unconsumed email OTP for this exact address, obtained from /v1/auth/otp/email/request. ' +
+      'Required: an identifier may never be attached without proof of mailbox control. Any valid ' +
+      'challenge for the address qualifies regardless of the original request intent, because ' +
+      'the challenge key is the normalized address.',
+  })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp must be a 6-digit code' })
+  otp!: string;
+}
+
+/** POST /v1/auth/account/link-phone */
+export class LinkPhoneDto {
+  @ApiProperty({ example: '+9665XXXXXXXX' })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(128)
-  deviceId!: string;
+  @MaxLength(20)
+  phone!: string;
+
+  @ApiProperty({
+    example: '123456',
+    description:
+      'A live, unconsumed phone OTP for this exact number, obtained from /v1/auth/otp/request. ' +
+      'Required: an identifier may never be attached without proof of control (S1.37-F-05). The ' +
+      'challenge is keyed on the normalized number, so a code requested for login also proves ' +
+      'control for linking, and consuming it here invalidates it for login.',
+  })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'otp must be a 6-digit code' })
+  otp!: string;
 }

@@ -27,6 +27,7 @@ import {
   ErrorBanner,
 } from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
+import './orders.css';
 
 // Merchant cancellation is a transition to CANCELLED via merchant:orders:write —
 // the backend FSM allows it from PENDING_CONFIRMATION through READY
@@ -337,14 +338,6 @@ export default function MerchantOrdersPage() {
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <style>{`
-        @media (max-width: 768px) {
-          .mo-filterbar { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
-          .mo-filterbar > * { flex: 0 0 auto; }
-          .mo-card-head { flex-direction: column !important; align-items: stretch !important; }
-          .mo-row-actions { justify-content: flex-start !important; }
-        }
-      `}</style>
       {/* Header Banner */}
       <PageHeader
         title="Merchant Orders"

@@ -868,7 +868,7 @@ export default function MerchantOrganizationPage() {
                           >
                             <div style={{ fontWeight: 600, color: '#0f3340' }}>{user.fullName || 'Unknown'}</div>
                             <div style={{ fontSize: 11, color: '#5b6b74' }}>
-                              {user.phone}{user.email ? ` · ${user.email}` : ''}
+                              {user.phone || '—'}{user.email ? ` · ${user.email}` : ''}
                             </div>
                           </div>
                         ))}
@@ -882,7 +882,7 @@ export default function MerchantOrganizationPage() {
                   <div style={{ background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 6, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontWeight: 600, color: '#2e7d32', fontSize: 13 }}>{selectedUser.fullName || 'Unknown'}</div>
-                      <div style={{ fontSize: 11, color: '#5b6b74' }}>{selectedUser.phone}{selectedUser.email ? ` · ${selectedUser.email}` : ''}</div>
+                      <div style={{ fontSize: 11, color: '#5b6b74' }}>{selectedUser.phone || '—'}{selectedUser.email ? ` · ${selectedUser.email}` : ''}</div>
                     </div>
                     <button onClick={() => { setSelectedUser(null); setNewUserId(''); }} style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                       Change

@@ -1,0 +1,62 @@
+/*
+ * Global styles for the admin console.
+ *
+ * These rules used to live in a `<style>` text child inside the root layout's
+ * `<head>`. React escapes `' " < > &` in every text child, but a browser parses
+ * `<style>` as a *raw text* element and does not decode character references
+ * there, so the served bytes (`font-family: var(--font-inter), &#x27;Segoe
+ * UI&#x27;, …`) never equalled the React text child the client was hydrating.
+ * The mismatch was reported as React #425, escalated to #418 and #423, and Next
+ * replaced the whole document root — the page only looked right afterwards
+ * because it had been re-rendered from scratch on the client.
+ *
+ * A stylesheet is the correct home for CSS: the App Router emits it as
+ * `<link rel="stylesheet">`, so the text never passes through an HTML text
+ * escaper at all. Every declaration below is the declaration the inline reset
+ * had, in the same order, including the `.admin-content` rules the sidebar
+ * relies on; nothing was added, removed or altered.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-inter), 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+:focus-visible {
+  outline: 3px solid rgba(30, 97, 120, 0.35);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Offset the content area by the sidebar width the sidebar publishes as a CSS
+ * custom property (see `components/AdminSidebar.tsx`). */
+.admin-content {
+  margin-left: var(--admin-sidebar-width, 220px);
+  min-height: 100vh;
+  transition: margin-left 0.2s ease;
+}
+
+@media (max-width: 1079px) {
+  .admin-content {
+    margin-left: 0;
+  }
+}

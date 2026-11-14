@@ -28,6 +28,8 @@ function mocks() {
     changePassword: vi.fn(),
     getUserSessions: vi.fn(),
     revokeSessionsByDevice: vi.fn(),
+    listDeviceCredentials: vi.fn(),
+    revokeDeviceCredentialById: vi.fn(),
   };
   const notifications = {
     registerDeviceToken: vi.fn(),
@@ -152,5 +154,35 @@ describe('ProfileController', () => {
   it('revokeSessionsByDevice forwards sub + deviceId', async () => {
     await controller.revokeSessionsByDevice(payload({ sub: 'u1' }), 'dev-1');
     expect(m.identity.revokeSessionsByDevice).toHaveBeenCalledWith('u1', 'dev-1');
+  });
+
+  // ── Trusted devices (S-1) ───────────────────────────────────────────
+  //
+  // The controller adds no logic here, which is the point worth locking: the
+  // management surface is a thin adapter over an ownership-scoped service call,
+  // so there is no route that can reach another account's credential.
+
+  it('listTrustedDevices forwards only the caller sub', async () => {
+    const rows = [{ id: 'cred-1', deviceLabel: 'Chrome on macOS' }];
+    m.identity.listDeviceCredentials.mockResolvedValue(rows);
+    const out = await controller.listTrustedDevices(payload({ sub: 'u1' }));
+    expect(m.identity.listDeviceCredentials).toHaveBeenCalledWith('u1');
+    expect(out).toEqual(rows);
+  });
+
+  it('revokeTrustedDevice forwards sub + the credential id, and reports what it revoked', async () => {
+    m.identity.revokeDeviceCredentialById.mockResolvedValue({ success: true, revokedCount: 1 });
+    const out = await controller.revokeTrustedDevice(payload({ sub: 'u1' }), 'cred-1');
+    expect(m.identity.revokeDeviceCredentialById).toHaveBeenCalledWith('u1', 'cred-1');
+    expect(out).toEqual({ success: true, revokedCount: 1 });
+  });
+
+  it('reports an id belonging to another account as revokedCount 0 without an error', async () => {
+    // The service scopes the update by user_id, so a foreign id removes nothing;
+    // the controller must not turn that into a 500 or leak whose id it was.
+    m.identity.revokeDeviceCredentialById.mockResolvedValue({ success: true, revokedCount: 0 });
+    await expect(
+      controller.revokeTrustedDevice(payload({ sub: 'u1' }), 'someone-elses-credential'),
+    ).resolves.toEqual({ success: true, revokedCount: 0 });
   });
 });

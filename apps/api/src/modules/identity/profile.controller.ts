@@ -8,6 +8,7 @@ import {
   Body,
   UseGuards,
   Headers,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -155,6 +156,8 @@ export class ProfileController {
 
   /**
    * Revoke all sessions for a specific device.
+   * Also de-trusts the device credentials those sessions enrolled (S-1), so
+   * "sign this device out" cannot leave a second-factor exemption behind.
    */
   @Delete('sessions/revoke-by-device/:deviceId')
   async revokeSessionsByDevice(
@@ -162,5 +165,34 @@ export class ProfileController {
     @Param('deviceId') deviceId: string,
   ) {
     return this.identityService.revokeSessionsByDevice(user.sub, deviceId);
+  }
+
+  // ── Trusted Devices (server-issued device trust; S-1) ──────
+
+  /**
+   * List the devices currently exempt from OTP for this account.
+   *
+   * Only non-secret fields are returned: no digest, no prefix of one, nothing
+   * an attacker could use as candidate material. The caller sees "MacBook /
+   * Safari, last used 3 days ago", which is what a person needs in order to
+   * recognise and remove a device they no longer control.
+   */
+  @Get('trusted-devices')
+  async listTrustedDevices(@CurrentUser() user: JwtPayload) {
+    return this.identityService.listDeviceCredentials(user.sub);
+  }
+
+  /**
+   * Remove one trusted device: revokes its credential, so the next login from
+   * that browser has to pass the second factor again. The id is validated as a
+   * UUID (a malformed one is a 400, not a driver error), and revoking an id
+   * belonging to another account removes nothing.
+   */
+  @Delete('trusted-devices/:credentialId')
+  async revokeTrustedDevice(
+    @CurrentUser() user: JwtPayload,
+    @Param('credentialId', ParseUUIDPipe) credentialId: string,
+  ) {
+    return this.identityService.revokeDeviceCredentialById(user.sub, credentialId);
   }
 }

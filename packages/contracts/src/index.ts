@@ -27,7 +27,108 @@ export const DeviceInfoSchema = z.object({
 
 export const OtpRequestSchema = z.object({
   phone: z.string().min(8).max(20),
+  channel: z.enum(['sms', 'whatsapp', 'email']).default('sms').optional(),
 });
+
+/**
+ * Response of POST /v1/auth/otp/request.
+ *
+ * THE POINT OF THIS SHAPE
+ * A 2xx status means only that the API processed the request. Whether a code
+ * was actually handed to a delivery provider is carried by `success`, and
+ * `deliveryStatus` says why not. Clients MUST read `success`: a login form that
+ * treats an HTTP 200 as "code sent" shows a verification screen for a code that
+ * will never arrive — which is exactly the admin-app defect behind the S-1/S-2
+ * remediation (audit finding: "Admin OTP delivery failure is silently treated
+ * as success").
+ *
+ * Observed `deliveryStatus` values (a stable vocabulary, not free text):
+ *   - 'delivered'                        — provider accepted the message. NOTE:
+ *                                          acceptance is not confirmation of
+ *                                          receipt; SMS/SMTP report nothing
+ *                                          further at request time, so no
+ *                                          client may claim the code "was
+ *                                          delivered".
+ *   - 'DELIVERY_TIMEOUT'                 — outcome unknown (`possiblyDelivered`
+ *                                          is true): the challenge stays live,
+ *                                          so a code may still arrive.
+ *   - '<CHANNEL>_PROVIDER_NOT_CONFIGURED'— the delivery router has no provider
+ *                                          for the channel. Retrying is futile
+ *                                          until configuration changes.
+ *   - '<PROVIDER>_NOT_CONFIGURED'        — a provider was routed but is itself
+ *                                          disabled/unconfigured (Twilio, SMTP,
+ *                                          WhatsApp each emit their own name).
+ *                                          Same conclusion as above, and the
+ *                                          reason this family is matched by
+ *                                          suffix rather than by one literal.
+ *   - '<CHANNEL>_CHANNEL_DISABLED'       — the deployment does not permit this
+ *                                          channel (`OTP_CHANNELS`). During the
+ *                                          email-only staging release SMS
+ *                                          answers this way. No credential is
+ *                                          missing; retrying is still futile.
+ *   - 'UNKNOWN_CHANNEL'                  — the requested channel does not exist.
+ *   - 'DELIVERY_ERROR'                   — transport failure, outcome unknown.
+ *   - any provider reason string, or 'DELIVERY_FAILED' — definitively rejected.
+ */
+export const OtpRequestResponseSchema = z.object({
+  success: z.boolean(),
+  deliveryStatus: z.string(),
+  possiblyDelivered: z.boolean().optional(),
+});
+
+/**
+ * The four things a client can actually conclude from an OTP request response.
+ *
+ * `deliveryStatus` is an open-ended string — it carries provider reasons — so
+ * branching on it directly in four different UIs is how the admin console ended
+ * up treating a failed send as a successful one: it never looked at `success`.
+ * This function collapses the vocabulary into one closed enum per outcome and is
+ * the single place that knows how to read it. The WORDS stay in each app: this
+ * classifies, it does not write copy.
+ *
+ *  - 'delivered'    — the provider accepted the send. Safe to show a code-entry
+ *                     step and say a code is on its way.
+ *  - 'uncertain'    — the request timed out in transit. A code MAY arrive. Never
+ *                     claim it was sent.
+ *  - 'unavailable'  — this environment cannot deliver on this channel at all
+ *                     (no provider configured, or an unknown channel). Retrying
+ *                     is pointless; the UI should not offer a retry.
+ *  - 'rejected'     — delivery definitively failed. The number may be wrong.
+ */
+export type OtpDeliveryOutcome = 'delivered' | 'uncertain' | 'unavailable' | 'rejected';
+
+export function classifyOtpDelivery(
+  result: z.infer<typeof OtpRequestResponseSchema>,
+): OtpDeliveryOutcome {
+  if (result.success === true) return 'delivered';
+
+  const status = typeof result.deliveryStatus === 'string' ? result.deliveryStatus : '';
+  // "This environment cannot deliver on this channel" arrives under THREE shapes:
+  // the delivery router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED`, the providers'
+  // own `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`, and — since the email-only
+  // release — the router's `<CHANNEL>_CHANNEL_DISABLED` for a channel the
+  // deployment deliberately does not permit. All three mean a retry cannot help,
+  // so they are matched by suffix; enumerating one literal is how the other
+  // families used to fall through to 'rejected' and be shown as "check the number".
+  if (
+    status === 'UNKNOWN_CHANNEL' ||
+    status.endsWith('_NOT_CONFIGURED') ||
+    status.endsWith('_CHANNEL_DISABLED')
+  ) {
+    return 'unavailable';
+  }
+  if (
+    result.possiblyDelivered === true ||
+    status === 'DELIVERY_TIMEOUT' ||
+    // Transport failure: the message may or may not have left. Normally the API
+    // rewrites this to DELIVERY_TIMEOUT, so this is the belt-and-braces reading.
+    status === 'DELIVERY_ERROR'
+  ) {
+    return 'uncertain';
+  }
+
+  return 'rejected';
+}
 
 export const OtpVerifySchema = z.object({
   phone: z.string().min(8).max(20),
@@ -65,7 +166,44 @@ export const SwitchOrgResponseSchema = z.object({
   accessToken: z.string(),
 });
 
-/** POST /v1/auth/login/password request. */
+/**
+ * Device-trust transport (S-1 remediation) — the wire names clients must use.
+ *
+ * The credential itself is a server-issued HttpOnly cookie, so a client never
+ * reads or writes its value; it can only opt the request INTO carrying it. Two
+ * things are therefore part of the public contract:
+ *
+ *  - `DEVICE_TRUST_COOKIE_NAME` — the cookie the server installs. Documented
+ *    here so clients can describe it; page script cannot touch it (HttpOnly),
+ *    which is the point.
+ *  - `DEVICE_TRUST_PROOF_HEADER` — a constant-value header the client MUST send
+ *    on every request where trust matters, alongside `credentials: 'include'`.
+ *
+ * Why the header exists: the frontends are hosted apart from the API, so the
+ * cookie needs `SameSite=None` to be attached at all — and `SameSite=None` also
+ * lets a third-party page cause the browser to attach it. The server therefore
+ * only evaluates device trust when this header is present. It is not a CORS
+ * safelist header, so setting one cross-site requires a preflight, and the API
+ * answers that preflight only for allowlisted origins. That is the CSRF defence;
+ * a client that omits the header is not broken, it is simply treated as an
+ * untrusted device (fails closed).
+ *
+ * The server's authoritative definitions live in
+ * `apps/api/src/common/auth/device-trust-cookie.ts`; `@scs/api` does not depend
+ * on this package, so the values are duplicated rather than imported, and
+ * `contracts-phase1.openapi.spec.ts` pins the names as they appear in the
+ * published OpenAPI document.
+ */
+export const DEVICE_TRUST_COOKIE_NAME = 'scs_device_trust';
+export const DEVICE_TRUST_PROOF_HEADER = 'x-device-trust';
+export const DEVICE_TRUST_PROOF_VALUE = '1';
+
+/**
+ * POST /v1/auth/login/password request.
+ *
+ * `deviceId` is provenance only (S-1): it labels the session row and grants
+ * nothing. Trust is decided by the cookie + proof header described above.
+ */
 export const LoginPasswordSchema = z.object({
   email: z.string().email().max(254),
   password: z.string().min(1).max(128),
@@ -77,25 +215,111 @@ export const LoginPasswordSchema = z.object({
  * POST /v1/auth/login/password response. When the device is untrusted the API
  * challenges with OTP instead of issuing tokens (empty token strings plus
  * `requiresOtp`), so both branches are modeled in a single schema.
+ *
+ * The server-issued device-trust credential is deliberately NOT part of this
+ * body (or of any response body): it crosses the wire only inside a
+ * `Set-Cookie` header, so it never lands in a client-side log, a proxy capture
+ * or `localStorage` (S-1).
+ *
+ * `otpDelivery` says how the challenge that accompanies `requiresOtp` was
+ * delivered, because the UI cannot infer it: the server requests the OTP itself
+ * on this path and only tells the client afterwards. Definite failures never
+ * reach the client at all (they answer 401), so the two values here are
+ * 'accepted' — a code is on its way — and 'uncertain', where the provider did
+ * not confirm. A client must not write "code sent" for the second one.
  */
 export const LoginPasswordResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
   requiresOtp: z.boolean().optional(),
   otpPhone: z.string().optional(),
+  otpEmail: z.string().optional(),
+  otpDelivery: z.enum(['accepted', 'uncertain']).optional(),
 });
 
-/** POST /v1/auth/login/device-check request. */
+/**
+ * POST /v1/auth/login/device-check request.
+ *
+ * `deviceId` is optional and IGNORED server-side (S-2 remediation). It is still
+ * whitelisted because deployed clients send it and the API pipe runs with
+ * `forbidNonWhitelisted`, which would turn every one of those calls into a 400.
+ * A client-generated device id establishes no trust anywhere.
+ */
 export const DeviceCheckSchema = z.object({
   email: z.string().email().max(254),
-  deviceId: z.string().min(1).max(128),
+  deviceId: z.string().max(128).optional(),
 });
 
-/** POST /v1/auth/login/device-check response. */
+/**
+ * POST /v1/auth/login/device-check response — a CONSTANT acknowledgement.
+ *
+ * It used to be `{canAutoLogin, requiresOtp, hasPassword}`, which let an
+ * unauthenticated caller enumerate accounts (`hasPassword: false` separated
+ * "no such account" from "account without a password"), learn which of them
+ * were protected by a password only, and confirm that a given address already
+ * had a trusted device. The caller has proved nothing, so it is told nothing:
+ * the literal `checked: true` is the whole answer, identical for every address.
+ *
+ * No client branches on it. Device trust travels in the server-issued HttpOnly
+ * cookie and is evaluated by the server on `POST /v1/auth/login/password`.
+ */
 export const DeviceCheckResponseSchema = z.object({
-  canAutoLogin: z.boolean(),
-  requiresOtp: z.boolean(),
-  hasPassword: z.boolean(),
+  checked: z.literal(true),
+});
+
+// ── Email OTP (S1.35 Phase 1) ────────────────────────────────
+
+/** POST /v1/auth/otp/email/request */
+export const EmailOtpRequestSchema = z.object({
+  email: z.string().email().max(254),
+});
+
+/** POST /v1/auth/otp/email/verify */
+export const EmailOtpVerifySchema = z.object({
+  email: z.string().email().max(254),
+  otp: z.string().length(6),
+  deviceId: z.string().max(128).optional(),
+  deviceInfo: DeviceInfoSchema.optional(),
+});
+
+/**
+ * Enumeration-safe response for email OTP request.
+ * Same shape regardless of whether the address exists, and identical to the
+ * phone OTP request response — both endpoints report the same delivery outcome
+ * vocabulary, so a client has one thing to read instead of two.
+ */
+export const EmailOtpRequestResponseSchema = OtpRequestResponseSchema;
+
+// ── Account Linking (S1.35 Phase 1) ──────────────────────────
+
+/**
+ * POST /v1/auth/account/link-email
+ *
+ * `otp` is required: an email identifier may only be attached after proof of
+ * control over that mailbox (S1.35 Step 10 ownership requirement, re-enforced
+ * by the S1.37 audit).
+ */
+export const AccountLinkEmailSchema = z.object({
+  email: z.string().email().max(254),
+  otp: z.string().regex(/^\d{6}$/),
+});
+
+/**
+ * POST /v1/auth/account/link-phone
+ *
+ * `otp` is required (S1.37-F-05): a phone identifier may only be attached after
+ * proof of control over that number, mirroring the email rule above. Consuming
+ * the challenge for linking invalidates it for login, so one code cannot be used
+ * for both.
+ */
+export const AccountLinkPhoneSchema = z.object({
+  phone: z.string().min(8).max(20),
+  otp: z.string().regex(/^\d{6}$/),
+});
+
+/** Generic success response for account linking/unlinking. */
+export const AccountLinkResponseSchema = z.object({
+  success: z.boolean(),
 });
 
 /**
@@ -113,6 +337,28 @@ export const SessionInfoSchema = z.object({
   expiresAt: z.string(),
   isCurrent: z.boolean(),
   isRevoked: z.boolean(),
+});
+
+/**
+ * One trusted device as returned by GET /v1/me/trusted-devices (S-1).
+ *
+ * Non-secret fields ONLY. There is no credential, no digest, and no prefix of
+ * either: this list is readable by any authenticated session (including one
+ * whose access token leaked), and even a truncated digest would be candidate
+ * material for an offline search against the stored hashes. What a person needs
+ * to recognise a device they no longer control is the label and the timestamps.
+ *
+ * Timestamps are ISO-8601 strings over the wire, like SessionInfo.
+ */
+export const TrustedDeviceSchema = z.object({
+  id: z.string().uuid(),
+  deviceLabel: z.string().nullable(),
+  createdAt: z.string(),
+  lastUsedAt: z.string(),
+  /** Sliding horizon: trust lapses if the device is unused by this point. */
+  expiresAt: z.string(),
+  /** Absolute ceiling: a second factor is required again past this point. */
+  hardExpiresAt: z.string(),
 });
 
 /**
@@ -818,6 +1064,7 @@ export const ConversationSchema = z.object({
 // ── Re-exports ───────────────────────────────────────────────
 
 export type OtpRequest = z.infer<typeof OtpRequestSchema>;
+export type OtpRequestResponse = z.infer<typeof OtpRequestResponseSchema>;
 export type OtpVerify = z.infer<typeof OtpVerifySchema>;
 export type AuthTokens = z.infer<typeof AuthTokensSchema>;
 export type RefreshToken = z.infer<typeof RefreshTokenSchema>;
@@ -830,7 +1077,14 @@ export type LoginPassword = z.infer<typeof LoginPasswordSchema>;
 export type LoginPasswordResponse = z.infer<typeof LoginPasswordResponseSchema>;
 export type DeviceCheck = z.infer<typeof DeviceCheckSchema>;
 export type DeviceCheckResponse = z.infer<typeof DeviceCheckResponseSchema>;
+export type EmailOtpRequest = z.infer<typeof EmailOtpRequestSchema>;
+export type EmailOtpVerify = z.infer<typeof EmailOtpVerifySchema>;
+export type EmailOtpRequestResponse = z.infer<typeof EmailOtpRequestResponseSchema>;
+export type AccountLinkEmail = z.infer<typeof AccountLinkEmailSchema>;
+export type AccountLinkPhone = z.infer<typeof AccountLinkPhoneSchema>;
+export type AccountLinkResponse = z.infer<typeof AccountLinkResponseSchema>;
 export type SessionInfo = z.infer<typeof SessionInfoSchema>;
+export type TrustedDevice = z.infer<typeof TrustedDeviceSchema>;
 export type AuthSession = z.infer<typeof AuthSessionSchema>;
 
 export type Address = z.infer<typeof AddressSchema>;
@@ -1099,7 +1353,7 @@ export const UpdateProfileSchema = z.object({
 
 export const UserProfileSchema = z.object({
   id: z.string().uuid(),
-  phone: z.string(),
+  phone: z.string().nullable(),
   email: z.string().nullable(),
   fullName: z.string(),
   locale: z.string(),

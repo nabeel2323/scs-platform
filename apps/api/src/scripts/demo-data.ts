@@ -68,6 +68,39 @@ const IDs = {
 async function main() {
   console.log('🎭 Generating demo data...\n');
 
+  // ── 0. Environment guard ──────────────────────────────────────────
+  // Demo data may ONLY run against explicitly isolated development/test
+  // databases. Staging and production are refused. An explicit opt-in is
+  // required so the seed cannot be run accidentally.
+  const demoEnv = (process.env['SCS_ENVIRONMENT'] ?? process.env['NODE_ENV'] ?? '').trim().toLowerCase();
+  const allowedEnvironments = new Set(['development', 'test']);
+  if (!allowedEnvironments.has(demoEnv)) {
+    console.error('❌ Demo seed refused: environment is not a permitted development/test value.');
+    console.error(`   Current SCS_ENVIRONMENT/NODE_ENV: "${demoEnv || '(unset)'}"`);
+    console.error('   Allowed: development, test');
+    process.exit(1);
+  }
+
+  if (process.env['SCS_DEMO_SEED_CONFIRM'] !== 'true') {
+    console.error('❌ Demo seed refused: explicit opt-in required.');
+    console.error('   Set SCS_DEMO_SEED_CONFIRM=true to confirm you intend to seed demo data.');
+    process.exit(1);
+  }
+
+  // Never run against a production-like database URL.
+  const databaseUrl = (process.env['DATABASE_URL'] ?? '').toLowerCase();
+  if (databaseUrl) {
+    const productionIndicators = ['prod', 'production', 'rds.amazonaws.com', 'azure.com', 'googleapis.com', 'neon.tech'];
+    for (const indicator of productionIndicators) {
+      if (databaseUrl.includes(indicator)) {
+        console.error('❌ Demo seed refused: DATABASE_URL appears to target a production database.');
+        process.exit(1);
+      }
+    }
+  }
+
+  console.log(`  ✓ Environment guard passed: ${demoEnv || '(unset)'}`);
+
   // ── 0. Look up role IDs ────────────────────────────────────
   for (const key of ['SUPER_ADMIN', 'ADMIN', 'MODERATOR', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'BUYER']) {
     IDs.roleId[key] = psql(`SELECT id FROM roles WHERE key = '${key}';`);

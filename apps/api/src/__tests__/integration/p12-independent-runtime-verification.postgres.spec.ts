@@ -900,6 +900,14 @@ describe('P12 Independent Runtime Verification', () => {
       expect(ordersMod.OrdersModule).toBeDefined();
       // Just verify OrdersModule can be loaded — actual wiring is verified by
       // the e2e checkout flow via the running app in §26.4 deferred launch.
-    });
+      //
+      // S1.13 observed this dynamic import taking 11–13 s under serial
+      // integration execution (module-graph transitive closure through
+      // payments, identity, catalog, shipping, returns).
+      // S1.38.2 increased the timeout from 30 s to 60 s, but the full-suite
+      // run still exceeded 60 s. S1.38.3 measured 52 s in isolation and
+      // ~60+ s under full-suite resource contention. 120 000 ms provides a
+      // 2.3× margin over the worst observed duration.
+    }, 120_000);
   });
 });

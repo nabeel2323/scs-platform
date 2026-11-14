@@ -6,12 +6,28 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
-import { assertJwtConfig, assertProductionConfig } from './config/env-gate';
+import { assertJwtConfig, assertOtpHmacConfig, assertProductionConfig, assertBootstrapOwnerEmail, resolveTrustProxy } from './config/env-gate';
+import { assertOtpDeliveryConfig } from './config/otp-delivery-gate';
+import {
+  DEVICE_TRUST_PROOF_HEADER,
+  resolveDeviceTrustCookieConfig,
+} from './common/auth/device-trust-cookie';
 
 async function bootstrap() {
   // Fail fast on insecure JWT configuration (API-B7) before creating the app,
   // binding a port, or opening any DB/Redis connections.
   assertJwtConfig();
+
+  // S1.3 M-02: the OTP challenge store is keyed by HMAC(OTP_HMAC_SECRET, ...). A
+  // missing/placeholder/short secret lets anyone with Redis read access precompute
+  // every code, so refuse to boot a deployed process that is not configured with a
+  // unique strong secret. No-op (dev fallback) in development/test.
+  assertOtpHmacConfig();
+
+  // Bootstrap ownership: SCS_BOOTSTRAP_OWNER_EMAIL is the root of trust for initial
+  // platform ownership. Fail closed outside development/test — a fresh deployment
+  // cannot be initialized without a configured owner address. No-op in dev/test.
+  assertBootstrapOwnerEmail();
 
   // P13 Phase 4.1: refuse to boot a deployed process that would silently fall back to
   // the development PostgreSQL/Redis endpoints, and refuse one whose alert webhook is
@@ -23,9 +39,56 @@ async function bootstrap() {
       (alertSink.configured ? '' : ' (no webhook configured — alerts are persisted and logged only)'),
   );
 
+  // S-1 remediation: device trust is carried by a server-issued HttpOnly
+  // cookie. Resolve and validate its attributes before anything is bound,
+  // because the two failure modes are silent: `SameSite=None` without `Secure`
+  // is discarded by every browser, and `Secure=false` in a deployed
+  // environment would send the credential in cleartext. Either way the
+  // consequence is a trust model that looks configured and is not, so this
+  // throws rather than degrading.
+  const deviceTrustCookie = resolveDeviceTrustCookieConfig({
+    nodeEnv: process.env['NODE_ENV'],
+    sameSite: process.env['DEVICE_TRUST_COOKIE_SAME_SITE'],
+    secure: process.env['DEVICE_TRUST_COOKIE_SECURE'],
+  });
+  new Logger('Bootstrap').log(
+    `Device-trust cookie: SameSite=${deviceTrustCookie.sameSite}` +
+      `, Secure=${deviceTrustCookie.secure}, HttpOnly=true` +
+      ` (CSRF proof header: ${DEVICE_TRUST_PROOF_HEADER})`,
+  );
+
+  // Email-only staging release: refuse to boot a deployed process that has no
+  // permitted OTP delivery channel, and report an actionable error naming the
+  // missing SMTP variables. Absent Twilio/WhatsApp credentials are the expected
+  // state while those channels are not permitted and never block startup.
+  // No-op outside production-like NODE_ENV.
+  const otpReadiness = assertOtpDeliveryConfig();
+  new Logger('Bootstrap').log(
+    `OTP delivery: ${otpReadiness.ready ? 'ready' : 'not ready (non-production)'}` +
+      ` — permitted channels: ${process.env['OTP_CHANNELS']?.trim() || 'email (default)'}`,
+  );
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
+
+  // ── S1.7: Proxy trust configuration ──────────────────────────
+  // Must be set BEFORE any middleware that reads req.ip (throttler, CORS, etc.).
+  // When TRUST_PROXY is unset/false (default), Express uses the direct TCP peer —
+  // safe for direct connections but all clients behind a NAT share one IP bucket.
+  // When set to a hop count, IP list, or CIDR list, req.ip resolves through the
+  // X-Forwarded-For chain to the correct client identity.
+  const trustProxy = resolveTrustProxy(process.env['TRUST_PROXY']);
+  const httpAdapter = app.getHttpAdapter();
+  // NestJS wraps Express; the underlying instance supports app.set().
+  if (typeof (httpAdapter as any).getInstance === 'function') {
+    (httpAdapter as any).getInstance().set('trust proxy', trustProxy);
+  }
+  if (trustProxy !== false) {
+    new Logger('Bootstrap').log(
+      `Trust proxy: ${typeof trustProxy === 'number' ? `hop count ${trustProxy}` : Array.isArray(trustProxy) ? trustProxy.join(', ') : String(trustProxy)}`,
+    );
+  }
 
   // ── Security ───────────────────────────────────────────────
   app.use(helmet());
@@ -37,8 +100,22 @@ async function bootstrap() {
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'If-Match', 'X-Device-Id'],
-    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    // X-Device-Id remains allowed: deployed clients still send it, and it is
+    // still recorded as session provenance. It grants no trust (S-1).
+    // DEVICE_TRUST_PROOF_HEADER is the CSRF control for the device-trust
+    // cookie — with SameSite=None the browser will attach that cookie to a
+    // cross-site request, so trust is only evaluated when this non-safelisted
+    // header is also present. A third-party page has to pass a preflight to set
+    // it, and this origin allowlist is what rejects that preflight.
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Idempotency-Key',
+      'If-Match',
+      'X-Device-Id',
+      DEVICE_TRUST_PROOF_HEADER,
+    ],
+    exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'X-RateLimit-Reset', 'Retry-After'],
   });
 
   // ── Logging (pino with requestId correlation) ──────────────

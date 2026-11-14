@@ -15,9 +15,66 @@ on:
   pull_request:
     branches: [main, develop]
 
+# Supersede stale runs on every ref EXCEPT develop.
+#
+# Why develop is excluded: `trigger-staging-release` is not a separate workflow
+# run — it calls release.yml as a reusable workflow, so the release's jobs
+# (`validate`, `database-release`, `deploy`, `health-check`) execute as jobs of
+# THIS run. A `cancel-in-progress: true` on the develop group therefore meant a
+# second push to develop could terminate the run that was hosting an
+# in-flight `database-release` step, i.e. kill a migration mid-flight and leave
+# the staging schema half-migrated. (Audited as R-1 / finding F-2; the
+# cancellation mechanism was demonstrated live on run #424, where a newer run
+# in the same group cancelled the in-flight job and `Trigger Staging Release`
+# was recorded `skipped` at the identical timestamp.)
+#
+# Behaviour after this change:
+#   push events   -> group CI-develop: one run executes, a second queues behind
+#                    it (`cancel-in-progress` evaluates false, so the running
+#                    release is never interrupted).
+#   pull_request  -> group CI-<pr ref>: `cancel-in-progress` evaluates true, so
+#                    every new push to an open PR still replaces the older
+#                    in-progress run. Feature-branch and PR feedback speed is
+#                    unchanged — no release path exists on those events
+#                    (`trigger-staging-release` is gated to `push` + develop).
+#   push to main  -> also cancels in-progress main runs, as before; main cannot
+#                    start a staging release (the job `if` requires develop).
+#
+# `cancel-in-progress` accepts an expression; the permitted contexts for a
+# `concurrency` expression are `github`, `inputs` and `vars`, so `github.ref`
+# is available here.
+#
+# Deliberately NOT set on this workflow: `queue: max`. GitHub rejects the
+# combination of `queue: max` with `cancel-in-progress: true` at validation
+# time, and this workflow's value is an expression that evaluates to `true` for
+# most refs — so `queue: max` is applied instead to release.yml's own
+# always-literal-`false` `staging-release` group (see that file). The
+# consequence for develop is documented: the group holds one running run plus
+# at most ONE pending run, and a third push replaces the older pending run.
+# That is acceptable because a replaced run has not started, so nothing can be
+# mid-migration; see §"Remaining limitations" in
+# docs/deployment/PR-106-WORKFLOW-SAFETY-HARDENING-REPORT.md.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+
+# Workflow-level GITHUB_TOKEN scopes.
+#
+# GitHub intersects a CALLED reusable workflow's `permissions:` with the
+# CALLER's workflow-level permissions — job-level permissions do not propagate
+# into the callee. `trigger-staging-release` calls release.yml, which needs
+# `actions: read` for its `gh run list` stale-release detection, so that scope
+# has to be granted here (CI run #418 failed at start-up precisely because it
+# was not: "requesting 'actions: read', but is only allowed 'actions: none'").
+#
+# This block mirrors the repository's read-only default
+# (`contents: read, packages: read`) and adds `actions: read`. Nothing in CI
+# writes: container-build uses `push: false`, and no job posts PR comments or
+# uploads SARIF. No write scope is granted anywhere here.
+permissions:
+  contents: read
+  packages: read
+  actions: read
 
 env:
   NODE_VERSION: '22'
@@ -94,12 +151,82 @@ jobs:
       # Runs the full API suite under v8 coverage and enforces the thresholds
       # in apps/api/vitest.config.ts (global floor + per-module gates on the
       # identity and orders bounded contexts). Fails the build on regression.
+      # S1.38.9 note: self-provisioning `@testcontainers/postgresql` integration
+      # specs are collected through this broad include (see apps/api/vitest.config.ts
+      # `include: ['src/__tests__/**/*.spec.ts']`) and their coverage contribution
+      # is required to keep the aggregate orders-module threshold (lines 40% /
+      # functions 60% / branches 70% / statements 40%) above the floor. Isolating
+      # the coverage job to unit specs only would push orders to ~31/44/58/31 and
+      # fail the gate. Real-Redis ambient-service suites still correctly self-skip
+      # because they gate on `REDIS_IT === '1'`, which this job never exports.
+      # Follow-up scope (owner): author additional orders-module unit tests so the
+      # coverage job can be position-filtered to `src/__tests__/unit` without
+      # dropping below the per-module thresholds — that would be a cleaner
+      # separation between the unit-coverage and integration jobs.
       - run: pnpm --filter @scs/api test:coverage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-unit
           path: apps/api/coverage/
+
+  # ---- Web & Admin App Tests (Phase 1 hydration remediation) ----
+  #
+  # Why this job exists: before Phase 1 the CI pipeline ran only the API suites
+  # (`test-unit` and `test-integration` both target @scs/api) and the root
+  # `pnpm test` task was never invoked. `lint` does run `pnpm lint` +
+  # `pnpm typecheck` over every package through turbo, so the two Next apps were
+  # type-checked and linted but had no test gate at all -- a regression in the
+  # root-layout CSS or the Admin dashboard clock could have merged green.
+  #
+  # It gates PR/push checks only. Nothing here touches the release path:
+  # `trigger-staging-release` still calls release.yml unchanged, and the `build`
+  # job's `needs` list is unchanged, so this adds a check rather than re-wiring
+  # an existing one.
+  test-web-admin:
+    name: Web & Admin App Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Both apps import the generated client from @scs/contracts, whose
+      # package.json resolves to ./dist/src/index.js -- the built output, not the
+      # source (@scs/ui-kit and @scs/env resolve to src and need no build). These
+      # steps bypass turbo so the vitest command lines stay explicit, which also
+      # means the dependency build that turbo's `test` task would pull in through
+      # `dependsOn: ['^build']` has to happen here instead. Same reasoning the
+      # integration job documents at S1.28 D-CI-3.
+      - run: pnpm contracts:build
+      # apps/web: the whole suite runs. It was green at the Phase 1 baseline, and
+      # Phase 1 added the Buyer document-root hydration specs to it.
+      - run: pnpm --filter @scs/web test
+      # apps/admin: position-filtered to the Phase 1 files rather than the whole
+      # package, because 2 tests in src/__tests__/management.test.tsx were
+      # already failing at baseline 09f6d7d5 (verified by running that file
+      # against an untouched checkout of the same commit: the same 2 failures,
+      # with a byte-identical 6-file import graph). They assert on the shared
+      # management components, not on hydration, and fixing them is outside
+      # Phase 1's scope. Tracked as a remaining issue; when they are fixed,
+      # replace this step with `pnpm --filter @scs/admin test`.
+      - name: Admin hydration + global-styles regression tests
+        run: >
+          pnpm --filter @scs/admin test --
+          src/__tests__/hydration-document-root.test.tsx
+          src/__tests__/global-styles.test.tsx
+          src/__tests__/sidebar-styles.test.tsx
+          src/__tests__/hydration-admin-clock.test.tsx
+          src/__tests__/hydration-admin-session.test.tsx
+          src/__tests__/hydration-admin-perms.test.tsx
 
   # â”€â”€ Integration Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-integration:
@@ -120,6 +247,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # S1.12 D-CI-1: this Redis is a GitHub Actions service container — created for
+      # this job run and destroyed with it. It happens to share the address a
+      # developer would use for a persistent local instance, which is why the test
+      # harness decides safety from CI context plus an explicit attestation below,
+      # never from the port number alone.
       redis:
         image: redis:7-alpine
         ports:
@@ -139,10 +271,42 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:integration
+      # S1.12 D-CI-2: `pnpm --filter @scs/api test:integration` runs Vitest with
+      # --no-file-parallelism (set in apps/api/package.json) so suites that share the
+      # scs:throttle: namespace cannot clean up each other's keys. Never invoke
+      # `vitest run src/__tests__/integration` directly here — that would bypass the
+      # guard.
+      # S1.12 D-SAFE-1: the real-Redis suites require an explicit disposability
+      # attestation, because a supplied URL alone is not proof the target is safe to
+      # write to. This job's Redis is ephemeral by construction, so the attestation
+      # is accurate; a developer reusing the same address for a persistent instance
+      # is refused by the harness (it checks CI context, not just the port).
+      # S1.28 D-CI-3: the workspace root's `pnpm test:integration` invokes
+      # `turbo run test:integration`, and Turborepo 2.x with any `globalEnv` /
+      # `env` declaration restricts the child process environment to the declared
+      # variables. Redis IT opt-ins are intentionally kept local to this step, so
+      # the CI job bypasses turbo via `--filter @scs/api` — matching the pattern
+      # already used by the sibling `test-unit` job (`pnpm --filter @scs/api
+      # test:coverage`). Local developers may still invoke `pnpm test:integration`
+      # from the repo root and export the vars themselves; the turbo task remains
+      # unchanged.
+      - run: pnpm --filter @scs/api test:integration
         env:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
           REDIS_URL: redis://localhost:6379
+          REDIS_IT: '1'
+          REDIS_DISPOSABLE_ACK: '1'
+      # S1.28 diagnostic follow-up (non-blocking, always exit 0): vitest's JSON
+      # reporter suppresses ::error:: workflow commands, so failure annotations
+      # otherwise collapse to a bare "exit code 1". This step parses the same
+      # JSON report the assertion gate consumed and publishes failing test
+      # names to $GITHUB_STEP_SUMMARY, which is publicly readable on the run
+      # page. It changes no expectations and hides no failures — it only makes
+      # them visible without authenticated log access.
+      - name: Summarize vitest failures in job summary
+        if: failure()
+        working-directory: apps/api
+        run: node scripts/summarize-vitest-failures.mjs .vitest-integration-results.json
 
   # ── Migration Gate (enforcing — full chain with pg_partman) ──
   migration-gate:
@@ -178,16 +342,16 @@ jobs:
             docker exec ci-migration-pg pg_isready -U scs -d scs_test && break
             sleep 1
           done
-  
+
       # 1) Enforcing gate: validate every migration file exists, is ordered and
       #    non-empty, and that the DB is reachable — without writing.
       - name: Dry-run (validate ordering)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
   
-      # 2) ENFORCING: Full migration apply. All 63 migrations must apply cleanly,
+      # 2) ENFORCING: Full migration apply. All migration files must apply cleanly,
       #    including 0013 and 0018 which require pg_partman. No continue-on-error.
       #    If any migration fails, the gate fails and the PR cannot merge.
-      - name: Full migration apply (enforcing — all 63 files)
+      - name: Full migration apply (enforcing — all discovered files)
         run: pnpm --filter @scs/api run db:migrate:ci
   
       # 3) Verify pg_partman is configured after migration
@@ -232,11 +396,21 @@ jobs:
               "/v1/auth/otp/request", "/v1/auth/otp/verify", "/v1/auth/refresh",
               "/v1/auth/logout", "/v1/auth/switch-org", "/v1/auth/login/password",
               "/v1/auth/login/device-check", "/v1/me", "/v1/me/sessions",
+              // S1.37-F-09: the six Phase 1 email-identity routes. They shipped in the
+              // controller while this gate still only knew the pre-Phase-1 surface, which
+              // is exactly how the omission survived — the gate could not fail for paths
+              // it never listed.
+              "/v1/auth/otp/email/request", "/v1/auth/otp/email/verify",
+              "/v1/auth/account/link-email", "/v1/auth/account/link-phone",
+              "/v1/auth/account/unlink-email", "/v1/auth/account/unlink-phone",
             ];
             const needSchemas = [
               "AuthTokens", "RefreshResponse", "SwitchOrgResponse",
               "LoginPasswordResponse", "DeviceCheckResponse", "SessionInfo",
               "UserProfile", "ProblemDetail",
+              // S1.37-F-09: Phase 1 request/response component schemas.
+              "EmailOtpRequest", "EmailOtpVerify", "EmailOtpRequestResponse",
+              "AccountLinkEmail", "AccountLinkPhone", "AccountLinkResponse",
             ];
             const mp = needPaths.filter((p) => !paths.includes(p));
             const ms = needSchemas.filter((s) => !schemas.includes(s));
@@ -252,6 +426,14 @@ jobs:
           set -euo pipefail
           test -f packages/contracts/generated/api.d.ts || { echo "TS client not generated"; exit 1; }
           echo "TS client generated (generated/api.d.ts)"
+      # S1.37-F-09: the structural gate above lists paths by hand. This reconciles the
+      # three surfaces automatically — the route table AuthController actually declares,
+      # the generated OpenAPI document, and the generated TypeScript client — so a new
+      # endpoint can never again be added to the API without also reaching the contract.
+      # It runs here rather than in the unit job because both artifacts are build outputs
+      # produced by the steps above.
+      - name: Contract drift guard (controller vs OpenAPI vs generated client)
+        run: pnpm --filter @scs/api exec vitest run src/__tests__/unit/contracts-phase1.openapi.spec.ts
       # NOTE: the Dart half (`generate:dart`, openapi-generator-cli) needs Java 11+
       # and is validated locally; it is wired into the mobile job once the app
       # consumes the generated client (see the P2 mobile typed-models work).
@@ -351,7 +533,14 @@ jobs:
       - name: Run deployment invariants spec
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @scs/api run test -- --run src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
+          # Run ONLY the deployment-invariants spec as a positional file argument.
+          # `--run` is a test-name pattern, not a file filter, so it would collect
+          # every *.spec.ts (including 25+ Testcontainers-backed PostgreSQL specs)
+          # and run them in parallel. Parallel Testcontainers instances compete for
+          # the Ryuk/Reaper sidecar and surface as "Failed to connect to Reaper" at
+          # migration-lock.postgres.spec.ts:17. --no-file-parallelism serializes
+          # file execution so no two Testcontainers lifecycles overlap.
+          pnpm --filter @scs/api run test -- --no-file-parallelism src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
 
       - name: Start disposable services
         run: |
@@ -362,6 +551,20 @@ jobs:
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           sleep 10
 
+      # S1.28 D-CI-4: `main.ts` bootstrap calls `assertOtpHmacConfig()` (added by
+      # S1.3 / audit finding M-02). It fails the process under NODE_ENV=production
+      # when OTP_HMAC_SECRET missing, is the `.env.example` placeholder, or is
+      # shorter than 32 chars. The container-build smoke test starts the image with
+      # NODE_ENV=production, so the CI value below must satisfy the same rules as
+      # any deployment: non-empty, >= 32 chars, not the dev placeholder. It is a
+      # throwaway per-run value — no secret material is stored in the workflow.
+      #
+      # S1.42 CI remediation: `assertOtpDeliveryConfig()` (email-only release,
+      # commit 3c246e7) refuses to boot a production process that has no permitted
+      # OTP delivery channel. The default channel is email, and SMTP is considered
+      # configured when SMTP_HOST and SMTP_FROM are both set (provider.config.ts
+      # line 299). The smoke test never sends email, so throwaway values satisfy
+      # the gate without incurring any real SMTP dependency.
       - name: Start API container with safe defaults
         run: |
           docker run -d --name ci-api --network ci-smoke-net \
@@ -369,6 +572,10 @@ jobs:
             -e DATABASE_URL=postgresql://scs:scs@ci-postgres:5432/scs_platform \
             -e REDIS_URL=redis://ci-redis:6379 \
             -e JWT_ACCESS_SECRET='ci-test-secret-at-least-16-chars!!' \
+            -e OTP_HMAC_SECRET='ci-test-otp-hmac-secret-at-least-32-chars!!' \
+            -e SCS_BOOTSTRAP_OWNER_EMAIL='ci-owner@example.com' \
+            -e SMTP_HOST=smtp.ci-test.local \
+            -e SMTP_FROM=otp@ci-test.local \
             -e S3_ENDPOINT=http://minio:9000 \
             -e S3_ACCESS_KEY=ci-test-key \
             -e S3_SECRET_KEY=ci-test-secret \
@@ -380,11 +587,26 @@ jobs:
 
       - name: Verify health endpoints
         run: |
+          echo "=== Container State ==="
+          docker inspect ci-api --format='{{.State.Status}} (exit code: {{.State.ExitCode}})' || true
+          echo ""
           echo "=== Liveness ==="
-          docker exec ci-api curl -fsS http://localhost:3000/v1/healthz
+          docker exec ci-api curl -fsS http://localhost:3000/v1/healthz || {
+            echo "ERROR: Liveness check failed"
+            echo ""
+            echo "=== API Container Logs (last 50 lines) ==="
+            docker logs --tail 50 ci-api 2>&1 || true
+            exit 1
+          }
           echo ""
           echo "=== Readiness ==="
-          docker exec ci-api curl -fsS http://localhost:3000/v1/readyz
+          docker exec ci-api curl -fsS http://localhost:3000/v1/readyz || {
+            echo "ERROR: Readiness check failed"
+            echo ""
+            echo "=== API Container Logs (last 50 lines) ==="
+            docker logs --tail 50 ci-api 2>&1 || true
+            exit 1
+          }
           echo ""
 
       - name: Verify P13 configuration
@@ -410,3 +632,38 @@ jobs:
           docker rm -f ci-api ci-postgres ci-redis 2>/dev/null || true
           docker network rm ci-smoke-net 2>/dev/null || true
           docker rmi scs-api:ci-test 2>/dev/null || true
+
+  # ── Staging Release (develop push only, after all mandatory CI gates) ────
+  # This job invokes release.yml as a REUSABLE WORKFLOW via job-level `uses:`.
+  # A job that calls a reusable workflow CANNOT declare runs-on/steps/environment;
+  # the reusable workflow owns its own runners and jobs. Staging secrets are
+  # resolved by the called workflow's jobs that each declare `environment: staging`,
+  # so the caller forwards them with `secrets: inherit`.
+  #
+  # Depend on every MANDATORY gate that runs on develop. k6-smoke is intentionally
+  # EXCLUDED: it is main-only (`if: github.ref == 'refs/heads/main'`) and is skipped
+  # on develop; listing a skipped job in `needs` would cascade-skip this job and the
+  # release would never trigger.
+  trigger-staging-release:
+    name: Trigger Staging Release
+    # Only a push to develop in THIS repository can invoke the release.
+    # Pull requests and main pushes never reach the release path.
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop' &&
+      github.repository == 'nabeel2323/scs-platform'
+    needs:
+      - lint
+      - test-unit
+      - test-integration
+      - migration-gate
+      - test-contract
+      - build
+      - mobile
+      - container-build
+    uses: ./.github/workflows/release.yml
+    with:
+      commit_sha: ${{ github.sha }}
+      ci_run_id: ${{ github.run_id }}
+      ci_run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    secrets: inherit

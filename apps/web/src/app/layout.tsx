@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import { Navbar } from '../components/Navbar';
 import { AuthProvider } from '../components/AuthProvider';
 import { ToastProvider } from '@scs/ui-kit';
+import './globals.css';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,15 +20,6 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" dir="ltr" className={inter.variable} suppressHydrationWarning>
-      <head>
-        <style>{`
-          *, *::before, *::after { box-sizing: border-box; }
-          html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; scroll-behavior: smooth; }
-          body { margin: 0; font-family: var(--font-inter), 'Segoe UI', system-ui, -apple-system, sans-serif; }
-          :focus-visible { outline: 3px solid rgba(30,97,120,0.35); outline-offset: 2px; }
-          @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
-        `}</style>
-      </head>
       <body style={{ margin: 0, background: '#f2f5f6' }}>
         <ToastProvider>
           <AuthProvider>

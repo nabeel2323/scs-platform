@@ -717,14 +717,14 @@ class Dispute {
 
 /// User profile returned by GET /v1/me.
 class UserProfile {
-  final String id, phone, status, createdAt;
-  final String? email, fullName, locale, activeOrgId, role;
+  final String id, status, createdAt;
+  final String? phone, email, fullName, locale, activeOrgId, role;
   final List<OrgMembership> organizations;
   UserProfile({
     required this.id,
-    required this.phone,
     required this.status,
     required this.createdAt,
+    this.phone,
     this.email,
     this.fullName,
     this.locale,
@@ -734,10 +734,10 @@ class UserProfile {
   });
   factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
         id: j['id'] ?? '',
-        phone: j['phone'] ?? '',
         status: j['status'] ?? '',
         createdAt: j['createdAt'] ?? '',
-        email: j['email'],
+        phone: j['phone'] as String?,
+        email: j['email'] as String?,
         fullName: j['fullName'],
         locale: j['locale'],
         activeOrgId: j['activeOrgId'],
@@ -746,6 +746,14 @@ class UserProfile {
             .map((e) => OrgMembership.fromJson(e))
             .toList(),
       );
+}
+
+/// Response from account link/unlink endpoints (S1.35 Phase 1).
+class AccountLinkResponse {
+  final bool success;
+  AccountLinkResponse({required this.success});
+  factory AccountLinkResponse.fromJson(Map<String, dynamic> j) =>
+      AccountLinkResponse(success: j['success'] as bool? ?? false);
 }
 
 /// Membership entry inside UserProfile.
@@ -1074,24 +1082,54 @@ class AuthTokens {
 }
 
 /// Response of POST /v1/auth/login/password. A trusted device yields a token
-/// pair; a new device instead returns `requiresOtp` with the `otpPhone` the code
-/// was sent to (tokens absent in that branch — hence nullable).
+/// pair; a new device instead returns `requiresOtp` plus the identifier the
+/// server chose to challenge (tokens absent in that branch — hence nullable).
+///
+/// Exactly one of [otpPhone] / [otpEmail] is populated. The server picks the
+/// channel from its own `OTP_CHANNELS` allowlist, so the client must read which
+/// one arrived instead of assuming phone. [otpEmail] is MASKED by the API
+/// (`identity.service.ts`, the `requiresOtp` return): it is for display only and
+/// must never be sent back to the verify endpoint — the address the user
+/// authenticated with is the one that endpoint expects.
 class LoginPasswordResponse {
-  final String? accessToken, refreshToken, otpPhone;
+  final String? accessToken, refreshToken, otpPhone, otpEmail;
   final bool requiresOtp;
+
+  /// How confidently the server delivered the challenge behind [requiresOtp]:
+  /// 'accepted', 'uncertain', or null when the server did not say (an older
+  /// build). Definite failures answer 401 instead, so they never reach here.
+  final String? otpDelivery;
+
   LoginPasswordResponse({
     this.accessToken,
     this.refreshToken,
     this.otpPhone,
+    this.otpEmail,
     this.requiresOtp = false,
+    this.otpDelivery,
   });
   factory LoginPasswordResponse.fromJson(Map<String, dynamic> j) =>
       LoginPasswordResponse(
         accessToken: j['accessToken'] as String?,
         refreshToken: j['refreshToken'] as String?,
         otpPhone: j['otpPhone'] as String?,
+        otpEmail: j['otpEmail'] as String?,
         requiresOtp: j['requiresOtp'] as bool? ?? false,
+        otpDelivery: j['otpDelivery'] as String?,
       );
+
+  /// The server challenged this login by email. An empty string is treated as
+  /// absent: some gateways normalise the API's `undefined` to `''`, and neither
+  /// spelling means "a code went out on this channel".
+  bool get hasEmailChallenge => otpEmail != null && otpEmail!.isNotEmpty;
+
+  /// The server challenged this login on the phone channel.
+  bool get hasPhoneChallenge => otpPhone != null && otpPhone!.isNotEmpty;
+
+  /// True only when the server said the code actually went out. A missing
+  /// field (an older API) counts as unconfirmed: claiming a delivery we know
+  /// nothing about is the defect this remediation removed.
+  bool get otpConfirmed => otpDelivery == 'accepted';
 
   /// True when the response carried a usable token pair (device was trusted).
   bool get hasSession => accessToken != null && refreshToken != null;
@@ -1102,20 +1140,75 @@ class LoginPasswordResponse {
       : null;
 }
 
-/// Response of POST /v1/auth/login/device-check (pre-flight for password login).
-class DeviceCheckResponse {
-  final bool canAutoLogin, requiresOtp, hasPassword;
-  DeviceCheckResponse({
-    this.canAutoLogin = false,
-    this.requiresOtp = false,
-    this.hasPassword = false,
+/// Response of POST /v1/auth/otp/request and POST /v1/auth/otp/email/request.
+///
+/// HTTP 2xx on these routes means the request was PROCESSED, not that a code
+/// reached the device: the provider's answer travels in this body. Reading only
+/// the status line is what let a client claim "code sent" after a send failed,
+/// so the app reads `outcome` instead of guessing.
+///
+/// The classification mirrors `classifyOtpDelivery` in `@scs/contracts` — that
+/// TypeScript helper is the authoritative reading of the vocabulary; this is the
+/// same rules in Dart because the two runtimes share no code.
+class OtpRequestResponse {
+  final bool success;
+  final String deliveryStatus;
+  final bool possiblyDelivered;
+
+  OtpRequestResponse({
+    required this.success,
+    this.deliveryStatus = '',
+    this.possiblyDelivered = false,
   });
-  factory DeviceCheckResponse.fromJson(Map<String, dynamic> j) =>
-      DeviceCheckResponse(
-        canAutoLogin: j['canAutoLogin'] as bool? ?? false,
-        requiresOtp: j['requiresOtp'] as bool? ?? false,
-        hasPassword: j['hasPassword'] as bool? ?? false,
+
+  factory OtpRequestResponse.fromJson(Map<String, dynamic> j) =>
+      OtpRequestResponse(
+        success: j['success'] as bool? ?? false,
+        deliveryStatus: (j['deliveryStatus'] ?? '') as String,
+        possiblyDelivered: j['possiblyDelivered'] as bool? ?? false,
       );
+
+  /// 'accepted' | 'uncertain' | 'unavailable' | 'rejected' — see above.
+  String get outcome {
+    if (success) return 'accepted';
+    // Three spellings of "this environment cannot deliver on this channel":
+    // the router's `<CHANNEL>_PROVIDER_NOT_CONFIGURED`, the providers' own
+    // `TWILIO_/SMTP_/WHATSAPP_NOT_CONFIGURED`, and the allowlist refusal
+    // `<CHANNEL>_CHANNEL_DISABLED` (a channel that is configured but not
+    // permitted — the email-only staging release). Matched by suffix so none of
+    // them can fall through to 'rejected' and be shown as a bad address.
+    if (deliveryStatus == 'UNKNOWN_CHANNEL' ||
+        deliveryStatus.endsWith('_NOT_CONFIGURED') ||
+        deliveryStatus.endsWith('_CHANNEL_DISABLED')) {
+      return 'unavailable';
+    }
+    if (possiblyDelivered ||
+        deliveryStatus == 'DELIVERY_TIMEOUT' ||
+        deliveryStatus == 'DELIVERY_ERROR') {
+      return 'uncertain';
+    }
+    return 'rejected';
+  }
+
+  /// Only true when the provider accepted the send, i.e. when the UI may say a
+  /// code is on its way.
+  bool get delivered => outcome == 'accepted';
+}
+
+/// Response of POST /v1/auth/login/device-check.
+///
+/// The endpoint used to answer `{canAutoLogin, requiresOtp, hasPassword}` to an
+/// UNAUTHENTICATED caller, which disclosed whether an account exists, whether
+/// it has a password, and whether the device had been trusted before (finding
+/// S-2). It now returns a constant acknowledgement, and nothing branches on it:
+/// trust is decided server-side, from a credential the server issued, when the
+/// password is actually verified. The type survives so any stale build that
+/// still calls the route can parse the reply.
+class DeviceCheckResponse {
+  final bool checked;
+  DeviceCheckResponse({this.checked = true});
+  factory DeviceCheckResponse.fromJson(Map<String, dynamic> j) =>
+      DeviceCheckResponse(checked: j['checked'] as bool? ?? true);
 }
 
 /// Response of POST /v1/auth/switch-org — a re-minted access token scoped to the

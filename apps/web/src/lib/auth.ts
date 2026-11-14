@@ -10,6 +10,7 @@
  */
 
 import { getDeviceId } from './device-id';
+import { DEVICE_TRUST_PROOF_HEADER, DEVICE_TRUST_PROOF_VALUE } from '@scs/contracts';
 import type {
   AuthSession,
   AuthTokens,
@@ -19,6 +20,9 @@ import type {
   LoginPasswordResponse,
   SessionInfo,
   UserProfile,
+  EmailOtpRequestResponse,
+  OtpRequestResponse,
+  AccountLinkResponse,
 } from '@scs/contracts';
 
 const API_URL = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3000';
@@ -32,7 +36,15 @@ export type { AuthSession };
 
 export interface AuthUser {
   id: string;
-  phone: string;
+  /**
+   * Nullable from S1.35 onward. Migration 0064 drops the NOT NULL constraint on
+   * `users.phone` and `UserProfileSchema` therefore became `z.string().nullable()`,
+   * so an email-first account legitimately has no phone. Callers must not render or
+   * forward this as if it were always present.
+   */
+  phone: string | null;
+  /** Nullable — email-only accounts may have no phone; phone-only accounts may have no email. */
+  email: string | null;
   fullName: string;
   activeOrgId?: string;
   role?: string;
@@ -71,6 +83,36 @@ async function toRateLimitError(res: Response, fallback: string): Promise<LoginR
     Number.isFinite(remaining) ? remaining : 0,
     Number.isFinite(retryAfter) ? retryAfter : 0,
   );
+}
+
+// ── Device-trust transport (S-1) ─────────────────────────────
+
+/**
+ * Request init for the calls where device trust matters: OTP verify (phone and
+ * email), password login, refresh and logout.
+ *
+ * `credentials: 'include'` is what lets the browser attach and accept the
+ * server-issued HttpOnly credential across origins, and the `x-device-trust`
+ * proof header is what makes the server believe the request came from our own
+ * page rather than from a third-party one that could also cause the cookie to
+ * be attached (SameSite=None is unavoidable with the frontend and API on
+ * different sites). Both are documented in `@scs/contracts`.
+ *
+ * Sending neither is the fail-closed case: the device simply counts as
+ * untrusted and an OTP is required, so this is a correctness fix for the login
+ * flow, not a security exemption.
+ */
+function trustRequest(body: unknown, extraHeaders?: Record<string, string>): RequestInit {
+  return {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      [DEVICE_TRUST_PROOF_HEADER]: DEVICE_TRUST_PROOF_VALUE,
+      ...extraHeaders,
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 // ── In-memory session store (SSR-safe) ───────────────────────
@@ -214,6 +256,7 @@ async function hydrateUserFromProfile(accessToken: string): Promise<void> {
     currentUser = {
       id: profile.id,
       phone: profile.phone,
+      email: profile.email,
       fullName: profile.fullName,
       activeOrgId: profile.activeOrgId ?? undefined,
       role: profile.role ?? undefined,
@@ -228,24 +271,32 @@ async function hydrateUserFromProfile(accessToken: string): Promise<void> {
 
 // ── Auth flows ───────────────────────────────────────────────
 
-export async function requestOtp(phone: string): Promise<{ success: boolean }> {
+export async function requestOtp(
+  phone: string,
+  channel: 'sms' | 'whatsapp' = 'sms',
+): Promise<OtpRequestResponse> {
   const res = await fetch(`${API_URL}/v1/auth/otp/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone }),
+    body: JSON.stringify({ phone, channel }),
   });
   if (!res.ok) {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 400) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'Invalid phone number');
+    }
     throw new Error(`OTP request failed: ${res.status}`);
   }
   return res.json();
 }
 
 export async function verifyOtp(phone: string, otp: string): Promise<AuthSession> {
-  const res = await fetch(`${API_URL}/v1/auth/otp/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // A verified OTP enrols this browser: the response sets the device-trust
+  // cookie, which is only stored when the request is made with credentials.
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/verify`,
+    trustRequest({
       phone,
       otp,
       deviceId: getDeviceId(),
@@ -254,7 +305,7 @@ export async function verifyOtp(phone: string, otp: string): Promise<AuthSession
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
       },
     }),
-  });
+  );
   if (!res.ok) throw new Error(`OTP verify failed: ${res.status}`);
   const data = (await res.json()) as AuthTokens;
 
@@ -286,14 +337,16 @@ async function performRefresh(): Promise<AuthSession> {
   if (!currentSession) throw new Error('No session to refresh');
 
   const refreshTokenUsed = currentSession.refreshToken;
-  const res = await fetch(`${API_URL}/v1/auth/refresh`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${currentSession.accessToken}`,
-    },
-    body: JSON.stringify({ refreshToken: refreshTokenUsed }),
-  });
+  // Rotation carries the device credential so trust survives the 15-minute
+  // token cycle: without it a actively-used browser would silently degrade to
+  // "untrusted" and be challenged for an OTP at its next login.
+  const res = await fetch(
+    `${API_URL}/v1/auth/refresh`,
+    trustRequest(
+      { refreshToken: refreshTokenUsed },
+      { Authorization: `Bearer ${currentSession.accessToken}` },
+    ),
+  );
   if (!res.ok) {
     currentSession = null;
     currentUser = null;
@@ -323,14 +376,16 @@ export async function logout(): Promise<void> {
   if (!currentSession) return;
 
   try {
-    await fetch(`${API_URL}/v1/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentSession.accessToken}`,
-      },
-      body: JSON.stringify({ refreshToken: currentSession.refreshToken }),
-    });
+    // Logout revokes this device's credential server-side and clears the
+    // cookie, so a later sign-in on this browser answers one OTP. Signing out
+    // while remaining "trusted" was the weakness finding S-1 removed.
+    await fetch(
+      `${API_URL}/v1/auth/logout`,
+      trustRequest(
+        { refreshToken: currentSession.refreshToken },
+        { Authorization: `Bearer ${currentSession.accessToken}` },
+      ),
+    );
   } catch {
     // Ignore logout errors — clear local state regardless
   }
@@ -373,17 +428,19 @@ export async function switchOrg(orgId: string): Promise<AuthSession> {
 // ── Dual Authentication (Password Login) ────────────────────
 
 /**
- * Check if device can auto-login for a given email.
- * Pre-flight check before showing login form.
+ * POST /v1/auth/login/device-check — kept only because the route is published.
+ *
+ * The response is a CONSTANT and carries no information (finding S-2): an
+ * unauthenticated caller is told nothing about whether the address exists, has
+ * a password, or has been trusted before. Nothing here branches on it, and the
+ * login page no longer probes it on mount. Trust is evaluated server-side,
+ * from the credential, when the password is actually verified.
  */
-export async function checkDeviceLogin(
-  email: string,
-  deviceId: string,
-): Promise<DeviceCheckResponse> {
+export async function checkDeviceLogin(email: string): Promise<DeviceCheckResponse> {
   const res = await fetch(`${API_URL}/v1/auth/login/device-check`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, deviceId }),
+    body: JSON.stringify({ email }),
   });
   if (!res.ok) throw new Error(`Device check failed: ${res.status}`);
   return (await res.json()) as DeviceCheckResponse;
@@ -391,29 +448,47 @@ export async function checkDeviceLogin(
 
 /**
  * Login with email and password.
- * Returns session if device is trusted, or requires OTP if device changed.
+ * Returns a session when the device is trusted, or the OTP challenge when it is
+ * not — including how confidently that challenge was delivered.
+ *
+ * `deviceId` is provenance only (S-1): copying it from a trusted browser grants
+ * nothing, because trust comes from the HttpOnly credential plus the proof
+ * header.
  */
 export async function loginPassword(
   email: string,
   password: string,
   deviceId: string,
-): Promise<AuthSession | { requiresOtp: true; otpPhone: string }> {
-  const res = await fetch(`${API_URL}/v1/auth/login/password`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Device-Id': deviceId,
-    },
-    body: JSON.stringify({
-      email,
-      password,
-      deviceId,
-      deviceInfo: {
-        platform: 'web',
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+): Promise<
+  AuthSession | {
+    requiresOtp: true;
+    /** Empty when the challenge went by email — see `otpEmail`. */
+    otpPhone: string;
+    /**
+     * Masked address the API sent the second factor to. Present only on the
+     * email channel, which is the only channel the initial staging release
+     * permits. Dropping it left the page rendering a phone prompt for a
+     * challenge that lives under an email key and can never be verified there.
+     */
+    otpEmail?: string;
+    otpDelivery?: 'accepted' | 'uncertain';
+  }
+> {
+  const res = await fetch(
+    `${API_URL}/v1/auth/login/password`,
+    trustRequest(
+      {
+        email,
+        password,
+        deviceId,
+        deviceInfo: {
+          platform: 'web',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+        },
       },
-    }),
-  });
+      { 'X-Device-Id': deviceId },
+    ),
+  );
 
   if (!res.ok) {
     if (res.status === 429) throw await toRateLimitError(res, 'Too many login attempts.');
@@ -423,9 +498,17 @@ export async function loginPassword(
 
   const data = (await res.json()) as LoginPasswordResponse;
 
-  // If OTP required, return that info
+  // If OTP required, return that info — including which channel carried the
+  // challenge and whether delivery was confirmed, so the UI never writes "code
+  // sent" when the API did not say so, and never renders a phone prompt for a
+  // challenge that was issued against an email address.
   if (data.requiresOtp) {
-    return { requiresOtp: true, otpPhone: data.otpPhone ?? '' };
+    return {
+      requiresOtp: true,
+      otpPhone: data.otpPhone ?? '',
+      otpEmail: data.otpEmail,
+      otpDelivery: data.otpDelivery,
+    };
   }
 
   // Otherwise, create session
@@ -518,6 +601,141 @@ export async function revokeSessionsByDevice(deviceId: string): Promise<void> {
   });
 
   if (!res.ok) throw new Error(`Failed to revoke sessions: ${res.status}`);
+}
+
+// ── Email OTP flows (S1.35 Phase 1, S1.38 Web integration) ──
+
+/**
+ * Request an OTP to the given email address.
+ * Enumeration-safe: returns the same shape whether or not the email exists.
+ */
+export async function requestEmailOtp(
+  email: string,
+): Promise<EmailOtpRequestResponse> {
+  const res = await fetch(`${API_URL}/v1/auth/otp/email/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many OTP attempts.');
+    if (res.status === 400) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any).message || 'Invalid email address');
+    }
+    throw new Error(`Email OTP request failed: ${res.status}`);
+  }
+  return (await res.json()) as EmailOtpRequestResponse;
+}
+
+/**
+ * Verify an email OTP and create/resume a session.
+ * On success the server issues a JWT pair and the session is persisted locally.
+ */
+export async function verifyEmailOtp(
+  email: string,
+  otp: string,
+): Promise<AuthSession> {
+  // Like phone OTP verify, this response enrols the browser via Set-Cookie.
+  const res = await fetch(
+    `${API_URL}/v1/auth/otp/email/verify`,
+    trustRequest({
+      email,
+      otp,
+      deviceId: getDeviceId(),
+      deviceInfo: {
+        platform: 'web',
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+      },
+    }),
+  );
+  if (!res.ok) {
+    if (res.status === 429) throw await toRateLimitError(res, 'Too many verification attempts.');
+    throw new Error(`Email OTP verify failed: ${res.status}`);
+  }
+  const data = (await res.json()) as AuthTokens;
+
+  const session: AuthSession = {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  };
+  currentSession = session;
+  persistSession(session);
+  await hydrateUserFromProfile(session.accessToken);
+  return session;
+}
+
+// ── Account linking (S1.35 Phase 1, S1.38 Web integration) ──
+
+/** Link a verified email to the authenticated user's account. */
+export async function linkEmail(email: string, otp: string): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/link-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+    body: JSON.stringify({ email, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Link email failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Link a verified phone to the authenticated user's account. */
+export async function linkPhone(phone: string, otp: string): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/link-phone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+    body: JSON.stringify({ phone, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Link phone failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Unlink email from the authenticated user's account. */
+export async function unlinkEmail(): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/unlink-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Unlink email failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
+}
+
+/** Unlink phone from the authenticated user's account. */
+export async function unlinkPhone(): Promise<AccountLinkResponse> {
+  if (!currentSession) throw new Error('No active session');
+  const res = await fetch(`${API_URL}/v1/auth/account/unlink-phone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${currentSession.accessToken}`,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any).message || `Unlink phone failed: ${res.status}`);
+  }
+  return (await res.json()) as AccountLinkResponse;
 }
 
 // ── Authenticated fetch helper ───────────────────────────────
