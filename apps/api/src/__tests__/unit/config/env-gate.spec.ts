@@ -10,6 +10,8 @@ import {
   resolveOtpHmacSecret,
   assertOtpHmacConfig,
   resolveTrustProxy,
+  resolveBootstrapOwnerEmail,
+  assertBootstrapOwnerEmail,
 } from '../../../config/env-gate';
 
 /**
@@ -238,5 +240,56 @@ describe('env-gate — resolveTrustProxy', () => {
     expect(() => resolveTrustProxy('*')).toThrow(/unrestricted entry/);
     expect(() => resolveTrustProxy('10.0.0.1,*')).toThrow(/unrestricted entry/);
     expect(() => resolveTrustProxy('0.0.0.0/0')).toThrow(/unrestricted entry/);
+  });
+});
+
+// ── Bootstrap ownership gate (ADR-0004) ─────────────────────────────
+
+describe('env-gate — resolveBootstrapOwnerEmail', () => {
+  const owner = 'Platform.Owner@Example.COM ';
+
+  it('returns the normalized owner address when valid', () => {
+    expect(resolveBootstrapOwnerEmail({ nodeEnv: 'production', email: owner })).toBe(
+      'platform.owner@example.com',
+    );
+  });
+
+  it('throws outside development when the owner address is unset', () => {
+    expect(() => resolveBootstrapOwnerEmail({ nodeEnv: 'production' })).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL must be set/,
+    );
+    expect(() => resolveBootstrapOwnerEmail({ nodeEnv: 'staging', email: '' })).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL must be set/,
+    );
+  });
+
+  it('returns null (not configured) in development/test when unset', () => {
+    expect(resolveBootstrapOwnerEmail({ nodeEnv: 'development' })).toBe(null);
+    expect(resolveBootstrapOwnerEmail({ nodeEnv: 'test', email: '' })).toBe(null);
+    expect(resolveBootstrapOwnerEmail({})).toBe(null);
+  });
+
+  it('throws in every environment when the address is invalid', () => {
+    expect(() => resolveBootstrapOwnerEmail({ nodeEnv: 'production', email: 'not-an-email' })).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL is not a valid email/,
+    );
+    expect(() => resolveBootstrapOwnerEmail({ nodeEnv: 'development', email: 'no-at-sign' })).toThrow(
+      /SCS_BOOTSTRAP_OWNER_EMAIL is not a valid email/,
+    );
+  });
+});
+
+describe('env-gate — assertBootstrapOwnerEmail', () => {
+  it('reads NODE_ENV + SCS_BOOTSTRAP_OWNER_EMAIL from the supplied env bag', () => {
+    expect(
+      assertBootstrapOwnerEmail({
+        NODE_ENV: 'production',
+        SCS_BOOTSTRAP_OWNER_EMAIL: 'Owner@Example.COM',
+      } as NodeJS.ProcessEnv),
+    ).toBe('owner@example.com');
+    expect(() =>
+      assertBootstrapOwnerEmail({ NODE_ENV: 'production' } as NodeJS.ProcessEnv),
+    ).toThrow(/SCS_BOOTSTRAP_OWNER_EMAIL must be set/);
+    expect(assertBootstrapOwnerEmail({ NODE_ENV: 'development' } as NodeJS.ProcessEnv)).toBe(null);
   });
 });

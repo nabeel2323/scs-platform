@@ -17,4 +17,8 @@ export const bootstrapAuthorizations = pgTable('bootstrap_authorizations', {
   purpose: varchar('purpose', { length: 40 }).notNull().default('super_admin_bootstrap'),
   createdBy: varchar('created_by', { length: 120 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  /** Stamped when the authorization was issued after successful owner OTP
+   * verification. NULL for break-glass / CLI-issued authorizations. Copied to
+   * the new user's email_verified_at on consumption. */
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
 });
