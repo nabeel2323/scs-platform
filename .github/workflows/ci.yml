@@ -533,7 +533,14 @@ jobs:
       - name: Run deployment invariants spec
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @scs/api run test -- --run src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
+          # Run ONLY the deployment-invariants spec as a positional file argument.
+          # `--run` is a test-name pattern, not a file filter, so it would collect
+          # every *.spec.ts (including 25+ Testcontainers-backed PostgreSQL specs)
+          # and run them in parallel. Parallel Testcontainers instances compete for
+          # the Ryuk/Reaper sidecar and surface as "Failed to connect to Reaper" at
+          # migration-lock.postgres.spec.ts:17. --no-file-parallelism serializes
+          # file execution so no two Testcontainers lifecycles overlap.
+          pnpm --filter @scs/api run test -- --no-file-parallelism src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
 
       - name: Start disposable services
         run: |
