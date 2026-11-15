@@ -200,7 +200,7 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
     // ── 3. Worker count is enforced only when the worker is enabled ──────
     // The worker is opt-in. When disabled, a configured expected count must not
     // create a false CRITICAL alert; any prior count-anomaly alert is resolved.
-    const workerCount = collectWorkerCountAnomalies(leaseRows, this.config);
+    const workerCount = collectWorkerCountAnomalies(leaseRows, this.config.expectedWorkerCount);
     findings.push(...workerCount.findings);
     clears.push(...workerCount.clears);
 
