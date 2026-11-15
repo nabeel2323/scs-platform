@@ -27,6 +27,7 @@ import { WorkerLeaseService } from './worker-lease.service';
 import { getOpsCounter, opsCounterSnapshot } from './ops-counters';
 import { readRows, toDate } from './raw-result';
 import { P13_LEASE_KEY, resolveP13OpsConfig, type P13OpsConfig } from './p13-ops.config';
+import { collectWorkerCountAnomalies } from './worker-count-monitor';
 
 /** Event-type prefixes whose delivery failure is a P13 integrity concern. */
 const P13_OUTBOX_PREFIXES = ['return.', 'refund.', 'commission.', 'settlement.', 'adjustment.'];
@@ -196,32 +197,12 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    // ── 3. Zero or multiple live worker holders ──────────────────────────
-    if (this.config.expectedWorkerCount > 0) {
-      const byKey = new Map<string, number>();
-      const now = Date.now();
-      for (const lease of leaseRows) {
-        const live = !!lease.holderId && !!lease.expiresAt && lease.expiresAt.getTime() > now;
-        byKey.set(lease.leaseKey, (byKey.get(lease.leaseKey) ?? 0) + (live ? 1 : 0));
-      }
-      // A job key with no lease row at all is a zero-worker condition too.
-      if (!byKey.has(P13_LEASE_KEY)) byKey.set(P13_LEASE_KEY, 0);
-
-      for (const [leaseKey, live] of byKey) {
-        if (live === this.config.expectedWorkerCount) {
-          clears.push(`p13.worker.count_anomaly:${leaseKey}`);
-          continue;
-        }
-        findings.push({
-          conditionKey: 'p13.worker.count_anomaly',
-          severity: 'CRITICAL',
-          title: `Worker job ${leaseKey} has ${live} live holder(s), expected ${this.config.expectedWorkerCount}`,
-          detail: { leaseKey, liveHolders: live, expected: this.config.expectedWorkerCount },
-          resourceType: 'worker_lease',
-          dedupKey: `p13.worker.count_anomaly:${leaseKey}`,
-        });
-      }
-    }
+    // ── 3. Worker count is enforced only when the worker is enabled ──────
+    // The worker is opt-in. When disabled, a configured expected count must not
+    // create a false CRITICAL alert; any prior count-anomaly alert is resolved.
+    const workerCount = collectWorkerCountAnomalies(leaseRows, this.config);
+    findings.push(...workerCount.findings);
+    clears.push(...workerCount.clears);
 
     // ── 4. Missing worker heartbeat ──────────────────────────────────────
     const staleHeartbeat = readRows<{ lease_key: string; holder_id: string; heartbeat_at: unknown }>(
