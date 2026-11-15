@@ -3,9 +3,7 @@ import { collectWorkerCountAnomalies } from '../../../modules/operations/worker-
 import { P13_LEASE_KEY, resolveP13OpsConfig } from '../../../modules/operations/p13-ops.config';
 import type { LeaseRecord } from '../../../modules/operations/worker-lease.service';
 
-function lease(
-  overrides: Partial<LeaseRecord> = {},
-): LeaseRecord {
+function lease(overrides: Partial<LeaseRecord> = {}): LeaseRecord {
   return {
     leaseKey: P13_LEASE_KEY,
     holderId: null,
@@ -50,12 +48,15 @@ describe('P13 worker-count monitoring', () => {
     expect(config.expectedWorkerCount).toBe(1);
   });
 
-  it('does not report a zero-worker anomaly when no worker is expected and clears the old alert', () => {
-    const result = collectWorkerCountAnomalies([], 0);
+  it(
+    'does not report a zero-worker anomaly when no worker is expected and clears the old alert',
+    () => {
+      const result = collectWorkerCountAnomalies([], 0);
 
-    expect(result.findings).toEqual([]);
-    expect(result.clears).toContain(`p13.worker.count_anomaly:${P13_LEASE_KEY}`);
-  });
+      expect(result.findings).toEqual([]);
+      expect(result.clears).toContain(`p13.worker.count_anomaly:${P13_LEASE_KEY}`);
+    },
+  );
 
   it('reports a critical anomaly when one worker is expected but no lease exists', () => {
     const result = collectWorkerCountAnomalies([], 1);
