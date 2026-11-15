@@ -197,9 +197,9 @@ export class P13MonitorService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    // ── 3. Worker count is enforced only when the worker is enabled ──────
-    // The worker is opt-in. When disabled, a configured expected count must not
-    // create a false CRITICAL alert; any prior count-anomaly alert is resolved.
+    // ── 3. Expected live worker count ────────────────────────────────────
+    // The default expected count is zero when the worker is disabled. An
+    // explicit count still monitors a worker hosted by another instance.
     const workerCount = collectWorkerCountAnomalies(leaseRows, this.config.expectedWorkerCount);
     findings.push(...workerCount.findings);
     clears.push(...workerCount.clears);
