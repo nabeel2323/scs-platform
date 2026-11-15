@@ -103,9 +103,12 @@ export function resolveP13OpsConfig(
 ): P13OpsConfig {
   const pilotModeRaw = (env['P13_PILOT_MODE'] ?? DEFAULTS.pilotMode).trim().toLowerCase();
   const pilotMode: P13PilotMode = pilotModeRaw === 'allowlist' ? 'allowlist' : 'legacy';
+  // By default, expect a worker only when this instance is enabled. An explicit
+  // P13_WORKER_EXPECTED_COUNT can still describe a worker running elsewhere.
+  const workerEnabled = overrides.workerEnabled ?? boolFalseDefault(env['P13_WORKER_ENABLED']);
 
   const config: P13OpsConfig = {
-    workerEnabled: boolFalseDefault(env['P13_WORKER_ENABLED']),
+    workerEnabled,
     pollIntervalMs: int(
       // Keep the Phase 2/3 variable working so existing deployments do not change behaviour.
       env['P13_WORKER_POLL_INTERVAL_MS'] ?? env['RETURN_EXPIRATION_POLL_INTERVAL_MS'],
@@ -118,7 +121,7 @@ export function resolveP13OpsConfig(
       DEFAULTS.heartbeatIntervalMs,
     ),
     acquireRetryMs: int(env['P13_WORKER_ACQUIRE_RETRY_MS'], DEFAULTS.acquireRetryMs),
-    expectedWorkerCount: int(env['P13_WORKER_EXPECTED_COUNT'], DEFAULTS.expectedWorkerCount),
+    expectedWorkerCount: int(env['P13_WORKER_EXPECTED_COUNT'], workerEnabled ? DEFAULTS.expectedWorkerCount : 0),
     monitorIntervalMs: int(env['P13_MONITOR_INTERVAL_MS'], DEFAULTS.monitorIntervalMs),
     alertWebhookUrl: (env['P13_OPS_ALERT_WEBHOOK_URL'] ?? '').trim() || null,
     alertWebhookSecret: (env['P13_OPS_ALERT_WEBHOOK_SECRET'] ?? '').trim() || null,
