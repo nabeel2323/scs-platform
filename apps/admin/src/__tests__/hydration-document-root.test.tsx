@@ -75,6 +75,6 @@ describe('Admin document-root hydration', () => {
     // there is no session for `isAuthenticated()` to accept.
     expect(document.body.textContent).toContain('Checking authentication');
     expect(document.body.textContent).not.toContain('Pending Organization Updates');
-    expect(router.push).toHaveBeenCalledWith('/auth/login');
+    expect(router.replace).toHaveBeenCalledWith('/auth/login');
   });
 });
