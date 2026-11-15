@@ -146,6 +146,21 @@ describe('Bootstrap page — readiness gating', () => {
     mockedFetchBootstrapStatus.mockImplementationOnce(() => new Promise<BootstrapStatus>(() => {}));
     render(<BootstrapPage />);
     expect(screen.getByText(/Checking platform readiness…/i)).toBeTruthy();
+    expect(screen.queryByText(/Deployment configuration is missing/i)).toBeNull();
+  });
+
+  it('does not show missing-owner configuration while the readiness request is unresolved', () => {
+    mockedFetchBootstrapStatus.mockImplementationOnce(() => new Promise<BootstrapStatus>(() => {}));
+    render(<BootstrapPage />);
+    expect(screen.queryByText(/Deployment configuration is missing/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Continue to ownership verification/i })).toBeNull();
+  });
+
+  it('shows a connection error rather than a missing-owner warning when status cannot be loaded', async () => {
+    mockedFetchBootstrapStatus.mockRejectedValueOnce(new Error('network unavailable'));
+    render(<BootstrapPage />);
+    await waitFor(() => expect(screen.getByText(/Unable to reach the platform/i)).toBeTruthy());
+    expect(screen.queryByText(/Deployment configuration is missing/i)).toBeNull();
   });
 
   it('redirects to normal login when the platform is already initialized', async () => {
