@@ -6,7 +6,7 @@ import { isAuthenticated } from '../lib/auth';
 
 /**
  * AuthGuard — redirects to /auth/login if not authenticated.
- * Exempts the login page itself.
+ * Public routes are limited to the authentication flow and first-run bootstrap.
  */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,14 +14,20 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    // Login page is always accessible
-    if (pathname.startsWith('/auth')) {
+    // Re-check on every route transition so protected content is never briefly
+    // rendered using the previous route's successful check.
+    setChecked(false);
+
+    // These routes must be reachable before the first administrator exists.
+    // In particular, /bootstrap must not redirect to login: login itself sends
+    // uninitialized deployments back to /bootstrap.
+    if (pathname.startsWith('/auth') || pathname === '/bootstrap' || pathname.startsWith('/bootstrap/')) {
       setChecked(true);
       return;
     }
 
     if (!isAuthenticated()) {
-      router.push('/auth/login');
+      router.replace('/auth/login');
     } else {
       setChecked(true);
     }

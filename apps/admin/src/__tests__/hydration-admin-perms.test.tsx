@@ -47,6 +47,7 @@ function guardedRoute() {
 afterEach(() => {
   cleanupDocumentRoots();
   router.push.mockClear();
+  router.replace.mockClear();
 });
 
 describe('Admin permission gate with no session', () => {
@@ -62,6 +63,6 @@ describe('Admin permission gate with no session', () => {
 
     expectHydrationClean(run);
     expect(document.body.textContent).not.toContain(PROTECTED_SCREEN);
-    expect(router.push).toHaveBeenCalledWith('/auth/login');
+    expect(router.replace).toHaveBeenCalledWith('/auth/login');
   });
 });
