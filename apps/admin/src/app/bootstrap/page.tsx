@@ -451,7 +451,7 @@ export default function BootstrapPage() {
             </div>
           )}
 
-          {!ownerConfigured && (
+          {readinessChecked && status && !ownerConfigured && (
             <div
               style={{
                 background: colors.warnBg, color: colors.warn,
