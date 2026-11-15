@@ -4,7 +4,7 @@ import { AuthGuard } from '../components/AuthGuard';
 import { isAuthenticated } from '../lib/auth';
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
-const route = vi.histed ? vi.hoisted(() => ({ pathname: '/bootstrap' })) : { pathname: '/bootstrap' };
+const route = vi.hoisted(() => ({ pathname: '/bootstrap' }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => navigation,
