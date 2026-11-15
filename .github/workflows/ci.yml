@@ -540,7 +540,7 @@ jobs:
           # the Ryuk/Reaper sidecar and surface as "Failed to connect to Reaper" at
           # migration-lock.postgres.spec.ts:17. --no-file-parallelism serializes
           # file execution so no two Testcontainers lifecycles overlap.
-          pnpm --filter @scs/api run test -- --no-file-parallelism src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
+          pnpm --filter @scs/api exec vitest run --no-file-parallelism src/__tests__/unit/deployment/p41-deployment-invariants.spec.ts
 
       - name: Start disposable services
         run: |
