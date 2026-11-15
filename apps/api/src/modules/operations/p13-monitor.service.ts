@@ -26,7 +26,7 @@ import {
 import { WorkerLeaseService } from './worker-lease.service';
 import { getOpsCounter, opsCounterSnapshot } from './ops-counters';
 import { readRows, toDate } from './raw-result';
-import { P13_LEASE_KEY, resolveP13OpsConfig, type P13OpsConfig } from './p13-ops.config';
+import { resolveP13OpsConfig, type P13OpsConfig } from './p13-ops.config';
 import { collectWorkerCountAnomalies } from './worker-count-monitor';
 
 /** Event-type prefixes whose delivery failure is a P13 integrity concern. */
