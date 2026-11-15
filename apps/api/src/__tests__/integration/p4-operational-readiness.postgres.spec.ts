@@ -539,7 +539,11 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(overdue.some((f) => f.resourceId === retB)).toBe(false);
     });
 
-    it('AL-04 (alert 3): zero live holders is a CRITICAL count anomaly', async () => {
+    it('AL-04 (alert 3): zero live holders is a CRITICAL count anomaly when one worker is expected', async () => {
+      // This scenario explicitly models a separately hosted worker. The API
+      // instance under test does not host it, but monitoring must still expect
+      // one live lease and alert when none is present.
+      monitor['config'].expectedWorkerCount = 1;
       const { findings } = await monitor.collectFindings();
       const anomaly = findings.find((f) => f.conditionKey === 'p13.worker.count_anomaly');
       expect(anomaly).toBeDefined();
