@@ -37,7 +37,7 @@ export interface P13OpsConfig {
   heartbeatIntervalMs: number;
   /** How often a standby worker retries acquisition after losing/handing over. */
   acquireRetryMs: number;
-  /** Expected number of worker-enabled instances; drives the count-anomaly alert. */
+  /** Expected worker count; defaults to 0 when disabled and 1 when enabled. */
   expectedWorkerCount: number;
   /** Monitor scan cadence. */
   monitorIntervalMs: number;
@@ -121,7 +121,10 @@ export function resolveP13OpsConfig(
       DEFAULTS.heartbeatIntervalMs,
     ),
     acquireRetryMs: int(env['P13_WORKER_ACQUIRE_RETRY_MS'], DEFAULTS.acquireRetryMs),
-    expectedWorkerCount: int(env['P13_WORKER_EXPECTED_COUNT'], workerEnabled ? DEFAULTS.expectedWorkerCount : 0),
+    expectedWorkerCount: int(
+      env['P13_WORKER_EXPECTED_COUNT'],
+      workerEnabled ? DEFAULTS.expectedWorkerCount : 0,
+    ),
     monitorIntervalMs: int(env['P13_MONITOR_INTERVAL_MS'], DEFAULTS.monitorIntervalMs),
     alertWebhookUrl: (env['P13_OPS_ALERT_WEBHOOK_URL'] ?? '').trim() || null,
     alertWebhookSecret: (env['P13_OPS_ALERT_WEBHOOK_SECRET'] ?? '').trim() || null,
