@@ -20,7 +20,7 @@ This document describes the Resend HTTPS API email provider for OTP delivery on 
 | `RESEND_FROM` | Yes when `EMAIL_PROVIDER=resend` | Verified sender email address. |
 | `RESEND_FROM_NAME` | No | Optional sender display name. |
 
-Example (all placeholders — do not use real values):
+Example (all placeholders â€” do not use real values):
 
 ```
 EMAIL_PROVIDER=resend
@@ -53,7 +53,7 @@ SMTP_SECURE=false
 
 ### Delivery outcome semantics
 
-`deliveryOutcome: 'accepted'` means Resend accepted the email request — it is **not** confirmed mailbox delivery. Resend may still bounce or suppress the message after acceptance.
+`deliveryOutcome: 'accepted'` means Resend accepted the email request â€” it is **not** confirmed mailbox delivery. Resend may still bounce or suppress the message after acceptance.
 
 ### Timeout and unknown outcomes
 
@@ -79,3 +79,7 @@ Automatic fallback between Resend and SMTP is intentionally avoided. Fallback wo
 - The Resend API key is never logged or included in error messages.
 - OTP values and full email addresses are never logged; emails are masked.
 - A missing API key or sender address causes `deliveryOutcome: 'rejected'` with `RESEND_NOT_CONFIGURED`, never a silent send.
+
+## Email OTP authentication feature switch
+
+The API email-OTP routes are gated by the API process environment variable `FLAG_AUTH_EMAIL_OTP`, not by the PostgreSQL `feature_flags` table. Set `FLAG_AUTH_EMAIL_OTP=true` in the API service environment (for example, the Render API service) and restart/redeploy that service. The API reads the value at request time; only the case-insensitive string `true` enables the routes. Missing or any other value keeps them disabled. No database update or migration is required. The historical `auth.email_otp.enabled` row created by migration 0064 is no longer consulted by the runtime gate.

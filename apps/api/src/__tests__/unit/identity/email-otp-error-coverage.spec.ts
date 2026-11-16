@@ -6,7 +6,7 @@
  * - Per-IP rate limiting branches (with/without IP, rate limit exceeded)
  * - Delivery failure scenarios (unknown timeout, definite rejection)
  * - Optional chaining in verifyEmailOtp (deviceInfo, deviceId, context)
- * - Feature flag check edge cases (isEmailOtpEnabled error handling, null rows)
+ * - Environment feature switch edge cases (isEmailOtpEnabled; no database dependency)
  * - Account linking/unlinking optimistic lock failures and constraint violations
  */
 
@@ -166,6 +166,7 @@ function createService(overrides: any = {}) {
 describe('S1.38.7 — Email OTP error handling coverage', () => {
   let service: IdentityService;
   let redis: any;
+  const originalEmailOtpFlag = process.env['FLAG_AUTH_EMAIL_OTP'];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -174,6 +175,8 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (originalEmailOtpFlag === undefined) delete process.env['FLAG_AUTH_EMAIL_OTP'];
+    else process.env['FLAG_AUTH_EMAIL_OTP'] = originalEmailOtpFlag;
   });
 
   describe('requestEmailOtp — Redis error paths', () => {
@@ -395,46 +398,31 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
     });
   });
 
-  describe('isEmailOtpEnabled — edge cases', () => {
-    it('returns false when feature flag query throws an error', async () => {
-      const db = mockDb({ featureFlagError: true });
-      service = createService({ db });
-
-      const result = await service.isEmailOtpEnabled();
-      expect(result).toBe(false);
-    });
-
-    it('returns false when feature flag row is empty', async () => {
-      const db = mockDb({ featureFlagEnabled: undefined });
-      service = createService({ db });
-
-      const result = await service.isEmailOtpEnabled();
-      expect(result).toBe(false);
-    });
-
-    it('returns true when feature flag is enabled', async () => {
-      const db = mockDb({ featureFlagEnabled: true });
-      service = createService({ db });
-
-      const result = await service.isEmailOtpEnabled();
-      expect(result).toBe(true);
-    });
-
-    it('returns false when feature flag is disabled', async () => {
+  describe('isEmailOtpEnabled — environment configuration', () => {
+    it('returns true when FLAG_AUTH_EMAIL_OTP is true without querying the database', async () => {
+      process.env['FLAG_AUTH_EMAIL_OTP'] = 'true';
       const db = mockDb({ featureFlagEnabled: false });
       service = createService({ db });
 
-      const result = await service.isEmailOtpEnabled();
-      expect(result).toBe(false);
+      await expect(service.isEmailOtpEnabled()).resolves.toBe(true);
+      expect(db.db.execute).not.toHaveBeenCalled();
     });
 
-    it('handles null/undefined rows gracefully', async () => {
-      const db = mockDb();
-      db.db.execute = vi.fn().mockResolvedValue(null);
+    it.each(['false', '', 'TRUE-ish', undefined])('fails closed when FLAG_AUTH_EMAIL_OTP is %j', async (value) => {
+      if (value === undefined) delete process.env['FLAG_AUTH_EMAIL_OTP'];
+      else process.env['FLAG_AUTH_EMAIL_OTP'] = value;
+      const db = mockDb({ featureFlagEnabled: true });
       service = createService({ db });
 
-      const result = await service.isEmailOtpEnabled();
-      expect(result).toBe(false);
+      await expect(service.isEmailOtpEnabled()).resolves.toBe(false);
+      expect(db.db.execute).not.toHaveBeenCalled();
+    });
+
+    it('trims whitespace and accepts case-insensitive true', async () => {
+      process.env['FLAG_AUTH_EMAIL_OTP'] = ' TRUE ';
+      service = createService();
+
+      await expect(service.isEmailOtpEnabled()).resolves.toBe(true);
     });
   });
 

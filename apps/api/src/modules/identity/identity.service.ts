@@ -38,7 +38,6 @@ import { AuditService, AuditRequestContext } from '../audit/index';
 import { OtpDeliveryService } from '../notifications/otp-delivery.service';
 import { OtpDeliveryChannel } from '../notifications/providers/provider.interface';
 import { ProviderRegistryService } from '../notifications/provider-registry.service';
-import { featureFlags } from '../audit/audit.schema';
 import {
   ACQUIRE_RATE_LIMIT,
   CREATE_CHALLENGE,
@@ -46,9 +45,6 @@ import {
   VERIFY_AND_CONSUME,
 } from '../../common/redis/otp-lua';
 import type { DeviceTrustTransportInstruction } from '../../common/auth/device-trust-cookie';
-
-/** Feature flag key for email OTP (S1.35 Phase 1). */
-const FLAG_AUTH_EMAIL_OTP = 'auth.email_otp.enabled';
 
 /**
  * Device-trust lifetimes (audit finding S-1 remediation; migration 0066).
@@ -2677,20 +2673,13 @@ export class IdentityService {
   // ── Helpers ────────────────────────────────────────────────
 
   /**
-   * Check whether the email OTP feature flag is enabled.
-   * Reads from the feature_flags table; returns false when the row is absent.
+   * Check whether email OTP authentication is enabled for this API process.
+   * This is an environment-level release switch, not a database feature flag.
+   * Only the explicit string "true" enables the routes; missing or any other
+   * value fails closed. Read at request time so runtime env injection is honored.
    */
   async isEmailOtpEnabled(): Promise<boolean> {
-    try {
-      const result = await this.db.db.execute(
-        sql`SELECT enabled FROM feature_flags WHERE key = ${FLAG_AUTH_EMAIL_OTP}`,
-      );
-      // drizzle-orm/node-postgres returns { rows: [...] } from raw execute
-      const rows = (result as any)?.rows ?? (result as any);
-      return Array.isArray(rows) && rows[0]?.enabled === true;
-    } catch {
-      return false;
-    }
+    return process.env['FLAG_AUTH_EMAIL_OTP']?.trim().toLowerCase() === 'true';
   }
 
   private hashToken(token: string): string {
