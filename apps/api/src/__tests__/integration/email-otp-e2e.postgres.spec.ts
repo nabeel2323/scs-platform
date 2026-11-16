@@ -15,7 +15,7 @@
  *  - Email-only user auto-registration on first verify
  *  - Existing email user login on subsequent verify
  *  - Session persistence (refresh token stored in DB)
- *  - Feature flag check (isEmailOtpEnabled)
+ *  - Environment feature switch check (isEmailOtpEnabled; no DB lookup)
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { Pool } from 'pg';
@@ -93,8 +93,10 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
   let pool: Pool;
   let db: any;
   let service: IdentityService;
+  const originalEmailOtpFlag = process.env['FLAG_AUTH_EMAIL_OTP'];
 
   beforeAll(async () => {
+    process.env['FLAG_AUTH_EMAIL_OTP'] = 'true';
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, { schema }) as any;
@@ -120,11 +122,14 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    // Enable the email OTP feature flag
-    await pool.query(`UPDATE feature_flags SET enabled = true WHERE key = 'auth.email_otp.enabled'`);
+    // Keep the legacy database row disabled: email OTP must be controlled only
+    // by FLAG_AUTH_EMAIL_OTP and must not depend on a feature_flags DB read.
+    await pool.query(`UPDATE feature_flags SET enabled = false WHERE key = 'auth.email_otp.enabled'`);
   }, 120_000);
 
   afterAll(async () => {
+    if (originalEmailOtpFlag === undefined) delete process.env['FLAG_AUTH_EMAIL_OTP'];
+    else process.env['FLAG_AUTH_EMAIL_OTP'] = originalEmailOtpFlag;
     await pool?.end();
     await container?.stop();
   });
@@ -320,18 +325,17 @@ describe('Email OTP E2E (S1.35 Phase 1)', () => {
   // ── 3. Feature Flag ───────────────────────────────────────────────
 
   describe('Feature flag', () => {
-    it('isEmailOtpEnabled returns true when flag is set', async () => {
+    it('enables email OTP from the environment even while the legacy DB row is disabled', async () => {
+      process.env['FLAG_AUTH_EMAIL_OTP'] = 'true';
       const enabled = await service.isEmailOtpEnabled();
       expect(enabled).toBe(true);
+      const dbFlag = await pool.query(`SELECT enabled FROM feature_flags WHERE key = 'auth.email_otp.enabled'`);
+      expect(dbFlag.rows[0]?.enabled).toBe(false);
     });
 
-    it('isEmailOtpEnabled returns false when flag is disabled', async () => {
-      await pool.query(`UPDATE feature_flags SET enabled = false WHERE key = 'auth.email_otp.enabled'`);
-      const enabled = await service.isEmailOtpEnabled();
-      expect(enabled).toBe(false);
-
-      // Restore
-      await pool.query(`UPDATE feature_flags SET enabled = true WHERE key = 'auth.email_otp.enabled'`);
+    it.each(['false', '', 'TRUE-ish'])('fails closed when FLAG_AUTH_EMAIL_OTP is %j', async (value) => {
+      process.env['FLAG_AUTH_EMAIL_OTP'] = value;
+      await expect(service.isEmailOtpEnabled()).resolves.toBe(false);
     });
   });
 
