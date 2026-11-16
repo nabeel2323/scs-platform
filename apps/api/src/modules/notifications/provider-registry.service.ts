@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Provider registry — manages notification provider instances and enforces
  * the public/internal channel boundary.
  *
@@ -28,6 +28,7 @@ import {
 import { TwilioSmsProvider } from './providers/twilio-sms.provider';
 import { WhatsAppProvider } from './providers/whatsapp.provider';
 import { SmtpEmailProvider } from './providers/smtp-email.provider';
+import { ResendEmailProvider } from './providers/resend-email.provider';
 import { MockOtpProvider } from './providers/mock.provider';
 
 @Injectable()
@@ -50,16 +51,24 @@ export class ProviderRegistryService {
     // Initialize public providers
     const twilio = new TwilioSmsProvider(this.config.twilio);
     const whatsapp = new WhatsAppProvider(this.config.whatsapp);
-    const smtp = new SmtpEmailProvider(this.config.smtp);
+
+    const emailProvider = process.env['EMAIL_PROVIDER']?.trim() || 'smtp';
+    let emailChannelProvider: NotificationProvider;
+
+    if (emailProvider === 'resend') {
+      emailChannelProvider = new ResendEmailProvider(this.config.resend);
+    } else {
+      emailChannelProvider = new SmtpEmailProvider(this.config.smtp);
+    }
 
     this.publicProviders.set('sms', twilio);
     this.publicProviders.set('whatsapp', whatsapp);
-    this.publicProviders.set('email', smtp);
+    this.publicProviders.set('email', emailChannelProvider);
 
     // Internal providers include all public ones
     this.internalProviders.set('sms', twilio);
     this.internalProviders.set('whatsapp', whatsapp);
-    this.internalProviders.set('email', smtp);
+    this.internalProviders.set('email', emailChannelProvider);
 
     // F-10 (S1.38): fail-closed mock provider selection.
     // Mock requires BOTH a non-production NODE_ENV AND explicit OTP_MOCK_ENABLED=true.
