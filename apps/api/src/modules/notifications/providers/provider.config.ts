@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Notification provider configuration and validation.
  *
  * This module validates environment variables for SMS, WhatsApp, and SMTP
@@ -157,6 +157,19 @@ export interface SmtpConfig {
 }
 
 /**
+ * Resend email provider configuration.
+ */
+export interface ResendConfig {
+  apiKey: string;
+  from: string;
+  fromName: string;
+  /** Permitted by OTP_CHANNELS AND credentialed AND EMAIL_PROVIDER=resend. Only this field gates sending. */
+  enabled: boolean;
+  /** Credentials are present, regardless of whether the channel is permitted or provider selected. */
+  credentialsPresent: boolean;
+}
+
+/**
  * Default WhatsApp Graph API version when `WHATSAPP_API_VERSION` is unset or
  * invalid. This is the historically-pinned value; operators must confirm it is
  * still supported by Meta for their account before deploying.
@@ -175,6 +188,7 @@ export interface NotificationProviderConfig {
   twilio: TwilioConfig;
   whatsapp: WhatsAppConfig;
   smtp: SmtpConfig;
+  resend: ResendConfig;
 }
 
 /**
@@ -298,7 +312,8 @@ export function resolveSmtpConfig(
   // Authentication (user/password) is optional — local dev uses Mailhog without auth.
   const credentialsPresent = !!(host && from);
   const permitted = isChannelPermitted(policy, 'email');
-  const enabled = credentialsPresent && permitted;
+  const emailProvider = env['EMAIL_PROVIDER']?.trim() || 'smtp';
+  const enabled = emailProvider === 'smtp' && credentialsPresent && permitted;
 
   if (!permitted) {
     logger.log(`SMTP email provider is DISABLED by ${OTP_CHANNELS_ENV_VAR}`);
@@ -310,6 +325,41 @@ export function resolveSmtpConfig(
   }
 
   return { host, port, secure, user, password, from, fromName, enabled, credentialsPresent };
+}
+
+/**
+ * Resolve Resend configuration from environment variables.
+ *
+ * Security: Never logs credential values. Only reports presence/absence.
+ *
+ * EMAIL_PROVIDER selects which email provider handles the 'email' channel.
+ * When EMAIL_PROVIDER=resend, Resend is enabled (if credentials present and channel permitted).
+ * When EMAIL_PROVIDER=smtp (default), Resend is not enabled even if credentials exist.
+ */
+export function resolveResendConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  policy: OtpChannelPolicy = resolveOtpChannelPolicy(env),
+): ResendConfig {
+  const apiKey = env['RESEND_API_KEY']?.trim() || '';
+  const from = env['RESEND_FROM']?.trim() || '';
+  const fromName = env['RESEND_FROM_NAME']?.trim() || '';
+  const emailProvider = env['EMAIL_PROVIDER']?.trim() || 'smtp';
+
+  const credentialsPresent = !!(apiKey && from);
+  const permitted = isChannelPermitted(policy, 'email');
+  const enabled = emailProvider === 'resend' && credentialsPresent && permitted;
+
+  if (!permitted) {
+    logger.log(`Resend email provider is DISABLED by ${OTP_CHANNELS_ENV_VAR}`);
+  } else if (emailProvider !== 'resend') {
+    logger.log(`Resend email provider is not selected (EMAIL_PROVIDER="${emailProvider}")`);
+  } else if (!credentialsPresent) {
+    logger.log('Resend email provider is selected but not configured (missing RESEND_API_KEY or RESEND_FROM)');
+  } else {
+    logger.log(`Resend email provider is configured and permitted (from: ${from})`);
+  }
+
+  return { apiKey, from, fromName, enabled, credentialsPresent };
 }
 
 /**
@@ -327,6 +377,7 @@ export function resolveNotificationConfig(
     twilio: resolveTwilioConfig(env, policy),
     whatsapp: resolveWhatsAppConfig(env, policy),
     smtp: resolveSmtpConfig(env, policy),
+    resend: resolveResendConfig(env, policy),
   };
 }
 
@@ -365,15 +416,15 @@ export function resolveOtpReadiness(
   const problems: OtpReadinessProblem[] = [];
   const mockAvailable = options.mockAvailable === true;
 
-  if (isChannelPermitted(config.policy, 'email') && !config.smtp.enabled && !mockAvailable) {
+  if (isChannelPermitted(config.policy, 'email') && !config.smtp.enabled && !config.resend.enabled && !mockAvailable) {
     const missing: string[] = [];
     if (!config.smtp.host) missing.push('SMTP_HOST');
     if (!config.smtp.from) missing.push('SMTP_FROM');
     problems.push({
       code: 'EMAIL_PROVIDER_NOT_CONFIGURED',
       message:
-        `Email is the permitted OTP channel but SMTP is not configured (missing ${missing.join(' and ')}). ` +
-        'Set SMTP_HOST, SMTP_PORT, SMTP_FROM and — for an authenticated relay — SMTP_USER and SMTP_PASSWORD. ' +
+        `Email is the permitted OTP channel but neither SMTP nor Resend is configured (missing ${missing.join(' and ')}). ` +
+        'Set SMTP_HOST and SMTP_FROM (or RESEND_API_KEY and RESEND_FROM with EMAIL_PROVIDER=resend). ' +
         'OTP requests will fail with EMAIL_PROVIDER_NOT_CONFIGURED until this is set; no SMS fallback exists.',
     });
   }
@@ -397,7 +448,7 @@ export function resolveOtpReadiness(
   }
 
   const canDeliver =
-    mockAvailable || config.smtp.enabled || config.twilio.enabled || config.whatsapp.enabled;
+    mockAvailable || config.smtp.enabled || config.twilio.enabled || config.whatsapp.enabled || config.resend.enabled;
   if (!canDeliver) {
     problems.push({
       code: 'NO_OTP_CHANNEL_AVAILABLE',
@@ -420,7 +471,7 @@ export function resolveOtpReadiness(
  * @returns Whether at least one provider is configured.
  */
 export function hasAnyProvider(config: NotificationProviderConfig): boolean {
-  return config.twilio.enabled || config.whatsapp.enabled || config.smtp.enabled;
+  return config.twilio.enabled || config.whatsapp.enabled || config.smtp.enabled || config.resend.enabled;
 }
 
 /**
@@ -436,6 +487,7 @@ export function logProviderStatus(config: NotificationProviderConfig): void {
   logger.log(`Twilio SMS provider: ${config.twilio.enabled ? 'ENABLED' : 'DISABLED'}`);
   logger.log(`WhatsApp provider: ${config.whatsapp.enabled ? 'ENABLED' : 'DISABLED'}`);
   logger.log(`SMTP email provider: ${config.smtp.enabled ? 'ENABLED' : 'DISABLED'}`);
+  logger.log(`Resend email provider: ${config.resend.enabled ? 'ENABLED' : 'DISABLED'}`);
 
   const readiness = resolveOtpReadiness(config);
   for (const problem of readiness.problems) {

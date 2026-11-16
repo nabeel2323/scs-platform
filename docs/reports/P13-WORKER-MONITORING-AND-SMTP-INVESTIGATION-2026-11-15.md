@@ -1,9 +1,9 @@
 # P13 Worker Monitoring and SMTP Investigation
 
 **Date:** 2026-11-15  
-**Branch:** `fix/p13-worker-monitor-gating-2026-11-15`  
-**Base:** `main`  
-**Scope:** Correct the P13 worker-count monitoring default and document the read-only SMTP timeout investigation.
+**Branch:** `integration/pr-122-develop-into-main-2026-11-16`  
+**Base:** `main` + `develop`  
+**Scope:** Preserve the P13 worker-count monitoring correction from PR #114 and the read-only SMTP timeout investigation while integrating the Resend email provider and the existing mainline changes.
 
 ## Executive summary
 
@@ -78,18 +78,20 @@ If timeouts recur, the next diagnostic should correlate the delivery correlation
 
 ## Safety and deployment boundaries
 
-- No Supabase data or schema changes.
-- No Render environment-variable or service changes.
-- No SMTP credentials or delivery tests.
-- No API deployment triggered.
-- No changes to worker enablement, pilot mode, or financial workflows.
-- The currently running Render API remains on its existing `develop` deployment until a separately authorized deployment action is taken.
-- The existing suppressed alert remains in the shared database until the corrected monitor runs after deployment; this PR does not mutate it directly.
+- No Supabase data or schema changes were made during the investigation.
+- No Render environment-variable or service changes were made during the investigation.
+- No SMTP credentials or delivery tests were used.
+- No API deployment was triggered by the investigation.
+- No changes were made to worker enablement, pilot mode, or financial workflows.
+- The earlier backport to `develop` did not itself deploy the API or mutate the shared Supabase database. Its release note warned that merging to `develop` triggers the configured staging release workflow, including migrations, RBAC seeding, and Render deployment, against an environment sharing the Supabase database.
+- This integration commit only combines repository content. Any subsequent deployment is governed by the workflow for the target branch and must be treated as a live operation with the appropriate release authorization.
+- The existing suppressed alert remains in the shared database until the corrected monitor runs after deployment; this report does not mutate it directly.
 
-## Release gate
+## Integration and release gate
 
 - [ ] Focused P13 worker-count unit test passes in GitHub Actions.
 - [ ] API typecheck and build pass.
 - [ ] Full required repository CI checks pass.
 - [ ] Review confirms explicit expected-count override behavior is preserved.
+- [ ] Resend provider and OTP regression tests pass.
 - [ ] After a separately authorized API deployment, verify the stale count-anomaly alert is resolved by the monitor's normal scan.

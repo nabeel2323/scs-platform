@@ -15,6 +15,7 @@ function insertStub(): any {
 function makeService(overrides: {
   ownerEmail?: string | null;
   redis?: any;
+  delivery?: { success: boolean; deliveryOutcome?: string; errorReason?: string };
 } = {}): BootstrapService {
   const insert = insertStub();
   const prevEmail = process.env['SCS_BOOTSTRAP_OWNER_EMAIL'];
@@ -32,10 +33,10 @@ function makeService(overrides: {
       { checkAndIncrement: vi.fn(async () => ({ allowed: true, remaining: 9 })) } as any,
       overrides.redis ?? createMockRedisStore(),
       {
-        deliverEmailOtp: vi.fn(async () => ({ success: true })),
+        deliverEmailOtp: vi.fn(async () => overrides.delivery ?? { success: true }),
         deliverToTestChannel: vi.fn(async () => ({ success: true })),
       } as any,
-      { getMockProvider: vi.fn(() => ({ id: 'mock' })) } as any,
+      { getMockProvider: vi.fn(() => null) } as any,
     );
   } finally {
     if (prevEmail === undefined) {
@@ -154,5 +155,108 @@ describe('BootstrapService — owner OTP (unit)', () => {
       err = e;
     }
     expect(err).toBeInstanceOf(RateLimitException);
+  });
+});
+
+
+
+describe('BootstrapService — OTP delivery outcome mapping', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('unknown outcome → DELIVERY_TIMEOUT + possiblyDelivered: true', async () => {
+    const redis = createMockRedisStore();
+    const svc = makeService({
+      ownerEmail: OWNER_EMAIL,
+      redis,
+      delivery: { success: false, deliveryOutcome: 'unknown' },
+    });
+
+    const res = await svc.requestOwnerOtp(OWNER_EMAIL, '10.0.0.1');
+
+    expect(res.success).toBe(false);
+    expect(res.deliveryStatus).toBe('DELIVERY_TIMEOUT');
+    expect(res.possiblyDelivered).toBe(true);
+    expect(res.emailHint).toBe('p****@example.com');
+  });
+
+  it('rejected outcome → DELIVERY_FAILED status', async () => {
+    const redis = createMockRedisStore();
+    const svc = makeService({
+      ownerEmail: OWNER_EMAIL,
+      redis,
+      delivery: { success: false, deliveryOutcome: 'rejected', errorReason: 'RESEND_REJECTED' },
+    });
+
+    const res = await svc.requestOwnerOtp(OWNER_EMAIL, '10.0.0.1');
+
+    expect(res.success).toBe(false);
+    expect(res.deliveryStatus).toBe('RESEND_REJECTED');
+    expect(res.possiblyDelivered).toBeUndefined();
+  });
+
+  it('accepted outcome → delivered', async () => {
+    const redis = createMockRedisStore();
+    const svc = makeService({
+      ownerEmail: OWNER_EMAIL,
+      redis,
+      delivery: { success: true },
+    });
+
+    const res = await svc.requestOwnerOtp(OWNER_EMAIL, '10.0.0.1');
+
+    expect(res.success).toBe(true);
+    expect(res.deliveryStatus).toBe('delivered');
+  });
+});
+
+describe('BootstrapService — challenge integrity after ambiguous delivery', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('unknown outcome does NOT clean up the challenge', async () => {
+    const redis = createMockRedisStore();
+    const evalSpy = vi.spyOn(redis.client, 'eval');
+    const svc = makeService({
+      ownerEmail: OWNER_EMAIL,
+      redis,
+      delivery: { success: false, deliveryOutcome: 'unknown' },
+    });
+
+    await svc.requestOwnerOtp(OWNER_EMAIL, '10.0.0.1');
+
+    const cleanupCalls = evalSpy.mock.calls.filter(([script]) =>
+      String(script).includes('challenge.ch == challengeId'),
+    );
+    expect(cleanupCalls).toHaveLength(0);
+  });
+
+  it('rejected outcome cleans up the challenge', async () => {
+    const redis = createMockRedisStore();
+    const evalSpy = vi.spyOn(redis.client, 'eval');
+    const svc = makeService({
+      ownerEmail: OWNER_EMAIL,
+      redis,
+      delivery: { success: false, deliveryOutcome: 'rejected', errorReason: 'RESEND_REJECTED' },
+    });
+
+    await svc.requestOwnerOtp(OWNER_EMAIL, '10.0.0.1');
+
+    const cleanupCalls = evalSpy.mock.calls.filter(([script]) =>
+      String(script).includes('challenge.ch == challengeId'),
+    );
+    expect(cleanupCalls).toHaveLength(1);
   });
 });
