@@ -586,11 +586,15 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,4711,'SYP','FAILED','QUALITY_ISSUE',$4, now())`, [randomUUID(), payA, orderA, retA]);
       const { findings } = await monitor.collectFindings();
       const failed = findings.find((f) => f.conditionKey === 'p13.refund.failed')!;
-      const serialized = JSON.stringify(failed.detail);
-      expect(serialized).not.toContain('4711');
-      expect(Object.keys(failed.detail!)).toEqual(
-        expect.arrayContaining(['refundId', 'returnRequestId', 'status', 'createdAt']),
+      // Assert the alert payload shape rather than searching its serialized JSON:
+      // random UUIDs may coincidentally contain the amount sentinel ("4711").
+      expect(Object.keys(failed.detail!).sort()).toEqual(
+        ['createdAt', 'refundId', 'returnRequestId', 'status'].sort(),
       );
+      expect(Object.values(failed.detail!)).not.toContain(4711);
+      expect(failed.detail).not.toHaveProperty('amount');
+      expect(failed.detail).not.toHaveProperty('amountMinor');
+      expect(failed.detail).not.toHaveProperty('currency');
     });
 
     it('AL-09 (alert 6): reversal FAILED rows and duplicate-attempt counters both alert', async () => {
