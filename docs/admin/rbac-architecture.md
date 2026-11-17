@@ -159,3 +159,18 @@ Audit records exclude: passwords, OTPs, access tokens, refresh tokens, invitatio
 - Role inheritance/hierarchy is not supported
 - Time-limited role assignments are not supported
 - Conditional permissions (e.g., "can edit own profile") are not supported
+
+## Merchant Organization Onboarding Authorization
+
+Newly registered users without an organization membership receive the `BUYER` role and its permission set in their access-token claims. Merchant registration must therefore be able to create the first organization before the user can receive the `MERCHANT_OWNER` membership role.
+
+The platform separates these capabilities:
+
+| Permission | Purpose | BUYER |
+|------------|---------|-------|
+| `identity:organizations:create` | Start organization onboarding by creating a new organization | Granted |
+| `identity:organizations:write` | Administer an existing organization, including updates and membership operations | Not granted |
+
+`POST /v1/organizations` requires `identity:organizations:create`. Organization updates, membership management, and organization update requests continue to require `identity:organizations:write`. The creation permission does not authorize a buyer to manage another organization's members or settings.
+
+Migration `0069_organization_onboarding_permission.sql` registers the new permission and grants it to the existing `BUYER` role idempotently. The API seed definition mirrors that grant for fresh installations. After organization creation, the creator is assigned the `MERCHANT_OWNER` membership and the web onboarding flow switches to that organization to obtain the corresponding merchant permission claims.
