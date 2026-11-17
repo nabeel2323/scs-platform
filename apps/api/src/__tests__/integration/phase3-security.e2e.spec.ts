@@ -67,7 +67,7 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 87,
+  SUPER_ADMIN: 88,
   // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
   ADMIN: 61,
   // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
@@ -281,9 +281,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 87', async () => {
+    it('total permission count is 88', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(87);
+      expect(res.rows[0].cnt).toBe(88);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
