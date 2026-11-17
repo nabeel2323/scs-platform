@@ -143,17 +143,17 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
     expect(byRole.get('SUPER_ADMIN')).toBe(88);
-    // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
-    expect(byRole.get('ADMIN')).toBe(61);
+    // P13 Phase 3: ADMIN gains organization creation alongside commission/adjustments/reconciliation (54 -> 62).
+    expect(byRole.get('ADMIN')).toBe(62);
     // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
     expect(byRole.get('MODERATOR')).toBe(23);
     // P13 Phase 3: FINANCE approver role (13 keys).
     expect(byRole.get('FINANCE')).toBe(13);
-    // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
-    expect(byRole.get('MERCHANT_OWNER')).toBe(34);
+    // P12: MERCHANT_OWNER gains organization creation alongside merchant:orders:read + admin:settlements:read (32 -> 35).
+    expect(byRole.get('MERCHANT_OWNER')).toBe(35);
     // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
     expect(byRole.get('MERCHANT_STAFF')).toBe(28);
-    expect(byRole.get('BUYER')).toBe(6);
+    expect(byRole.get('BUYER')).toBe(7); // Includes identity:organizations:create.
     expect(byRole.get('DRIVER')).toBe(6);
   });
 
