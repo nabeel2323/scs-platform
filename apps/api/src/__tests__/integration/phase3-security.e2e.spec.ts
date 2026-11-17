@@ -305,13 +305,13 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       );
       const keys = res.rows.map((r: any) => r.key);
       expect(keys).toEqual([
+        'identity:organizations:create',
         'analytics:track',
         'catalog:products:read',
         'merchant:stores:read',
         'orders:cancel',
         'orders:read',
         'orders:write',
-        'identity:organizations:create',
       ]);
     });
 
