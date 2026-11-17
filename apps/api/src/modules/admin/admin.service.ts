@@ -72,6 +72,25 @@ export class AdminService {
     return listAdminTable(this.db.db, 'merchants', filters);
   }
 
+  /** Return the complete admin detail projection for one merchant store. */
+  async getMerchantDetail(storeId: string) {
+    const rows = await this.db.db
+      .select({
+        ...getTableColumns(stores),
+        orgName: organizations.name,
+        orgLegalName: organizations.legalName,
+        orgVerificationStatus: organizations.verificationStatus,
+        orgIsActive: organizations.isActive,
+      })
+      .from(stores)
+      .leftJoin(organizations, eq(stores.orgId, organizations.id))
+      .where(eq(stores.id, storeId))
+      .limit(1);
+
+    if (!rows[0]) throw new NotFoundException('Merchant not found');
+    return rows[0];
+  }
+
   // ── KPIs ─────────────────────────────────────────────────────
 
   async getKpis(from?: string, to?: string) {
