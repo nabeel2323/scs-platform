@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OrganizationsController } from '../../../modules/identity/organizations.controller';
 import { IdentityService } from '../../../modules/identity/identity.service';
+import { PERMISSIONS_KEY } from '../../../common/guards/current-user.decorator';
 import type { JwtPayload } from '../../../common/guards/current-user.decorator';
 
 /**
@@ -32,6 +33,20 @@ const payload = (over: Partial<JwtPayload> = {}): JwtPayload => ({
   iat: 0,
   exp: 9999999999,
   ...over,
+});
+
+describe('OrganizationsController authorization metadata', () => {
+  it('allows onboarding creation with the narrow create permission, not org-management write', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, OrganizationsController.prototype.createOrg)).toEqual([
+      'identity:organizations:create',
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, OrganizationsController.prototype.updateOrg)).toEqual([
+      'identity:organizations:write',
+    ]);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, OrganizationsController.prototype.addMember)).toEqual([
+      'identity:organizations:write',
+    ]);
+  });
 });
 
 describe('OrganizationsController', () => {

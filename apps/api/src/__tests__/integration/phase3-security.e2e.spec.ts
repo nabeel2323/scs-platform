@@ -67,18 +67,18 @@ let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
-  SUPER_ADMIN: 87,
+  SUPER_ADMIN: 88,
   // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
-  ADMIN: 61,
+  ADMIN: 62,
   // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
   MODERATOR: 23,
   // P13 Phase 3: Finance Approver role (13 keys).
   FINANCE: 13,
   // P12: MERCHANT_OWNER gains merchant:orders:read + admin:settlements:read (32 -> 34).
-  MERCHANT_OWNER: 34,
+  MERCHANT_OWNER: 35,
   // P12: MERCHANT_STAFF gains merchant:orders:read + admin:settlements:read (26 -> 28).
   MERCHANT_STAFF: 28,
-  BUYER: 6,
+  BUYER: 7,
   DRIVER: 6,
 };
 
@@ -281,9 +281,9 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       }
     });
 
-    it('total permission count is 87', async () => {
+    it('total permission count is 88', async () => {
       const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM permissions`);
-      expect(res.rows[0].cnt).toBe(87);
+      expect(res.rows[0].cnt).toBe(88);
     });
 
     it('SUPER_ADMIN has every permission', async () => {
@@ -296,7 +296,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       expect(res.rows[0].cnt).toBe(totalPerms.rows[0].cnt);
     });
 
-    it('BUYER has minimal permissions (6)', async () => {
+    it('BUYER has minimal permissions (7)', async () => {
       const res = await pool.query(
         `SELECT p.key FROM role_permissions rp
          JOIN roles r ON r.id = rp.role_id
@@ -307,6 +307,7 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       expect(keys).toEqual([
         'analytics:track',
         'catalog:products:read',
+        'identity:organizations:create',
         'merchant:stores:read',
         'orders:cancel',
         'orders:read',
