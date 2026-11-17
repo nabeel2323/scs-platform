@@ -16,6 +16,7 @@ import {
 const navItems: { href: string; label: string; icon: React.ReactNode; perms: string[] }[] = [
   { href: '/', label: 'Dashboard', icon: <IconHome size={18} />, perms: [] },
   { href: '/users', label: 'Users', icon: <IconUsers size={18} />, perms: ['admin:users:read'] },
+  { href: '/roles', label: 'Roles', icon: <IconShield size={18} />, perms: ['admin:users:read'] },
   { href: '/orders', label: 'Orders', icon: <IconPackage size={18} />, perms: ['admin:orders:read'] },
   { href: '/shipments', label: 'Ship Operations', icon: <IconBox size={18} />, perms: ['fulfillment:shipments:read'] },
   { href: '/carrier', label: 'Carrier & Recovery', icon: <IconSettings size={18} />, perms: ['admin:carrier:read'] },

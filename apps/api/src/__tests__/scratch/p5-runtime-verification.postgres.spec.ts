@@ -72,6 +72,7 @@ beforeAll(async () => {
     db,
     {} as any,  // storage
     {} as any,  // notifications
+    {} as any, // AuditService
     catalogService,
     taxonomyService,
     {} as any, // governance

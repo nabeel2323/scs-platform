@@ -59,6 +59,7 @@ describe('P5 — Admin Variant Management', () => {
       { db: { query: {}, select: vi.fn() } } as any,
       {} as any, // storage
       {} as any, // notifications
+      {} as any, // AuditService
       mockCatalogService as any,
       mockTaxonomyService as any,
       {} as any, // governance

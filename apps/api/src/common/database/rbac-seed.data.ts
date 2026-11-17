@@ -80,6 +80,7 @@ export const PERMISSIONS: string[] = [
   'admin:audit:read',
   'admin:users:read',
   'admin:users:write',
+  'admin:roles:write',
   // Fulfillment / Shipments
   'fulfillment:shipments:read',
   'fulfillment:shipments:assign',
@@ -159,7 +160,7 @@ export const ROLES: RoleDef[] = [
       'catalog:offers:write', 'catalog:offers:govern',
       'catalog:requests:manage', 'catalog:imports:manage',
       'admin:orders:read', 'admin:merchants:read', 'admin:kpis:read', 'admin:audit:read',
-      'admin:users:read', 'admin:users:write',
+      'admin:users:read', 'admin:users:write', 'admin:roles:write',
       'merchant:shipping:read',
       'fulfillment:labels:read', 'fulfillment:proof:read',
       'fulfillment:drivers:read',

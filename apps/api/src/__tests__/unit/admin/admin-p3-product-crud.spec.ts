@@ -47,6 +47,7 @@ describe('AdminService — P3 product CRUD', () => {
       mocks.db as any,
       mocks.storage as any,
       mocks.notifications as any,
+      {} as any, // AuditService
       mocks.catalogService as any,
       mocks.taxonomyService as any,
       {} as any, // ProductGovernanceService
