@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, InternalServerErrorException, Logger, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CatalogService, CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
@@ -15,6 +15,10 @@ import { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from '../catalog/product-images';
 import { AdminListInput } from './dto/admin-list-query.dto';
 import { listAdminTable, safeUserFields } from './admin-tables';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { AssignRolePermissionsDto } from './dto/assign-role-permissions.dto';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * Admin service — platform-wide operations for admin users.
@@ -31,6 +35,7 @@ export class AdminService {
     private readonly db: DatabaseService,
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditService,
     private readonly catalogService: CatalogService,
     private readonly taxonomyService: CatalogTaxonomyService,
     private readonly governance: ProductGovernanceService,
@@ -527,10 +532,71 @@ export class AdminService {
     return { previews };
   }
 
+  // ── Actor security context ────────────────────────
+
+  private async actorEffectivePermissions(actorId: string) {
+    const memberships = await this.db.db.query.organizationMembers.findMany({
+      where: and(
+        eq(organizationMembers.userId, actorId),
+        eq(organizationMembers.status, 'ACTIVE'),
+      ),
+      with: { role: { columns: { id: true, key: true, name: true } } },
+    });
+
+    const roleIds = [...new Set(memberships.map(m => m.role?.id).filter((id): id is string => Boolean(id)))];
+    const permissionKeys = new Set<string>();
+    if (roleIds.length > 0) {
+      const rolePerms = await this.db.db.query.rolePermissions.findMany({
+        where: inArray(rolePermissions.roleId, roleIds),
+      });
+      const permIds = [...new Set(rolePerms.map(rp => rp.permissionId))];
+      if (permIds.length > 0) {
+        const perms = await this.db.db.query.permissions.findMany({
+          where: inArray(permissions.id, permIds),
+        });
+        for (const p of perms) permissionKeys.add(p.key);
+      }
+    }
+
+    const roleKeys = new Set(memberships.map(m => m.role?.key).filter((key): key is string => Boolean(key)));
+    const orgIds = memberships.map(m => m.orgId);
+
+    return {
+      permissions: permissionKeys,
+      roleKeys,
+      orgIds,
+      isMerchant: roleKeys.has('MERCHANT_OWNER') || roleKeys.has('MERCHANT_STAFF'),
+    };
+  }
+
+  private async rolePermissionKeys(roleId: string): Promise<string[]> {
+    const rolePerms = await this.db.db.query.rolePermissions.findMany({
+      where: eq(rolePermissions.roleId, roleId),
+    });
+    const permIds = rolePerms.map(rp => rp.permissionId);
+    if (permIds.length === 0) return [];
+    const perms = await this.db.db.query.permissions.findMany({
+      where: inArray(permissions.id, permIds),
+    });
+    return perms.map(p => p.key);
+  }
+
   // ── User Management ──────────────────────────────────────────
 
-  async listUsers(filters: AdminListInput) {
-    return listAdminTable(this.db.db, 'users', filters);
+  async listUsers(filters: AdminListInput, actorId?: string) {
+    const result = await listAdminTable(this.db.db, 'users', filters);
+    if (actorId) {
+      const actor = await this.actorEffectivePermissions(actorId);
+      if (!actor.permissions.has('admin:users:read') && actor.orgIds.length > 0) {
+        const allowed = new Set(actor.orgIds);
+        result.data = result.data.filter((row: { organizations?: { orgId: string }[] }) => {
+          const orgs = row.organizations ?? [];
+          return orgs.some((o) => allowed.has(o.orgId));
+        });
+        result.total = result.data.length;
+      }
+    }
+    return result;
   }
 
   async getUserDetail(userId: string) {
@@ -545,20 +611,345 @@ export class AdminService {
     return { ...user, organizations: orgDetails };
   }
 
-  async updateUserStatus(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE') {
+  async updateUserStatus(userId: string, status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE', actorId: string) {
+    return this.db.db.transaction(async tx => {
+      // Lock the target user row to prevent concurrent modifications
+      const lockedUser = await tx.execute(sql`
+        SELECT id, status FROM users WHERE id = ${userId} FOR UPDATE
+      `);
+
+      if (!lockedUser.rows[0]) throw new NotFoundException('User not found');
+
+      // Last SUPER_ADMIN protection — lock all SUPER_ADMIN membership rows
+      // so concurrent deactivation attempts serialize and see an accurate count.
+      // FOR UPDATE on the membership rows ensures only one transaction at a
+      // time can evaluate the count, preventing write skew where two admins
+      // simultaneously deactivate the last two SUPER_ADMINs.
+      if (status !== 'ACTIVE') {
+        const superAdminMemberships = await tx.execute(sql`
+          SELECT om.user_id, om.id
+          FROM organization_members om
+          JOIN roles r ON om.role_id = r.id
+          WHERE om.status = 'ACTIVE' AND r.key = 'SUPER_ADMIN'
+          FOR UPDATE
+        `);
+
+        if (superAdminMemberships.rows.length <= 1 && superAdminMemberships.rows[0]?.['user_id'] === userId) {
+          throw new BadRequestException('Cannot deactivate the last active SUPER_ADMIN');
+        }
+      }
+
+      await tx.update(users)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      // Record audit event (outside row locks, non-throwing)
+      await this.audit.record({
+        actorType: 'ADMIN',
+        actorId,
+        action: 'USER_STATUS_CHANGED',
+        resource: 'users',
+        resourceId: userId,
+        orgId: null,
+        metadata: { newStatus: status },
+      });
+
+      return { id: userId, status, updatedAt: new Date() };
+    });
+  }
+
+  // ── User Creation ──────────────────────────────────────────────
+
+  async createUser(dto: CreateUserDto, actorId: string) {
+    // Check for duplicate email
+    const existingEmail = await this.db.db.query.users.findFirst({
+      where: eq(users.email, dto.email),
+    });
+    if (existingEmail) throw new ConflictException('A user with this email already exists');
+
+    // Check for duplicate phone (if provided)
+    if (dto.phone) {
+      const existingPhone = await this.db.db.query.users.findFirst({
+        where: eq(users.phone, dto.phone),
+      });
+      if (existingPhone) throw new ConflictException('A user with this phone number already exists');
+    }
+
+    // Validate organization if provided
+    if (dto.orgId) {
+      const org = await this.db.db.query.organizations.findFirst({
+        where: eq(organizations.id, dto.orgId),
+      });
+      if (!org) throw new NotFoundException('Organization not found');
+    }
+
+    // Validate role if provided
+    if (dto.roleId) {
+      const role = await this.db.db.query.roles.findFirst({
+        where: eq(roles.id, dto.roleId),
+      });
+      if (!role) throw new NotFoundException('Role not found');
+      if (role.key === 'SUPER_ADMIN') {
+        const actorMemberships = await this.db.db.select({ roleKey: roles.key })
+          .from(organizationMembers)
+          .leftJoin(roles, eq(organizationMembers.roleId, roles.id))
+          .where(and(
+            eq(organizationMembers.userId, actorId),
+            eq(organizationMembers.status, 'ACTIVE'),
+          ));
+        const isActorSuperAdmin = actorMemberships.some(m => m.roleKey === 'SUPER_ADMIN');
+        if (!isActorSuperAdmin) {
+          throw new BadRequestException('Only SUPER_ADMIN can assign SUPER_ADMIN role');
+        }
+      }
+    }
+
+    // Create user within a transaction
+    const [createdUser] = await this.db.db.transaction(async tx => {
+      const [user] = await tx.insert(users).values({
+        id: crypto.randomUUID(),
+        email: dto.email,
+        phone: dto.phone ?? null,
+        fullName: dto.fullName,
+        locale: dto.locale || 'en',
+        status: dto.status || 'ACTIVE',
+        emailVerifiedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning();
+
+      if (!user) throw new InternalServerErrorException('Failed to create user');
+
+      // Optionally create organization membership
+      if (dto.orgId && dto.roleId) {
+        await tx.insert(organizationMembers).values({
+          id: crypto.randomUUID(),
+          orgId: dto.orgId,
+          userId: user.id,
+          roleId: dto.roleId,
+          status: 'ACTIVE',
+          createdAt: new Date(),
+        });
+      }
+
+      return [user];
+    });
+
+    if (!createdUser) throw new InternalServerErrorException('Failed to create user');
+
+    // Record audit event
+    await this.audit.record({
+      actorType: 'ADMIN',
+      actorId,
+      action: 'USER_CREATED',
+      resource: 'users',
+      resourceId: createdUser.id,
+      orgId: dto.orgId ?? null,
+      metadata: {
+        email: dto.email,
+        status: dto.status,
+        locale: dto.locale,
+        orgId: dto.orgId ?? null,
+        roleId: dto.roleId ?? null,
+      },
+    });
+
+    return { id: createdUser.id, email: createdUser.email, status: createdUser.status };
+  }
+
+  async updateUserProfile(userId: string, dto: UpdateUserProfileDto, actorId: string) {
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
     });
     if (!user) throw new NotFoundException('User not found');
 
-    await this.db.db.update(users)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(users.id, userId));
+    const before = { fullName: user.fullName, email: user.email, phone: user.phone, locale: user.locale };
 
-    return { id: userId, status, updatedAt: new Date() };
+    // Check email uniqueness if changing
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.db.db.query.users.findFirst({
+        where: eq(users.email, dto.email),
+      });
+      if (existing) throw new ConflictException('A user with this email already exists');
+    }
+
+    // Check phone uniqueness if changing
+    if (dto.phone && dto.phone !== user.phone) {
+      const existing = await this.db.db.query.users.findFirst({
+        where: eq(users.phone, dto.phone),
+      });
+      if (existing) throw new ConflictException('A user with this phone number already exists');
+    }
+
+    const [updated] = await this.db.db.update(users)
+      .set({
+        fullName: dto.fullName ?? user.fullName,
+        email: dto.email ?? user.email,
+        phone: dto.phone ?? user.phone,
+        locale: dto.locale ?? user.locale,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    if (!updated) throw new NotFoundException('User not found');
+
+    // Record audit event
+    await this.audit.record({
+      actorType: 'ADMIN',
+      actorId,
+      action: 'USER_PROFILE_UPDATED',
+      resource: 'users',
+      resourceId: userId,
+      metadata: {
+        before,
+        after: { fullName: updated.fullName, email: updated.email, phone: updated.phone, locale: updated.locale },
+      },
+    });
+
+    return { id: updated.id, fullName: updated.fullName, email: updated.email, phone: updated.phone, locale: updated.locale };
   }
 
-  async assignRole(orgId: string, userId: string, roleId: string) {
+  // ── Permission Catalog ─────────────────────────────────────────
+
+  async getPermissionCatalog() {
+    const allPermissions = await this.db.db.select().from(permissions).orderBy(permissions.key);
+
+    // Group permissions by domain (module prefix before first colon)
+    const byDomain = new Map<string, Array<{ key: string; description: string }>>();
+    for (const p of allPermissions) {
+      const domain = p.key.split(':')[0] ?? 'general';
+      const entry = { key: p.key, description: p.key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) };
+      const existing = byDomain.get(domain) ?? [];
+      existing.push(entry);
+      byDomain.set(domain, existing);
+    }
+
+    const domains = Array.from(byDomain.entries()).map(([domain, perms]) => ({
+      domain,
+      permissions: perms,
+    }));
+
+    return { domains, total: allPermissions.length };
+  }
+
+  // ── Role Detail ────────────────────────────────────────────────
+
+  async getRoleDetail(roleId: string) {
+    const role = await this.db.db.query.roles.findFirst({
+      where: eq(roles.id, roleId),
+    });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const perms = await this.db.db.query.rolePermissions.findMany({
+      where: eq(rolePermissions.roleId, roleId),
+    });
+
+    const permissionKeys: string[] = [];
+    for (const rp of perms) {
+      const perm = await this.db.db.query.permissions.findFirst({
+        where: eq(permissions.id, rp.permissionId),
+      });
+      if (perm) permissionKeys.push(perm.key);
+    }
+
+    // Count members with this role
+    const [memberCount] = await this.db.db.select({ count: sql<number>`count(*)` })
+      .from(organizationMembers)
+      .where(eq(organizationMembers.roleId, roleId));
+
+    return {
+      id: role.id,
+      key: role.key,
+      name: role.name,
+      permissions: permissionKeys,
+      memberCount: Number(memberCount?.count ?? 0),
+    };
+  }
+
+  // ── Role-Permission Management ─────────────────────────────────
+
+  async updateRolePermissions(roleId: string, permissionIds: string[], actorId: string) {
+    return this.db.db.transaction(async tx => {
+      // Lock the role row to serialize concurrent permission updates using raw SQL FOR UPDATE.
+      // Without this, two concurrent administrators could both read the same "before" state,
+      // then both write their own "after" state, with the second silently overwriting the first.
+      // FOR UPDATE ensures only one transaction at a time can modify a given role's permissions.
+      const lockedRole = await tx.execute(sql`
+        SELECT id, key, name FROM roles WHERE id = ${roleId} FOR UPDATE
+      `);
+
+      if (!lockedRole.rows[0]) throw new NotFoundException('Role not found');
+      const roleKey = lockedRole.rows[0]['key'];
+      const roleName = lockedRole.rows[0]['name'];
+
+      // Protect SUPER_ADMIN role from permission changes
+      if (roleKey === 'SUPER_ADMIN') {
+        throw new BadRequestException('SUPER_ADMIN role permissions are protected and cannot be modified');
+      }
+
+      // Validate all permission IDs exist
+      const validPermIds = new Set<string>();
+      const allPerms = await tx.select().from(permissions);
+      for (const p of allPerms) validPermIds.add(p.id);
+      const permKeyById = new Map(allPerms.map(p => [p.id, p.key]));
+      for (const pid of permissionIds) {
+        if (!validPermIds.has(pid)) throw new NotFoundException(`Permission not found: ${pid}`);
+      }
+
+      // S-002: an actor cannot grant a permission they do not themselves hold
+      const actorPerms = await this.actorEffectivePermissions(actorId);
+      for (const pid of permissionIds) {
+        const key = permKeyById.get(pid);
+        if (key && !actorPerms.permissions.has(key)) {
+          throw new ForbiddenException(`Actor does not hold permission ${key} and cannot grant it`);
+        }
+      }
+
+      // Get current permissions for audit (inside transaction, after lock)
+      const currentPerms = await tx
+        .select({ permissionId: rolePermissions.permissionId })
+        .from(rolePermissions)
+        .where(eq(rolePermissions.roleId, roleId));
+      const beforeKeys = new Set<string>();
+      for (const cp of currentPerms) {
+        const perm = allPerms.find(p => p.id === cp.permissionId);
+        if (perm) beforeKeys.add(perm.key);
+      }
+
+      // Replace role permissions within the transaction (already locked)
+      await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+      if (permissionIds.length > 0) {
+        await tx.insert(rolePermissions).values(
+          permissionIds.map(pid => ({ roleId, permissionId: pid }))
+        );
+      }
+
+      // Get after permissions for audit
+      const afterKeys = new Set(permissionIds.map(pid => {
+        const perm = allPerms.find(p => p.id === pid);
+        return perm ? perm.key : pid;
+      }));
+
+      // Record audit event (non-throwing)
+      await this.audit.record({
+        actorType: 'ADMIN',
+        actorId,
+        action: 'ROLE_PERMISSIONS_UPDATED',
+        resource: 'roles',
+        resourceId: roleId,
+        metadata: {
+          roleKey,
+          before: Array.from(beforeKeys),
+          after: Array.from(afterKeys),
+        },
+      });
+
+      return { id: roleId, key: roleKey, name: roleName, permissions: permissionIds };
+    });
+  }
+
+  async assignRole(orgId: string, userId: string, roleId: string, actorId: string) {
     // Verify user exists
     const user = await this.db.db.query.users.findFirst({
       where: eq(users.id, userId),
@@ -577,13 +968,78 @@ export class AdminService {
     });
     if (!role) throw new NotFoundException('Role not found');
 
+    // Load the actor's effective permissions, roles and organizations
+    const actor = await this.actorEffectivePermissions(actorId);
+    const { permissions: actorPerms, orgIds: actorOrgIds, isMerchant } = actor;
+
+    const PLATFORM_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'];
+    const isPlatformRole = PLATFORM_ROLES.includes(role.key);
+
+    // S-001 #4: merchants cannot be assigned platform roles
+    if (isPlatformRole && isMerchant) {
+      throw new ForbiddenException('Merchants cannot be assigned platform roles');
+    }
+
+    // S-004 #2: actor must be a member of the target org or hold admin:roles:write
+    const hasPlatformRolesWrite = actorPerms.has('admin:roles:write');
+    const actorInTargetOrg = actorOrgIds.includes(orgId);
+    if (!hasPlatformRolesWrite && !actorInTargetOrg) {
+      throw new ForbiddenException('Actor must be a member of the target organization or hold admin:roles:write');
+    }
+
+    // S-001 #3: platform role assignment requires admin:roles:write and the actor
+    // must hold every permission the target role grants (no privilege escalation)
+    if (isPlatformRole) {
+      if (!hasPlatformRolesWrite) {
+        throw new ForbiddenException('admin:roles:write is required to assign platform roles');
+      }
+      const assignedPerms = await this.rolePermissionKeys(role.id);
+      for (const p of assignedPerms) {
+        if (!actorPerms.has(p)) {
+          throw new ForbiddenException('Actor cannot assign role ' + role.key + ': missing permission ' + p);
+        }
+      }
+    }
+
+    // S-001 #5: prevent self-escalation - a user cannot assign themselves a role they do not already hold
+    if (actorId === userId) {
+      const alreadyHas = await this.db.db.query.organizationMembers.findFirst({
+        where: and(
+          eq(organizationMembers.orgId, orgId),
+          eq(organizationMembers.userId, actorId),
+          eq(organizationMembers.roleId, roleId),
+          eq(organizationMembers.status, 'ACTIVE'),
+        ),
+      });
+      if (!alreadyHas) {
+        throw new ForbiddenException('Cannot assign yourself a role you do not already hold');
+      }
+    }
+
     // Check if membership exists
     const existing = await this.db.db.query.organizationMembers.findFirst({
       where: and(
         eq(organizationMembers.orgId, orgId),
         eq(organizationMembers.userId, userId),
       ),
+      with: { role: { columns: { key: true } } },
     });
+
+    // SUPER_ADMIN demotion protection: cannot change a SUPER_ADMIN's role away
+    // from SUPER_ADMIN if they are the last active one
+    if (existing && existing.role.key === 'SUPER_ADMIN' && roleId !== existing.roleId) {
+      const superAdminCount = await this.db.db.select({ count: sql<number>`count(*)` })
+        .from(organizationMembers)
+        .leftJoin(roles, eq(organizationMembers.roleId, roles.id))
+        .where(and(
+          eq(organizationMembers.status, 'ACTIVE'),
+          eq(roles.key, 'SUPER_ADMIN'),
+        ));
+      const count = Number(superAdminCount[0]?.count ?? 0);
+      if (count <= 1) {
+        throw new BadRequestException('Cannot change the last active SUPER_ADMIN to another role');
+      }
+    }
 
     if (existing) {
       // Update existing membership role
@@ -768,20 +1224,99 @@ export class AdminService {
 
   /**
    * Remove a user's membership (role) in a specific organization.
+   *
+   * Tenant isolation:
+   * - Organization-scoped actors may remove memberships only within
+   *   organizations they are members of.
+   * - Platform actors (admin:roles:write) may remove memberships in any org.
+   * - Merchant users may never remove platform role memberships.
+   *
+   * Last SUPER_ADMIN protection:
+   * - Removing the only SUPER_ADMIN membership is rejected.
+   * - Uses FOR UPDATE row locking inside a transaction to prevent concurrent
+   *   deactivations from dropping below one active SUPER_ADMIN.
    */
-  async removeRole(orgId: string, userId: string) {
-    const membership = await this.db.db.query.organizationMembers.findFirst({
-      where: and(
-        eq(organizationMembers.orgId, orgId),
-        eq(organizationMembers.userId, userId),
-      ),
+  async removeRole(orgId: string, userId: string, actorId: string) {
+    return this.db.db.transaction(async tx => {
+      // Load the actor's effective permissions, roles and organizations
+      const actor = await this.actorEffectivePermissions(actorId);
+      const { permissions: actorPerms, orgIds: actorOrgIds, isMerchant } = actor;
+
+      const PLATFORM_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'];
+
+      // Fetch and lock the target membership row using raw SQL FOR UPDATE
+      const membershipResult = await tx.execute(sql`
+        SELECT id, role_id
+        FROM organization_members
+        WHERE org_id = ${orgId} AND user_id = ${userId}
+        FOR UPDATE
+      `);
+
+      if (!membershipResult.rows[0]) throw new NotFoundException('Membership not found');
+      const membershipId = membershipResult.rows[0]['id'] as string;
+      const roleId = membershipResult.rows[0]['role_id'] as string;
+
+      // Fetch the role key for the membership
+      const roleRow = await tx
+        .select({ key: roles.key })
+        .from(roles)
+        .where(eq(roles.id, roleId))
+        .limit(1);
+
+      if (!roleRow[0]) throw new NotFoundException('Role not found');
+      const roleKey = roleRow[0].key;
+
+      // Merchant users may never remove platform role memberships
+      if (isMerchant && PLATFORM_ROLES.includes(roleKey)) {
+        throw new ForbiddenException('Merchants cannot remove platform role memberships');
+      }
+
+      // Actor must be a member of the target org OR hold admin:roles:write
+      const hasPlatformRolesWrite = actorPerms.has('admin:roles:write');
+      const actorInTargetOrg = actorOrgIds.includes(orgId);
+      if (!hasPlatformRolesWrite && !actorInTargetOrg) {
+        throw new ForbiddenException('Actor must be a member of the target organization or hold admin:roles:write');
+      }
+
+      // Prevent privilege escalation: removing a SUPER_ADMIN membership requires
+      // admin:roles:write (platform-level authority)
+      if (roleKey === 'SUPER_ADMIN' && !hasPlatformRolesWrite) {
+        throw new ForbiddenException('admin:roles:write is required to remove SUPER_ADMIN membership');
+      }
+
+      // Last SUPER_ADMIN protection: cannot remove the only active SUPER_ADMIN membership
+      // FOR UPDATE above already locked this row; the count query below also
+      // uses FOR UPDATE so concurrent attempts serialize on the same rows.
+      if (roleKey === 'SUPER_ADMIN') {
+        const superAdminCount = await tx.execute(sql`
+          SELECT count(*) as count
+          FROM organization_members om
+          JOIN roles r ON om.role_id = r.id
+          WHERE om.status = 'ACTIVE' AND r.key = 'SUPER_ADMIN'
+          FOR UPDATE
+        `);
+        const count = Number(superAdminCount.rows[0]?.['count'] ?? 0);
+        if (count <= 1) {
+          throw new BadRequestException('Cannot remove the last active SUPER_ADMIN membership');
+        }
+      }
+
+      await tx.delete(organizationMembers)
+        .where(eq(organizationMembers.id, membershipId));
+
+      // Record audit event (non-throwing)
+      await this.audit.record({
+        actorType: 'ADMIN',
+        actorId,
+        action: 'ORG_MEMBERSHIP_REMOVED',
+        resource: 'organization_members',
+        resourceId: membershipId,
+        orgId,
+        metadata: { userId, removedRoleId: roleId, removedRoleKey: roleKey },
+      });
+
+      return { orgId, userId, removed: true };
     });
-    if (!membership) throw new NotFoundException('Membership not found');
-
-    await this.db.db.delete(organizationMembers)
-      .where(eq(organizationMembers.id, membership.id));
-
-    return { orgId, userId, removed: true };
   }
 
   async listRoles() {
@@ -1044,3 +1579,5 @@ export class AdminService {
     return this.governance.getModerationHistory(productId);
   }
 }
+
+

@@ -4,6 +4,9 @@ import { AdminService } from './admin.service';
 import { ModerateProductDto } from './dto/moderate-product.dto';
 import { DeactivateOrganizationDto } from './dto/deactivate-organization.dto';
 import { ReviewOrgUpdateDto } from './dto/review-org-update.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { AssignRolePermissionsDto } from './dto/assign-role-permissions.dto';
 import { CreateProductInput, UpdateProductInput, CreateVariantInput } from '../catalog/catalog.service';
 import { AttributeValueInput } from '../catalog/catalog.taxonomy.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -160,8 +163,8 @@ export class AdminController {
 
   @Get('users')
   @RequirePermission('admin:users:read')
-  async listUsers(@Query() query: AdminListInput) {
-    return this.adminService.listUsers(query);
+  async listUsers(@Query() query: AdminListInput, @CurrentUser() user: JwtPayload) {
+    return this.adminService.listUsers(query, user.sub);
   }
 
   @Get('users/:id')
@@ -175,8 +178,9 @@ export class AdminController {
   async updateUser(
     @Param('id') id: string,
     @Body() body: { status: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE' },
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.updateUserStatus(id, body.status);
+    return this.adminService.updateUserStatus(id, body.status, user.sub);
   }
 
   @Post('users/:id/assign-role')
@@ -184,8 +188,9 @@ export class AdminController {
   async assignRole(
     @Param('id') id: string,
     @Body() body: { orgId: string; roleId: string },
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.assignRole(body.orgId, id, body.roleId);
+    return this.adminService.assignRole(body.orgId, id, body.roleId, user.sub);
   }
 
   @Delete('users/:id/roles/:orgId')
@@ -193,8 +198,47 @@ export class AdminController {
   async removeRole(
     @Param('id') id: string,
     @Param('orgId') orgId: string,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.adminService.removeRole(orgId, id);
+    return this.adminService.removeRole(orgId, id, user.sub);
+  }
+
+  @Post('users')
+  @RequirePermission('admin:users:write')
+  async createUser(@Body() body: CreateUserDto, @CurrentUser() user: JwtPayload) {
+    return this.adminService.createUser(body, user.sub);
+  }
+
+  @Patch('users/:id/profile')
+  @RequirePermission('admin:users:write')
+  async updateUserProfile(
+    @Param('id') id: string,
+    @Body() body: UpdateUserProfileDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.updateUserProfile(id, body, user.sub);
+  }
+
+  @Get('permissions')
+  @RequirePermission('admin:users:read')
+  async getPermissionCatalog() {
+    return this.adminService.getPermissionCatalog();
+  }
+
+  @Get('roles/:id')
+  @RequirePermission('admin:users:read')
+  async getRoleDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getRoleDetail(id);
+  }
+
+  @Patch('roles/:id/permissions')
+  @RequirePermission('admin:roles:write')
+  async updateRolePermissions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: AssignRolePermissionsDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.adminService.updateRolePermissions(id, body.permissionIds, user.sub);
   }
 
   @Get('roles')

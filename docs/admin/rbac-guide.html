@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Role and Permission Management Guide — Smart Commerce &amp; Supply Platform (TAIF). RBAC model, platform roles, permission management, security boundaries, audit events and limitations.">
+<title>Role and Permission Management Guide &mdash; Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#eef2f4;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--brand);border-radius:0 var(--radius) var(--radius) 0;padding:.8rem 1rem;margin:1rem 0;background:#f7fafb}
+  .callout.ok{border-color:var(--ok);background:#eef8f2}
+  .callout.warn{border-color:var(--warn);background:#fdf6ed}
+  .callout.err{border-color:var(--err);background:#fdf0ee}
+  .callout .label{display:inline-block;background:var(--brand);color:#fff;padding:.15rem .6rem;border-radius:4px;font-size:.82rem;margin-bottom:.35rem}
+  .callout.ok .label{background:var(--ok)} .callout.warn .label{background:var(--warn)} .callout.err .label{background:var(--err)}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .grid.c3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .grid.c4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  .card h4{margin-top:0}
+  .kpi{font-size:2.2rem;font-weight:700;color:var(--brand)}
+  .small{font-size:.88rem} .muted{color:var(--muted)}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.3rem}
+  ul.tight li,ol.tight li{margin:.2rem 0}
+  .badge{display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:600;vertical-align:middle;margin-left:.3rem}
+  .badge-web{background:#e2edf9;color:var(--info)} .badge-mob{background:#e4f3ea;color:var(--ok)}
+  .badge-adm{background:#fbeedd;color:var(--warn)} .badge-api{background:#eef2f4;color:var(--muted)}
+  footer.site{text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);margin-top:2rem}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;max-height:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Role and Permission Management Guide &mdash; Smart Commerce &amp; Supply Platform</h1>
+    <p class="sub">Manage platform roles and permission assignments through a Role-Based Access Control (RBAC) model where users receive permissions through their organization membership roles.</p>
+    <div class="meta">
+      <span>Version 1.0</span>
+      <span>Status: Implemented &amp; Unit Tested</span>
+      <span>Branch: feature/admin-user-management-rbac-2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#access">Access</a></li>
+      <li><a href="#role-model">Role Model</a></li>
+      <li><a href="#platform-roles">Platform Roles</a></li>
+      <li><a href="#permission-management">Permission Management</a>
+        <ol style="margin:.2rem 0 0;padding-left:1rem">
+          <li><a href="#viewing-role-permissions" style="font-size:.82rem">Viewing Role Permissions</a></li>
+          <li><a href="#editing-role-permissions" style="font-size:.82rem">Editing Role Permissions</a></li>
+          <li><a href="#permission-catalog" style="font-size:.82rem">Permission Catalog</a></li>
+        </ol>
+      </li>
+      <li><a href="#security-boundaries">Security Boundaries</a>
+        <ol style="margin:.2rem 0 0;padding-left:1rem">
+          <li><a href="#merchant-restrictions" style="font-size:.82rem">Merchant Restrictions</a></li>
+          <li><a href="#privilege-escalation-protection" style="font-size:.82rem">Privilege Escalation Protection</a></li>
+          <li><a href="#tenant-isolation" style="font-size:.82rem">Tenant Isolation</a></li>
+        </ol>
+      </li>
+      <li><a href="#audit-events">Audit Events</a></li>
+      <li><a href="#limitations">Limitations</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>The Role and Permission Management interface allows administrators to manage platform roles and their permission assignments. The system uses a Role-Based Access Control (RBAC) model where users receive permissions through their organization membership roles.</p>
+    </section>
+    <section id="access">
+      <h2>Access</h2>
+      <ul class="tight">
+        <li><strong>URL:</strong> <code>/roles</code> (list), <code>/roles/:id</code> (detail)</li>
+        <li><strong>Required Permission:</strong> <code>admin:users:read</code> (to view), <code>admin:roles:write</code> (to edit role permissions)</li>
+        <li><strong>Navigation:</strong> Sidebar &rarr; Roles</li>
+      </ul>
+    </section>
+    <section id="role-model">
+      <h2>Role Model</h2>
+      <p><code>User &rarr; Organization Membership &rarr; Role &rarr; Role Permissions</code></p>
+      <p>Users receive permissions through their active organization membership roles. Changing a user's permissions means changing the role assigned to their organization membership or editing the permissions associated with that role.</p>
+    </section>
+    <section id="platform-roles">
+      <h2>Platform Roles</h2>
+      <table>
+        <thead><tr><th>Role</th><th>Description</th><th>Permissions</th></tr></thead>
+        <tbody>
+          <tr><td>SUPER_ADMIN</td><td>Platform super administrator</td><td>All permissions (protected)</td></tr>
+          <tr><td>ADMIN</td><td>Platform administrator</td><td>Most permissions including user management</td></tr>
+          <tr><td>MODERATOR</td><td>Content moderator</td><td>Moderation-related permissions</td></tr>
+          <tr><td>BUYER</td><td>Platform buyer</td><td>Buyer-specific permissions</td></tr>
+          <tr><td>MERCHANT_OWNER</td><td>Merchant organization owner</td><td>Merchant organization management</td></tr>
+          <tr><td>MERCHANT_STAFF</td><td>Merchant staff</td><td>Merchant operational permissions</td></tr>
+          <tr><td>FINANCE</td><td>Finance role</td><td>Financial permissions</td></tr>
+          <tr><td>DRIVER</td><td>Delivery driver</td><td>Delivery-related permissions</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="permission-management">
+      <h2>Permission Management</h2>
+
+      <h3 id="viewing-role-permissions">Viewing Role Permissions</h3>
+      <p>Navigate to <code>/roles/:id</code> to view a role's complete permission list. Permissions are displayed with:</p>
+      <ul class="tight">
+        <li>Permission key (e.g., <code>admin:users:read</code>)</li>
+        <li>Human-readable description</li>
+        <li>Domain/category</li>
+      </ul>
+
+      <h3 id="editing-role-permissions">Editing Role Permissions</h3>
+      <p>Administrators with <code>admin:roles:write</code> can edit role permissions:</p>
+      <ol class="tight">
+        <li>Navigate to <code>/roles/:id</code></li>
+        <li>Select/deselect permissions</li>
+        <li>Click <strong>Save Permissions</strong></li>
+      </ol>
+      <p class="small muted"><strong>Security:</strong></p>
+      <ul class="tight">
+        <li><code>SUPER_ADMIN</code> role permissions are protected and cannot be modified</li>
+        <li><code>admin:roles:write</code> is only assigned to <code>SUPER_ADMIN</code> and <code>ADMIN</code> roles</li>
+        <li>All permission changes are audited with before/after values</li>
+      </ul>
+
+      <h3 id="permission-catalog">Permission Catalog</h3>
+      <p>The permission catalog (<code>GET /v1/admin/permissions</code>) lists all available permissions grouped by domain:</p>
+      <ul class="tight">
+        <li><strong>Administration:</strong> User management, role management, system configuration</li>
+        <li><strong>Users:</strong> User creation, status changes, profile updates</li>
+        <li><strong>Organizations:</strong> Organization creation, membership management</li>
+        <li><strong>Catalog:</strong> Product, category, brand management</li>
+        <li><strong>Orders:</strong> Order management, fulfillment</li>
+        <li>And more&hellip;</li>
+      </ul>
+    </section>
+    <section id="security-boundaries">
+      <h2>Security Boundaries</h2>
+
+      <h3 id="merchant-restrictions">Merchant Restrictions</h3>
+      <p>Merchant users (<code>MERCHANT_OWNER</code>, <code>MERCHANT_STAFF</code>) cannot:</p>
+      <ul class="tight">
+        <li>Assign <code>SUPER_ADMIN</code>, <code>ADMIN</code>, or <code>MODERATOR</code> roles</li>
+        <li>Manage platform-level permissions</li>
+        <li>Access admin user management</li>
+      </ul>
+
+      <h3 id="privilege-escalation-protection">Privilege Escalation Protection</h3>
+      <ul class="tight">
+        <li>Administrators cannot grant privileges above their own authority</li>
+        <li><code>SUPER_ADMIN</code> role assignment requires explicit authorization</li>
+        <li>Users cannot escalate their own privileges</li>
+        <li>The last active <code>SUPER_ADMIN</code> cannot be removed or demoted</li>
+      </ul>
+
+      <h3 id="tenant-isolation">Tenant Isolation</h3>
+      <ul class="tight">
+        <li>Organization A administrators cannot manipulate Organization B memberships</li>
+        <li>Role assignments are scoped to specific organizations</li>
+        <li>Cross-organization membership manipulation is prevented</li>
+      </ul>
+    </section>
+    <section id="audit-events">
+      <h2>Audit Events</h2>
+      <ul class="tight">
+        <li><code>ROLE_PERMISSIONS_UPDATED</code> &mdash; Role permissions changed</li>
+      </ul>
+      <p>Includes: actor ID, role ID, before/after permission keys, timestamp</p>
+    </section>
+    <section id="limitations">
+      <h2>Limitations</h2>
+      <ul class="tight">
+        <li>Role creation/deletion is not supported (roles are seeded)</li>
+        <li>Permission creation/deletion is not supported (permissions are seeded)</li>
+        <li>Direct user permission assignments (bypassing roles) are not supported</li>
+        <li>Role inheritance/hierarchy is not supported</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform &mdash; Role and Permission Management Guide v1.0</p>
+  <p>Branch: feature/admin-user-management-rbac-2026 &mdash; Version 1.0 &mdash; Status: Implemented &amp; Unit Tested</p>
+</footer>
+</body>
+</html>
+

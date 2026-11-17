@@ -43,7 +43,7 @@ function createMocks() {
 function createService(mocks: ReturnType<typeof createMocks>) {
   const mockCatalogService = {} as any;
   const mockTaxonomyService = {} as any;
-  return new AdminService(mocks.mockDb, mocks.mockStorage, mocks.mockNotifications, mockCatalogService, mockTaxonomyService, {} as any);
+  return new AdminService(mocks.mockDb, mocks.mockStorage, mocks.mockNotifications, {} as any, mockCatalogService, mockTaxonomyService, {} as any);
 }
 
 const pendingRequest = {
