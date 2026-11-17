@@ -130,6 +130,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       // Catalog governance (attributes & product types)
       'catalog:attributes:manage',
@@ -209,6 +210,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       'analytics:track',
     ],
