@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Admin User Management Guide — Smart Commerce &amp; Supply Platform (TAIF). User listing, create user, user detail, API endpoints, audit events and limitations for the Admin User Management interface.">
+<title>Admin User Management Guide &mdash; Smart Commerce &amp; Supply Platform</title>
+<style>
+  :root{
+    --brand:#174A5B; --brand-2:#0F3340; --accent:#C98A2D;
+    --ok:#1B7A4B; --warn:#B45309; --err:#B3372F; --info:#1D5FA8;
+    --ink:#16232B; --muted:#5B6B74; --surface:#ffffff; --bg:#F2F5F6; --line:#D9E2E6;
+    --radius:10px; --maxw:1180px; --sidebar:280px;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px}
+  a{color:var(--info);text-decoration:none} a:hover{text-decoration:underline}
+  .skip{position:absolute;left:-9999px;top:0;background:var(--brand);color:#fff;padding:.6rem 1rem;z-index:100}
+  .skip:focus{left:0}
+  header.site{background:linear-gradient(120deg,var(--brand-2),var(--brand) 58%,var(--accent));color:#fff;padding:2.2rem 1.5rem}
+  header.site .wrap{max-width:var(--maxw);margin:0 auto}
+  header.site h1{margin:0 0 .35rem;font-size:1.95rem}
+  header.site p.sub{margin:0;opacity:.95;max-width:74ch}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.1rem}
+  .meta span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:.25rem .6rem;border-radius:999px;font-size:.8rem}
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar) 1fr;gap:2rem;padding:2rem 1.5rem}
+  nav.toc{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  nav.toc h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.2rem 0 .6rem}
+  nav.toc ol{list-style:none;margin:0;padding:0}
+  nav.toc li{margin:.15rem 0}
+  nav.toc a{display:block;padding:.3rem .5rem;border-radius:6px;color:var(--ink);font-size:.9rem}
+  nav.toc a:hover{background:var(--bg);text-decoration:none}
+  main{min-width:0}
+  section{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1.6rem 1.7rem;margin-bottom:1.4rem}
+  section > h2{margin-top:0;font-size:1.4rem;color:var(--brand-2);border-bottom:2px solid var(--line);padding-bottom:.5rem}
+  h3{font-size:1.12rem;color:var(--brand);margin:1.5rem 0 .5rem}
+  h4{font-size:1rem;color:var(--brand-2);margin:1.1rem 0 .4rem}
+  p{margin:.6rem 0}
+  code{font-family:var(--mono);background:#eef2f4;border:1px solid var(--line);border-radius:4px;padding:.08rem .35rem;font-size:.86em;color:#0f3340}
+  table{width:100%;border-collapse:collapse;margin:.9rem 0;font-size:.88rem}
+  th,td{border:1px solid var(--line);padding:.5rem .65rem;text-align:left;vertical-align:top}
+  th{background:var(--brand-2);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:#f7fafb}
+  td code{white-space:nowrap}
+  .pill{display:inline-block;padding:.12rem .55rem;border-radius:999px;font-size:.74rem;font-weight:700;white-space:nowrap}
+  .p-ok{background:#e4f3ea;color:var(--ok)} .p-warn{background:#fbeedd;color:var(--warn)}
+  .p-err{background:#f7e3e1;color:var(--err)} .p-info{background:#e2edf9;color:var(--info)}
+  .p-muted{background:#eef2f4;color:var(--muted)} .p-brand{background:#e2ebef;color:var(--brand)}
+  .callout{border-left:4px solid var(--brand);border-radius:0 var(--radius) var(--radius) 0;padding:.8rem 1rem;margin:1rem 0;background:#f7fafb}
+  .callout.ok{border-color:var(--ok);background:#eef8f2}
+  .callout.warn{border-color:var(--warn);background:#fdf6ed}
+  .callout.err{border-color:var(--err);background:#fdf0ee}
+  .callout .label{display:inline-block;background:var(--brand);color:#fff;padding:.15rem .6rem;border-radius:4px;font-size:.82rem;margin-bottom:.35rem}
+  .callout.ok .label{background:var(--ok)} .callout.warn .label{background:var(--warn)} .callout.err .label{background:var(--err)}
+  .grid{display:grid;gap:1rem} .grid.c2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .grid.c3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .grid.c4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem}
+  .card h4{margin-top:0}
+  .kpi{font-size:2.2rem;font-weight:700;color:var(--brand)}
+  .small{font-size:.88rem} .muted{color:var(--muted)}
+  ul.tight,ol.tight{margin:.4rem 0;padding-left:1.3rem}
+  ul.tight li,ol.tight li{margin:.2rem 0}
+  .badge{display:inline-block;padding:.1rem .45rem;border-radius:4px;font-size:.72rem;font-weight:600;vertical-align:middle;margin-left:.3rem}
+  .badge-web{background:#e2edf9;color:var(--info)} .badge-mob{background:#e4f3ea;color:var(--ok)}
+  .badge-adm{background:#fbeedd;color:var(--warn)} .badge-api{background:#eef2f4;color:var(--muted)}
+  footer.site{text-align:center;padding:1.5rem;color:var(--muted);font-size:.82rem;border-top:1px solid var(--line);margin-top:2rem}
+  @media(max-width:860px){.layout{grid-template-columns:1fr}nav.toc{position:static;max-height:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site">
+  <div class="wrap">
+    <h1>Admin User Management Guide &mdash; Smart Commerce &amp; Supply Platform</h1>
+    <p class="sub">Platform administrator tooling to view, search, create, and manage platform users and their organization memberships. RBAC-guarded via <code>admin:users:read</code> and <code>admin:users:write</code>.</p>
+    <div class="meta">
+      <span>Version 1.0</span>
+      <span>Status: Implemented &amp; Unit Tested</span>
+      <span>Branch: feature/admin-user-management-rbac-2026</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Table of Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#access">Access</a></li>
+      <li><a href="#features">Features</a>
+        <ol style="margin:.2rem 0 0;padding-left:1rem">
+          <li><a href="#user-listing" style="font-size:.82rem">User Listing</a></li>
+          <li><a href="#create-user" style="font-size:.82rem">Create User</a></li>
+          <li><a href="#user-detail" style="font-size:.82rem">User Detail</a></li>
+        </ol>
+      </li>
+      <li><a href="#api-endpoints">API Endpoints</a></li>
+      <li><a href="#audit-events">Audit Events</a></li>
+      <li><a href="#limitations">Limitations</a></li>
+    </ol>
+  </nav>
+
+  <main id="main">
+    <section id="overview">
+      <h2>Overview</h2>
+      <p>The Admin User Management interface provides platform administrators with tools to view, search, create, and manage platform users and their organization memberships.</p>
+    </section>
+    <section id="access">
+      <h2>Access</h2>
+      <ul class="tight">
+        <li><strong>URL:</strong> <code>/users</code></li>
+        <li><strong>Required Permission:</strong> <code>admin:users:read</code> (to view), <code>admin:users:write</code> (to modify)</li>
+        <li><strong>Navigation:</strong> Sidebar &rarr; Users</li>
+      </ul>
+    </section>
+    <section id="features">
+      <h2>Features</h2>
+
+      <h3 id="user-listing">User Listing</h3>
+      <p>The user listing page provides:</p>
+      <ul class="tight">
+        <li><strong>Search:</strong> Search by name, email, or phone</li>
+        <li><strong>Filters:</strong> Filter by account status (ACTIVE/SUSPENDED/INACTIVE), role, organization, and email verification state</li>
+        <li><strong>Sorting:</strong> Sort by any column</li>
+        <li><strong>Pagination:</strong> Server-side pagination with configurable page size</li>
+        <li><strong>Summary:</strong> User count and status distribution</li>
+      </ul>
+
+      <h3 id="create-user">Create User</h3>
+      <p>Administrators with <code>admin:users:write</code> can create new platform users:</p>
+      <ol class="tight">
+        <li>Click <strong>"Create User"</strong> button</li>
+        <li>Fill in: Full Name, Email, Phone, Locale, Initial Status</li>
+        <li>Optionally assign an Organization and Role</li>
+        <li>Click <strong>Create User</strong></li>
+      </ol>
+      <p class="small muted"><strong>Security:</strong></p>
+      <ul class="tight">
+        <li>Email and phone uniqueness is enforced server-side</li>
+        <li>User accounts are created with <code>emailVerifiedAt: null</code> (unverified)</li>
+        <li>All user creation is audited (actor, timestamp, before/after values)</li>
+        <li>No plaintext passwords are stored or exposed</li>
+      </ul>
+
+      <h3 id="user-detail">User Detail</h3>
+      <p>Click <strong>View</strong> on any user row to see their complete profile:</p>
+      <p><strong>Overview Tab:</strong></p>
+      <ul class="tight">
+        <li>User ID, Full Name, Email, Phone</li>
+        <li>Account Status, Email Verification status</li>
+        <li>Locale, Registration date, Last updated</li>
+      </ul>
+      <p><strong>Organizations Tab:</strong></p>
+      <ul class="tight">
+        <li>All organization memberships</li>
+        <li>Organization name, type, role, membership status</li>
+        <li>Add/remove memberships (requires <code>admin:users:write</code>)</li>
+        <li>Change role on existing membership</li>
+      </ul>
+      <p><strong>Permissions Tab:</strong></p>
+      <ul class="tight">
+        <li>Effective permissions granted through active organization roles</li>
+        <li>Permissions grouped by domain (Administration, Users, Organizations, etc.)</li>
+        <li>Permission key, description, source role</li>
+      </ul>
+    </section>
+    <section id="api-endpoints">
+      <h2>API Endpoints</h2>
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Permission</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>GET</td><td><code>/v1/admin/users</code></td><td><code>admin:users:read</code></td><td>List users with search/filter/pagination</td></tr>
+          <tr><td>GET</td><td><code>/v1/admin/users/:id</code></td><td><code>admin:users:read</code></td><td>Get user detail with org memberships</td></tr>
+          <tr><td>PATCH</td><td><code>/v1/admin/users/:id</code></td><td><code>admin:users:write</code></td><td>Change user status</td></tr>
+          <tr><td>PATCH</td><td><code>/v1/admin/users/:id/profile</code></td><td><code>admin:users:write</code></td><td>Update user profile fields</td></tr>
+          <tr><td>POST</td><td><code>/v1/admin/users</code></td><td><code>admin:users:write</code></td><td>Create new user</td></tr>
+          <tr><td>POST</td><td><code>/v1/admin/users/:id/assign-role</code></td><td><code>admin:users:write</code></td><td>Assign role to user in org</td></tr>
+          <tr><td>DELETE</td><td><code>/v1/admin/users/:id/roles/:orgId</code></td><td><code>admin:users:write</code></td><td>Remove org membership</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section id="audit-events">
+      <h2>Audit Events</h2>
+      <p>All sensitive actions are audited:</p>
+      <ul class="tight">
+        <li><code>USER_CREATED</code> &mdash; User account created</li>
+        <li><code>USER_PROFILE_UPDATED</code> &mdash; Profile fields changed</li>
+        <li><code>USER_STATUS_CHANGED</code> &mdash; Account status changed (ACTIVE/SUSPENDED/INACTIVE)</li>
+        <li><code>ORG_MEMBERSHIP_ADDED</code> &mdash; Organization membership created</li>
+        <li><code>ORG_MEMBERSHIP_REMOVED</code> &mdash; Organization membership removed</li>
+        <li><code>ROLE_ASSIGNED</code> &mdash; Role assigned to membership</li>
+        <li><code>ROLE_CHANGED</code> &mdash; Role changed on membership</li>
+      </ul>
+      <p>Audit records include: actor ID, target user ID, organization context, action, timestamp, before/after values (secrets excluded).</p>
+    </section>
+    <section id="limitations">
+      <h2>Limitations</h2>
+      <ul class="tight">
+        <li>User creation does not send invitation emails (email channel not yet integrated with notification provider)</li>
+        <li>Password reset is not available from the admin UI</li>
+        <li>Bulk user operations are not supported</li>
+        <li>User impersonation is not supported</li>
+      </ul>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  <p>Smart Commerce &amp; Supply Platform &mdash; Admin User Management Guide v1.0</p>
+  <p>Branch: feature/admin-user-management-rbac-2026 &mdash; Version 1.0 &mdash; Status: Implemented &amp; Unit Tested</p>
+</footer>
+</body>
+</html>
+

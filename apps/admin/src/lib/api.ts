@@ -493,6 +493,7 @@ export interface AdminUser {
   fullName: string;
   locale: string;
   status: string;
+  emailVerifiedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -665,6 +666,113 @@ export async function removeUserRole(
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Failed to remove role: ${res.status}`);
+  return res.json();
+}
+
+// ── User Creation & Profile ────────────────────────────────────
+
+export interface CreateUserRequest {
+  fullName: string;
+  email: string;
+  phone?: string;
+  locale?: string;
+  status?: 'ACTIVE' | 'SUSPENDED' | 'INACTIVE';
+  orgId?: string;
+  roleId?: string;
+}
+
+export interface CreateUserResponse {
+  id: string;
+  email: string;
+  status: string;
+}
+
+export async function createUser(dto: CreateUserRequest): Promise<CreateUserResponse> {
+  const res = await authFetch(`${API_URL}/v1/admin/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = body.detail || body.message || `Failed to create user: ${res.status}`;
+    throw new Error(Array.isArray(message) ? message.join('; ') : message);
+  }
+  return res.json();
+}
+
+export interface UpdateUserProfileRequest {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  locale?: string;
+}
+
+export interface UpdateUserProfileResponse {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  locale: string;
+}
+
+export async function updateUserProfile(
+  id: string,
+  dto: UpdateUserProfileRequest,
+): Promise<UpdateUserProfileResponse> {
+  const res = await authFetch(`${API_URL}/v1/admin/users/${encodeURIComponent(id)}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dto),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = body.detail || body.message || `Failed to update profile: ${res.status}`;
+    throw new Error(Array.isArray(message) ? message.join('; ') : message);
+  }
+  return res.json();
+}
+
+// ── Permission Catalog ─────────────────────────────────────────
+
+export interface PermissionDomain {
+  domain: string;
+  permissions: Array<{ key: string; description: string }>;
+}
+
+export interface PermissionCatalog {
+  domains: PermissionDomain[];
+  total: number;
+}
+
+export async function fetchPermissions(): Promise<PermissionCatalog> {
+  const res = await authFetch(`${API_URL}/v1/admin/permissions`);
+  if (!res.ok) throw new Error(`Failed to fetch permissions: ${res.status}`);
+  return res.json();
+}
+
+// ── Role Detail & Permission Management ────────────────────────
+
+export interface RoleDetail extends RoleInfo {
+  memberCount: number;
+}
+
+export async function fetchRoleDetail(id: string): Promise<RoleDetail> {
+  const res = await authFetch(`${API_URL}/v1/admin/roles/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to fetch role: ${res.status}`);
+  return res.json();
+}
+
+export async function updateRolePermissions(
+  roleId: string,
+  permissionIds: string[],
+): Promise<{ id: string; key: string; name: string; permissions: string[] }> {
+  const res = await authFetch(`${API_URL}/v1/admin/roles/${encodeURIComponent(roleId)}/permissions`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ permissionIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to update role permissions: ${res.status}`);
   return res.json();
 }
 
