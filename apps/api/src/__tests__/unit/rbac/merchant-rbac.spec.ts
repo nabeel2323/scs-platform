@@ -40,7 +40,7 @@ const ROLE_PERMS: Record<string, string[]> = {
     'merchant:promotions:write',
     'catalog:categories:write',
   ],
-  BUYER: [],
+  BUYER: ['identity:organizations:create'],
 };
 
 // ── Test harness ────────────────────────────────────────────────────
@@ -146,6 +146,11 @@ describe('PermissionsGuard — merchant/catalog write endpoints', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('PermissionsGuard — seeded role matrix', () => {
+  it('BUYER can start organization onboarding but cannot administer an existing organization', () => {
+    expect(roleCan('BUYER', 'identity:organizations:create')).toBe(true);
+    expect(() => roleCan('BUYER', 'identity:organizations:write')).toThrow(ForbiddenException);
+  });
+
   function roleCan(role: string, perm: string): boolean {
     return canActivate(handlerRequiring(perm), ROLE_PERMS[role]!);
   }
