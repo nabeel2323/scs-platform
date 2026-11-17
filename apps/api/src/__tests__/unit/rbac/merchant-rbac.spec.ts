@@ -19,15 +19,17 @@ import { PERMISSIONS_KEY } from '../../../common/guards/current-user.decorator';
 // ── Role → permission matrix (mirrors scripts/seed.ts) ──────────────
 const ROLE_PERMS: Record<string, string[]> = {
   SUPER_ADMIN: [
+    'identity:organizations:create',
     'merchant:stores:write',
     'merchant:products:write',
     'merchant:orders:write',
     'merchant:promotions:write',
     'catalog:categories:write',
   ],
-  ADMIN: ['merchant:stores:write'],
+  ADMIN: ['merchant:stores:write', 'identity:organizations:create'],
   MODERATOR: ['merchant:products:write', 'catalog:categories:write'],
   MERCHANT_OWNER: [
+    'identity:organizations:create',
     'merchant:stores:write',
     'merchant:products:write',
     'merchant:orders:write',
@@ -40,7 +42,7 @@ const ROLE_PERMS: Record<string, string[]> = {
     'merchant:promotions:write',
     'catalog:categories:write',
   ],
-  BUYER: [],
+  BUYER: ['identity:organizations:create'],
 };
 
 // ── Test harness ────────────────────────────────────────────────────
@@ -146,6 +148,13 @@ describe('PermissionsGuard — merchant/catalog write endpoints', () => {
 // ═══════════════════════════════════════════════════════════════════
 
 describe('PermissionsGuard — seeded role matrix', () => {
+  it('BUYER can start organization onboarding but cannot administer an existing organization', () => {
+    expect(roleCan('BUYER', 'identity:organizations:create')).toBe(true);
+    expect(roleCan('ADMIN', 'identity:organizations:create')).toBe(true);
+    expect(roleCan('MERCHANT_OWNER', 'identity:organizations:create')).toBe(true);
+    expect(() => roleCan('BUYER', 'identity:organizations:write')).toThrow(ForbiddenException);
+  });
+
   function roleCan(role: string, perm: string): boolean {
     return canActivate(handlerRequiring(perm), ROLE_PERMS[role]!);
   }

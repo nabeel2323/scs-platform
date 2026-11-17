@@ -82,6 +82,7 @@ const PERMISSIONS: string[] = [
   'support:disputes:resolve',
   'support:disputes:write',
   // Identity — org management (RBAC audit GAP-8)
+  'identity:organizations:create',
   'identity:organizations:write',
   // Ads
   'ads:campaigns:read',
@@ -151,7 +152,7 @@ const ROLES: RoleDef[] = [
   {
     key: 'SUPER_ADMIN',
     name: 'Super Admin',
-    permissions: PERMISSIONS, // all 87 (P13 Phase 3 added the 9 financial-correctness keys)
+    permissions: PERMISSIONS, // all permissions
   },
   {
     key: 'ADMIN',
@@ -183,6 +184,7 @@ const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       // Catalog governance (attributes & product types)
       'catalog:attributes:manage',
@@ -317,6 +319,7 @@ const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       // M7.1 fulfillment — merchant can assign drivers
       'fulfillment:shipments:read',
@@ -388,6 +391,7 @@ const ROLES: RoleDef[] = [
     key: 'BUYER',
     name: 'Buyer',
     permissions: [
+      'identity:organizations:create',
       'catalog:products:read',
       'orders:read',
       'orders:write',

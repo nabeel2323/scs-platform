@@ -28,7 +28,7 @@ export class OrganizationsController {
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('identity:organizations:write')
+  @RequirePermission('identity:organizations:create')
   async createOrg(
     @CurrentUser() user: JwtPayload,
     @Body() body: { name: string; type: string; country: string; legalName?: string; taxId?: string },
