@@ -40,7 +40,7 @@ describe('admin database-wide query validation', () => {
 
 describe('admin HTTP permission contracts', () => {
   it.each([
-    ['listOrders', 'admin:orders:read'], ['listMerchants', 'admin:merchants:read'],
+    ['listOrders', 'admin:orders:read'], ['listMerchants', 'admin:merchants:read'], ['getMerchantDetail', 'admin:merchants:read'],
     ['getAuditLogs', 'admin:audit:read'], ['listVerifications', 'admin:merchants:read'],
     ['verificationQueue', 'merchant:verification:review'], ['listUsers', 'admin:users:read'],
     ['listProductsModeration', 'admin:merchants:read'], ['listCategories', 'catalog:categories:write'],
@@ -49,6 +49,14 @@ describe('admin HTTP permission contracts', () => {
   ])('%s retains its permission', (method, permission) => {
     expect(Reflect.getMetadata(PERMISSIONS_KEY, (AdminController.prototype as any)[method!])).toEqual([permission]);
   });
+  it('merchant detail delegates to the service and validates the route permission', async () => {
+    const getMerchantDetail = vi.fn().mockResolvedValue({ id: 'store-id', orgName: 'Example Org' });
+    const controller = new AdminController({ getMerchantDetail } as unknown as AdminService);
+    await expect(controller.getMerchantDetail('store-id')).resolves.toEqual({ id: 'store-id', orgName: 'Example Org' });
+    expect(getMerchantDetail).toHaveBeenCalledWith('store-id');
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, AdminController.prototype.getMerchantDetail)).toEqual(['admin:merchants:read']);
+  });
+
   it('POST and PATCH moderation use the same service, DTO behavior and permission', async () => {
     const moderateProduct = vi.fn().mockResolvedValue({ status: 'ACTIVE' });
     const controller = new AdminController({ moderateProduct } as unknown as AdminService);

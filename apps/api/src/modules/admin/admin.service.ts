@@ -72,6 +72,23 @@ export class AdminService {
     return listAdminTable(this.db.db, 'merchants', filters);
   }
 
+  /**
+   * Retrieve a single merchant storefront for the admin detail view.
+   * Keep this projection explicit: organization identity is useful to admins,
+   * while credentials and unrelated organization-member data are not exposed.
+   */
+  async getMerchantDetail(storeId: string) {
+    const [store] = await this.db.db
+      .select({ ...getTableColumns(stores), orgName: organizations.name })
+      .from(stores)
+      .leftJoin(organizations, eq(stores.orgId, organizations.id))
+      .where(eq(stores.id, storeId))
+      .limit(1);
+
+    if (!store) throw new NotFoundException('Merchant not found');
+    return store;
+  }
+
   // ── KPIs ─────────────────────────────────────────────────────
 
   async getKpis(from?: string, to?: string) {

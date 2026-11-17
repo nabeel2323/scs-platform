@@ -50,6 +50,12 @@ export class AdminController {
     return this.adminService.listMerchants(query);
   }
 
+  @Get('merchants/:id')
+  @RequirePermission('admin:merchants:read')
+  async getMerchantDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.getMerchantDetail(id);
+  }
+
   @Get('kpis')
   @RequirePermission('admin:kpis:read')
   async getKpis(@Query('from') from?: string, @Query('to') to?: string) {
