@@ -12,7 +12,6 @@ RUN apt-get update \
       ca-certificates \
       curl \
       gnupg \
- && set -o pipefail \
  && curl --http1.1 --retry 5 --retry-all-errors --retry-delay 2 -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /tmp/pgdg.asc \
  && gpg --dearmor -o /usr/share/keyrings/pgdg.gpg /tmp/pgdg.asc \
  && rm -f /tmp/pgdg.asc \
@@ -23,6 +22,7 @@ RUN apt-get update \
       postgresql-16-postgis-3-scripts \
       postgresql-16-partman \
  && rm -rf /var/lib/apt/lists/* \
+ && test -f /usr/share/postgresql/16/extension/pg_partman.control \
  && echo "=== Installed packages ===" \
  && dpkg -l | grep -E "postgis|partman" \
  && echo "=== Extension control files ===" \
