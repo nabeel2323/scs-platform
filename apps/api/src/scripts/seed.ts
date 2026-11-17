@@ -77,6 +77,8 @@ const PERMISSIONS = [
   'support:tickets:escalate',
   'support:disputes:resolve',
   'support:disputes:write',
+  // Identity — onboarding creation is deliberately narrower than org management.
+  'identity:organizations:create',
   // Identity — org management (RBAC audit GAP-8)
   'identity:organizations:write',
   // Ads
@@ -239,7 +241,7 @@ const ROLES: { key: string; name: string; permissions: string[] }[] = [
   {
     key: 'BUYER',
     name: 'Buyer',
-    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'orders:cancel', 'merchant:stores:read', 'analytics:track'],
+    permissions: ['catalog:products:read', 'orders:read', 'orders:write', 'orders:cancel', 'merchant:stores:read', 'identity:organizations:create', 'analytics:track'],
   },
 ];
 
