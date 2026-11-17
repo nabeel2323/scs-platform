@@ -319,6 +319,7 @@ const ROLES: RoleDef[] = [
       'merchant:inventory:write',
       'merchant:pricing:read',
       'merchant:pricing:write',
+      'identity:organizations:create',
       'identity:organizations:write',
       // M7.1 fulfillment — merchant can assign drivers
       'fulfillment:shipments:read',
