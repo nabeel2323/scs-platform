@@ -306,8 +306,8 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       const keys = res.rows.map((r: any) => r.key);
       expect(keys).toEqual([
         'analytics:track',
-        'identity:organizations:create',
         'catalog:products:read',
+        'identity:organizations:create',
         'merchant:stores:read',
         'orders:cancel',
         'orders:read',
