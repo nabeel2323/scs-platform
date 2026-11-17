@@ -12,7 +12,10 @@ RUN apt-get update \
       ca-certificates \
       curl \
       gnupg \
- && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/pgdg.gpg \
+ && set -o pipefail \
+ && curl --http1.1 --retry 5 --retry-all-errors --retry-delay 2 -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /tmp/pgdg.asc \
+ && gpg --dearmor -o /usr/share/keyrings/pgdg.gpg /tmp/pgdg.asc \
+ && rm -f /tmp/pgdg.asc \
  && echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
