@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="RBAC Architecture and Authorization Guide — Smart Commerce &amp; Supply Platform (TAIF). Permission model, domains, provider registration, authorization enforcement, security boundaries, audit logging, environment variables and limitations.">
+<meta name="description" content="RBAC Architecture and Authorization Guide â€” Smart Commerce &amp; Supply Platform (TAIF). Permission model, domains, provider registration, authorization enforcement, security boundaries, audit logging, environment variables and limitations.">
 <title>RBAC Architecture and Authorization Guide &mdash; Smart Commerce &amp; Supply Platform</title>
 <style>
   :root{
@@ -209,6 +209,19 @@
         <li>Organization A admins cannot assign roles in Organization B</li>
         <li>Role assignments are validated against organization membership</li>
       </ul>
+    </section>
+    <section id="merchant-organization-onboarding">
+      <h2>Merchant Organization Onboarding Authorization</h2>
+      <p>Newly registered users without an organization membership receive the <code>BUYER</code> role and its permission set in their access-token claims. Merchant registration must therefore be able to create the first organization before the user can receive the <code>MERCHANT_OWNER</code> membership role.</p>
+      <table>
+        <thead><tr><th>Permission</th><th>Purpose</th><th>BUYER</th></tr></thead>
+        <tbody>
+          <tr><td><code>identity:organizations:create</code></td><td>Start organization onboarding by creating a new organization</td><td>Granted</td></tr>
+          <tr><td><code>identity:organizations:write</code></td><td>Administer an existing organization, including updates and membership operations</td><td>Not granted</td></tr>
+        </tbody>
+      </table>
+      <p><code>POST /v1/organizations</code> requires <code>identity:organizations:create</code>. Organization updates, membership management, and organization update requests continue to require <code>identity:organizations:write</code>. The creation permission does not authorize a buyer to manage another organization's members or settings.</p>
+      <p>Migration <code>0069_organization_onboarding_permission.sql</code> registers the new permission and grants it to the existing <code>BUYER</code> role idempotently. The API seed definition mirrors that grant for fresh installations. After organization creation, the creator is assigned the <code>MERCHANT_OWNER</code> membership and the web onboarding flow switches to that organization to obtain the corresponding merchant permission claims.</p>
     </section>
     <section id="audit-logging">
       <h2>Audit Logging</h2>
