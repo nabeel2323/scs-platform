@@ -47,7 +47,8 @@ describe('seedPlatformRbac on PostgreSQL', () => {
       // P13 Phase 3 added 9 financial-correctness: admin:commission:* x2, admin:adjustments:* x3,
       // admin:reconciliation:* x2, finance:approvals:* x2).
       expect(result.permissionsTotal).toBe(88);
-      expect(result.newPermissions).toBe(88);
+      // Migration 0069 creates identity:organizations:create before the seed runs.
+      expect(result.newPermissions).toBe(87);
 
       // 8 roles seeded (M7.1 added DRIVER; P13 Phase 3 added FINANCE approver).
       expect(result.rolesTotal).toBe(8);
