@@ -221,7 +221,7 @@
         </tbody>
       </table>
       <p><code>POST /v1/organizations</code> requires <code>identity:organizations:create</code>. Organization updates, membership management, and organization update requests continue to require <code>identity:organizations:write</code>. The creation permission does not authorize a buyer to manage another organization's members or settings.</p>
-      <p>Migration <code>0069_organization_onboarding_permission.sql</code> registers the new permission and grants it to the existing <code>BUYER</code> role idempotently. The API seed definition mirrors that grant for fresh installations. After organization creation, the creator is assigned the <code>MERCHANT_OWNER</code> membership and the web onboarding flow switches to that organization to obtain the corresponding merchant permission claims.</p>
+      <p>Migration <code>0069_organization_onboarding_permission.sql</code> registers the new permission and grants it idempotently to <code>BUYER</code> plus every existing role that already held <code>identity:organizations:write</code>, preserving prior organization-creation access. The API seed definition mirrors the grants for fresh installations. After organization creation, the creator is assigned the <code>MERCHANT_OWNER</code> membership and the web onboarding flow switches to that organization to obtain the corresponding merchant permission claims.</p>
     </section>
     <section id="audit-logging">
       <h2>Audit Logging</h2>
