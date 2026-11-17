@@ -43,11 +43,11 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     try {
       const result = await seedPlatformRbac(client);
 
-      // 87 permissions seeded (P12 added 6 payment/settlement; P13 added 2 return-oversight;
+      // 88 permissions seeded (P12 added 6 payment/settlement; P13 added 2 return-oversight;
       // P13 Phase 3 added 9 financial-correctness: admin:commission:* x2, admin:adjustments:* x3,
       // admin:reconciliation:* x2, finance:approvals:* x2).
-      expect(result.permissionsTotal).toBe(87);
-      expect(result.newPermissions).toBe(87);
+      expect(result.permissionsTotal).toBe(88);
+      expect(result.newPermissions).toBe(88);
 
       // 8 roles seeded (M7.1 added DRIVER; P13 Phase 3 added FINANCE approver).
       expect(result.rolesTotal).toBe(8);
@@ -55,7 +55,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Verify actual DB counts.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(87);
+      expect(permCount.rows[0].cnt).toBe(88);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(8);
@@ -82,7 +82,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Counts remain the same.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(87);
+      expect(permCount.rows[0].cnt).toBe(88);
             
       const roleCount = await pool.query(`SELECT COUNT(*)::int AS cnt FROM roles`);
       expect(roleCount.rows[0].cnt).toBe(8);
@@ -123,7 +123,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
 
       // Seed data is also intact.
       const permCount = await pool.query('SELECT COUNT(*)::int AS cnt FROM permissions');
-      expect(permCount.rows[0].cnt).toBe(87);
+      expect(permCount.rows[0].cnt).toBe(88);
     } finally {
       client.release();
     }
@@ -142,7 +142,7 @@ describe('seedPlatformRbac on PostgreSQL', () => {
     const byRole = new Map<string, number>();
     for (const row of result.rows) byRole.set(row.role, row.permission_count);
 
-    expect(byRole.get('SUPER_ADMIN')).toBe(87);
+    expect(byRole.get('SUPER_ADMIN')).toBe(88);
     // P13 Phase 3: ADMIN gains commission/adjustments/reconciliation keys (54 -> 61).
     expect(byRole.get('ADMIN')).toBe(61);
     // P12: MODERATOR unchanged (23). No P12 permissions added for MODERATOR role.
