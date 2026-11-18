@@ -61,6 +61,9 @@ export const orders = pgTable('orders', {
   // M7.3-A: delivery completion tracking
   buyerConfirmedAt: timestamp('buyer_confirmed_at', { withTimezone: true }),
   autoCompleteAt: timestamp('auto_complete_at', { withTimezone: true }),
+  // G-011: durable, expiring ownership claim for the auto-completion worker.
+  autoCompleteClaimedAt: timestamp('auto_complete_claimed_at', { withTimezone: true }),
+  autoCompleteClaimedBy: varchar('auto_complete_claimed_by', { length: 128 }),
   // M7.3-B.2: cancellation audit metadata (0048)
   cancellationReason: varchar('cancellation_reason', { length: 40 }),
   cancellationActorType: varchar('cancellation_actor_type', { length: 16 }),
