@@ -376,7 +376,7 @@ describe('MerchantService.createStore', () => {
         },
       }),
     };
-    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(transactionClient));
+    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
     const db = {
       db: {
         transaction,
@@ -434,7 +434,7 @@ describe('MerchantService.createStore', () => {
         },
       }),
     };
-    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(transactionClient));
+    const transaction = vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) => callback(tx));
     const db = {
       db: {
         transaction,
