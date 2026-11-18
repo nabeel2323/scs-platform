@@ -23,6 +23,21 @@
 -- to pg_catalog so an untrusted schema cannot shadow a function/operator name.
 --
 -- Forward-only and safe to re-run.
+--
+-- The disposable CI PostgreSQL instance is not a Supabase distribution, so
+-- provide the two Supabase API roles when they are absent. On Supabase these
+-- roles already exist and this block is a no-op.
+
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+END
+$roles$;
 
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
