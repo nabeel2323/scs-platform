@@ -6,6 +6,7 @@ import {
   canManageStoreCatalog,
 } from '../../../common/tenant-scope';
 import type { DatabaseService } from '../../../common/database/database.service';
+import { CatalogController } from '../../../modules/catalog/catalog.controller';
 import type { CallerContext } from '../../../common/tenant-scope';
 
 const buyer: CallerContext = { sub: 'buyer-a', role: 'BUYER', activeOrg: null };
@@ -100,5 +101,93 @@ describe('Catalog publication visibility boundary', () => {
       canManageProductCatalog(h as unknown as DatabaseService, merchant, 'product-a'),
     ).resolves.toBe(true);
     expect(h.spies.membershipsFindFirst).toHaveBeenCalledOnce();
+  });
+});
+
+
+function makeCatalogController(options?: {
+  productStatus?: string;
+  storeOrgId?: string | null;
+  membership?: { id: string } | null;
+}) {
+  const productFindFirst = vi.fn().mockResolvedValue({
+    storeId: 'store-a',
+    status: options?.productStatus ?? 'ACTIVE',
+  });
+  const storeFindFirst = vi.fn().mockResolvedValue(
+    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+  );
+  const membershipFindFirst = vi.fn().mockResolvedValue(options?.membership ?? null);
+  const catalogService = {
+    listProductsByStore: vi.fn().mockResolvedValue([]),
+    getProductDetail: vi.fn().mockResolvedValue({ id: 'product-a' }),
+    listVariantsByProduct: vi.fn().mockResolvedValue([]),
+    listMediaByProduct: vi.fn().mockResolvedValue([]),
+  };
+  const controller = new CatalogController(
+    catalogService as any,
+    {} as any,
+    {} as any,
+    {} as any,
+    {
+      db: {
+        query: {
+          products: { findFirst: productFindFirst },
+          stores: { findFirst: storeFindFirst },
+          storeMembers: { findFirst: membershipFindFirst },
+        },
+      },
+    } as unknown as DatabaseService,
+    {} as any,
+    {} as any,
+  );
+  return { controller, catalogService, productFindFirst, storeFindFirst, membershipFindFirst };
+}
+
+describe('Catalog publication visibility at controller boundaries', () => {
+  it('forces ACTIVE status on store grids for buyers even if they request DRAFT', async () => {
+    const h = makeCatalogController();
+    await h.controller.listProducts('store-a', buyer as any, 'DRAFT');
+    expect(h.catalogService.listProductsByStore).toHaveBeenCalledWith(
+      'store-a',
+      expect.objectContaining({ status: 'ACTIVE' }),
+    );
+  });
+
+  it('denies a buyer product-detail request for a DRAFT product before service access', async () => {
+    const h = makeCatalogController({ productStatus: 'DRAFT' });
+    await expect(h.controller.getProduct('product-a', buyer as any)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(h.catalogService.getProductDetail).not.toHaveBeenCalled();
+  });
+
+  it('requests the public product-detail representation for a buyer', async () => {
+    const h = makeCatalogController();
+    await h.controller.getProduct('product-a', buyer as any);
+    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', false);
+  });
+
+  it('preserves studio product-detail visibility for an active owning-store member', async () => {
+    const h = makeCatalogController({
+      productStatus: 'DRAFT',
+      membership: { id: 'membership-a' },
+    });
+    await h.controller.getProduct('product-a', merchant as any);
+    expect(h.catalogService.getProductDetail).toHaveBeenCalledWith('product-a', true);
+  });
+
+  it('requests only active variants on the buyer-facing variant endpoint', async () => {
+    const h = makeCatalogController();
+    await h.controller.listVariants('product-a', buyer as any);
+    expect(h.catalogService.listVariantsByProduct).toHaveBeenCalledWith('product-a', false);
+  });
+
+  it('protects media reads for unpublished products', async () => {
+    const h = makeCatalogController({ productStatus: 'DRAFT' });
+    await expect(h.controller.listMedia('product-a', buyer as any)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(h.catalogService.listMediaByProduct).not.toHaveBeenCalled();
   });
 });
