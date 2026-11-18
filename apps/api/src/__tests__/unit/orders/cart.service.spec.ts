@@ -60,6 +60,78 @@ function line(overrides: Record<string, unknown>) {
   };
 }
 
+describe('CartService.addItem selected offer pricing', () => {
+  it('stores the exact selected offer and the same resolved unit price shown on its card', async () => {
+    const inserted: any[] = [];
+    const offer = {
+      id: 'offer-seller',
+      storeId: 'store-seller',
+      productId: 'product-1',
+      variantId: 'variant-1',
+      status: 'ACTIVE',
+      isAvailable: true,
+      currency: 'SAR',
+      basePriceMinor: 900,
+      moq: 5,
+      priceListId: 'price-list-seller',
+    };
+    const builder: Record<string, any> = {};
+    builder['from'] = () => builder;
+    builder['innerJoin'] = () => builder;
+    builder['where'] = () => builder;
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) => Promise.resolve([
+      {
+        priceListId: 'price-list-seller',
+        priceListStoreId: 'store-seller',
+        priceListName: 'Seller price book',
+        currency: 'SAR',
+        variantId: 'variant-1',
+        minQty: 5,
+        maxQty: null,
+        unitPriceMinor: 950,
+      },
+    ]).then(resolve);
+
+    const db = {
+      query: {
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => null) },
+      },
+      select: vi.fn(() => builder),
+      insert: vi.fn(() => ({
+        values: vi.fn(async (value: unknown) => { inserted.push(value); return []; }),
+      })),
+      update: vi.fn(),
+    };
+
+    const svc = new CartService(db as any, { resolveApplicable: async () => null } as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1', userId: 'buyer-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    await svc.addItem('buyer-1', {
+      variantId: 'variant-1',
+      quantity: 5,
+      offerId: 'offer-seller',
+    });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      cartId: 'cart-1',
+      storeId: 'store-seller',
+      variantId: 'variant-1',
+      quantity: 5,
+      priceMinor: 950,
+      tierMinQty: 5,
+      offerId: 'offer-seller',
+      lineTotalMinor: 4750,
+    });
+    expect(db.select).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('CartService.listCartItems', () => {
   it('filters the join by the requested cart', async () => {
     const captured: Captured = {};
