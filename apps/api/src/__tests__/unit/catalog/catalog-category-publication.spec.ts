@@ -32,7 +32,7 @@ describe('Catalog canonical category publication filters', () => {
   });
 
 
-  it('counts only ACTIVE canonical products in category list responses', async () => {
+  it('preserves draft-inclusive canonical product counts in admin category list responses', async () => {
     let capturedWhere: unknown;
     const chain: any = {
       from: vi.fn().mockReturnThis(),
@@ -59,6 +59,6 @@ describe('Catalog canonical category publication filters', () => {
     const query = new PgDialect().sqlToQuery(capturedWhere as any);
     expect(query.sql).toContain('"store_id" is null');
     expect(query.sql).toContain('"deleted_at" is null');
-    expect(query.params).toContain('ACTIVE');
+    expect(query.params).not.toContain('ACTIVE');
   });
 });
