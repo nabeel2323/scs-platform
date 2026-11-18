@@ -64,7 +64,7 @@ export interface CardEnrichment {
    */
   imageUrl: string | null;
   /**
-   * Number of ACTIVE merchant offers for this product (across all stores).
+   * Number of ACTIVE and available merchant offers for this product (across all stores).
    * Zero when the product has no competing offers — the buyer then knows the
    * product-owner's price is the only one available.
    */
