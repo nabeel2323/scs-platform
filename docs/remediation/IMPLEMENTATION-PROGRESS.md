@@ -107,7 +107,7 @@ Status definitions:
 | P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | PARTIAL | Staging auto-deploy is disabled; runbook not yet written |
 | P0-08 | Review startup migration/seed and safe deploy/forward-fix procedure | TODO | |
 | P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | IN PROGRESS | 114 public tables, all owned by postgres, RLS off; anon/auth have no CRUD but have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats these; custom _migration_log has 69 rows |
-| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | TODO | |
+| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | IN PROGRESS | Existing OTP redaction suites cover OTP/email/phone values and provider failures; hardened `OtpDeliveryService` catch path to log only sanitized error class, with regression test for SMTP-like credentials and recipient data; latest-head CI pending |
 | P0-11 | Document worker registration/flags/leases and protected-job safety | PARTIAL | Render evidence confirms OutboxDispatcher/ShippingCarrierWorker register; P13 worker disabled and alert sink absent in observed runtime; source topology review pending |
 | P0-12 | Establish backup/restore evidence availability and staging runbook | TODO | |
 
@@ -144,7 +144,7 @@ Status definitions:
 | P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | PARTIAL — CI VERIFIED | Migration 0070 revokes all table/sequence privileges from anon/authenticated and their migration-role defaults; full apply + grant assertions passed in CI run #536; RLS remains gated on runtime API DB role confirmation |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
 | P1-12 | Harden normalize_arabic search_path safely | G-020 | VERIFIED IN CI | Migration 0070 sets function search_path to `pg_catalog`; assertion passed in CI run #536 |
-| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
+| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | IN PROGRESS | Existing success/failure redaction suites reviewed; exception-path logger now omits raw provider error message and a regression test asserts secrets/recipient data are absent; latest-head CI pending |
 | P1-14 | Create initial ACTIVE OWNER membership atomically with new store and outbox event | G-023 | VERIFIED IN CI | Store + `storeMembers` OWNER + outbox event inserted in one transaction; focused service regression tests passed in CI run #536 |
 
 **Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
@@ -189,7 +189,7 @@ Status definitions:
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
 | P3-01 | Map event types to exactly one authoritative consumer | G-003 | IN PROGRESS | Confirmed dedicated carrier worker owns `shipping.carrier.%`; generic dispatcher exclusion implemented; full event-type ownership map remains open |
-| P3-02 | Prevent generic dispatcher from consuming carrier events | G-003 | IN PROGRESS | Generic dispatcher now applies `NOT LIKE 'shipping.carrier.%'`; focused regression test added; latest CI pending |
+| P3-02 | Prevent generic dispatcher from consuming carrier events | G-003 | IN PROGRESS | Generic dispatcher excludes `shipping.carrier.%`; CI #541 exposed a case-sensitive assertion mismatch (`not like` emitted by Drizzle); assertion corrected in commit `86f30d8`, latest-head CI pending |
 | P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | TODO | |
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
@@ -285,7 +285,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | Phase 0–1 verification; G-003 ownership fix | branch `remediation/phase-0-1-tenant-security` | CI run #536 passed all jobs: lint/typecheck/format, API unit+coverage, API integration, web/admin, Flutter, full migration apply + grant/search_path assertions, build and container smoke; additionally wired E6 to `pnpm boundary-lint` and excluded `shipping.carrier.%` from generic outbox dispatch with a focused test | Run #536 all jobs green; latest head CI for E6/G-003 changes pending; no live DB migration or Render deploy | IN PROGRESS | Verify latest CI; continue G-003 event ownership and remaining P1 remediation |
+| 2026-11-18 | CI #541 diagnosis; OTP exception redaction | branch `remediation/phase-0-1-tenant-security` | CI #541: lint/typecheck, Flutter, integration, web/admin, migration assertions and E6 passed; API coverage failed only because test expected uppercase `NOT LIKE` while Drizzle emits lowercase `not like`. Assertion corrected. OTP delivery catch now logs sanitized error class only; exception-redaction regression test added. | Latest-head CI pending; prior #536 remains green for G-001/G-023/migration 0070; no live DB migration or Render deploy | IN PROGRESS | Verify latest-head API coverage + full CI; continue G-003 ownership and remaining P1 remediation |
 
 ### Required task log entry format
 
@@ -340,4 +340,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
-**Current state:** G-001 and G-023 fixes and tests, plus migration 0070 (G-002/G-020), passed CI run #536. G-003 generic/carrier event ownership remediation and E6 CI wiring are now committed and awaiting a fresh CI run. No live database migration or Render configuration/deployment has been changed.
+**Current state:** G-001 and G-023 fixes and migration 0070 passed CI #536. CI #541 verified E6, integration, migration, web/admin and Flutter checks but failed API coverage on a case-sensitive SQL assertion in the new G-003 test; corrected in commit `86f30d8`. OTP provider exception logging now omits raw exception messages and has a dedicated regression test. Latest-head CI is pending. No live database migration or Render configuration/deployment has been changed.
