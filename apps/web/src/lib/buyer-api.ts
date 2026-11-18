@@ -59,7 +59,7 @@ export interface SearchResult {
 
 export interface Product {
   id: string;
-  storeId: string;
+  storeId: string | null;
   categoryId: string | null;
   brandId: string | null;
   slug: string;
@@ -96,9 +96,15 @@ export interface Product {
   imageUrl?: string | null;
   /** Offer enrichment: number of ACTIVE merchant offers across all stores. */
   activeOfferCount?: number;
-  /** Offer enrichment: lowest base price among active merchant offers. */
+  /** Offer enrichment: lowest comparable base price among active, available merchant offers. */
   lowestOfferPriceMinor?: number | null;
   lowestOfferCurrency?: string | null;
+  /** Exact active offer row responsible for the card's displayed offer price. */
+  lowestOfferId?: string | null;
+  lowestOfferStoreId?: string | null;
+  lowestOfferVariantId?: string | null;
+  lowestOfferMoq?: number | null;
+  lowestOfferStore?: ProductStore | null;
 }
 
 export interface ProductVariant {
@@ -433,7 +439,7 @@ export async function fetchCart(): Promise<Cart> {
 
 export async function addToCart(input: {
   variantId: string;
-  storeId: string;
+  storeId?: string;
   quantity: number;
   /** PHASE 13: Optional explicit merchant offer to buy under. */
   offerId?: string;
