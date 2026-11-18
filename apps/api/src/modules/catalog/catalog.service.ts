@@ -2326,7 +2326,7 @@ export class CatalogService {
    * from existing variants' typed attribute values, and maps each combination to
    * its variant row with pricing and stock.
    */
-  async getVariantMatrix(productId: string) {
+  async getVariantMatrix(productId: string, includeInactiveVariants = true) {
     const product = await this.getProduct(productId);
     const productTypeId = product['productTypeId'] as string | null;
     if (!productTypeId) {
@@ -2391,7 +2391,7 @@ export class CatalogService {
     });
 
     // 5. Load variants with stock enrichment (reuse listVariantsByProduct)
-    const enrichedVariants = await this.listVariantsByProduct(productId);
+    const enrichedVariants = await this.listVariantsByProduct(productId, includeInactiveVariants);
 
     // 6. Build code → attributeDefinitionId lookup for typed attribute mapping
     const codeToDefId = new Map<string, string>();
