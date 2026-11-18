@@ -100,19 +100,33 @@ export class InventoryService {
       if (caller) await assertWarehouseMember(this.db, caller, warehouseId);
       conditions.push(eq(inventoryItems.warehouseId, warehouseId));
     } else if (caller && !isTenantPrivileged(caller)) {
-      // A3-1: without an explicit warehouse, non-staff callers only see items
-      // inside their own organization's warehouses.
-      const orgStores = await this.db.db.query.stores.findMany({
-        where: eq(stores.orgId, caller.activeOrg || ''),
+      // Only active memberships in the caller's active organization are visible.
+      if (!caller.activeOrg) return [];
+      const memberships = await this.db.db.query.storeMembers.findMany({
+        where: and(
+          eq(storeMembers.userId, caller.sub),
+          eq(storeMembers.status, 'ACTIVE'),
+        ),
+        columns: { storeId: true },
+      });
+      const memberStoreIds = [...new Set(memberships.map((membership) => membership.storeId))];
+      if (memberStoreIds.length === 0) return [];
+
+      const memberStores = await this.db.db.query.stores.findMany({
+        where: and(
+          eq(stores.orgId, caller.activeOrg),
+          inArray(stores.id, memberStoreIds),
+        ),
         columns: { id: true },
       });
-      if (orgStores.length === 0) return [];
-      const orgWarehouses = await this.db.db.query.warehouses.findMany({
-        where: inArray(warehouses.storeId, orgStores.map((s) => s.id)),
+      if (memberStores.length === 0) return [];
+
+      const memberWarehouses = await this.db.db.query.warehouses.findMany({
+        where: inArray(warehouses.storeId, memberStores.map((store) => store.id)),
         columns: { id: true },
       });
-      if (orgWarehouses.length === 0) return [];
-      conditions.push(inArray(inventoryItems.warehouseId, orgWarehouses.map((w) => w.id)));
+      if (memberWarehouses.length === 0) return [];
+      conditions.push(inArray(inventoryItems.warehouseId, memberWarehouses.map((warehouse) => warehouse.id)));
     }
 
     return this.db.db.query.inventoryItems.findMany({
@@ -122,7 +136,11 @@ export class InventoryService {
 
   // ── Store-level queries ──────────────────────────────────────
 
-  async listByStore(storeId: string, paging?: { limit: number; offset: number }) {
+  async listByStore(storeId: string, paging?: { limit: number; offset: number }, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     const whs = await this.db.db.query.warehouses.findMany({
       where: eq(warehouses.storeId, storeId),
       columns: { id: true },
@@ -223,7 +241,11 @@ export class InventoryService {
     return results;
   }
 
-  async exportInventoryCsv(storeId: string) {
+  async exportInventoryCsv(storeId: string, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     const whs = await this.db.db.query.warehouses.findMany({
       where: eq(warehouses.storeId, storeId),
     });
@@ -534,7 +556,11 @@ export class InventoryService {
    * Export all stock movements for a store as CSV.
    * Fetches across all warehouses owned by the store.
    */
-  async exportMovementsCsv(storeId: string) {
+  async exportMovementsCsv(storeId: string, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     const whs = await this.db.db.query.warehouses.findMany({
       where: eq(warehouses.storeId, storeId),
     });
@@ -595,7 +621,11 @@ export class InventoryService {
    * for items that have dropped below their reorder point with alerts enabled.
    * Returns the list of items that triggered alerts.
    */
-  async checkAndNotifyLowStock(storeId: string) {
+  async checkAndNotifyLowStock(storeId: string, caller?: CallerContext) {
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, storeId);
+      await assertStoreMember(this.db, caller, storeId);
+    }
     const whs = await this.db.db.query.warehouses.findMany({
       where: eq(warehouses.storeId, storeId),
       columns: { id: true },
