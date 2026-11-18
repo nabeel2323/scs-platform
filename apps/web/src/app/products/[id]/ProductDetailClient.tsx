@@ -329,17 +329,26 @@ export default function ProductDetailClient() {
   const images = useMemo(() => (product ? galleryImages(product) : []), [product]);
 
   const handleAdd = useCallback(
-    async (variantId: string, storeId: string, offerId?: string) => {
+    async (variantId: string, storeId: string | null, offerId?: string) => {
       setAddError(null);
+      if (!storeId && !offerId) {
+        setAddError('Choose a seller offer before adding this canonical product to your cart.');
+        return;
+      }
       try {
-        await addToCart({ variantId, storeId, quantity: qty, ...(offerId ? { offerId } : {}) });
+        await addToCart({
+          variantId,
+          ...(storeId ? { storeId } : {}),
+          quantity: qty,
+          ...(offerId ? { offerId } : {}),
+        });
         // PHASE 13: distinguish per-offer added state so two "Added Γ£ô" badges
         // don't light up simultaneously when the same variant is offered by
         // multiple sellers.
         setAddedId(offerId ?? variantId);
         setTimeout(() => setAddedId(null), 2000);
         // PHASE COS-14: track offer selection
-        if (offerId) analytics.offerSelected(offerId, productId, storeId);
+        if (offerId && storeId) analytics.offerSelected(offerId, productId, storeId);
       } catch (err) {
         setAddError(err instanceof Error ? err.message : 'Could not add this item to your cart');
       }
