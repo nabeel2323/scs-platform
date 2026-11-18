@@ -39,7 +39,7 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg } from '../../common/tenant-scope';
+import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg, assertProductReadable, canManageStoreCatalog } from '../../common/tenant-scope';
 import { AuditService } from '../audit/index';
 import { ProductGovernanceService } from './product-governance.service';
 /**
@@ -215,14 +215,18 @@ export class CatalogController {
   @Get('stores/:storeId/products')
   async listProducts(
     @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
     @Query('status') status?: string,
     @Query('categoryId') categoryId?: string,
     @Query('q') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    const canManage = await canManageStoreCatalog(this.db, caller, storeId);
     return this.catalogService.listProductsByStore(storeId, {
-      status,
+      // Never trust a buyer-supplied status filter to expose unpublished rows.
+      status: canManage ? status : 'ACTIVE',
       categoryId,
       search,
       limit: limit ? parseInt(limit, 10) : undefined,
@@ -231,7 +235,11 @@ export class CatalogController {
   }
 
   @Get('products/:id')
-  async getProduct(@Param('id', ParseUUIDPipe) id: string) {
+  async getProduct(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
     return this.catalogService.getProductDetail(id);
   }
 
@@ -417,7 +425,11 @@ export class CatalogController {
 
   // PHASE 7: literal path declared before parameterized :variantId siblings
   @Get('products/:productId/variant-matrix')
-  async getVariantMatrix(@Param('productId') productId: string) {
+  async getVariantMatrix(
+    @Param('productId') productId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.getVariantMatrix(productId);
   }
 
@@ -434,8 +446,14 @@ export class CatalogController {
   }
 
   @Get('products/:productId/variants')
-  async listVariants(@Param('productId') productId: string) {
-    return this.catalogService.listVariantsByProduct(productId);
+  async listVariants(
+    @Param('productId') productId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertProductReadable(this.db, caller, productId);
+    const canManage = caller.role === 'ADMIN' || caller.role === 'MODERATOR' || caller.role === 'SUPER_ADMIN' || caller.role === 'SYSTEM';
+    return this.catalogService.listVariantsByProduct(productId, canManage);
   }
 
   @Patch('products/:productId/variants/:variantId')
@@ -537,8 +555,13 @@ export class CatalogController {
   }
 
   @Get('stores/:storeId/variants')
-  async listStoreVariants(@Param('storeId') storeId: string) {
-    return this.catalogService.listVariantsByStore(storeId);
+  async listStoreVariants(
+    @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    const canManage = await canManageStoreCatalog(this.db, caller, storeId);
+    return this.catalogService.listVariantsByStore(storeId, canManage);
   }
 
   @Post('products/:productId/media/reorder')
@@ -568,7 +591,11 @@ export class CatalogController {
   }
 
   @Get('products/:productId/media')
-  async listMedia(@Param('productId') productId: string) {
+  async listMedia(
+    @Param('productId') productId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
     return this.catalogService.listMediaByProduct(productId);
   }
 
