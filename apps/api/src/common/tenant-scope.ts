@@ -178,8 +178,15 @@ export async function assertWarehouseMember(
   db: DatabaseService,
   caller: CallerContext,
   warehouseId: string,
-): Promise<void> {
-  if (isTenantPrivileged(caller)) return;
+): Promise<string> {
+  if (isTenantPrivileged(caller)) {
+    const privilegedWarehouse = await db.db.query.warehouses.findFirst({
+      where: eq(warehouses.id, warehouseId),
+      columns: { storeId: true },
+    });
+    if (!privilegedWarehouse) throw new ForbiddenException('You do not have access to this warehouse');
+    return privilegedWarehouse.storeId;
+  }
 
   const warehouse = await db.db.query.warehouses.findFirst({
     where: eq(warehouses.id, warehouseId),
@@ -189,6 +196,7 @@ export async function assertWarehouseMember(
 
   await assertStoreInOrg(db, caller, warehouse.storeId);
   await assertStoreMember(db, caller, warehouse.storeId);
+  return warehouse.storeId;
 }
 
 /** variant → product → store → active organization + active store membership. */
@@ -196,8 +204,20 @@ export async function assertVariantStoreMember(
   db: DatabaseService,
   caller: CallerContext,
   variantId: string,
-): Promise<void> {
-  if (isTenantPrivileged(caller)) return;
+): Promise<string> {
+  if (isTenantPrivileged(caller)) {
+    const privilegedVariant = await db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, variantId),
+      columns: { productId: true },
+    });
+    if (!privilegedVariant) throw new ForbiddenException('You do not have access to this variant');
+    const privilegedProduct = await db.db.query.products.findFirst({
+      where: eq(products.id, privilegedVariant.productId),
+      columns: { storeId: true },
+    });
+    if (!privilegedProduct?.storeId) throw new ForbiddenException('You do not have access to this variant');
+    return privilegedProduct.storeId;
+  }
 
   const variant = await db.db.query.productVariants.findFirst({
     where: eq(productVariants.id, variantId),
@@ -213,6 +233,7 @@ export async function assertVariantStoreMember(
 
   await assertStoreInOrg(db, caller, product.storeId);
   await assertStoreMember(db, caller, product.storeId);
+  return product.storeId;
 }
 
 /** inventory item → warehouse → store → active organization + active membership. */
