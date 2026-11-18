@@ -2,7 +2,7 @@ import { and, eq, inArray, asc } from 'drizzle-orm';
 import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { resolveOfferPrices, type VariantPricing } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, type OfferPriceSource, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from './product-images';
@@ -123,6 +123,7 @@ export async function enrichProductCards<T extends CardSource>(
     basePriceMinor: number | null;
     currency: string;
     moq: number;
+    priceListId: string | null;
   };
 
   // Fetch the offer identity together with its display price. The exact row
@@ -143,6 +144,7 @@ export async function enrichProductCards<T extends CardSource>(
         basePriceMinor: true,
         currency: true,
         moq: true,
+        priceListId: true,
       },
       orderBy: [asc(merchantOffers.activatedAt), asc(merchantOffers.id)],
     }) as OfferCardRow[];
@@ -181,28 +183,6 @@ export async function enrichProductCards<T extends CardSource>(
     });
   }
 
-  const offerByProduct = new Map<string, {
-    count: number;
-    lowestByCurrency: Map<string, OfferCardRow>;
-  }>();
-  for (const row of offerRows) {
-    const entry = offerByProduct.get(row.productId);
-    const currency = row.currency.trim();
-    if (entry) {
-      entry.count++;
-      if (row.basePriceMinor != null && currency) {
-        const previous = entry.lowestByCurrency.get(currency);
-        if (previous == null || row.basePriceMinor < (previous.basePriceMinor ?? Infinity)) {
-          entry.lowestByCurrency.set(currency, row);
-        }
-      }
-    } else {
-      const lowestByCurrency = new Map<string, OfferCardRow>();
-      if (row.basePriceMinor != null && currency) lowestByCurrency.set(currency, row);
-      offerByProduct.set(row.productId, { count: 1, lowestByCurrency });
-    }
-  }
-
   const variantRows = await db.query.productVariants.findMany({
     where: and(
       inArray(
@@ -220,6 +200,53 @@ export async function enrichProductCards<T extends CardSource>(
     if (existing) existing.push(row['id']);
     else variantsByProduct.set(productId, [row['id']]);
   }
+
+  // Resolve every selectable offer at its own MOQ using the same exact-offer
+  // pricing function used by the cart. A product-level offer is pinned to the
+  // first active variant here and that concrete variant is returned to the UI.
+  const offerRequests = offerRows.flatMap(row => {
+    const activeVariantIds = variantsByProduct.get(row.productId) ?? [];
+    const variantId = row.variantId
+      ? (activeVariantIds.includes(row.variantId) ? row.variantId : null)
+      : (activeVariantIds[0] ?? null);
+    return variantId
+      ? [{ offerId: row.id, variantId, quantity: row.moq }]
+      : [];
+  });
+  const resolvedOffers = await resolveSelectedOfferPrices(
+    db,
+    offerRows.map(row => ({
+      ...row,
+      status: 'ACTIVE',
+      isAvailable: true,
+    })) as OfferPriceSource[],
+    offerRequests,
+  );
+
+  const offerByProduct = new Map<string, {
+    count: number;
+    lowestByCurrency: Map<string, OfferCardRow>;
+  }>();
+  for (const row of offerRows) {
+    const entry = offerByProduct.get(row.productId);
+    if (entry) entry.count++;
+    else offerByProduct.set(row.productId, { count: 1, lowestByCurrency: new Map() });
+
+    const resolved = resolvedOffers.get(row.id);
+    if (!resolved) continue;
+    const pricedRow: OfferCardRow = {
+      ...row,
+      variantId: resolved.variantId,
+      basePriceMinor: resolved.unitPriceMinor,
+      currency: resolved.currency,
+    };
+    const productEntry = offerByProduct.get(row.productId)!;
+    const previous = productEntry.lowestByCurrency.get(resolved.currency);
+    if (previous == null || resolved.unitPriceMinor < (previous.basePriceMinor ?? Infinity)) {
+      productEntry.lowestByCurrency.set(resolved.currency, pricedRow);
+    }
+  }
+
 
   // Price is resolved per (store, quantity). MOQ is now offer-owned, so we
   // resolve at quantity=1 (base tier) for display cards. The cart uses the
