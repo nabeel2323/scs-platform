@@ -77,10 +77,9 @@ export class InventoryService {
   }
 
   async updateItem(id: string, input: UpdateInventoryInput, caller?: CallerContext) {
-    // Existence check first: PATCH on an unknown item must 404 rather than
-    // silently update zero rows.
-    await this.getItem(id);
+    // Authorize before loading the row to avoid disclosing cross-store item existence.
     if (caller) await assertInventoryItemMember(this.db, caller, id);
+    await this.getItem(id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.reorderPoint !== undefined) updates['reorderPoint'] = input.reorderPoint;
@@ -296,8 +295,8 @@ export class InventoryService {
   // ── Stock Adjustments ────────────────────────────────────────
 
   async adjustStock(input: AdjustStockInput, caller?: CallerContext) {
-    const item = await this.getItem(input.inventoryItemId);
     if (caller) await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
+    const item = await this.getItem(input.inventoryItemId);
 
     // ADVERSARIAL FIX: negative adjustments must not reduce on-hand below
     // reserved — otherwise orders that already reserved stock become
