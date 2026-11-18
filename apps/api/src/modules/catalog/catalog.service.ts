@@ -285,12 +285,16 @@ export class CatalogService {
     //       category contain").
     const linkedTypes = await this.db.db.select({ id: productTypes.id })
       .from(productTypes)
-      .where(eq(productTypes.categoryId, cat.id));
+      .where(and(
+        eq(productTypes.categoryId, cat.id),
+        eq(productTypes.status, 'PUBLISHED'),
+      ));
     const typesByProducts = await this.db.db.selectDistinct({ productTypeId: products.productTypeId })
       .from(products)
       .where(and(
         isNull(products.storeId),
         isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
         inArray(products.categoryId, [cat.id, ...descendantIds]),
       ));
     const typeIdSet = new Set<string>();
