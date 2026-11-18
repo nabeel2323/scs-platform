@@ -39,7 +39,14 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg, assertProductReadable, canManageStoreCatalog, canManageProductCatalog } from '../../common/tenant-scope';
+import {
+  assertProductEditableByMerchant,
+  assertStoreMember,
+  assertStoreInOrg,
+  assertProductReadable,
+  canManageStoreCatalog,
+  canManageProductCatalog,
+} from '../../common/tenant-scope';
 import { AuditService } from '../audit/index';
 import { ProductGovernanceService } from './product-governance.service';
 /**
