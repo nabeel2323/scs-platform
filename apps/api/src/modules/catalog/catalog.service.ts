@@ -1052,7 +1052,7 @@ export class CatalogService {
   async getProductDetail(id: string, includeInactiveVariants = true) {
     // Keep studio and buyer cache entries separate: merchant callers may see
     // inactive variants, while public product reads must not.
-    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? ':studio' : ':public');
+    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? '' : ':public');
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
