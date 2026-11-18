@@ -843,12 +843,14 @@ export class CatalogService {
     });
     if (!match) {
       // Fallback: try remaining identifiers individually
-      if (gtin && !ean && !mpn) return null;
+      const primaryIdentifier = gtin ? 'gtin' : ean ? 'ean' : 'mpn';
       const remaining: Array<{ col: typeof products.gtin | typeof products.ean | typeof products.mpn; val: string; label: 'gtin' | 'ean' | 'mpn' }> = [];
       if (gtin) remaining.push({ col: products.gtin, val: gtin, label: 'gtin' });
       if (ean) remaining.push({ col: products.ean, val: ean, label: 'ean' });
       if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
       for (const r of remaining) {
+        // The first query already tried the highest-priority supplied identifier.
+        if (r.label === primaryIdentifier) continue;
         const found = await this.db.db.query.products.findFirst({
           where: and(
             isNull(products.storeId),
