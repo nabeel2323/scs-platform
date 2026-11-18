@@ -1049,16 +1049,17 @@ export class CatalogService {
   private static readonly PRODUCT_DETAIL_CACHE_PREFIX = 'product:detail:';
   private static readonly PRODUCT_DETAIL_TTL_S = 300;
 
-  async getProductDetail(id: string) {
-    // Attempt cache hit
-    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id;
+  async getProductDetail(id: string, includeInactiveVariants = true) {
+    // Keep studio and buyer cache entries separate: merchant callers may see
+    // inactive variants, while public product reads must not.
+    const cacheKey = CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + (includeInactiveVariants ? ':studio' : ':public');
     try {
       const cached = await this.redis.client.get(cacheKey);
       if (cached) { recordCacheHit('product_detail'); return JSON.parse(cached); }
       recordCacheMiss('product_detail');
     } catch { recordCacheMiss('product_detail'); }
 
-    const result = await timeQuery(`getProductDetail:${id}`, () => this._getProductDetailUncached(id));
+    const result = await timeQuery(`getProductDetail:${id}:${includeInactiveVariants ? 'studio' : 'public'}`, () => this._getProductDetailUncached(id, includeInactiveVariants));
 
     // Fire-and-forget cache write
     try {
@@ -1071,11 +1072,15 @@ export class CatalogService {
   /** Invalidate product detail cache (call on update/delete). */
   async invalidateProductCache(id: string) {
     try {
-      await this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id);
+      await Promise.all([
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + ':studio'),
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id + ':public'),
+        this.redis.client.del(CatalogService.PRODUCT_DETAIL_CACHE_PREFIX + id),
+      ]);
     } catch { /* non-blocking */ }
   }
 
-  private async _getProductDetailUncached(id: string) {
+  private async _getProductDetailUncached(id: string, includeInactiveVariants = true) {
     const product = await this.getProduct(id);
     const productStoreId = product.storeId;
     const [storeRows, media, variants, labels] = await Promise.all([
@@ -1086,7 +1091,7 @@ export class CatalogService {
           }).from(stores).leftJoin(organizations, eq(stores.orgId, organizations.id)).where(eq(stores.id, productStoreId))
         : Promise.resolve([] as any[]),
       this.listMediaByProduct(id),
-      this.listVariantsByProduct(id),
+      this.listVariantsByProduct(id, includeInactiveVariants),
       this.db.db.select({ categoryName: categories.name, brandName: brands.name }).from(products)
         .leftJoin(categories, eq(products.categoryId, categories.id)).leftJoin(brands, eq(products.brandId, brands.id))
         .where(eq(products.id, id)),
