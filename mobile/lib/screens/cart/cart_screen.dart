@@ -75,7 +75,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   /// row 151: "Use QuantityStepper + MOQ floor" — the raw ± buttons let a buyer
   /// decrement under the MOQ, which checkout would then reject).
   int _floorFor(CartItem item) {
-    final moq = item.offer?.moq ?? 1;
+    final moq = item.offer?.moq ?? item.moq;
     return moq > 1 ? moq : 1;
   }
 

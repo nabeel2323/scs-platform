@@ -197,6 +197,8 @@ export interface CartItem {
   priceMinor: number;
   tierMinQty: number;
   lineTotalMinor: number;
+  /** Effective minimum quantity from the offer, or product for legacy lines. */
+  moq?: number;
   promoSnapshot: Record<string, unknown>;
   // PHASE 10: the offer that priced this line (null for legacy/price-list-only).
   offerId?: string | null;

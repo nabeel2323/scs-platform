@@ -431,7 +431,7 @@ class Cart {
 
 class CartItem {
   final String id, cartId, storeId, variantId;
-  final int quantity, priceMinor, tierMinQty, lineTotalMinor;
+  final int quantity, priceMinor, tierMinQty, lineTotalMinor, moq;
   final String? title, sku, storeName;
   // A5-3: the supplier's currency for this line, so a cart is not assumed SAR.
   final String? currency;
@@ -448,6 +448,7 @@ class CartItem {
       required this.priceMinor,
       required this.tierMinQty,
       required this.lineTotalMinor,
+      this.moq = 1,
       this.title,
       this.sku,
       this.storeName,
@@ -463,6 +464,7 @@ class CartItem {
       priceMinor: j['priceMinor'] as int? ?? 0,
       tierMinQty: j['tierMinQty'] as int? ?? 1,
       lineTotalMinor: j['lineTotalMinor'] as int? ?? 0,
+      moq: j['moq'] as int? ?? 1,
       title: j['title'],
       sku: j['sku'],
       storeName: j['storeName'],

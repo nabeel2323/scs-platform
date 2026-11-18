@@ -630,6 +630,23 @@ export class CartService {
           report.stale.push({ itemId: item['id'] as string, reason: 'No price available' });
           continue;
         }
+        const replacementOfferId = tier.offerId ?? null;
+        if (replacementOfferId) {
+          const replacementOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, replacementOfferId) });
+          const violation = replacementOffer
+            ? getOrderQuantityViolation(item['quantity'], replacementOffer.moq, replacementOffer.orderIncrement ?? null)
+            : 'Replacement offer could not be verified';
+          if (violation) {
+            report.stale.push({ itemId: item['id'] as string, reason: violation });
+            continue;
+          }
+        } else {
+          const violation = getOrderQuantityViolation(item['quantity'], product['moq'] ?? 1);
+          if (violation) {
+            report.stale.push({ itemId: item['id'] as string, reason: violation });
+            continue;
+          }
+        }
         // Update the cart line
         const newLineTotal = item['quantity'] * tier.unitPriceMinor;
         await this.db.db.update(cartItems).set({
