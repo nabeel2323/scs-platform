@@ -188,8 +188,14 @@ export class OtpDeliveryService {
 
       return result;
     } catch (error) {
+      // Provider exceptions can contain SMTP URLs, credentials, recipient data,
+      // or request payloads. Log only a stable error class; never the raw message.
+      const errorType =
+        error instanceof Error && error.name
+          ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+          : 'UnknownError';
       this.logger.error(
-        `Unexpected error during OTP delivery via ${channel} to ${request.subject}: ${error instanceof Error ? error.message : 'unknown'}`,
+        `Unexpected error during OTP delivery via ${channel} to ${request.subject} [${errorType}]`,
       );
 
       return {
