@@ -549,6 +549,7 @@ export default function ProductDetailClient() {
               currency={baseCurrency}
               onAddToCart={(variantId, q) => handleAdd(variantId, product.storeId)}
               addedFeedback={addedId !== null}
+              addDisabled={!product.storeId}
               onHasDimensions={handleHasDimensions}
             />
           )}
@@ -587,12 +588,12 @@ export default function ProductDetailClient() {
                             />
                             <button
                               onClick={() => handleAdd(v.id, product.storeId)}
-                              disabled={outOfStock}
+                              disabled={outOfStock || !product.storeId}
                               style={{
                                 padding: '6px 16px', ...typeScale.button, color: '#fff',
                                 background: addedId === v.id ? colors.ok : outOfStock ? colors.disabled : colors.amber,
                                 border: '1px solid ' + (addedId === v.id ? colors.ok : outOfStock ? colors.disabled : '#a88734'),
-                                borderRadius: radii.sm, cursor: outOfStock ? 'not-allowed' : 'pointer',
+                                borderRadius: radii.sm, cursor: outOfStock || !product.storeId ? 'not-allowed' : 'pointer',
                               }}
                             >
                               {outOfStock ? 'Out of Stock' : addedId === v.id ? 'Γ£ô Added' : 'Add to Cart'}
