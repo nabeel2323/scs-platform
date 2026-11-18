@@ -55,9 +55,9 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | IN PROGRESS | Reproduced in source; controller now enforces org + active store membership on all three routes; regression tests authored, execution pending |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | VERIFIED IN CI | Controller enforces authenticated org + active store membership on all three routes; controller regression suite passed in CI run #536 |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
-| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
+| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | IN PROGRESS | Generic dispatcher now excludes `shipping.carrier.%`; focused predicate regression test added; awaiting CI on latest branch head |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | OPEN | Confirm exact increment formula with business rule |
@@ -74,10 +74,10 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
 | G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
-| G-020 | P2 | normalize_arabic has mutable search_path | 1 | IN PROGRESS | Live advisor confirms mutable search_path; migration 0070 pins the function to pg_catalog, pending CI verification |
+| G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
-| G-023 | P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes | 1 | IN PROGRESS | Confirmed in MerchantService.createStore and StoreMembershipController; atomic owner-row + outbox fix committed to remediation branch, tests pending |
+| G-023 | P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes | 1 | VERIFIED IN CI | Store + ACTIVE OWNER membership + creation outbox event are inserted in one transaction; service regression suite passed in CI run #536 |
 
 Status definitions:
 - **OPEN:** finding not yet implemented/closed.
@@ -133,19 +133,19 @@ Status definitions:
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
 | P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Controller routes pass caller-supplied storeId directly to offer service without caller scope; source at audit baseline |
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IN PROGRESS | Implemented in CatalogOfferController via assertStoreInOrg + assertStoreMember on remediation branch; tests pending execution |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | IN PROGRESS | Implemented in CatalogOfferController via shared access assertion on remediation branch; tests pending execution |
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | VERIFIED IN CI | `assertStoreInOrg` + `assertStoreMember`; API unit/coverage suite passed in CI run #536 |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | VERIFIED IN CI | Shared access assertion protects analytics and trend routes; API unit/coverage suite passed in CI run #536 |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IN PROGRESS | New controller regression suite authored for authorized member, foreign org, missing membership and admin bypass; test run pending |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | VERIFIED IN CI | Controller regression tests cover authorized member, foreign org, missing membership and admin bypass; API unit/coverage suite passed in CI run #536 |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | Source uses DATABASE_URL via node-postgres/Drizzle; live pg_stat_activity sample did not identify a clear Render API connection, so runtime username remains unverified |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Live inventory reconciles to 114 public tables; full table-by-table classification pending |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | anon/auth have no CRUD; all 114 have TRUNCATE/REFERENCES/TRIGGER/MAINTAIN; postgres default ACL repeats these four privileges; one sequence has no anon/auth usage/select |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | Must finish API runtime role and public Data API access classification before migration design |
-| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | IN PROGRESS | Migration 0070 revokes all table/sequence privileges from anon/authenticated and their postgres-role defaults; RLS intentionally deferred pending runtime API DB role confirmation; CI migration/verification pending |
+| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | PARTIAL — CI VERIFIED | Migration 0070 revokes all table/sequence privileges from anon/authenticated and their migration-role defaults; full apply + grant assertions passed in CI run #536; RLS remains gated on runtime API DB role confirmation |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
-| P1-12 | Harden normalize_arabic search_path safely | G-020 | IN PROGRESS | Migration 0070 sets function search_path to pg_catalog; CI verification pending |
+| P1-12 | Harden normalize_arabic search_path safely | G-020 | VERIFIED IN CI | Migration 0070 sets function search_path to `pg_catalog`; assertion passed in CI run #536 |
 | P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
-| P1-14 | Create initial ACTIVE OWNER membership atomically with new store and outbox event | G-023 | IN PROGRESS | MerchantService now inserts store + storeMembers OWNER + outbox event in one transaction; focused regression tests authored, execution pending |
+| P1-14 | Create initial ACTIVE OWNER membership atomically with new store and outbox event | G-023 | VERIFIED IN CI | Store + `storeMembers` OWNER + outbox event inserted in one transaction; focused service regression tests passed in CI run #536 |
 
 **Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
 
@@ -188,8 +188,8 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P3-01 | Map event types to exactly one authoritative consumer | G-003 | TODO | |
-| P3-02 | Prevent generic dispatcher from consuming carrier events | G-003 | TODO | |
+| P3-01 | Map event types to exactly one authoritative consumer | G-003 | IN PROGRESS | Confirmed dedicated carrier worker owns `shipping.carrier.%`; generic dispatcher exclusion implemented; full event-type ownership map remains open |
+| P3-02 | Prevent generic dispatcher from consuming carrier events | G-003 | IN PROGRESS | Generic dispatcher now applies `NOT LIKE 'shipping.carrier.%'`; focused regression test added; latest CI pending |
 | P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | TODO | |
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
@@ -285,7 +285,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | P0-01 / P0-02 / P1-01–05 / P1-14 | develop baseline 3f7268dbc…; branch remediation/phase-0-1-tenant-security | Reconciled source baseline; confirmed G-001 and G-023; secured offer list/analytics/trend reads; new store creation now writes initial OWNER membership and outbox event atomically; added focused regression suites; drafted migration 0070 and CI assertions for G-002/G-020 | CI run #528 pending; focused test execution not yet confirmed; no live DB migration or Render deploy | IN PROGRESS | Verify CI, then complete G-002 runtime-role/RLS design and continue P1 fixes |
+| 2026-11-18 | Phase 0–1 verification; G-003 ownership fix | branch `remediation/phase-0-1-tenant-security` | CI run #536 passed all jobs: lint/typecheck/format, API unit+coverage, API integration, web/admin, Flutter, full migration apply + grant/search_path assertions, build and container smoke; additionally wired E6 to `pnpm boundary-lint` and excluded `shipping.carrier.%` from generic outbox dispatch with a focused test | Run #536 all jobs green; latest head CI for E6/G-003 changes pending; no live DB migration or Render deploy | IN PROGRESS | Verify latest CI; continue G-003 event ownership and remaining P1 remediation |
 
 ### Required task log entry format
 
@@ -340,4 +340,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
-**Current state:** P0 tenant-isolation and initial store-owner membership fixes, regression tests, and a database-hardening migration are committed to the remediation branch. CI verification is pending. No live database migration or Render configuration/deployment has been changed.
+**Current state:** G-001 and G-023 fixes and tests, plus migration 0070 (G-002/G-020), passed CI run #536. G-003 generic/carrier event ownership remediation and E6 CI wiring are now committed and awaiting a fresh CI run. No live database migration or Render configuration/deployment has been changed.
