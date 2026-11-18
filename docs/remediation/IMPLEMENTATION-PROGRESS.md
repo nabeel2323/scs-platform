@@ -346,6 +346,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Next:** complete P1-19/G-028 publication-aware product reads and CI verification, then P1-20/G-029 bulk catalog authorization. After those source fixes, resume P1-06 to identify the actual Render API runtime DB role and complete the database access-path matrix. Do not enable RLS or change Render/Supabase configuration until the role and access model are verified.
+**Next:** verify G-028 and G-029 with latest-head CI, then resume P1-06 to identify the actual Render API runtime DB role and complete the database access-path matrix. Do not enable RLS or change Render/Supabase configuration until the role and access model are verified.
 
 **Current state:** G-001 and G-023 fixes and migration 0070 passed CI #536. G-003 dispatcher filtering and P0-10 OTP exception redaction have source changes and regression tests. G-024–G-026 fixes and tests are committed. G-027 inventory membership remediation is committed with 14 focused regression tests. CI #554 completed successfully on code head `2e45806`: all jobs passed, including API unit/coverage, API integration, build, contract/codegen, migration full apply and container smoke. G-027 is closed. G-028 publication-aware read boundary is implemented with 8 focused regression tests; latest-head CI is pending. No live database migration, staging write, Render configuration change or deployment has been performed.
