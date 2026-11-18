@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@nestjs/common';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { DatabaseService } from './database/database.service';
 import { recordOpsCounter } from '../modules/operations/ops-counters';
 import { stores, warehouses, storeMembers } from '../modules/merchant/merchant.schema';
@@ -288,6 +288,53 @@ export async function assertStoreMember(
   if (!membership) {
     throw new ForbiddenException('You are not authorized for this store');
   }
+}
+
+/**
+ * Read visibility for catalog surfaces:
+ * - ACTIVE products are buyer-visible.
+ * - Non-ACTIVE products are visible only to an active member of the owning
+ *   store (or a platform-privileged caller).
+ * A missing/foreign store membership is a normal public-read path, not an
+ * authorization error; callers must then constrain queries to ACTIVE.
+ */
+export async function canManageStoreCatalog(
+  db: DatabaseService,
+  caller: CallerContext,
+  storeId: string,
+): Promise<boolean> {
+  if (isTenantPrivileged(caller)) return true;
+  if (!caller.activeOrg) return false;
+  const orgId = await storeOrgId(db, storeId);
+  if (!orgId || orgId !== caller.activeOrg) return false;
+  const membership = await db.db.query.storeMembers.findFirst({
+    where: and(
+      eq(storeMembers.storeId, storeId),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ),
+    columns: { id: true },
+  });
+  return !!membership;
+}
+
+/**
+ * Product detail/variant/media read boundary. Public callers may read ACTIVE
+ * products; drafts, rejected, archived and other non-ACTIVE states are
+ * restricted to active members of the owning store and platform staff.
+ */
+export async function assertProductReadable(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<void> {
+  const product = await db.db.query.products.findFirst({
+    where: and(eq(products.id, productId), isNull(products.deletedAt)),
+    columns: { storeId: true, status: true },
+  });
+  if (!product) throw new ForbiddenException('You do not have access to this product');
+  if (product.status === 'ACTIVE' || isTenantPrivileged(caller)) return;
+  await assertProductEditableByMerchant(db, caller, productId);
 }
 
 /**
