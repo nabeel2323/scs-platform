@@ -125,6 +125,12 @@ Integration tests require Docker (Testcontainers PostgreSQL 16). Two migrations 
 
 ## Documentation
 
+### Current remediation programme (November 2026)
+
+- [Audit-Driven Remediation & Testability Implementation Plan](./docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phase sequence, dependencies, acceptance criteria and final release gates.
+- [Audit-Driven Implementation Progress Tracker](./docs/remediation/IMPLEMENTATION-PROGRESS.md) — living status, evidence, decisions and next tasks. Updated alongside implementation work.
+
+
 - [Development & Implementation Plan](./Smart_Commerce_Development_Implementation_Plan.md) — developer-ready specification
 - [Implementation & UX Plan](./Smart_Commerce_Platform_Implementation_and_UX_Plan.md) — architecture + design strategy
 - [Capacity Analysis](./Smart_Commerce_Capacity_Analysis.html) — infrastructure sizing per phase
