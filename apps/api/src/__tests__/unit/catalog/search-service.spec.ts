@@ -48,9 +48,10 @@ function makeMockDb(opts: {
           where: (where: unknown) => {
             opts.capturedWhere?.push(where);
             return {
-            orderBy: () => ({
-              limit: () => ({
-                offset: async () => [],
+              orderBy: () => ({
+                limit: () => ({
+                  offset: async () => [],
+                }),
               }),
             };
           },
