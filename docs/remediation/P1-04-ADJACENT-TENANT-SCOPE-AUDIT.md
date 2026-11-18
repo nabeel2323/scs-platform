@@ -35,11 +35,11 @@ G-027 CI #554 completed successfully on code head `2e45806`; all jobs passed, in
 
 ## Remaining implementation order
 
-1. **G-027 — implemented, CI pending:** verify inventory helper/service regression suites and full API CI before closure.
-2. G-028 — enforce the buyer `ACTIVE` product boundary and allow non-ACTIVE product data only to authorized active store members.
-3. G-029 — require store membership before bulk product mutation.
+1. **G-027 — closed:** CI #554 passed all jobs, including API unit/coverage and integration.
+2. **G-028 — implemented, CI pending:** verify publication-aware product detail, store grid, variants, matrix and media read boundaries.
+3. **G-029 — implemented, CI pending:** verify active store membership before bulk product mutation.
 4. Re-run the authorization matrix for owner, staff, same-organization non-member, buyer, foreign merchant and privileged platform roles.
-5. Continue G-002 runtime DB-role verification separately. Do not enable RLS or change live database privileges based on source assumptions.
+5. Continue G-002 runtime DB-role verification; live role evidence remains incomplete. Do not enable RLS or change live database privileges based on source assumptions.
 
 ## Safety boundary
 
