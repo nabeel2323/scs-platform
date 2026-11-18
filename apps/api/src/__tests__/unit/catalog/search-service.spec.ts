@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SearchService } from '../../../modules/catalog/search.service';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 /**
  * PHASE 9 — SearchService unit tests (mock-DB pattern).
@@ -18,13 +19,18 @@ function makeMockDb(opts: {
   variants?: Row | null;
   categories?: Row[];
   brands?: Row[];
+  capturedWhere?: unknown[];
+  executedSql?: unknown[];
 } = {}) {
   return {
     db: {
       query: {
         products: {
           findFirst: async () => opts.products?.[0] ?? null,
-          findMany: async () => opts.products ?? [],
+          findMany: async (config?: { where?: unknown }) => {
+            if (config?.where) opts.capturedWhere?.push(config.where);
+            return opts.products ?? [];
+          },
         },
         productVariants: {
           findFirst: async () => opts.variants ?? null,
@@ -39,16 +45,21 @@ function makeMockDb(opts: {
       },
       select: () => ({
         from: () => ({
-          where: () => ({
+          where: (where: unknown) => {
+            opts.capturedWhere?.push(where);
+            return {
             orderBy: () => ({
               limit: () => ({
                 offset: async () => [],
               }),
-            }),
-          }),
+            };
+          },
         }),
       }),
-      execute: async () => ({ rows: [] }),
+      execute: async (query: unknown) => {
+        opts.executedSql?.push(query);
+        return { rows: [] };
+      },
     },
   };
 }
@@ -101,5 +112,58 @@ describe('SearchService — SKU fast path', () => {
     const result = await svc.search('SKU-12345');
     // With no variant match and no FTS results, items should be empty
     expect(result.items).toEqual([]);
+  });
+});
+
+
+describe('SearchService — publication boundary', () => {
+  it('restricts empty-query product rows and counts to ACTIVE products', async () => {
+    const capturedWhere: unknown[] = [];
+    const svc = makeHarness({ products: [], capturedWhere });
+
+    await svc.search('');
+
+    expect(capturedWhere.length).toBeGreaterThanOrEqual(2);
+    for (const where of capturedWhere) {
+      const query = new PgDialect().sqlToQuery(where as any);
+      expect(query.params).toContain('ACTIVE');
+      expect(query.params).not.toContain('PUBLISHED');
+    }
+  });
+
+  it('restricts full-text search and count SQL to ACTIVE products', async () => {
+    const executedSql: unknown[] = [];
+    const svc = makeHarness({ executedSql });
+
+    await svc.search('laptop');
+
+    expect(executedSql).toHaveLength(2);
+    for (const statement of executedSql) {
+      const query = new PgDialect().sqlToQuery(statement as any);
+      expect(query.sql).toContain("p.status = 'ACTIVE'");
+      expect(query.sql).not.toContain('PUBLISHED');
+    }
+  });
+
+  it('does not return a PUBLISHED-only product through the SKU fast path', async () => {
+    const executedSql: unknown[] = [];
+    const svc = makeHarness({
+      variants: { id: 'variant-a', productId: 'product-a' },
+      products: [{
+        id: 'product-a',
+        status: 'PUBLISHED',
+        deletedAt: null,
+      }],
+      executedSql,
+    });
+
+    const result = await svc.search('SKU-PRIVATE');
+
+    expect(result.items).toEqual([]);
+    expect(executedSql).toHaveLength(2);
+    for (const statement of executedSql) {
+      const query = new PgDialect().sqlToQuery(statement as any);
+      expect(query.sql).toContain("p.status = 'ACTIVE'");
+    }
   });
 });
