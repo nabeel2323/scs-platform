@@ -825,7 +825,13 @@ export class CatalogService {
     const { gtin, ean, mpn } = ids;
     if (!gtin && !ean && !mpn) return null;
 
-    const conditions = [isNull(products.deletedAt)];
+    // Deduplication must only resolve to public canonical catalog records.
+    // Never disclose a merchant-owned or unpublished product through identifier matching.
+    const conditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
     if (gtin) conditions.push(eq(products.gtin, gtin));
     else if (ean) conditions.push(eq(products.ean, ean));
     else if (mpn) conditions.push(eq(products.mpn, mpn));
@@ -843,7 +849,12 @@ export class CatalogService {
       if (mpn) remaining.push({ col: products.mpn, val: mpn, label: 'mpn' });
       for (const r of remaining) {
         const found = await this.db.db.query.products.findFirst({
-          where: and(isNull(products.deletedAt), eq(r.col, r.val)),
+          where: and(
+            isNull(products.storeId),
+            isNull(products.deletedAt),
+            eq(products.status, 'ACTIVE'),
+            eq(r.col, r.val),
+          ),
           columns: { id: true, title: true, slug: true },
         });
         if (found) return { ...found, matched: r.label };
@@ -872,7 +883,12 @@ export class CatalogService {
   }) {
     const limit = Math.min(filters.limit ?? 20, 50);
     const offset = filters.offset ?? 0;
-    const conditions = [isNull(products.storeId), isNull(products.deletedAt)];
+    // Merchant selector may discover only published canonical products.
+    const conditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
 
     if (filters.search) {
       const q = `%${filters.search}%`;
