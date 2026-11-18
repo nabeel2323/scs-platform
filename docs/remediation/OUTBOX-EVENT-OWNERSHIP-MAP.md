@@ -47,6 +47,23 @@ Record the authoritative outbox consumer for each event family found in the curr
 - `apps/api/src/modules/inventory/inventory.service.ts`: inventory publisher family.
 - `apps/api/src/modules/operations/p13-monitor.service.ts`: failed outbox monitoring for `return.`, `refund.`, `commission.`, `settlement.` and `adjustment.`.
 
+## Runtime worker registration (source evidence)
+
+The current NestJS source registers background pollers as providers inside the API application; a separate Render worker service is not required by the current source topology. This is a source-level conclusion, not a claim that the Render runtime was inspected after deployment.
+
+| Worker / dispatcher | Module registration | Startup behavior | Runtime gate |
+|---|---|---|---|
+| `OutboxDispatcher` | Global `OutboxModule`, imported by `AppModule` | Starts polling after 5 seconds; 1-second interval | No environment gate in source |
+| `ShippingCarrierWorker` | `ShippingModule`, imported by `AppModule` | Starts polling after 8 seconds; 5-second interval | No environment gate in source |
+| `CarrierTrackingPoller` | `ShippingModule` provider | Starts polling after 15 seconds | No environment gate in source |
+| `AutoCompleteWorker` | `OrdersModule` provider | Starts polling after 30 seconds | No environment gate in source |
+| `ReturnExpirationWorker` | `ReturnsModule` provider | Starts after configured delay (default 45 seconds) | Explicitly disabled unless `P13_WORKER_ENABLED` is enabled |
+| `P13MonitorService` | `OperationsModule` provider | Operational monitor; inspect its own scheduler/lease configuration separately | P13 operational configuration |
+
+All modules above are imported by `AppModule`. Therefore every API process instantiates these providers; multi-instance deployment can run multiple pollers concurrently. Carrier outbox claiming uses `FOR UPDATE SKIP LOCKED` and per-event leases, while the generic dispatcher excludes the carrier namespace. Other workers must be reviewed against their own lease/claim strategy before increasing API replicas.
+
+The inspected Render workspace previously showed one API service and no separate worker service. This aligns with the in-process source topology but does not prove which environment flags are set in the live service. No Render service was restarted or changed during this review.
+
 ## Verification state
 
 - CI #592 passed the generic dispatcher exclusion predicate test in API unit/coverage.
