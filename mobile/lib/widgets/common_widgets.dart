@@ -295,6 +295,7 @@ class _QuantityStepperState extends State<QuantityStepper> {
     super.dispose();
   }
 
+  @override
   void didUpdateWidget(covariant QuantityStepper oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) _ctrl.text = widget.value.toString();

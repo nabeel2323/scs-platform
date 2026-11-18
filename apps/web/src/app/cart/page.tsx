@@ -158,11 +158,12 @@ export default function CartPage() {
                             {item.offer.orderIncrement != null && ` · Step ${item.offer.orderIncrement}`}
                           </>
                         )}
+                        {!item.offer && item.moq > 1 && ` · MOQ ${item.moq}`}
                       </div>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button disabled={item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1)} onClick={() => handleUpdateQty(item.id, item.quantity - Math.max(1, item.offer?.orderIncrement ?? 1))} style={{ ...qtyBtnStyle, opacity: item.quantity <= Math.max(1, item.offer?.moq ?? 1) ? 0.45 : 1 }}>−</button>
+                    <button disabled={item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1)} onClick={() => handleUpdateQty(item.id, item.quantity - Math.max(1, item.offer?.orderIncrement ?? 1))} style={{ ...qtyBtnStyle, opacity: item.quantity <= Math.max(1, item.offer?.moq ?? item.moq ?? 1) ? 0.45 : 1 }}>−</button>
                     <span style={{ ...typeScale.body, fontWeight: 600, minWidth: 24, textAlign: 'center' }}>{item.quantity}</span>
                     <button onClick={() => handleUpdateQty(item.id, item.quantity + Math.max(1, item.offer?.orderIncrement ?? 1))} style={qtyBtnStyle}>+</button>
                     <span style={{ ...typeScale.body, fontWeight: 600, color: colors.brand[700], minWidth: 80, textAlign: 'right' }}>

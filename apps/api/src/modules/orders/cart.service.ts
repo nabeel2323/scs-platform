@@ -595,8 +595,16 @@ export class CartService {
       const oid = item['offerId'] as string | null;
       if (!oid) {
         const variant = await this.db.db.query.productVariants.findFirst({ where: eq(productVariants.id, item['variantId']) });
-        const product = variant ? await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) }) : null;
-        const violation = getOrderQuantityViolation(item['quantity'], product?.moq ?? 1);
+        if (!variant || !variant.isActive) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'Variant no longer available' });
+          continue;
+        }
+        const product = await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) });
+        if (!product) {
+          report.stale.push({ itemId: item['id'] as string, reason: 'Product not found' });
+          continue;
+        }
+        const violation = getOrderQuantityViolation(item['quantity'], product.moq ?? 1);
         if (violation) report.stale.push({ itemId: item['id'] as string, reason: violation });
         else report.valid.push(item['id'] as string);
         continue;
@@ -633,7 +641,7 @@ export class CartService {
         const replacementOfferId = tier.offerId ?? null;
         if (replacementOfferId) {
           const replacementOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, replacementOfferId) });
-          const violation = replacementOffer
+          const violation = replacementOffer && replacementOffer.status === 'ACTIVE' && replacementOffer.isAvailable
             ? getOrderQuantityViolation(item['quantity'], replacementOffer.moq, replacementOffer.orderIncrement ?? null)
             : 'Replacement offer could not be verified';
           if (violation) {
