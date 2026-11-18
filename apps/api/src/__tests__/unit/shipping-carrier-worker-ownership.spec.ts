@@ -41,4 +41,26 @@ describe('ShippingCarrierWorker event ownership', () => {
     expect(query.params).toContain('PROCESSING');
     expect(returning).toHaveBeenCalledOnce();
   });
+
+  it('routes unsupported carrier event types to retry handling instead of acknowledging them', async () => {
+    const handleFailure = vi.fn().mockResolvedValue(undefined);
+    const update = vi.fn();
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    worker.handleFailure = handleFailure;
+    worker.db = { db: { update } };
+
+    await worker.processEvent({
+      id: 'carrier-event-unknown',
+      eventType: 'shipping.carrier.unrecognized',
+      aggregateId: 'shipment-a',
+    });
+
+    expect(handleFailure).toHaveBeenCalledOnce();
+    expect(handleFailure.mock.calls[0][0]).toBe('carrier-event-unknown');
+    expect(handleFailure.mock.calls[0][2]).toBeInstanceOf(Error);
+    expect(handleFailure.mock.calls[0][2].message).toContain('Unsupported carrier event type');
+    expect(update).not.toHaveBeenCalled();
+  });
+
 });
