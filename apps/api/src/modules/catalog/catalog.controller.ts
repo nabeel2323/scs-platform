@@ -239,8 +239,10 @@ export class CatalogController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, id);
-    return this.catalogService.getProductDetail(id);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertProductReadable(this.db, caller, id);
+    const includeInactiveVariants = await canManageProductCatalog(this.db, caller, id);
+    return this.catalogService.getProductDetail(id, includeInactiveVariants);
   }
 
   @Patch('products/:id')
