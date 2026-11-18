@@ -31,7 +31,11 @@ The following fixes and regression tests are committed on the remediation branch
 - **G-025:** commit `9511d5a` (controller fix), `f77f553` (security tests).
 - **G-026:** commit `d83da11` (controller fix), `2b16c3e` (security tests).
 
-G-027 CI #554 completed successfully on code head `2e45806`; all jobs passed, including API unit/coverage and integration. G-028 source and focused tests are now committed; latest-head CI remains pending.
+- **G-027:** commits `ce6a0c4`, `cc7ddbb`, `8af101e`, `a79ad4f`, `a2f0814`, `ca4c637`, `f995157`, `2e45806` (inventory source, tests and supporting fixes).
+- **G-028:** commits `d4ddaaa`, `527e21c`, `eac0817`, `904d20c`, `9432ad7`, `cc3aba6`, `09f57c6`, `f4127d6`, `3a05c00`, `44746ce` (publication-aware reads, cache separation, regression tests and formatting).
+- **G-029:** commits `b8f240e`, `3e030bf` (bulk mutation membership guard and controller regression tests).
+
+CI #554 completed successfully on G-027 code head `2e45806`; all jobs passed, including API unit/coverage and integration. G-028/G-029 are implemented with 11 focused tests, but current PR head `36ede62` (documentation-only commits after code head `44746ce`) has no associated GitHub Actions run/status.
 
 ## Remaining implementation order
 
