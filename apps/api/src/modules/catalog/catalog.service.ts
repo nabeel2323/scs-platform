@@ -177,6 +177,7 @@ export class CatalogService {
           inArray(products.categoryId, catIds),
           isNull(products.storeId),
           isNull(products.deletedAt),
+          eq(products.status, 'ACTIVE'),
         ))
         .groupBy(products.categoryId);
       const countMap = new Map(countRows.map(r => [r.categoryId as string, r.count] as const));
