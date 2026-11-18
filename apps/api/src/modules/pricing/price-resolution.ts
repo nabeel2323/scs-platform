@@ -167,7 +167,7 @@ export async function resolveSelectedOfferPrices(
     }
 
     if (offer.basePriceMinor == null) continue;
-    result.set(offer.id, {
+    result.set(selectedOfferPriceKey(offer.id, request.variantId, request.quantity), {
       offerId: offer.id,
       storeId: offer.storeId,
       productId: offer.productId,
