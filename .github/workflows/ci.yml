@@ -124,11 +124,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Advisory: eslint-plugin-boundaries is not yet wired into the flat config
-      # and some modules still cross-import (e.g. orders.service pulls other
-      # modules' schemas), so this gate is non-blocking until boundaries are
-      # cleaned up. The plain API lint (errors) still runs in the `lint` job.
-      - run: pnpm --filter @scs/api lint
+      # Run the repository's actual modular-monolith boundary checker.
+      # It remains advisory while the known cross-module import debt is cleaned up;
+      # unlike the previous wiring, this executes the E6 rule set itself.
+      - run: pnpm boundary-lint
         continue-on-error: true
 
   # â”€â”€ Unit Tests + Coverage Gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
