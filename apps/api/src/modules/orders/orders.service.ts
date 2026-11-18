@@ -24,7 +24,7 @@ import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { resolveOfferPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices } from '../pricing/price-resolution';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
@@ -1621,12 +1621,33 @@ export class OrdersService {
     const variantIds = [...new Set(items.map(i => i['variantId']))];
     if (variantIds.length === 0) return deltas;
 
-    // Resolve each item's quantity separately since quantities may differ.
+    // Preserve the exact offer selected at add-to-cart. Re-resolving only by
+    // store/variant can silently switch from a product-default offer to a
+    // variant-specific offer (or another offer's price book) during checkout.
+    const offerBackedItems = items.filter(item => item['offerId']);
+    const selectedOfferIds = [...new Set(offerBackedItems.map(item => item['offerId'] as string))];
+    const selectedOffers = selectedOfferIds.length > 0
+      ? await this.db.db.query.merchantOffers.findMany({
+          where: inArray(merchantOffers.id, selectedOfferIds),
+        })
+      : [];
+    const selectedOfferPrices = await resolveSelectedOfferPrices(
+      this.db.db,
+      selectedOffers,
+      offerBackedItems.map(item => ({
+        offerId: item['offerId'] as string,
+        variantId: item['variantId'],
+        quantity: item['quantity'],
+      })),
+    );
+
+    // Resolve legacy owner-priced items by their store's normal price book.
     for (const item of items) {
-      const pricing = await resolveOfferPrices(
-        this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
-      );
-      const tier = pricing.get(item['variantId']);
+      const tier = item['offerId']
+        ? selectedOfferPrices.get(item['offerId'] as string)
+        : (await resolveOfferPrices(
+            this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
+          )).get(item['variantId']);
       if (!tier) continue;
 
       const currentPrice = tier.unitPriceMinor;
