@@ -246,11 +246,15 @@ export async function assertInventoryItemMember(
 
   const item = await db.db.query.inventoryItems.findFirst({
     where: eq(inventoryItems.id, itemId),
-    columns: { warehouseId: true },
+    columns: { warehouseId: true, variantId: true },
   });
   if (!item) throw new ForbiddenException('You do not have access to this inventory item');
 
-  await assertWarehouseMember(db, caller, item.warehouseId);
+  const warehouseStoreId = await assertWarehouseMember(db, caller, item.warehouseId);
+  const variantStoreId = await assertVariantStoreMember(db, caller, item.variantId);
+  if (warehouseStoreId !== variantStoreId) {
+    throw new ForbiddenException('You do not have access to this inventory item');
+  }
 }
 
 /**
