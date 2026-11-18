@@ -8,7 +8,7 @@ import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
 import { resolveOfferPrices, resolveSelectedOfferPrices, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
 /**
@@ -121,7 +121,7 @@ export class CartService {
       eq(cartItems.variantId, variant['id']),
       selectedOfferId
         ? eq(cartItems.offerId, selectedOfferId)
-        : undefined,
+        : isNull(cartItems.offerId),
     ].filter(Boolean) as ReturnType<typeof eq>[];
     const existing = await this.db.db.query.cartItems.findFirst({
       where: and(...existingConditions),
@@ -258,7 +258,7 @@ export class CartService {
         const existingConditions = [
           eq(cartItems.cartId, cart['id']),
           eq(cartItems.variantId, variant['id']),
-          selectedOfferId ? eq(cartItems.offerId, selectedOfferId) : undefined,
+          selectedOfferId ? eq(cartItems.offerId, selectedOfferId) : isNull(cartItems.offerId),
         ].filter(Boolean) as ReturnType<typeof eq>[];
         const existing = await this.db.db.query.cartItems.findFirst({
           where: and(...existingConditions),
