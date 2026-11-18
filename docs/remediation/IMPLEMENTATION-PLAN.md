@@ -9,11 +9,14 @@
 | Repository | `nabeel2323/scs-platform` |
 | Baseline branch / commit | `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36` |
 | Runtime evidence | Render staging addendum, 18 November 2026 |
-| Status | PLANNED — implementation has not started under this plan |
+| Status | IN PROGRESS — P0/P1 remediation is underway on PR #138 |
 | Companion | [Implementation Progress Tracker](./IMPLEMENTATION-PROGRESS.md) |
+| Active branch / PR | `remediation/phase-0-1-tenant-security` / [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) |
 | Supersedes | Remediation sequencing only; historical milestone records remain intact |
 
-> **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
+ > **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
+>
+> **Execution snapshot — 18 November 2026:** G-027 is closed after CI #554 passed all jobs. G-028 (publication-aware product reads) and G-029 (bulk catalog authorization) are implemented with 11 focused regression tests total; current PR head `44746ce` has no associated Actions run/status yet. G-002 runtime-role verification is partially complete: live read-only inspection confirms 114 public tables, no RLS, residual anon/authenticated grants, and no active SCS API connection identifiable in `pg_stat_activity`. Do not deploy migration 0070 or enable RLS until the Render API DATABASE_URL username and complete access model are verified.
 
 ---
 
