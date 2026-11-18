@@ -2,12 +2,14 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { inventoryItems, stockMovements } from './inventory.schema';
-import { stores, warehouses } from '../merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../merchant/merchant.schema';
 import {
   CallerContext,
-  assertInventoryItemInOrg,
-  assertVariantInOrg,
-  assertWarehouseInOrg,
+  assertInventoryItemMember,
+  assertVariantStoreMember,
+  assertWarehouseMember,
+  assertStoreInOrg,
+  assertStoreMember,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { eq, and, lte, desc, inArray, count, sql } from 'drizzle-orm';
@@ -61,14 +63,14 @@ export class InventoryService {
   }
 
   async listByWarehouse(warehouseId: string, caller?: CallerContext) {
-    if (caller) await assertWarehouseInOrg(this.db, caller, warehouseId);
+    if (caller) await assertWarehouseMember(this.db, caller, warehouseId);
     return this.db.db.query.inventoryItems.findMany({
       where: eq(inventoryItems.warehouseId, warehouseId),
     });
   }
 
   async listByVariant(variantId: string, caller?: CallerContext) {
-    if (caller) await assertVariantInOrg(this.db, caller, variantId);
+    if (caller) await assertVariantStoreMember(this.db, caller, variantId);
     return this.db.db.query.inventoryItems.findMany({
       where: eq(inventoryItems.variantId, variantId),
     });
@@ -78,7 +80,7 @@ export class InventoryService {
     // Existence check first: PATCH on an unknown item must 404 rather than
     // silently update zero rows.
     await this.getItem(id);
-    if (caller) await assertInventoryItemInOrg(this.db, caller, id);
+    if (caller) await assertInventoryItemMember(this.db, caller, id);
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
     if (input.reorderPoint !== undefined) updates['reorderPoint'] = input.reorderPoint;
@@ -95,7 +97,7 @@ export class InventoryService {
       eq(inventoryItems.lowStockAlert, true),
     ];
     if (warehouseId) {
-      if (caller) await assertWarehouseInOrg(this.db, caller, warehouseId);
+      if (caller) await assertWarehouseMember(this.db, caller, warehouseId);
       conditions.push(eq(inventoryItems.warehouseId, warehouseId));
     } else if (caller && !isTenantPrivileged(caller)) {
       // A3-1: without an explicit warehouse, non-staff callers only see items
@@ -144,8 +146,11 @@ export class InventoryService {
    */
   async createItem(input: CreateInventoryItemInput, caller?: CallerContext) {
     if (caller) {
-      await assertWarehouseInOrg(this.db, caller, input.warehouseId);
-      await assertVariantInOrg(this.db, caller, input.variantId);
+      const warehouseStoreId = await assertWarehouseMember(this.db, caller, input.warehouseId);
+      const variantStoreId = await assertVariantStoreMember(this.db, caller, input.variantId);
+      if (warehouseStoreId !== variantStoreId) {
+        throw new BadRequestException('The variant and warehouse must belong to the same store');
+      }
     }
     const existing = await this.db.db.query.inventoryItems.findFirst({
       where: and(
@@ -186,7 +191,7 @@ export class InventoryService {
     // movement write failure cannot leave qty changed without a ledger row.
     const results: Array<{ inventoryItemId: string; newQty: number }> = [];
     for (const item of items) {
-      if (caller) await assertInventoryItemInOrg(this.db, caller, item.inventoryItemId);
+      if (caller) await assertInventoryItemMember(this.db, caller, item.inventoryItemId);
       const inv = await this.getItem(item.inventoryItemId);
       const newQty = inv['qtyOnHand'] + item.quantity;
       // ADVERSARIAL FIX: respect reserved stock
@@ -270,7 +275,7 @@ export class InventoryService {
 
   async adjustStock(input: AdjustStockInput, caller?: CallerContext) {
     const item = await this.getItem(input.inventoryItemId);
-    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
+    if (caller) await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
 
     // ADVERSARIAL FIX: negative adjustments must not reduce on-hand below
     // reserved — otherwise orders that already reserved stock become
@@ -325,7 +330,7 @@ export class InventoryService {
    * race: both callers see available = 1, both succeed, reserved ends up = 2.
    */
   async reserveStock(input: ReserveStockInput, caller?: CallerContext) {
-    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
+    if (caller) await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
 
     return this.db.db.transaction(async (tx) => {
       const locked = await tx
@@ -368,7 +373,7 @@ export class InventoryService {
    * rather than producing a negative reservation.
    */
   async releaseStock(input: ReserveStockInput, caller?: CallerContext) {
-    if (caller) await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
+    if (caller) await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
 
     return this.db.db.transaction(async (tx) => {
       const locked = await tx
@@ -404,7 +409,7 @@ export class InventoryService {
   // ── Stock Movements ──────────────────────────────────────────
 
   async listMovements(inventoryItemId: string, limit = 50, caller?: CallerContext) {
-    if (caller) await assertInventoryItemInOrg(this.db, caller, inventoryItemId);
+    if (caller) await assertInventoryItemMember(this.db, caller, inventoryItemId);
     return this.db.db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, inventoryItemId),
       orderBy: [desc(stockMovements.createdAt)],
@@ -424,9 +429,9 @@ export class InventoryService {
     if (input.fromWarehouseId === input.toWarehouseId) throw new BadRequestException('Source and destination warehouses must differ');
 
     if (caller) {
-      await assertWarehouseInOrg(this.db, caller, input.fromWarehouseId);
-      await assertWarehouseInOrg(this.db, caller, input.toWarehouseId);
-      await assertInventoryItemInOrg(this.db, caller, input.inventoryItemId);
+      await assertWarehouseMember(this.db, caller, input.fromWarehouseId);
+      await assertWarehouseMember(this.db, caller, input.toWarehouseId);
+      await assertInventoryItemMember(this.db, caller, input.inventoryItemId);
     }
 
     // P8: Read item inside the transaction with FOR UPDATE to prevent
