@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Evidence-driven SCS Platform B2B marketplace implementation and readiness audit.">
+<title>SCS Platform — Comprehensive B2B Readiness Audit</title>
+<style>
+:root{--ink:#172b3a;--muted:#617383;--line:#dce4ea;--paper:#fff;--bg:#f3f6f8;--nav:#102838;--blue:#17617b;--teal:#187c75;--red:#a52e37;--amber:#966316;--green:#26734d;--purple:#6754a4;--shadow:0 8px 28px rgba(19,42,57,.08);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);line-height:1.55}a{color:#12617c;text-decoration:none}a:hover{text-decoration:underline}.shell{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:100vh}.sidebar{background:var(--nav);color:#e8f0f4;padding:22px 16px;position:sticky;top:0;height:100vh;overflow:auto}.brand{font-size:14px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#9fd3df;margin:0 10px 6px}.side-sub{font-size:12px;color:#b9cbd5;margin:0 10px 20px}.nav a{display:block;padding:8px 10px;border-radius:7px;color:#d9e6ec;font-size:13px;margin:2px 0}.nav a:hover,.nav a.active{background:#214456;text-decoration:none;color:#fff}.nav .group{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#89a8b7;margin:18px 10px 5px}.side-foot{border-top:1px solid #315064;margin-top:20px;padding:14px 10px;color:#9eb5c1;font-size:11px}.main{min-width:0;padding:30px clamp(18px,3vw,48px) 70px;max-width:1500px}.topbar{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:20px}.searchbox{width:min(560px,100%);border:1px solid var(--line);background:#fff;border-radius:9px;padding:10px 13px;font-size:14px}.meta{font-size:12px;color:var(--muted)}.hero{background:linear-gradient(120deg,#102c3d,#1b5b70);color:#fff;border-radius:18px;padding:34px;box-shadow:var(--shadow);margin-bottom:24px}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9ed5df;font-weight:700}.hero h1{font-size:clamp(28px,4vw,44px);line-height:1.12;max-width:850px;margin:12px 0}.hero p{max-width:800px;color:#d7e6ec;margin:12px 0}.hero-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.hero-meta span{border:1px solid #6a91a0;background:#163e50;padding:6px 10px;border-radius:7px;font-size:12px}.verdict{display:inline-flex;align-items:center;gap:8px;background:#762c35;color:white;border-radius:7px;padding:7px 11px;font-size:12px;font-weight:800;letter-spacing:.04em}.section{background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:24px;margin:18px 0;box-shadow:0 2px 9px rgba(19,42,57,.025);scroll-margin-top:18px}.section h2{font-size:22px;margin:0 0 12px;letter-spacing:-.02em}.section h3{font-size:16px;margin:22px 0 8px}.section p{margin:8px 0}.lead{font-size:16px;color:#3b5262}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.kpi{border:1px solid var(--line);border-radius:10px;padding:15px;background:#fbfcfd}.kpi strong{display:block;font-size:27px;line-height:1.1}.kpi span{font-size:12px;color:var(--muted)}.kpi.danger strong{color:var(--red)}.kpi.warn strong{color:var(--amber)}.kpi.good strong{color:var(--green)}.status{display:inline-block;padding:3px 7px;border-radius:5px;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}.s-source{background:#e8f1f7;color:#225b79}.s-test{background:#e7f4ed;color:#216342}.s-runtime{background:#e5f3ef;color:#14665c}.s-not{background:#edf0f3;color:#5d6b77}.s-partial{background:#fff1d9;color:#86580d}.s-broken{background:#fae5e6;color:#922c34}.s-missing{background:#ece8f7;color:#5f4a95}.p0{background:#8d2630;color:#fff}.p1{background:#b34b27;color:#fff}.p2{background:#a97820;color:#fff}.p3{background:#647586;color:#fff}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:9px;margin:12px 0}table{border-collapse:collapse;width:100%;font-size:12px;min-width:760px}th{background:#edf2f5;text-align:left;color:#405767;font-size:10px;letter-spacing:.06em;text-transform:uppercase;position:sticky;top:0}td,th{padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:top}tbody tr:hover{background:#f8fbfc}td code,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;background:#eef2f5;padding:2px 4px;border-radius:4px;overflow-wrap:anywhere}.callout{border-left:4px solid var(--amber);background:#fff8e9;padding:13px 15px;border-radius:0 8px 8px 0;margin:12px 0}.callout.danger{border-color:var(--red);background:#fff0f0}.callout.info{border-color:var(--blue);background:#eff7fb}.bar{height:8px;border-radius:10px;background:#e9eef1;overflow:hidden;min-width:100px}.bar i{display:block;height:100%;background:var(--blue)}.diagram{border:1px solid var(--line);border-radius:10px;padding:12px;background:#fbfcfd;overflow:auto}.diagram svg{display:block;max-width:100%;height:auto;margin:auto}.node{fill:#fff;stroke:#8aa3b1;stroke-width:1.5}.node.warn{fill:#fff4df;stroke:#bb8a34}.node.bad{fill:#fff0f0;stroke:#b84b54}.node.good{fill:#eaf6ef;stroke:#4b9470}.edge{stroke:#6f8795;stroke-width:1.8;fill:none;marker-end:url(#arrow)}.svgtext{font:12px Inter,Arial,sans-serif;fill:#213b4b}.svgsmall{font:10px Inter,Arial,sans-serif;fill:#526a78}.filters{display:flex;flex-wrap:wrap;gap:9px;margin:12px 0}.filters label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px}.filters select{min-width:130px;border:1px solid var(--line);border-radius:7px;padding:7px;background:#fff;color:var(--ink)}details{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin:8px 0;background:#fbfcfd}summary{cursor:pointer;font-weight:700;font-size:13px;color:#29495a}details p,details ul{font-size:12px;color:#455c6a}.evidence{font-size:11px;color:var(--muted);margin-top:6px}.evidence a{overflow-wrap:anywhere}.roadmap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.phase{border:1px solid var(--line);border-radius:10px;padding:14px}.phase h3{margin:0 0 6px}.phase ul{margin:8px 0;padding-left:18px;font-size:12px}.footnote{font-size:11px;color:var(--muted)}.hidden{display:none!important}.print-only{display:none}
+@media(max-width:1000px){.shell{grid-template-columns:220px minmax(0,1fr)}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.shell{display:block}.sidebar{position:relative;height:auto;padding:14px}.nav{display:flex;overflow:auto;gap:5px}.nav .group,.side-foot{display:none}.nav a{white-space:nowrap}.main{padding:16px}.hero{padding:23px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section{padding:17px}.topbar{display:block}.searchbox{margin-bottom:8px}.roadmap{grid-template-columns:1fr}}
+@media print{body{background:#fff}.shell{display:block}.sidebar,.topbar,.filters,.searchbox{display:none!important}.main{padding:0;max-width:none}.section,.hero{box-shadow:none;break-inside:avoid;border:1px solid #bbb}.hero{background:#fff;color:#111}.hero p,.eyebrow{color:#333}.hero-meta span{background:#fff;color:#111;border-color:#aaa}.section{page-break-inside:auto}.table-wrap{overflow:visible}table{min-width:0;font-size:9px}td,th{padding:5px}.print-only{display:block}}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand">SCS Platform Audit</div>
+  <p class="side-sub">Comprehensive B2B readiness · v1.0 · 18 Nov 2026</p>
+  <nav class="nav">
+    <div class="group">Executive</div>
+    <a href="#executive">Executive summary</a><a href="#dashboard">Readiness dashboard</a><a href="#method">Methodology & limits</a>
+    <div class="group">Architecture</div>
+    <a href="#inventory">Repository inventory</a><a href="#architecture">Architecture</a><a href="#domains">Business domains</a>
+    <div class="group">Product workflows</div>
+    <a href="#parity">UI / API / DB parity</a><a href="#workflows">Workflow audit</a><a href="#state">State machines</a>
+    <div class="group">Assurance</div>
+    <a href="#database">Database integrity</a><a href="#security">Security</a><a href="#ux">UX & mobile</a><a href="#testing">Testing & CI</a><a href="#operations">Operations & docs</a>
+    <div class="group">Action plan</div>
+    <a href="#gaps">Gap register</a><a href="#roadmap">Remediation roadmap</a><a href="#verdict">Final verdict</a><a href="#appendix">Appendix</a>
+  </nav>
+  <div class="side-foot">Audit-only. No application, schema, permission, environment, or deployment changes were made. The report itself is the sole intended repository deliverable.</div>
+</aside>
+<main class="main">
+<div class="topbar">
+  <input id="globalSearch" class="searchbox" type="search" placeholder="Search this report: endpoint, module, finding, workflow…">
+  <div class="meta">Baseline: <code>develop</code> · <code>9f5bc397</code> · read-only evidence</div>
+</div>
+
+<header class="hero" id="top">
+  <div class="eyebrow">Independent evidence-driven assessment</div>
+  <h1>SCS Platform — Comprehensive B2B Marketplace Readiness Audit</h1>
+  <p>Assessment of implementation reality across the API, buyer web, merchant web, administration, Flutter mobile, PostgreSQL/Supabase, CI/CD, and documented operational controls. Previous phase reports were treated as historical context, not proof of current behavior.</p>
+  <div class="verdict">NOT READY — critical authorization blocker</div>
+  <div class="hero-meta">
+    <span>Audit date: 18 November 2026</span><span>Repository: nabeel2323/scs-platform</span><span>Branch: develop</span><span>Commit: 9f5bc397467dc92cdc8debd54797b6d730659c36</span><span>Database: SCS-PlatForm</span>
+  </div>
+</header>
+
+<section class="section" id="executive">
+<h2>1. Executive summary</h2>
+<p class="lead">The current codebase is a substantial multi-merchant marketplace implementation, not a blank or early prototype. It contains real organization, catalog, offer, inventory, cart, parent/sub-order, payment-record, shipping, return, dispute, administration, and mobile code. However, it is not ready for commercial launch because at least one authenticated cross-tenant read path is not properly scoped, the database has no RLS protection, a shared outbox consumer can consume carrier events without executing them, and several buyer-facing pricing/checkout paths do not preserve the selected commercial terms.</p>
+<p><strong>What buyers can do in source:</strong> authenticate, manage organization context, search products, compare seller offers on product detail pages, maintain carts, and submit multi-supplier checkout. Web and mobile both have order views. Web checkout supports per-store shipping selections; mobile currently sends one global fulfillment choice.</p>
+<p><strong>What merchants can do in source:</strong> register, manage stores and employees, submit verification, manage products and offers, view offer analytics, manage inventory, and process supplier sub-orders. Some offer analytics endpoints lack tenant authorization, so the existence of merchant screens does not imply secure merchant boundaries.</p>
+<p><strong>What administrators can do in source:</strong> manage users, merchants, products, catalog taxonomy, imports, orders, payment verification, refunds, settlements, and selected operational queues. A generic management surface supports search, filters, pagination, and detail dialogs; specialized flows exist for catalog import and payment operations.</p>
+<p><strong>What is not established:</strong> full browser-based buyer and merchant journeys, live Aramex transactions, live SMS/FCM/WhatsApp delivery, external payment-gateway settlement, production backup/restore, and current Render OTP logs. These remain NOT VERIFIED rather than being treated as successful.</p>
+<div class="callout danger"><strong>Launch blocker:</strong> <code>GET /v1/merchant/offers</code>, <code>/analytics</code>, and <code>/analytics/trend</code> accept a caller-supplied store ID but do not enforce merchant membership/tenant scope. The service returns offer and sales data using that store ID. An authenticated user may therefore be able to read another merchant's offer portfolio and sales analytics.</div>
+<h3>Top-level audit totals</h3>
+<div class="grid">
+  <div class="kpi danger"><strong>1</strong><span>P0 critical finding</span></div>
+  <div class="kpi warn"><strong>7</strong><span>P1 high-priority findings</span></div>
+  <div class="kpi"><strong>12</strong><span>P2 medium-priority findings</span></div>
+  <div class="kpi"><strong>2</strong><span>P3 future improvements</span></div>
+  <div class="kpi"><strong>20</strong><span>Business domains assessed</span></div>
+  <div class="kpi"><strong>25</strong><span>Business workflows assessed</span></div>
+  <div class="kpi"><strong>0</strong><span>Full end-to-end user journeys independently verified</span></div>
+  <div class="kpi"><strong>2.3 / 5</strong><span>Unweighted business-domain maturity mean</span></div>
+</div>
+<p class="footnote">Workflow distribution: 13 source-implemented (not end-to-end verified), 10 partially implemented, 1 broken carrier-event subworkflow, and 1 missing formal RFQ/quotation workflow. These are workflow-level classifications, not test pass counts.</p>
+</section>
+
+<section class="section" id="dashboard">
+<h2>2. Readiness dashboard</h2>
+<div class="grid">
+  <div class="kpi danger"><strong>FAIL</strong><span>Multi-tenant authorization gate</span></div>
+  <div class="kpi warn"><strong>PARTIAL</strong><span>Financial correctness gate</span></div>
+  <div class="kpi warn"><strong>PARTIAL</strong><span>Shipping / notification reliability</span></div>
+  <div class="kpi"><strong>NOT VERIFIED</strong><span>Live external integrations</span></div>
+</div>
+<h3>Domain maturity overview</h3>
+<div class="table-wrap"><table><thead><tr><th>Domain</th><th>Maturity</th><th>Score</th><th>Reason</th></tr></thead><tbody>
+<tr><td>Identity & authentication</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>OTP, password/device trust, refresh/session paths and tests exist; current runtime delivery/log behavior not verified.</td></tr>
+<tr><td>Organizations & tenant model</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Organizations, memberships and scope helpers exist; merchant offer read routes bypass scope checks.</td></tr>
+<tr><td>RBAC & permissions</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Roles, permissions, guards and seeds exist; enforcement is route-specific and has omissions.</td></tr>
+<tr><td>Merchant lifecycle</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Registration, store, verification and membership workflows are represented in source/UI.</td></tr>
+<tr><td>Buyer organization management</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Buyer org and order capabilities exist; procurement approval and formal RFQ are absent.</td></tr>
+<tr><td>Catalog & taxonomy</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Product types, attributes, options, variants, brands, moderation and import/export exist.</td></tr>
+<tr><td>Offers, pricing & inventory</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Offer model and price resolution exist; offer attribution, MOQ and increment enforcement have gaps.</td></tr>
+<tr><td>Search & discovery</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Search/facets and offer ranking exist; search-card price can differ from the seller added to cart.</td></tr>
+<tr><td>Cart</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Cart snapshots and offer references exist; commercial-term enforcement is incomplete.</td></tr>
+<tr><td>Checkout & orders</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Parent/sub-order splitting, snapshots, idempotency and FSM exist; mixed-currency web total is wrong.</td></tr>
+<tr><td>Payments & finance</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Manual bank transfer/COD/voucher, refunds and settlements exist; no gateway provider or automatic money movement.</td></tr>
+<tr><td>Shipping & fulfillment</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Manual and Aramex provider code exists; outbox competition and label handler gaps interrupt carrier workflow.</td></tr>
+<tr><td>Returns & disputes</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Return FSM, events, authorization, refund and settlement adjustment services exist; worker activation/runtime unverified.</td></tr>
+<tr><td>Notifications</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>In-app/realtime path exists; SMS, FCM and WhatsApp in the general notification service are stubs.</td></tr>
+<tr><td>Promotions</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Promotion/redemption entities and cart application exist; mobile has no remove-promo route.</td></tr>
+<tr><td>RFQ & procurement</td><td><div class="bar"><i style="width:0%"></i></div></td><td>0/5</td><td>No RFQ, supplier quotation, negotiation or purchase-order workflow found in the inspected modules/schema.</td></tr>
+<tr><td>Reviews, disputes & support</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Reviews, disputes and support modules exist; end-to-end resolution and all UI parity not verified.</td></tr>
+<tr><td>Administration</td><td><div class="bar"><i style="width:60%"></i></div></td><td>3/5</td><td>Admin route coverage and custom import/payment screens exist; not every operational capability has a bespoke workflow.</td></tr>
+<tr><td>Analytics & reporting</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Offer analytics and analytics module exist; tenant exposure and live KPI correctness need correction/verification.</td></tr>
+<tr><td>Mobile application</td><td><div class="bar"><i style="width:40%"></i></div></td><td>2/5</td><td>Buyer and merchant screens exist; shipping/payment selection and VAT disclosure diverge from web/API.</td></tr>
+</tbody></table></div>
+<p class="footnote">Scoring is an unweighted mean of the 20 business domains above. A score of 5 requires end-to-end runtime verification. The mean is not a release decision; the P0 authorization gate overrides it.</p>
+</section>
+
+<section class="section" id="method">
+<h2>3. Methodology, evidence labels & limitations</h2>
+<p>The audit followed the uploaded master prompt's audit-only rules. Source code, route/controller contracts, migrations, database catalogs, CI workflow definitions, and the latest GitHub workflow results were inspected. Connected Supabase checks used read-only SQL. Previous reports were not accepted as proof of current implementation.</p>
+<table><thead><tr><th>Evidence label</th><th>Meaning in this report</th></tr></thead><tbody>
+<tr><td><span class="status s-source">SOURCE VERIFIED</span></td><td>Current source file, route, service, component or migration inspected at the audited commit.</td></tr>
+<tr><td><span class="status s-test">TEST VERIFIED</span></td><td>GitHub Actions reports the named test/check step completed successfully.</td></tr>
+<tr><td><span class="status s-runtime">RUNTIME VERIFIED</span></td><td>Direct read-only PostgreSQL catalog result or CI staging health/deployment check. Not equivalent to a business user journey.</td></tr>
+<tr><td><span class="status s-not">NOT VERIFIED</span></td><td>Credentials, runtime access, browser session, external provider or controlled data were not available/authorized.</td></tr>
+<tr><td><span class="status s-partial">INFERRED</span></td><td>Conclusion follows from connected source paths but has not been reproduced as a live user transaction.</td></tr>
+<tr><td><span class="status s-missing">DOCUMENTATION ONLY</span></td><td>Claim appears in documentation but has not been established from current implementation.</td></tr>
+</tbody></table>
+<div class="callout info"><strong>Runtime limitation:</strong> The Render workspace was identified as <code>My Workspace</code>, but permission to inspect its staging service, environment metadata and logs was requested and not yet received at report generation. Therefore no Render logs, service configuration, post-deployment runtime state, OTP log remediation, or P13 worker environment flag is claimed as verified.</div>
+<ul>
+<li>No production or staging writes were performed by this audit.</li>
+<li>No migrations, seeds, schema changes, grants, RLS policies, environment variables, deployments or restarts were triggered.</li>
+<li>No browser-driven user journey or screenshot capture was performed in this audit session.</li>
+<li>GitHub Actions evidence is taken from runs <code>44202891564</code> (push) and <code>44270714561</code> (pull request) for commit <code>9f5bc397</code>.</li>
+<li>External SMTP/Resend, Twilio, FCM, WhatsApp, Aramex and payment-provider behavior remains NOT VERIFIED unless a source-only implementation is explicitly described.</li>
+</ul>
+</section>
+
+<section class="section" id="inventory">
+<h2>4. Repository-wide inventory</h2>
+<p>Repository: <a href="https://github.com/nabeel2323/scs-platform" target="_blank" rel="noopener">nabeel2323/scs-platform</a>. Audited ref: <code>develop</code> at <code>9f5bc397467dc92cdc8debd54797b6d730659c36</code>. GitHub branch metadata reports <code>protected=false</code>; the repository rulesets endpoint returned no rulesets.</p>
+<div class="grid">
+<div class="kpi"><strong>20</strong><span>API business modules</span></div><div class="kpi"><strong>29</strong><span>API controllers</span></div><div class="kpi"><strong>56</strong><span>API service files</span></div><div class="kpi"><strong>105</strong><span>Next.js route pages (49 web, 56 admin)</span></div>
+<div class="kpi"><strong>32</strong><span>Flutter screens</span></div><div class="kpi"><strong>260</strong><span>test files</span></div><div class="kpi"><strong>69</strong><span>SQL migration files</span></div><div class="kpi"><strong>517</strong><span>documentation files</span></div>
+</div>
+<table><thead><tr><th>Area</th><th>Inventory</th><th>Notes</th></tr></thead><tbody>
+<tr><td>API</td><td><code>apps/api</code> · 20 modules</td><td>NestJS modular monolith; identity, merchant, catalog, import, inventory, pricing, orders, payments, shipping, returns, notifications, operations, analytics, reviews, support, admin, audit, realtime, promotions and system.</td></tr>
+<tr><td>Buyer / merchant web</td><td><code>apps/web</code> · 49 route pages</td><td>Next.js app; buyer discovery/cart/checkout/orders and merchant catalog/offers/inventory/orders/onboarding surfaces.</td></tr>
+<tr><td>Admin web</td><td><code>apps/admin</code> · 56 route pages</td><td>Next.js admin console; shared ManagementPage, detail dialogs, catalog import center and custom merchant/payment/operations screens.</td></tr>
+<tr><td>Mobile</td><td><code>mobile</code> · 32 screens</td><td>Flutter, Riverpod, go_router, Dio; buyer and merchant surfaces plus driver shipment screen.</td></tr>
+<tr><td>Shared packages</td><td><code>packages</code></td><td>Contracts/OpenAPI, UI kit, environment and event packages.</td></tr>
+<tr><td>Infrastructure</td><td><code>infra</code></td><td>Drizzle migrations, deployment, CI and load-test assets.</td></tr>
+<tr><td>Documentation</td><td>487 Markdown, 24 HTML, 4 XLSX, 2 CSV</td><td>Includes ADRs, runbooks, release reports, audit reports and user/admin guides. Document volume does not prove current behavior.</td></tr>
+</tbody></table>
+<div class="callout"><strong>Repository hygiene:</strong> The current Git tree contains 3,439 entries, of which 1,569 are under <code>.m73b6-scratch/</code> (1,277 files). This is a large tracked scratch/context snapshot and includes duplicated project artifacts. The root <code>test-token.txt</code> is also duplicated in that snapshot. The decoded JWT-shaped artifact has an expiry of 7 October 2026 and is expired at audit time; its identity/organization claims should still be treated as sensitive and the file/history reviewed.</div>
+<p class="footnote">The README still describes 16 bounded-context modules; current source inventory contains 20. Older October 2026 framework audit documents refer to 50 migrations and pre-payment/pre-returns scope, while the current branch has 69 migration files and payment/returns modules. Those older reports are historical, not current proof.</p>
+</section>
+
+<section class="section" id="architecture">
+<h2>5. Architecture overview</h2>
+<p>The current implementation is a modular monolith: Next.js web/admin clients and Flutter mobile call a NestJS API; the API uses Drizzle over PostgreSQL/Supabase and integrates storage, realtime, OTP delivery, carrier APIs and CI/CD. Several worker classes are registered inside the API process rather than as a separate Render worker service.</p>
+<div class="diagram">
+<svg viewBox="0 0 980 420" role="img" aria-label="SCS platform architecture diagram">
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#6f8795"/></marker></defs>
+<rect class="node" x="25" y="35" width="190" height="65" rx="9"/><text class="svgtext" x="120" y="61" text-anchor="middle">Buyer / Merchant Web</text><text class="svgsmall" x="120" y="80" text-anchor="middle">Next.js · apps/web</text>
+<rect class="node" x="25" y="135" width="190" height="65" rx="9"/><text class="svgtext" x="120" y="161" text-anchor="middle">Admin Console</text><text class="svgsmall" x="120" y="180" text-anchor="middle">Next.js · apps/admin</text>
+<rect class="node" x="25" y="235" width="190" height="65" rx="9"/><text class="svgtext" x="120" y="261" text-anchor="middle">Mobile Application</text><text class="svgsmall" x="120" y="280" text-anchor="middle">Flutter · mobile</text>
+<rect class="node" x="340" y="105" width="280" height="130" rx="12"/><text class="svgtext" x="480" y="133" text-anchor="middle">NestJS API · Modular Monolith</text><text class="svgsmall" x="480" y="155" text-anchor="middle">Identity / RBAC / Tenant Scope</text><text class="svgsmall" x="480" y="173" text-anchor="middle">Catalog / Offers / Cart / Orders</text><text class="svgsmall" x="480" y="191" text-anchor="middle">Payments / Shipping / Returns</text><text class="svgsmall" x="480" y="209" text-anchor="middle">Notifications / Operations / Admin</text>
+<rect class="node bad" x="735" y="35" width="210" height="75" rx="9"/><text class="svgtext" x="840" y="63" text-anchor="middle">PostgreSQL / Supabase</text><text class="svgsmall" x="840" y="83" text-anchor="middle">114 tables · RLS 0/114</text>
+<rect class="node" x="735" y="145" width="210" height="65" rx="9"/><text class="svgtext" x="840" y="171" text-anchor="middle">Object Storage</text><text class="svgsmall" x="840" y="190" text-anchor="middle">S3-compatible integration</text>
+<rect class="node warn" x="735" y="245" width="210" height="75" rx="9"/><text class="svgtext" x="840" y="273" text-anchor="middle">In-process Workers</text><text class="svgsmall" x="840" y="293" text-anchor="middle">Outbox / carrier / order / return</text>
+<rect class="node" x="340" y="300" width="280" height="75" rx="9"/><text class="svgtext" x="480" y="328" text-anchor="middle">External Integrations</text><text class="svgsmall" x="480" y="348" text-anchor="middle">Aramex · SMTP/Resend · Twilio · FCM</text>
+<path class="edge" d="M215 67 H290 V145 H340"/><path class="edge" d="M215 167 H340"/><path class="edge" d="M215 267 H290 V195 H340"/>
+<path class="edge" d="M620 140 H680 V72 H735"/><path class="edge" d="M620 170 H680 V177 H735"/><path class="edge" d="M620 210 H680 V282 H735"/><path class="edge" d="M480 235 V300"/>
+</svg>
+</div>
+<h3>Architecture observations</h3>
+<ul>
+<li>API module boundaries and shared contracts are present; the README describes a pnpm/Turborepo monorepo and Drizzle/PostgreSQL architecture.</li>
+<li>Global <code>OutboxModule</code> is imported by <code>AppModule</code>. Its dispatcher polls the shared <code>outbox_events</code> table every second.</li>
+<li><code>ShippingCarrierWorker</code>, <code>CarrierTrackingPoller</code>, and <code>AutoCompleteWorker</code> are providers in the API process. <code>ReturnExpirationWorker</code> is registered in ReturnsModule but the P13 worker flag defaults to disabled unless configured.</li>
+<li>There is no evidence in the inspected source of a separately deployed worker service being required for these classes to start. The actual staging environment flags and replica count remain unverified.</li>
+</ul>
+</section>
+
+<section class="section" id="domains">
+<h2>6. Business capability assessment</h2>
+<p>Statuses below distinguish source implementation from end-to-end verification. “Implemented” means meaningful code exists; it does not mean the full user journey was proven.</p>
+<div class="table-wrap"><table><thead><tr><th>Domain</th><th>Status</th><th>Evidence / implementation</th><th>Principal gap / impact</th></tr></thead><tbody>
+<tr><td>Identity & authentication</td><td><span class="status s-source">IMPLEMENTED</span></td><td>OTP/password/device-trust/session endpoints; refresh/session logic; OTP provider registry and redaction tests.</td><td>Historical Render logs contained plaintext OTPs. Current source has redaction tests; current staging logs and runtime fix are NOT VERIFIED.</td></tr>
+<tr><td>Organizations & tenants</td><td><span class="status s-partial">PARTIAL</span></td><td>Organizations, organization members, active-org context, stores, tenant-scope helpers.</td><td>Offer analytics/list read routes accept arbitrary store IDs without tenant checks.</td></tr>
+<tr><td>RBAC</td><td><span class="status s-partial">PARTIAL</span></td><td>Roles, permissions, role_permissions, PermissionsGuard, RolesGuard and permission seed.</td><td>Guard enforcement is explicit, not globally applied; route-by-route omissions remain possible.</td></tr>
+<tr><td>Merchant lifecycle</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant registration, stores, verification, organization membership, store settings and admin review surfaces.</td><td>Full merchant onboarding was not run in browser/runtime.</td></tr>
+<tr><td>Buyer organization</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer identity, organizations, addresses, carts and order history.</td><td>Formal procurement approval, spending limits, RFQ and PO workflows not found.</td></tr>
+<tr><td>Catalog</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Categories, product types, attributes/options, variants, brands, moderation, media and multilingual fields.</td><td>Import/publish referential integrity and real workbook round-trip not independently exercised.</td></tr>
+<tr><td>Catalog import/export</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin upload, parse, validate, preview, overrides, execute, retry, error report and export APIs/UI.</td><td>Plan cache and restart recovery require controlled runtime verification; no staging import was executed.</td></tr>
+<tr><td>Offers & pricing</td><td><span class="status s-partial">PARTIAL</span></td><td>Merchant offers, approval lifecycle, price lists/tiers, offer comparison/ranking, MOQ, lead time and order increment fields.</td><td>Order increment is stored/snapshotted but not enforced; search card can add a different seller than the displayed lowest offer.</td></tr>
+<tr><td>Inventory</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Inventory items, stock movements, reservations/settlement paths and merchant UI.</td><td>Cross-tenant and concurrent live stock workflows not independently tested in staging.</td></tr>
+<tr><td>Search & discovery</td><td><span class="status s-partial">PARTIAL</span></td><td>Search, filters, facets, product pages, seller offers and ranked offers.</td><td>Search card displays lowest offer price but direct add-to-cart sends product store ID and no offer ID.</td></tr>
+<tr><td>Cart</td><td><span class="status s-partial">PARTIAL</span></td><td>One active cart per user, seller grouping, price snapshots, offer IDs and cart validation.</td><td>Offer MOQ is validated at checkout rather than at add; order increment not enforced; mobile promo cannot be removed.</td></tr>
+<tr><td>Checkout & orders</td><td><span class="status s-partial">PARTIAL</span></td><td>Multi-store parent/sub-order creation, per-store currency, snapshots, idempotency, shipping selections and order FSM.</td><td>Web mixed-currency total uses an undefined currency that formats as SAR; mobile sends only one global fulfillment choice.</td></tr>
+<tr><td>Payments & finance</td><td><span class="status s-partial">PARTIAL</span></td><td>Manual bank transfer proof, COD cash confirmation, voucher status, payment FSM, refunds, settlements and reconciliation entities.</td><td>Registry only registers manual provider. No automated gateway, capture, chargeback or payout transfer implementation.</td></tr>
+<tr><td>Shipping & fulfillment</td><td><span class="status s-broken">BROKEN SUBFLOW</span></td><td>Shipping methods/zones, manual delivery, Aramex provider, credentials, webhook security, retries, circuit breaker and tracking poller.</td><td>Generic outbox dispatcher can mark carrier events DISPATCHED without processing; label worker handler is explicitly not implemented.</td></tr>
+<tr><td>Returns & disputes</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Return FSM, events, eligibility, authorization, inventory restoration, refund integration and settlement adjustments.</td><td>Return-expiration worker is disabled by default unless P13_WORKER_ENABLED is set; staging value not inspected.</td></tr>
+<tr><td>Notifications</td><td><span class="status s-partial">PARTIAL</span></td><td>In-app records and realtime gateway; separate OTP provider registry with SMTP/Resend/Twilio/WhatsApp classes.</td><td>General SMS, FCM and WhatsApp notification methods are stubs that mark records SENT; general email channel absent.</td></tr>
+<tr><td>Promotions</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Promotions, redemptions and cart apply flow.</td><td>Mobile API/client has apply-only promo behavior and no remove-promo endpoint.</td></tr>
+<tr><td>RFQ / procurement</td><td><span class="status s-missing">MISSING</span></td><td>No RFQ, quotation, counteroffer, PO approval or procurement entity/module found in current source/schema inventory.</td><td>Not a release blocker unless formal B2B sourcing/quotation is in the agreed product scope; important for a mature B2B marketplace.</td></tr>
+<tr><td>Reviews / support</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Reviews, disputes and support modules exist.</td><td>Full support escalation and resolution journey not independently verified.</td></tr>
+<tr><td>Administration</td><td><span class="status s-partial">PARTIAL</span></td><td>56 route pages; ManagementPage supports search, filters, pagination, detail dialogs and permission hooks; import and payments have custom flows.</td><td>Generic management screens are not equivalent to complete operational tooling for every API/domain entity.</td></tr>
+<tr><td>Analytics & reporting</td><td><span class="status s-partial">PARTIAL</span></td><td>Analytics module, offer analytics/trends and reporting screens.</td><td>Merchant offer analytics are cross-tenant exposed; data correctness and KPI calculation were not runtime tested.</td></tr>
+<tr><td>Mobile</td><td><span class="status s-partial">PARTIAL</span></td><td>32 screens including buyer product offer comparison and merchant offer management/detail/create.</td><td>Global rather than per-store shipping selection; payment method omitted (API defaults COD); VAT disclosure contradicts backend pricing.</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="section" id="parity">
+<h2>7. UI / API / database parity audit</h2>
+<table><thead><tr><th>Capability</th><th>UI</th><th>API</th><th>Database</th><th>Authorization</th><th>Workflow</th><th>Conclusion</th></tr></thead><tbody>
+<tr><td>Merchant offer analytics</td><td>Web/mobile merchant screens</td><td>GET list, analytics, trend</td><td>merchant_offers + order_items offer_id + offer_snapshot</td><td><span class="status s-broken">Missing tenant guard</span></td><td>Store ID accepted from query</td><td><span class="status s-broken">P0 cross-tenant exposure</span></td></tr>
+<tr><td>Buyer search offer price</td><td>Displays lowest active offer price and original product store</td><td>Search includes lowestOfferPriceMinor; add API accepts optional offerId</td><td>merchant_offers + carts/cart_items</td><td>Authenticated</td><td>Search add sends storeId, variantId, quantity; no offerId</td><td><span class="status s-partial">Disconnected seller attribution</span></td></tr>
+<tr><td>Product detail offer comparison</td><td>Web/mobile compare sellers and select offer</td><td>GET product offers and ranked offers; add-to-cart accepts offerId</td><td>merchant_offers</td><td>Buyer access to active offers</td><td>Offer selection path exists</td><td><span class="status s-source">Implemented</span></td></tr>
+<tr><td>Order increment</td><td>Displayed in merchant offer detail</td><td>DTO/create/update accepts orderIncrement</td><td>merchant_offers.order_increment and order snapshot</td><td>Merchant write permission</td><td>Checkout checks MOQ but not increment</td><td><span class="status s-partial">Persisted, not enforced</span></td></tr>
+<tr><td>Mixed-currency checkout</td><td>Cart groups supplier totals; web checkout displays one estimate</td><td>Master order can return totalsByCurrency</td><td>Per-store currency on orders</td><td>Buyer ownership</td><td>Web computeTotal sums unlike currency minor units</td><td><span class="status s-broken">Incorrect aggregate display</span></td></tr>
+<tr><td>Catalog import</td><td>Admin upload/preview/execute/retry/export</td><td>Admin import controller and service pipeline</td><td>catalog_imports/errors + taxonomy/products</td><td>catalog:imports:manage</td><td>Upload→validate→preview→execute→report</td><td><span class="status s-source">Implemented; runtime not verified</span></td></tr>
+<tr><td>Payments</td><td>COD/bank transfer/voucher; DIGITAL disabled</td><td>Checkout accepts DIGITAL; provider registry only manual</td><td>payment_records, payment_events, refunds, settlements</td><td>Payment/admin permission guards</td><td>Manual verification; no digital provider</td><td><span class="status s-partial">API/UI capability mismatch</span></td></tr>
+<tr><td>General notifications</td><td>In-app, push preference/device screens</td><td>Notification service channels</td><td>notifications, device_tokens, preferences</td><td>User-scoped notification controller</td><td>SMS/FCM/WhatsApp methods are stubs</td><td><span class="status s-partial">UI/API exist; delivery incomplete</span></td></tr>
+<tr><td>Mobile checkout</td><td>One fulfillment choice; no payment selector</td><td>API supports per-store shippingSelections and paymentMethod</td><td>Suborders and per-store financials</td><td>Buyer order access</td><td>Mobile sends fulfillmentMethod only; payment defaults COD</td><td><span class="status s-partial">Web/mobile parity gap</span></td></tr>
+</tbody></table>
+</section>
+
+<section class="section" id="workflows">
+<h2>8. End-to-end business workflow audit</h2>
+<p>Twenty-five scenarios were traced across UI entry points, API/controller/service paths, persistence and relevant events. Source existence is not counted as a successful live journey.</p>
+<div class="diagram">
+<svg viewBox="0 0 980 330" role="img" aria-label="Merchant onboarding and offer publication workflow">
+<defs><marker id="arrow2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#6f8795"/></marker></defs>
+<rect class="node" x="20" y="35" width="150" height="58" rx="8"/><text class="svgtext" x="95" y="59" text-anchor="middle">Register</text><text class="svgsmall" x="95" y="77" text-anchor="middle">User + organization</text>
+<rect class="node" x="215" y="35" width="150" height="58" rx="8"/><text class="svgtext" x="290" y="59" text-anchor="middle">Create store</text><text class="svgsmall" x="290" y="77" text-anchor="middle">Merchant profile</text>
+<rect class="node" x="410" y="35" width="150" height="58" rx="8"/><text class="svgtext" x="485" y="59" text-anchor="middle">Submit verification</text><text class="svgsmall" x="485" y="77" text-anchor="middle">Documents / review</text>
+<rect class="node" x="605" y="35" width="150" height="58" rx="8"/><text class="svgtext" x="680" y="59" text-anchor="middle">Admin approval</text><text class="svgsmall" x="680" y="77" text-anchor="middle">Verification queue</text>
+<rect class="node good" x="800" y="35" width="160" height="58" rx="8"/><text class="svgtext" x="880" y="59" text-anchor="middle">Store active</text><text class="svgsmall" x="880" y="77" text-anchor="middle">Publication permitted</text>
+<path d="M170 64 H215 M365 64 H410 M560 64 H605 M755 64 H800" stroke="#6f8795" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+<rect class="node" x="215" y="170" width="150" height="58" rx="8"/><text class="svgtext" x="290" y="194" text-anchor="middle">Create product</text><text class="svgsmall" x="290" y="212" text-anchor="middle">Type / variant / media</text>
+<rect class="node" x="410" y="170" width="150" height="58" rx="8"/><text class="svgtext" x="485" y="194" text-anchor="middle">Create offer</text><text class="svgsmall" x="485" y="212" text-anchor="middle">Price / MOQ / lead time</text>
+<rect class="node warn" x="605" y="170" width="150" height="58" rx="8"/><text class="svgtext" x="680" y="194" text-anchor="middle">Propose / review</text><text class="svgsmall" x="680" y="212" text-anchor="middle">Approval lifecycle</text>
+<rect class="node good" x="800" y="170" width="160" height="58" rx="8"/><text class="svgtext" x="880" y="194" text-anchor="middle">Buyer discovery</text><text class="svgsmall" x="880" y="212" text-anchor="middle">Offer visible</text>
+<path d="M365 199 H410 M560 199 H605 M755 199 H800" stroke="#6f8795" stroke-width="2" fill="none" marker-end="url(#arrow2)"/>
+<path d="M880 93 V135 H290 V170" stroke="#6f8795" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#arrow2)"/>
+<text class="svgsmall" x="490" y="284" text-anchor="middle">Source paths exist; end-to-end runtime verification remains outstanding.</text>
+</svg>
+</div>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Workflow</th><th>Status</th><th>Actors / main path</th><th>Evidence / missing step</th></tr></thead><tbody>
+<tr><td>1</td><td>Buyer registration & organization setup</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Buyer → Identity / Organizations</td><td>Auth and organization modules; not browser-run.</td></tr>
+<tr><td>2</td><td>Merchant registration & organization setup</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Identity / Merchant</td><td>Merchant registration and organization membership paths exist.</td></tr>
+<tr><td>3</td><td>Merchant verification and admin approval</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Admin</td><td>Verification requests, document records and admin review routes.</td></tr>
+<tr><td>4</td><td>Store creation and publication</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Store</td><td>Store and verification lifecycle in merchant module.</td></tr>
+<tr><td>5</td><td>Employee invitation and role assignment</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Organization owner → Staff</td><td>Organization members, roles and permission assignments.</td></tr>
+<tr><td>6</td><td>Product template creation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin → Catalog taxonomy</td><td>Product types and type attributes; runtime publishability not tested.</td></tr>
+<tr><td>7</td><td>Category and attribute configuration</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin → Catalog taxonomy</td><td>Categories, definitions, options and relations.</td></tr>
+<tr><td>8</td><td>Merchant product creation and moderation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Admin moderation</td><td>Product APIs, moderation records and UI actions.</td></tr>
+<tr><td>9</td><td>Merchant offer creation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Offers → Admin governance</td><td>Draft/propose/approve/reject/withdraw lifecycle.</td></tr>
+<tr><td>10</td><td>Merchant price and inventory management</td><td><span class="status s-partial">PARTIAL</span></td><td>Merchant → Offers / Pricing / Inventory</td><td>Offer terms and stock exist; order increment is not enforced.</td></tr>
+<tr><td>11</td><td>Buyer product discovery</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer → Search / PDP</td><td>Lowest offer display and direct add-to-cart can refer to different sellers.</td></tr>
+<tr><td>12</td><td>Buyer offer comparison</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Buyer → Product detail / mobile PDP</td><td>Offer list, ranking, seller, MOQ, currency and lead-time display.</td></tr>
+<tr><td>13</td><td>Buyer cart management</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer → Cart</td><td>Offer references and snapshots exist; increment and early MOQ enforcement incomplete.</td></tr>
+<tr><td>14</td><td>Multi-merchant checkout</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer → Checkout → Orders</td><td>Suborders and per-store shipping exist; web mixed-currency estimate is invalid.</td></tr>
+<tr><td>15</td><td>Parent order and merchant sub-order creation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>OrdersService → MasterOrder + Orders</td><td>Grouping by store, per-store currency and offer snapshots.</td></tr>
+<tr><td>16</td><td>Carrier shipment creation</td><td><span class="status s-broken">BROKEN SUBFLOW</span></td><td>Shipment operations → Outbox → Carrier worker</td><td>Generic dispatcher consumes all PENDING events and marks them DISPATCHED after log-only dispatch; carrier worker filters the same table for shipping.carrier.*.</td></tr>
+<tr><td>17</td><td>Merchant order processing</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Accept / reject / prepare / ready</td><td>Order FSM, optimistic transitions, inventory settlement.</td></tr>
+<tr><td>18</td><td>Payment confirmation</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer proof / Merchant cash / Admin verify</td><td>Manual flows exist; no automated payment gateway.</td></tr>
+<tr><td>19</td><td>Cancellation, refund and return</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer / Merchant / Admin / Worker</td><td>FSM and manual refund approval exist; actual money movement and worker activation unverified.</td></tr>
+<tr><td>20</td><td>Return/dispute escalation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Return FSM / Disputes</td><td>Escalation state and authorization code exist; P13 worker runtime flag not inspected.</td></tr>
+<tr><td>21</td><td>Notifications across order lifecycle</td><td><span class="status s-partial">PARTIAL</span></td><td>Orders → Notifications / Realtime</td><td>In-app path exists; SMS, push and WhatsApp methods are stubs.</td></tr>
+<tr><td>22</td><td>Catalog import and export</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin → Import Center → Excel pipeline</td><td>Upload, validate, preview, execute, retry, report and export.</td></tr>
+<tr><td>23</td><td>Administrative marketplace operations</td><td><span class="status s-partial">PARTIAL</span></td><td>Admin console</td><td>Broad routes and generic management; full CRUD/permissions for every entity not proven.</td></tr>
+<tr><td>24</td><td>Buyer and merchant mobile workflows</td><td><span class="status s-partial">PARTIAL</span></td><td>Flutter</td><td>Offer screens exist; checkout omits per-store shipping selection and payment method.</td></tr>
+<tr><td>25</td><td>RFQ and supplier quotation</td><td><span class="status s-missing">MISSING</span></td><td>Buyer procurement → Supplier quotation</td><td>No RFQ/quotation/counteroffer/PO workflow found in current modules or table inventory.</td></tr>
+</tbody></table></div>
+</section>
+
+<section class="section" id="state">
+<h2>9. State-machine and lifecycle assessment</h2>
+<h3>Order lifecycle (source-described and observed transition methods)</h3>
+<p>The OrdersService documents the primary path as <code>DRAFT → SUBMITTED → PENDING_CONFIRMATION → ACCEPTED / PARTIALLY_ACCEPTED / REJECTED / CANCELLED</code>, followed by <code>PREPARING → READY → OUT_FOR_DELIVERY → DELIVERED → COMPLETED</code>. Additional driver, payment-pending, delivery exception and return-to-sender states exist in implementation.</p>
+<table><thead><tr><th>Transition group</th><th>Observed behavior</th><th>Assessment</th></tr></thead><tbody>
+<tr><td>Checkout submission</td><td>Creates parent/suborders and financial breakdown; bank transfer moves to PAYMENT_PENDING; COD defaults to PENDING_CONFIRMATION.</td><td>Implemented; provider/manual-payment limitations remain.</td></tr>
+<tr><td>Merchant decision</td><td>Accept, partial accept, reject; optimistic status updates; inventory release/settlement.</td><td>Implemented with concurrency checks.</td></tr>
+<tr><td>Fulfillment</td><td>PREPARING → READY → ASSIGNED/PICKED_UP → OUT_FOR_DELIVERY → DELIVERED.</td><td>Implemented; carrier event pipeline has a consumer conflict.</td></tr>
+<tr><td>Completion</td><td>Buyer confirmation or AutoCompleteWorker after delivery deadline.</td><td>Worker claim query updates updated_at but does not move rows out of the eligibility predicate; concurrent instances can select the same rows before completion.</td></tr>
+<tr><td>Cancellation / exceptions</td><td>Optimistic transitions, stock settlement, shipment sync, delivery exception and RTS paths.</td><td>Implemented; end-to-end carrier/runtime behavior not verified.</td></tr>
+</tbody></table>
+<h3>Payment lifecycle</h3>
+<p>Payment state machine includes CREATED, AWAITING_PAYMENT, AWAITING_VERIFICATION, CONFIRMED/CAPTURED, REJECTED, PARTIALLY_REFUNDED and REFUNDED. The current provider registry has only the manual verification provider. Refund approval updates records and payment state; it does not move money through an external gateway.</p>
+<h3>Return lifecycle</h3>
+<p>ReturnsService implements REQUESTED → MERCHANT_APPROVED → BUYER_SHIPPED → RECEIVED → INSPECTED → REFUND_PENDING → REFUNDED, with rejection, cancellation, expiration and escalation paths. Authorization is checked per transition. Expiration/escalation depends on ReturnExpirationWorker activation.</p>
+</section>
+
+<section class="section" id="database">
+<h2>10. Database architecture and integrity</h2>
+<p><span class="status s-runtime">RUNTIME VERIFIED · READ-ONLY SQL</span> Connected Supabase PostgreSQL catalog inspection on 18 November 2026.</p>
+<div class="grid">
+<div class="kpi"><strong>114</strong><span>Public tables/partition relations</span></div><div class="kpi danger"><strong>0 / 114</strong><span>RLS enabled</span></div><div class="kpi"><strong>180</strong><span>Foreign-key constraints</span></div><div class="kpi warn"><strong>55</strong><span>FK constraints without covering indexes</span></div>
+<div class="kpi"><strong>38</strong><span>Unique constraints</span></div><div class="kpi"><strong>42</strong><span>Check constraints</span></div><div class="kpi"><strong>496</strong><span>Valid indexes</span></div><div class="kpi"><strong>179</strong><span>Unique indexes</span></div>
+</div>
+<h3>Core entities found</h3>
+<p>Identity: users, sessions, organizations, organization_members, roles, permissions, role_permissions. Merchant: stores, store_members, warehouses, business_documents, verification_requests. Catalog: categories, product_types, product_type_attributes, attribute_definitions, attribute_options, brands, products, product_variants, product_attribute_values, variant_attribute_values, product_media, product_sources. Commercial: merchant_offers, price_lists, price_tiers, inventory_items, stock_movements, carts, cart_items. Orders/finance: master_orders, orders, order_items, order_financial_breakdown, order_status_history, payment_records, payment_events, refunds, settlement_records, settlement_adjustments, reconciliation_runs. Fulfillment: shipping_methods, delivery_zones, delivery_zone_methods, shipments, shipment_events, shipment_labels, carrier_configurations, carrier_credentials, carrier_webhook_events. Other: promotions, promotion_redemptions, notifications, notification_preferences, device_tokens, reviews, disputes, conversations, messages, audit_logs, outbox_events, worker_leases, analytics_events and operational controls.</p>
+<h3>RLS and grants</h3>
+<ul>
+<li>RLS enabled: <strong>0</strong>; forced RLS: <strong>0</strong>; public RLS policies: <strong>0</strong>.</li>
+<li><code>anon</code> and <code>authenticated</code> have no observed table-level SELECT/INSERT/UPDATE/DELETE grants in the checked grant inventory, but each has REFERENCES, TRIGGER and TRUNCATE grants across 114 tables.</li>
+<li><code>anon</code> and <code>authenticated</code> do not have BYPASSRLS and cannot log in directly; <code>service_role</code> has BYPASSRLS, as is common in Supabase.</li>
+<li>Database schema USAGE and database CONNECT are present for anon/authenticated. The combination of disabled RLS and broad TRUNCATE/REFERENCES/TRIGGER grants is an unnecessary privilege configuration that must be reviewed.</li>
+<li>The current SQL connector session is privileged; it does not prove the Render API's connection role. Render environment metadata and API connection identity were not inspected.</li>
+</ul>
+<div class="callout danger"><strong>Do not blindly enable RLS.</strong> The API uses a server-side PostgreSQL/Drizzle connection and application-level guards. Before designing RLS, establish the actual API DB role and whether it bypasses RLS; then classify every table as backend-only or intentionally exposed and implement least-privilege policies/grants by table.</div>
+<h3>Migrations and functions</h3>
+<ul>
+<li>Repository contains 69 SQL migration files through <code>0069_organization_onboarding_permission.sql</code>; the connected application <code>_migration_log</code> contains 69 applied rows.</li>
+<li>The Supabase migration-list interface is empty; this is a separate Supabase migration-history view and does not negate the application's own migration ledger.</li>
+<li>32 public functions were enumerated; none were SECURITY DEFINER. The <code>normalize_arabic</code> function has a mutable search_path warning. <code>pg_trgm</code> is installed in the public schema.</li>
+<li>Performance advisor reports 55 foreign-key constraints without covering indexes. This is a performance follow-up, not an instruction to add indexes blindly without workload review.</li>
+</ul>
+</section>
+
+<section class="section" id="security">
+<h2>11. Security and tenant isolation</h2>
+<h3>P0 — cross-tenant offer and sales analytics read</h3>
+<p><strong>Source evidence:</strong> <code>catalog.offer.controller.ts</code> class-level guard is only <code>JwtAuthGuard</code>. The merchant offer list, analytics and trend routes accept <code>storeId</code> from query parameters and call services without a caller/organization context. The service filters by the supplied store ID and aggregates <code>order_items</code> by offer.</p>
+<p><strong>Impact:</strong> an authenticated user may be able to read another merchant's draft/proposed/active offers, pricing terms and sales analytics (order counts, units, revenue). The list service returns all offers for that store, not only public active offers.</p>
+<p><strong>What this proves:</strong> source path lacks route-level tenant authorization and the service trusts the supplied store ID. <strong>What it does not prove:</strong> a live unauthorized request has not been executed. The issue is sufficiently clear in source to block launch until corrected and covered by HTTP integration tests.</p>
+<details><summary>Evidence and expected remediation</summary>
+<ul>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.controller.ts#L30-L112" target="_blank" rel="noopener">Controller: read routes and class-level guard</a>.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.service.ts#L329-L365" target="_blank" rel="noopener">Service: storeId-only list and analytics query</a>.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/common/tenant-scope.ts" target="_blank" rel="noopener">Existing tenant-scope helpers</a>.</li>
+<li>Require an authenticated merchant caller context; assert store membership/ownership for merchant endpoints; separate public buyer offer reads from merchant management reads; add cross-tenant HTTP integration tests for list, analytics and trend; verify 403/404 for foreign store IDs.</li>
+</ul>
+</details>
+<h3>Other security observations</h3>
+<ul>
+<li>RLS is disabled on all 114 public tables; no public-schema RLS policies exist.</li>
+<li>Broad TRUNCATE/REFERENCES/TRIGGER grants to anon/authenticated are present. No CRUD table grants were observed in the same grant inventory. Direct exploitability through PostgREST was not demonstrated.</li>
+<li>PermissionsGuard is explicitly applied on selected controller methods; <code>@RequirePermission</code> metadata alone does not enforce permissions unless a guard runs.</li>
+<li>OTP source includes fail-closed provider selection and log-redaction tests. The earlier Render plaintext OTP log finding still needs post-fix runtime-log verification.</li>
+<li>A tracked JWT-shaped artifact in <code>test-token.txt</code> is expired (exp 2026-10-07) but contains identity/organization claims; it is duplicated in the tracked scratch snapshot. Do not treat it as an active token, but remove the artifact from repository history after confirming it is only a test credential.</li>
+<li>Carrier credentials are encrypted in source with AES-256-GCM; webhook security, SSRF protection, retry and circuit-breaker code exist. Live provider configuration is NOT VERIFIED.</li>
+<li>Storage bucket/object access policies and cross-tenant file retrieval were not runtime verified.</li>
+</ul>
+</section>
+
+<section class="section" id="ux">
+<h2>12. UX, admin and mobile assessment</h2>
+<h3>Buyer web</h3>
+<ul>
+<li>Search supports active offer counts and lowest-offer price display. For products with an owning store, the direct Add to Cart handler sends product store ID and no offer ID. This can add the owning store's offer while displaying another merchant's lowest price.</li>
+<li>Product detail pages provide offer comparison and an explicit offerId add path.</li>
+<li>Cart displays supplier grouping and handles currency context; checkout does not preserve that mixed-currency presentation.</li>
+<li>Web checkout supports a per-store shipping selection and explicitly labels total as estimated, noting that VAT and delivery are added per supplier. Mixed-currency cart still incorrectly sums unlike minor-unit values and formats the undefined currency as SAR.</li>
+<li>Digital payment is visibly disabled in the UI, which is consistent with the absence of a digital provider; however, the API still accepts DIGITAL in its allowed-method list.</li>
+</ul>
+<h3>Admin</h3>
+<ul>
+<li><code>ManagementPage</code> includes URL-backed search, advanced filters, sorting/pagination, detail dialog, delete actions for configured entities, and product moderation actions. It uses permission hooks.</li>
+<li>Catalog Import Center is a specialized flow with upload, validation, preview, overrides, execute, errors, retry, report download and export; controller is guarded by JwtAuthGuard, PermissionsGuard and RolesGuard.</li>
+<li>Payment admin endpoints have explicit permissions for verification, refund approval and settlement operations.</li>
+<li>Not every API capability has been confirmed to have a dedicated, complete admin workflow. Full runtime admin walkthrough is NOT VERIFIED.</li>
+</ul>
+<h3>Mobile parity</h3>
+<ul>
+<li>Mobile has buyer product detail offer comparison and merchant offer list/create/detail screens. Merchant offers are not merely a database/API-only feature.</li>
+<li>Mobile checkout sends <code>fulfillmentMethod</code> but no <code>shippingSelections</code>; backend fans one global fulfillment choice out to every store. Web can select shipping separately per supplier.</li>
+<li>Mobile checkout does not send a payment method; backend defaults to CASH_ON_DELIVERY. Web offers COD, bank transfer and voucher.</li>
+<li>Mobile review text says delivery and tax are calculated/invoiced by suppliers on delivery, while the backend default VAT is 15% and is included in checkout financial totals. The buyer is not shown a matching tax calculation before submission.</li>
+<li>Mobile cart explicitly documents that the API has no remove-promo route; applied promo cannot be removed from the cart UI.</li>
+</ul>
+</section>
+
+<section class="section" id="testing">
+<h2>13. Testing and CI assessment</h2>
+<p><span class="status s-test">TEST VERIFIED</span> GitHub Actions reports successful completion of the following for the audited commit.</p>
+<table><thead><tr><th>Check</th><th>Latest result</th><th>What it proves</th><th>What it does not prove</th></tr></thead><tbody>
+<tr><td>Lint & typecheck</td><td>SUCCESS</td><td>Configured lint and TypeScript typecheck steps pass.</td><td>Business correctness or runtime tenant isolation.</td></tr>
+<tr><td>Unit tests + coverage gates</td><td>SUCCESS</td><td>API unit suite and configured coverage thresholds pass.</td><td>Uncovered route combinations and live provider delivery.</td></tr>
+<tr><td>Integration tests</td><td>SUCCESS</td><td>Configured API integration suite with containers passes.</td><td>Complete UI journeys and current staging data behavior.</td></tr>
+<tr><td>Web/admin tests</td><td>SUCCESS</td><td>Web tests and admin hydration/global-style regression checks pass.</td><td>Every browser workflow or visual UX defect.</td></tr>
+<tr><td>Flutter analyze/test</td><td>SUCCESS</td><td>Flutter analysis and tests pass.</td><td>Real-device parity, push delivery or store checkout.</td></tr>
+<tr><td>Migration full apply</td><td>SUCCESS</td><td>All discovered migrations apply to disposable CI PostgreSQL.</td><td>Production data compatibility or restore strategy.</td></tr>
+<tr><td>Contract spec/codegen</td><td>SUCCESS</td><td>OpenAPI structure, generated client and contract drift guard pass.</td><td>Semantic business correctness.</td></tr>
+<tr><td>Container build/smoke</td><td>SUCCESS</td><td>API image, health endpoint, P13 config and non-root checks pass.</td><td>Carrier/payment/notification integrations.</td></tr>
+<tr><td>k6 smoke</td><td>SKIPPED</td><td>Main-branch only by workflow condition.</td><td>No current develop-branch load test evidence.</td></tr>
+<tr><td>Staging release</td><td>SUCCESS on push run</td><td>Migration/seed, Render deploy, deployed SHA and readiness endpoint verified by workflow.</td><td>No full buyer/merchant business transaction.</td></tr>
+</tbody></table>
+<div class="callout"><strong>CI gate weakness:</strong> <code>format:check</code> has <code>continue-on-error: true</code>. The job named “Boundary Lint (E6)” runs <code>pnpm --filter @scs/api lint</code> and also has <code>continue-on-error: true</code>; it does not invoke the root <code>pnpm boundary-lint</code> script shown in package.json. Both checks therefore fail to act as strict release gates.</div>
+<p>Test inventory contains 260 test files. Relevant named suites include checkout integration, catalog-import pipeline, tenant-isolation PostgreSQL integration, OTP redaction/security/concurrency, payment state machine, carrier integration and Flutter tests. The tenant-isolation integration suite validates service-level paths but does not establish that every HTTP controller route invokes tenant-scope checks; the offer analytics routes are a counterexample in source.</p>
+</section>
+
+<section class="section" id="operations">
+<h2>14. Operational readiness and documentation</h2>
+<h3>Deployment and migrations</h3>
+<ul>
+<li>CI push run <code>44202891564</code> completed staging migration/seed, Render deployment, deployed SHA verification and readiness endpoint check successfully for the audited commit.</li>
+<li>Repository has 69 SQL migration files; database application ledger has 69 applied rows. CI has a full-apply migration job on disposable PostgreSQL.</li>
+<li>Release workflow runs migrations and RBAC seed before deploying the API. The audit did not trigger a deployment.</li>
+<li>Branch metadata says <code>develop</code> is not protected and repository rulesets are empty. This is a release-governance weakness even though CI is green.</li>
+<li>Automated database backup/restore and rollback were not independently verified. The pipeline's migration strategy is forward-only/expand-contract; do not assume automatic schema rollback.</li>
+</ul>
+<h3>Workers and events</h3>
+<ul>
+<li>OutboxDispatcher starts after 5 seconds and polls every second. It selects all PENDING outbox rows without filtering event type, logs the event, then marks it DISPATCHED.</li>
+<li>ShippingCarrierWorker starts after 8 seconds and claims only <code>shipping.carrier.*</code> events from the same table using FOR UPDATE SKIP LOCKED. The generic dispatcher can therefore consume carrier events before the carrier worker processes them.</li>
+<li>ShippingCarrierWorker's label handler logs “not yet implemented” although the Aramex provider contains a label-generation implementation.</li>
+<li>AutoCompleteWorker's update query changes updated_at but leaves the order eligible under the same predicate; multi-instance duplicate processing is possible before the optimistic completion transition.</li>
+<li>ReturnExpirationWorker depends on P13_WORKER_ENABLED; the source default is false. Actual staging setting and expected worker count are NOT VERIFIED.</li>
+</ul>
+<h3>Documentation accuracy</h3>
+<p>There are 517 documentation files, including architecture decisions, release closures, audit reports, admin guides, catalog import guides, deployment runbooks and mobile parity audits. Documentation is extensive but mixed-age. README's 16-module count is stale relative to the current 20 modules. The October 2 B2B audit describes a 50-migration baseline with payments/returns absent; the current code has 69 migrations and those modules. Treat dated audit reports as historical evidence only. The current report should become the new baseline and be updated alongside future implementation changes.</p>
+</section>
+
+<section class="section" id="gaps">
+<h2>15. Comprehensive gap register</h2>
+<p>Filter the register by domain, priority, status or affected application. Select a finding to expand its evidence and acceptance criteria.</p>
+<div class="filters">
+<label>Domain<select id="fDomain"><option value="">All domains</option><option>Security</option><option>Orders & checkout</option><option>Catalog & offers</option><option>Shipping</option><option>Notifications</option><option>Payments</option><option>Database</option><option>Mobile</option><option>CI/CD</option><option>Repository hygiene</option><option>Documentation</option><option>Procurement</option></select></label>
+<label>Priority<select id="fPriority"><option value="">All priorities</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select></label>
+<label>Status<select id="fStatus"><option value="">All statuses</option><option>OPEN</option><option>NOT VERIFIED</option><option>MISSING</option></select></label>
+<label>Application<select id="fApp"><option value="">All applications</option><option>API</option><option>Web</option><option>Admin</option><option>Mobile</option><option>Database</option><option>CI/CD</option><option>Repository</option></select></label>
+</div>
+<div class="table-wrap"><table id="gapTable"><thead><tr><th data-sort="id">ID</th><th data-sort="priority">Priority</th><th data-sort="domain">Domain</th><th>Finding</th><th>Status</th><th>Applications</th><th>Business / security impact</th></tr></thead><tbody id="gapRows">
+<tr data-domain="Security" data-priority="P0" data-status="OPEN" data-app="API"><td>G-001</td><td><span class="status p0">P0</span></td><td>Security</td><td><details><summary>Merchant offer list/analytics lack tenant authorization</summary><p>Controller has JwtAuthGuard only. Merchant offer list, analytics and trend accept arbitrary storeId and do not pass caller context. Service queries by storeId.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.controller.ts#L30-L112" target="_blank">controller L30–112</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.service.ts#L329-L365" target="_blank">service L329–365</a>.</p><p><strong>Acceptance:</strong> foreign store IDs return 403/404; route-level tenant tests cover list, analytics and trend for buyer, staff, owner and another merchant.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API</td><td>Cross-merchant offer, pricing and sales-data disclosure. Release blocker.</td></tr>
+<tr data-domain="Database" data-priority="P1" data-status="OPEN" data-app="Database"><td>G-002</td><td><span class="status p1">P1</span></td><td>Database</td><td><details><summary>RLS disabled on all tables; excessive anon/auth grants</summary><p>114 public tables, zero RLS-enabled, zero forced RLS and zero public policies. anon/authenticated each have REFERENCES, TRIGGER and TRUNCATE grants on 114 tables. No CRUD table grants were observed in the same inventory; direct exploitability through PostgREST was not proven.</p><p><strong>Acceptance:</strong> document API DB role; classify tables; remove unnecessary grants; design table-specific RLS only where appropriate; verify no client can mutate or read cross-tenant data through supported access paths.</p></details></td><td>OPEN · RUNTIME VERIFIED</td><td>Database / API</td><td>Defense-in-depth and least-privilege failure; potential destructive privilege if a SQL execution path is exposed.</td></tr>
+<tr data-domain="Shipping" data-priority="P1" data-status="OPEN" data-app="API"><td>G-003</td><td><span class="status p1">P1</span></td><td>Shipping</td><td><details><summary>Generic outbox dispatcher competes with carrier worker</summary><p>OutboxDispatcher selects all PENDING rows, has no event-type filter, only logs dispatch and marks rows DISPATCHED. ShippingCarrierWorker consumes shipping.carrier.* rows from the same table using SKIP LOCKED. The generic poller starts at 5s and runs every 1s; carrier worker starts at 8s and polls every 5s.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/common/outbox/outbox-dispatcher.service.ts#L20-L160" target="_blank">generic dispatcher</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/shipping/shipping-carrier.worker.ts#L155-L235" target="_blank">carrier claim/handler</a>.</p><p><strong>Acceptance:</strong> one owner/consumer per event type; carrier events cannot be marked DISPATCHED without provider result; integration test inserts carrier event and proves shipment creation/retry/terminal state.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API</td><td>Carrier shipment creation/webhook retry may be silently skipped.</td></tr>
+<tr data-domain="Catalog & offers" data-priority="P1" data-status="OPEN" data-app="Web"><td>G-004</td><td><span class="status p1">P1</span></td><td>Catalog & offers</td><td><details><summary>Search card displays lowest offer but adds owning store without offerId</summary><p>Display price can come from another seller's lowestOfferPriceMinor, while the Add to Cart handler sends product.storeId and no offerId.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/web/src/app/search/SearchPageClient.tsx#L205-L235" target="_blank">add handler</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/web/src/app/search/SearchPageClient.tsx#L540-L610" target="_blank">price display</a>.</p><p><strong>Acceptance:</strong> search card identifies the displayed seller/offer and passes its offerId, or routes to PDP for explicit seller selection. Cart line seller and price equal the displayed offer.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Web / API</td><td>Buyer can see one seller's low price but add another seller's item/price.</td></tr>
+<tr data-domain="Orders & checkout" data-priority="P1" data-status="OPEN" data-app="Web"><td>G-005</td><td><span class="status p1">P1</span></td><td>Orders & checkout</td><td><details><summary>Web checkout combines different currencies into one SAR-formatted estimate</summary><p>cartCurrency is undefined when more than one currency exists; computeTotal sums cart.totalMinor and shipping minor units across stores. formatMinor defaults to SAR when currency is undefined.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/web/src/app/checkout/page.tsx#L50-L115" target="_blank">checkout total</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/web/src/components/Shared.tsx#L25-L35" target="_blank">formatter default</a>.</p><p><strong>Acceptance:</strong> mixed-currency checkout shows per-supplier totals only, with no aggregate unless a sourced FX conversion is explicitly implemented and disclosed.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Web / API</td><td>Misleading financial total and currency label.</td></tr>
+<tr data-domain="Catalog & offers" data-priority="P1" data-status="OPEN" data-app="API"><td>G-006</td><td><span class="status p1">P1</span></td><td>Catalog & offers</td><td><details><summary>Offer orderIncrement is persisted but not enforced</summary><p>Offer DTO/service persists orderIncrement and checkout snapshots it. Checkout validation checks authoritative MOQ only; no increment modulus/step validation was found in the inspected cart/checkout paths.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/orders/orders.service.ts#L154-L227" target="_blank">offer snapshot and MOQ check</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.service.ts#L659-L697" target="_blank">offer update</a>.</p><p><strong>Acceptance:</strong> quantity >= MOQ and (quantity - MOQ) % increment == 0, or the agreed business formula, is validated server-side at add and checkout; tests cover invalid increments and stale offer updates.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API / Web / Mobile</td><td>Buyer can submit quantities that violate merchant commercial terms.</td></tr>
+<tr data-domain="Mobile" data-priority="P1" data-status="OPEN" data-app="Mobile"><td>G-007</td><td><span class="status p1">P1</span></td><td>Mobile</td><td><details><summary>Mobile checkout omits per-store shipping and payment selection; VAT disclosure conflicts with API</summary><p>Mobile sends only fulfillmentMethod and no shippingSelections/paymentMethod; API fans global fulfillment out to stores and defaults payment to COD. Mobile says VAT is invoiced on delivery, while backend default VAT_RATE is 15% and contributes to checkout totals.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/mobile/lib/screens/cart/checkout_screen.dart#L77-L100" target="_blank">mobile checkout request</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/mobile/lib/screens/cart/checkout_screen.dart#L314-L340" target="_blank">VAT disclosure</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/orders/order-pricing.ts#L14-L55" target="_blank">API VAT policy</a>.</p><p><strong>Acceptance:</strong> mobile supports per-store shipping and payment methods or clearly constrains the release; review shows the exact tax/fee treatment that backend will apply.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Mobile / API</td><td>Mobile buyers receive less choice and may see a different final amount/tax treatment.</td></tr>
+<tr data-domain="Payments" data-priority="P1" data-status="OPEN" data-app="API"><td>G-008</td><td><span class="status p1">P1</span></td><td>Payments</td><td><details><summary>API accepts DIGITAL but registry has only manual provider</summary><p>OrdersService valid payment methods includes DIGITAL. PaymentProviderRegistry has only the manual provider as default and no digital gateway registration; web UI disables DIGITAL.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/orders/orders.service.ts#L390-L510" target="_blank">checkout method validation</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/payments/payments.provider-registry.ts" target="_blank">provider registry</a>; <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/web/src/app/checkout/page.tsx#L210-L245" target="_blank">UI disables digital</a>.</p><p><strong>Acceptance:</strong> API rejects DIGITAL until a real provider is registered, or implements intent/auth/capture/webhook/idempotency/refund integration with tests.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API / Web</td><td>API contract permits a payment method that has no payment implementation.</td></tr>
+<tr data-domain="Notifications" data-priority="P2" data-status="OPEN" data-app="API"><td>G-009</td><td><span class="status p2">P2</span></td><td>Notifications</td><td><details><summary>General SMS, FCM and WhatsApp channels are stubs but mark SENT</summary><p>NotificationsService simulates SMS IDs, FCM IDs, and marks WhatsApp SENT without provider call. In-app notification path is separate and implemented. OTP has a separate provider registry.</p><p><strong>Evidence:</strong> <a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/notifications/notifications.service.ts#L320-L370" target="_blank">notification channel stubs</a>.</p><p><strong>Acceptance:</strong> provider-backed delivery with truthful statuses, retry/backoff, delivery receipts, dead-letter handling and tests; otherwise mark channel unavailable rather than SENT.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API / Mobile / Web</td><td>Order/verification messages can appear delivered when no external message was sent.</td></tr>
+<tr data-domain="Shipping" data-priority="P2" data-status="OPEN" data-app="API"><td>G-010</td><td><span class="status p2">P2</span></td><td>Shipping</td><td><details><summary>Carrier label event handler is a no-op</summary><p>ShippingCarrierWorker.handleLabel only logs “not yet implemented” although AramexProvider has label-generation code.</p><p><strong>Acceptance:</strong> connect worker handler to provider.generateLabel, persist label metadata/object, update shipment state and verify retries/idempotency.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API / Admin / Merchant</td><td>Label generation cannot complete through the outbox worker path.</td></tr>
+<tr data-domain="Orders & checkout" data-priority="P2" data-status="OPEN" data-app="API"><td>G-011</td><td><span class="status p2">P2</span></td><td>Orders & checkout</td><td><details><summary>AutoCompleteWorker claim does not remove row from eligibility</summary><p>UPDATE changes updated_at only; the WHERE predicate remains DELIVERED + due auto_complete_at + buyer_confirmed_at IS NULL. Another API replica can claim the same row before completion. The final optimistic order transition may prevent double completion, but the claim itself is not durable.</p><p><strong>Acceptance:</strong> introduce explicit processing/lease state or atomic claim token; test multiple worker instances and buyer-confirmation race.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API</td><td>Duplicate work, retry noise and potential duplicated side effects.</td></tr>
+<tr data-domain="Payments" data-priority="P2" data-status="OPEN" data-app="API"><td>G-012</td><td><span class="status p2">P2</span></td><td>Payments</td><td><details><summary>Payments are manual; no automatic gateway or payout transfer</summary><p>Manual provider handles bank transfer, COD and voucher; refund creates a record for admin processing, no automatic money movement. This may be acceptable for a controlled pilot but limits scale.</p><p><strong>Acceptance:</strong> explicitly scope manual-payment pilot and finance controls; for gateway launch add provider intents, capture, webhooks, reconciliation, idempotency and payouts.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>API / Admin</td><td>Manual operational workload and no automated settlement transfer.</td></tr>
+<tr data-domain="Database" data-priority="P2" data-status="OPEN" data-app="Database"><td>G-013</td><td><span class="status p2">P2</span></td><td>Database</td><td><details><summary>55 foreign-key constraints lack covering indexes</summary><p>Supabase performance advisor reports 55 unindexed FK constraints. Do not add all indexes blindly; prioritize joins, deletes/updates and measured query plans.</p><p><strong>Acceptance:</strong> workload review, index plan, EXPLAIN/latency before-after and migration tests.</p></details></td><td>OPEN · RUNTIME VERIFIED</td><td>Database / API</td><td>Potential slower joins, parent deletes/updates and lock contention as data grows.</td></tr>
+<tr data-domain="CI/CD" data-priority="P2" data-status="OPEN" data-app="CI/CD"><td>G-014</td><td><span class="status p2">P2</span></td><td>CI/CD</td><td><details><summary>develop branch is unprotected; no repository rulesets</summary><p>GitHub branch metadata reports protected=false and rulesets endpoint returned empty list.</p><p><strong>Acceptance:</strong> require PR review, mandatory status checks, restrict force-push/deletion and protect release branches.</p></details></td><td>OPEN · RUNTIME VERIFIED</td><td>CI/CD / Repository</td><td>Direct pushes can bypass review and required gates.</td></tr>
+<tr data-domain="CI/CD" data-priority="P2" data-status="OPEN" data-app="CI/CD"><td>G-015</td><td><span class="status p2">P2</span></td><td>CI/CD</td><td><details><summary>Formatting and boundary lint are non-blocking/miswired</summary><p>format:check and API lint in Boundary Lint job use continue-on-error=true. The job does not invoke root boundary-lint script.</p><p><strong>Acceptance:</strong> run actual boundary-lint command and make formatting/boundary violations blocking after cleanup.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>CI/CD</td><td>Architecture and formatting regressions can pass CI.</td></tr>
+<tr data-domain="Repository hygiene" data-priority="P2" data-status="OPEN" data-app="Repository"><td>G-016</td><td><span class="status p2">P2</span></td><td>Repository hygiene</td><td><details><summary>Large tracked .m73b6-scratch context tree</summary><p>1,569 entries / 1,277 files under .m73b6-scratch. Includes duplicated project files and test-token.txt. Confirm whether it is intentionally retained; remove from tracked source if not.</p><p><strong>Acceptance:</strong> classify purpose/ownership, scan contents for secrets, remove accidental snapshots and add ignore rules; preserve required audit artifacts deliberately.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Repository</td><td>Repository bloat, duplicate source snapshots and risk of retaining sensitive test artifacts.</td></tr>
+<tr data-domain="Repository hygiene" data-priority="P2" data-status="OPEN" data-app="Repository"><td>G-017</td><td><span class="status p2">P2</span></td><td>Repository hygiene</td><td><details><summary>Expired JWT test artifact committed twice</summary><p>test-token.txt contains a JWT-shaped HS256 token with exp 2026-10-07, expired at audit time; duplicate exists in .m73b6-scratch/p418-context. Identity/organization claims are not reproduced in this report.</p><p><strong>Acceptance:</strong> verify test-only provenance; remove file and duplicate from tracked history if not required; add secret scanning and fixture-safe token generation.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Repository</td><td>Expired credential material and personal/tenant identifiers remain in public repository history.</td></tr>
+<tr data-domain="Documentation" data-priority="P2" data-status="OPEN" data-app="Repository"><td>G-018</td><td><span class="status p2">P2</span></td><td>Documentation</td><td><details><summary>Architecture and readiness documentation has mixed-age baselines</summary><p>README lists 16 API modules; current source inventory has 20. October 2 audit lists 50 migrations and no payments/returns; current branch has 69 migrations and those modules.</p><p><strong>Acceptance:</strong> add current version metadata, mark historical audit baselines, and update architecture/capability docs with code changes.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Repository</td><td>Stakeholders can mistake historical plans for current implementation.</td></tr>
+<tr data-domain="Mobile" data-priority="P2" data-status="OPEN" data-app="Mobile"><td>G-019</td><td><span class="status p2">P2</span></td><td>Mobile</td><td><details><summary>Applied promo cannot be removed from mobile cart</summary><p>Mobile cart comments that API exposes no remove-promo route; UI shows applied promo as a non-removable confirmation chip.</p><p><strong>Acceptance:</strong> provide remove-promo API or explicit cart reset semantics and UI control with regression tests.</p></details></td><td>OPEN · SOURCE VERIFIED</td><td>Mobile / API</td><td>Buyer cannot correct an accidentally applied code without clearing/recreating cart.</td></tr>
+<tr data-domain="Security" data-priority="P2" data-status="OPEN" data-app="Database"><td>G-020</td><td><span class="status p2">P2</span></td><td>Security</td><td><details><summary>normalize_arabic has mutable search_path</summary><p>Supabase security advisor identifies mutable search_path on public.normalize_arabic. It is not SECURITY DEFINER, which reduces one class of risk, but the function should still use a fixed path.</p><p><strong>Acceptance:</strong> set a safe function-level search_path, qualify objects, re-run security advisor.</p></details></td><td>OPEN · RUNTIME VERIFIED</td><td>Database</td><td>Search-path ambiguity and avoidable database security warning.</td></tr>
+<tr data-domain="Procurement" data-priority="P3" data-status="MISSING" data-app="API"><td>G-021</td><td><span class="status p3">P3</span></td><td>Procurement</td><td><details><summary>Formal RFQ / quotation / purchase-order workflow absent</summary><p>No RFQ, supplier quotation, negotiation, counteroffer, buyer procurement approval or PO entities/routes were found. Treat as future scope unless formal sourcing is a launch requirement.</p><p><strong>Acceptance:</strong> decide product scope, then define RFQ lifecycle, quote comparison, expiry, acceptance and PO conversion.</p></details></td><td>MISSING</td><td>API / Web / Admin / Mobile</td><td>Limits mature procurement and negotiated B2B purchasing.</td></tr>
+<tr data-domain="Database" data-priority="P3" data-status="OPEN" data-app="Database"><td>G-022</td><td><span class="status p3">P3</span></td><td>Database</td><td><details><summary>pg_trgm extension installed in public schema</summary><p>Supabase advisor reports pg_trgm in public. This is primarily extension hygiene; no exploit was established.</p><p><strong>Acceptance:</strong> assess extension relocation compatibility and schema exposure before any change.</p></details></td><td>OPEN · RUNTIME VERIFIED</td><td>Database</td><td>Schema hygiene and avoidable exposure surface.</td></tr>
+</tbody></table></div>
+<p id="gapCount" class="footnote">22 findings shown.</p>
+</section>
+
+<section class="section" id="roadmap">
+<h2>16. Dependency-aware remediation roadmap</h2>
+<div class="roadmap">
+<div class="phase"><h3>Phase A — Critical security and data integrity</h3><span class="status p0">P0 / P1 · first</span><ul><li>Fix tenant authorization on merchant offer list/analytics/trend; audit all storeId/orgId read routes.</li><li>Review database grants, RLS architecture and API DB connection identity; remove broad unnecessary privileges.</li><li>Correct offer-to-cart attribution and enforce MOQ/order increments server-side.</li><li>Fix mixed-currency checkout presentation and mobile VAT/payment/shipping disclosures.</li></ul><p><strong>Exit:</strong> cross-tenant negative tests pass at HTTP layer; financial totals match per supplier; invalid quantities are rejected.</p></div>
+<div class="phase"><h3>Phase B — Core marketplace continuity</h3><span class="status p1">P1</span><ul><li>Partition outbox consumers by event type and ensure carrier events cannot be marked dispatched before provider success.</li><li>Implement carrier label worker path and verify Aramex create/track/retry/label workflows.</li><li>Make worker claims durable across API replicas; add multi-instance tests.</li><li>Ensure notifications report truthful delivery states.</li></ul><p><strong>Exit:</strong> carrier and order event tests prove no lost/duplicate events; notification provider tests use real provider sandbox or explicit NOT CONFIGURED state.</p></div>
+<div class="phase"><h3>Phase C — Financial and operational workflows</h3><span class="status p2">P2</span><ul><li>Decide manual-payment pilot scope vs. gateway launch; reject unsupported DIGITAL API requests.</li><li>Complete reconciliation, refunds, settlement and payout controls appropriate to the business model.</li><li>Verify P13 worker activation, backup/restore, migration safety and operational alerts.</li><li>Prioritize 55 FK index improvements with workload evidence.</li></ul><p><strong>Exit:</strong> finance ledger reconciles; refunds/payouts have idempotent and auditable transitions; worker readiness is measured.</p></div>
+<div class="phase"><h3>Phase D — Buyer and merchant experience</h3><span class="status p2">P2</span><ul><li>Align web/mobile checkout choices, seller attribution, tax, shipping and payment disclosure.</li><li>Complete mobile promo removal and mobile order/fulfillment parity.</li><li>Verify admin list/detail/create/edit/archive flows for each required entity.</li><li>Run browser/mobile UAT for 25 core scenarios.</li></ul><p><strong>Exit:</strong> buyer and merchant can complete scoped operations without manual developer/admin intervention.</p></div>
+<div class="phase"><h3>Phase E — Marketplace management and procurement scope</h3><span class="status p2">P2 / P3</span><ul><li>Update current capability matrix and user/admin/merchant guides from actual verified behavior.</li><li>Decide whether RFQ, quotation, negotiation, PO approvals and credit terms are required.</li><li>Complete analytics definitions and export/report reconciliation.</li></ul><p><strong>Exit:</strong> every in-scope capability has a usable admin interface, permission matrix and current guide.</p></div>
+<div class="phase"><h3>Phase F — Release and reliability gates</h3><span class="status p1">Release gate</span><ul><li>Make format and architecture boundary checks blocking; add branch protection/rulesets.</li><li>Run full browser E2E, mobile integration, tenant-isolation and concurrency tests against staging.</li><li>Run k6 on the release candidate; verify monitoring, logs, backup and restore.</li><li>Capture deployment SHA, migration ledger, runtime smoke, and business UAT evidence.</li></ul><p><strong>Exit:</strong> all P0/P1 findings closed; all critical release gates evidenced; no unresolved cross-tenant/financial defect.</p></div>
+</div>
+</section>
+
+<section class="section" id="verdict">
+<h2>17. Final readiness verdict</h2>
+<div class="callout danger"><strong>NOT READY.</strong> The platform has a substantial implementation base, and the latest CI plus staging deployment checks are green. Nevertheless, the current source contains a P0 cross-tenant information-disclosure path. Financial and fulfillment workflows also contain material UI/API/event-consumer gaps. Green CI is not a substitute for secure tenant isolation or complete business journeys.</div>
+<h3>Release gates</h3>
+<table><thead><tr><th>Gate</th><th>Result</th><th>Reason</th></tr></thead><tbody>
+<tr><td>Business functionality</td><td><span class="status s-partial">PARTIAL</span></td><td>Most marketplace primitives exist; several journeys are disconnected.</td></tr>
+<tr><td>Buyer readiness</td><td><span class="status s-partial">PARTIAL</span></td><td>Offer display/cart attribution and mixed-currency checkout defects.</td></tr>
+<tr><td>Merchant readiness</td><td><span class="status s-broken">FAIL</span></td><td>Merchant offer analytics/list endpoints lack tenant scope.</td></tr>
+<tr><td>Admin readiness</td><td><span class="status s-partial">PARTIAL</span></td><td>Broad admin surfaces exist; full module-by-module runtime verification absent.</td></tr>
+<tr><td>Multi-tenant correctness</td><td><span class="status s-broken">FAIL</span></td><td>P0 route-level authorization gap; no RLS on public tables.</td></tr>
+<tr><td>Financial correctness</td><td><span class="status s-partial">PARTIAL</span></td><td>Manual payment only, unsupported DIGITAL API value, mixed-currency display and increment gap.</td></tr>
+<tr><td>Security</td><td><span class="status s-broken">FAIL</span></td><td>Cross-tenant read path and database least-privilege concerns.</td></tr>
+<tr><td>Reliability</td><td><span class="status s-partial">PARTIAL</span></td><td>Outbox/carrier event conflict, worker claim and notification delivery gaps.</td></tr>
+<tr><td>Operational readiness</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Render logs/config, backup/restore and live external providers not inspected.</td></tr>
+<tr><td>Mobile readiness</td><td><span class="status s-partial">PARTIAL</span></td><td>Checkout parity and tax/payment disclosure mismatch.</td></tr>
+</tbody></table>
+<p><strong>Most important next action:</strong> close G-001 and G-002 first, then correct the outbox carrier-event ownership and pricing/checkout correctness before authorizing controlled staging buyer/merchant tests.</p>
+</section>
+
+<section class="section" id="appendix">
+<h2>18. Appendix — evidence, commands and audit limitations</h2>
+<h3>Repository and CI evidence</h3>
+<ul>
+<li>Repository: <a href="https://github.com/nabeel2323/scs-platform" target="_blank" rel="noopener">nabeel2323/scs-platform</a>.</li>
+<li>Audited branch/commit: <code>develop</code> / <code>9f5bc397467dc92cdc8debd54797b6d730659c36</code>.</li>
+<li>Push CI: <a href="https://github.com/nabeel2323/scs-platform/actions/runs/44202891564" target="_blank" rel="noopener">run 44202891564</a> — completed successfully, including staging release and readiness check.</li>
+<li>PR CI: <a href="https://github.com/nabeel2323/scs-platform/actions/runs/44270714561" target="_blank" rel="noopener">run 44270714561</a> — completed successfully; staging release skipped because it is a PR.</li>
+<li>Branch protection: GitHub branch metadata reports <code>protected=false</code>; rulesets list returned empty.</li>
+</ul>
+<h3>Database evidence</h3>
+<p>Read-only SQL queries inspected <code>pg_class</code>, <code>pg_constraint</code>, <code>pg_index</code>, <code>pg_roles</code>, <code>pg_policies</code>, <code>information_schema.role_table_grants</code>, <code>information_schema.routines</code>, <code>pg_stat_activity</code>, public table names and <code>_migration_log</code>. No application data rows were exported into this report.</p>
+<h3>Source evidence index</h3>
+<ul>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.controller.ts" target="_blank">catalog.offer.controller.ts</a> — merchant read routes and guard scope.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/catalog/catalog.offer.service.ts" target="_blank">catalog.offer.service.ts</a> — storeId-based offer list and analytics.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/common/outbox/outbox-dispatcher.service.ts" target="_blank">outbox-dispatcher.service.ts</a> — generic event polling and log-only dispatch.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/shipping/shipping-carrier.worker.ts" target="_blank">shipping-carrier.worker.ts</a> — carrier event claim/processing and label handler.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/notifications/notifications.service.ts" target="_blank">notifications.service.ts</a> — external channel stubs.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/payments/payments.provider-registry.ts" target="_blank">payments.provider-registry.ts</a> — manual-only payment provider registry.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/orders/orders.service.ts" target="_blank">orders.service.ts</a> — checkout, MOQ, currency, parent/suborders and FSM.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/api/src/modules/returns/returns.service.ts" target="_blank">returns.service.ts</a> — return state machine and authorization.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/admin/src/components/ManagementPage.tsx" target="_blank">ManagementPage.tsx</a> — generic admin management surface.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/apps/admin/src/app/catalog-import/page.tsx" target="_blank">Catalog Import Center</a> — UI import workflow.</li>
+<li><a href="https://github.com/nabeel2323/scs-platform/blob/9f5bc397467dc92cdc8debd54797b6d730659c36/mobile/lib/screens/cart/checkout_screen.dart" target="_blank">Mobile checkout</a> — fulfillment/payment/tax presentation.</li>
+</ul>
+<h3>Commands / checks actually performed</h3>
+<ul>
+<li>GitHub repository, branch, commit, recursive tree, workflow runs, job steps and commit statuses retrieved through GitHub API.</li>
+<li>Read-only Supabase SQL catalog and advisor checks executed; no SQL DDL or DML executed.</li>
+<li>Source files read through repository API; no source file modified during inspection.</li>
+<li>No local test command was executed in this session; CI results are cited as the actual execution evidence.</li>
+</ul>
+<h3>Audit progress register</h3>
+<table><thead><tr><th>Area</th><th>Progress</th><th>Remaining verification</th></tr></thead><tbody>
+<tr><td>Repository topology / baseline</td><td><span class="status s-test">COMPLETE</span></td><td>None for current branch snapshot.</td></tr>
+<tr><td>API/UI/DB source mapping</td><td><span class="status s-partial">SUBSTANTIAL</span></td><td>Exhaustive per-endpoint route authorization and all admin CRUD combinations.</td></tr>
+<tr><td>Database schema / grants / RLS / migrations</td><td><span class="status s-runtime">READ-ONLY VERIFIED</span></td><td>API connection role and table-by-table intended exposure.</td></tr>
+<tr><td>CI / deployment pipeline</td><td><span class="status s-test">CI VERIFIED</span></td><td>Branch protection and backup/restore evidence.</td></tr>
+<tr><td>Buyer/merchant browser journeys</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Controlled browser UAT and screenshots.</td></tr>
+<tr><td>Render runtime/logs/config</td><td><span class="status s-not">PENDING AUTHORIZATION</span></td><td>Read-only service, deployment, env metadata and OTP/worker logs.</td></tr>
+<tr><td>External payment/carrier/notification providers</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Sandbox credentials and controlled provider tests.</td></tr>
+<tr><td>Backup/restore and production recovery</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Documented backup evidence and restore drill.</td></tr>
+</tbody></table>
+<p class="footnote">End of report. This report records the state of the audited commit and connected database on 18 November 2026. It does not authorize or perform remediation.</p>
+</section>
+</main>
+</div>
+<script>
+(function(){
+ const search=document.getElementById('globalSearch');
+ const sections=[].slice.call(document.querySelectorAll('main section'));
+ const rows=[].slice.call(document.querySelectorAll('#gapRows tr'));
+ const domain=document.getElementById('fDomain'),priority=document.getElementById('fPriority'),status=document.getElementById('fStatus'),app=document.getElementById('fApp');
+ function filter(){
+   const q=(search.value||'').toLowerCase().trim();
+   const d=domain.value,p=priority.value,s=status.value,a=app.value;
+   rows.forEach(function(r){
+     const text=r.innerText.toLowerCase();
+     const ok=(!q||text.indexOf(q)>=0)&&(!d||r.dataset.domain===d)&&(!p||r.dataset.priority===p)&&(!s||r.dataset.status===s)&&(!a||r.dataset.app===a);
+     r.classList.toggle('hidden',!ok);
+   });
+   document.getElementById('gapCount').textContent=rows.filter(function(r){return !r.classList.contains('hidden')}).length+' findings shown.';
+   if(q){
+     sections.forEach(function(sec){
+       const hit=sec.innerText.toLowerCase().indexOf(q)>=0;
+       sec.classList.toggle('hidden',!hit);
+     });
+   }else{
+     sections.forEach(function(sec){sec.classList.remove('hidden')});
+   }
+ }
+ [search,domain,priority,status,app].forEach(function(el){el.addEventListener('input',filter);el.addEventListener('change',filter)});
+ document.querySelectorAll('#gapTable th[data-sort]').forEach(function(th){
+   th.style.cursor='pointer';
+   th.title='Click to sort';
+   th.addEventListener('click',function(){
+     const key=th.dataset.sort;
+     const body=document.getElementById('gapRows');
+     const current=th.dataset.direction==='asc'?'desc':'asc';
+     th.dataset.direction=current;
+     const sorted=rows.slice().sort(function(a,b){
+       const av=(a.cells[key==='id'?0:key==='priority'?1:2].innerText||'').trim();
+       const bv=(b.cells[key==='id'?0:key==='priority'?1:2].innerText||'').trim();
+       return current==='asc'?av.localeCompare(bv,undefined,{numeric:true}):bv.localeCompare(av,undefined,{numeric:true});
+     });
+     sorted.forEach(function(r){body.appendChild(r)});
+   });
+ });
+ document.querySelectorAll('.nav a').forEach(function(link){
+   link.addEventListener('click',function(){
+     document.querySelectorAll('.nav a').forEach(function(x){x.classList.remove('active')});
+     link.classList.add('active');
+   });
+ });
+})();
+</script>
+</body>
+</html>
