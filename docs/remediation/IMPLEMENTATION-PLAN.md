@@ -78,6 +78,7 @@ The authoritative starting gap IDs are those in the November comprehensive readi
 | G-020 | P2 | Database/security | normalize_arabic has mutable search_path |
 | G-021 | P3 | Procurement | Formal RFQ / quotation / purchase-order workflow absent |
 | G-022 | P3 | Database | pg_trgm extension installed in public schema |
+| G-023 | P1 | Merchant onboarding | Store creation omits initial OWNER store_members row, locking the creator out of store membership administration and store-scoped workflows |
 
 The audit classifies the register as 1 P0, 7 P1, 12 P2 and 2 P3 findings. These IDs are stable references; if implementation discovers a wider root cause, record linked sub-findings rather than silently rewriting the original finding.
 
@@ -129,6 +130,7 @@ All evidence must identify branch/commit, command or test name, environment, dat
 - `public.normalize_arabic(text)` is owned by postgres, is not SECURITY DEFINER, and has no function-level `search_path` configuration. Supabase Security Advisor reports `function_search_path_mutable`.
 - `pg_trgm` is installed in `public`; Supabase Security Advisor reports `extension_in_public`.
 - G-001 is reproduced in source: the three merchant offer list/analytics controller routes accept caller-supplied `storeId` and query the service without forwarding or validating the authenticated caller. Their service methods query the supplied store directly.
+- **New finding G-023 (P1):** `MerchantService.createStore` inserted the store and emitted an outbox event but did not insert an initial `store_members` OWNER row. The normal membership-management endpoints require an existing active OWNER/ADMIN membership, so a newly created store could be locked out of self-service member administration until a platform administrator intervened. Migration 0054 only backfills stores that existed when it ran; the generic outbox dispatcher only logs events and has no membership consumer. A transactional store + owner-membership + outbox fix and focused tests are now prepared on the remediation branch.
 - Current API scripts include root `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm boundary-lint`; API scripts include `pnpm --filter @scs/api test:unit`, `test:integration`, `typecheck`, `build`. The CI workflow runs PR checks, but formatting remains advisory (`continue-on-error: true`) and boundary-lint must be checked for actual execution and failure behavior.
 
 These are live read-only observations, not a migration or configuration change. The exact API DB role, complete schema-to-route access matrix, and the Supabase-managed default ACL implications remain open verification items.
@@ -278,8 +280,16 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 **Acceptance:** source and tests demonstrate redaction across all identified paths; a bounded staging check finds no sensitive values in relevant logs. If evidence is unavailable, mark NOT VERIFIED.
 
+### 1.5 Close G-023 — create the initial store owner atomically
+- On successful store creation, insert the store, its creator's ACTIVE OWNER row in `store_members`, and the `merchant.store.created` outbox event in one database transaction.
+- Preserve the existing organization membership check and generated store identity.
+- Ensure outbox failure aborts the transaction so no partially created store or missing owner relationship remains.
+- Add regression tests proving the owner row is written for the same store and that the outbox event uses the same transaction.
+
+**Acceptance:** every newly created store has exactly one active OWNER membership for its creator; the owner can use store-scoped merchant routes and manage store members; the store, owner row and outbox event are atomic.
+
 ### Phase 1 exit gate — AUTHORIZED BUSINESS TESTING
-Only after the P0 is closed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
+Only after the P0 is closed, G-023 is fixed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
 
 ---
 
