@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-003 have latest-head changes awaiting further verification; G-011 is closed after CI #647.
+**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-011 are closed after CI #647; G-003 production-poller integration proof is awaiting latest CI.
 
 ---
 
@@ -23,8 +23,8 @@
 | P1 open | 7 (G-002–G-008) |
 | P2 open | 10 (G-009–G-010, G-012–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 9 (G-001, G-011, G-020, G-023–G-027, G-029) |
-| Findings implemented; latest-head CI pending | 1 (G-028) |
+| Findings closed under this plan | 10 (G-001, G-011, G-020, G-023–G-029) |
+| Findings implemented; latest-head CI pending | 0 |
 | Findings partially remediated | 2 (G-002–G-003) |
 | Final full test campaign | NOT STARTED |
 
@@ -151,7 +151,7 @@ Status definitions:
 | P1-16 | Enforce store membership on store and warehouse lifecycle routes | G-025 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 7/7 tests in CI #551; store update, warehouse create/list/update and verification submission check target store membership |
 | P1-17 | Enforce store ownership and variant/list consistency on pricing routes | G-026 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 9/9 tests in CI #551; price-list/tier reads and writes check owning store membership; variant must belong to the same store as its price list |
 | P1-18 | Enforce store membership throughout inventory read/write paths | G-027 | VERIFIED IN CI — CLOSED | Added fail-closed warehouse, variant and inventory-item membership helpers; wired every inventory HTTP route through service authorization; low-stock listing now limits to active memberships in activeOrg; inventory creation rejects variant/warehouse store mismatch; 14 focused tests passed in CI #554 and all workflow jobs passed |
-| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media, store grids, category reads and canonical lookup | G-028 | IMPLEMENTED — LATEST CHANGES CI PENDING | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; canonical category rows/counts require ACTIVE products and product-type counts require PUBLISHED types; canonical identifier and selector lookups now require ACTIVE platform-level products. 19 focused G-028 tests are committed; latest canonical lookup/category-count and search regression fixes await CI #633. |
+| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media, store grids, category reads and canonical lookup | G-028 | COMPLETE — CI #647 | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; canonical category rows/counts require ACTIVE products and product-type counts require PUBLISHED types; canonical identifier and selector lookups require ACTIVE platform-level products. All 19 focused tests and latest full API unit/coverage, integration and migration suites passed in CI #647. |
 | P1-20 | Enforce store membership before bulk catalog mutations | G-029 | CLOSED — CI #592 | Bulk delete/archive/draft requires active organization ownership and active store membership before invoking the service; all 3 focused controller tests passed in API unit/coverage CI #592 on code commit `335d8db`. |
 
 **Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; G-024–G-029 tenant/catalog boundaries verified; focused security tests pass. Database privilege/RLS hardening remains a pre-production gate and must not be applied until effective API/migration roles are understood.
