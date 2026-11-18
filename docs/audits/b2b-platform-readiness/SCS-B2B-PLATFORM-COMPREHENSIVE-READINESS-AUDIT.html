@@ -26,7 +26,7 @@
     <div class="group">Product workflows</div>
     <a href="#parity">UI / API / DB parity</a><a href="#workflows">Workflow audit</a><a href="#state">State machines</a>
     <div class="group">Assurance</div>
-    <a href="#database">Database integrity</a><a href="#security">Security</a><a href="#ux">UX & mobile</a><a href="#testing">Testing & CI</a><a href="#operations">Operations & docs</a>
+    <a href="#database">Database integrity</a><a href="#security">Security</a><a href="#ux">UX & mobile</a><a href="#testing">Testing & CI</a><a href="#operations">Operations & docs</a><a href="#runtime">Render runtime</a>
     <div class="group">Action plan</div>
     <a href="#gaps">Gap register</a><a href="#roadmap">Remediation roadmap</a><a href="#verdict">Final verdict</a><a href="#appendix">Appendix</a>
   </nav>
@@ -121,7 +121,7 @@
 <li>No migrations, seeds, schema changes, grants, RLS policies, environment variables, deployments or restarts were triggered.</li>
 <li>No browser-driven user journey or screenshot capture was performed in this audit session.</li>
 <li>GitHub Actions evidence is taken from runs <code>44202891564</code> (push) and <code>44270714561</code> (pull request) for commit <code>9f5bc397</code>.</li>
-<li>External SMTP/Resend, Twilio, FCM, WhatsApp, Aramex and payment-provider behavior remains NOT VERIFIED unless a source-only implementation is explicitly described.</li>
+<li>Resend acceptance is verified from logs, not final mailbox delivery. Twilio/WhatsApp are disabled for OTP; FCM, general notification delivery, Aramex transactions and payment-provider behavior remain NOT VERIFIED.</li>
 </ul>
 </section>
 
@@ -256,7 +256,7 @@
 <tr><td>16</td><td>Carrier shipment creation</td><td><span class="status s-broken">BROKEN SUBFLOW</span></td><td>Shipment operations → Outbox → Carrier worker</td><td>Generic dispatcher consumes all PENDING events and marks them DISPATCHED after log-only dispatch; carrier worker filters the same table for shipping.carrier.*.</td></tr>
 <tr><td>17</td><td>Merchant order processing</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Accept / reject / prepare / ready</td><td>Order FSM, optimistic transitions, inventory settlement.</td></tr>
 <tr><td>18</td><td>Payment confirmation</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer proof / Merchant cash / Admin verify</td><td>Manual flows exist; no automated payment gateway.</td></tr>
-<tr><td>19</td><td>Cancellation, refund and return</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer / Merchant / Admin / Worker</td><td>FSM and manual refund approval exist; actual money movement and worker activation unverified.</td></tr>
+<tr><td>19</td><td>Cancellation, refund and return</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer / Merchant / Admin / Worker</td><td>FSM and manual refund approval exist; actual money movement is unverified. Staging log confirms the P13 expiration worker is disabled.</td></tr>
 <tr><td>20</td><td>Return/dispute escalation</td><td><span class="status s-partial">PARTIAL</span></td><td>Return FSM / Disputes</td><td>Escalation state and authorization code exist; P13 worker is disabled by default unless configured, and staging flag is not inspected.</td></tr>
 <tr><td>21</td><td>Notifications across order lifecycle</td><td><span class="status s-partial">PARTIAL</span></td><td>Orders → Notifications / Realtime</td><td>In-app path exists; SMS, push and WhatsApp methods are stubs.</td></tr>
 <tr><td>22</td><td>Catalog import and export</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin → Import Center → Excel pipeline</td><td>Upload, validate, preview, execute, retry, report and export.</td></tr>
@@ -386,7 +386,7 @@
 <h2>14. Operational readiness and documentation</h2>
 <h3>Deployment and migrations</h3>
 <ul>
-<li>CI push run <code>44202891564</code> completed staging migration/seed, Render deployment, deployed SHA verification and readiness endpoint check successfully for the audited commit.</li>
+<li>CI push run <code>44202891564</code> completed staging migration/seed, Render deployment, deployed SHA verification and readiness endpoint check successfully for the audited commit. Direct Render inspection also confirmed the current deployment is live and readiness requests return HTTP 200.</li>
 <li>Repository has 69 SQL migration files; database application ledger has 69 applied rows. CI has a full-apply migration job on disposable PostgreSQL.</li>
 <li>Release workflow runs migrations and RBAC seed before deploying the API. The audit did not trigger a deployment.</li>
 <li>Branch metadata says <code>develop</code> is not protected and repository rulesets are empty. This is a release-governance weakness even though CI is green.</li>
@@ -398,14 +398,57 @@
 <li>ShippingCarrierWorker starts after 8 seconds and claims only <code>shipping.carrier.*</code> events from the same table using FOR UPDATE SKIP LOCKED. The generic dispatcher can therefore consume carrier events before the carrier worker processes them.</li>
 <li>ShippingCarrierWorker's label handler logs “not yet implemented” although the Aramex provider contains a label-generation implementation.</li>
 <li>AutoCompleteWorker's update query changes updated_at but leaves the order eligible under the same predicate; multi-instance duplicate processing is possible before the optimistic completion transition.</li>
-<li>ReturnExpirationWorker depends on P13_WORKER_ENABLED; the source default is false. Actual staging setting and expected worker count are NOT VERIFIED.</li>
+<li>ReturnExpirationWorker depends on P13_WORKER_ENABLED; the latest staging startup log (18 Nov 09:40:22 UTC) explicitly says the variable is not set and the worker is disabled. A historical critical alert on 13 Nov reported 0 live holders versus 1 expected; the log says no alert sink was configured.</li>
 </ul>
 <h3>Documentation accuracy</h3>
 <p>There are 517 documentation files, including architecture decisions, release closures, audit reports, admin guides, catalog import guides, deployment runbooks and mobile parity audits. Documentation is extensive but mixed-age. README's 16-module count is stale relative to the current 20 modules. The October 2 B2B audit describes a 50-migration baseline with payments/returns absent; the current code has 69 migrations and those modules. Treat dated audit reports as historical evidence only. The current report should become the new baseline and be updated alongside future implementation changes.</p>
 </section>
 
+
+<section class="section" id="runtime">
+<h2>15. Render staging runtime verification addendum</h2>
+<p><span class="status s-runtime">RUNTIME VERIFIED · READ ONLY</span> Inspection authorized by the user and performed on 18 November 2026. No environment variables were changed, no deploy/restart was triggered, and no database writes or test OTPs were generated.</p>
+<h3>Service and deployment state</h3>
+<table><thead><tr><th>Item</th><th>Observed value</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Render service</td><td><code>scs-api-staging</code> · Frankfurt · Free plan · 1 instance</td><td>Render service detail</td></tr>
+<tr><td>Source</td><td><code>develop</code> · <code>9f5bc397467dc92cdc8debd54797b6d730659c36</code></td><td>Current live deployment metadata</td></tr>
+<tr><td>Latest deployment</td><td><code>dep-dbun3to8v5cc739k68j0</code> · LIVE · started 09:37:59 UTC · finished 09:40:25 UTC</td><td>Render deployment detail and deploy_ended event; build and deploy succeeded</td></tr>
+<tr><td>Auto-deploy</td><td>Disabled (<code>autoDeploy=no</code>, trigger <code>off</code>)</td><td>Service configuration</td></tr>
+<tr><td>Health check</td><td><code>/v1/readyz</code> · HTTP 200 in subsequent health-check requests</td><td>Application request logs after deployment</td></tr>
+<tr><td>Maintenance mode</td><td>Disabled</td><td>Service configuration</td></tr>
+</tbody></table>
+<p><a href="https://dashboard.render.com/web/srv-daklr78ae00c73bstr50" target="_blank" rel="noopener">Open scs-api-staging in Render</a>.</p>
+<h3>OTP delivery and logging</h3>
+<ul>
+<li>Latest startup logs (18 Nov 09:40 UTC) report OTP delivery ready with email as the permitted channel; Resend is configured and permitted. Twilio SMS and WhatsApp are explicitly disabled by OTP_CHANNELS for this email-only release.</li>
+<li>Between 13 and 17 November, provider logs show 15 email OTP send attempts: 12 accepted by Resend and 3 SMTP attempts that timed out. The last observed Resend acceptance was 17 Nov 11:03:54 UTC. Provider acceptance is not proof of mailbox delivery.</li>
+<li>Provider logs mask recipient addresses and log message/correlation IDs, not OTP values. Current source comments explicitly prohibit logging OTP values/full email addresses; unit tests assert OTP/email redaction for success/failure paths.</li>
+<li>The pino-http configuration redacts authorization and cookie headers. No request-body logging serializer is configured in the inspected bootstrap. However, this does not establish that every possible exception or future logging path is safe; continue retaining redaction tests and review newly added logs.</li>
+<li>No plaintext OTP value was identified in the targeted provider log messages inspected. This is a bounded log sample, not a forensic guarantee for all historical log retention or all possible code paths.</li>
+</ul>
+<h3>Worker runtime state</h3>
+<ul>
+<li><code>OutboxDispatcher</code> registered at 09:40:22 UTC and reports a one-second polling interval.</li>
+<li><code>ShippingCarrierWorker</code> registered at 09:40:22 UTC and reports a five-second polling interval. <code>CarrierTrackingPoller</code> registered and reported zero shipments claimed at 09:50, 10:00, 10:10 and 10:20 UTC.</li>
+<li>No shipping.carrier event or successful carrier dispatch was found in the targeted post-deploy log sample. The runtime sample does not prove the outbox consumer conflict is harmless; source-level consumer ownership risk remains open.</li>
+<li><code>ReturnExpirationWorker</code> explicitly logged that <code>P13_WORKER_ENABLED</code> was not set and no protected P13 jobs would run. Latest occurrence: 18 Nov 09:40:22 UTC.</li>
+<li>On 13 Nov, <code>OpsAlertService</code> emitted a critical <code>p13.worker.count_anomaly</code> alert: zero live holders versus one expected. The same log stated that no alert sink was configured.</li>
+<li>The service currently has one instance, but that alone does not prove the intended lease/worker topology is correctly configured.</li>
+</ul>
+<h3>Application errors</h3>
+<p>The queried application error-level logs from 11–18 November returned four entries: three SMTP timeout errors (13 and 15 November) and the P13 worker-count anomaly alert (13 November). No other error-level application log entries were returned in that query. This is limited to the queried service, retention window and log filters.</p>
+<h3>Verification limitations</h3>
+<div class="callout"><strong>Environment variables:</strong> the available Render read tools exposed service configuration and runtime logs, but not a safe environment-variable inventory/value read. Therefore this report does not claim to have inspected secret values, Resend API-key validity, database URL, OTP_HMAC_SECRET, or the exact configured P13_WORKER_ENABLED entry. Effective email-only/Resend and unset P13 behavior is inferred from startup logs.</div>
+<ul>
+<li>No OTP was requested or sent during the audit.</li>
+<li>No Render service configuration or environment variable was changed.</li>
+<li>No authenticated business API call, buyer/merchant transaction or cross-tenant exploit test was performed.</li>
+<li>External Resend delivery dashboards, Twilio, WhatsApp, FCM, Aramex and payment gateway dashboards were not accessed.</li>
+</ul>
+</section>
+
 <section class="section" id="gaps">
-<h2>15. Comprehensive gap register</h2>
+<h2>16. Comprehensive gap register</h2>
 <p>Filter the register by domain, priority, status or affected application. Select a finding to expand its evidence and acceptance criteria.</p>
 <div class="filters">
 <label>Domain<select id="fDomain"><option value="">All domains</option><option>Security</option><option>Orders & checkout</option><option>Catalog & offers</option><option>Shipping</option><option>Notifications</option><option>Payments</option><option>Database</option><option>Mobile</option><option>CI/CD</option><option>Repository hygiene</option><option>Documentation</option><option>Procurement</option></select></label>
@@ -441,7 +484,7 @@
 </section>
 
 <section class="section" id="roadmap">
-<h2>16. Dependency-aware remediation roadmap</h2>
+<h2>17. Dependency-aware remediation roadmap</h2>
 <div class="roadmap">
 <div class="phase"><h3>Phase A — Critical security and data integrity</h3><span class="status p0">P0 / P1 · first</span><ul><li>Fix tenant authorization on merchant offer list/analytics/trend; audit all storeId/orgId read routes.</li><li>Review database grants, RLS architecture and API DB connection identity; remove broad unnecessary privileges.</li><li>Correct offer-to-cart attribution and enforce MOQ/order increments server-side.</li><li>Fix mixed-currency checkout presentation and mobile VAT/payment/shipping disclosures.</li></ul><p><strong>Exit:</strong> cross-tenant negative tests pass at HTTP layer; financial totals match per supplier; invalid quantities are rejected.</p></div>
 <div class="phase"><h3>Phase B — Core marketplace continuity</h3><span class="status p1">P1</span><ul><li>Partition outbox consumers by event type and ensure carrier events cannot be marked dispatched before provider success.</li><li>Implement carrier label worker path and verify Aramex create/track/retry/label workflows.</li><li>Make worker claims durable across API replicas; add multi-instance tests.</li><li>Ensure notifications report truthful delivery states.</li></ul><p><strong>Exit:</strong> carrier and order event tests prove no lost/duplicate events; notification provider tests use real provider sandbox or explicit NOT CONFIGURED state.</p></div>
@@ -453,7 +496,7 @@
 </section>
 
 <section class="section" id="verdict">
-<h2>17. Final readiness verdict</h2>
+<h2>18. Final readiness verdict</h2>
 <div class="callout danger"><strong>NOT READY.</strong> The platform has a substantial implementation base, and the latest CI plus staging deployment checks are green. Nevertheless, the current source contains a P0 cross-tenant information-disclosure path. Financial and fulfillment workflows also contain material UI/API/event-consumer gaps. Green CI is not a substitute for secure tenant isolation or complete business journeys.</div>
 <h3>Release gates</h3>
 <table><thead><tr><th>Gate</th><th>Result</th><th>Reason</th></tr></thead><tbody>
@@ -472,7 +515,7 @@
 </section>
 
 <section class="section" id="appendix">
-<h2>18. Appendix — evidence, commands and audit limitations</h2>
+<h2>19. Appendix — evidence, commands and audit limitations</h2>
 <h3>Repository and CI evidence</h3>
 <ul>
 <li>Repository: <a href="https://github.com/nabeel2323/scs-platform" target="_blank" rel="noopener">nabeel2323/scs-platform</a>.</li>
@@ -511,7 +554,7 @@
 <tr><td>Database schema / grants / RLS / migrations</td><td><span class="status s-runtime">READ-ONLY VERIFIED</span></td><td>API connection role and table-by-table intended exposure.</td></tr>
 <tr><td>CI / deployment pipeline</td><td><span class="status s-test">CI VERIFIED</span></td><td>Branch protection and backup/restore evidence.</td></tr>
 <tr><td>Buyer/merchant browser journeys</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Controlled browser UAT and screenshots.</td></tr>
-<tr><td>Render runtime/logs/config</td><td><span class="status s-not">PENDING AUTHORIZATION</span></td><td>Read-only service, deployment, env metadata and OTP/worker logs.</td></tr>
+<tr><td>Render runtime/logs/config</td><td><span class="status s-runtime">PARTIALLY VERIFIED</span></td><td>Service, deployment, health, events and logs inspected. Environment-variable inventory/values unavailable through the read-only connector; external provider dashboards not inspected.</td></tr>
 <tr><td>External payment/carrier/notification providers</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Sandbox credentials and controlled provider tests.</td></tr>
 <tr><td>Backup/restore and production recovery</td><td><span class="status s-not">NOT VERIFIED</span></td><td>Documented backup evidence and restore drill.</td></tr>
 </tbody></table>
