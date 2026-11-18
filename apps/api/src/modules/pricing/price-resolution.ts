@@ -67,6 +67,10 @@ export interface SelectedOfferPriceRequest {
   quantity: number;
 }
 
+export function selectedOfferPriceKey(offerId: string, variantId: string, quantity: number): string {
+  return `${offerId}:${variantId}:${quantity}`;
+}
+
 export interface SelectedOfferPrice {
   offerId: string;
   storeId: string;
@@ -149,7 +153,7 @@ export async function resolveSelectedOfferPrices(
         )
         .sort((a, b) => b.minQty - a.minQty)[0];
       if (!tier) continue;
-      result.set(offer.id, {
+      result.set(selectedOfferPriceKey(offer.id, request.variantId, request.quantity), {
         offerId: offer.id,
         storeId: offer.storeId,
         productId: offer.productId,
