@@ -34,6 +34,7 @@ Record the authoritative outbox consumer for each event family found in the curr
 
 ## Evidence
 
+- `apps/api/src/common/outbox/outbox.module.ts`: confirms `OutboxDispatcher` is the only provider exported by the global outbox module.
 - `apps/api/src/common/outbox/outbox-dispatcher.service.ts`: generic query exclusion and log-only `dispatch()`.
 - `apps/api/src/modules/shipping/shipping-carrier.worker.ts`: carrier-only claim, lease recovery, event switch and retry handling.
 - `apps/api/src/modules/shipping/shipping.module.ts`: worker provider registration.
