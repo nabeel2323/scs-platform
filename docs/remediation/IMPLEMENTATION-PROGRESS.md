@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** INITIALIZED — no remediation phase has been started or closed under this tracker.
+**Tracker status:** ACTIVE — Phases 0 and 1 are in progress; G-001, G-020, G-023–G-027 are verified/closed; G-028 and G-029 are implemented and awaiting latest-head CI.
 
 ---
 
@@ -16,22 +16,22 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 0 |
+| Phases in progress | 2 |
 | Original audit findings | 22 |
-| Additional findings discovered during remediation | 1 |
-| P0 open | 1 |
-| P1 open | 8 |
-| P2 open | 12 |
+| Additional findings discovered during remediation | 7 (G-023–G-029) |
+| P0 open | 0 |
+| P1 open | 7 (G-002–G-008) |
+| P2 open | 11 (G-009–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 0 |
-| Findings partially remediated under this plan | 0 |
+| Findings closed under this plan | 7 (G-001, G-020, G-023–G-027) |
+| Findings implemented; latest-head CI pending | 2 (G-028–G-029) |
 | Final full test campaign | NOT STARTED |
 
-**Important:** These counts represent the starting audit register, not a claim that every finding has been revalidated on the current HEAD. Phase 0 must reconcile the current branch and update counts if later commits already fixed or changed a finding.
+**Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
 
 ### Overall status
 
-<badge>PLANNED</badge> Implementation has not started under this remediation tracker. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
+<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020 and G-023–G-027 have verification evidence; G-028/G-029 still require latest-head CI. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
 
 ---
 
@@ -109,7 +109,7 @@ Status definitions:
 | P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | IN PROGRESS | 114 public tables, all owned by postgres, RLS off; anon/auth have no CRUD but have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats these; custom _migration_log has 69 rows |
 | P0-10 | Trace OTP logging and exception paths; preserve redaction tests | IN PROGRESS | Existing OTP redaction suites cover OTP/email/phone values and provider failures; hardened `OtpDeliveryService` catch path to log only sanitized error class, with regression test for SMTP-like credentials and recipient data; latest-head CI pending |
 | P0-11 | Document worker registration/flags/leases and protected-job safety | PARTIAL | Render evidence confirms OutboxDispatcher/ShippingCarrierWorker register; P13 worker disabled and alert sink absent in observed runtime; source topology review pending |
-| P0-12 | Establish backup/restore evidence availability and staging runbook | TODO | |
+| P0-12 | Backup/restore exercise | DEFERRED — USER DIRECTION | Not a prerequisite for this development remediation cycle; revisit only if required by the pre-production operational-readiness decision |
 
 **Exit gate:** test matrix and runbooks accepted; baseline discrepancies resolved or explicitly blocked; no unsafe staging/production writes or worker activation performed.
 
@@ -135,9 +135,9 @@ Status definitions:
 | P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Controller routes pass caller-supplied storeId directly to offer service without caller scope; source at audit baseline |
 | P1-02 | Enforce authenticated store/org membership for offer list | G-001 | VERIFIED IN CI | `assertStoreInOrg` + `assertStoreMember`; API unit/coverage suite passed in CI run #536 |
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | VERIFIED IN CI | Shared access assertion protects analytics and trend routes; API unit/coverage suite passed in CI run #536 |
-| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + G-024–G-029 | IN PROGRESS | G-024–G-026 fixes committed with regression tests; G-027 closed after CI #554; G-028/G-029 implemented with 11 focused tests total and awaiting latest-head CI |
+| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + G-024–G-029 | IN PROGRESS | G-024–G-026 fixes committed with regression tests; G-027 closed after CI #554; G-028/G-029 implemented with 11 focused tests total and awaiting latest-head CI. G-028 review also tightened buyer-facing canonical category reads to ACTIVE products and PUBLISHED product types; latest-head CI remains pending |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | VERIFIED IN CI | Controller regression tests cover authorized member, foreign org, missing membership and admin bypass; API unit/coverage suite passed in CI run #536 |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — TARGET DB CONFIRMED; ROLE UNVERIFIED | User confirmed the Render API and staging migration workflow target the same database. Source confirms the API uses a direct node-postgres/Drizzle Pool from Render DATABASE_URL; the reusable staging release workflow separately injects GitHub environment secret STAGING_DATABASE_URL into the migration runner. The API does not use a Supabase JS SDK directly (web/admin package dependencies and Flutter pubspec show API clients instead). Render staging service is scs-api-staging, branch develop, autoDeploy off, last live commit 9f5bc397; Render connector does not expose env-var names/values, and no Render Postgres resource is attached. Supabase pg_stat_activity shows only mgmt-api under postgres, no SCS API connection. MCP SQL current_user=postgres is the MCP session, not evidence of the API role. Same database target is confirmed, but the credentials may still map to different PostgreSQL roles. Need only the username component from Render DATABASE_URL to identify the API runtime role; inspect the migration role through a safe read-only CI/runtime identity check if available |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — TARGET DB CONFIRMED; ROLE UNVERIFIED | User confirmed one PostgreSQL database is shared across all branches and there is no separate production infrastructure deployed. The Render API and staging migration workflow target that same database. Source confirms the API uses a direct node-postgres/Drizzle Pool from Render DATABASE_URL; the reusable staging release workflow separately injects GitHub environment secret STAGING_DATABASE_URL into the migration runner. The API does not use a Supabase JS SDK directly (web/admin package dependencies and Flutter pubspec show API clients instead). Render staging service is scs-api-staging, branch develop, autoDeploy off, last live commit 9f5bc397; Render connector does not expose env-var names/values, and no Render Postgres resource is attached. Supabase pg_stat_activity shows only mgmt-api under postgres, no SCS API connection. MCP SQL current_user=postgres is the MCP session, not evidence of the API role. The database target is shared, but API and migration credentials could still authenticate as different PostgreSQL roles. This is not blocking ongoing application remediation; verify the effective roles before applying migration 0070 or enabling RLS, and revisit before production infrastructure is introduced. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Read-only live query confirms 114 public tables, all owned by postgres; RLS enabled on 0 and forced on 0. Table-by-table access classification remains pending |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | Read-only live queries confirm anon/authenticated have no SELECT/INSERT/UPDATE/DELETE on the 114 postgres-owned app tables (confirmed via has_table_privilege on users, organizations, orders, merchant_offers, products and inventory_items), but retain TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114. Public sequence privileges: anon/authenticated/authenticator/service_role have 0; postgres has USAGE/SELECT/UPDATE on 1. 32 public functions are executable by PUBLIC (31 also by anon/authenticated); inspected functions are not SECURITY DEFINER, mostly pg_trgm; normalize_arabic remains PUBLIC-executable with default search_path because 0070 is not applied. postgres default ACL repeats the four table privileges; separate supabase_admin defaults include broader grants and require internal-object classification. Role snapshot: postgres LOGIN+BYPASSRLS; service_role NOLOGIN+BYPASSRLS; authenticator LOGIN without BYPASSRLS. Schema/function/default-ACL matrix remains in progress |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | Must finish API runtime role and public Data API access classification before migration design |
@@ -150,10 +150,10 @@ Status definitions:
 | P1-16 | Enforce store membership on store and warehouse lifecycle routes | G-025 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 7/7 tests in CI #551; store update, warehouse create/list/update and verification submission check target store membership |
 | P1-17 | Enforce store ownership and variant/list consistency on pricing routes | G-026 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 9/9 tests in CI #551; price-list/tier reads and writes check owning store membership; variant must belong to the same store as its price list |
 | P1-18 | Enforce store membership throughout inventory read/write paths | G-027 | VERIFIED IN CI — CLOSED | Added fail-closed warehouse, variant and inventory-item membership helpers; wired every inventory HTTP route through service authorization; low-stock listing now limits to active memberships in activeOrg; inventory creation rejects variant/warehouse store mismatch; 14 focused tests passed in CI #554 and all workflow jobs passed |
-| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media and store product grids | G-028 | IMPLEMENTED — CI PENDING | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; 8 focused helper tests added |
+| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media, store grids and canonical category reads | G-028 | IMPLEMENTED — CI PENDING | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; buyer-facing canonical category product lists/counts now include ACTIVE products and category product-type counts include PUBLISHED types; 8 focused helper tests added |
 | P1-20 | Enforce store membership before bulk catalog mutations | G-029 | IMPLEMENTED — CI PENDING | Bulk delete/archive/draft requires active organization ownership and active store membership before invoking the service; 3 focused controller tests added |
 
-**Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
+**Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; G-024–G-029 tenant/catalog boundaries verified; focused security tests pass. Database privilege/RLS hardening remains a pre-production gate and must not be applied until effective API/migration roles are understood.
 
 **Phase evidence:**  
 - Implementation PR/commit: TBD  
