@@ -129,7 +129,50 @@ describe('CartService.addItem selected offer pricing', () => {
       lineTotalMinor: 4750,
     });
     expect(db.select).toHaveBeenCalledTimes(1);
+  })  it('does not merge an owner-priced line into an existing seller-offer line', async () => {
+    let cartItemWhere: unknown;
+    const builder: Record<string, any> = {};
+    builder['from'] = () => builder;
+    builder['innerJoin'] = () => builder;
+    builder['where'] = () => builder;
+    builder['orderBy'] = () => builder;
+    builder['then'] = (resolve: (rows: unknown[]) => unknown) => Promise.resolve([
+      { variantId: 'variant-1', minQty: 1, unitPriceMinor: 1000, priceListId: 'owner-list', priceListName: 'Owner', currency: 'SAR' },
+    ]).then(resolve);
+
+    const db = {
+      query: {
+        productVariants: {
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })),
+          findMany: vi.fn(async () => [{ id: 'variant-1', productId: 'product-1' }]),
+        },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'owner-store' })) },
+        merchantOffers: { findMany: vi.fn(async () => []) },
+        cartItems: {
+          findFirst: vi.fn(async (query: { where: unknown }) => {
+            cartItemWhere = query.where;
+            return null;
+          }),
+        },
+      },
+      select: vi.fn(() => builder),
+      insert: vi.fn(() => ({ values: vi.fn(async () => []) })),
+      update: vi.fn(),
+    };
+
+    const svc = new CartService(db as any, { resolveApplicable: async () => null } as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1', userId: 'buyer-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    await svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1 });
+
+    const predicate = inspect(cartItemWhere, { depth: 12, breakLength: Infinity, compact: true });
+    expect(predicate).toContain('offer_id');
+    expect(predicate).toMatch(/is null/i);
   });
+
+;
 });
 
 describe('CartService.listCartItems', () => {
