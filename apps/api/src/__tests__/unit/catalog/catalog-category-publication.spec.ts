@@ -30,4 +30,35 @@ describe('Catalog canonical category publication filters', () => {
     const statusFilter = new PgDialect().sqlToQuery(conditions[2] as any);
     expect(statusFilter.params).toContain('ACTIVE');
   });
+
+
+  it('counts only ACTIVE canonical products in category list responses', async () => {
+    let capturedWhere: unknown;
+    const chain: any = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn((where: unknown) => {
+        capturedWhere = where;
+        return chain;
+      }),
+      groupBy: vi.fn().mockResolvedValue([]),
+    };
+    const service = Object.create(CatalogService.prototype) as CatalogService;
+    (service as any).db = {
+      db: {
+        query: {
+          categories: {
+            findMany: vi.fn().mockResolvedValue([{ id: 'category-a' }]),
+          },
+        },
+        select: vi.fn(() => chain),
+      },
+    };
+
+    await service.listCategories();
+
+    const query = new PgDialect().sqlToQuery(capturedWhere as any);
+    expect(query.sql).toContain('"store_id" is null');
+    expect(query.sql).toContain('"deleted_at" is null');
+    expect(query.params).toContain('ACTIVE');
+  });
 });
