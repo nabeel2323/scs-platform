@@ -291,7 +291,7 @@ describe('enrichProductCards', () => {
       lowestOfferCurrency: 'USD',
       lowestOfferId: 'offer-canonical',
       lowestOfferStoreId: 'store-2',
-      lowestOfferVariantId: null,
+      lowestOfferVariantId: 'v-canonical',
       lowestOfferMoq: 10,
       lowestOfferStore: { name: 'Eastern Foods' },
     });
