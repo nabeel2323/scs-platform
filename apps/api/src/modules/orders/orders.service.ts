@@ -24,7 +24,7 @@ import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey } from '../pricing/price-resolution';
 import { inventoryItems, stockMovements } from '../inventory/inventory.schema';
 import { outboxEvents } from '../audit/audit.schema';
 import { warehouses, stores } from '../merchant/merchant.schema';
@@ -1644,7 +1644,7 @@ export class OrdersService {
     // Resolve legacy owner-priced items by their store's normal price book.
     for (const item of items) {
       const tier = item['offerId']
-        ? selectedOfferPrices.get(item['offerId'] as string)
+        ? selectedOfferPrices.get(selectedOfferPriceKey(item['offerId'] as string, item['variantId'], item['quantity']))
         : (await resolveOfferPrices(
             this.db.db, storeId, [item['variantId']], item['quantity'], { ladder: false },
           )).get(item['variantId']);
