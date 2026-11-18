@@ -18,8 +18,9 @@
 | Phases completed | 0 |
 | Phases in progress | 0 |
 | Original audit findings | 22 |
+| Additional findings discovered during remediation | 1 |
 | P0 open | 1 |
-| P1 open | 7 |
+| P1 open | 8 |
 | P2 open | 12 |
 | P3 open | 2 |
 | Findings closed under this plan | 0 |
@@ -39,7 +40,7 @@
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | IN PROGRESS | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 45% |
-| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 15% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary, initial store ownership and DB role/grant/RLS design verified; limited staging testing may be authorized | 25% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -76,6 +77,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | OPEN | Live advisor confirms mutable search_path; function is not SECURITY DEFINER and currently has no function config |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
+| G-023 | P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes | 1 | IN PROGRESS | Confirmed in MerchantService.createStore and StoreMembershipController; atomic owner-row + outbox fix committed to remediation branch, tests pending |
 
 Status definitions:
 - **OPEN:** finding not yet implemented/closed.
@@ -143,8 +145,9 @@ Status definitions:
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
 | P1-12 | Harden normalize_arabic search_path safely | G-020 | SOURCE VERIFIED | Function is invoker (not SECURITY DEFINER), owner postgres, no proconfig; advisor reports mutable search_path |
 | P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
+| P1-14 | Create initial ACTIVE OWNER membership atomically with new store and outbox event | G-023 | IN PROGRESS | MerchantService now inserts store + storeMembers OWNER + outbox event in one transaction; focused regression tests authored, execution pending |
 
-**Exit gate:** P0 tenant isolation PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
+**Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
 
 **Phase evidence:**  
 - Implementation PR/commit: TBD  
@@ -282,7 +285,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | P0-01 / P0-02 / P1-01–05 | develop baseline 3f7268dbc…; branch remediation/phase-0-1-tenant-security | Reconciled source baseline; confirmed G-001; added org + active store-member checks to merchant offer list/analytics/trend routes; authored controller regression suite | Tests not yet executed; no deployment or DB changes | IN PROGRESS | Run focused API tests and CI; continue G-002 access model review |
+| 2026-11-18 | P0-01 / P0-02 / P1-01–05 / P1-14 | develop baseline 3f7268dbc…; branch remediation/phase-0-1-tenant-security | Reconciled source baseline; confirmed G-001 and G-023; secured offer list/analytics/trend reads; new store creation now writes initial OWNER membership and outbox event atomically; added focused regression suites; drafted migration 0070 and CI assertions for G-002/G-020 | CI run #528 pending; focused test execution not yet confirmed; no live DB migration or Render deploy | IN PROGRESS | Verify CI, then complete G-002 runtime-role/RLS design and continue P1 fixes |
 
 ### Required task log entry format
 
@@ -337,4 +340,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
-**Current state:** first P0 tenant-isolation code change and regression tests are committed to the remediation branch; test execution and independent verification are pending. No database or Render configuration has been changed.
+**Current state:** P0 tenant-isolation and initial store-owner membership fixes, regression tests, and a database-hardening migration are committed to the remediation branch. CI verification is pending. No live database migration or Render configuration/deployment has been changed.
