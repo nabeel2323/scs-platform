@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, or, isNull, lt, lte, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, lt, lte, like, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { CarrierCredentialsService } from './carrier-credentials.service';
@@ -141,6 +141,9 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           and(
             eq(outboxEvents.status, 'PROCESSING'),
             lt(outboxEvents.lockedAt, cutoff),
+            // Lease recovery is part of this worker's ownership boundary too.
+            // Never reset another worker's PROCESSING events.
+            like(outboxEvents.eventType, ShippingCarrierWorker.CARRIER_EVENT_PREFIX + '%'),
           ),
         )
         .returning({ id: outboxEvents.id });
