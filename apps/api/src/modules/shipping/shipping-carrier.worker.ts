@@ -185,7 +185,22 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           LIMIT ${ShippingCarrierWorker.CLAIM_BATCH_SIZE}
           FOR UPDATE SKIP LOCKED
         )
-        RETURNING *
+        RETURNING
+          id,
+          event_type AS "eventType",
+          aggregate_id AS "aggregateId",
+          payload,
+          metadata,
+          status,
+          attempts,
+          last_error AS "lastError",
+          dispatched_at AS "dispatchedAt",
+          created_at AS "createdAt",
+          next_attempt_at AS "nextAttemptAt",
+          locked_at AS "lockedAt",
+          locked_by AS "lockedBy",
+          organization_id AS "organizationId",
+          store_id AS "storeId"
       `);
 
       return result.rows ?? [];
