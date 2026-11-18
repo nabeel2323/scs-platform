@@ -16,7 +16,7 @@
 
 > **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
 >
-> **Execution snapshot — 18 November 2026:** G-027 is closed after CI #554 passed all jobs. G-028 (publication-aware product reads) and G-029 (bulk catalog authorization) are implemented with 11 focused regression tests total; current PR head `44746ce` has no associated Actions run/status yet. G-002 runtime-role verification is partially complete: live read-only inspection confirms 114 public tables, no RLS, residual anon/authenticated grants, and no active SCS API connection identifiable in `pg_stat_activity`. User confirms the API and staging migration workflow target the same database, but the credentials may still use different PostgreSQL roles. Do not deploy migration 0070 or enable RLS until the API runtime role and complete access model are verified.
+> **Execution snapshot — 18 November 2026:** G-027 is closed after CI #554 passed all jobs. G-028 and G-029 have implementation and 11 focused regression tests; latest source changes also constrain buyer-facing canonical category listings/counts to ACTIVE products and PUBLISHED product types (code commit `9709d67`). Latest-head GitHub Actions verification is still pending; Vercel status checks currently fail at the external `build-rate-limit` upgrade gate, not due to a reported source compilation failure. The user confirms one PostgreSQL database is shared across all branches and no separate production infrastructure is deployed. API and migration credentials may still resolve to different PostgreSQL roles; this is not blocking application remediation, but must be verified before migration 0070/RLS hardening or production infrastructure is introduced.
 
 ---
 
@@ -102,7 +102,7 @@ The Render staging addendum observed:
 - OutboxDispatcher and ShippingCarrierWorker both register in the API process. The source-level event ownership conflict remains open.
 - ReturnExpirationWorker explicitly did not start protected P13 jobs because `P13_WORKER_ENABLED` was not set, as inferred from startup logs. The exact environment value was not inspected.
 - A prior critical P13 worker-count anomaly was logged while no alert sink was configured.
-- No authenticated buyer/merchant transaction, cross-tenant exploit test, external provider dashboard verification, or backup/restore drill was performed.
+- No authenticated buyer/merchant transaction, cross-tenant exploit test, or external provider dashboard verification was performed. A backup/restore drill is intentionally outside the current development-remediation scope per user direction.
 
 These observations make worker ownership, deployment safety and a controlled staging test harness prerequisites. Do not infer that the service is safe for business writes merely because readiness is green.
 
@@ -221,7 +221,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 **0.3 Establish staging/deployment safety**
 - Document the current Render service, branch, deploy SHA, health endpoint, auto-deploy-disabled behavior and manual deploy approval requirement.
 - Verify startup migration and seed behavior from source and logs. Do not trigger a deployment during this phase without explicit authorization.
-- Define pre-deploy checks: pending migration list, migration lock/compatibility review, backup/restore availability, deploy SHA, readiness and rollback/forward-fix procedure.
+- Define pre-deploy checks: pending migration list, migration lock/compatibility review, deploy SHA, readiness and rollback/forward-fix procedure. Backup/restore exercises are deferred and are not a prerequisite for this development-remediation cycle.
 - Define how workers are disabled/enabled safely per environment. Do not turn on P13 or other financial workers just to make a test pass.
 - Add a runbook for test data creation/cleanup and a hard separation between staging and production.
 
@@ -233,15 +233,16 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 ### Acceptance criteria
 - Current baseline commit and all known findings are reconciled into the tracker.
 - Test matrix lists executable commands, prerequisites and owners for API, web, admin, mobile and DB.
-- Safe staging/deploy/migration/backup procedure is documented.
+- Safe staging/deploy/migration procedure is documented.
 - Test identities and fixtures are isolated and repeatable.
+- Backup/restore drill remains deferred until a separate pre-production decision.
 - Database and OTP evidence discrepancies are explicitly resolved or recorded as blockers.
 - No production data writes, staging business transactions, worker activation or deploy is performed as part of read-only discovery.
 
 ### Deliverables
 - Baseline reconciliation note.
 - Test matrix and final campaign manifest.
-- Staging deployment/migration/backup runbook.
+- Staging deployment/migration runbook (excluding backup/restore exercise, deferred).
 - Security and database access inventory.
 
 ---
@@ -306,10 +307,10 @@ The source audit linked to G-001 identified additional object-level authorizatio
 - **G-025 — Store/warehouse management:** check both active-organization ownership and active store membership before store updates, warehouse creation/listing/updates, and store verification submission.
 - **G-026 — Pricing:** scope price-list and tier reads/writes to the owning store; verify that a tier's variant belongs to the same store as its price list.
 - **G-027 — Inventory:** extend store-membership checks through warehouse, variant and inventory-item access paths; restrict unqualified low-stock reads to stores where the caller is an active member.
-- **G-028 — Product read boundary:** preserve buyer access to ACTIVE products while requiring owning-store membership for non-ACTIVE product details, variants, media and variant matrices. Do not rely on clients to send a status filter.
+- **G-028 — Product read boundary:** preserve buyer access to ACTIVE products while requiring owning-store membership for non-ACTIVE product details, variants, media and variant matrices. Store grids and canonical category listings/counts must enforce publication status server-side; do not rely on client-supplied filters.
 - **G-029 — Bulk catalog mutation:** require active store membership before bulk delete/archive/draft operations.
 
-**Implementation status:** controller fixes and regression tests for G-024, G-025 and G-026 are committed on the remediation branch; latest-head CI is still running. G-027 through G-029 remain open. These findings do not authorize staging writes or deployment.
+**Implementation status:** G-024–G-026 passed focused unit/coverage CI #551; G-027 passed all jobs in CI #554. G-028/G-029 are implemented with 11 focused regression tests and latest-head CI pending. G-028's current review also filters canonical category products/counts to ACTIVE products and category product-type counts to PUBLISHED types. No staging deploy or database migration has been performed.
 
 ### Phase 1 exit gate — AUTHORIZED BUSINESS TESTING
 Only after the P0 is closed, G-023 is fixed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
@@ -493,13 +494,13 @@ The agreed buyer and merchant operations are supported across API/web/mobile wit
 - If deferred, mark explicitly DEFERRED with rationale and roadmap owner.
 
 ### 5.9 Backup/restore and deployment controls
-- Prove a recoverable backup exists and complete a restore drill in an isolated environment.
+- Backup/restore proof and restore drills are deferred by user direction and are not a current Phase 5 exit condition.
 - Document migration ordering, seed behavior, startup behavior, rollback/forward-fix, worker activation and health checks.
 - Verify deployment SHA and readiness after an authorized staging deployment.
 - Confirm alerting, log retention, secret rotation ownership and incident runbooks.
 
 ### Phase 5 exit gate
-Quality gates are meaningful and blocking; repository hygiene decisions are evidenced; documentation is current; backup/restore and deploy safety are demonstrated; P2/P3 deferrals have explicit owners and rationale.
+Quality gates are meaningful and blocking; repository hygiene decisions are evidenced; documentation is current; deploy/migration behavior is documented; P2/P3 deferrals have explicit owners and rationale. Backup/restore drills remain deferred.
 
 ---
 
@@ -521,7 +522,7 @@ This is the **one comprehensive platform test campaign**. It is not run repeated
 8. **External integrations:** OTP email, approved notification providers, carrier sandbox, payment sandbox only if in scope. Record provider acceptance separately from final delivery/settlement.
 9. **Mobile:** supported flavors, auth persistence, cart/checkout parity, offline/retry behavior, order status, promo removal, accessibility and RTL.
 10. **Performance/reliability:** k6 scenarios for readiness/auth/search/cart/checkout/order reads; error rate, p95 latency, saturation and queue lag thresholds defined before run.
-11. **Recovery:** backup restore, migration recovery, secret rotation procedure, rollback/forward-fix and alert delivery.
+11. **Recovery:** migration recovery, secret rotation procedure, rollback/forward-fix and alert delivery. Backup restore testing is deferred and not part of this campaign.
 
 ### 6.2 Test data and safety
 - Use isolated synthetic accounts, organizations, stores, products and payment references.
@@ -553,7 +554,7 @@ This is the **one comprehensive platform test campaign**. It is not run repeated
 - Full test campaign report with command-by-command results and commit SHA.
 - Buyer, merchant and admin UAT result summary.
 - Tenant-isolation and concurrency evidence.
-- Migration, backup/restore and deployment evidence.
+- Migration and deployment evidence; backup/restore evidence is deferred.
 - Provider sandbox evidence and explicit non-configured channels.
 - Updated gap register: CLOSED / PARTIAL / DEFERRED / NOT APPLICABLE, each with evidence.
 - Final release recommendation: GO / CONDITIONAL GO / NO-GO.
