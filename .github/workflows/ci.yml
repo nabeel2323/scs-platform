@@ -355,6 +355,61 @@ jobs:
         run: pnpm --filter @scs/api run db:migrate:ci
   
       # 3) Verify pg_partman is configured after migration
+      - name: Verify public schema access hardening
+        run: |
+          docker exec -i ci-migration-pg psql -U scs -d scs_test -v ON_ERROR_STOP=1 <<'SQL'
+          DO $verify$
+          BEGIN
+            IF EXISTS (
+              SELECT 1
+              FROM pg_tables t
+              WHERE t.schemaname = 'public'
+                AND (
+                  has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'SELECT')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'INSERT')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'UPDATE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'DELETE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'TRUNCATE')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'REFERENCES')
+                  OR has_table_privilege('anon', format('%I.%I', t.schemaname, t.tablename), 'TRIGGER')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'INSERT')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'UPDATE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'DELETE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'TRUNCATE')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'REFERENCES')
+                  OR has_table_privilege('authenticated', format('%I.%I', t.schemaname, t.tablename), 'TRIGGER')
+                )
+            ) THEN
+              RAISE EXCEPTION 'anon/authenticated retain privileges on public tables';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1
+              FROM pg_default_acl d
+              CROSS JOIN LATERAL aclexplode(d.defaclacl) acl
+              WHERE d.defaclrole = (SELECT oid FROM pg_roles WHERE rolname = current_user)
+                AND d.defaclnamespace = 'public'::regnamespace
+                AND d.defaclobjtype IN ('r', 'S')
+                AND acl.grantee IN (
+                  SELECT oid FROM pg_roles WHERE rolname IN ('anon', 'authenticated')
+                )
+            ) THEN
+              RAISE EXCEPTION 'anon/authenticated retain default privileges on public objects';
+            END IF;
+
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_proc p
+              WHERE p.oid = 'public.normalize_arabic(text)'::regprocedure
+                AND COALESCE(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog']
+            ) THEN
+              RAISE EXCEPTION 'normalize_arabic search_path is not pinned to pg_catalog';
+            END IF;
+          END
+          $verify$;
+          SQL
+
       - name: Verify pg_partman partitioning
         run: |
           docker exec ci-migration-pg psql -U scs -d scs_test -c \
