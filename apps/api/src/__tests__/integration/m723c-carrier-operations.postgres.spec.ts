@@ -136,6 +136,10 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
   // ── C-00: Production poller ownership boundary ─────────────────────────
 
   it('C-00: invokes both production pollers and keeps carrier events exclusively with ShippingCarrierWorker', async () => {
+    // Isolate this ownership assertion from any pending rows created by other
+    // fixtures in this per-suite database.
+    await pool.query(`DELETE FROM outbox_events WHERE status IN ('PENDING', 'PROCESSING')`);
+
     const carrierEventId = randomUUID();
     const genericEventId = randomUUID();
 
