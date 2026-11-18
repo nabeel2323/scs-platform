@@ -181,13 +181,14 @@ describe('resolveSelectedOfferPrices', () => {
     const db = selectedOfferDb([
       { priceListId: 'pl-selected', priceListStoreId: 'store-a', priceListName: 'Offer A', currency: 'SAR', variantId: 'variant-a', minQty: 1, maxQty: 5, unitPriceMinor: 1400 },
       { priceListId: 'pl-selected', priceListStoreId: 'store-a', priceListName: 'Offer A', currency: 'SAR', variantId: 'variant-a', minQty: 5, maxQty: null, unitPriceMinor: 1100 },
-      // A cheaper competing tier from another seller/list must not be selected.
-      { priceListId: 'pl-other', priceListStoreId: 'store-b', priceListName: 'Other', currency: 'SAR', variantId: 'variant-a', minQty: 5, maxQty: null, unitPriceMinor: 500 },
+      // A cheaper variant-specific offer in the same store must not replace
+      // the product-default offer explicitly selected by the buyer.
+      { priceListId: 'pl-variant', priceListStoreId: 'store-a', priceListName: 'Variant override', currency: 'SAR', variantId: 'variant-a', minQty: 5, maxQty: null, unitPriceMinor: 500 },
     ]);
 
     const prices = await resolveSelectedOfferPrices(
       db as any,
-      [baseOffer],
+      [baseOffer, { ...baseOffer, id: 'offer-variant', variantId: 'variant-a', priceListId: 'pl-variant' }],
       [{ offerId: 'offer-selected', variantId: 'variant-a', quantity: 5 }],
     );
 
