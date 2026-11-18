@@ -158,7 +158,7 @@ export default function CartPage() {
                             {item.offer.orderIncrement != null && ` · Step ${item.offer.orderIncrement}`}
                           </>
                         )}
-                        {!item.offer && item.moq > 1 && ` · MOQ ${item.moq}`}
+                        {!item.offer && (item.moq ?? 1) > 1 && ` · MOQ ${item.moq ?? 1}`}
                       </div>
                     )}
                   </div>
