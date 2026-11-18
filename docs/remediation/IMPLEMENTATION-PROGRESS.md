@@ -56,7 +56,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | IN PROGRESS | Reproduced in source; controller now enforces org + active store membership on all three routes; regression tests authored, execution pending |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
@@ -74,7 +74,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
 | G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
-| G-020 | P2 | normalize_arabic has mutable search_path | 1 | OPEN | Live advisor confirms mutable search_path; function is not SECURITY DEFINER and currently has no function config |
+| G-020 | P2 | normalize_arabic has mutable search_path | 1 | IN PROGRESS | Live advisor confirms mutable search_path; migration 0070 pins the function to pg_catalog, pending CI verification |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
 | G-023 | P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes | 1 | IN PROGRESS | Confirmed in MerchantService.createStore and StoreMembershipController; atomic owner-row + outbox fix committed to remediation branch, tests pending |
@@ -139,11 +139,11 @@ Status definitions:
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IN PROGRESS | New controller regression suite authored for authorized member, foreign org, missing membership and admin bypass; test run pending |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | Source uses DATABASE_URL via node-postgres/Drizzle; live pg_stat_activity sample did not identify a clear Render API connection, so runtime username remains unverified |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Live inventory reconciles to 114 public tables; full table-by-table classification pending |
-| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | anon/auth have no CRUD; all 114 have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats DELETE/TRUNCATE/TRIGGER; one sequence has no anon/auth usage/select |
+| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | anon/auth have no CRUD; all 114 have TRUNCATE/REFERENCES/TRIGGER/MAINTAIN; postgres default ACL repeats these four privileges; one sequence has no anon/auth usage/select |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | Must finish API runtime role and public Data API access classification before migration design |
-| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | No live database changes made |
+| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | IN PROGRESS | Migration 0070 revokes all table/sequence privileges from anon/authenticated and their postgres-role defaults; RLS intentionally deferred pending runtime API DB role confirmation; CI migration/verification pending |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
-| P1-12 | Harden normalize_arabic search_path safely | G-020 | SOURCE VERIFIED | Function is invoker (not SECURITY DEFINER), owner postgres, no proconfig; advisor reports mutable search_path |
+| P1-12 | Harden normalize_arabic search_path safely | G-020 | IN PROGRESS | Migration 0070 sets function search_path to pg_catalog; CI verification pending |
 | P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
 | P1-14 | Create initial ACTIVE OWNER membership atomically with new store and outbox event | G-023 | IN PROGRESS | MerchantService now inserts store + storeMembers OWNER + outbox event in one transaction; focused regression tests authored, execution pending |
 
