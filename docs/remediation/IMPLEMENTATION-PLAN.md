@@ -79,6 +79,12 @@ The authoritative starting gap IDs are those in the November comprehensive readi
 | G-021 | P3 | Procurement | Formal RFQ / quotation / purchase-order workflow absent |
 | G-022 | P3 | Database | pg_trgm extension installed in public schema |
 | G-023 | P1 | Merchant onboarding | Store creation omits initial OWNER store_members row, locking the creator out of store membership administration and store-scoped workflows |
+| G-024 | P1 | Catalog requests/security | Merchant catalog request reads/writes are not consistently scoped to active store membership; requester/reviewer identities are client-controlled |
+| G-025 | P1 | Merchant store/warehouse security | Store and warehouse endpoints do not consistently bind the target object to the caller's active store membership |
+| G-026 | P1 | Pricing/security | Price-list and tier endpoints lack object-level store authorization and can mix variants with another store's price list |
+| G-027 | P1 | Inventory/security | Inventory routes enforce organization scope in several paths but omit active store membership; low-stock listing spans all stores in an organization |
+| G-028 | P1 | Catalog/public-read boundary | Buyer-facing product reads can return non-ACTIVE products unless the client voluntarily supplies an ACTIVE filter |
+| G-029 | P1 | Catalog mutation/security | Bulk product actions accept a caller-supplied storeId without verifying active membership in that store |
 
 The audit classifies the register as 1 P0, 7 P1, 12 P2 and 2 P3 findings. These IDs are stable references; if implementation discovers a wider root cause, record linked sub-findings rather than silently rewriting the original finding.
 
@@ -288,6 +294,19 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 - Add regression tests proving the owner row is written for the same store and that the outbox event uses the same transaction.
 
 **Acceptance:** every newly created store has exactly one active OWNER membership for its creator; the owner can use store-scoped merchant routes and manage store members; the store, owner row and outbox event are atomic.
+
+### 1.6 Adjacent tenant-scope findings discovered during P1-04
+
+The source audit linked to G-001 identified additional object-level authorization gaps. The detailed endpoint inventory and evidence are recorded in [P1-04 Adjacent Tenant-Scope Audit](./P1-04-ADJACENT-TENANT-SCOPE-AUDIT.md).
+
+- **G-024 — Catalog requests:** scope merchant request listing and creation to the authenticated user's active store membership. Derive requester and reviewer identities from the JWT, never from request bodies.
+- **G-025 — Store/warehouse management:** check both active-organization ownership and active store membership before store updates, warehouse creation/listing/updates, and store verification submission.
+- **G-026 — Pricing:** scope price-list and tier reads/writes to the owning store; verify that a tier's variant belongs to the same store as its price list.
+- **G-027 — Inventory:** extend store-membership checks through warehouse, variant and inventory-item access paths; restrict unqualified low-stock reads to stores where the caller is an active member.
+- **G-028 — Product read boundary:** preserve buyer access to ACTIVE products while requiring owning-store membership for non-ACTIVE product details, variants, media and variant matrices. Do not rely on clients to send a status filter.
+- **G-029 — Bulk catalog mutation:** require active store membership before bulk delete/archive/draft operations.
+
+**Implementation status:** controller fixes and regression tests for G-024, G-025 and G-026 are committed on the remediation branch; latest-head CI is still running. G-027 through G-029 remain open. These findings do not authorize staging writes or deployment.
 
 ### Phase 1 exit gate — AUTHORIZED BUSINESS TESTING
 Only after the P0 is closed, G-023 is fixed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
@@ -599,6 +618,6 @@ These two files are the authoritative working references for this remediation pr
 
 ## 14. Current recommendation
 
-Start with **Phase 0**, then Phase 1. Do not begin broad buyer/merchant staging testing until the P0 authorization gap and database access model are closed. Once Phase 1 passes, allow narrow controlled business tests while implementation continues. Keep full manual journey testing consolidated in Phase 6.
+Continue **Phase 1**. G-001 and G-023 have focused CI evidence from run #536; do not begin broad buyer/merchant staging testing until the adjacent tenant-scope findings and database access model are closed. Keep full manual journey testing consolidated in Phase 6.
 
-**Current overall status: IN PROGRESS.** Baseline reconciliation is underway and the first P0 tenant-isolation code change has been prepared on the dedicated remediation branch. It is not yet test-verified or closed.
+**Current overall status: IN PROGRESS.** The dedicated remediation branch contains the G-001 and G-023 fixes, migration 0070, the G-003 outbox predicate fix, OTP exception-log redaction, and additional G-024 through G-026 authorization fixes with regression tests. Latest-head CI run #551 has passed lint/typecheck, mobile, web/admin, E6 and migration checks; API unit/coverage and integration jobs remain in progress. No staging/production deployment or live database migration has been performed.
