@@ -39,7 +39,7 @@ import {
 } from '../../common/guards/current-user.decorator';
 import { StorageService } from '../../common/storage/storage.service';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg, assertProductReadable, canManageStoreCatalog } from '../../common/tenant-scope';
+import { assertProductEditableByMerchant, assertStoreMember, assertStoreInOrg, assertProductReadable, canManageStoreCatalog, canManageProductCatalog } from '../../common/tenant-scope';
 import { AuditService } from '../audit/index';
 import { ProductGovernanceService } from './product-governance.service';
 /**
@@ -452,7 +452,7 @@ export class CatalogController {
   ) {
     const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertProductReadable(this.db, caller, productId);
-    const canManage = caller.role === 'ADMIN' || caller.role === 'MODERATOR' || caller.role === 'SUPER_ADMIN' || caller.role === 'SYSTEM';
+    const canManage = await canManageProductCatalog(this.db, caller, productId);
     return this.catalogService.listVariantsByProduct(productId, canManage);
   }
 
