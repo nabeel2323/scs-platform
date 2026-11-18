@@ -46,6 +46,12 @@ export class CatalogOfferController {
     private readonly db: DatabaseService,
   ) {}
 
+  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
+  }
+
   // ── Read routes ───────────────────────────────────────────────
 
   @Get('products/:productId/offers')
@@ -70,8 +76,12 @@ export class CatalogOfferController {
   }
 
   @Get('merchant/offers')
-  listMerchantOffers(@Query('storeId') storeId?: string) {
+  async listMerchantOffers(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.offerService.listOffersForStore(storeId);
   }
 
@@ -81,6 +91,7 @@ export class CatalogOfferController {
    */
   @Get('merchant/offers/analytics/trend')
   async listMerchantOfferTrend(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('offerId') offerId?: string,
     @Query('granularity') granularity?: string,
@@ -88,6 +99,7 @@ export class CatalogOfferController {
     @Query('days') days?: string,
   ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     const gran: 'day' | 'week' = granularity === 'week' ? 'week' : 'day';
     // Range semantics: explicit `from` (ISO date) wins; else derive a rolling
     // window from `days` (default 90, capped 365). `to` is always "now".
@@ -115,8 +127,12 @@ export class CatalogOfferController {
    * NestJS literal-before-parameterized ordering invariant.
    */
   @Get('merchant/offers/analytics')
-  listMerchantOfferAnalytics(@Query('storeId') storeId?: string) {
+  async listMerchantOfferAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.offerService.listOfferAnalytics(storeId);
   }
 
