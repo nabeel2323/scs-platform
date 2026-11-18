@@ -257,7 +257,7 @@
 <tr><td>17</td><td>Merchant order processing</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Merchant → Accept / reject / prepare / ready</td><td>Order FSM, optimistic transitions, inventory settlement.</td></tr>
 <tr><td>18</td><td>Payment confirmation</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer proof / Merchant cash / Admin verify</td><td>Manual flows exist; no automated payment gateway.</td></tr>
 <tr><td>19</td><td>Cancellation, refund and return</td><td><span class="status s-partial">PARTIAL</span></td><td>Buyer / Merchant / Admin / Worker</td><td>FSM and manual refund approval exist; actual money movement and worker activation unverified.</td></tr>
-<tr><td>20</td><td>Return/dispute escalation</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Return FSM / Disputes</td><td>Escalation state and authorization code exist; P13 worker runtime flag not inspected.</td></tr>
+<tr><td>20</td><td>Return/dispute escalation</td><td><span class="status s-partial">PARTIAL</span></td><td>Return FSM / Disputes</td><td>Escalation state and authorization code exist; P13 worker is disabled by default unless configured, and staging flag is not inspected.</td></tr>
 <tr><td>21</td><td>Notifications across order lifecycle</td><td><span class="status s-partial">PARTIAL</span></td><td>Orders → Notifications / Realtime</td><td>In-app path exists; SMS, push and WhatsApp methods are stubs.</td></tr>
 <tr><td>22</td><td>Catalog import and export</td><td><span class="status s-source">IMPLEMENTED</span></td><td>Admin → Import Center → Excel pipeline</td><td>Upload, validate, preview, execute, retry, report and export.</td></tr>
 <tr><td>23</td><td>Administrative marketplace operations</td><td><span class="status s-partial">PARTIAL</span></td><td>Admin console</td><td>Broad routes and generic management; full CRUD/permissions for every entity not proven.</td></tr>
@@ -330,7 +330,7 @@
 <li>Broad TRUNCATE/REFERENCES/TRIGGER grants to anon/authenticated are present. No CRUD table grants were observed in the same grant inventory. Direct exploitability through PostgREST was not demonstrated.</li>
 <li>PermissionsGuard is explicitly applied on selected controller methods; <code>@RequirePermission</code> metadata alone does not enforce permissions unless a guard runs.</li>
 <li>OTP source includes fail-closed provider selection and log-redaction tests. The earlier Render plaintext OTP log finding still needs post-fix runtime-log verification.</li>
-<li>A tracked JWT-shaped artifact in <code>test-token.txt</code> is expired (exp 2026-10-07) but contains identity/organization claims; it is duplicated in the tracked scratch snapshot. Do not treat it as an active token, but remove the artifact from repository history after confirming it is only a test credential.</li>
+<li>A tracked JWT-shaped artifact in <code>test-token.txt</code> is duplicated in the tracked scratch snapshot. Its current validity/expiry was not verified. Treat its identity/organization claims as sensitive and confirm test-only provenance before removing it from repository history.</li>
 <li>Carrier credentials are encrypted in source with AES-256-GCM; webhook security, SSRF protection, retry and circuit-breaker code exist. Live provider configuration is NOT VERIFIED.</li>
 <li>Storage bucket/object access policies and cross-tenant file retrieval were not runtime verified.</li>
 </ul>
