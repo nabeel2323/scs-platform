@@ -2,7 +2,7 @@ import { and, eq, inArray, asc } from 'drizzle-orm';
 import { productVariants, productMedia } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { inventoryItems } from '../inventory/inventory.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices, type OfferPriceSource, type VariantPricing } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type OfferPriceSource, type VariantPricing } from '../pricing/price-resolution';
 import type { DatabaseService } from '../../common/database/database.service';
 import type { StorageService } from '../../common/storage/storage.service';
 import { imageReferences, isProductMediaKey } from './product-images';
@@ -222,6 +222,7 @@ export async function enrichProductCards<T extends CardSource>(
     })) as OfferPriceSource[],
     offerRequests,
   );
+  const offerRequestById = new Map(offerRequests.map(request => [request.offerId, request]));
 
   const offerByProduct = new Map<string, {
     count: number;
@@ -232,7 +233,10 @@ export async function enrichProductCards<T extends CardSource>(
     if (entry) entry.count++;
     else offerByProduct.set(row.productId, { count: 1, lowestByCurrency: new Map() });
 
-    const resolved = resolvedOffers.get(row.id);
+    const request = offerRequestById.get(row.id);
+    const resolved = request
+      ? resolvedOffers.get(selectedOfferPriceKey(request.offerId, request.variantId, request.quantity))
+      : undefined;
     if (!resolved) continue;
     const pricedRow: OfferCardRow = {
       ...row,
