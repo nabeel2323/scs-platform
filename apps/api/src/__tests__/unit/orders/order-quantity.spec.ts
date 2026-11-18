@@ -9,7 +9,7 @@ describe('getOrderQuantityViolation — MOQ and order increments', () => {
     [14, 5, 3],
     [1, 1, null],
     [5, 5, null],
-  ])('accepts quantity %i for MOQ %i and increment %s', (quantity, moq, increment) => {
+  ] as const)('accepts quantity %i for MOQ %i and increment %s', (quantity, moq, increment) => {
     expect(getOrderQuantityViolation(quantity, moq, increment)).toBeNull();
   });
 

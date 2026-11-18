@@ -167,7 +167,9 @@ export class CartService {
     const offerId = selectedOfferId ?? resolvedTier.offerId ?? null; // PHASE 10/13
     if (!selectedOffer && offerId) {
       const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
-      if (!resolvedOffer) throw new BadRequestException('Selected offer is no longer available');
+      if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
+        throw new BadRequestException('Selected offer is no longer available');
+      }
       const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
       if (violation) throw new BadRequestException(violation);
     }
@@ -304,7 +306,7 @@ export class CartService {
         const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
         if (!selectedOffer && offerId) {
           const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
-          if (!resolvedOffer) {
+          if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
             skipped.push({ variantId: input.variantId, reason: 'Selected offer is no longer available' });
             continue;
           }
@@ -397,7 +399,9 @@ export class CartService {
     const offerId = tier.offerId ?? (item['offerId'] as string | null) ?? null;
     if (!selectedOfferId && offerId) {
       const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
-      if (!resolvedOffer) throw new BadRequestException('Selected offer is no longer available');
+      if (!resolvedOffer || resolvedOffer.status !== 'ACTIVE' || !resolvedOffer.isAvailable) {
+        throw new BadRequestException('Selected offer is no longer available');
+      }
       const violation = getOrderQuantityViolation(quantity, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
       if (violation) throw new BadRequestException(violation);
     }

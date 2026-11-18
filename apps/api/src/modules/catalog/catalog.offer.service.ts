@@ -103,7 +103,7 @@ export class CatalogOfferService {
     const moq = input.moq ?? 1;
     if (!Number.isInteger(moq) || moq < 1) throw new BadRequestException('MOQ must be a positive integer');
     if (input.orderIncrement != null && (!Number.isInteger(input.orderIncrement) || input.orderIncrement < 1)) {
-      throw new BadRequestException('Order increment must be at least 1');
+      throw new BadRequestException('Order increment must be a positive integer');
     }
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');

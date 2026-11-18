@@ -411,6 +411,71 @@ export class OrdersService {
 
     try {
     await this.db.db.transaction(async (tx) => {
+      // Re-read and lock the commercial terms inside the order transaction.
+      // Cart-time validation is for fast feedback; this locked read is the
+      // authoritative checkout gate and prevents a concurrent seller edit
+      // from changing MOQ/increment between validation and order persistence.
+      const checkoutVariantIds = [...new Set(items.map(item => item['variantId'] as string))];
+      const checkoutVariants = await tx.query.productVariants.findMany({
+        where: inArray(productVariants.id, checkoutVariantIds),
+        columns: { id: true, productId: true },
+      });
+      const checkoutProductIds = [...new Set(checkoutVariants.map(variant => variant.productId))];
+      const checkoutProducts = checkoutProductIds.length > 0
+        ? await tx.select().from(products).where(inArray(products.id, checkoutProductIds)).for('update')
+        : [];
+      const checkoutOffers = offerIds.length > 0
+        ? await tx.select().from(merchantOffers).where(inArray(merchantOffers.id, offerIds)).for('update')
+        : [];
+      const checkoutVariantById = new Map(checkoutVariants.map(variant => [variant.id, variant]));
+      const checkoutProductById = new Map(checkoutProducts.map(product => [product.id, product]));
+      const checkoutOfferById = new Map(checkoutOffers.map(offer => [offer.id, offer]));
+      const transactionCapturedAt = new Date().toISOString();
+
+      offerSnapshotById.clear();
+      for (const offer of checkoutOffers) {
+        if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
+          throw new BadRequestException(
+            'A seller\'s offer for one of your items is no longer available. Please review your cart.',
+          );
+        }
+        offerSnapshotById.set(offer.id, {
+          id: offer.id,
+          storeId: offer.storeId,
+          priceListId: offer.priceListId ?? null,
+          warehouseId: offer.warehouseId ?? null,
+          basePriceMinor: offer.basePriceMinor ?? null,
+          compareAtPriceMinor: offer.compareAtPriceMinor ?? null,
+          currency: offer.currency,
+          moq: offer.moq,
+          orderIncrement: offer.orderIncrement ?? null,
+          leadTimeDays: offer.leadTimeDays ?? null,
+          snapshotStatus: offer.status,
+          capturedAt: transactionCapturedAt,
+        });
+      }
+
+      for (const item of items) {
+        const variant = checkoutVariantById.get(item['variantId'] as string);
+        const product = variant ? checkoutProductById.get(variant.productId) : undefined;
+        if (!variant || !product) {
+          throw new BadRequestException('A product in your cart is no longer available');
+        }
+        const itemOfferId = item['offerId'] as string | null;
+        const offer = itemOfferId ? checkoutOfferById.get(itemOfferId) : undefined;
+        if (itemOfferId && !offer) {
+          throw new BadRequestException('A seller\'s offer for one of your items is no longer available. Please review your cart.');
+        }
+        const violation = getOrderQuantityViolation(
+          item['quantity'],
+          offer?.moq ?? product.moq ?? 1,
+          offer?.orderIncrement ?? null,
+        );
+        if (violation) {
+          throw new BadRequestException(`${product.title || 'This item'}: ${violation}`);
+        }
+      }
+
       await tx.insert(masterOrders).values({
         id: masterId,
         buyerId: input.buyerId,
