@@ -24,7 +24,8 @@
 | P2 open | 11 (G-009–G-019) |
 | P3 open | 2 |
 | Findings closed under this plan | 7 (G-001, G-020, G-023–G-027) |
-| Findings implemented; latest-head CI pending | 2 (G-028–G-029) |\n| Findings partially remediated | 2 (G-002–G-003) |
+| Findings implemented; latest-head CI pending | 2 (G-028–G-029) |
+| Findings partially remediated | 2 (G-002–G-003) |
 | Final full test campaign | NOT STARTED |
 
 **Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
