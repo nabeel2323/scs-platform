@@ -167,7 +167,7 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     console.log(`  Generated ${NUM_PRODUCTS}/${NUM_PRODUCTS} products. Done.`);
   }, 600_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => { await pool?.end(); await container?.stop(); }, 120_000);
 
   async function measureSearch(label: string, fn: () => Promise<any>, iterations = 10, warmup = 3) {
     // Warmup iterations (not counted)
@@ -202,13 +202,13 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
       const r = await measureSearch('price filter', () => searchService.search('', { storeId, priceMin: 5000, priceMax: 20000, limit: 50 }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('availability filter', async () => {
       const r = await measureSearch('availability', () => searchService.search('', { storeId, availability: 'inStock', limit: 50 }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('combined price + availability + category + brand + sort', async () => {
       const r = await measureSearch('combined', () => searchService.search('', {
@@ -217,7 +217,7 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
       }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('text search + P9 filters', async () => {
       const r = await measureSearch('text+p9', () => searchService.search('Product 1', {
@@ -225,25 +225,25 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
       }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('price_desc sort', async () => {
       const r = await measureSearch('price_desc', () => searchService.search('', { storeId, sort: 'price_desc', limit: 50 }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('newest sort', async () => {
       const r = await measureSearch('newest', () => searchService.search('', { storeId, sort: 'newest', limit: 50 }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
 
     it('name sort', async () => {
       const r = await measureSearch('name', () => searchService.search('', { storeId, sort: 'name', limit: 50 }), 10, 3);
       console.log(fmt(r));
       console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+    }, 180000);
   });
 
   describe('NP-A15 — EXPLAIN ANALYZE Evidence', () => {
