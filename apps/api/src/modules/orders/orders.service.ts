@@ -4046,6 +4046,7 @@ export class OrdersService {
     userId: string,
     actorType: string,
     source: string,
+    autoCompleteClaimOwner?: string,
   ) {
     const order = await this.getOrder(orderId);
     this.assertTransition(order['status'], 'COMPLETED');
@@ -4056,10 +4057,28 @@ export class OrdersService {
       ? userId : null;
 
     // Atomic optimistic lock on order status
+    const completionConditions = [
+      eq(orders.id, orderId),
+      eq(orders.status, order['status']),
+    ];
+    if (autoCompleteClaimOwner) {
+      // Fencing check: a worker whose lease expired or was reassigned cannot
+      // complete the order after another worker has acquired the claim.
+      completionConditions.push(
+        eq(orders.autoCompleteClaimedBy, autoCompleteClaimOwner),
+        sql`${orders.autoCompleteClaimedAt} > NOW() - INTERVAL '5 minutes'`,
+      );
+    }
+
     const flipResult = await this.db.db
       .update(orders)
-      .set({ status: 'COMPLETED', updatedAt: new Date() })
-      .where(and(eq(orders.id, orderId), eq(orders.status, order['status'])))
+      .set({
+        status: 'COMPLETED',
+        updatedAt: new Date(),
+        autoCompleteClaimedAt: null,
+        autoCompleteClaimedBy: null,
+      })
+      .where(and(...completionConditions))
       .returning({ id: orders.id });
 
     if (flipResult.length === 0) {
