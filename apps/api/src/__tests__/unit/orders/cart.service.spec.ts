@@ -303,3 +303,90 @@ describe('CartService.addItems', () => {
     await expect(svc.addItems('u-1', [])).rejects.toThrow('items must be a non-empty array');
   });
 });
+
+describe('CartService MOQ and order-increment enforcement', () => {
+  const offer = {
+    id: 'offer-1',
+    storeId: 'store-1',
+    productId: 'product-1',
+    variantId: 'variant-1',
+    status: 'ACTIVE',
+    isAvailable: true,
+    moq: 5,
+    orderIncrement: 3,
+    currency: 'SAR',
+    basePriceMinor: 100,
+    priceListId: null,
+  };
+
+  it('rejects an invalid final quantity when adding to a selected offer', async () => {
+    const db = {
+      query: {
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
+      },
+      select: vi.fn(),
+      insert: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+
+    await expect(svc.addItem('buyer-1', { variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }))
+      .rejects.toThrow('increments of 3');
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('skips an invalid batch-added quantity without persisting it', async () => {
+    const db = {
+      query: {
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1', isActive: true })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', storeId: 'store-1' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', quantity: 5 })) },
+      },
+      insert: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).recalculateTotal = vi.fn(async () => undefined);
+    (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
+
+    const result = await svc.addItems('buyer-1', [{ variantId: 'variant-1', quantity: 1, offerId: 'offer-1' }]);
+    expect(result.added).toEqual([]);
+    expect(result.skipped[0]?.reason).toContain('increments of 3');
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid quantity update before repricing', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1', variantId: 'variant-1', storeId: 'store-1', offerId: 'offer-1' })) },
+        merchantOffers: { findFirst: vi.fn(async () => offer) },
+      },
+      select: vi.fn(),
+      update: vi.fn(),
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 7)).rejects.toThrow('increments of 3');
+    expect(db.select).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects fractional quantities in quantity updates', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
+        cartItems: { findFirst: vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' })) },
+      },
+    };
+    const svc = new CartService({ db } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 2.5)).rejects.toThrow('positive integer');
+  });
+});

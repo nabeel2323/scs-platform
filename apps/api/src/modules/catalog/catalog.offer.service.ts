@@ -101,8 +101,8 @@ export class CatalogOfferService {
       throw new BadRequestException('A new offer may only start as DRAFT or PROPOSED');
     }
     const moq = input.moq ?? 1;
-    if (moq < 1) throw new BadRequestException('MOQ must be at least 1');
-    if (input.orderIncrement != null && input.orderIncrement < 1) {
+    if (!Number.isInteger(moq) || moq < 1) throw new BadRequestException('MOQ must be a positive integer');
+    if (input.orderIncrement != null && (!Number.isInteger(input.orderIncrement) || input.orderIncrement < 1)) {
       throw new BadRequestException('Order increment must be at least 1');
     }
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
@@ -656,7 +656,10 @@ export class CatalogOfferService {
   async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
     if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
-    if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
+    if (input.moq != null && (!Number.isInteger(input.moq) || input.moq < 1)) throw new BadRequestException('MOQ must be a positive integer');
+    if (input.orderIncrement != null && (!Number.isInteger(input.orderIncrement) || input.orderIncrement < 1)) {
+      throw new BadRequestException('Order increment must be a positive integer');
+    }
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
     }
@@ -687,7 +690,7 @@ export class CatalogOfferService {
         basePriceMinor: input.basePriceMinor ?? offer.basePriceMinor,
         compareAtPriceMinor: input.compareAtPriceMinor ?? offer.compareAtPriceMinor,
         moq: input.moq ?? offer.moq,
-        orderIncrement: input.orderIncrement ?? offer.orderIncrement,
+        orderIncrement: input.orderIncrement !== undefined ? input.orderIncrement : offer.orderIncrement,
         leadTimeDays: input.leadTimeDays ?? offer.leadTimeDays,
         isAvailable: input.isAvailable ?? offer.isAvailable,
         priceListId: input.priceListId ?? offer.priceListId,

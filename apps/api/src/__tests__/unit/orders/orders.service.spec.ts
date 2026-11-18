@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { computeOrderFinancials } from '../../../modules/orders/order-pricing';
+import { OrdersService } from '../../../modules/orders/orders.service';
 
 /**
  * Orders Service — Unit Tests
@@ -361,5 +362,41 @@ describe('Orders Service — Re-Price Guard', () => {
     ];
     const significant = hasSignificantPriceChange(deltas);
     expect(significant).toHaveLength(0);
+  });
+});
+
+describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
+  it('rejects a cart line that violates the current selected offer increment', async () => {
+    const offer = {
+      id: 'offer-1',
+      storeId: 'store-1',
+      productId: 'product-1',
+      variantId: 'variant-1',
+      status: 'ACTIVE',
+      moq: 5,
+      orderIncrement: 3,
+      currency: 'SAR',
+    };
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1' })) },
+        cartItems: { findMany: vi.fn(async () => [{
+          id: 'line-1',
+          cartId: 'cart-1',
+          storeId: 'store-1',
+          variantId: 'variant-1',
+          offerId: 'offer-1',
+          quantity: 7,
+        }]) },
+        merchantOffers: { findMany: vi.fn(async () => [offer]) },
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
+      },
+    };
+    const service = new OrdersService({ db } as any, {} as any, {} as any);
+
+    await expect(service.checkout({ buyerId: 'buyer-1' } as any)).rejects.toThrow('increments of 3');
+    expect(db.query.productVariants.findFirst).toHaveBeenCalledTimes(1);
+    expect(db.query.products.findFirst).toHaveBeenCalledTimes(1);
   });
 });

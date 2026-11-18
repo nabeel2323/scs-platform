@@ -22,6 +22,7 @@ import { paymentRecords } from '../payments/payments.schema';
 import { PaymentsService } from '../payments/payments.service';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
+import { getOrderQuantityViolation } from './order-quantity';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey } from '../pricing/price-resolution';
@@ -221,11 +222,14 @@ export class OrdersService {
       const offerSnapshot = offerId ? offerSnapshotById.get(offerId) : null;
       const authoritativeMoq = offerSnapshot?.moq ?? product?.['moq'] ?? 1;
 
-      if (authoritativeMoq > item['quantity']) {
-        const productName = product?.['title'] || 'this item';
-        throw new BadRequestException(
-          `Minimum order quantity for ${productName} is ${authoritativeMoq}, but only ${item['quantity']} in cart`,
-        );
+      const productName = product?.['title'] || 'this item';
+      const quantityViolation = getOrderQuantityViolation(
+        item['quantity'],
+        authoritativeMoq,
+        offerSnapshot?.orderIncrement ?? null,
+      );
+      if (quantityViolation) {
+        throw new BadRequestException(`${productName}: ${quantityViolation}`);
       }
     }
 

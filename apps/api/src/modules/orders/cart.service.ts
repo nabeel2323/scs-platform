@@ -10,6 +10,7 @@ import { stores } from '../merchant/merchant.schema';
 import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
+import { getOrderQuantityViolation } from './order-quantity';
 
 /**
  * Cart service — multi-supplier cart with price snapshots.
@@ -130,6 +131,10 @@ export class CartService {
       where: and(...existingConditions),
     });
     const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
+    if (selectedOffer) {
+      const violation = getOrderQuantityViolation(finalQty, selectedOffer.moq, selectedOffer.orderIncrement ?? null);
+      if (violation) throw new BadRequestException(violation);
+    }
 
     // Resolve the unit price server-side from the store's active price lists
     // (highest-priority list, best tier whose minQty <= finalQty). The price is
@@ -159,12 +164,17 @@ export class CartService {
           : 'No price is available for this item at the requested quantity',
       );
     }
+    const offerId = selectedOfferId ?? resolvedTier.offerId ?? null; // PHASE 10/13
+    if (!selectedOffer && offerId) {
+      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+      if (!resolvedOffer) throw new BadRequestException('Selected offer is no longer available');
+      const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+      if (violation) throw new BadRequestException(violation);
+    }
     const priceMinor = resolvedTier.unitPriceMinor;
     const lineTotalMinor = finalQty * priceMinor;
     // Prefer the buyer's chosen offer; the resolver otherwise picks the store's
     // best-matching offer (legacy behaviour preserved when none is provided).
-    const offerId = selectedOfferId ?? resolvedTier.offerId ?? null; // PHASE 10/13
-
     if (existing) {
       // Re-snapshot the price: the applicable tier can change with quantity.
       await this.db.db
@@ -267,6 +277,13 @@ export class CartService {
           where: and(...existingConditions),
         });
         const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
+        if (selectedOffer) {
+          const violation = getOrderQuantityViolation(finalQty, selectedOffer.moq, selectedOffer.orderIncrement ?? null);
+          if (violation) {
+            skipped.push({ variantId: input.variantId, reason: violation });
+            continue;
+          }
+        }
         const tier = selectedOffer
           ? (await resolveSelectedOfferPrices(
               this.db.db,
@@ -284,9 +301,21 @@ export class CartService {
           skipped.push({ variantId: input.variantId, reason: 'No price at this quantity' });
           continue;
         }
+        const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
+        if (!selectedOffer && offerId) {
+          const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+          if (!resolvedOffer) {
+            skipped.push({ variantId: input.variantId, reason: 'Selected offer is no longer available' });
+            continue;
+          }
+          const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+          if (violation) {
+            skipped.push({ variantId: input.variantId, reason: violation });
+            continue;
+          }
+        }
         const priceMinor = tier.unitPriceMinor;
         const lineTotalMinor = finalQty * priceMinor;
-        const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
         if (existing) {
           await this.db.db
             .update(cartItems)
@@ -327,6 +356,9 @@ export class CartService {
     if (quantity <= 0) {
       return this.removeItem(userId, itemId);
     }
+    if (!Number.isInteger(quantity)) {
+      throw new BadRequestException('Quantity must be a positive integer');
+    }
 
     // ADVERSARIAL FIX: re-resolve the price tier when quantity changes. Without
     // this, a buyer who added 5 units at tier-1 price ($10) and then increased
@@ -343,6 +375,8 @@ export class CartService {
       if (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable) {
         throw new BadRequestException('Selected offer is no longer available; validate the cart before repricing');
       }
+      const violation = getOrderQuantityViolation(quantity, offer.moq, offer.orderIncrement ?? null);
+      if (violation) throw new BadRequestException(violation);
       tier = (await resolveSelectedOfferPrices(
         this.db.db,
         [offer],
@@ -360,8 +394,14 @@ export class CartService {
     if (!tier) {
       throw new BadRequestException('No price available for this item at the new quantity');
     }
-    const newLineTotal = quantity * tier.unitPriceMinor;
     const offerId = tier.offerId ?? (item['offerId'] as string | null) ?? null;
+    if (!selectedOfferId && offerId) {
+      const resolvedOffer = await this.db.db.query.merchantOffers.findFirst({ where: eq(merchantOffers.id, offerId) });
+      if (!resolvedOffer) throw new BadRequestException('Selected offer is no longer available');
+      const violation = getOrderQuantityViolation(quantity, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+      if (violation) throw new BadRequestException(violation);
+    }
+    const newLineTotal = quantity * tier.unitPriceMinor;
 
     await this.db.db
       .update(cartItems)
