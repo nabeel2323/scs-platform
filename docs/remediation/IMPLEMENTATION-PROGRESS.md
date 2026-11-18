@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0 and 1 are in progress; G-001, G-020, G-023–G-027 are verified/closed; G-028 and G-029 are implemented and awaiting latest-head CI.
+**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-003 have additional latest-head changes awaiting CI.
 
 ---
 
@@ -23,8 +23,8 @@
 | P1 open | 7 (G-002–G-008) |
 | P2 open | 11 (G-009–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 7 (G-001, G-020, G-023–G-027) |
-| Findings implemented; latest-head CI pending | 2 (G-028–G-029) |
+| Findings closed under this plan | 8 (G-001, G-020, G-023–G-027, G-029) |
+| Findings implemented; latest-head CI pending | 1 (G-028) |
 | Findings partially remediated | 2 (G-002–G-003) |
 | Final full test campaign | NOT STARTED |
 
@@ -32,7 +32,7 @@
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020 and G-023–G-027 have verification evidence; G-028/G-029 still require latest-head CI. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
+<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-028 has further canonical lookup changes pending CI, and G-003 has a new carrier lease-ownership refinement pending CI. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
 
 ---
 
@@ -58,7 +58,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | VERIFIED IN CI | Controller enforces authenticated org + active store membership on all three routes; controller regression suite passed in CI run #536 |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
-| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | IN PROGRESS | Generic dispatcher now excludes `shipping.carrier.%`; focused predicate regression test added; awaiting CI on latest branch head |
+| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | PARTIAL — CI PENDING | Generic dispatcher excludes `shipping.carrier.%`; dedicated worker claims only carrier events using `FOR UPDATE SKIP LOCKED`; stale lease recovery now also filters to the carrier prefix; generic-dispatcher and carrier-worker ownership tests added. New recovery refinement/test await CI. |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | OPEN | Confirm exact increment formula with business rule |
@@ -136,7 +136,7 @@ Status definitions:
 | P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Controller routes pass caller-supplied storeId directly to offer service without caller scope; source at audit baseline |
 | P1-02 | Enforce authenticated store/org membership for offer list | G-001 | VERIFIED IN CI | `assertStoreInOrg` + `assertStoreMember`; API unit/coverage suite passed in CI run #536 |
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | VERIFIED IN CI | Shared access assertion protects analytics and trend routes; API unit/coverage suite passed in CI run #536 |
-| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + G-024–G-029 | IN PROGRESS | G-024–G-026 fixes committed with regression tests; G-027 closed after CI #554; G-028/G-029 implemented with 18 focused tests total and awaiting latest-head CI. G-028 review also tightened buyer-facing canonical category reads to ACTIVE products and PUBLISHED product types; latest-head CI remains pending |
+| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + G-024–G-029 | IN PROGRESS | G-024–G-026 fixes committed with regression tests; G-027 closed after CI #554; G-028 now has 21 focused tests (8 publication helper, 6 controller boundary, 1 category query, 3 canonical lookup, 3 bulk mutation); latest canonical lookup changes await CI. G-029's 3 bulk mutation tests passed in CI #592 and are closed. G-028 review also tightened buyer-facing canonical category reads to ACTIVE products and PUBLISHED product types; latest-head CI remains pending |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | VERIFIED IN CI | Controller regression tests cover authorized member, foreign org, missing membership and admin bypass; API unit/coverage suite passed in CI run #536 |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — TARGET DB CONFIRMED; ROLE UNVERIFIED | User confirmed one PostgreSQL database is shared across all branches and there is no separate production infrastructure deployed. The Render API and staging migration workflow target that same database. Source confirms the API uses a direct node-postgres/Drizzle Pool from Render DATABASE_URL; the reusable staging release workflow separately injects GitHub environment secret STAGING_DATABASE_URL into the migration runner. The API does not use a Supabase JS SDK directly (web/admin package dependencies and Flutter pubspec show API clients instead). Render staging service is scs-api-staging, branch develop, autoDeploy off, last live commit 9f5bc397; Render connector does not expose env-var names/values, and no Render Postgres resource is attached. Supabase pg_stat_activity shows only mgmt-api under postgres, no SCS API connection. MCP SQL current_user=postgres is the MCP session, not evidence of the API role. The database target is shared, but API and migration credentials could still authenticate as different PostgreSQL roles. This is not blocking ongoing application remediation; verify the effective roles before applying migration 0070 or enabling RLS, and revisit before production infrastructure is introduced. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Read-only live query confirms 114 public tables, all owned by postgres; RLS enabled on 0 and forced on 0. Table-by-table access classification remains pending |
@@ -151,8 +151,8 @@ Status definitions:
 | P1-16 | Enforce store membership on store and warehouse lifecycle routes | G-025 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 7/7 tests in CI #551; store update, warehouse create/list/update and verification submission check target store membership |
 | P1-17 | Enforce store ownership and variant/list consistency on pricing routes | G-026 | VERIFIED IN UNIT/COVERAGE CI | Controller security suite passed 9/9 tests in CI #551; price-list/tier reads and writes check owning store membership; variant must belong to the same store as its price list |
 | P1-18 | Enforce store membership throughout inventory read/write paths | G-027 | VERIFIED IN CI — CLOSED | Added fail-closed warehouse, variant and inventory-item membership helpers; wired every inventory HTTP route through service authorization; low-stock listing now limits to active memberships in activeOrg; inventory creation rejects variant/warehouse store mismatch; 14 focused tests passed in CI #554 and all workflow jobs passed |
-| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media, store grids and canonical category reads | G-028 | IMPLEMENTED — CI PENDING | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; buyer-facing canonical category product lists/counts now include ACTIVE products and category product-type counts include PUBLISHED types; 8 helper + 6 controller-boundary + 1 category publication-query tests added |
-| P1-20 | Enforce store membership before bulk catalog mutations | G-029 | IMPLEMENTED — CI PENDING | Bulk delete/archive/draft requires active organization ownership and active store membership before invoking the service; 3 focused controller tests added |
+| P1-19 | Enforce buyer/merchant publication boundary for product detail, variants, media, store grids, category reads and canonical lookup | G-028 | IMPLEMENTED — LATEST CHANGES CI PENDING | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store active membership or privileged platform role; non-member store grids force ACTIVE products and active variants; public/studio detail cache keys are separated; canonical category rows/counts require ACTIVE products and product-type counts require PUBLISHED types; canonical identifier and selector lookups now require ACTIVE platform-level products. 21 focused tests are committed; canonical lookup tests and latest service changes await CI. |
+| P1-20 | Enforce store membership before bulk catalog mutations | G-029 | CLOSED — CI #592 | Bulk delete/archive/draft requires active organization ownership and active store membership before invoking the service; all 3 focused controller tests passed in API unit/coverage CI #592 on code commit `335d8db`. |
 
 **Exit gate:** P0 tenant isolation PASS; G-023 initial owner membership PASS; G-024–G-029 tenant/catalog boundaries verified; focused security tests pass. Database privilege/RLS hardening remains a pre-production gate and must not be applied until effective API/migration roles are understood.
 
@@ -195,8 +195,8 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P3-01 | Map event types to exactly one authoritative consumer | G-003 | IN PROGRESS | Confirmed dedicated carrier worker owns `shipping.carrier.%`; generic dispatcher exclusion implemented; full event-type ownership map remains open |
-| P3-02 | Prevent generic dispatcher from consuming carrier events | G-003 | IN PROGRESS | Generic dispatcher excludes `shipping.carrier.%`; CI #541 exposed a case-sensitive assertion mismatch (`not like` emitted by Drizzle); assertion corrected in commit `86f30d8`, latest-head CI pending |
+| P3-01 | Map event types to exactly one authoritative consumer | G-003 | IN PROGRESS | `shipping.carrier.%` is exclusively claimed by ShippingCarrierWorker; OutboxDispatcher excludes the same prefix. Worker registration is present in ShippingModule. Continue mapping all non-carrier event types to their consumers. |
+| P3-02 | Prevent generic dispatcher from consuming carrier events and keep lease recovery within ownership boundary | G-003 | PARTIAL — CI PENDING | Generic dispatcher exclusion and SQL predicate test passed API unit/coverage CI #592; ShippingCarrierWorker claim query uses carrier-prefix LIKE with `FOR UPDATE SKIP LOCKED`; stale-lease recovery now filters the same carrier prefix and has a new focused regression test awaiting CI. |
 | P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | TODO | |
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
@@ -350,6 +350,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Next:** obtain latest-head CI for G-028/G-029 (the current PR head has no GitHub Actions run/status yet), then ask for the non-secret DATABASE_URL username from Render to close P1-06. Complete the access-path/default-ACL matrix before revising migration 0070 or designing RLS. Do not deploy, apply migrations, change grants, or enable RLS.
+**Next:** obtain CI on the latest canonical lookup and carrier lease-scope commits; complete the full event-type ownership map for G-003; then continue G-004 search/offer identity. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
 
-**Current state:** G-001 and G-023 fixes and migration 0070 passed CI #536. G-003 dispatcher filtering and P0-10 OTP exception redaction have source changes and regression tests. G-024–G-026 fixes and tests are committed. G-027 inventory membership remediation is closed after all CI #554 jobs passed on code head `2e45806`, including API unit/coverage, integration, build, contract/codegen, migration full apply and container smoke. G-028 publication-aware product reads are implemented with 8 focused helper tests; G-029 bulk catalog authorization is implemented with 3 focused controller tests. Latest branch head is documentation-only after code head `44746ce` has no associated GitHub Actions run; Vercel admin/web checks are failing with the external `build-rate-limit` upgrade gate, so both remain CI-pending. G-002 read-only live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. Supabase's critical RLS advisory is recorded with the direct-grant qualification. No live database migration, staging write, Render configuration change or deployment has been performed.
+**Current state:** G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-029's three bulk-mutation controller tests passed API unit/coverage in CI #592. CI #592 also passed API integration, build, contract/codegen, lint/typecheck, mobile, web/admin, boundary lint and migration full apply; its container build/smoke job was cancelled and is being retried. G-028 has 21 focused tests, but three new canonical lookup tests and their source changes await a fresh CI run. G-003 generic dispatcher exclusion passed in CI #592; latest worker lease-recovery scoping and ownership tests await CI. G-002 read-only live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. Supabase's critical RLS advisory is recorded with the direct-grant qualification. No live database migration, staging write, Render configuration change or deployment has been performed.
