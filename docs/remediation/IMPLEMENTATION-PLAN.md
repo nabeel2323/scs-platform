@@ -130,8 +130,9 @@ All evidence must identify branch/commit, command or test name, environment, dat
 - `public.normalize_arabic(text)` is owned by postgres, is not SECURITY DEFINER, and has no function-level `search_path` configuration. Supabase Security Advisor reports `function_search_path_mutable`.
 - `pg_trgm` is installed in `public`; Supabase Security Advisor reports `extension_in_public`.
 - G-001 is reproduced in source: the three merchant offer list/analytics controller routes accept caller-supplied `storeId` and query the service without forwarding or validating the authenticated caller. Their service methods query the supplied store directly.
-- **New finding G-023 (P1):** `MerchantService.createStore` inserted the store and emitted an outbox event but did not insert an initial `store_members` OWNER row. The normal membership-management endpoints require an existing active OWNER/ADMIN membership, so a newly created store could be locked out of self-service member administration until a platform administrator intervened. Migration 0054 only backfills stores that existed when it ran; the generic outbox dispatcher only logs events and has no membership consumer. A transactional store + owner-membership + outbox fix and focused tests are now prepared on the remediation branch.
-- Current API scripts include root `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm boundary-lint`; API scripts include `pnpm --filter @scs/api test:unit`, `test:integration`, `typecheck`, `build`. The CI workflow runs PR checks, but formatting remains advisory (`continue-on-error: true`) and boundary-lint must be checked for actual execution and failure behavior.
+- **New finding G-023 (P1):** `MerchantService.createStore` inserted the store and emitted an outbox event but did not insert an initial `store_members` OWNER row. The normal membership-management endpoints require an existing active OWNER/ADMIN membership, so a newly created store could be locked out of self-service member administration until a platform administrator intervened. Migration 0054 only backfills stores that existed when it ran. The remediation now inserts the store, ACTIVE OWNER membership and creation outbox event in one transaction; focused tests passed in CI run #536.
+- **G-003 consumer collision:** `OutboxDispatcher` selected every pending event, including `shipping.carrier.*`, while `ShippingCarrierWorker` separately claimed those carrier events. The generic dispatcher could therefore mark a carrier event DISPATCHED without provider handling. The generic query now excludes `shipping.carrier.%`; a focused SQL-predicate regression test is added and awaits latest-head CI.
+- Current API scripts include root `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm boundary-lint`; API scripts include `pnpm --filter @scs/api test:unit`, `test:integration`, `typecheck`, `build`. CI run #536 passed all jobs, including API unit/coverage, integration, migration assertions, web/admin, Flutter, build and container smoke. Formatting remains advisory (`continue-on-error: true`). The E6 job was corrected to invoke the actual root `pnpm boundary-lint` command; it remains advisory until known boundary violations are resolved.
 
 These are live read-only observations, not a migration or configuration change. The exact API DB role, complete schema-to-route access matrix, and the Supabase-managed default ACL implications remain open verification items.
 
@@ -350,8 +351,9 @@ API contract, generated clients and web/mobile commercial calculations agree. Ta
 
 ### 3.1 Close G-003 — outbox consumer ownership
 - Define exactly one authoritative consumer/dispatcher for each event type.
-- Generic dispatcher must not claim and mark carrier events dispatched without performing their required handler/provider action.
-- Choose explicit routing, separate queues or event-type predicates; document ownership and retry semantics.
+- **Implemented (awaiting latest-head CI):** generic dispatcher query excludes `shipping.carrier.%`, leaving those events to `ShippingCarrierWorker`.
+- Complete the event-type ownership map, then extend the same ownership discipline to every event family.
+- Document routing, separate queues or event-type predicates and retry semantics.
 - Preserve at-least-once delivery with idempotent consumers and durable state transitions.
 - Add observability for pending age, attempts, terminal failures and queue lag.
 
@@ -430,7 +432,7 @@ The agreed buyer and merchant operations are supported across API/web/mobile wit
 - Confirm branch policy does not prevent authorized emergency recovery.
 
 ### 5.2 Close G-015 — blocking quality gates
-- Correct the boundary-lint workflow to invoke the actual root boundary-lint script.
+- **Implemented (awaiting latest-head CI):** boundary-lint workflow invokes the actual root `pnpm boundary-lint` script rather than API ESLint.
 - Remove `continue-on-error` from formatting and architecture checks after existing violations are addressed.
 - Ensure CI reports the real command, scope and exit code.
 - Keep fast affected-package checks on PRs; schedule/trigger full suites at the release candidate.
