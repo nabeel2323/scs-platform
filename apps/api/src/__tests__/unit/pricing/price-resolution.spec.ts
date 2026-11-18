@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { priceForQty, resolveVariantPrices, resolveSelectedOfferPrices, type OfferPriceSource } from '../../../modules/pricing/price-resolution';
+import { priceForQty, resolveVariantPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type OfferPriceSource } from '../../../modules/pricing/price-resolution';
 
 /**
  * Price resolution (A5-1) — the rule shared by `CartService.addItem` and the
@@ -192,7 +192,7 @@ describe('resolveSelectedOfferPrices', () => {
       [{ offerId: 'offer-selected', variantId: 'variant-a', quantity: 5 }],
     );
 
-    expect(prices.get('offer-selected')).toEqual({
+    expect(prices.get(selectedOfferPriceKey('offer-selected', 'variant-a', 5))).toEqual({
       offerId: 'offer-selected',
       storeId: 'store-a',
       productId: 'product-a',
@@ -215,7 +215,7 @@ describe('resolveSelectedOfferPrices', () => {
       [{ offerId: offer.id, variantId: 'variant-a', quantity: 5 }],
     );
 
-    expect(prices.get(offer.id)).toMatchObject({
+    expect(prices.get(selectedOfferPriceKey(offer.id, 'variant-a', 5))).toMatchObject({
       offerId: offer.id,
       unitPriceMinor: 875,
       currency: 'USD',
