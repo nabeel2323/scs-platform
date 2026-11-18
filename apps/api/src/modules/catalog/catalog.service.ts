@@ -321,7 +321,11 @@ export class CatalogService {
       count: sql<number>`count(*)::int`,
     })
       .from(products)
-      .where(and(isNull(products.storeId), isNull(products.deletedAt)))
+      .where(and(
+        isNull(products.storeId),
+        isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
+      ))
       .groupBy(products.categoryId);
     const countByCat = new Map<string, number>(
       counts.filter(c => c.categoryId != null).map(c => [c.categoryId as string, c.count] as const),
@@ -393,7 +397,12 @@ export class CatalogService {
     const platformCats = await this.loadPlatformCategoryNodes();
     const descendantIds = collectDescendantIds(platformCats, cat.id);
 
-    const baseConditions = [isNull(products.storeId), isNull(products.deletedAt)];
+    // Buyer-facing category surfaces must not include unpublished canonical products.
+    const baseConditions = [
+      isNull(products.storeId),
+      isNull(products.deletedAt),
+      eq(products.status, 'ACTIVE'),
+    ];
 
     const directRows = scope === 'DESCENDANT' ? [] : await this.queryCategoryProductRows(baseConditions, [cat.id]);
     const descendantRows = scope === 'DIRECT' || descendantIds.size === 0
@@ -498,6 +507,7 @@ export class CatalogService {
         inArray(products.categoryId, categoryIds),
         isNull(products.storeId),
         isNull(products.deletedAt),
+        eq(products.status, 'ACTIVE'),
       ));
     return rows[0]?.count ?? 0;
   }
