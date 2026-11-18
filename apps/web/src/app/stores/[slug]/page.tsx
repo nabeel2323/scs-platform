@@ -99,9 +99,14 @@ export default function StoreDetailPage() {
       }
       // At the MOQ, not 1: the card advertises the minimum and the cart accepts
       // the line either way, so adding 1 only moved the rejection to checkout.
+      const storeId = product.storeId ?? store?.id;
+      if (!storeId) {
+        setCartError('This listing is not attached to the current store.');
+        return;
+      }
       await addToCart({
         variantId: variant.id,
-        storeId: product.storeId,
+        storeId,
         quantity: product.moq || 1,
       });
       setAddedItems((prev) => new Set(prev).add(product.id));
