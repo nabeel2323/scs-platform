@@ -266,6 +266,7 @@ export class SearchService {
           AND p.status = 'ACTIVE'
           ${options?.storeId ? sql`AND p.store_id = ${options.storeId}` : sql``}
           ${options?.categoryId ? sql`AND p.category_id = ${options.categoryId}` : sql``}
+          ${options?.brandId ? sql`AND p.brand_id = ${options.brandId}` : sql``}
           ${attrFilterSql}
           ${extraFiltersSql}
           AND (
