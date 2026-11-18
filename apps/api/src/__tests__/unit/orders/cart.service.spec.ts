@@ -129,7 +129,9 @@ describe('CartService.addItem selected offer pricing', () => {
       lineTotalMinor: 4750,
     });
     expect(db.select).toHaveBeenCalledTimes(1);
-  })  it('does not merge an owner-priced line into an existing seller-offer line', async () => {
+  });
+
+  it('does not merge an owner-priced line into an existing seller-offer line', async () => {
     let cartItemWhere: unknown;
     const builder: Record<string, any> = {};
     builder['from'] = () => builder;
@@ -171,8 +173,6 @@ describe('CartService.addItem selected offer pricing', () => {
     expect(predicate).toContain('offer_id');
     expect(predicate).toMatch(/is null/i);
   });
-
-;
 });
 
 describe('CartService.listCartItems', () => {
