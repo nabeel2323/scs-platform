@@ -88,7 +88,7 @@ describe('Canonical product lookup publication boundary', () => {
     const service = Object.create(CatalogService.prototype) as CatalogService;
     (service as any).db = { db: { select: vi.fn(() => chain) } };
 
-    await expect(service.searchCanonicalProducts({ search: 'laptop' })).resolves.toEqual([]);
+    await expect(service.searchCanonicalProducts({ search: 'laptop' })).resolves.toEqual({ items: [], total: 0 });
 
     const query = sqlText(capturedWhere);
     expect(query.sql).toContain('"store_id" is null');
