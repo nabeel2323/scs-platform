@@ -7,7 +7,7 @@ import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
 import { eq, and, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -332,7 +332,7 @@ export class CartService {
     const variantId = item['variantId'] as string;
     const storeId = item['storeId'] as string;
     const selectedOfferId = item['offerId'] as string | null;
-    let tier;
+    let tier: SelectedOfferPrice | VariantPricing | undefined;
     if (selectedOfferId) {
       const offer = await this.db.db.query.merchantOffers.findFirst({
         where: eq(merchantOffers.id, selectedOfferId),
