@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028, G-003 and G-011 have additional latest-head changes awaiting CI.
+**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-003 have latest-head changes awaiting further verification; G-011 is closed after CI #647.
 
 ---
 
@@ -23,9 +23,9 @@
 | P1 open | 7 (G-002–G-008) |
 | P2 open | 10 (G-009–G-010, G-012–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 8 (G-001, G-020, G-023–G-027, G-029) |
+| Findings closed under this plan | 9 (G-001, G-011, G-020, G-023–G-027, G-029) |
 | Findings implemented; latest-head CI pending | 1 (G-028) |
-| Findings partially remediated | 3 (G-002–G-003, G-011) |
+| Findings partially remediated | 2 (G-002–G-003) |
 | Final full test campaign | NOT STARTED |
 
 **Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
@@ -66,7 +66,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | OPEN | Reject unsupported method unless gateway separately approved |
 | G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | OPEN | Implement provider or truthful NOT_CONFIGURED state |
 | G-010 | P2 | Carrier label worker handler is no-op | 3 | OPEN | Use provider sandbox; no live shipment without approval |
-| G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | IMPLEMENTED — CI PENDING | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Focused worker tests committed; multi-instance PostgreSQL race test and CI verification remain outstanding. |
+| G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | CLOSED — CI VERIFIED | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Unit and PostgreSQL two-worker/lease-recovery/buyer-confirmation race tests passed in CI #647; migration 0071 full apply also passed in isolated CI PostgreSQL. |
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
 | G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
 | G-014 | P2 | develop branch unprotected | 5 | OPEN | Repository ruleset required |
@@ -201,8 +201,8 @@ Status definitions:
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
 | P3-06 | Test provider timeout, duplicate event and retry behavior | G-003/G-010 | TODO | |
-| P3-07 | Implement durable AutoCompleteWorker lease/claim | G-011 | IMPLEMENTED — CI PENDING | Migration 0071 + Drizzle schema add claim timestamp/owner; worker persists a five-minute lease, recovers expired claims, and completion is fenced by owner + lease validity in the atomic status flip. |
-| P3-08 | Test multi-instance claim and buyer confirmation race | G-011 | PARTIAL — CI PENDING | Focused unit tests cover persisted claim SQL, owner propagation and conditional release. Added a PostgreSQL Testcontainers integration test that races two worker instances, expires/reclaims the lease, then verifies buyer confirmation fences the stale worker; latest CI pending. |
+| P3-07 | Implement durable AutoCompleteWorker lease/claim | G-011 | COMPLETE — CI #647 | Migration 0071 + Drizzle schema add claim timestamp/owner; worker persists a five-minute lease, recovers expired claims, and completion is fenced by owner + lease validity in the atomic status flip. |
+| P3-08 | Test multi-instance claim and buyer confirmation race | G-011 | COMPLETE — CI #647 | Focused unit tests cover persisted claim SQL, owner propagation and conditional release. PostgreSQL Testcontainers integration test races two worker instances, expires/reclaims the lease, then verifies buyer confirmation fences the stale worker; passed in CI #647. |
 | P3-09 | Document P13 worker registration and intended holder topology | Runtime | TODO | |
 | P3-10 | Define safe P13 staging/prod activation configuration | Runtime | TODO | |
 | P3-11 | Configure and test alert sink and worker anomaly alerts | Runtime | TODO | |
@@ -364,3 +364,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 
 | 2026-11-18 | G-011 PostgreSQL multi-instance and buyer-confirmation race coverage | commit `95a7363` on `remediation/phase-0-1-tenant-security` | Added a Testcontainers PostgreSQL integration test with two AutoCompleteWorker instances. It verifies only one instance claims a due order, the second instance reclaims an expired lease, and a buyer-confirmation status/claim clear prevents the stale worker's fenced OrdersService transition. | New integration test committed; CI run #645 was superseded by this test commit. Await fresh latest-head CI. | IN PROGRESS — CI PENDING | Verify latest CI; if the PostgreSQL test passes, close G-011 after independent review of the migration and fencing behavior. |
+
+
+| 2026-11-19 | G-011 durable AutoCompleteWorker lease and race remediation | commits `0805f11`, `58990ad`, `08c89f2`, `c93281a`, `57e170a`, `95a7363`, `874f07b` on `remediation/phase-0-1-tenant-security` | Added migration 0071 and Drizzle claim fields; implemented persisted five-minute claims, SKIP LOCKED acquisition, expired lease recovery, owner-conditional release and claim-owner/lease-fenced completion. Added focused unit tests and PostgreSQL Testcontainers coverage for competing workers, lease recovery and buyer-confirmation race. | CI #647 passed all executed jobs: lint/typecheck, Flutter, API unit/coverage, API integration, boundary lint E6, migration full apply, web/admin tests, build, container build/smoke and contract/codegen. k6 smoke and staging release were skipped by workflow conditions. | CLOSED — CI VERIFIED | Continue G-003 production-consumer integration proof. |
