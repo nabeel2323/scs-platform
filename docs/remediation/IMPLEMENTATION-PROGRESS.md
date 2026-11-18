@@ -38,8 +38,8 @@
 
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
-| 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | NOT STARTED | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
+| 0 | Baseline reconciliation & testability foundation | IN PROGRESS | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 45% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 15% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -54,8 +54,8 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | OPEN | Must close before authenticated business testing |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | IN PROGRESS | Reproduced in source; controller now enforces org + active store membership on all three routes; regression tests authored, execution pending |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER on all tables and same postgres default ACL; all 114 RLS disabled |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
@@ -73,9 +73,9 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
 | G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
-| G-020 | P2 | normalize_arabic has mutable search_path | 1 | OPEN | Review function dependencies and harden safely |
+| G-020 | P2 | normalize_arabic has mutable search_path | 1 | OPEN | Live advisor confirms mutable search_path; function is not SECURITY DEFINER and currently has no function config |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
-| G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Review dependencies before relocation |
+| G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
 
 Status definitions:
 - **OPEN:** finding not yet implemented/closed.
@@ -89,55 +89,59 @@ Status definitions:
 
 ## 4. Phase 0 — Baseline reconciliation & testability foundation
 
-**Status:** NOT STARTED  
+**Status:** IN PROGRESS  
 **Phase owner:** Remediation lead / repository maintainer  
-**Entry commit:** `develop` — to be refreshed at phase start.
+**Entry commit:** `develop` / `3f7268dbc75828190f16165ca7e8dd4e315c421c`  
+**Working branch:** `remediation/phase-0-1-tenant-security`
 
 | Task | Description | Status | Evidence / result |
 |---|---|---|---|
-| P0-01 | Record current branch HEAD and compare with audit baseline | TODO | |
-| P0-02 | Revalidate all 22 findings against current source | TODO | |
+| P0-01 | Record current branch HEAD and compare with audit baseline | COMPLETE | `develop` HEAD `3f7268dbc75828190f16165ca7e8dd4e315c421c`; 7 commits ahead / 0 behind audit SHA; diff contains docs only |
+| P0-02 | Revalidate all 22 findings against current source | IN PROGRESS | G-001, G-002, G-020, G-022 revalidated; remaining findings pending |
 | P0-03 | Identify fixes already present after audit commit | TODO | |
-| P0-04 | Inventory API/web/admin/mobile/DB test commands and prerequisites | TODO | |
+| P0-04 | Inventory API/web/admin/mobile/DB test commands and prerequisites | IN PROGRESS | Root scripts and API unit/integration/typecheck/build commands inventoried; remaining app/device/provider prerequisites pending |
 | P0-05 | Define synthetic buyer/merchant/admin test identities and fixtures | TODO | |
 | P0-06 | Define final full test campaign command manifest | TODO | |
-| P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | TODO | |
+| P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | PARTIAL | Staging auto-deploy is disabled; runbook not yet written |
 | P0-08 | Review startup migration/seed and safe deploy/forward-fix procedure | TODO | |
-| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | TODO | |
+| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | IN PROGRESS | 114 public tables, all owned by postgres, RLS off; anon/auth have no CRUD but have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats these; custom _migration_log has 69 rows |
 | P0-10 | Trace OTP logging and exception paths; preserve redaction tests | TODO | |
-| P0-11 | Document worker registration/flags/leases and protected-job safety | TODO | |
+| P0-11 | Document worker registration/flags/leases and protected-job safety | PARTIAL | Render evidence confirms OutboxDispatcher/ShippingCarrierWorker register; P13 worker disabled and alert sink absent in observed runtime; source topology review pending |
 | P0-12 | Establish backup/restore evidence availability and staging runbook | TODO | |
 
 **Exit gate:** test matrix and runbooks accepted; baseline discrepancies resolved or explicitly blocked; no unsafe staging/production writes or worker activation performed.
 
 **Phase evidence:**  
-- Baseline SHA: TBD  
-- Test matrix: TBD  
+- Baseline SHA: `3f7268dbc75828190f16165ca7e8dd4e315c421c`  
+- Audit comparison: 7 commits ahead, 0 behind; only docs/report/README changed since audit SHA  
+- Supabase project: `wplsxxevoevzqbgtpctw` (Postgres 17.6.1.166)  
+- DB inventory: 114 tables, all postgres-owned, RLS disabled on all 114  
+- Grants: no anon/auth CRUD; TRUNCATE/REFERENCES/TRIGGER granted on all 114; postgres default ACL also grants DELETE/TRUNCATE/TRIGGER to anon/auth/service_role  
+- Migration ledger: `_migration_log` contains 69 rows, latest 2026-11-17 16:07:23 UTC; Supabase migration list is empty and not authoritative for this app  
 - Staging runbook: TBD  
-- DB access inventory: TBD  
 - OTP logging review: TBD  
-- Phase decision: NOT STARTED
+- Phase decision: IN PROGRESS
 
 ---
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | TODO | |
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | TODO | |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | TODO | |
+| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Controller routes pass caller-supplied storeId directly to offer service without caller scope; source at audit baseline |
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IN PROGRESS | Implemented in CatalogOfferController via assertStoreInOrg + assertStoreMember on remediation branch; tests pending execution |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | IN PROGRESS | Implemented in CatalogOfferController via shared access assertion on remediation branch; tests pending execution |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TODO | |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
-| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
-| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
-| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | |
-| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IN PROGRESS | New controller regression suite authored for authorized member, foreign org, missing membership and admin bypass; test run pending |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | Source uses DATABASE_URL via node-postgres/Drizzle; live pg_stat_activity sample did not identify a clear Render API connection, so runtime username remains unverified |
+| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Live inventory reconciles to 114 public tables; full table-by-table classification pending |
+| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | anon/auth have no CRUD; all 114 have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats DELETE/TRUNCATE/TRIGGER; one sequence has no anon/auth usage/select |
+| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | Must finish API runtime role and public Data API access classification before migration design |
+| P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | No live database changes made |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
-| P1-12 | Harden normalize_arabic search_path safely | G-020 | TODO | |
+| P1-12 | Harden normalize_arabic search_path safely | G-020 | SOURCE VERIFIED | Function is invoker (not SECURITY DEFINER), owner postgres, no proconfig; advisor reports mutable search_path |
 | P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
 
 **Exit gate:** P0 tenant isolation PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
@@ -278,7 +282,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | Plan initialization | develop / 9f5bc397… audit baseline | Created audit-driven sequence and tracker; no remediation code changed | Source/report review only | PLANNED | Start Phase 0 baseline reconciliation |
+| 2026-11-18 | P0-01 / P0-02 / P1-01–05 | develop baseline 3f7268dbc…; branch remediation/phase-0-1-tenant-security | Reconciled source baseline; confirmed G-001; added org + active store-member checks to merchant offer list/analytics/trend routes; authored controller regression suite | Tests not yet executed; no deployment or DB changes | IN PROGRESS | Run focused API tests and CI; continue G-002 access model review |
 
 ### Required task log entry format
 
@@ -333,4 +337,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
-**Current state:** no remediation code has been changed by initializing these documents.
+**Current state:** first P0 tenant-isolation code change and regression tests are committed to the remediation branch; test execution and independent verification are pending. No database or Render configuration has been changed.
