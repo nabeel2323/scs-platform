@@ -154,7 +154,7 @@ export default function CartPage() {
                             {item.storeName ? ' · ' : ''}
                             Offer {item.offer.status === 'ACTIVE' ? 'active' : item.offer.status.toLowerCase()}
                             {item.offer.leadTimeDays != null && ` · Lead ${item.offer.leadTimeDays}d`}
-                            {(item.offer.moq ?? item.moq) > 1 && ` · MOQ ${item.offer.moq ?? item.moq}`}
+                            {(item.offer.moq ?? item.moq ?? 1) > 1 && ` · MOQ ${item.offer.moq ?? item.moq ?? 1}`}
                             {item.offer.orderIncrement != null && ` · Step ${item.offer.orderIncrement}`}
                           </>
                         )}
