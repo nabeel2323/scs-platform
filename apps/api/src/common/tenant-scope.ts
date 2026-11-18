@@ -171,6 +171,68 @@ export async function assertOrderAccessible(
 }
 
 /**
+ * warehouse → store → active organization + active store membership.
+ * Inventory HTTP/service paths must use this instead of organization-only scope.
+ */
+export async function assertWarehouseMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  warehouseId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const warehouse = await db.db.query.warehouses.findFirst({
+    where: eq(warehouses.id, warehouseId),
+    columns: { storeId: true },
+  });
+  if (!warehouse) throw new ForbiddenException('You do not have access to this warehouse');
+
+  await assertStoreInOrg(db, caller, warehouse.storeId);
+  await assertStoreMember(db, caller, warehouse.storeId);
+}
+
+/** variant → product → store → active organization + active store membership. */
+export async function assertVariantStoreMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  variantId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const variant = await db.db.query.productVariants.findFirst({
+    where: eq(productVariants.id, variantId),
+    columns: { productId: true },
+  });
+  if (!variant) throw new ForbiddenException('You do not have access to this variant');
+
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, variant.productId),
+    columns: { storeId: true },
+  });
+  if (!product?.storeId) throw new ForbiddenException('You do not have access to this variant');
+
+  await assertStoreInOrg(db, caller, product.storeId);
+  await assertStoreMember(db, caller, product.storeId);
+}
+
+/** inventory item → warehouse → store → active organization + active membership. */
+export async function assertInventoryItemMember(
+  db: DatabaseService,
+  caller: CallerContext,
+  itemId: string,
+): Promise<void> {
+  if (isTenantPrivileged(caller)) return;
+
+  const item = await db.db.query.inventoryItems.findFirst({
+    where: eq(inventoryItems.id, itemId),
+    columns: { warehouseId: true },
+  });
+  if (!item) throw new ForbiddenException('You do not have access to this inventory item');
+
+  await assertWarehouseMember(db, caller, item.warehouseId);
+}
+
+/**
  * Store-level membership check (migration 0054).
  *
  * Verifies that the caller is an ACTIVE member of the specified store.
