@@ -19,12 +19,14 @@
  *   Local Windows: Docker Desktop port-mapping bug → fall back to direct
  *   connection on the dedicated scs-b21-pg container (port 15432).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../../drizzle/schema';
 import { DatabaseService } from '../../common/database/database.service';
+import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { ShippingCarrierWorker } from '../../modules/shipping/shipping-carrier.worker';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -130,6 +132,76 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     if (container) await container.stop();
     delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
   }, 30_000);
+
+  // ── C-00: Production poller ownership boundary ─────────────────────────
+
+  it('C-00: invokes both production pollers and keeps carrier events exclusively with ShippingCarrierWorker', async () => {
+    const carrierEventId = randomUUID();
+    const genericEventId = randomUUID();
+
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+       VALUES ($1, 'shipping.carrier.unsupported.integration-test', $2, '{}', 'PENDING')`,
+      [carrierEventId, randomUUID()],
+    );
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+       VALUES ($1, 'integration.generic.ownership-test', $2, '{}', 'PENDING')`,
+      [genericEventId, randomUUID()],
+    );
+
+    // Exercise the real generic dispatcher poll method against persisted rows.
+    const dispatcher = new OutboxDispatcher(database);
+    await (dispatcher as any).poll();
+
+    const afterGeneric = await pool.query(
+      `SELECT id, status, attempts FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [[carrierEventId, genericEventId]],
+    );
+    const genericRow = afterGeneric.rows.find((row: any) => row.id === genericEventId);
+    const carrierAfterGeneric = afterGeneric.rows.find((row: any) => row.id === carrierEventId);
+    expect(genericRow.status).toBe('DISPATCHED');
+    expect(carrierAfterGeneric.status).toBe('PENDING');
+    expect(Number(carrierAfterGeneric.attempts)).toBe(0);
+
+    // Exercise the real carrier poll method, claim query and retry path. The
+    // unsupported event deliberately fails safely into retry rather than
+    // being acknowledged as DISPATCHED.
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.db = database;
+    worker.workerId = 'integration-carrier-owner';
+    worker.running = false;
+    worker.logger = {
+      log: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+    worker.retryPolicy = {
+      classify: vi.fn(() => ({
+        isFinal: false,
+        safeMessage: 'unsupported carrier event type (integration test)',
+        nextAttemptAt: new Date(Date.now() + 30_000),
+      })),
+    };
+
+    await worker.poll();
+
+    const afterCarrier = await pool.query(
+      `SELECT id, status, attempts, locked_at, locked_by
+       FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [[carrierEventId, genericEventId]],
+    );
+    const carrierRow = afterCarrier.rows.find((row: any) => row.id === carrierEventId);
+    const genericAfterCarrier = afterCarrier.rows.find((row: any) => row.id === genericEventId);
+
+    expect(carrierRow.status).toBe('PENDING');
+    expect(Number(carrierRow.attempts)).toBe(1);
+    expect(carrierRow.locked_at).toBeNull();
+    expect(carrierRow.locked_by).toBeNull();
+    expect(genericAfterCarrier.status).toBe('DISPATCHED');
+    expect(worker.retryPolicy.classify).toHaveBeenCalledTimes(1);
+  });
 
   // ── C-01: Atomic Claiming (FOR UPDATE SKIP LOCKED) ─────────────────────
 
