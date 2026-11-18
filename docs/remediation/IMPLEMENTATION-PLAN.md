@@ -115,6 +115,24 @@ Use these labels in every phase report:
 
 All evidence must identify branch/commit, command or test name, environment, date/time and result. Redact secrets, customer data, OTPs and tokens.
 
+### 2.5 Initial baseline reconciliation — 18 November 2026
+
+- Current `develop` HEAD at the start of implementation: `3f7268dbc75828190f16165ca7e8dd4e315c421c`.
+- Compared with audited source baseline `9f5bc397467dc92cdc8debd54797b6d730659c36`, `develop` is 7 commits ahead and 0 behind. The comparison shows only README, the audit report and the two remediation documents changed; no application source files changed after the audit baseline. The audited code findings therefore remain the correct starting source snapshot, subject to revalidation during each fix.
+- New implementation branch: `remediation/phase-0-1-tenant-security`, created from the current `develop` head.
+- Supabase project inspected: `SCS-PlatForm` (`wplsxxevoevzqbgtpctw`), PostgreSQL 17.6.1.166, region `eu-west-1`, status ACTIVE_HEALTHY.
+- Live public-schema inventory: **114/114 tables owned by postgres; 0/114 have RLS enabled**.
+- Effective table privileges: `anon` and `authenticated` have **zero SELECT/INSERT/UPDATE/DELETE privileges on all 114 tables**. They do, however, each hold `TRUNCATE`, `REFERENCES` and `TRIGGER` on all 114 tables (684 grant rows combined). `service_role` has the same three privileges, but no DML privileges in this inventory.
+- Default privileges for objects created by `postgres` in `public` also grant `DELETE`, `TRUNCATE` and `TRIGGER` to `anon`, `authenticated` and `service_role`. This means the excessive grants can recur on future tables created by that role. A separate default ACL owned by `supabase_admin` grants all table privileges to the API roles; do not alter that Supabase-managed ACL until object ownership and migration execution paths are fully understood.
+- The application database service uses `DATABASE_URL` through node-postgres/Drizzle, not a Supabase client SDK. The live `pg_stat_activity` sample did not show a clearly identifiable active Render API session, so the actual deployed API database username remains **NOT VERIFIED**. Do not assume it from the sample.
+- The custom application migration runner uses `public._migration_log`: 69 migration rows were present, latest applied at `2026-11-17 16:07:23 UTC`. Supabase's `list_migrations` returned an empty list, so it is not the authoritative migration ledger for this application.
+- `public.normalize_arabic(text)` is owned by postgres, is not SECURITY DEFINER, and has no function-level `search_path` configuration. Supabase Security Advisor reports `function_search_path_mutable`.
+- `pg_trgm` is installed in `public`; Supabase Security Advisor reports `extension_in_public`.
+- G-001 is reproduced in source: the three merchant offer list/analytics controller routes accept caller-supplied `storeId` and query the service without forwarding or validating the authenticated caller. Their service methods query the supplied store directly.
+- Current API scripts include root `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm boundary-lint`; API scripts include `pnpm --filter @scs/api test:unit`, `test:integration`, `typecheck`, `build`. The CI workflow runs PR checks, but formatting remains advisory (`continue-on-error: true`) and boundary-lint must be checked for actual execution and failure behavior.
+
+These are live read-only observations, not a migration or configuration change. The exact API DB role, complete schema-to-route access matrix, and the Supabase-managed default ACL implications remain open verification items.
+
 ---
 
 ## 3. Sequencing strategy and dependency graph
@@ -571,4 +589,4 @@ These two files are the authoritative working references for this remediation pr
 
 Start with **Phase 0**, then Phase 1. Do not begin broad buyer/merchant staging testing until the P0 authorization gap and database access model are closed. Once Phase 1 passes, allow narrow controlled business tests while implementation continues. Keep full manual journey testing consolidated in Phase 6.
 
-**Current overall status: PLANNED. No remediation implementation is claimed by this document.**
+**Current overall status: IN PROGRESS.** Baseline reconciliation is underway and the first P0 tenant-isolation code change has been prepared on the dedicated remediation branch. It is not yet test-verified or closed.
