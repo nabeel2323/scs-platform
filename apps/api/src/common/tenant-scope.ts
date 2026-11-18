@@ -337,6 +337,20 @@ export async function assertProductReadable(
   await assertProductEditableByMerchant(db, caller, productId);
 }
 
+/** product → store → active organization + membership visibility for studio data. */
+export async function canManageProductCatalog(
+  db: DatabaseService,
+  caller: CallerContext,
+  productId: string,
+): Promise<boolean> {
+  const product = await db.db.query.products.findFirst({
+    where: eq(products.id, productId),
+    columns: { storeId: true },
+  });
+  if (!product?.storeId) return false;
+  return canManageStoreCatalog(db, caller, product.storeId);
+}
+
 /**
  * Product Studio convenience helper — combines existing org-level check
  * with store-level membership authorization.
