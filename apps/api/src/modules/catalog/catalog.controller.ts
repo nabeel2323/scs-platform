@@ -537,8 +537,14 @@ export class CatalogController {
   @RequirePermission('merchant:products:write')
   async bulkProductOperations(
     @Param('storeId') storeId: string,
+    @CurrentUser() user: JwtPayload,
     @Body() body: { ids: string[]; action: 'delete' | 'archive' | 'draft' },
   ) {
+    // Bind the supplied store scope to both the caller's active organization
+    // and active store membership before any bulk mutation reaches the service.
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
     return this.catalogService.bulkProductOperations(storeId, body.ids, body.action);
   }
 
