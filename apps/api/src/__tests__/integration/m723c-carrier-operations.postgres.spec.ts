@@ -134,13 +134,22 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
   // ── C-01: Atomic Claiming (FOR UPDATE SKIP LOCKED) ─────────────────────
 
   it('C-01: outbox atomic claiming uses FOR UPDATE SKIP LOCKED', async () => {
-    // Insert 3 pending carrier events
+    // Insert carrier and non-carrier events in the same outbox table.
+    // The two pollers must partition this set without overlap.
     const eventIds = [randomUUID(), randomUUID(), randomUUID()];
+    const nonCarrierIds = [randomUUID(), randomUUID()];
     for (const id of eventIds) {
       await pool.query(
         `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
          VALUES ($1, 'shipping.carrier.create', $2, '{}', 'PENDING')`,
         [id, randomUUID()],
+      );
+    }
+    for (const [id, eventType] of nonCarrierIds.map((id, index) => [id, index === 0 ? 'order.created' : 'return.created'] as const)) {
+      await pool.query(
+        `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+         VALUES ($1, $2, $3, '{}', 'PENDING')`,
+        [id, eventType, randomUUID()],
       );
     }
 
@@ -185,6 +194,26 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     `, [workerId, now]);
 
     expect(second.rows.length).toBe(0);
+
+    // The generic dispatcher consumes only the non-carrier subset. It must
+    // leave carrier events in PROCESSING for the dedicated worker.
+    const generic = await pool.query(`
+      UPDATE outbox_events
+      SET status = 'DISPATCHED'
+      WHERE id = ANY($1::uuid[])
+        AND status = 'PENDING'
+        AND event_type NOT LIKE 'shipping.carrier.%'
+      RETURNING id, event_type
+    `, [nonCarrierIds]);
+    expect(generic.rows).toHaveLength(2);
+    expect(generic.rows.map((row: any) => row.event_type).sort()).toEqual(['order.created', 'return.created']);
+
+    const carrierStates = await pool.query(
+      `SELECT status FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [eventIds],
+    );
+    expect(carrierStates.rows).toHaveLength(3);
+    expect(carrierStates.rows.every((row: any) => row.status === 'PROCESSING')).toBe(true);
   });
 
   // ── C-02: 100 Concurrent Workers vs 10 Events ─────────────────────────
@@ -239,27 +268,43 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
 
   // ── C-03: Lease Expiration Recovery ────────────────────────────────────
 
-  it('C-03: stale PROCESSING events are recovered', async () => {
-    const eventId = randomUUID();
-    // Insert a PROCESSING event with locked_at 10 minutes ago
+  it('C-03: stale lease recovery is restricted to carrier events', async () => {
+    const carrierEventId = randomUUID();
+    const unrelatedEventId = randomUUID();
+    // Both event families have stale PROCESSING leases.
     await pool.query(
       `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, locked_at, locked_by, attempts)
        VALUES ($1, 'shipping.carrier.create', $2, '{}', 'PROCESSING', NOW() - INTERVAL '10 minutes', 'dead-worker', 1)`,
-      [eventId, randomUUID()],
+      [carrierEventId, randomUUID()],
+    );
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, locked_at, locked_by, attempts)
+       VALUES ($1, 'order.created', $2, '{}', 'PROCESSING', NOW() - INTERVAL '10 minutes', 'other-worker', 1)`,
+      [unrelatedEventId, randomUUID()],
     );
 
-    // Recover stale leases (same logic as worker.recoverStaleLeases)
+    // The carrier worker may recover only its own event namespace.
     const cutoff = new Date(Date.now() - 5 * 60 * 1000); // 5 min timeout
     const recovered = await pool.query(`
       UPDATE outbox_events
       SET status = 'PENDING', locked_at = NULL, locked_by = NULL, attempts = attempts + 1
-      WHERE status = 'PROCESSING' AND locked_at < $1
+      WHERE status = 'PROCESSING'
+        AND locked_at < $1
+        AND event_type LIKE 'shipping.carrier.%'
       RETURNING id, status, attempts
     `, [cutoff]);
 
-    expect(recovered.rows.length).toBe(1);
+    expect(recovered.rows).toHaveLength(1);
+    expect(recovered.rows[0].id).toBe(carrierEventId);
     expect(recovered.rows[0].status).toBe('PENDING');
     expect(parseInt(recovered.rows[0].attempts)).toBe(2);
+
+    const unrelated = await pool.query(
+      `SELECT status, attempts FROM outbox_events WHERE id = $1`,
+      [unrelatedEventId],
+    );
+    expect(unrelated.rows[0].status).toBe('PROCESSING');
+    expect(parseInt(unrelated.rows[0].attempts)).toBe(1);
   });
 
   // ── C-04: Dead-Letter After Max Retries ────────────────────────────────
