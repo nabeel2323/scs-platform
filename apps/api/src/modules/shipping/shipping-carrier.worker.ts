@@ -221,7 +221,10 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
           await this.handleWebhookRetry(event);
           break;
         default:
-          this.logger.warn(`Unknown carrier event type: ${eventType}`);
+          // Unknown events in the carrier namespace must never be acknowledged.
+          // Throwing routes them through retry/dead-letter handling instead of
+          // silently marking an unhandled event DISPATCHED.
+          throw new Error(`Unsupported carrier event type: ${eventType}`);
       }
 
       // Mark as dispatched
