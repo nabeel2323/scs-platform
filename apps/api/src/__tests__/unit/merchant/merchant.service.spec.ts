@@ -424,7 +424,7 @@ describe('MerchantService.createStore', () => {
     );
   });
 
-  it('does not leave a store behind when the transactional outbox insert fails', async () => {
+  it('propagates an outbox failure so the store transaction can roll back', async () => {
     const inserted: unknown[] = [];
     const tx = {
       insert: (table: unknown) => ({
