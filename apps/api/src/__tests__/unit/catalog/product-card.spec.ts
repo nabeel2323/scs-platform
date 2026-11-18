@@ -188,7 +188,10 @@ describe('enrichProductCards', () => {
     const h = fakeDb({
       stores: [AL_NOOR, EASTERN],
       variants: [{ id: 'v-rice-25kg', productId: 'p-rice' }],
-      priceBatches: [[tier('v-rice-25kg', 1000)]],
+      priceBatches: [
+        [{ priceListId: 'pl-eastern', priceListStoreId: 'store-2', priceListName: 'Eastern Wholesale', currency: 'SAR', variantId: 'v-rice-25kg', minQty: 5, maxQty: null, unitPriceMinor: 950 }],
+        [tier('v-rice-25kg', 1000)],
+      ],
       offers: [{
         id: 'offer-eastern-rice',
         productId: 'p-rice',
@@ -197,6 +200,7 @@ describe('enrichProductCards', () => {
         basePriceMinor: 900,
         currency: 'SAR',
         moq: 5,
+        priceListId: 'pl-eastern',
       }],
     });
 
@@ -206,7 +210,7 @@ describe('enrichProductCards', () => {
       priceFromMinor: 1000,
       priceCurrency: 'SAR',
       activeOfferCount: 1,
-      lowestOfferPriceMinor: 900,
+      lowestOfferPriceMinor: 950,
       lowestOfferCurrency: 'SAR',
       lowestOfferId: 'offer-eastern-rice',
       lowestOfferStoreId: 'store-2',
