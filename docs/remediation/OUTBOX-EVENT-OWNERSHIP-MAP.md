@@ -4,7 +4,7 @@
 **Repository:** `nabeel2323/scs-platform`  
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Finding:** G-003 — Generic outbox dispatcher competes with carrier worker  
-**Status:** SOURCE REVIEW COMPLETE FOR CURRENTLY IDENTIFIED PUBLISHERS; LATEST WORKER TESTS PENDING CI
+**Status:** VERIFIED IN CI #687 — SOURCE REVIEW COMPLETE FOR CURRENTLY IDENTIFIED PUBLISHERS
 
 ## Purpose
 
@@ -66,14 +66,13 @@ The inspected Render workspace previously showed one API service and no separate
 
 ## Verification state
 
-- CI #592 passed the generic dispatcher exclusion predicate test in API unit/coverage.
-- Latest carrier worker tests cover carrier-only claim, carrier-only stale lease recovery and unsupported carrier event retry behavior; these changes are newer than CI #592 and remain unverified by CI.
+- CI #687 passed the PostgreSQL Testcontainers integration test that inserts carrier and non-carrier outbox rows, invokes the production `OutboxDispatcher.poll()` and verifies only the non-carrier row is dispatched, then invokes `ShippingCarrierWorker.poll()` and verifies the carrier event is claimed and retried for its unsupported type without being acknowledged.
+- CI #687 also passed API unit/coverage tests for carrier-only claim, carrier-only stale-lease recovery and unsupported-event retry behavior.
 - The full event-type map is a source scan of current publisher paths, not proof that each non-carrier event has a business side-effect consumer. The generic dispatcher is intentionally documented as a log sink only.
 - No live carrier credentials, shipment creation, cancellation, label request or tracking poll was invoked during this remediation.
 
 ## Remaining work
 
-- Obtain CI for the latest worker changes and G-028 canonical lookup/category-count changes.
-- Add an integration-level ownership test that persists representative carrier and non-carrier events and proves only the intended poller can claim each class.
+- G-003 poller ownership proof is complete for the persisted carrier/non-carrier cases exercised in CI #687; extend coverage only if a new publisher/event family or consumer is introduced.
 - Keep G-010 label-generation behavior as a separate finding; this ownership map does not close the label handler no-op.
-- Do not activate new workers or change deployment topology without explicit authorization.
+- P13 activation and alert-sink verification remain separate operational work; no workers were newly activated and no deployment topology was changed.

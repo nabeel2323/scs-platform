@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-011 are closed after CI #647; G-003 production-poller integration proof is awaiting latest CI.
+**Tracker status:** ACTIVE — Phases 0–3 remain in progress; G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed. CI #687 passed all executed jobs on `dc071157`; G-002 and G-006–G-008 remain open P1 findings.
 
 ---
 
@@ -20,19 +20,19 @@
 | Original audit findings | 22 |
 | Additional findings discovered during remediation | 7 (G-023–G-029) |
 | P0 open | 0 |
-| P1 open | 7 (G-002–G-008) |
+| P1 open | 4 (G-002, G-006–G-008) |
 | P2 open | 10 (G-009–G-010, G-012–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 10 (G-001, G-011, G-020, G-023–G-029) |
+| Findings closed under this plan | 13 (G-001, G-003–G-005, G-011, G-020, G-023–G-029) |
 | Findings implemented; latest-head CI pending | 0 |
-| Findings partially remediated | 2 (G-002–G-003) |
+| Findings partially remediated | 1 (G-002) |
 | Final full test campaign | NOT STARTED |
 
 **Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-028 canonical lookup/category and search regressions have fixes committed; G-003 carrier stale-lease/unknown-event changes have focused tests; G-011 durable order claims and fencing are implemented with focused tests. These latest-head changes await CI #643. CI #629 exposed stale test fixtures/expectations and a missing full-text brand predicate; those fixes are committed. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
+<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. CI #687 passed all executed jobs on `dc071157992bb9869fcc059d3bc079bd764f8186`. G-003 is verified by persisted-event integration coverage invoking the production generic and carrier pollers; G-004 exact selected-offer pricing/cart attribution and G-005 per-currency checkout totals passed their focused tests and the full applicable CI jobs. G-011 and G-028 remain verified from CI #647; G-029 from CI #592. G-002 remains partial pending effective DB-role/access-path verification. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
 
 ---
 
@@ -42,8 +42,8 @@
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | IN PROGRESS | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 45% |
 | 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary, initial store ownership and DB role/grant/RLS design verified; limited staging testing may be authorized | 25% |
-| 2 | Commercial correctness & checkout contract | IN PROGRESS | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 10% |
-| 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 30% |
+| 2 | Commercial correctness & checkout contract | IN PROGRESS | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 30% |
+| 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 40% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
 | 5 | Operational hardening, CI, data hygiene & documentation | NOT STARTED | CI, repository, docs, deployment and recovery controls ready | 0% |
 | 6 | Consolidated full verification & release decision | NOT STARTED | One final full test campaign and evidence-based go/no-go decision | 0% |
@@ -58,9 +58,9 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | VERIFIED IN CI | Controller enforces authenticated org + active store membership on all three routes; controller regression suite passed in CI run #536 |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
-| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | IMPLEMENTED — INTEGRATION TEST CI PENDING | Generic dispatcher excludes `shipping.carrier.%`; dedicated worker claims only carrier events using `FOR UPDATE SKIP LOCKED`; stale lease recovery is carrier-prefix scoped; unsupported carrier event types enter retry/dead-letter handling. Added a PostgreSQL Testcontainers integration test that invokes the real OutboxDispatcher.poll() and ShippingCarrierWorker.poll() methods against persisted events and asserts disjoint ownership and retry behavior. CI verification of the new production-poller integration test is pending. Worker registration/topology is source-documented; ReturnExpirationWorker is gated by P13_WORKER_ENABLED. |
-| G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | IMPLEMENTED — CI PENDING | Search cards now resolve and display the exact selected offer's active price-list tier at its MOQ (or its explicit base price when no list is linked), return the concrete variant and offer identity, and the cart prices that exact offer rather than selecting a competing product/variant offer from the same store. Quantity updates and checkout price-delta checks preserve the selected offer. Unit tests cover exact offer price, seller scope, currency, MOQ and cart snapshot. Cart-line lookup now explicitly separates null offerId owner lines from offer-backed lines. Selected-price results are keyed by offer + variant + quantity so one product-level offer can safely price multiple variants in a single order; canonical product cards now send the concrete active variant used for the displayed offer price. Latest CI pending. |
-| G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
+| G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | CLOSED — CI #687 | Generic dispatcher excludes `shipping.carrier.%`; dedicated worker claims only carrier events using `FOR UPDATE SKIP LOCKED`; stale lease recovery is carrier-prefix scoped; unsupported carrier event types enter retry/dead-letter handling. PostgreSQL Testcontainers integration coverage invokes the real OutboxDispatcher.poll() and ShippingCarrierWorker.poll() against persisted carrier/non-carrier events and verifies exclusive ownership plus retry behavior. API integration and unit/coverage jobs passed CI #687. Worker topology is source-documented; P13 activation/alerting and G-010 label generation remain separate work. |
+| G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | CLOSED — CI #687 | Search cards resolve the exact selected offer's active price-list tier at its MOQ (or explicit base price where no list is linked), return concrete variant and offer identity, and cart add/batch/update plus checkout repricing preserve that offer. Owner-priced cart lines remain separate from offer-backed lines; selected prices are keyed by offer + variant + quantity. Resolver (13 tests), product-card (8 tests) and cart (7 tests) suites passed API unit/coverage CI #687; integration, web/admin, lint/typecheck and build jobs also passed. |
+| G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | CLOSED — CI #687 | Checkout now groups item and selected shipping amounts by their own normalized currency; pickup adds no fee; missing currencies mark the estimate incomplete; no SAR fallback or cross-currency grand total is shown. A single-currency total is shown only when complete. Five focused currency tests and the web/admin test job passed CI #687. |
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | OPEN | Confirm exact increment formula with business rule |
 | G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | OPEN | Shared API contract first; client parity afterward |
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | OPEN | Reject unsupported method unless gateway separately approved |
@@ -167,18 +167,18 @@ Status definitions:
 
 ## 6. Phase 2 — Commercial correctness & checkout contract
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P2-01 | Define canonical offer identity in search contract | G-004 | TODO | |
-| P2-02 | Align displayed seller/offer with add-to-cart payload | G-004 | TODO | |
-| P2-03 | Test multiple sellers, stale/inactive offers and price snapshots | G-004 | TODO | |
+| P2-01 | Define canonical offer identity in search contract | G-004 | COMPLETE — CI #687 | Search cards return selected offer/store identity and concrete active variant; exact-offer resolver tests passed. |
+| P2-02 | Align displayed seller/offer with add-to-cart payload | G-004 | COMPLETE — CI #687 | Cart add/batch/update and checkout repricing preserve the exact selected offer; owner-priced lines cannot merge into offer-backed lines. |
+| P2-03 | Test multiple sellers, stale/inactive offers and price snapshots | G-004 | COMPLETE — CI #687 | Resolver, product-card and cart focused tests passed API unit/coverage; integration suite passed. |
 | P2-04 | Agree and document MOQ/orderIncrement formula | G-006 | TODO | |
 | P2-05 | Enforce quantity rule on add/update/checkout server-side | G-006 | TODO | |
 | P2-06 | Add invalid quantity, stale terms and race regression tests | G-006 | TODO | |
-| P2-07 | Replace mixed-currency grand total with per-currency subtotals | G-005 | TODO | |
-| P2-08 | Validate currency exponent/formatting and same-currency totals | G-005 | TODO | |
+| P2-07 | Replace mixed-currency grand total with per-currency subtotals | G-005 | COMPLETE — CI #687 | Totals are grouped by currency; mixed currencies are never added together. |
+| P2-08 | Validate currency exponent/formatting and same-currency totals | G-005 | COMPLETE — CI #687 | Five tests cover same-currency totals, mixed currencies, shipping currency, missing currency and pickup behavior. |
 | P2-09 | Reject DIGITAL unless a real provider is registered | G-008 | TODO | |
 | P2-10 | Align API contracts and web/admin payment choices | G-008 | TODO | |
 | P2-11 | Define mobile per-store shipping/payment and tax contract | G-007 | TODO | |
@@ -195,9 +195,9 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P3-01 | Map event types to exactly one authoritative consumer | G-003 | SOURCE MAPPED — INTEGRATION CI PENDING | Added [Outbox Event Ownership Map](./OUTBOX-EVENT-OWNERSHIP-MAP.md): carrier prefix → ShippingCarrierWorker; identified non-carrier publisher families → generic OutboxDispatcher log sink only; OutboxModule exports only the generic dispatcher. Added integration coverage invoking both real poll methods against persisted rows; latest CI pending. |
-| P3-02 | Prevent generic dispatcher from consuming carrier events and keep lease recovery within ownership boundary | G-003 | IMPLEMENTED — CI PENDING | Generic dispatcher excludes `shipping.carrier.%`. Carrier worker claim and stale lease recovery both filter the same prefix; unsupported carrier event types retry/dead-letter instead of being acknowledged. Unit tests plus new persisted-event integration test invoke both production poll methods and verify carrier/non-carrier ownership separation. |
-| P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | TODO | |
+| P3-01 | Map event types to exactly one authoritative consumer | G-003 | COMPLETE — CI #687 | [Outbox Event Ownership Map](./OUTBOX-EVENT-OWNERSHIP-MAP.md) documents carrier and non-carrier publisher families; PostgreSQL integration test invokes both real poll methods against persisted events and verifies exclusive ownership. |
+| P3-02 | Prevent generic dispatcher from consuming carrier events and keep lease recovery within ownership boundary | G-003 | COMPLETE — CI #687 | Generic dispatcher exclusion, carrier-only claim/recovery and unsupported-event retry behavior passed API unit/coverage and PostgreSQL integration CI. |
+| P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | COMPLETE — CI #687 | Carrier worker retry/dead-letter paths and unsupported-event retry behavior passed focused and integration CI. Provider-side idempotency and live carrier behavior remain outside this finding's verified scope. |
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
 | P3-06 | Test provider timeout, duplicate event and retry behavior | G-003/G-010 | TODO | |
@@ -355,9 +355,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Next:** obtain CI on the latest canonical lookup and carrier lease-scope commits; complete the full event-type ownership map for G-003; then continue G-004 search/offer identity. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
+**Next:** continue Phase 2 with G-006 MOQ/orderIncrement rules, then G-007 mobile checkout parity and G-008 unsupported DIGITAL payment rejection. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
 
-**Current state:** G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-029's three bulk-mutation controller tests passed API unit/coverage in CI #592. CI #592 also passed API integration, build, contract/codegen, lint/typecheck, mobile, web/admin, boundary lint and migration full apply; its container build/smoke job was cancelled and is being retried. G-028 has 19 focused tests, but canonical lookup and category-count additions await a fresh CI run. G-003 generic dispatcher exclusion passed in CI #592; latest worker lease-recovery scoping, unknown-event retry behavior and three ownership tests await CI. The source-level event map is documented; integration proof remains open. G-002 read-only live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. Supabase's critical RLS advisory is recorded with the direct-grant qualification. No live database migration, staging write, Render configuration change or deployment has been performed.
+**Current state (19 November 2026):** G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed with CI evidence. CI #687 on `dc071157992bb9869fcc059d3bc079bd764f8186` passed all executed jobs: lint/typecheck, Flutter, API integration, web/admin tests, boundary lint, unit/coverage, full migration apply on isolated CI PostgreSQL, container build/smoke, contract/codegen and build. API unit/coverage reported 4,419 passed tests and 110 skipped; web/admin reported 134 + 16 tests passed across its two suites. The focused checkout currency suite passed 5/5; exact-offer resolver, cart and product-card suites passed 13/13, 7/7 and 8/8. k6 smoke and staging release were skipped by workflow conditions. G-002 remains partial: live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. G-006–G-008 remain open. No live database migration, staging write, Render configuration change or deployment has been performed.
 
 
 | 2026-11-18 | CI #636 failure diagnosis and G-011 durable auto-completion claims | commits `605ed04`, `0ea9908`, `0805f11`, `eaed103`, `58990ad`, `08c89f2`, `c93281a` on `remediation/phase-0-1-tenant-security` | CI #636 confirmed all jobs except API unit/coverage passed. Fixed the admin category-count regression test to preserve the draft-inclusive admin contract. Increased the P9 PostgreSQL benchmark test and container teardown allowances to tolerate the observed CI resource contention. Implemented G-011 durable five-minute order claim leases, expired-claim recovery, conditional release, and a fenced OrdersService status update requiring the same current claim owner and unexpired lease. Added focused worker unit tests. | CI #636: lint/typecheck, integration, migration full apply, web/admin, Flutter and E6 passed; API coverage failed on the stale category-count expectation plus P9 availability test timeout (60s) and afterAll timeout (30s). Latest CI #643 is pending for head `c93281a`. Vercel preview statuses separately report external `build-rate-limit` failures. | IN PROGRESS — LATEST CI PENDING | Verify CI #643, add real PostgreSQL two-worker and buyer-confirmation race coverage for G-011, then continue G-003 integration proof. No live migration, deployment or shared DB change. |
@@ -379,3 +379,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 
 | 2026-11-19 | G-004 multi-variant and cart-line identity hardening | commits `a2d905d`, `68df198`, `02a3aaa`, `ac94efa`, `92c87fd`, `56aecb1`, `69c692d`, `2e0a401` | Extended exact-offer price results to key by (offerId, variantId, quantity), preventing a product-level offer's price for one variant from overwriting another variant's result during checkout repricing. Search-card enrichment now returns the concrete active variant for product-level offers. Cart line lookup explicitly matches `offer_id IS NULL` for owner-priced items, preventing them from merging into an existing seller-offer line. | Focused unit tests committed; latest-head CI pending. | IN PROGRESS — CI PENDING | Verify latest CI and resolve any test/type errors before closing G-004. |
+
+
+| 2026-11-19 | G-003, G-004 and G-005 latest-head verification | CI #687 on commit `dc071157992bb9869fcc059d3bc079bd764f8186` | G-003 production-poller integration test passed within API integration CI; generic dispatcher and carrier worker ownership is verified for persisted carrier/non-carrier events, including unsupported-event retry. G-004 exact-offer price resolver (13 tests), product-card (8) and cart (7) focused suites passed API unit/coverage; integration and all other applicable jobs passed. G-005 checkout currency helper passed all 5 focused tests; web/admin tests and lint/typecheck passed. | CI #687 passed every executed job: lint/typecheck, Flutter, API integration, web/admin, boundary lint, unit/coverage (4,419 passed; 110 skipped), migration full apply on isolated CI PostgreSQL, container build/smoke, contract/codegen and build. k6 smoke and staging release were skipped. | CLOSED — CI VERIFIED | Continue Phase 2 with G-006; G-002 remains a pre-production access-model gate. No deployment or live migration. |
