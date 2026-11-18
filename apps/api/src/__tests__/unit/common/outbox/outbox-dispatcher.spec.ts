@@ -20,7 +20,7 @@ describe('OutboxDispatcher carrier event ownership', () => {
     expect(select).toHaveBeenCalledOnce();
     expect(where).toHaveBeenCalledOnce();
     const query = new PgDialect().sqlToQuery(predicate as any);
-    expect(query.sql).toContain('NOT LIKE');
+    expect(query.sql).toContain('not like');
     expect(query.params).toContain('shipping.carrier.%');
     expect(limit).toHaveBeenCalledWith(10);
   });
