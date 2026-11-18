@@ -172,6 +172,9 @@ export class CartService {
       }
       const violation = getOrderQuantityViolation(finalQty, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
       if (violation) throw new BadRequestException(violation);
+    } else if (!offerId) {
+      const violation = getOrderQuantityViolation(finalQty, product['moq'] ?? 1);
+      if (violation) throw new BadRequestException(violation);
     }
     const priceMinor = resolvedTier.unitPriceMinor;
     const lineTotalMinor = finalQty * priceMinor;
@@ -315,6 +318,12 @@ export class CartService {
             skipped.push({ variantId: input.variantId, reason: violation });
             continue;
           }
+        } else if (!offerId) {
+          const violation = getOrderQuantityViolation(finalQty, product['moq'] ?? 1);
+          if (violation) {
+            skipped.push({ variantId: input.variantId, reason: violation });
+            continue;
+          }
         }
         const priceMinor = tier.unitPriceMinor;
         const lineTotalMinor = finalQty * priceMinor;
@@ -403,6 +412,11 @@ export class CartService {
         throw new BadRequestException('Selected offer is no longer available');
       }
       const violation = getOrderQuantityViolation(quantity, resolvedOffer.moq, resolvedOffer.orderIncrement ?? null);
+      if (violation) throw new BadRequestException(violation);
+    } else if (!offerId) {
+      const variant = await this.db.db.query.productVariants.findFirst({ where: eq(productVariants.id, variantId) });
+      const product = variant ? await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) }) : null;
+      const violation = getOrderQuantityViolation(quantity, product?.moq ?? 1);
       if (violation) throw new BadRequestException(violation);
     }
     const newLineTotal = quantity * tier.unitPriceMinor;
@@ -500,6 +514,7 @@ export class CartService {
         storeName: stores.displayName,
         storeSlug: stores.slug,
         storeCurrency: stores.currency,
+        productMoq: products.moq,
         // PHASE 14: expose per-line offer metadata so the cart UI can label
         // which seller's offer backs each row (lead time, MOQ, status).
         offerLeadTimeDays: merchantOffers.leadTimeDays,
@@ -518,13 +533,14 @@ export class CartService {
       .orderBy(cartItems.createdAt);
 
     return rows.map(
-      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, offerLeadTimeDays, offerMoq, offerOrderIncrement, offerStatus }) => ({
+      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, productMoq, offerLeadTimeDays, offerMoq, offerOrderIncrement, offerStatus }) => ({
         ...item,
         title: variantTitle || productTitle || undefined,
         sku: sku || undefined,
         storeName: storeName || undefined,
         storeSlug: storeSlug || undefined,
         currency: storeCurrency || undefined,
+        moq: item.offerId ? (offerMoq ?? 1) : (productMoq ?? 1),
         // PHASE 14: only populated when the line is backed by a merchant offer.
         offer: item.offerId
           ? {
@@ -559,12 +575,14 @@ export class CartService {
 
     const offerIds = items.map(i => i['offerId']).filter(Boolean) as string[];
     let activeSet: Set<string> | null = null;
+    let offerTermsById = new Map<string, { id: string; moq: number; orderIncrement: number | null }>();
     if (offerIds.length > 0) {
       const validOffers = await this.db.db.query.merchantOffers.findMany({
         where: and(inArray(merchantOffers.id, offerIds), eq(merchantOffers.status, 'ACTIVE'), eq(merchantOffers.isAvailable, true)),
-        columns: { id: true },
+        columns: { id: true, moq: true, orderIncrement: true },
       });
       activeSet = new Set(validOffers.map(o => o.id));
+      offerTermsById = new Map(validOffers.map(offer => [offer.id, offer]));
     }
 
     const report: {
@@ -576,8 +594,11 @@ export class CartService {
     for (const item of items) {
       const oid = item['offerId'] as string | null;
       if (!oid) {
-        // Legacy item (no offer) — still valid if product/variant are active
-        report.valid.push(item['id'] as string);
+        const variant = await this.db.db.query.productVariants.findFirst({ where: eq(productVariants.id, item['variantId']) });
+        const product = variant ? await this.db.db.query.products.findFirst({ where: eq(products.id, variant.productId) }) : null;
+        const violation = getOrderQuantityViolation(item['quantity'], product?.moq ?? 1);
+        if (violation) report.stale.push({ itemId: item['id'] as string, reason: violation });
+        else report.valid.push(item['id'] as string);
         continue;
       }
       if (activeSet && !activeSet.has(oid)) {
@@ -625,7 +646,12 @@ export class CartService {
         });
         continue;
       }
-      report.valid.push(item['id'] as string);
+      const offerTerms = offerTermsById.get(oid);
+      const quantityViolation = offerTerms
+        ? getOrderQuantityViolation(item['quantity'], offerTerms.moq, offerTerms.orderIncrement ?? null)
+        : 'Selected offer terms could not be verified';
+      if (quantityViolation) report.stale.push({ itemId: item['id'] as string, reason: quantityViolation });
+      else report.valid.push(item['id'] as string);
     }
 
     if (report.repriced.length > 0) {
