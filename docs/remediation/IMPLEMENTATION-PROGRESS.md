@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028 and G-003 have additional latest-head changes awaiting CI.
+**Tracker status:** ACTIVE — Phases 0, 1 and 3 are in progress; G-001, G-020, G-023–G-027 and G-029 are verified/closed; G-028, G-003 and G-011 have additional latest-head changes awaiting CI.
 
 ---
 
@@ -21,18 +21,18 @@
 | Additional findings discovered during remediation | 7 (G-023–G-029) |
 | P0 open | 0 |
 | P1 open | 7 (G-002–G-008) |
-| P2 open | 11 (G-009–G-019) |
+| P2 open | 10 (G-009–G-010, G-012–G-019) |
 | P3 open | 2 |
 | Findings closed under this plan | 8 (G-001, G-020, G-023–G-027, G-029) |
 | Findings implemented; latest-head CI pending | 1 (G-028) |
-| Findings partially remediated | 2 (G-002–G-003) |
+| Findings partially remediated | 3 (G-002–G-003, G-011) |
 | Final full test campaign | NOT STARTED |
 
 **Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-028 canonical lookup/category and search regressions have fixes committed and await CI #633; G-003 carrier stale-lease/unknown-event changes have focused tests and await CI #633. CI #629 exposed stale test fixtures/expectations and a missing full-text brand predicate; those fixes are committed. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
+<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-028 canonical lookup/category and search regressions have fixes committed; G-003 carrier stale-lease/unknown-event changes have focused tests; G-011 durable order claims and fencing are implemented with focused tests. These latest-head changes await CI #643. CI #629 exposed stale test fixtures/expectations and a missing full-text brand predicate; those fixes are committed. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
 
 ---
 
@@ -43,7 +43,7 @@
 | 0 | Baseline reconciliation & testability foundation | IN PROGRESS | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 45% |
 | 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary, initial store ownership and DB role/grant/RLS design verified; limited staging testing may be authorized | 25% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
-| 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 20% |
+| 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 30% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
 | 5 | Operational hardening, CI, data hygiene & documentation | NOT STARTED | CI, repository, docs, deployment and recovery controls ready | 0% |
 | 6 | Consolidated full verification & release decision | NOT STARTED | One final full test campaign and evidence-based go/no-go decision | 0% |
@@ -66,7 +66,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | OPEN | Reject unsupported method unless gateway separately approved |
 | G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | OPEN | Implement provider or truthful NOT_CONFIGURED state |
 | G-010 | P2 | Carrier label worker handler is no-op | 3 | OPEN | Use provider sandbox; no live shipment without approval |
-| G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | OPEN | Multi-instance and buyer-confirmation race |
+| G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | IMPLEMENTED — CI PENDING | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Focused worker tests committed; multi-instance PostgreSQL race test and CI verification remain outstanding. |
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
 | G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
 | G-014 | P2 | develop branch unprotected | 5 | OPEN | Repository ruleset required |
@@ -201,8 +201,8 @@ Status definitions:
 | P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
 | P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
 | P3-06 | Test provider timeout, duplicate event and retry behavior | G-003/G-010 | TODO | |
-| P3-07 | Implement durable AutoCompleteWorker lease/claim | G-011 | TODO | |
-| P3-08 | Test multi-instance claim and buyer confirmation race | G-011 | TODO | |
+| P3-07 | Implement durable AutoCompleteWorker lease/claim | G-011 | IMPLEMENTED — CI PENDING | Migration 0071 + Drizzle schema add claim timestamp/owner; worker persists a five-minute lease, recovers expired claims, and completion is fenced by owner + lease validity in the atomic status flip. |
+| P3-08 | Test multi-instance claim and buyer confirmation race | G-011 | PARTIAL — CI PENDING | Focused unit tests cover persisted claim SQL, owner propagation and conditional release. True two-worker PostgreSQL concurrency and buyer-confirmation race integration coverage remains to be added. |
 | P3-09 | Document P13 worker registration and intended holder topology | Runtime | TODO | |
 | P3-10 | Define safe P13 staging/prod activation configuration | Runtime | TODO | |
 | P3-11 | Configure and test alert sink and worker anomaly alerts | Runtime | TODO | |
@@ -358,3 +358,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 **Next:** obtain CI on the latest canonical lookup and carrier lease-scope commits; complete the full event-type ownership map for G-003; then continue G-004 search/offer identity. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
 
 **Current state:** G-001, G-020, G-023–G-027 and G-029 have verification evidence; G-029's three bulk-mutation controller tests passed API unit/coverage in CI #592. CI #592 also passed API integration, build, contract/codegen, lint/typecheck, mobile, web/admin, boundary lint and migration full apply; its container build/smoke job was cancelled and is being retried. G-028 has 19 focused tests, but canonical lookup and category-count additions await a fresh CI run. G-003 generic dispatcher exclusion passed in CI #592; latest worker lease-recovery scoping, unknown-event retry behavior and three ownership tests await CI. The source-level event map is documented; integration proof remains open. G-002 read-only live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. Supabase's critical RLS advisory is recorded with the direct-grant qualification. No live database migration, staging write, Render configuration change or deployment has been performed.
+
+
+| 2026-11-18 | CI #636 failure diagnosis and G-011 durable auto-completion claims | commits `605ed04`, `0ea9908`, `0805f11`, `eaed103`, `58990ad`, `08c89f2`, `c93281a` on `remediation/phase-0-1-tenant-security` | CI #636 confirmed all jobs except API unit/coverage passed. Fixed the admin category-count regression test to preserve the draft-inclusive admin contract. Increased the P9 PostgreSQL benchmark test and container teardown allowances to tolerate the observed CI resource contention. Implemented G-011 durable five-minute order claim leases, expired-claim recovery, conditional release, and a fenced OrdersService status update requiring the same current claim owner and unexpired lease. Added focused worker unit tests. | CI #636: lint/typecheck, integration, migration full apply, web/admin, Flutter and E6 passed; API coverage failed on the stale category-count expectation plus P9 availability test timeout (60s) and afterAll timeout (30s). Latest CI #643 is pending for head `c93281a`. Vercel preview statuses separately report external `build-rate-limit` failures. | IN PROGRESS — LATEST CI PENDING | Verify CI #643, add real PostgreSQL two-worker and buyer-confirmation race coverage for G-011, then continue G-003 integration proof. No live migration, deployment or shared DB change. |
