@@ -2066,17 +2066,24 @@ export class CatalogService {
    * List all variants across all products for a store.
    * Eliminates the N+1 pattern where clients paginate products then fetch variants per product.
    */
-  async listVariantsByStore(storeId: string) {
+  async listVariantsByStore(storeId: string, includeInactive = true) {
     const storeProducts = await this.db.db
       .select({ id: products.id })
       .from(products)
-      .where(and(eq(products.storeId, storeId), isNull(products.deletedAt)));
+      .where(and(
+        eq(products.storeId, storeId),
+        isNull(products.deletedAt),
+        ...(includeInactive ? [] : [eq(products.status, 'ACTIVE')]),
+      ));
 
     const productIds = storeProducts.map((p) => p.id);
     if (productIds.length === 0) return [];
 
     return this.db.db.query.productVariants.findMany({
-      where: inArray(productVariants.productId, productIds),
+      where: and(
+        inArray(productVariants.productId, productIds),
+        ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
+      ),
       orderBy: [productVariants.createdAt],
     });
   }
@@ -2260,9 +2267,12 @@ export class CatalogService {
     return this.coerceVariantNumeric(variant);
   }
 
-  async listVariantsByProduct(productId: string) {
+  async listVariantsByProduct(productId: string, includeInactive = true) {
     const variants = await this.db.db.query.productVariants.findMany({
-      where: eq(productVariants.productId, productId),
+      where: and(
+        eq(productVariants.productId, productId),
+        ...(includeInactive ? [] : [eq(productVariants.isActive, true)]),
+      ),
       orderBy: [productVariants.createdAt],
     }).then(rows => rows.map(r => this.coerceVariantNumeric(r)));
     // Attach stock status per variant (same shape as getProductDetail)
