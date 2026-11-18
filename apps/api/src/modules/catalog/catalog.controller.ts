@@ -438,8 +438,10 @@ export class CatalogController {
     @Param('productId') productId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    await assertProductReadable(this.db, { sub: user.sub, role: user.role, activeOrg: user.activeOrg }, productId);
-    return this.catalogService.getVariantMatrix(productId);
+    const caller = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertProductReadable(this.db, caller, productId);
+    const includeInactiveVariants = await canManageProductCatalog(this.db, caller, productId);
+    return this.catalogService.getVariantMatrix(productId, includeInactiveVariants);
   }
 
   @Post('products/:productId/variants')
