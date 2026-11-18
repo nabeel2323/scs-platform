@@ -205,6 +205,26 @@ describe('resolveSelectedOfferPrices', () => {
     expect(db.calls()).toBe(1);
   });
 
+  it('keeps multiple variant prices for the same product-level offer distinct', async () => {
+    const db = selectedOfferDb([
+      { priceListId: 'pl-selected', priceListStoreId: 'store-a', priceListName: 'Offer A', currency: 'SAR', variantId: 'variant-a', minQty: 5, maxQty: null, unitPriceMinor: 1100 },
+      { priceListId: 'pl-selected', priceListStoreId: 'store-a', priceListName: 'Offer A', currency: 'SAR', variantId: 'variant-b', minQty: 5, maxQty: null, unitPriceMinor: 1250 },
+    ]);
+
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [baseOffer],
+      [
+        { offerId: baseOffer.id, variantId: 'variant-a', quantity: 5 },
+        { offerId: baseOffer.id, variantId: 'variant-b', quantity: 5 },
+      ],
+    );
+
+    expect(prices.get(selectedOfferPriceKey(baseOffer.id, 'variant-a', 5))?.unitPriceMinor).toBe(1100);
+    expect(prices.get(selectedOfferPriceKey(baseOffer.id, 'variant-b', 5))?.unitPriceMinor).toBe(1250);
+    expect(prices.size).toBe(2);
+  });
+
   it('uses the offer base price when the selected offer has no price list', async () => {
     const db = selectedOfferDb([]);
     const offer = { ...baseOffer, priceListId: null, basePriceMinor: 875, currency: 'USD' };
