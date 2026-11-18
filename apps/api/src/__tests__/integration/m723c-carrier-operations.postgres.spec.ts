@@ -205,6 +205,9 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     expect(carrierRow.locked_by).toBeNull();
     expect(genericAfterCarrier.status).toBe('DISPATCHED');
     expect(worker.retryPolicy.classify).toHaveBeenCalledTimes(1);
+    expect(worker.retryPolicy.classify.mock.calls[0][0].message).toContain(
+      'shipping.carrier.unsupported.integration-test',
+    );
   });
 
   // ── C-01: Atomic Claiming (FOR UPDATE SKIP LOCKED) ─────────────────────
