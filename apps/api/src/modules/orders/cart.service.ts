@@ -7,7 +7,7 @@ import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
-import { resolveOfferPrices } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices } from '../pricing/price-resolution';
 import { eq, and, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -86,13 +86,14 @@ export class CartService {
     // route the line through that offer's store/price-list instead of the
     // product-owner's default.
     let selectedOfferId: string | null = null;
+    let selectedOffer: any | null = null;
     if (input.offerId) {
       const offer = await this.db.db.query.merchantOffers.findFirst({
         where: eq(merchantOffers.id, input.offerId),
       });
       if (!offer) throw new NotFoundException('Offer not found');
-      if (offer.status !== 'ACTIVE') {
-        throw new BadRequestException('This offer is no longer active');
+      if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
+        throw new BadRequestException('This offer is no longer available');
       }
       // Match scope: variant-scoped offers pin to the exact variant, product-
       // scoped offers (variant_id IS NULL) can back any variant of that product.
@@ -103,6 +104,7 @@ export class CartService {
       }
       storeId = offer.storeId;
       selectedOfferId = offer.id;
+      selectedOffer = offer;
     }
 
     // Canonical products without an owning store require an explicit offer
@@ -131,26 +133,34 @@ export class CartService {
     // SNAPSHOT here and is NEVER taken from the client — a client-supplied
     // price would be a tampering vector. A5-1: the same shared resolver backs the
     // product detail page, so what a buyer is shown is what they are charged.
-    const pricing = await resolveOfferPrices(
-      this.db.db,
-      storeId,
-      [variant['id']],
-      finalQty,
-      // Snapshotting needs the unit price only; the tier ladder is for display.
-      { ladder: false },
-    );
-    const tier = pricing.get(variant['id']);
+    const tier = selectedOffer
+      ? resolveSelectedOfferPrices(
+          this.db.db,
+          [selectedOffer],
+          [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
+        ).then(prices => prices.get(selectedOffer.id))
+      : resolveOfferPrices(
+          this.db.db,
+          storeId,
+          [variant['id']],
+          finalQty,
+          // Snapshotting needs the unit price only; the tier ladder is for display.
+          { ladder: false },
+        ).then(pricing => pricing.get(variant['id']));
+    const resolvedTier = await tier;
 
-    if (!tier) {
+    if (!resolvedTier) {
       throw new BadRequestException(
-        'No price is available for this item at the requested quantity',
+        selectedOffer
+          ? 'Selected offer has no valid price for this variant and quantity'
+          : 'No price is available for this item at the requested quantity',
       );
     }
-    const priceMinor = tier.unitPriceMinor;
+    const priceMinor = resolvedTier.unitPriceMinor;
     const lineTotalMinor = finalQty * priceMinor;
     // Prefer the buyer's chosen offer; the resolver otherwise picks the store's
     // best-matching offer (legacy behaviour preserved when none is provided).
-    const offerId = selectedOfferId ?? tier.offerId ?? null; // PHASE 10/13
+    const offerId = selectedOfferId ?? resolvedTier.offerId ?? null; // PHASE 10/13
 
     if (existing) {
       // Re-snapshot the price: the applicable tier can change with quantity.
@@ -159,7 +169,7 @@ export class CartService {
         .set({
           quantity: finalQty,
           priceMinor,
-          tierMinQty: tier.minQty,
+          tierMinQty: resolvedTier.minQty,
           offerId,
           lineTotalMinor,
           updatedAt: new Date(),
@@ -173,7 +183,7 @@ export class CartService {
         variantId: variant['id'],
         quantity: finalQty,
         priceMinor,
-        tierMinQty: tier.minQty,
+        tierMinQty: resolvedTier.minQty,
         offerId,
         lineTotalMinor,
       });
@@ -221,12 +231,13 @@ export class CartService {
         let storeId: string | null = product['storeId'];
         // PHASE 13: honour per-line explicit offer selection.
         let selectedOfferId: string | null = null;
+        let selectedOffer: any | null = null;
         if (input.offerId) {
           const offer = await this.db.db.query.merchantOffers.findFirst({
             where: eq(merchantOffers.id, input.offerId),
           });
-          if (!offer || offer.status !== 'ACTIVE') {
-            skipped.push({ variantId: input.variantId, reason: 'Selected offer is not active' });
+          if (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable) {
+            skipped.push({ variantId: input.variantId, reason: 'Selected offer is not available' });
             continue;
           }
           const matchesVariant = offer.variantId != null && offer.variantId === variant['id'];
@@ -237,6 +248,7 @@ export class CartService {
           }
           storeId = offer.storeId;
           selectedOfferId = offer.id;
+          selectedOffer = offer;
         }
         // Canonical products without an owning store require offer selection.
         if (!storeId) {
@@ -252,14 +264,19 @@ export class CartService {
           where: and(...existingConditions),
         });
         const finalQty = existing ? existing['quantity'] + input.quantity : input.quantity;
-        const pricing = await resolveOfferPrices(
-          this.db.db,
-          storeId,
-          [variant['id']],
-          finalQty,
-          { ladder: false },
-        );
-        const tier = pricing.get(variant['id']);
+        const tier = selectedOffer
+          ? (await resolveSelectedOfferPrices(
+              this.db.db,
+              [selectedOffer],
+              [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
+            )).get(selectedOffer.id)
+          : (await resolveOfferPrices(
+              this.db.db,
+              storeId,
+              [variant['id']],
+              finalQty,
+              { ladder: false },
+            )).get(variant['id']);
         if (!tier) {
           skipped.push({ variantId: input.variantId, reason: 'No price at this quantity' });
           continue;
@@ -314,14 +331,29 @@ export class CartService {
     // Conversely, decreasing from 50 to 5 must move back to the higher tier.
     const variantId = item['variantId'] as string;
     const storeId = item['storeId'] as string;
-    const pricing = await resolveOfferPrices(
-      this.db.db,
-      storeId,
-      [variantId],
-      quantity,
-      { ladder: false },
-    );
-    const tier = pricing.get(variantId);
+    const selectedOfferId = item['offerId'] as string | null;
+    let tier;
+    if (selectedOfferId) {
+      const offer = await this.db.db.query.merchantOffers.findFirst({
+        where: eq(merchantOffers.id, selectedOfferId),
+      });
+      if (!offer || offer.status !== 'ACTIVE' || !offer.isAvailable) {
+        throw new BadRequestException('Selected offer is no longer available; validate the cart before repricing');
+      }
+      tier = (await resolveSelectedOfferPrices(
+        this.db.db,
+        [offer],
+        [{ offerId: offer.id, variantId, quantity }],
+      )).get(offer.id);
+    } else {
+      tier = (await resolveOfferPrices(
+        this.db.db,
+        storeId,
+        [variantId],
+        quantity,
+        { ladder: false },
+      )).get(variantId);
+    }
     if (!tier) {
       throw new BadRequestException('No price available for this item at the new quantity');
     }
