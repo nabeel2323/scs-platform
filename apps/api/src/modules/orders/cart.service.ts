@@ -7,7 +7,7 @@ import { carts, cartItems } from './cart.schema';
 import { products, productVariants } from '../catalog/catalog.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { stores } from '../merchant/merchant.schema';
-import { resolveOfferPrices, resolveSelectedOfferPrices, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
+import { resolveOfferPrices, resolveSelectedOfferPrices, selectedOfferPriceKey, type SelectedOfferPrice, type VariantPricing } from '../pricing/price-resolution';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import crypto from 'node:crypto';
 
@@ -138,7 +138,7 @@ export class CartService {
           this.db.db,
           [selectedOffer],
           [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
-        ).then(prices => prices.get(selectedOffer.id))
+        ).then(prices => prices.get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty)))
       : resolveOfferPrices(
           this.db.db,
           storeId,
@@ -269,7 +269,7 @@ export class CartService {
               this.db.db,
               [selectedOffer],
               [{ offerId: selectedOffer.id, variantId: variant['id'], quantity: finalQty }],
-            )).get(selectedOffer.id)
+            )).get(selectedOfferPriceKey(selectedOffer.id, variant['id'], finalQty))
           : (await resolveOfferPrices(
               this.db.db,
               storeId,
@@ -344,7 +344,7 @@ export class CartService {
         this.db.db,
         [offer],
         [{ offerId: offer.id, variantId, quantity }],
-      )).get(offer.id);
+      )).get(selectedOfferPriceKey(offer.id, variantId, quantity));
     } else {
       tier = (await resolveOfferPrices(
         this.db.db,
