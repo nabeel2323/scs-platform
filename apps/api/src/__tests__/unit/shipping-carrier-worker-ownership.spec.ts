@@ -12,7 +12,7 @@ describe('ShippingCarrierWorker event ownership', () => {
     await expect(worker.claimEvents()).resolves.toEqual([]);
 
     expect(execute).toHaveBeenCalledOnce();
-    const query = new PgDialect().sqlToQuery(execute.mock.calls[0][0]);
+    const query = new PgDialect().sqlToQuery(execute.mock.calls[0]![0]);
     expect(query.sql).toContain("event_type LIKE");
     expect(query.sql).toContain('FOR UPDATE SKIP LOCKED');
     expect(query.params).toContain('shipping.carrier.%');
@@ -57,10 +57,10 @@ describe('ShippingCarrierWorker event ownership', () => {
     });
 
     expect(handleFailure).toHaveBeenCalledOnce();
-    expect(handleFailure.mock.calls[0][0]).toBe('carrier-event-unknown');
-    expect(handleFailure.mock.calls[0][2]).toBeInstanceOf(Error);
-    expect(handleFailure.mock.calls[0][2].message).toContain('Unsupported carrier event type');
+    const failureCall = handleFailure.mock.calls[0]!;
+    expect(failureCall[0]).toBe('carrier-event-unknown');
+    expect(failureCall[2]).toBeInstanceOf(Error);
+    expect((failureCall[2] as Error).message).toContain('Unsupported carrier event type');
     expect(update).not.toHaveBeenCalled();
   });
-
 });
