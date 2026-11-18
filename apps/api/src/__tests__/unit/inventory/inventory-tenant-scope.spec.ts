@@ -114,6 +114,13 @@ describe('Inventory tenant scope — active store membership', () => {
     expect(h.spies.warehousesFindFirst).toHaveBeenCalledOnce();
   });
 
+  it('denies inventory items whose variant belongs to a different store than the warehouse', async () => {
+    const h = makeDb({ productStoreId: 'store-b' });
+    await expect(
+      assertInventoryItemMember(h as unknown as DatabaseService, merchant, 'inventory-a'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('fails closed when an inventory item has no resolvable warehouse', async () => {
     const h = makeDb({ inventoryWarehouseId: null });
     await expect(
