@@ -13,6 +13,7 @@ import {
 } from '@scs/ui-kit';
 import { useCompareList } from '../../hooks/useProductComparison';
 import { analytics } from '../../lib/analytics';
+import { getSearchCardDisplay } from '../../lib/search-card-offer';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'newest' | 'title-asc';
 
@@ -198,7 +199,7 @@ function SearchPageContent() {
 
     // Verified only (client-side — not a P9 concern)
     if (verifiedOnly) {
-      filtered = filtered.filter(p => p.store?.verificationStatus === 'VERIFIED');
+      filtered = filtered.filter(p => getSearchCardDisplay(p).seller?.verificationStatus === 'VERIFIED');
     }
 
     return { displayedResults: filtered.slice(0, limit), priceErrorMsg: errorMsg };
@@ -206,21 +207,37 @@ function SearchPageContent() {
 
   const handleAddToCart = async (product: Product) => {
     setCartError('');
-    // Canonical products (no storeId) require an explicit offer/seller
-    // selection — the backend will reject a bare add. Navigate to the PDP
-    // where the buyer can pick a merchant offer.
-    if (!product.storeId) {
+    const display = getSearchCardDisplay(product);
+
+    // If no unambiguous, priced seller is available on the card, let the buyer
+    // choose from the full offer comparison on the product detail page.
+    if (!display.usesOffer && (!product.storeId || display.priceMinor == null)) {
       router.push(`/products/${product.id}`);
       return;
     }
+
     try {
       const variants = await fetchProductVariants(product.id);
-      const variant = variants.find(v => v.isActive);
+      const variant = display.usesOffer && display.offerVariantId
+        ? variants.find(v => v.id === display.offerVariantId && v.isActive)
+        : variants.find(v => v.isActive);
       if (!variant) {
-        setCartError(`"${product.title}" has no orderable variant yet.`);
+        setCartError(`"${product.title}" has no orderable variant for the selected seller.`);
         return;
       }
-      await addToCart({ variantId: variant.id, storeId: product.storeId, quantity: product.moq || 1 });
+
+      const storeId = display.usesOffer ? display.offerStoreId : product.storeId;
+      const offerId = display.usesOffer ? display.offerId : null;
+      const quantity = display.usesOffer
+        ? (display.offerMoq ?? product.moq ?? 1)
+        : (product.moq || 1);
+
+      await addToCart({
+        variantId: variant.id,
+        ...(storeId ? { storeId } : {}),
+        quantity,
+        ...(offerId ? { offerId } : {}),
+      });
       setAddedItems(prev => new Set(prev).add(product.id));
       setTimeout(() => setAddedItems(prev => { const n = new Set(prev); n.delete(product.id); return n; }), 2000);
     } catch (err) {
@@ -513,7 +530,8 @@ function SearchPageContent() {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
                   {displayedResults.map(product => {
-                    const isVerified = product.store?.verificationStatus === 'VERIFIED';
+                    const display = getSearchCardDisplay(product);
+                    const isVerified = display.seller?.verificationStatus === 'VERIFIED';
                     return (
                       <div key={product.id} className="sr-card" style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <Link href={`/products/${product.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
@@ -542,25 +560,18 @@ function SearchPageContent() {
                             <div style={{ marginBottom: 6 }}>
                               {(() => {
                                 const offerCount = product.activeOfferCount ?? 0;
-                                const lowestOffer = product.lowestOfferPriceMinor;
                                 const hasOffers = offerCount > 0;
-                                // Use the lowest offer price when it is cheaper
-                                // than the product-owner's price — the buyer
-                                // cares about the best deal, not the source.
-                                const displayPrice = (lowestOffer != null && (product.priceFromMinor == null || lowestOffer < product.priceFromMinor))
-                                  ? lowestOffer
-                                  : product.priceFromMinor;
-                                const displayCurrency = (lowestOffer != null && lowestOffer < (product.priceFromMinor ?? Infinity))
-                                  ? (product.lowestOfferCurrency || product.priceCurrency || 'SAR')
-                                  : (product.priceCurrency || 'SAR');
+                                const offerPrice = product.lowestOfferPriceMinor;
+                                const offerCurrency = product.lowestOfferCurrency;
+                                const offerSeller = product.lowestOfferStore?.name;
                                 return (
                                   <>
                                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                                      {displayPrice != null ? (
+                                      {display.priceMinor != null ? (
                                         <>
-                                          <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{displayCurrency}</span>
+                                          <span style={{ fontSize: 11, color: colors.muted, fontWeight: 500 }}>{display.currency || 'SAR'}</span>
                                           <span style={{ fontSize: 18, fontWeight: 700, color: colors.brand[700] }}>
-                                            {(displayPrice / 100).toFixed(2)}
+                                            {(display.priceMinor / 100).toFixed(2)}
                                           </span>
                                         </>
                                       ) : (
@@ -569,7 +580,9 @@ function SearchPageContent() {
                                     </div>
                                     {hasOffers && (
                                       <div style={{ fontSize: 11, color: colors.ok, fontWeight: 500, marginTop: 2 }}>
-                                        {offerCount} offer{offerCount !== 1 ? 's' : ''}{lowestOffer != null ? ` · From ${displayCurrency} ${(lowestOffer / 100).toFixed(2)}` : ''}
+                                        {offerCount} offer{offerCount !== 1 ? 's' : ''}{offerPrice != null && offerCurrency
+                                          ? ` · ${offerSeller || 'Seller'}: ${offerCurrency} ${(offerPrice / 100).toFixed(2)}`
+                                          : ' · Compare sellers'}
                                       </div>
                                     )}
                                     {!hasOffers && (
@@ -596,11 +609,11 @@ function SearchPageContent() {
                               </div>
                             )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...typeScale.caption, color: colors.muted }}>
-                              <span>MOQ: {product.moq}</span>
-                              {product.store && (
+                              <span>MOQ: {display.usesOffer ? (display.offerMoq ?? product.moq) : product.moq}</span>
+                              {display.seller && (
                                 <>
                                   <span style={{ color: colors.border }}>|</span>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>{product.store.name}</span>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>{display.seller.name}</span>
                                 </>
                               )}
                             </div>
@@ -632,7 +645,9 @@ function SearchPageContent() {
                               transition: `background ${transitions.normal}`,
                             }}
                           >
-                            {addedItems.has(product.id) ? '✓ Added to Cart' : 'Add to Cart'}
+                            {addedItems.has(product.id)
+                              ? '✓ Added to Cart'
+                              : (!display.usesOffer && (!product.storeId || display.priceMinor == null) ? 'Choose Seller' : 'Add to Cart')}
                           </button>
                         </div>
                       </div>
