@@ -512,7 +512,7 @@ export class CartService {
     let activeSet: Set<string> | null = null;
     if (offerIds.length > 0) {
       const validOffers = await this.db.db.query.merchantOffers.findMany({
-        where: and(inArray(merchantOffers.id, offerIds), eq(merchantOffers.status, 'ACTIVE')),
+        where: and(inArray(merchantOffers.id, offerIds), eq(merchantOffers.status, 'ACTIVE'), eq(merchantOffers.isAvailable, true)),
         columns: { id: true },
       });
       activeSet = new Set(validOffers.map(o => o.id));
