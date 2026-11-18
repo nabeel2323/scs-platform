@@ -504,6 +504,7 @@ export class CartService {
         // which seller's offer backs each row (lead time, MOQ, status).
         offerLeadTimeDays: merchantOffers.leadTimeDays,
         offerMoq: merchantOffers.moq,
+        offerOrderIncrement: merchantOffers.orderIncrement,
         offerStatus: merchantOffers.status,
       })
       .from(cartItems)
@@ -517,7 +518,7 @@ export class CartService {
       .orderBy(cartItems.createdAt);
 
     return rows.map(
-      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, offerLeadTimeDays, offerMoq, offerStatus }) => ({
+      ({ item, variantTitle, productTitle, sku, storeName, storeSlug, storeCurrency, offerLeadTimeDays, offerMoq, offerOrderIncrement, offerStatus }) => ({
         ...item,
         title: variantTitle || productTitle || undefined,
         sku: sku || undefined,
@@ -530,6 +531,7 @@ export class CartService {
               id: item.offerId,
               leadTimeDays: offerLeadTimeDays,
               moq: offerMoq,
+              orderIncrement: offerOrderIncrement,
               status: offerStatus,
             }
           : null,

@@ -14,6 +14,7 @@ export interface OfferComparisonRow {
   currency: string;
   basePriceMinor: number;
   moq: number;
+  orderIncrement: number | null;
   leadTimeDays: number | null;
   /** Popularity data — null when the ranked endpoint hasn't returned this offer. */
   rank: RankedProductOffer | null;
@@ -85,6 +86,7 @@ export function useOfferComparison(
         currency: o.currency,
         basePriceMinor: o.basePriceMinor,
         moq: o.moq,
+        orderIncrement: o.orderIncrement,
         leadTimeDays: o.leadTimeDays,
         rank: r ?? null,
         isCurrentSeller: o.storeId === currentStoreId,

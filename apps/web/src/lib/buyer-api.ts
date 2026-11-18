@@ -211,6 +211,7 @@ export interface CartItem {
     id: string;
     leadTimeDays: number | null;
     moq: number;
+    orderIncrement: number | null;
     status: string;
   } | null;
 }

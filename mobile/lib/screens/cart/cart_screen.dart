@@ -79,6 +79,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     return moq > 1 ? moq : 1;
   }
 
+  int _stepFor(CartItem item) {
+    final increment = item.offer?.orderIncrement ?? 1;
+    return increment > 0 ? increment : 1;
+  }
+
   Widget _cartLine(CartItem item) {
     final floor = _floorFor(item);
     return Card(
@@ -102,7 +107,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                       '${formatMinor(item.priceMinor, item.currency)} each'
                       '${item.offer != null ? '  ·  Offer ${item.offer!.status.toLowerCase()}' : ''}'
                       '${item.offer?.leadTimeDays != null ? '  ·  Lead ${item.offer!.leadTimeDays}d' : ''}'
-                      '${floor > 1 ? '  ·  MOQ $floor' : ''}',
+                      '${floor > 1 ? '  ·  MOQ $floor' : ''}'
+                      '${item.offer?.orderIncrement != null ? '  ·  Step ${_stepFor(item)}' : ''}',
                       style: const TextStyle(
                           fontSize: 12, color: TaifTokens.muted),
                     ),
@@ -119,6 +125,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             QuantityStepper(
               value: item.quantity,
               minQty: floor,
+              step: _stepFor(item),
               onChanged: (q) => _setQty(item, q),
             ),
             const Spacer(),

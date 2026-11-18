@@ -43,6 +43,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
 
   // Step 4 — terms
   final _moqCtrl = TextEditingController(text: '1');
+  final _orderIncrementCtrl = TextEditingController();
   final _leadTimeCtrl = TextEditingController();
 
   bool _submitting = false;
@@ -61,6 +62,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     _priceCtrl.dispose();
     _compareAtCtrl.dispose();
     _moqCtrl.dispose();
+    _orderIncrementCtrl.dispose();
     _leadTimeCtrl.dispose();
     super.dispose();
   }
@@ -80,8 +82,11 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
       case 2:
         return double.tryParse(_priceCtrl.text) != null;
       case 3:
-        return int.tryParse(_moqCtrl.text) != null &&
-            int.tryParse(_moqCtrl.text)! >= 1;
+        final moq = int.tryParse(_moqCtrl.text);
+        final incrementText = _orderIncrementCtrl.text.trim();
+        final increment = incrementText.isEmpty ? null : int.tryParse(incrementText);
+        return moq != null && moq >= 1 &&
+            (incrementText.isEmpty || (increment != null && increment >= 1));
       case 4:
         return true;
       default:
@@ -601,6 +606,14 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
         ),
         const SizedBox(height: 12),
         AppTextField(
+          label: 'Order Increment (optional)',
+          hint: 'e.g. 10 — MOQ + multiples of this value',
+          prefixIcon: Icons.format_list_numbered,
+          keyboardType: TextInputType.number,
+          controller: _orderIncrementCtrl,
+        ),
+        const SizedBox(height: 12),
+        AppTextField(
           label: 'Lead Time (days, optional)',
           hint: 'e.g. 7',
           prefixIcon: Icons.schedule,
@@ -615,6 +628,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     final price = double.tryParse(_priceCtrl.text);
     final compareAt = double.tryParse(_compareAtCtrl.text);
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
+    final orderIncrement = int.tryParse(_orderIncrementCtrl.text);
     final lead = int.tryParse(_leadTimeCtrl.text);
     final priceMinor = price != null ? (price * 100).round() : null;
     final compareMinor = compareAt != null ? (compareAt * 100).round() : null;
@@ -641,6 +655,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
       const SizedBox(height: 12),
       _reviewSection('TERMS', [
         _reviewRow('MOQ', '$moq'),
+        if (orderIncrement != null) _reviewRow('Order increment', '$orderIncrement'),
         if (lead != null) _reviewRow('Lead Time', '$lead days'),
       ]),
       if (_submitting)
@@ -764,6 +779,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
             basePriceMinor: priceMinor,
             currency: _currency,
             moq: moq,
+            orderIncrement: orderIncrement,
             leadTimeDays: lead,
           );
       // Invalidate the offers list so the new offer appears.

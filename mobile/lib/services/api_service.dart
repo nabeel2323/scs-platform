@@ -611,7 +611,7 @@ class ApiService {
   ///
   /// PHASE 13: `offerId` routes the line through a specific seller's offer.
   Future<void> addProductToCart(Product product,
-      {String? variantId, String? offerId}) async {
+      {String? variantId, String? offerId, int? quantity}) async {
     String? chosen = variantId ?? product.orderableVariant?.id;
     if (chosen == null) {
       for (final v in await fetchVariants(product.id)) {
@@ -632,7 +632,7 @@ class ApiService {
     return addToCart(
         variantId: chosen,
         storeId: product.storeId,
-        quantity: product.moq > 0 ? product.moq : 1,
+        quantity: quantity ?? (product.moq > 0 ? product.moq : 1),
         offerId: offerId);
   }
 
@@ -1100,6 +1100,7 @@ class ApiService {
     int? basePriceMinor,
     String currency = 'SAR',
     int moq = 1,
+    int? orderIncrement,
     int? leadTimeDays,
   }) async {
     final d = <String, dynamic>{
@@ -1108,6 +1109,7 @@ class ApiService {
       'currency': currency,
       'moq': moq,
     };
+    if (orderIncrement != null) d['orderIncrement'] = orderIncrement;
     if (variantId != null) d['variantId'] = variantId;
     if (basePriceMinor != null) d['basePriceMinor'] = basePriceMinor;
     if (leadTimeDays != null) d['leadTimeDays'] = leadTimeDays;

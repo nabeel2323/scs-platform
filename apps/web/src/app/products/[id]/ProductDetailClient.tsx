@@ -329,7 +329,7 @@ export default function ProductDetailClient() {
   const images = useMemo(() => (product ? galleryImages(product) : []), [product]);
 
   const handleAdd = useCallback(
-    async (variantId: string, storeId: string | null, offerId?: string) => {
+    async (variantId: string, storeId: string | null, offerId?: string, quantityOverride?: number) => {
       setAddError(null);
       if (!storeId && !offerId) {
         setAddError('Choose a seller offer before adding this canonical product to your cart.');
@@ -339,7 +339,7 @@ export default function ProductDetailClient() {
         await addToCart({
           variantId,
           ...(storeId ? { storeId } : {}),
-          quantity: qty,
+          quantity: quantityOverride ?? qty,
           ...(offerId ? { offerId } : {}),
         });
         // PHASE 13: distinguish per-offer added state so two "Added Γ£ô" badges
@@ -367,10 +367,16 @@ export default function ProductDetailClient() {
     (offerId: string, variantId: string | null, storeId: string) => {
       const targetVariantId = variantId ?? variants.find(v => v.isActive)?.id;
       if (targetVariantId) {
-        void handleAdd(targetVariantId, storeId, offerId);
+        const offer = productOffers.find(row => row.id === offerId);
+        const moq = Math.max(1, offer?.moq ?? 1);
+        const increment = Math.max(1, offer?.orderIncrement ?? 1);
+        const baseQuantity = Math.max(qty, moq);
+        const validQuantity = moq + Math.ceil((baseQuantity - moq) / increment) * increment;
+        setQty(validQuantity);
+        void handleAdd(targetVariantId, storeId, offerId, validQuantity);
       }
     },
-    [variants, handleAdd],
+    [variants, productOffers, qty, handleAdd],
   );
 
   if (loading) return <LoadingSpinner />;

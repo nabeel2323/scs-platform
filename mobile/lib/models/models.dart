@@ -477,14 +477,14 @@ class CartItem {
 class CartItemOffer {
   final String id, status;
   final int? leadTimeDays;
-  final int? moq;
-  CartItemOffer(
-      {required this.id, required this.status, this.leadTimeDays, this.moq});
+  final int? moq, orderIncrement;
+  CartItemOffer({required this.id, required this.status, this.leadTimeDays, this.moq, this.orderIncrement});
   factory CartItemOffer.fromJson(Map<String, dynamic> j) => CartItemOffer(
       id: j['id'] as String,
       status: (j['status'] as String?) ?? 'UNKNOWN',
       leadTimeDays: j['leadTimeDays'] as int?,
-      moq: j['moq'] as int?);
+      moq: j['moq'] as int?,
+      orderIncrement: j['orderIncrement'] as int?);
 }
 
 class MasterOrder {
@@ -1386,7 +1386,7 @@ class Offer {
   final int basePriceMinor;
   final String currency;
   final int moq;
-  final int? leadTimeDays;
+  final int? orderIncrement, leadTimeDays;
   final bool isActive;
   final String? variantId;
   final bool storeVerified;
@@ -1398,6 +1398,7 @@ class Offer {
       required this.basePriceMinor,
       required this.currency,
       this.moq = 1,
+      this.orderIncrement,
       this.leadTimeDays,
       required this.isActive,
       this.variantId,
@@ -1410,6 +1411,7 @@ class Offer {
         basePriceMinor: j['basePriceMinor'] as int? ?? 0,
         currency: j['currency'] ?? 'SAR',
         moq: j['moq'] as int? ?? 1,
+        orderIncrement: j['orderIncrement'] as int?,
         leadTimeDays: j['leadTimeDays'] as int?,
         isActive: j['isActive'] ?? true,
         variantId: j['variantId'] as String?,

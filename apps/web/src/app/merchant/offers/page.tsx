@@ -53,6 +53,7 @@ export default function MerchantOffersPage() {
   const [formVariantId, setFormVariantId] = useState('');
   const [formPrice, setFormPrice] = useState('');
   const [formMoq, setFormMoq] = useState('1');
+  const [formOrderIncrement, setFormOrderIncrement] = useState('');
   const [formLeadTime, setFormLeadTime] = useState('');
   const [formCurrency, setFormCurrency] = useState('SAR');
   const [creating, setCreating] = useState(false);
@@ -131,11 +132,12 @@ export default function MerchantOffersPage() {
         basePriceMinor: Math.round(Number(formPrice) * 100),
         currency: formCurrency,
         moq: Number(formMoq) || 1,
+        orderIncrement: formOrderIncrement ? Number(formOrderIncrement) : undefined,
         leadTimeDays: formLeadTime ? Number(formLeadTime) : undefined,
       };
       await createMerchantOffer(input);
       setShowCreate(false);
-      setFormProductId(''); setFormVariantId(''); setFormPrice(''); setFormMoq('1'); setFormLeadTime('');
+      setFormProductId(''); setFormVariantId(''); setFormPrice(''); setFormMoq('1'); setFormOrderIncrement(''); setFormLeadTime('');
       await loadOffers();
     } catch (err: any) {
       setError(err.message || 'Failed to create offer');
@@ -256,6 +258,10 @@ export default function MerchantOffersPage() {
             <label style={labelStyle}>
               MOQ
               <input type="number" min="1" value={formMoq} onChange={e => setFormMoq(e.target.value)} style={inputStyle} />
+            </label>
+            <label style={labelStyle}>
+              Order increment (optional)
+              <input type="number" min="1" step="1" value={formOrderIncrement} onChange={e => setFormOrderIncrement(e.target.value)} placeholder="MOQ + multiples of this value" style={inputStyle} />
             </label>
             <label style={labelStyle}>
               Lead time (days)
