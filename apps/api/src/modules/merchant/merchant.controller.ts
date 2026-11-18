@@ -28,6 +28,8 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import crypto from 'node:crypto';
+import { DatabaseService } from '../../common/database/database.service';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant API — store lifecycle, warehouses, documents, verification.
@@ -59,7 +61,14 @@ export class MerchantController {
   constructor(
     private readonly merchantService: MerchantService,
     private readonly storage: StorageService,
+    private readonly db: DatabaseService,
   ) {}
+
+  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
+  }
 
   // ── Stores ─────────────────────────────────────────────────────
 
@@ -125,7 +134,12 @@ export class MerchantController {
   @Patch('stores/:id')
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async updateStore(@Param('id') id: string, @Body() input: UpdateStoreInput) {
+  async updateStore(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: UpdateStoreInput,
+  ) {
+    await this.assertMerchantStoreAccess(user, id);
     return this.merchantService.updateStore(id, input);
   }
 
@@ -134,19 +148,36 @@ export class MerchantController {
   @Post('stores/:storeId/warehouses')
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async createWarehouse(@Param('storeId') storeId: string, @Body() input: CreateWarehouseInput) {
+  async createWarehouse(
+    @CurrentUser() user: JwtPayload,
+    @Param('storeId') storeId: string,
+    @Body() input: CreateWarehouseInput,
+  ) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.createWarehouse(storeId, input);
   }
 
   @Get('stores/:storeId/warehouses')
-  async listWarehouses(@Param('storeId') storeId: string) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('merchant:stores:read')
+  async listWarehouses(
+    @CurrentUser() user: JwtPayload,
+    @Param('storeId') storeId: string,
+  ) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.listWarehousesByStore(storeId);
   }
 
   @Patch('warehouses/:id')
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
-  async updateWarehouse(@Param('id') id: string, @Body() input: CreateWarehouseInput) {
+  async updateWarehouse(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() input: CreateWarehouseInput,
+  ) {
+    const warehouse = await this.merchantService.getWarehouse(id);
+    await this.assertMerchantStoreAccess(user, warehouse.storeId);
     return this.merchantService.updateWarehouse(id, input);
   }
 
@@ -214,6 +245,7 @@ export class MerchantController {
   @UseGuards(PermissionsGuard, ActiveOrgGuard)
   @RequirePermission('merchant:stores:write')
   async submitVerification(@Param('storeId') storeId: string, @CurrentUser() user: JwtPayload) {
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.merchantService.submitVerification(storeId, user.sub);
   }
 
