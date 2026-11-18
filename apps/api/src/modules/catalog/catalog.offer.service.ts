@@ -610,7 +610,7 @@ export class CatalogOfferService {
     this.assertTransition(offer.status, 'ACTIVE');
     await this.db.db
       .update(merchantOffers)
-      .set({ status: 'ACTIVE', activatedAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'ACTIVE', isAvailable: true, activatedAt: new Date(), updatedAt: new Date() })
       .where(eq(merchantOffers.id, id));
 
     await this.audit.record({

@@ -92,7 +92,10 @@ export class CartService {
         where: eq(merchantOffers.id, input.offerId),
       });
       if (!offer) throw new NotFoundException('Offer not found');
-      if (offer.status !== 'ACTIVE' || !offer.isAvailable) {
+      if (offer.status !== 'ACTIVE') {
+        throw new BadRequestException('This offer is no longer active');
+      }
+      if (!offer.isAvailable) {
         throw new BadRequestException('This offer is no longer available');
       }
       // Match scope: variant-scoped offers pin to the exact variant, product-

@@ -32,7 +32,7 @@ function createMockDb(overrides: {
         cartItems: { findFirst: vi.fn(async () => cartItem) },
         productVariants: { findFirst: vi.fn(async () => overrides.variant ?? { id: 'v-1', productId: 'p-1', isActive: true, sku: 'SKU-1', title: 'Test' }) },
         products: { findFirst: vi.fn(async () => overrides.product ?? { id: 'p-1', storeId: 'store-1', title: 'Test Product', moq: 1 }) },
-        merchantOffers: { findFirst: vi.fn(async () => overrides.offer ?? null) },
+        merchantOffers: { findFirst: vi.fn(async () => overrides.offer ? { isAvailable: true, ...overrides.offer } : null) },
       },
       insert: vi.fn(async () => undefined),
       update: vi.fn(() => ({ set: vi.fn(async () => undefined), where: vi.fn(async () => undefined) })),
