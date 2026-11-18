@@ -250,7 +250,7 @@ function SearchPageContent() {
   const selectedCatNames = selectedCategories.map(id => categories.find(c => c.id === id)?.name).filter(Boolean);
   const selectedBrandName = brands.find(b => b.id === selectedBrand)?.name;
   // Currency label from first priced result (for price filter context)
-  const resultCurrency = results.find(r => r.priceCurrency)?.priceCurrency || '';
+  const resultCurrency = results.map(getSearchCardDisplay).find(r => r.currency)?.currency || '';
 
   return (
     <>
