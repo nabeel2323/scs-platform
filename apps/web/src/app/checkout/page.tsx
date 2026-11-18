@@ -103,12 +103,16 @@ export default function CheckoutPage() {
     [...storeSelections.values()],
   );
   const checkoutCurrencyEntries = Object.entries(checkoutTotals.totalsByCurrency);
+  const singleCheckoutEntry = checkoutCurrencyEntries.length === 1
+    ? checkoutCurrencyEntries[0]
+    : undefined;
   const hasSingleCheckoutCurrency =
-    !checkoutTotals.hasUnpricedAmounts && checkoutCurrencyEntries.length === 1;
-  const formatCheckoutTotal = () =>
-    hasSingleCheckoutCurrency
-      ? formatMinor(checkoutCurrencyEntries[0][1], checkoutCurrencyEntries[0][0])
-      : null;
+    !checkoutTotals.hasUnpricedAmounts && singleCheckoutEntry !== undefined;
+  const formatCheckoutTotal = () => {
+    if (!hasSingleCheckoutCurrency || !singleCheckoutEntry) return null;
+    const [currency, amount] = singleCheckoutEntry;
+    return formatMinor(amount, currency);
+  };
 
   const handleSubmit = async () => {
     if (!address.trim()) { setError('Delivery address is required'); return; }
@@ -233,10 +237,10 @@ export default function CheckoutPage() {
                       </div>
                     ))}
                   </>
-                ) : hasSingleCheckoutCurrency ? (
+                ) : hasSingleCheckoutCurrency && singleCheckoutEntry ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Estimated total</span>
-                    <span>{formatMinor(checkoutCurrencyEntries[0][1], checkoutCurrencyEntries[0][0])}</span>
+                    <span>{formatMinor(singleCheckoutEntry[1], singleCheckoutEntry[0])}</span>
                   </div>
                 ) : (
                   <div>Estimated totals unavailable until every amount has a confirmed currency.</div>
