@@ -55,7 +55,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | IN PROGRESS | Reproduced in source; controller now enforces org + active store membership on all three routes; regression tests authored, execution pending |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER on all tables and same postgres default ACL; all 114 RLS disabled |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
