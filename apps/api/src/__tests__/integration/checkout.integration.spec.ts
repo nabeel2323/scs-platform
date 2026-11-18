@@ -97,7 +97,7 @@ function createMocks() {
       orderItems: { findMany: vi.fn() },
       orderFinancialBreakdown: { findFirst: vi.fn() },
       orderStatusHistory: { findMany: vi.fn() },
-      productVariants: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([{ id: VARIANT_1, productId: 'prod-001' }]) },
+      productVariants: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([{ id: VARIANT_1, productId: 'prod-001' }, { id: VARIANT_2, productId: 'prod-001' }]) },
       products: { findFirst: vi.fn() },
       // A2-4: checkout snapshots each supplier's currency, and the read paths
       // name the seller. Default to "nothing readable" so a test that does not
