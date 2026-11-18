@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
+import { computeCheckoutTotalsByCurrency } from '../../lib/checkout-currency';
 import {
   PageHeader, Card, Button, TextInput, Select, EmptyState,
   colors, typeScale, radii,
@@ -45,10 +46,7 @@ export default function CheckoutPage() {
     if (list) list.push(item);
     else grouped.set(item.storeId, [item]);
   }
-  const cartCurrencies = new Set(cartItems.map((i) => i.currency).filter(Boolean));
-  const cartCurrency = cartCurrencies.size === 1 ? Array.from(cartCurrencies)[0] : undefined;
   const multiStore = grouped.size > 1;
-
   // Load shipping estimates for each store when cart loads or address changes
   useEffect(() => {
     if (cartItems.length === 0 || grouped.size === 0) return;
@@ -98,17 +96,19 @@ export default function CheckoutPage() {
     });
   };
 
-  // Compute total including per-store shipping
-  const computeTotal = (): number => {
-    let total = cart?.totalMinor || 0;
-    for (const [, sel] of storeSelections) {
-      if (sel.estimate && sel.shippingMethodId) {
-        const method = sel.estimate.methods.find(m => m.methodId === sel.shippingMethodId);
-        if (method) total += method.feeMinor;
-      }
-    }
-    return total;
-  };
+  // Never add minor-unit amounts across different currencies. Keep the
+  // estimate explicitly grouped by currency, including each selected delivery fee.
+  const checkoutTotals = computeCheckoutTotalsByCurrency(
+    cartItems,
+    [...storeSelections.values()],
+  );
+  const checkoutCurrencyEntries = Object.entries(checkoutTotals.totalsByCurrency);
+  const hasSingleCheckoutCurrency =
+    !checkoutTotals.hasUnpricedAmounts && checkoutCurrencyEntries.length === 1;
+  const formatCheckoutTotal = () =>
+    hasSingleCheckoutCurrency
+      ? formatMinor(checkoutCurrencyEntries[0][1], checkoutCurrencyEntries[0][0])
+      : null;
 
   const handleSubmit = async () => {
     if (!address.trim()) { setError('Delivery address is required'); return; }
@@ -222,9 +222,30 @@ export default function CheckoutPage() {
               {cart?.promoCode && (
                 <div style={{ ...typeScale.bodySm, color: colors.ok, margin: '4px 0 8px' }}>Promo applied: {cart.promoCode}</div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
-                <span>Estimated total</span>
-                <span>{formatMinor(computeTotal(), cartCurrency)}</span>
+              <div style={{ fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
+                {checkoutCurrencyEntries.length > 1 ? (
+                  <>
+                    <div style={{ marginBottom: 6 }}>Estimated totals by currency</div>
+                    {checkoutCurrencyEntries.sort(([a], [b]) => a.localeCompare(b)).map(([currency, amount]) => (
+                      <div key={currency} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                        <span>{currency}</span>
+                        <span>{formatMinor(amount, currency)}</span>
+                      </div>
+                    ))}
+                  </>
+                ) : hasSingleCheckoutCurrency ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Estimated total</span>
+                    <span>{formatMinor(checkoutCurrencyEntries[0][1], checkoutCurrencyEntries[0][0])}</span>
+                  </div>
+                ) : (
+                  <div>Estimated totals unavailable until every amount has a confirmed currency.</div>
+                )}
+                {checkoutTotals.hasUnpricedAmounts && (
+                  <div style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted, marginTop: 6 }}>
+                    Some item or delivery amounts have no currency, so the estimate is incomplete.
+                  </div>
+                )}
               </div>
               <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
                 Final amounts are confirmed per supplier. Delivery fees and VAT are added per supplier.
@@ -287,7 +308,7 @@ export default function CheckoutPage() {
               )}
 
               <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading} style={{ width: '100%' }}>
-                {submitting ? 'Placing Order...' : `Place Order · ${formatMinor(computeTotal(), cartCurrency)}`}
+                {submitting ? 'Placing Order...' : (formatCheckoutTotal() ? `Place Order · ${formatCheckoutTotal()}` : 'Place Order')}
               </Button>
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Link href="/cart" style={{ ...typeScale.bodySm, color: colors.muted, textDecoration: 'none' }}>← Edit cart</Link>

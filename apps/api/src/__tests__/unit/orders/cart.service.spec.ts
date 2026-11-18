@@ -162,7 +162,7 @@ describe('CartService.addItem selected offer pricing', () => {
       update: vi.fn(),
     };
 
-    const svc = new CartService(db as any, { resolveApplicable: async () => null } as any);
+    const svc = new CartService({ db } as any, { resolveApplicable: async () => null } as any);
     (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1', userId: 'buyer-1' }));
     (svc as any).recalculateTotal = vi.fn(async () => undefined);
     (svc as any).getActiveCartWithItems = vi.fn(async () => ({ id: 'cart-1', items: [] }));
