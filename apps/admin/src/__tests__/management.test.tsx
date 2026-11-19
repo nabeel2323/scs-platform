@@ -27,7 +27,6 @@ import {
   fetchAdminPayments,
   fetchPaymentVerificationQueue,
   fetchStalePayments,
-  verifyPayment,
   fetchAdminSettlements,
   markSettlementPaid,
 } from '../lib/api';
