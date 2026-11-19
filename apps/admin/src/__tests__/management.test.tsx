@@ -308,12 +308,15 @@ describe('accessible dialogs and row actions', () => {
       id: 'settlement-1',
       subOrderId: 'sub-order-1',
       merchantStoreId: 'store-1',
+      paymentRecordId: 'payment-1',
       grossMinor: 1000,
       refundMinor: 0,
       commissionMinor: 100,
+      feeMinor: 0,
       netMinor: 900,
       currency: 'SAR',
       status: 'DUE',
+      createdAt: '2026-11-19T10:00:00.000Z',
     }]);
     render(<AdminSettlementsPage />);
     await screen.findByText('DUE');
