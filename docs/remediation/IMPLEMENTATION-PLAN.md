@@ -779,3 +779,30 @@ P0-05 now has a shared PostgreSQL identity fixture factory at `apps/api/src/__te
 ## 27. Current-head CI verification — 19 November 2026
 
 CI #762 passed all 10 executable jobs on PR #138 head `f8a765d0a70a9f110b7a5408d869a1424d8382b1`: lint/typecheck/changed-file formatting, Flutter analyze/tests, API unit/coverage, API PostgreSQL integration, web/admin tests, E6 boundary lint, isolated migration full apply with public-schema privilege and function-search_path assertions, contract/codegen, production build, and container build/smoke. k6 smoke and staging release were skipped. P0-05 synthetic two-tenant fixture adoption and G-006 two-session offer-lock contention/cleanup are verified by this run. No shared Supabase mutation or staging deployment occurred. G-002 remains blocked on actual Render API/migration DB role evidence and table classification.
+
+
+## 28. G-002 live inventory and access-intent classification — 19 November 2026
+
+A fresh read-only Supabase catalog review was completed after the current-head CI investigation. The resulting 114-relation inventory is recorded in [DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md](./DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md).
+
+Evidence from the connected project:
+- 114 public table relations: 1 partitioned analytics parent, 12 monthly partitions, 1 default partition and 100 ordinary tables.
+- RLS enabled: 0; RLS forced: 0; public policies in `pg_policies`: 0.
+- No public views, materialized views or foreign tables were returned by the inspected relation inventory.
+- Effective `anon`, `authenticated` and `service_role` privileges show zero SELECT/INSERT/UPDATE/DELETE across all 114 relations, but all three retain TRUNCATE/REFERENCES/TRIGGER/MAINTAIN across all 114.
+- `authenticator` is a member of `anon`, `authenticated` and `service_role`. The PostgREST role-switching path therefore remains relevant even though the login identity differs.
+- The connected inspection session is `postgres` with BYPASSRLS. This does not identify the Render API or migration role.
+- No row-level policies currently exist. The API's source-level access path is direct node-postgres/Drizzle, with tenant enforcement in application services and controllers.
+
+The table-by-table domain and access-intent inventory is complete. It is not yet a row-policy design: exact tenant ownership predicates, exposed Data API schema configuration and all service/query paths still need review. Buyer-facing catalog visibility remains an API-level contract, not a direct table grant.
+
+**Architecture gate:** do not blindly enable RLS. A BYPASSRLS runtime role would bypass the policies; a non-BYPASSRLS role would be denied by default with zero policies. A correct tenant-aware RLS design requires trusted transaction-local request context, complete transaction coverage across the shared Drizzle pool, safe reset on connection reuse, and explicit treatment of background workers and system jobs. The actual Render API and migration roles remain unverified. The GitHub connector available in this session does not expose workflow-dispatch, and the Render connector does not reveal environment-variable values or usernames. Do not reveal or retrieve DSNs.
+
+**Updated work-package state:**
+- P1-06: PARTIAL — source connection paths and read-only audit utility verified; actual API and migration role identities remain unverified.
+- P1-07: PARTIAL — all 114 relations inventoried and domain/access intent classified; exact row ownership/policy predicates remain open.
+- P1-08: PARTIAL — effective table grants and role memberships refreshed; full function/default-ACL/sequence/schema matrix remains open.
+- P1-09: BLOCKED — least-privilege/RLS design must wait for actual roles and transaction-scoped tenant-context feasibility.
+- P1-10: PARTIAL — isolated migration validation only; no shared-database migration or grant change.
+
+No live database mutation, migration, grant change, RLS change, Render configuration change, worker activation or deployment was performed.
