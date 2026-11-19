@@ -735,3 +735,14 @@ Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), its 19.1 M
 
 ### G-015 boundary-lint execution correction
 The E6 checker had not actually executed: the root script invoked missing `ts-node`, and its module-root path was wrong. The command now uses the API workspace's installed `tsx`, and the checker resolves `apps/api/src/modules`. Keep the CI step advisory until the corrected checker reports zero violations and remaining cross-module imports are remediated; only then make the job blocking.
+
+
+---
+
+## 21. Phase 5 operational-hardening status — 19 November 2026
+
+- Repository formatting is configured as a blocking CI gate after passing CI #738.
+- The E6 boundary checker is now correctly invoked with the API workspace's `tsx`; a reviewed 193-entry legacy baseline blocks new cross-module imports. Three PR-introduced violations were fixed through public module APIs. The remaining 193 imports are tracked debt, not claimed as compliant.
+- The 1,277-file / approximately 37.9 MB `.m73b6-scratch` tree and expired JWT test artifact were removed from the current tree; history remains unchanged.
+- G-014 branch protection remains blocked by repository-admin access. G-018 documentation reconciliation is partial. G-013 has 71 current FK-index candidates versus the earlier 55 count; no blanket indexes will be added. G-022 has a relocatable `pg_trgm` extension and five dependent GIN indexes; actual API/migration roles must be confirmed before any relocation.
+- Payment-gateway and RFQ/quotation/PO scope decisions remain open; current recommendation is manual payment verification for this release and defer RFQ/PO to a separate milestone. Backup/restore remains deferred by user direction until pre-production review.

@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0–4 remain in progress. G-001, G-003–G-006, G-008, G-011, G-020 and G-023–G-029 are verified/closed. G-006's explicit two-session offer-lock contention and stale-term acceptance test passed in CI #718 on `783c03814d1527184c0eb69c2df1c396944056cc`. G-007 implementation remains CI-verified; full buyer journey/order-detail/tracking UAT is reserved for Phase 6. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. Latest branch work adds a read-only database access audit utility/workflow; no live mutation or deployment was performed.
+**Tracker status:** ACTIVE — Phases 0–5 are in progress; Phase 6 is not started. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019–G-020 and G-023–G-029 are verified/closed. G-007 implementation remains CI-verified with full buyer journey/order-detail/tracking UAT reserved for Phase 6. G-010 label processing is implemented and its API regression tests pass; container smoke and real Aramex sandbox verification remain pending. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. No live database mutation or deployment was performed.
 
 ---
 
@@ -16,16 +16,16 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 4 |
+| Phases in progress | 5 |
 | Original audit findings | 22 |
 | Additional findings discovered during remediation | 7 (G-023–G-029) |
 | P0 open | 0 |
 | P1 open | 2 (G-002, G-007) |
-| P2 open | 10 (G-009–G-010, G-012–G-019) |
+| P2 open | 6 (G-010, G-012–G-015, G-018) |
 | P3 open | 2 |
-| Findings closed under this plan | 15 (G-001, G-003–G-006, G-008, G-011, G-020, G-023–G-029) |
+| Findings closed under this plan | 19 (G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019–G-020, G-023–G-029) |
 | Findings implemented; latest-head CI pending | 0 |
-| Findings partially remediated | 1 (G-002) |
+| Findings partially remediated | 3 (G-002, G-007, G-010) |
 | Final full test campaign | NOT STARTED |
 
 **Counting note:** The original audit contains G-001–G-022. G-023–G-029 were added during remediation. Counts above reflect the current tracker classifications; CI-pending implementation is not counted as closed.
@@ -45,7 +45,7 @@
 | 2 | Commercial correctness & checkout contract | IN PROGRESS | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 30% |
 | 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 40% |
 | 4 | Client workflow parity & truthful notifications | IN PROGRESS | G-007 checkout parity implemented; remaining merchant/admin workflows and G-009/G-019 still open | 15% |
-| 5 | Operational hardening, CI, data hygiene & documentation | NOT STARTED | CI, repository, docs, deployment and recovery controls ready | 0% |
+| 5 | Operational hardening, CI, data hygiene & documentation | IN PROGRESS | CI gates, repository hygiene and remediation documentation are being hardened; admin protection, legacy boundary debt, live deployment verification and operational decisions remain | 20% |
 | 6 | Consolidated full verification & release decision | NOT STARTED | One final full test campaign and evidence-based go/no-go decision | 0% |
 
 Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATION · COMPLETE · COMPLETE WITH APPROVED DEFERRALS.
@@ -64,20 +64,20 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | CLOSED — CI #718 | MOQ-relative formula is enforced across cart/pricing/checkout; checkout locks and re-reads authoritative offer terms. Changed-offer-term revalidation and the real PostgreSQL two-session seller-edit/buyer-checkout contention test passed in the CI #718 integration suite. Cleanup restores original MOQ/orderIncrement, fixing the CI #717 fixture leak. |
 | G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | IMPLEMENTED — CI #711; UAT PENDING | Per-store mobile shipping/pickup and payment selections; server checkout preview uses authoritative promotion/shipping/VAT calculation; web/mobile review and confirmation aligned. CI #711 passed all executed jobs. Full buyer journey and order detail/tracking UAT remain in Phase 6. |
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | CLOSED — CI #714 | Persisted vocabulary retains DIGITAL only for historical rows; SUPPORTED_PAYMENT_METHODS reflects the registered manual-verification provider. Checkout rejects unsupported methods before opening the order transaction; PaymentsService repeats the guard before provider resolution/payment writes. Web disables DIGITAL and mobile omits it. Unit tests prove legacy retention, whitelist contents, supported-method acceptance, checkout pre-transaction rejection and payment-service no-side-effect rejection. |
-| G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | IMPLEMENTED — CI PENDING | General notification SMS, FCM and WhatsApp stubs now persist NOT_CONFIGURED with stable reason codes; fake provider IDs and SENT timestamps were removed. IN_APP remains persisted and its SENT status is explicitly documented as in-app persistence, not external device delivery. Four regression tests cover SMS, push with/without active tokens, and WhatsApp. Provider sandbox delivery remains outside this finding and requires a real approved provider adapter. |
-| G-010 | P2 | Carrier label worker handler is no-op | 3 | IMPLEMENTED — CI PENDING; SANDBOX PENDING | Authenticated POST /v1/shipments/:id/labels queues a label event after tenant authorization, carrier shipment validation, and shipment-row lock/duplicate checks. Worker invokes the provider, validates the label URL with carrier SSRF allowlist, rejects redirects, bounds the full download, verifies PDF type/signature/10 MiB limit, stores the PDF in private S3 using event UUID idempotency, and persists shipment_labels. Label reads return short-lived presigned URLs. Worker and controller regression tests added. Real Aramex sandbox remains unverified; no live carrier calls. |
+| G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | CLOSED — CI #738 | General notification SMS, FCM and WhatsApp stubs now persist NOT_CONFIGURED with stable reason codes; fake provider IDs and SENT timestamps were removed. IN_APP remains persisted and its SENT status is explicitly documented as in-app persistence, not external device delivery. Four regression tests cover SMS, push with/without active tokens, and WhatsApp. Provider sandbox delivery remains outside this finding and requires a real approved provider adapter. |
+| G-010 | P2 | Carrier label worker handler is no-op | 3 | IMPLEMENTED — API TESTS PASS CI #738; CONTAINER/ARAmEX SANDBOX PENDING | Authenticated POST /v1/shipments/:id/labels queues a label event after tenant authorization, carrier shipment validation, and shipment-row lock/duplicate checks. Worker invokes the provider, validates the label URL with carrier SSRF allowlist, rejects redirects, bounds the full download, verifies PDF type/signature/10 MiB limit, stores the PDF in private S3 using event UUID idempotency, and persists shipment_labels. Label reads return short-lived presigned URLs. Worker and controller regression tests added. Real Aramex sandbox remains unverified; no live carrier calls. |
 | G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | CLOSED — CI VERIFIED | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Unit and PostgreSQL two-worker/lease-recovery/buyer-confirmation race tests passed in CI #647; migration 0071 full apply also passed in isolated CI PostgreSQL. |
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
-| G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
-| G-014 | P2 | develop branch unprotected | 5 | OPEN | Repository ruleset required |
-| G-015 | P2 | Formatting/boundary lint non-blocking or miswired | 5 | IN PROGRESS — CHECKER REWIRED; VIOLATIONS PENDING | CI #736 showed the old command never ran (missing ts-node). Root script now invokes API workspace tsx and checker path resolves apps/api/src/modules. Next CI must show actual violations; keep continue-on-error until zero violations, then make blocking. |
+| G-013 | P2 | Foreign-key constraints lack covering indexes | 5 | IN PROGRESS — LIVE INVENTORY RECONCILED | Original audit counted 55; a fresh read-only leading-column check identifies 71 candidates. Many affected tables have zero estimated live rows; pg_stat_statements is dominated by Supabase metadata queries, with the outbox poll query the main application workload signal. Reconcile the 16-candidate delta and validate representative query plans before DDL. No indexes changed. |
+| G-014 | P2 | develop branch unprotected | 5 | BLOCKED — REPOSITORY ADMIN ACTION REQUIRED | GitHub rulesets collection is empty; classic branch-protection read is denied to the current GitHub connection. No settings changed. A repository administrator must enable PR-required checks for develop/release branches. |
+| G-015 | P2 | Formatting/boundary lint non-blocking or miswired | 5 | PARTIAL — BLOCKING REGRESSION GATES; 193 LEGACY VIOLATIONS REMAIN | E6 checker now executes correctly. Three PR-introduced cross-module imports were moved behind orders/payments/catalog public APIs. A reviewed 193-entry legacy baseline blocks new violations; repository format:check is also configured as blocking. CI verification of the newly blocking workflow is pending. Full modular isolation remains unfinished. |
 | G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | CLOSED IN HEAD — HISTORY RETAINS SNAPSHOT | Removed 1,277 tracked scratch files (about 37.9 MB), including the 19.1 MB P4.18 archive and duplicate project context. No runtime/build references were found. Targeted visible-text scan found only local CI PostgreSQL URLs and an expired test JWT; no private-key, AWS-key or GitHub-token patterns. Binary archive bytes were not independently extracted by the GitHub connector; prior Git history still retains the old tree. |
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | CLOSED IN HEAD — EXPIRED ARTIFACT REMOVED | Root test-token.txt and its duplicate in the scratch context were removed. The token was an expired short-lived HS256 test token; no signing key or environment secret was embedded in the token file. No current code reference was found. No JWT secret rotation is indicated by the evidence; historical Git objects retain the expired token. |
-| G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
-| G-019 | P2 | Mobile cannot remove applied promotion | 4 | IMPLEMENTED — CI PENDING | Added authenticated DELETE /v1/cart/promo; CartService clears promoCode and promotionId on the buyer's active cart and returns refreshed state. Flutter ApiService and cart UI expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests added. |
+| G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | PARTIAL — CURRENT REMEDIATION DOCS ADDED | Added test campaign manifest, synthetic identity matrix, deployment/migration runbook, secret-artifact review and boundary-lint baseline. Historical architecture/readiness guides and all user/admin help pages still need reconciliation. |
+| G-019 | P2 | Mobile cannot remove applied promotion | 4 | CLOSED — CI #738 | Added authenticated DELETE /v1/cart/promo; CartService clears promoCode and promotionId on the buyer's active cart and returns refreshed state. Flutter ApiService and cart UI expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests added. |
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
-| G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
+| G-022 | P3 | pg_trgm extension installed in public schema | 5 | PARTIAL — RELOCATION PATH IDENTIFIED; ROLE CHECK PENDING | Read-only inspection: pg_trgm is relocatable, in public, with 47 extension members and five user GIN indexes. Catalog search uses unqualified similarity(); postgres role search_path includes public,extensions, but effective API/migration roles remain unverified. Candidate is ALTER EXTENSION SET SCHEMA extensions after role confirmation and isolated migration testing. No live change. |
 | G-023 | P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes | 1 | VERIFIED IN CI | Store + ACTIVE OWNER membership + creation outbox event are inserted in one transaction; service regression suite passed in CI run #536 |
 
 Status definitions:
@@ -238,20 +238,20 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P5-01 | Add develop/release branch protection and rulesets | G-014 | TODO | |
-| P5-02 | Fix boundary-lint workflow invocation | G-015 | TODO | |
-| P5-03 | Make formatting and boundary checks blocking | G-015 | TODO | |
-| P5-04 | Classify and scan .m73b6-scratch contents | G-016 | TODO | |
-| P5-05 | Remove unnecessary scratch artifacts and add ignore rules | G-016 | TODO | |
-| P5-06 | Verify/remove JWT-shaped artifact and duplicate; rotate if needed | G-017 | TODO | |
-| P5-07 | Reconcile legacy docs and mark old statuses historical | G-018 | TODO | |
-| P5-08 | Update technical/user/admin/deployment/troubleshooting docs | G-018 | TODO | |
-| P5-09 | Prioritize FK indexes using workload/EXPLAIN evidence | G-013 | TODO | |
-| P5-10 | Review pg_trgm extension schema placement safely | G-022 | TODO | |
-| P5-11 | Record manual vs gateway payment launch scope decision | G-012 | TODO | |
-| P5-12 | Record RFQ/quotation/PO scope decision | G-021 | TODO | |
-| P5-13 | Complete isolated backup/restore drill | Operations | TODO | |
-| P5-14 | Verify deploy/migration/worker/alert runbooks | Operations | TODO | |
+| P5-01 | Add develop/release branch protection and rulesets | G-014 | BLOCKED — ADMIN ACTION | Rulesets are empty and classic protection cannot be read or changed through the current connection. |
+| P5-02 | Fix boundary-lint workflow invocation | G-015 | COMPLETE | Root script uses API workspace tsx and resolves apps/api/src/modules; CI #738 executed the checker and exposed the existing debt. |
+| P5-03 | Make formatting and boundary checks blocking | G-015 | IMPLEMENTED — CI PENDING | format:check and the 193-entry baseline boundary guard are configured as blocking; verify the new workflow in the next CI run. |
+| P5-04 | Classify and scan .m73b6-scratch contents | G-016 | PARTIAL — INVENTORY/TEXT SCAN COMPLETE | File inventory and visible text scan completed; binary tar contents were not independently extracted. All scratch artifacts were removed from the current tree. |
+| P5-05 | Remove unnecessary scratch artifacts and add ignore rules | G-016 | COMPLETE | Removed 1,277 files / approximately 37.9 MB and added ignore rules. |
+| P5-06 | Verify/remove JWT-shaped artifact and duplicate; rotate if needed | G-017 | COMPLETE | Expired short-lived HS256 test token removed from current tree; no signing secret embedded and no rotation indicated. Historical Git objects remain. |
+| P5-07 | Reconcile legacy docs and mark old statuses historical | G-018 | PARTIAL | New remediation docs are current; legacy architecture/readiness guides and historical status pages still need review. |
+| P5-08 | Update technical/user/admin/deployment/troubleshooting docs | G-018 | PARTIAL | Test, identity, deployment/migration, secret-artifact and boundary docs added; user/admin/troubleshooting guides remain. |
+| P5-09 | Prioritize FK indexes using workload/EXPLAIN evidence | G-013 | IN PROGRESS | 71 candidates vs 55 audit baseline; workload evidence is sparse and most affected tables are empty. Reconcile and test representative plans before adding indexes. |
+| P5-10 | Review pg_trgm extension schema placement safely | G-022 | PARTIAL | Relocatable extension and five dependent GIN indexes identified; confirm API/migration search_path and isolated upgrade behavior before migration. |
+| P5-11 | Record manual vs gateway payment launch scope decision | G-012 | OPEN — PRODUCT DECISION PENDING | Current supported new-transaction methods remain BANK_TRANSFER, CASH_ON_DELIVERY and VOUCHER; automatic gateway/payout is not implemented. Recommendation: retain manual verification for this release and scope gateway integration separately. |
+| P5-12 | Record RFQ/quotation/PO scope decision | G-021 | OPEN — PRODUCT DECISION PENDING | Recommendation: defer formal RFQ/quotation/PO workflow to a separate B2B roadmap milestone unless launch scope explicitly requires it. |
+| P5-13 | Complete isolated backup/restore drill | Operations | DEFERRED — USER DIRECTION | Deferred for the current development remediation cycle; revisit before the pre-production GO decision. |
+| P5-14 | Verify deploy/migration/worker/alert runbooks | Operations | PARTIAL | Source-level release/migration runbook added; current Render service settings, worker flags and alert sink still require live read-only verification. |
 
 **Exit gate:** CI checks block bad merges; repository risks are resolved; docs are current; payment/procurement scope decisions recorded; backup/restore and deployment controls evidenced.
 
@@ -508,3 +508,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - API integration job was still running when the corrected head superseded CI #736; it is not counted as passed evidence.
 - Boundary Lint appeared green only because continue-on-error was enabled; logs show the previous command failed with `ts-node: not found`. The root command and checker module path are corrected in the current head; next CI must show the actual checker output.
 - Full verification remains pending. Vercel web/admin preview checks are still affected by account build-rate-limit failures; no frontend deployment was performed.
+
+
+### CI #738 and Phase 5 progress — 19 November 2026
+- CI #738 completed API unit/coverage with 4,467 passed / 110 skipped across 230 passing test files (6 files skipped); API integration suite passed all 12 executed tests. Lint/typecheck/format, Flutter, web/admin, isolated migration full apply, contract/codegen, build and the advisory boundary job passed. Container build/smoke was still running at the time of this tracker update; k6 and staging release were skipped.
+- G-009 and G-019 are closed on CI #738. G-010 implementation and API tests pass; container smoke and Aramex sandbox remain outstanding.
+- Phase 5 has started. Formatting and boundary gates are configured as blocking in the staged workflow; the next CI run must verify them. The boundary gate blocks new imports against a reviewed 193-entry legacy baseline; it does not claim zero legacy violations.
+- G-013 and G-022 are under read-only database analysis only. No index DDL, extension relocation, grant changes, RLS changes, migrations, seed or deployment were performed.
