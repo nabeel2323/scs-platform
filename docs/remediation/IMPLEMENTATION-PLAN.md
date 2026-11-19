@@ -769,3 +769,14 @@ The extension is relocatable, but it is owned by the Supabase-managed `supabase_
 The latest read-only catalog review found no direct table grants to the PUBLIC pseudo-role across the 114 public tables and no PUBLIC default-ACL grants. The explicit client-role grants remain excessive: anon, authenticated and service_role have no table CRUD, but retain TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on all 114 tables. Migration 0070 is CI-verified but not applied to the shared database. `normalize_arabic(text)` remains unpinned live; it is not SECURITY DEFINER and its body uses pg_catalog built-ins only. G-020 therefore remains partial until the controlled migration is applied.
 
 The `pg_trgm` extension is relocatable but owned by Supabase-managed `supabase_admin`; the connected `postgres` role cannot assume that owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` unqualified. G-022 is blocked until an owner-supported relocation path and actual API/migration search paths are verified. No live database changes were made.
+
+
+---
+
+## 25. Worker topology and protected-job review — 19 November 2026
+
+Read-only Render metadata confirms one API web service, one configured instance, no dedicated worker service, and auto-deploy disabled. Runtime logs show OutboxDispatcher (1s), ShippingCarrierWorker (5s), AutoCompleteWorker (60s), and P13Monitor (60s, log-only) embedded in the API process. ReturnExpirationWorker is disabled because `P13_WORKER_ENABLED` is unset.
+
+Source review confirms carrier events and auto-complete orders use atomic database claims; P13 return expiration additionally requires explicit enablement, a durable epoch-fenced lease and a readable/unpaused control before work, and rechecks ownership/pause before each item. Its only automatic business action is escalation to admin review, not approval, rejection, refund or terminal expiry. The P13 monitor has no external alert webhook; safe activation remains blocked pending a signed sink and a deliberate single-holder rollout.
+
+The generic OutboxDispatcher currently logs and marks non-carrier events dispatched without an atomic claim. That is not an external side effect today, but it is a horizontal-scaling constraint: do not scale the API beyond one instance or add side-effecting consumers to this dispatcher until atomic claim/lease semantics and multi-instance tests exist. No runtime or database changes were made. See `STAGING-RUNTIME-TOPOLOGY-2026-11-19.md`.

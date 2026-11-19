@@ -83,13 +83,14 @@
     "docs/notifications/troubleshooting.md": "c13fe940a85dcef55214b836d72c27731c90640f",
     "docs/remediation/BOUNDARY-LINT-BASELINE-2026-11-19.md": "ed2d2078e8cc6235b44149503430ab3390f44894",
     "docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md": "043e14a3eb1a7d9202371f5b1c297aab86647083",
-    "docs/remediation/IMPLEMENTATION-PLAN.md": "455a3eee2c2a6387437e57e88739b4dfa89cfce9",
-    "docs/remediation/IMPLEMENTATION-PROGRESS.md": "5f22f3163d292e3ed8773716cf2d6f15fa651d74",
+    "docs/remediation/IMPLEMENTATION-PLAN.md": "b7564713e64194f0b71ec0aabf244e75bdb5f8cd",
+    "docs/remediation/IMPLEMENTATION-PROGRESS.md": "8ddacb46845ce8ca5654da51eb7bb98140ca3f3f",
     "docs/remediation/OUTBOX-EVENT-OWNERSHIP-MAP.md": "9b3a43c5821c73d197b303b9bfa3b447b6e6d495",
     "docs/remediation/P1-04-ADJACENT-TENANT-SCOPE-AUDIT.md": "af822256a0ff8ebf1710cd13e6873b430d036231",
     "docs/remediation/SYNTHETIC-TEST-IDENTITY-MATRIX.md": "e0e82e7f9d5b76627d3e1426ea7fb50c1806a062",
     "docs/remediation/TEST-CAMPAIGN-MANIFEST.md": "17ee51f0c5857028fe083b0516a27ccf50aa608c",
     "infra/ci/boundary-lint.ts": "5dba20a7489ddcc6d20be5ba7f23c7f28f9fd049",
-    "apps/api/src/main.ts": "51ed5ad8026a8d4504cd0f7b365aacca2da1e1e7"
+    "apps/api/src/main.ts": "51ed5ad8026a8d4504cd0f7b365aacca2da1e1e7",
+    "docs/remediation/STAGING-RUNTIME-TOPOLOGY-2026-11-19.md": "61d69560381930167c54ff52ecb028071710f5ac"
   }
 }
