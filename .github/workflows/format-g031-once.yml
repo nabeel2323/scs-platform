@@ -9,6 +9,8 @@ on:
       - apps/api/src/modules/admin/admin.controller.ts
       - apps/api/src/__tests__/unit/rbac/merchant-rbac.spec.ts
       - apps/admin/src/components/ProductDetails.tsx
+      - apps/admin/src/components/ManagementPage.tsx
+      - apps/admin/src/app/users/page.tsx
       - apps/admin/src/__tests__/management.test.tsx
       - docs/admin/rbac-architecture.md
       - docs/admin/rbac-guide.md
@@ -47,6 +49,8 @@ jobs:
             apps/api/src/modules/admin/admin.controller.ts \
             apps/api/src/__tests__/unit/rbac/merchant-rbac.spec.ts \
             apps/admin/src/components/ProductDetails.tsx \
+            apps/admin/src/components/ManagementPage.tsx \
+            apps/admin/src/app/users/page.tsx \
             apps/admin/src/__tests__/management.test.tsx \
             docs/admin/rbac-architecture.md \
             docs/admin/rbac-guide.md \
@@ -55,7 +59,7 @@ jobs:
       - name: Commit formatting
         run: |
           set -euo pipefail
-          files=(apps/api/src/common/database/rbac-seed.data.ts apps/api/src/modules/admin/admin.controller.ts apps/api/src/__tests__/unit/rbac/merchant-rbac.spec.ts apps/admin/src/components/ProductDetails.tsx apps/admin/src/__tests__/management.test.tsx docs/admin/rbac-architecture.md docs/admin/rbac-guide.md docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md)
+          files=(apps/api/src/common/database/rbac-seed.data.ts apps/api/src/modules/admin/admin.controller.ts apps/api/src/__tests__/unit/rbac/merchant-rbac.spec.ts apps/admin/src/components/ProductDetails.tsx apps/admin/src/components/ManagementPage.tsx apps/admin/src/app/users/page.tsx apps/admin/src/__tests__/management.test.tsx docs/admin/rbac-architecture.md docs/admin/rbac-guide.md docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md)
           if git diff --quiet -- "${files[@]}"; then
             echo "G-031 implementation and evidence files already satisfy Prettier."
             exit 0
