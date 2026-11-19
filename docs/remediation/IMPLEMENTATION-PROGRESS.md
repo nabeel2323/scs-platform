@@ -633,3 +633,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### G-030 evidence artifact — 19 November 2026
 
 - Added [G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md](./G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md) with source-level root cause, remediation paths, test coverage and closure criteria. The finding remains P0/OPEN pending latest-head CI.
+
+
+### Final formatter pass — 19 November 2026
+- The temporary formatter now rebases its formatting commit onto the latest branch head before pushing, preventing stale-checkout non-fast-forward failures. No application or database behavior is changed by this formatter.
