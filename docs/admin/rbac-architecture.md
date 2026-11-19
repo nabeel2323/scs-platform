@@ -1,8 +1,9 @@
 # RBAC Architecture and Authorization Guide
 
-**Version:** 1.0
+**Version:** 1.1
+**Last updated:** 19 November 2026
 **Status:** Implemented
-**Branch:** `feature/admin-user-management-rbac-2026`
+**Current implementation:** `remediation/phase-0-1-tenant-security`
 
 ## Overview
 
@@ -46,7 +47,7 @@ Permissions are registered in the RBAC seed data (`apps/api/src/common/database/
 Adding a new permission requires:
 1. Adding the permission key to the `PERMISSIONS` array
 2. Assigning it to appropriate roles in the `ROLES` array
-3. Running the seed migration
+3. Running the idempotent RBAC seed (`pnpm --filter @scs/api db:seed`)
 
 ## Authorization Enforcement
 
