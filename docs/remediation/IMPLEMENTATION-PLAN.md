@@ -323,6 +323,20 @@ The source audit linked to G-001 identified additional object-level authorizatio
 
 **Implementation status:** G-024–G-026 passed focused unit/coverage CI #551; G-027 passed all jobs in CI #554. G-028 passed 19 focused publication-boundary tests and full applicable API suites in CI #647; G-029 passed its focused tests in CI #592. G-003 production-poller ownership integration and worker refinements passed CI #687. No staging deploy or live database migration has been performed.
 
+### 1.7 Close G-030 — merchant payment and settlement listing tenant isolation (P0)
+
+A source audit found that merchant payment and settlement listing routes did not enforce the authenticated caller's active store membership. The previous `listPayments` implementation built store/buyer order filters but failed to apply them to the payment query, and merchant routes called unscoped list methods without passing caller context.
+
+- Add dedicated merchant listing service methods that join payments/settlements through orders and stores to an ACTIVE `store_members` row for the authenticated user, constrained to the caller's active organization.
+- A caller-supplied `storeId` narrows an already-authorized membership scope; it never grants access.
+- Pass the verified JWT caller context from both merchant controller routes.
+- Correct the admin/service `listPayments` store/buyer filter path so matching order IDs are applied to the payment query.
+- Add two-tenant PostgreSQL integration coverage for merchant A/B, same-org non-member, foreign store ID and admin filters, plus controller tests proving caller context is forwarded.
+
+**Acceptance:** merchant A cannot list merchant B payments or settlements; same-org non-members cannot list a store's financial records; missing active organization is denied; platform staff behavior remains intentional; store/buyer filters return only matching payments. Full CI and the real PostgreSQL integration suite must pass before closure.
+
+**Current implementation state:** service/controller changes and PostgreSQL/controller regression tests are committed on the remediation branch; latest-head CI is pending. Do not treat this P0 as closed until the integration and unit suites pass.
+
 ### Phase 1 exit gate — AUTHORIZED BUSINESS TESTING
 
 Only after the P0 is closed, G-023 is fixed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
@@ -876,3 +890,18 @@ Also:
 - Added operational safety warnings to the playbooks so their SQL and business-side-effect steps are not interpreted as permission to mutate the shared database or trigger live workflows.
 
 G-018 remains **PARTIAL**. This is a targeted correction of the most misleading readiness claims, not a complete audit of all 533 files under `docs/`. Remaining API/admin/merchant/buyer/mobile/permissions/worker/troubleshooting guides must be reconciled with current routes and verified behavior in their owning implementation work packages.
+
+
+## 31. Newly discovered P0 — G-030 merchant financial listing isolation
+
+The ongoing financial-service source review found a tenant-isolation defect in `GET /v1/merchant/payments` and `GET /v1/merchant/settlements`. Merchant routes called list methods without authenticated caller context; the payment list's store/buyer filter construction was not applied to the final query. Treat this as a P0 release gate, not a documentation-only issue.
+
+The remediation branch now:
+- passes the authenticated JWT caller context into dedicated merchant listing methods;
+- scopes payment rows through payment → order → store → ACTIVE store membership → active organization;
+- scopes settlement rows through settlement → store → ACTIVE store membership → active organization;
+- validates explicit store IDs against organization ownership and active membership;
+- applies admin store/buyer filters to matching payment order IDs;
+- adds two-tenant PostgreSQL tests and controller forwarding tests.
+
+**Status:** implementation committed; current-head CI pending. P0 remains open until test evidence is green.
