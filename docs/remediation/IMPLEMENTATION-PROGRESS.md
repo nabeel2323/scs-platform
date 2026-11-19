@@ -642,20 +642,20 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 - Updated the temporary formatter to use Git rebase autostash so its Prettier-only changes can be rebased safely if the branch advances while the workflow is running. The formatter remains temporary and will be deleted after the successful pass.
 
-
 ### Final Prettier pass and G-030 authorization alignment — 19 November 2026
+
 - Temporary formatter run #23 completed successfully with repository-locked Prettier 3.9.6. It formatted the remediation plans/reports, current-readiness Markdown guides and the G-010/G-030 TypeScript implementation and test files.
 - The temporary write-enabled formatter workflow was deleted immediately after the successful pass. No temporary formatter workflow remains.
 - G-030 authorization was aligned with the seeded RBAC contract: MERCHANT_OWNER and MERCHANT_STAFF receive organization-wide `merchant:orders:read`. Financial listings therefore scope to the authenticated active organization, not `store_members`; an explicit store ID must belong to the active organization. Same-organization merchant staff without a store membership remain authorized by their organization-level permission.
 - The PostgreSQL fixture now creates an ACTIVE MERCHANT_STAFF organization member without a store_members row, proving org-level read behavior while retaining cross-organization denial.
 - Full current-head CI is required after the formatter commit and this tracker update. G-030 remains P0/OPEN until API unit/coverage and PostgreSQL integration suites pass.
 
-
 ### G-030 CI #815 typecheck correction — 19 November 2026
+
 - CI #815 passed repository lint and Flutter analysis/tests, then failed API typecheck on the optional index-signature access to the new `orgStaffA` fixture identity.
 - Corrected the fixture lookup to use the required indexed property with a non-null assertion after the fixture creates it. No runtime authorization logic changed.
 - The next full CI run must verify typecheck, formatting, API unit/coverage, PostgreSQL integration, migration apply, web/admin, build and container smoke before G-030 can close.
 
-
 ### G-030 evidence formatting correction — 19 November 2026
+
 - CI #817 passed API lint and typecheck, then the blocking changed-file Prettier gate flagged the G-030 report and this progress tracker. The exact repository formatter is being applied; the gate remains blocking.

@@ -42,6 +42,7 @@ The source-level finding does not assert that a specific production user exploit
 ## 3. Regression coverage
 
 Added tests for:
+
 - Two independent merchant organizations: merchant A sees only payment A and merchant B sees only payment B.
 - A same-organization user with the merchant read permission but without a `store_members` row can read only their own organization's records; a foreign-organization store ID is denied.
 - Merchant A cannot request merchant B's store ID.
@@ -50,10 +51,12 @@ Added tests for:
 - Controller methods forward the authenticated caller context and filters to the merchant-scoped service methods.
 
 Test files:
+
 - `apps/api/src/__tests__/integration/p311-tenant-isolation.postgres.spec.ts`
 - `apps/api/src/__tests__/unit/payments/payments-controller-tenant-scope.spec.ts`
 
 Implementation files:
+
 - `apps/api/src/modules/payments/payments.service.ts`
 - `apps/api/src/modules/payments/payments.controller.ts`
 
