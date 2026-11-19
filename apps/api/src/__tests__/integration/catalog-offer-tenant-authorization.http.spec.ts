@@ -27,7 +27,7 @@ vi.mock('../../common/tenant-scope', async () => {
     ['store-a', 'org-a'],
     ['store-b', 'org-b'],
   ]);
-  const activeMembers = new Set(['merchant-a:store-a', 'merchant-b:store-b']);
+  const activeMembers = new Set(['merchant-a:store-a', 'merchant-b:store-b', 'store-staff-a:store-a']);
 
   return {
     ...actual,
@@ -68,6 +68,10 @@ const identities: Record<string, TestIdentity> = {
   },
   merchantB: {
     sub: 'merchant-b', role: 'MERCHANT_OWNER', activeOrg: 'org-b',
+    perms: [], iat: 1, exp: 2,
+  },
+  storeStaffA: {
+    sub: 'store-staff-a', role: 'MERCHANT_STAFF', activeOrg: 'org-a',
     perms: [], iat: 1, exp: 2,
   },
   inactiveMember: {
@@ -145,6 +149,11 @@ describe('G-001 merchant offer tenant authorization (HTTP)', () => {
     const foreignPath = path.replace('store-a', 'store-b');
     const result = await request(foreignPath, 'merchantA');
     expect(result.status).toBe(403);
+  });
+
+  it.each(routes)('allows active store staff within their organization: %s', async (path) => {
+    const result = await request(path, 'storeStaffA');
+    expect(result.status).toBe(200);
   });
 
   it.each(routes)('denies a same-organization user without active store membership: %s', async (path) => {
