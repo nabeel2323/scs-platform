@@ -54,6 +54,7 @@ function VerificationLink({ entity, row }: { entity: ManagementEntity; row: Admi
 function ManagementTable({ entity }: { entity: ManagementEntity }) {
   const config = managementTables[entity];
   const { hasAccess, missingPerms } = useRequirePerms([config.permission]);
+  const { hasAccess: canCreateProduct } = useRequirePerms(['catalog:products:write']);
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
   const state = useAdminTableQuery(config);
@@ -121,7 +122,7 @@ function ManagementTable({ entity }: { entity: ManagementEntity }) {
         <button type="button" onClick={list.reload}>Refresh</button>
         {entity === 'categories' && <button type="button" onClick={() => setCreating(true)}>Add category</button>}
         {entity === 'brands' && <button type="button" onClick={() => setCreating(true)}>Add brand</button>}
-        {entity === 'products' && <Link href="/products/new" style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#1e6178', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>Create product</Link>}
+        {entity === 'products' && canCreateProduct && <Link href="/products/new" style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, background: '#1e6178', color: '#fff', border: 'none', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>Create product</Link>}
       </div>
       <details className={styles['filters']}><summary>Advanced filters</summary>
         <form onSubmit={event => { event.preventDefault(); state.apply(); }}>
