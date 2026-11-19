@@ -855,8 +855,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      const contentType = (response.headers.get('content-type') || '')
-        .split(';')[0]
+      const contentType = ((response.headers.get('content-type') || '').split(';')[0] ?? '')
         .trim()
         .toLowerCase();
       if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
