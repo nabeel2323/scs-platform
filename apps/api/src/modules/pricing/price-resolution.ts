@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, lte, isNull, or } from 'drizzle-orm';
-import { getOrderQuantityViolation } from '../orders/order-quantity';
+import { getOrderQuantityViolation } from '../orders/index';
 import { priceLists, priceTiers } from './pricing.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { productVariants } from '../catalog/catalog.schema';

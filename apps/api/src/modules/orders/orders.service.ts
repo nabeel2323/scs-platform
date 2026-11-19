@@ -20,7 +20,7 @@ import {
 import { shipments, shipmentEvents } from './shipment.schema';
 import { paymentRecords } from '../payments/payments.schema';
 import { PaymentsService } from '../payments/payments.service';
-import { isSupportedPaymentMethod, SUPPORTED_PAYMENT_METHODS } from '../payments/payments.types';
+import { isSupportedPaymentMethod, SUPPORTED_PAYMENT_METHODS } from '../payments/index';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { getOrderQuantityViolation } from './order-quantity';
