@@ -29,7 +29,8 @@
     "db:demo": "tsx src/scripts/demo-data.ts",
     "db:reset": "tsx infra/drizzle/reset.ts",
     "db:generate": "drizzle-kit generate",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "db:identity": "node scripts/inspect-db-identity.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",
