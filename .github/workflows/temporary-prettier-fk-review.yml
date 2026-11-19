@@ -1,0 +1,45 @@
+name: Temporary Prettier FK Review
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  format-fk-review:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'remediation/phase-0-1-tenant-security'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format the FK review
+        run: >
+          pnpm exec prettier --write
+          docs/remediation/FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md
+      - name: Commit formatter output
+        env:
+          GITHUB_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/remediation/FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md
+          git commit -m "style: format foreign-key index review"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
