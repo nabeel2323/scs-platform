@@ -15,8 +15,12 @@ import { fetchMyStores } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 import { PageHeader, Breadcrumb } from '@scs/ui-kit';
+import { useAuth } from '../../../components/AuthProvider';
 
 function InventoryPageContent() {
+  const { user, loading: authLoading } = useAuth();
+  const canReadInventory = !!user?.perms?.includes('merchant:inventory:read');
+  const canWriteInventory = !!user?.perms?.includes('merchant:inventory:write');
   const searchParams = useSearchParams();
   const router = useRouter();
   const variantFilter = searchParams.get('variant') || '';
@@ -115,7 +119,7 @@ function InventoryPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, canReadInventory]);
 
   const loadAllInventory = useCallback(async (p = 0) => {
     if (!storeId) return;
@@ -132,6 +136,10 @@ function InventoryPageContent() {
   }, [storeId]);
 
   useEffect(() => {
+    if (authLoading || !user || !canReadInventory) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const stores = await fetchMyStores();
@@ -157,11 +165,11 @@ function InventoryPageContent() {
         setLoading(false);
       }
     })();
-  }, [loadInventory, loadVariantInventory, variantFilter]);
+  }, [authLoading, user, canReadInventory, loadInventory, loadVariantInventory, variantFilter]);
 
   // Batch-fetch variant details via two-phase load: products → variants per product
   useEffect(() => {
-    if (!storeId) return;
+    if (!storeId || !canReadInventory) return;
     setVariantsLoaded(false);
     setVariantsError('');
     (async () => {
@@ -431,6 +439,10 @@ function InventoryPageContent() {
     }
   };
 
+  if (authLoading) return <LoadingSpinner />;
+  if (!user) return <div role="alert">Please sign in to access inventory.</div>;
+  if (!canReadInventory) return <div role="alert" style={{ padding: 24 }}>You do not have permission to view inventory. Required permission: merchant:inventory:read.</div>;
+
   if (noStore) {
     return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
@@ -486,14 +498,14 @@ function InventoryPageContent() {
             )}
             <button onClick={() => { if (viewMode === 'variant' && variantFilter) loadVariantInventory(variantFilter); else if (viewMode === 'all') loadAllInventory(); else loadInventory(selectedWh); }} style={primaryBtn}>Refresh</button>
             <div style={{ flex: 1 }} />
-            <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>
+            {canWriteInventory && <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={{ ...editBtn, background: '#0c2831', color: '#fff', border: 'none' }}>+ Add Variant</button>}
             <button onClick={handleExport} style={{ ...editBtn, fontSize: 12 }}>Export CSV</button>
             <button onClick={handleExportMovements} style={{ ...editBtn, fontSize: 12 }}>Movements</button>
-            <button onClick={handleCheckLowStock} disabled={lowStockChecking} style={{ ...editBtn, fontSize: 12 }}>{lowStockChecking ? 'Checking…' : 'Check Low Stock'}</button>
+            {canWriteInventory && <button onClick={handleCheckLowStock} disabled={lowStockChecking} style={{ ...editBtn, fontSize: 12 }}>{lowStockChecking ? 'Checking…' : 'Check Low Stock'}</button>}
           </div>
 
           {/* Bulk action bar */}
-          {selectedItems.size > 0 && (
+          {canWriteInventory && selectedItems.size > 0 && (
             <div style={{ background: '#e0f2fe', borderRadius: 8, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>{selectedItems.size} item(s) selected</span>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -505,7 +517,7 @@ function InventoryPageContent() {
 
           {loading ? <LoadingSpinner /> : items.length === 0 ? (
             <EmptyState title="No inventory items" description={variantFilter ? 'This variant has no tracked stock yet.' : 'This warehouse has no tracked stock yet.'}
-              action={!variantFilter ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
+              action={!variantFilter && canWriteInventory ? <button onClick={() => { setShowCreate(true); setNewWarehouseId(selectedWh || warehouses[0]?.id || ''); setVariantSearch(''); setShowVariantDrop(false); setVariantsError(''); }} style={primaryBtn}>+ Add First Variant</button> : undefined} />
           ) : (
             <div style={tableWrap}>
               <table style={table}>
@@ -554,9 +566,9 @@ function InventoryPageContent() {
                         </td>
                         <td style={td}>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                            <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>
+                            {canWriteInventory && <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>}
                             <button onClick={() => openHistory(item)} style={historyBtn}>History</button>
-                            <button onClick={() => openSettings(item)} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Settings</button>
+                            {canWriteInventory && <button onClick={() => openSettings(item)} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Settings</button>}
                             {warehouses.length > 1 && (
                               <button onClick={() => { setTransferItemId(item.id); setTransferToWh(warehouses.find(w => w.id !== item.warehouseId)?.id || ''); }} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Transfer</button>
                             )}
@@ -641,7 +653,7 @@ function InventoryPageContent() {
       )}
 
       {/* Adjust dialog */}
-      {adjustId && (
+      {canWriteInventory && adjustId && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Adjust Stock</h3>
@@ -663,7 +675,7 @@ function InventoryPageContent() {
       )}
 
       {/* Create inventory item dialog */}
-      {showCreate && (
+      {canWriteInventory && showCreate && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Assign Variant to Warehouse</h3>
@@ -726,7 +738,7 @@ function InventoryPageContent() {
       )}
 
       {/* Settings dialog */}
-      {settingsId && (
+      {canWriteInventory && settingsId && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Inventory Settings</h3>
@@ -750,7 +762,7 @@ function InventoryPageContent() {
       )}
 
       {/* Bulk adjust dialog */}
-      {showBulkAdjust && (
+      {canWriteInventory && showBulkAdjust && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Bulk Stock Adjustment</h3>
@@ -770,7 +782,7 @@ function InventoryPageContent() {
       )}
 
       {/* Transfer dialog */}
-      {transferItemId && (
+      {canWriteInventory && transferItemId && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Transfer Stock</h3>
