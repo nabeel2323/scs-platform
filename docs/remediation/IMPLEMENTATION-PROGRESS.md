@@ -660,12 +660,12 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 - CI #817 passed API lint and typecheck, then the blocking changed-file Prettier gate flagged the G-030 report and this progress tracker. Repository-locked Prettier completed successfully in the one-time formatter run; the temporary workflow was removed immediately after. The blocking gate remains in place.
 
-
 ### G-010 timeout-test synchronization correction — 19 November 2026
+
 - Review of the in-progress coverage run identified a race in the new fake-timer test: it advanced the clock before the asynchronous shipment/provider/allowlist chain had reached `fetch` and installed the abort timer.
 - Updated the test to flush that promise chain and assert the fetch mock is installed before advancing 15 seconds. Production worker behavior is unchanged.
 - The previous CI run is superseded; a fresh full run must verify the corrected timeout test and G-030 tenant-isolation suites.
 
-
 ### CI #823 formatting correction — 19 November 2026
+
 - CI #823 passed lint and TypeScript typechecking, then the changed-file Prettier gate identified only this progress tracker. No application-code formatting or typecheck errors were reported; the repository-locked formatter is being applied to the tracker.
