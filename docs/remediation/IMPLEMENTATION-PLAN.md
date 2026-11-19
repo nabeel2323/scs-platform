@@ -924,3 +924,20 @@ The one-time progress formatter workflow has been deleted. No formatter automati
 - No production deployment, shared-database migration, staging write or financial-data mutation was performed.
 
 The next execution order is: complete the evidence-based G-002 role/access review without changing grants; resolve G-014 through an authorized repository administrator or an available read-only policy view; continue the remaining Phase 3/4/5 findings with focused regression tests; then run the consolidated Phase 6 campaign only after the prerequisite release gates are met.
+
+## 33. Current-head CI #843 and expanded G-002 ACL investigation — 19 November 2026
+
+CI run #843 passed all 10 executable jobs on branch head 58053f61e9d3679e81b999e2a9f24f4c8ad4f5ab. Lint/typecheck/format, Flutter, API unit/coverage, PostgreSQL integration, web/admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke all passed. k6 and staging release were skipped.
+
+A fresh read-only Supabase MCP inspection of the SCS-PlatForm PostgreSQL 17.6 project added important G-002 evidence:
+- 114/114 public tables have RLS disabled.
+- aclexplode confirms direct MAINTAIN, REFERENCES, TRIGGER and TRUNCATE grants to anon, authenticated and service_role on all 114 tables; effective SELECT/INSERT/UPDATE/DELETE counts remain zero for these three roles.
+- postgres-owned public-table default ACLs repeat those four grants for future objects created by postgres. Supabase-managed supabase_admin defaults are separate and must not be modified as part of this remediation.
+- authenticator can SET ROLE to anon/authenticated/service_role, but INHERIT is false on each membership edge. The MCP inspection connection is postgres with BYPASSRLS and is not proof of the Render API or migration identity.
+- No direct table ACL grants to PUBLIC were found. The findings are excessive direct grants and default-ACL recurrence; no specific public HTTP exploit path has been demonstrated.
+
+The read-only audit utility was enhanced to emit direct table/sequence ACL grants to the API roles, include authenticator in the privilege inventory and report transitive role-membership edges correctly. The previous recursive report query only joined root-to-first-edge and could omit deeper memberships; the corrected recursive query was separately executed against the live catalog and returned the expected transitive graph.
+
+The standalone read-only GitHub audit run #3 failed on a push event before producing usable database identity evidence. It must not be treated as an audit success. No attempt was made to bypass the staging environment approval gate. The API/migration DATABASE_URL identities remain unverified.
+
+**Current status:** G-030 remains closed by CI #832; G-010 timeout test remains verified by CI #832 and CI #843. G-002 remains blocked pending API/migration role proof and a reviewed ACL/RLS plan. The latest audit-script changes and evidence-document updates require a fresh CI run. No shared database grants, defaults, RLS policies, migrations, staging data or deployment settings were changed.
