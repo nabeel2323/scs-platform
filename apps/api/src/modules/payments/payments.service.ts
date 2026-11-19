@@ -1175,14 +1175,9 @@ export class PaymentsService {
     }
     if (filters?.storeId) {
       await assertStoreInOrg(this.db, caller, filters.storeId);
-      await assertStoreMember(this.db, caller, filters.storeId);
     }
 
-    const conditions = [
-      eq(stores.orgId, caller.activeOrg),
-      eq(storeMembers.userId, caller.sub),
-      eq(storeMembers.status, 'ACTIVE'),
-    ];
+    const conditions = [eq(stores.orgId, caller.activeOrg)];
     if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
     if (filters?.status) conditions.push(eq(settlementRecords.status, filters.status));
 
@@ -1190,14 +1185,6 @@ export class PaymentsService {
       .select({ settlement: settlementRecords })
       .from(settlementRecords)
       .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
-      .innerJoin(
-        storeMembers,
-        and(
-          eq(storeMembers.storeId, stores.id),
-          eq(storeMembers.userId, caller.sub),
-          eq(storeMembers.status, 'ACTIVE'),
-        ),
-      )
       .where(and(...conditions))
       .orderBy(desc(settlementRecords.createdAt))
       .limit(100);
