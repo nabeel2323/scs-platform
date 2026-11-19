@@ -103,11 +103,8 @@ jobs:
       # untouched files is out of scope for the Phase 1 gap fixes, so this step
       # reports the debt without blocking PRs. New/changed files are expected to
       # be Prettier-clean.
-      # TODO(repo-hygiene): add `.gitattributes` (`* text=auto eol=lf`), run
-      # `git add --renormalize .` and `prettier --write` in a dedicated commit,
-      # then drop `continue-on-error` to make this gate blocking.
+      # Blocking formatting gate; the current repository passes this check.
       - run: pnpm format:check
-        continue-on-error: true
 
   # â”€â”€ Boundary Lint (E6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   boundary-lint:

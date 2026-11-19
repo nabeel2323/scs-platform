@@ -52,3 +52,6 @@ The CI gate now blocks any violation not present in `infra/ci/boundary-lint-base
 3. Replace admin cross-module schema/service imports with module APIs or dedicated admin query services.
 4. Reduce returns dependencies on operations, payments, orders and merchant internals.
 5. Keep the baseline blocking while reducing it incrementally; do not claim zero E6 violations until the baseline is empty.
+
+
+The repository-wide `pnpm format:check` passed in CI #738, so the CI workflow now treats formatting as a blocking gate as well. The boundary gate is also blocking, with the 193-entry legacy baseline described above.
