@@ -206,12 +206,14 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
       await Promise.resolve();
     }
     expect(fetchMock).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(15_000);
-
-    await expect(pending).rejects.toMatchObject({
+    // Attach the rejection observer before advancing fake time; otherwise the
+    // timeout rejection can be reported as unhandled before the assertion runs.
+    const rejection = expect(pending).rejects.toMatchObject({
       retryable: true,
       operation: 'downloadLabel',
     });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await rejection;
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(storage.putObject).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
