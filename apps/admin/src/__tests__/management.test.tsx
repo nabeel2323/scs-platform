@@ -8,7 +8,7 @@ import ManagementPage, { rowClickOpensDetail } from '../components/ManagementPag
 import ProductDetails, { ProductModerationActions } from '../components/ProductDetails';
 import { adminRequest, moderateAdminProduct } from '../lib/api';
 
-const navigation = vi.hoisted(() => ({ query: '', replace: vi.fn(), allowed: true }));
+const navigation = vi.hoisted(() => ({ query: '', replace: vi.fn(), allowed: true, requiredPerms: [] as string[] }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: navigation.replace }),
   usePathname: () => '/products',
@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('../lib/api', () => ({ adminRequest: vi.fn(), moderateAdminProduct: vi.fn() }));
 vi.mock('../hooks/useRequirePerms', () => ({
-  useRequirePerms: () => ({ hasAccess: navigation.allowed, missingPerms: navigation.allowed ? [] : ['denied'] }),
+  useRequirePerms: (requiredPerms: string[]) => { navigation.requiredPerms = requiredPerms; return { hasAccess: navigation.allowed, missingPerms: navigation.allowed ? [] : ['denied'] }; },
   AccessDenied: () => <p>Access Denied</p>,
 }));
 
