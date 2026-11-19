@@ -181,7 +181,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     await db.insert(storeMembers).values([
       { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
       { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
-      { id: randomUUID(), storeId: storeA, userId: storeStaffA, role: 'STAFF', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeA, userId: storeStaffA, role: 'MEMBER', status: 'ACTIVE' },
     ]);
   }, 180_000);
 
