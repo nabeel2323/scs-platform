@@ -603,3 +603,12 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The temporary formatter workflow was deleted after its successful run; no write-enabled formatter workflow remains in the repository.
 - CI #772 failed at the changed-file format gate before unit/integration jobs could run; the log identified the new G-010 worker test and progress tracker as the two unformatted files. Both were formatted by the successful formatter run.
 - CI #777 on the formatter bot commit was marked `action_required`; it is not treated as verification. A normal repository-authored documentation commit is being used to trigger the full CI suite against the formatted content.
+
+
+### G-018 current-readiness documentation reconciliation — 19 November 2026
+- Added a current readiness notice to `docs/User_Guide.html`, `docs/Developer_Guide.html` and `docs/Testing_Guide.html`. Replaced the Testing Guide's stale assertion that all Phase 1 P0/P1 gaps were closed and the platform was pilot-ready.
+- Marked `docs/production/CAPABILITY-MATRIX.md` as a historical 25-Sep baseline whose checkmarks are not current release evidence.
+- Updated `docs/pilot/go-no-go-checklist.md` to reflect that backup/restore drills are deferred by user direction and excluded from the current campaign.
+- Marked `docs/monitoring/slo-and-alerting.md` thresholds as proposed, not measured/active, and called out the mismatch between Kubernetes/pod terminology and the currently observed Render service topology.
+- Added explicit shared-database and live-side-effect safety warnings to `docs/playbooks/operational-playbooks.md`.
+- G-018 remains PARTIAL: this targeted reconciliation covers the most misleading readiness and operational documents, not all 533 files under `docs/`. Remaining guides must be reconciled alongside their owning code changes.
