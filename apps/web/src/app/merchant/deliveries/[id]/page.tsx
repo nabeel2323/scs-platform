@@ -32,6 +32,10 @@ export default function MerchantDeliveryDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const canReadShipments = user?.perms?.includes('fulfillment:shipments:read') === true;
+  const canWriteShipments = user?.perms?.includes('fulfillment:shipments:write') === true;
+  const canReturnShipments = user?.perms?.includes('fulfillment:shipments:return') === true;
+  const canReadLabels = user?.perms?.includes('fulfillment:labels:read') === true;
   const [detail, setDetail] = useState<ShipDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,23 +48,26 @@ export default function MerchantDeliveryDetailPage() {
   const [rtsNotes, setRtsNotes] = useState('');
 
   const load = useCallback(() => {
-    if (!id) return;
+    if (!id || !canReadShipments) return;
     setLoading(true);
     setError('');
     getShipmentDetail(id)
       .then((d) => setDetail(d))
       .catch((e: any) => setError(e?.message || 'Failed to load delivery'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, canReadShipments]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/auth/login?redirect=/merchant/deliveries/${id}`); return; }
     if (!isMerchantRole(user?.role)) { router.replace('/search'); return; }
+    if (!canReadShipments) return;
     load();
-  }, [authLoading, user, router, id, load]);
+  }, [authLoading, user, router, id, load, canReadShipments]);
 
-  const run = async (fn: ActionFn) => {
+  const run = async (fn: ActionFn, permission: 'fulfillment:shipments:write' | 'fulfillment:shipments:return' = 'fulfillment:shipments:write') => {
+    const allowed = permission === 'fulfillment:shipments:return' ? canReturnShipments : canWriteShipments;
+    if (!allowed) return;
     setBusy(true);
     setActionError('');
     try {
@@ -73,7 +80,8 @@ export default function MerchantDeliveryDetailPage() {
     }
   };
 
-  if (authLoading || (loading && !detail)) return <LoadingSpinner />;
+  if (authLoading || !user || (loading && !detail)) return <LoadingSpinner />;
+  if (!canReadShipments) return <div role="alert" style={{ padding: 24 }}>You do not have permission to view this delivery. Required: fulfillment:shipments:read.</div>;
   if (!detail) return <div style={{ padding: 24 }}><ErrorBanner message={error || 'Delivery not found'} onRetry={load} /></div>;
 
   const s = detail.shipment;
@@ -122,23 +130,23 @@ export default function MerchantDeliveryDetailPage() {
           <h2 style={h2}>Operations</h2>
           {actionError && <div role="alert" style={alert}>{actionError}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            {canCreateCarrier && (
+            {canWriteShipments && canCreateCarrier && (
               <button disabled={busy} onClick={() => run(() => createCarrierShipment(s.id))} style={primaryBtn}>
                 Create carrier shipment
               </button>
             )}
-            {canCancel && (
+            {canWriteShipments && canCancel && (
               <span style={{ display: 'inline-flex', gap: 6 }}>
                 <input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Cancel reason" style={input} />
                 <button disabled={busy || !cancelReason.trim()} onClick={() => run(() => cancelShipment(s.id, cancelReason.trim()))} style={dangerBtn}>Cancel</button>
               </span>
             )}
-            {canRetry && (
+            {canWriteShipments && canRetry && (
               <button disabled={busy} onClick={() => run(() => retryShipment(s.id))} style={primaryBtn}>Retry delivery</button>
             )}
           </div>
 
-          {canReportException && (
+          {canWriteShipments && canReportException && (
             <div style={{ marginTop: 16 }}>
               <p style={hint}>Report a delivery exception</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -151,7 +159,7 @@ export default function MerchantDeliveryDetailPage() {
             </div>
           )}
 
-          {canRequestRts && (
+          {canWriteShipments && canRequestRts && (
             <div style={{ marginTop: 16 }}>
               <p style={hint}>Request return-to-sender</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -161,7 +169,7 @@ export default function MerchantDeliveryDetailPage() {
             </div>
           )}
 
-          {canCompleteRts && (
+          {canWriteShipments && canCompleteRts && (
             <div style={{ marginTop: 16 }}>
               <p style={hint}>Return in progress — confirm completion once the parcel is back.</p>
               <button disabled={busy} onClick={() => run(() => completeRTS(s.id))} style={secondaryBtn}>Mark RTS complete</button>
@@ -172,12 +180,12 @@ export default function MerchantDeliveryDetailPage() {
         </section>
 
         {/* M7.3-C: Record Return (inventory return-to-stock) */}
-        {canRecordReturn && (
+        {canReturnShipments && canRecordReturn && (
           <ReturnPanel shipmentId={s.id} onDone={load} />
         )}
 
         {/* Labels */}
-        <section style={card}>
+        {canReadLabels && <section style={card}>
           <h2 style={h2}>Labels</h2>
           {labels.length === 0 ? (
             <p style={hint}>No labels yet. Create the carrier shipment to generate a label.</p>
@@ -206,7 +214,7 @@ export default function MerchantDeliveryDetailPage() {
               </table>
             </div>
           )}
-        </section>
+        </section>}
 
         {/* Timeline */}
         <section style={card}>
