@@ -149,8 +149,8 @@ async function main() {
           role_name,
           count(*)::int AS public_sequences_checked,
           count(*) FILTER (WHERE has_sequence_privilege(role_name::name, seq.oid, 'USAGE'))::int AS usage_count,
-          count(*) FILTER (WHERE has_sequence_privilege(role_name, sequence.oid, 'SELECT'))::int AS select_count,
-          count(*) FILTER (WHERE has_sequence_privilege(role_name, sequence.oid, 'UPDATE'))::int AS update_count
+          count(*) FILTER (WHERE has_sequence_privilege(role_name::name, seq.oid, 'SELECT'))::int AS select_count,
+          count(*) FILTER (WHERE has_sequence_privilege(role_name::name, seq.oid, 'UPDATE'))::int AS update_count
         FROM unnest($1::text[]) AS roles(role_name)
         CROSS JOIN pg_class seq
         JOIN pg_namespace namespace ON namespace.oid = seq.relnamespace
