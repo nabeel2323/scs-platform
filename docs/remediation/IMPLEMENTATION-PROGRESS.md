@@ -20,8 +20,8 @@
 | Original audit findings                           |                                                                           22 |
 | Additional findings discovered during remediation |                                                             13 (G-023–G-035) |
 | P0 open                                           |                                                                            0 |
-| P1 open                                           |                                                      2 (G-002, G-007)        |
-| P2 open                                           |                                  6 (G-010, G-012–G-015, G-018)               |
+| P1 open                                           |                                                             2 (G-002, G-007) |
+| P2 open                                           |                                                6 (G-010, G-012–G-015, G-018) |
 | P3 open                                           |                                                                            2 |
 | Findings closed under this plan                   | 24 (G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019, G-023–G-035) |
 | Findings implemented; latest-head CI pending      |                                                                            0 |
@@ -31,6 +31,7 @@
 **Counting note:** The original audit contains G-001–G-022. G-023–G-035 were added during remediation. G-030 is closed by CI #832/#843; G-031–G-035 are closed by CI #936. G-002/G-007/G-010/G-020 remain partial for the separate reasons recorded below.
 
 ### Overall status
+
 <badge color="success">IN PROGRESS</badge> CI #936 passed all 10 executable jobs on implementation code head `78d083a63c454b48fa9808fe25206264766f2523`. API unit/coverage reported 4,483 passed and 110 skipped across 237 test files (231 passed, 6 skipped); PostgreSQL integration, lint/typecheck/format, Flutter, web/admin, E6 boundary lint, isolated migration full apply, contract/codegen, build and container smoke all passed. k6 smoke and staging release were skipped. G-031–G-035 are CLOSED with current-head CI evidence. G-002 remains blocked: live ACL evidence is expanded, but the Render API and migration PostgreSQL identities remain unverified. The staging service is still on `develop` at baseline commit `9f5bc397467dc92cdc8debd54797b6d730659c36`, with auto-deploy disabled; no PR code has been deployed. No live database mutation or deployment was performed.
 
 ---
