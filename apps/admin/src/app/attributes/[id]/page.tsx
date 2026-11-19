@@ -24,7 +24,7 @@ import {
 } from '../../../components/detail';
 
 function AttributeDetailContent({ id }: { id: string }) {
-  const { hasAccess } = useRequirePerms(['catalog:categories:write']);
+  const { hasAccess } = useRequirePerms(['catalog:attributes:manage']);
   const [ready, setReady] = useState(false);
   const [attr, setAttr] = useState<AdminRecord | null>(null);
   const [loading, setLoading] = useState(true);
