@@ -70,7 +70,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
 | G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
 | G-014 | P2 | develop branch unprotected | 5 | OPEN | Repository ruleset required |
-| G-015 | P2 | Formatting/boundary lint non-blocking or miswired | 5 | OPEN | Correct command, then make blocking |
+| G-015 | P2 | Formatting/boundary lint non-blocking or miswired | 5 | IN PROGRESS — CHECKER REWIRED; VIOLATIONS PENDING | CI #736 showed the old command never ran (missing ts-node). Root script now invokes API workspace tsx and checker path resolves apps/api/src/modules. Next CI must show actual violations; keep continue-on-error until zero violations, then make blocking. |
 | G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | CLOSED IN HEAD — HISTORY RETAINS SNAPSHOT | Removed 1,277 tracked scratch files (about 37.9 MB), including the 19.1 MB P4.18 archive and duplicate project context. No runtime/build references were found. Targeted visible-text scan found only local CI PostgreSQL URLs and an expired test JWT; no private-key, AWS-key or GitHub-token patterns. Binary archive bytes were not independently extracted by the GitHub connector; prior Git history still retains the old tree. |
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | CLOSED IN HEAD — EXPIRED ARTIFACT REMOVED | Root test-token.txt and its duplicate in the scratch context were removed. The token was an expired short-lived HS256 test token; no signing key or environment secret was embedded in the token file. No current code reference was found. No JWT secret rotation is indicated by the evidence; historical Git objects retain the expired token. |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
@@ -494,3 +494,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Added ignore rules for `.m73b6-scratch/` and `test-token.txt` to prevent reintroduction.
 - Enumerated the scratch file tree and scanned the visible token, diff, CI parser and smoke-script text artifacts. The database URLs found were localhost/CI-container test endpoints; no private-key, AWS access-key or GitHub-token pattern was found. The token was expired; no signing secret was embedded.
 - The GitHub connector could not independently extract the binary tar contents. The archive and all scratch files are removed from the current tree, but historical Git objects remain; no history rewrite or secret rotation is justified by the evidence available.
+
+
+### G-015 boundary-lint execution correction — 19 November 2026
+- CI #736's boundary job reported success only because the step was `continue-on-error`; its log showed `ts-node: not found` and the checker had a wrong module-root path.
+- Root script now uses the API workspace's installed `tsx`; checker resolves `apps/api/src/modules` from `infra/ci`.
+- The gate remains advisory until the corrected checker executes, all reported cross-module violations are addressed, and the result is zero violations. Do not count the prior green job as E6 evidence.

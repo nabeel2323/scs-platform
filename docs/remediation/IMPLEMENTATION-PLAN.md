@@ -731,3 +731,7 @@ P0-03 is complete because the audit-baseline comparison found no code fixes hidd
 ## 20. G-016/G-017 repository artifact cleanup
 
 Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), its 19.1 MB P4.18 archive and duplicated context, plus the root `test-token.txt`. Added ignore rules to prevent reintroduction. A targeted scan of visible text artifacts found only localhost/CI PostgreSQL URLs and an expired short-lived HS256 test JWT; no private-key, AWS access-key or GitHub-token pattern was found. The token contained no signing secret and is expired, so secret rotation is not indicated. The GitHub connector could not independently extract the binary tar contents; current-tree artifacts are removed, but historical Git objects remain. No history rewrite was performed.
+
+
+### G-015 boundary-lint execution correction
+The E6 checker had not actually executed: the root script invoked missing `ts-node`, and its module-root path was wrong. The command now uses the API workspace's installed `tsx`, and the checker resolves `apps/api/src/modules`. Keep the CI step advisory until the corrected checker reports zero violations and remaining cross-module imports are remediated; only then make the job blocking.
