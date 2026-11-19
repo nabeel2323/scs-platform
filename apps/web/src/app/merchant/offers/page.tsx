@@ -2,10 +2,18 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  fetchMerchantOffers, createMerchantOffer, proposeOffer, withdrawOffer,
-  Offer, CreateOfferInput, fetchStoreProducts, Product,
-  fetchMerchantOfferAnalytics, OfferAnalyticsRow,
-  fetchMerchantOfferTrend, OfferTrendPoint,
+  fetchMerchantOffers,
+  createMerchantOffer,
+  proposeOffer,
+  withdrawOffer,
+  Offer,
+  CreateOfferInput,
+  fetchStoreProducts,
+  Product,
+  fetchMerchantOfferAnalytics,
+  OfferAnalyticsRow,
+  fetchMerchantOfferTrend,
+  OfferTrendPoint,
 } from '../../../lib/buyer-api';
 import { fetchMyStores, Store } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
@@ -24,7 +32,20 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
 
 function StatusBadge({ status }: { status: string }) {
   const c = STATUS_COLORS[status] ?? STATUS_COLORS['DRAFT']!;
-  return <span style={{ padding: '2px 8px', borderRadius: radii.sm, fontSize: 11, fontWeight: 700, background: c.bg, color: c.fg }}>{status}</span>;
+  return (
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: radii.sm,
+        fontSize: 11,
+        fontWeight: 700,
+        background: c.bg,
+        color: c.fg,
+      }}
+    >
+      {status}
+    </span>
+  );
 }
 
 export default function MerchantOffersPage() {
@@ -84,20 +105,27 @@ export default function MerchantOffersPage() {
 
   useEffect(() => {
     if (authLoading || !user) return;
-    fetchMyStores().then(s => {
-      setStores(s);
-      const picked = pickStore(s);
-      if (picked) setStoreId(picked.id);
-    }).catch(() => setError('Failed to load stores'));
+    fetchMyStores()
+      .then((s) => {
+        setStores(s);
+        const picked = pickStore(s);
+        if (picked) setStoreId(picked.id);
+      })
+      .catch(() => setError('Failed to load stores'));
   }, [authLoading, user]);
 
-  useEffect(() => { loadOffers(); }, [loadOffers]);
+  useEffect(() => {
+    loadOffers();
+  }, [loadOffers]);
 
   // PHASE 18: refresh the trend series whenever the store, granularity, window,
   // or offer filter changes. Errors are isolated so a slow trend endpoint can't
   // block the main offers table from rendering.
   const loadTrend = useCallback(async () => {
-    if (!storeId) { setTrendPoints([]); return; }
+    if (!storeId) {
+      setTrendPoints([]);
+      return;
+    }
     setTrendLoading(true);
     setTrendError('');
     try {
@@ -116,11 +144,15 @@ export default function MerchantOffersPage() {
     }
   }, [storeId, trendOfferId, trendGranularity, trendDays]);
 
-  useEffect(() => { loadTrend(); }, [loadTrend]);
+  useEffect(() => {
+    loadTrend();
+  }, [loadTrend]);
 
   useEffect(() => {
     if (!storeId) return;
-    fetchStoreProducts(storeId).then(res => setProducts(res.items as Product[])).catch(() => {});
+    fetchStoreProducts(storeId)
+      .then((res) => setProducts(res.items as Product[]))
+      .catch(() => {});
   }, [storeId]);
 
   async function handleCreate(e: React.FormEvent) {
@@ -141,7 +173,12 @@ export default function MerchantOffersPage() {
       };
       await createMerchantOffer(input);
       setShowCreate(false);
-      setFormProductId(''); setFormVariantId(''); setFormPrice(''); setFormMoq('1'); setFormOrderIncrement(''); setFormLeadTime('');
+      setFormProductId('');
+      setFormVariantId('');
+      setFormPrice('');
+      setFormMoq('1');
+      setFormOrderIncrement('');
+      setFormLeadTime('');
       await loadOffers();
     } catch (err: any) {
       setError(err.message || 'Failed to create offer');
@@ -151,10 +188,20 @@ export default function MerchantOffersPage() {
   }
 
   async function handlePropose(id: string) {
-    try { await proposeOffer(id); await loadOffers(); } catch (e: any) { setError(e.message); }
+    try {
+      await proposeOffer(id);
+      await loadOffers();
+    } catch (e: any) {
+      setError(e.message);
+    }
   }
   async function handleWithdraw(id: string) {
-    try { await withdrawOffer(id); await loadOffers(); } catch (e: any) { setError(e.message); }
+    try {
+      await withdrawOffer(id);
+      await loadOffers();
+    } catch (e: any) {
+      setError(e.message);
+    }
   }
 
   /**
@@ -171,10 +218,11 @@ export default function MerchantOffersPage() {
       const s = String(v);
       return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
-    const header = 'offerId,status,productTitle,variantSku,variantTitle,currency,basePriceMinor,moq,leadTimeDays,ordersCount,unitsSold,revenueMinor,createdAt';
+    const header =
+      'offerId,status,productTitle,variantSku,variantTitle,currency,basePriceMinor,moq,leadTimeDays,ordersCount,unitsSold,revenueMinor,createdAt';
     const productTitleById: Record<string, string> = {};
     for (const p of products) productTitleById[p.id] = p.title;
-    const lines = offers.map(o => {
+    const lines = offers.map((o) => {
       const a = analyticsByOffer[o.id];
       const productTitle = a?.productTitle ?? productTitleById[o.productId] ?? '';
       return [
@@ -213,14 +261,48 @@ export default function MerchantOffersPage() {
       {error && <ErrorBanner message={error} />}
 
       {/* Store selector + filter */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={storeId} onChange={e => setStoreId(e.target.value)} style={{ padding: '6px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 14 }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginBottom: 20,
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        <select
+          value={storeId}
+          onChange={(e) => setStoreId(e.target.value)}
+          style={{
+            padding: '6px 12px',
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.sm,
+            fontSize: 14,
+          }}
+        >
           <option value="">Select store…</option>
-          {stores.map(s => <option key={s.id} value={s.id}>{s.displayName}</option>)}
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.displayName}
+            </option>
+          ))}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '6px 12px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 14 }}>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          style={{
+            padding: '6px 12px',
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.sm,
+            fontSize: 14,
+          }}
+        >
           <option value="">All statuses</option>
-          {['DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN'].map(s => <option key={s} value={s}>{s}</option>)}
+          {['DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN'].map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
         {/* PHASE 21: export the currently-visible offers+analytics rows */}
         <button
@@ -232,50 +314,140 @@ export default function MerchantOffersPage() {
         >
           Download CSV
         </button>
-        {canWriteOffers && <button onClick={() => setShowCreate(!showCreate)} style={{ marginLeft: 'auto', padding: '8px 16px', background: colors.brand[700], color: '#fff', border: 'none', borderRadius: radii.sm, cursor: 'pointer', ...typeScale.button }}>
-          {showCreate ? 'Cancel' : '+ New Offer'}
-        </button>}
+        {canWriteOffers && (
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            style={{
+              marginLeft: 'auto',
+              padding: '8px 16px',
+              background: colors.brand[700],
+              color: '#fff',
+              border: 'none',
+              borderRadius: radii.sm,
+              cursor: 'pointer',
+              ...typeScale.button,
+            }}
+          >
+            {showCreate ? 'Cancel' : '+ New Offer'}
+          </button>
+        )}
       </div>
 
       {/* Create form */}
       {canWriteOffers && showCreate && (
-        <form onSubmit={handleCreate} style={{ marginBottom: 24, padding: 16, border: `1px solid ${colors.border}`, borderRadius: radii.md, background: colors.bgSubtle }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+        <form
+          onSubmit={handleCreate}
+          style={{
+            marginBottom: 24,
+            padding: 16,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.md,
+            background: colors.bgSubtle,
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 12,
+            }}
+          >
             <label style={labelStyle}>
               Product
-              <select value={formProductId} onChange={e => setFormProductId(e.target.value)} required style={inputStyle}>
+              <select
+                value={formProductId}
+                onChange={(e) => setFormProductId(e.target.value)}
+                required
+                style={inputStyle}
+              >
                 <option value="">Select…</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
               </select>
             </label>
             <label style={labelStyle}>
               Variant (optional)
-              <input value={formVariantId} onChange={e => setFormVariantId(e.target.value)} placeholder="UUID" style={inputStyle} />
+              <input
+                value={formVariantId}
+                onChange={(e) => setFormVariantId(e.target.value)}
+                placeholder="UUID"
+                style={inputStyle}
+              />
             </label>
             <label style={labelStyle}>
               Price (major units)
-              <input type="number" step="0.01" min="0.01" value={formPrice} onChange={e => setFormPrice(e.target.value)} required style={inputStyle} />
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formPrice}
+                onChange={(e) => setFormPrice(e.target.value)}
+                required
+                style={inputStyle}
+              />
             </label>
             <label style={labelStyle}>
               Currency
-              <select value={formCurrency} onChange={e => setFormCurrency(e.target.value)} style={inputStyle}>
-                {['SAR', 'AED', 'USD', 'EUR', 'KWD', 'BHD', 'OMR', 'QAR'].map(c => <option key={c}>{c}</option>)}
+              <select
+                value={formCurrency}
+                onChange={(e) => setFormCurrency(e.target.value)}
+                style={inputStyle}
+              >
+                {['SAR', 'AED', 'USD', 'EUR', 'KWD', 'BHD', 'OMR', 'QAR'].map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
               </select>
             </label>
             <label style={labelStyle}>
               MOQ
-              <input type="number" min="1" value={formMoq} onChange={e => setFormMoq(e.target.value)} style={inputStyle} />
+              <input
+                type="number"
+                min="1"
+                value={formMoq}
+                onChange={(e) => setFormMoq(e.target.value)}
+                style={inputStyle}
+              />
             </label>
             <label style={labelStyle}>
               Order increment (optional)
-              <input type="number" min="1" step="1" value={formOrderIncrement} onChange={e => setFormOrderIncrement(e.target.value)} placeholder="MOQ + multiples of this value" style={inputStyle} />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={formOrderIncrement}
+                onChange={(e) => setFormOrderIncrement(e.target.value)}
+                placeholder="MOQ + multiples of this value"
+                style={inputStyle}
+              />
             </label>
             <label style={labelStyle}>
               Lead time (days)
-              <input type="number" min="0" value={formLeadTime} onChange={e => setFormLeadTime(e.target.value)} placeholder="Optional" style={inputStyle} />
+              <input
+                type="number"
+                min="0"
+                value={formLeadTime}
+                onChange={(e) => setFormLeadTime(e.target.value)}
+                placeholder="Optional"
+                style={inputStyle}
+              />
             </label>
           </div>
-          <button type="submit" disabled={creating} style={{ marginTop: 12, padding: '8px 20px', background: colors.ok, color: '#fff', border: 'none', borderRadius: radii.sm, cursor: creating ? 'wait' : 'pointer' }}>
+          <button
+            type="submit"
+            disabled={creating}
+            style={{
+              marginTop: 12,
+              padding: '8px 20px',
+              background: colors.ok,
+              color: '#fff',
+              border: 'none',
+              borderRadius: radii.sm,
+              cursor: creating ? 'wait' : 'pointer',
+            }}
+          >
             {creating ? 'Creating…' : 'Create Offer'}
           </button>
         </form>
@@ -302,39 +474,99 @@ export default function MerchantOffersPage() {
       />
 
       {/* Offers table */}
-      {loading ? <LoadingSpinner /> : offers.length === 0 ? <EmptyState title="No offers" description="Create an offer to get started." /> : (
+      {loading ? (
+        <LoadingSpinner />
+      ) : offers.length === 0 ? (
+        <EmptyState title="No offers" description="Create an offer to get started." />
+      ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${colors.border}` }}>
-                {['Status', 'Product', 'Price', 'MOQ', 'Lead Time', 'Orders', 'Units', 'Revenue', 'Created', 'Actions'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: colors.muted, fontWeight: 600 }}>{h}</th>
+                {[
+                  'Status',
+                  'Product',
+                  'Price',
+                  'MOQ',
+                  'Lead Time',
+                  'Orders',
+                  'Units',
+                  'Revenue',
+                  'Created',
+                  'Actions',
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      color: colors.muted,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {offers.map(o => {
+              {offers.map((o) => {
                 const a = analyticsByOffer[o.id];
                 return (
-                <tr key={o.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
-                  <td style={{ padding: '8px 12px' }}><StatusBadge status={o.status} /></td>
-                  <td style={{ padding: '8px 12px' }}>
-                    <span>{products.find(p => p.id === o.productId)?.title ?? o.productId.slice(0, 8) + '…'}</span>
-                    {o.variantId && <small style={{ display: 'block', color: colors.muted }}>Variant: {o.variantId.slice(0, 8)}…</small>}
-                  </td>
-                  <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{formatMinor(o.basePriceMinor, o.currency)}</td>
-                  <td style={{ padding: '8px 12px' }}>{o.moq}</td>
-                  <td style={{ padding: '8px 12px' }}>{o.leadTimeDays ? `${o.leadTimeDays}d` : '—'}</td>
-                  {/* PHASE 16: performance columns sourced from order_items + offer_snapshot */}
-                  <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>{a?.ordersCount ?? 0}</td>
-                  <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>{a?.unitsSold ?? 0}</td>
-                  <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatMinor(a?.revenueMinor ?? 0, o.currency)}</td>
-                  <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
-                  <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                    {canWriteOffers && o.status === 'DRAFT' && <button onClick={() => handlePropose(o.id)} style={actionBtn}>Propose</button>}
-                    {canWriteOffers && (o.status === 'PROPOSED' || o.status === 'ACTIVE') && <button onClick={() => handleWithdraw(o.id)} style={actionBtn}>Withdraw</button>}
-                  </td>
-                </tr>
+                  <tr key={o.id} style={{ borderBottom: `1px solid ${colors.border}` }}>
+                    <td style={{ padding: '8px 12px' }}>
+                      <StatusBadge status={o.status} />
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <span>
+                        {products.find((p) => p.id === o.productId)?.title ??
+                          o.productId.slice(0, 8) + '…'}
+                      </span>
+                      {o.variantId && (
+                        <small style={{ display: 'block', color: colors.muted }}>
+                          Variant: {o.variantId.slice(0, 8)}…
+                        </small>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                      {formatMinor(o.basePriceMinor, o.currency)}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>{o.moq}</td>
+                    <td style={{ padding: '8px 12px' }}>
+                      {o.leadTimeDays ? `${o.leadTimeDays}d` : '—'}
+                    </td>
+                    {/* PHASE 16: performance columns sourced from order_items + offer_snapshot */}
+                    <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                      {a?.ordersCount ?? 0}
+                    </td>
+                    <td style={{ padding: '8px 12px', fontVariantNumeric: 'tabular-nums' }}>
+                      {a?.unitsSold ?? 0}
+                    </td>
+                    <td
+                      style={{
+                        padding: '8px 12px',
+                        whiteSpace: 'nowrap',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      {formatMinor(a?.revenueMinor ?? 0, o.currency)}
+                    </td>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                      {new Date(o.createdAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                      {canWriteOffers && o.status === 'DRAFT' && (
+                        <button onClick={() => handlePropose(o.id)} style={actionBtn}>
+                          Propose
+                        </button>
+                      )}
+                      {canWriteOffers && (o.status === 'PROPOSED' || o.status === 'ACTIVE') && (
+                        <button onClick={() => handleWithdraw(o.id)} style={actionBtn}>
+                          Withdraw
+                        </button>
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -345,9 +577,29 @@ export default function MerchantOffersPage() {
   );
 }
 
-const labelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: colors.muted, fontWeight: 500 };
-const inputStyle: React.CSSProperties = { padding: '6px 10px', border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 14, background: colors.surface };
-const actionBtn: React.CSSProperties = { padding: '4px 10px', fontSize: 12, border: `1px solid ${colors.border}`, borderRadius: radii.sm, cursor: 'pointer', background: colors.surface };
+const labelStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  fontSize: 13,
+  color: colors.muted,
+  fontWeight: 500,
+};
+const inputStyle: React.CSSProperties = {
+  padding: '6px 10px',
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
+  fontSize: 14,
+  background: colors.surface,
+};
+const actionBtn: React.CSSProperties = {
+  padding: '4px 10px',
+  fontSize: 12,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
+  cursor: 'pointer',
+  background: colors.surface,
+};
 
 /**
  * PHASE 18: inline SVG bar chart of sales trend per time bucket. Kept in-file
@@ -370,19 +622,40 @@ function TrendPanel(props: {
   metric: 'units' | 'revenue' | 'orders';
   onMetric: (m: 'units' | 'revenue' | 'orders') => void;
 }) {
-  const { points, loading, error, currency, offers, products, granularity, onGranularity, days, onDays, offerId, onOfferId, metric, onMetric } = props;
+  const {
+    points,
+    loading,
+    error,
+    currency,
+    offers,
+    products,
+    granularity,
+    onGranularity,
+    days,
+    onDays,
+    offerId,
+    onOfferId,
+    metric,
+    onMetric,
+  } = props;
   const productTitleById = useMemo(() => {
     const m: Record<string, string> = {};
     for (const p of products) m[p.id] = p.title;
     return m;
   }, [products]);
   const { values, maxValue, peak } = useMemo(() => {
-    const vals = points.map(p =>
+    const vals = points.map((p) =>
       metric === 'units' ? p.unitsSold : metric === 'orders' ? p.ordersCount : p.revenueMinor,
     );
     const max = vals.length ? Math.max(...vals) : 0;
-    let peakIdx = -1; let peakVal = 0;
-    vals.forEach((v, i) => { if (v > peakVal) { peakVal = v; peakIdx = i; } });
+    let peakIdx = -1;
+    let peakVal = 0;
+    vals.forEach((v, i) => {
+      if (v > peakVal) {
+        peakVal = v;
+        peakIdx = i;
+      }
+    });
     const peakPoint = peakIdx >= 0 ? points[peakIdx] : undefined;
     return {
       values: vals,
@@ -391,13 +664,17 @@ function TrendPanel(props: {
     };
   }, [points, metric]);
 
-  const width = 720; const height = 160; const padL = 8; const padR = 8; const padT = 10; const padB = 22;
+  const width = 720;
+  const height = 160;
+  const padL = 8;
+  const padR = 8;
+  const padT = 10;
+  const padB = 22;
   const chartW = width - padL - padR;
   const chartH = height - padT - padB;
   const n = values.length;
   const barW = n > 0 ? Math.max(2, chartW / n - 2) : 0;
-  const fmt = (v: number) =>
-    metric === 'revenue' ? formatMinor(v, currency) : v.toLocaleString();
+  const fmt = (v: number) => (metric === 'revenue' ? formatMinor(v, currency) : v.toLocaleString());
 
   // PHASE 20: client-side CSV export of the currently-visible trend series.
   // Serializes to the same shape the server returned (bucket, orders, units,
@@ -406,7 +683,9 @@ function TrendPanel(props: {
   const downloadCsv = () => {
     if (points.length === 0) return;
     const header = 'bucket,ordersCount,unitsSold,revenueMinor,currency';
-    const lines = points.map(p => `${p.bucket},${p.ordersCount},${p.unitsSold},${p.revenueMinor},${currency}`);
+    const lines = points.map(
+      (p) => `${p.bucket},${p.ordersCount},${p.unitsSold},${p.revenueMinor},${currency}`,
+    );
     const csv = [header, ...lines].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -419,25 +698,67 @@ function TrendPanel(props: {
   };
 
   return (
-    <section style={{ marginBottom: 24, padding: 16, border: `1px solid ${colors.border}`, borderRadius: radii.md, background: colors.surface }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 15, color: colors.brand[700], fontWeight: 700 }}>Sales Trend</h3>
-        <select value={offerId} onChange={e => onOfferId(e.target.value)} style={inputStyle} aria-label="Offer filter">
+    <section
+      style={{
+        marginBottom: 24,
+        padding: 16,
+        border: `1px solid ${colors.border}`,
+        borderRadius: radii.md,
+        background: colors.surface,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          marginBottom: 12,
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 15, color: colors.brand[700], fontWeight: 700 }}>
+          Sales Trend
+        </h3>
+        <select
+          value={offerId}
+          onChange={(e) => onOfferId(e.target.value)}
+          style={inputStyle}
+          aria-label="Offer filter"
+        >
           <option value="">Store-wide</option>
-          {offers.map(o => (
+          {offers.map((o) => (
             <option key={o.id} value={o.id}>
               {(productTitleById[o.productId] ?? o.productId.slice(0, 8)) + ` · ${o.status}`}
             </option>
           ))}
         </select>
-        <select value={granularity} onChange={e => onGranularity(e.target.value as 'day' | 'week')} style={inputStyle} aria-label="Granularity">
+        <select
+          value={granularity}
+          onChange={(e) => onGranularity(e.target.value as 'day' | 'week')}
+          style={inputStyle}
+          aria-label="Granularity"
+        >
           <option value="day">Daily</option>
           <option value="week">Weekly</option>
         </select>
-        <select value={String(days)} onChange={e => onDays(Number(e.target.value))} style={inputStyle} aria-label="Window">
-          {[30, 90, 180, 365].map(d => <option key={d} value={d}>Last {d}d</option>)}
+        <select
+          value={String(days)}
+          onChange={(e) => onDays(Number(e.target.value))}
+          style={inputStyle}
+          aria-label="Window"
+        >
+          {[30, 90, 180, 365].map((d) => (
+            <option key={d} value={d}>
+              Last {d}d
+            </option>
+          ))}
         </select>
-        <select value={metric} onChange={e => onMetric(e.target.value as 'units' | 'revenue' | 'orders')} style={inputStyle} aria-label="Metric">
+        <select
+          value={metric}
+          onChange={(e) => onMetric(e.target.value as 'units' | 'revenue' | 'orders')}
+          style={inputStyle}
+          aria-label="Metric"
+        >
           <option value="revenue">Revenue</option>
           <option value="units">Units</option>
           <option value="orders">Orders</option>
@@ -460,12 +781,21 @@ function TrendPanel(props: {
       {error && <div style={{ color: colors.err, fontSize: 12, marginBottom: 8 }}>{error}</div>}
 
       {n === 0 && !loading ? (
-        <div style={{ fontSize: 13, color: colors.muted, padding: '24px 0', textAlign: 'center' }}>No sales in this range.</div>
+        <div style={{ fontSize: 13, color: colors.muted, padding: '24px 0', textAlign: 'center' }}>
+          No sales in this range.
+        </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <svg width={width} height={height} role="img" aria-label="Sales trend bar chart">
             {/* baseline */}
-            <line x1={padL} y1={padT + chartH} x2={padL + chartW} y2={padT + chartH} stroke={colors.border} strokeWidth={1} />
+            <line
+              x1={padL}
+              y1={padT + chartH}
+              x2={padL + chartW}
+              y2={padT + chartH}
+              stroke={colors.border}
+              strokeWidth={1}
+            />
             {points.map((point, i) => {
               const v = values[i] ?? 0;
               const h = maxValue > 0 ? (v / maxValue) * chartH : 0;
@@ -474,19 +804,36 @@ function TrendPanel(props: {
               const tip = `${point.bucket} · orders ${point.ordersCount} · units ${point.unitsSold} · ${metric === 'revenue' ? formatMinor(point.revenueMinor, currency) : point[metric === 'units' ? 'unitsSold' : 'ordersCount']}`;
               return (
                 <g key={point.bucket + i}>
-                  <rect x={x} y={y} width={barW} height={h} fill={colors.brand[500] ?? colors.brand[700]} opacity={0.85}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barW}
+                    height={h}
+                    fill={colors.brand[500] ?? colors.brand[700]}
+                    opacity={0.85}
+                  >
                     <title>{tip}</title>
                   </rect>
                   {/* Sparse x-axis labels: first, middle, last only */}
                   {(i === 0 || i === n - 1 || (n > 6 && i === Math.floor(n / 2))) && (
-                    <text x={x + barW / 2} y={padT + chartH + 14} fontSize={10} textAnchor="middle" fill={colors.muted}>{point.bucket.slice(5)}</text>
+                    <text
+                      x={x + barW / 2}
+                      y={padT + chartH + 14}
+                      fontSize={10}
+                      textAnchor="middle"
+                      fill={colors.muted}
+                    >
+                      {point.bucket.slice(5)}
+                    </text>
                   )}
                 </g>
               );
             })}
             {/* max value label */}
             {maxValue > 0 && (
-              <text x={padL} y={padT + 4} fontSize={10} fill={colors.muted}>{fmt(maxValue)}</text>
+              <text x={padL} y={padT + 4} fontSize={10} fill={colors.muted}>
+                {fmt(maxValue)}
+              </text>
             )}
           </svg>
         </div>
