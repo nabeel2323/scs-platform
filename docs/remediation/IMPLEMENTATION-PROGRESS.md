@@ -441,3 +441,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - PDF bytes are stored in the private S3 uploads bucket. Outbox event UUID is used for both object key and shipment_labels row ID, making retries idempotent across an upload/DB interruption.
 - Shipment label list/detail responses now include short-lived presigned download URLs for managed label objects.
 - Added four mocked unit tests. Real Aramex sandbox verification is still unavailable; no live shipment or provider call was made.
+
+
+### CI #729 diagnosis — 19 November 2026
+- CI #729 failed in API typecheck because the new tsconfig include glob `scripts/**/*.ts` unintentionally pulled in pre-existing M5/M6 operational scripts that are not part of the API build and already contain strict-type errors (unknown response values and possibly undefined strings).
+- The new database audit script itself produced no reported TypeScript error. The scope is corrected to typecheck only `scripts/audit-db-access.ts`, avoiding unrelated legacy tooling and ensuring the new utility is checked.
+- Mobile analyze/tests passed in CI #729. API unit/integration and downstream jobs were skipped after the typecheck gate failed; G-009/G-010 verification remains pending until the corrected full CI run.

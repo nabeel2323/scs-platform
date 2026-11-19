@@ -24,7 +24,7 @@
     "src/**/*",
     "drizzle.config.ts",
     "infra/**/*",
-    "scripts/**/*.ts"
+    "scripts/audit-db-access.ts"
   ],
   "exclude": [
     "node_modules",
