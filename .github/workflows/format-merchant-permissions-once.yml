@@ -1,0 +1,38 @@
+name: Format merchant permission UI once
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format changed merchant pages
+        run: pnpm exec prettier --write apps/web/src/app/merchant/inventory/page.tsx apps/web/src/app/merchant/pricing/page.tsx apps/web/src/app/merchant/offers/page.tsx
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/src/app/merchant/inventory/page.tsx apps/web/src/app/merchant/pricing/page.tsx apps/web/src/app/merchant/offers/page.tsx
+          if ! git diff --cached --quiet; then
+            git commit -m "style(web): format merchant permission pages"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi
