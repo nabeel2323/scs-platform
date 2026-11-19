@@ -17,7 +17,20 @@ import ProductDetails, { ProductModerationActions } from '../components/ProductD
 import UsersPage from '../app/users/page';
 import DisputeDetailPage from '../app/disputes/[id]/page';
 import AttributeDetailPage from '../app/attributes/[id]/page';
-import { adminRequest, moderateAdminProduct } from '../lib/api';
+import AdminPaymentsPage from '../app/payments/page';
+import AdminSettlementsPage from '../app/settlements/page';
+import ReconciliationPage from '../app/reconciliation/page';
+import SettlementAdjustmentsPage from '../app/settlement-adjustments/page';
+import {
+  adminRequest,
+  moderateAdminProduct,
+  fetchAdminPayments,
+  fetchPaymentVerificationQueue,
+  fetchStalePayments,
+  verifyPayment,
+  fetchAdminSettlements,
+  markSettlementPaid,
+} from '../lib/api';
 
 const navigation = vi.hoisted(() => ({
   query: '',
@@ -32,7 +45,16 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(navigation.query),
   useParams: () => ({ id: 'dispute-1' }),
 }));
-vi.mock('../lib/api', () => ({ adminRequest: vi.fn(), moderateAdminProduct: vi.fn() }));
+vi.mock('../lib/api', () => ({
+  adminRequest: vi.fn(),
+  moderateAdminProduct: vi.fn(),
+  fetchAdminPayments: vi.fn(),
+  fetchPaymentVerificationQueue: vi.fn(),
+  fetchStalePayments: vi.fn(),
+  verifyPayment: vi.fn(),
+  fetchAdminSettlements: vi.fn(),
+  markSettlementPaid: vi.fn(),
+}));
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: (requiredPerms: string[]) => {
     navigation.requiredPerms = requiredPerms;
@@ -264,6 +286,64 @@ describe('accessible dialogs and row actions', () => {
     await screen.findByText('Screen size');
     expect(navigation.requiredPerms).toEqual(['catalog:attributes:manage']);
     expect(adminRequest).toHaveBeenCalledWith('attributes/dispute-1');
+  });
+
+  it('keeps payment verification controls behind admin:payments:verify', async () => {
+    navigation.allowedPermissions = ['admin:payments:read'];
+    vi.mocked(fetchAdminPayments).mockResolvedValue([]);
+    vi.mocked(fetchPaymentVerificationQueue).mockResolvedValue([]);
+    vi.mocked(fetchStalePayments).mockResolvedValue([]);
+    render(<AdminPaymentsPage />);
+    await screen.findByText('Payments');
+    expect(fetchAdminPayments).toHaveBeenCalledOnce();
+    expect(fetchPaymentVerificationQueue).not.toHaveBeenCalled();
+    expect(screen.queryByText('Verification Queue')).toBeNull();
+    expect(screen.queryByText('Confirm')).toBeNull();
+    expect(screen.queryByText('Reject')).toBeNull();
+  });
+
+  it('hides settlement payment action from users with read-only settlement access', async () => {
+    navigation.allowedPermissions = ['admin:settlements:read'];
+    vi.mocked(fetchAdminSettlements).mockResolvedValue([{
+      id: 'settlement-1',
+      subOrderId: 'sub-order-1',
+      merchantStoreId: 'store-1',
+      grossMinor: 1000,
+      refundMinor: 0,
+      commissionMinor: 100,
+      netMinor: 900,
+      currency: 'SAR',
+      status: 'DUE',
+    }]);
+    render(<AdminSettlementsPage />);
+    await screen.findByText('DUE');
+    expect(screen.queryByText('Mark Paid')).toBeNull();
+    expect(markSettlementPaid).not.toHaveBeenCalled();
+  });
+
+  it('allows reconciliation read access without exposing write operations', async () => {
+    navigation.allowedPermissions = ['admin:reconciliation:read'];
+    vi.mocked(adminRequest).mockResolvedValue([]);
+    render(<ReconciliationPage />);
+    await screen.findByText('Execution History');
+    expect(screen.queryByText('Execute Reconciliation')).toBeNull();
+    expect(screen.queryByText('Run')).toBeNull();
+    expect(screen.queryByText('Resolve')).toBeNull();
+  });
+
+  it('allows settlement adjustment reads without exposing submit, approve or post actions', async () => {
+    navigation.allowedPermissions = ['admin:adjustments:read'];
+    const adjustments = [
+      { id: 'adj-draft', subOrderId: 'order-1', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 1000, currency: 'SAR', fxStatus: 'BLOCKED', fxEvidence: null, status: 'DRAFT', reason: 'Draft', requiresDualApproval: true, approvalHash: 'hash-1', createdBy: 'user-1', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
+      { id: 'adj-pending', subOrderId: 'order-2', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 2000, currency: 'SAR', fxStatus: 'BLOCKED', fxEvidence: null, status: 'PENDING_APPROVAL', reason: 'Pending', requiresDualApproval: true, approvalHash: 'hash-2', createdBy: 'user-2', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
+      { id: 'adj-approved', subOrderId: 'order-3', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 3000, currency: 'SAR', fxStatus: 'RESOLVED', fxEvidence: null, status: 'APPROVED', reason: 'Approved', requiresDualApproval: true, approvalHash: 'hash-3', createdBy: 'user-3', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
+    ];
+    vi.mocked(adminRequest).mockResolvedValue(adjustments);
+    render(<SettlementAdjustmentsPage />);
+    await screen.findByText('Settlement Adjustments');
+    expect(screen.queryByText('Submit')).toBeNull();
+    expect(screen.queryByText('Approve')).toBeNull();
+    expect(screen.queryByText('Post')).toBeNull();
   });
 });
 
