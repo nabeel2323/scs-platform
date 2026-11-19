@@ -39,7 +39,7 @@
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 15% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 20% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -132,9 +132,9 @@ Status definitions:
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — TEST PENDING | Both analytics and trend routes now require the same fail-closed checks. |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TEST ADDED — NOT EXECUTED | Focused controller regression tests cover org denial and missing active store membership for all three routes; full HTTP role matrix remains pending. |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
-| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
-| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | API source uses DATABASE_URL; Supavisor postgres-session shutdown strongly correlates with Render SIGTERM, but exact Render env username is not directly exposed. |
+| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | SOURCE/RUNTIME VERIFIED | 114 public relations: 113 ordinary + 1 partitioned; all owned by postgres; RLS and FORCE RLS disabled. Detailed inventory report added. |
+| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | SOURCE/RUNTIME VERIFIED | Current ACLs and postgres default ACLs expanded; anon/authenticated/service_role have MAINTAIN, REFERENCES, TRIGGER and TRUNCATE on all 114 relations, but no direct CRUD in this snapshot. |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | |
 | P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
@@ -145,9 +145,10 @@ Status definitions:
 
 **Phase evidence:**  
 - Implementation branch: `security/p0-merchant-offer-tenant-scope`  
-- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`  
+- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`, `7116a4582eb4bb5c1acbca8d14fd79b182f8655a`  
 - Focused test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (added; NOT EXECUTED)  
 - Migration ID(s): none for G-001  
+- Database inventory: `docs/remediation/G-002-SUPABASE-DATABASE-ACCESS-INVENTORY.md` (read-only; no DB changes)  
 - Independent review: pending  
 - Phase decision: IN PROGRESS — G-001 remains PARTIAL until automated execution and HTTP-level tenant matrix verification.
 
