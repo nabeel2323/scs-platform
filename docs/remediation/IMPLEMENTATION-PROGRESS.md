@@ -715,3 +715,11 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 - CI #848 completed API/web/admin/mobile typechecking successfully and Flutter tests passed, then the changed-file Prettier gate identified four documentation files (G-002 evidence report, RLS proposal, implementation plan and progress tracker). No application-code lint/typecheck failure was reported.
 - A one-time repository-locked Prettier pass is being applied to those four documents. The temporary formatter workflow will be removed immediately after its single successful pass; a fresh full CI run is required afterward.
+
+### OTP logging and P13 worker source review — 19 November 2026
+
+- Reviewed current IdentityService, OtpDeliveryService and Resend/SMTP/Twilio/WhatsApp provider logging. Inspected paths log masked recipients and stable error classes/codes; no OTP value or raw provider error/response body is logged. Existing regression tests `otp-redaction.spec.ts`, `otp-security-remediation.spec.ts` and `otp-delivery-providers.spec.ts` cover OTP/recipient redaction.
+- This is source-level evidence only. The earlier Render plaintext-OTP log finding remains OPEN until the deployed version and fresh runtime logs are verified. No live OTP was sent.
+- AppModule registers Orders, Shipping, Returns and Operations modules. AutoCompleteWorker and ShippingCarrierWorker start inside each API process with database claim/locking safeguards. Runtime replica count and staging worker topology remain unverified.
+- P13 ReturnExpirationWorker is OFF unless `P13_WORKER_ENABLED` is truthy; expected worker count defaults to 0 while disabled, pilot mode defaults to legacy, and alert delivery is log-only unless a signed webhook is configured. P13Monitor runs independently on each API process with database alert deduplication. Do not activate protected P13 jobs until holder count, allowlist and alert delivery are verified.
+- No Render environment values, worker flags, staging data, OTP provider or deployment settings were changed.
