@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** IN PROGRESS — G-001 implementation and unit/HTTP/PostgreSQL regression coverage are implemented; CI #977 passed on HEAD `128b7e15`. G-001 is READY FOR INDEPENDENT REVIEW; G-002 inventory/design and the read-only identity diagnostic are in place, but live runtime identities remain unverified. No finding is closed yet.
+**Tracker status:** IN PROGRESS — G-001 implementation and unit/HTTP/PostgreSQL regression coverage are implemented; CI #977 passed on HEAD `128b7e15`. G-001 is READY FOR INDEPENDENT REVIEW; the existing privileged-role bypass list is now documented accurately and has explicit unit coverage added (CI pending). G-002 inventory/design and the read-only identity diagnostic are in place, but live runtime identities remain unverified. No finding is closed yet.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### Overall status
 
-<badge>IN PROGRESS</badge> Phase 1 has started. G-001 source remediation, controller unit tests, HTTP authorization matrix and PostgreSQL membership tests passed CI run #966; the latest full CI #977 also passed on HEAD `128b7e15`. G-001 is READY FOR INDEPENDENT REVIEW; it remains open until a second-party security review accepts the privileged-role bypass policy. G-002 has an evidence-backed design and CI-executed read-only identity diagnostic, but actual Render runtime and migration identities still need to be checked.
+<badge>IN PROGRESS</badge> Phase 1 has started. G-001 source remediation, controller unit tests, HTTP authorization matrix and PostgreSQL membership tests passed CI run #966; the latest full CI #977 also passed on HEAD `128b7e15`. G-001 is READY FOR INDEPENDENT REVIEW; it remains open until a second-party security review accepts the privileged-role bypass policy. A focused unit suite now pins all four existing bypass roles (`SUPER_ADMIN`, `ADMIN`, `MODERATOR`, `SYSTEM`) and representative non-privileged roles; the suite is awaiting CI. G-002 has an evidence-backed design and CI-executed read-only identity diagnostic, but actual Render runtime and migration identities still need to be checked.
 
 ---
 
@@ -145,7 +145,7 @@ Status definitions:
 
 **Phase evidence:**  
 - Implementation branch: `security/p0-merchant-offer-tenant-scope`  
-- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`, `09f617d2a0cba0fbcc1e0369e8d6ed49ee09b85e`, `0f45e7f2b8eb8ca59b3bd73108e72a120f32a7d5`, `9dd0b00d6a975541507d8b666373157e7207a1eb`, `0bb652d77eb30fbc3e0de5dbd68d4fc54d45f68f`, `e6d3638331eb8214997ad54750c50b03c2b68e6e`, `cec4971c77e6ea00f6750471e60220cf82da8a31`, `963938973c6a2c8e51e564a74f38605c12ea7c86`, `8101774d3e5c117c2f78267523c20044884b85ba`, `29343b55b1f59582b174e78190632a45f1e93e51`, `c895c6eb91788516ca5a1d16705a8162a9d6161e`, `8eaeea457d3d2ff7fc7cdfde590984b2ef37e69d`, `c10713999033846f081f0e9dc01cb51b4f478d25`, `128b7e15e604827367ba4e90364ef2689722e09a`  
+- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`, `09f617d2a0cba0fbcc1e0369e8d6ed49ee09b85e`, `0f45e7f2b8eb8ca59b3bd73108e72a120f32a7d5`, `9dd0b00d6a975541507d8b666373157e7207a1eb`, `0bb652d77eb30fbc3e0de5dbd68d4fc54d45f68f`, `e6d3638331eb8214997ad54750c50b03c2b68e6e`, `cec4971c77e6ea00f6750471e60220cf82da8a31`, `963938973c6a2c8e51e564a74f38605c12ea7c86`, `8101774d3e5c117c2f78267523c20044884b85ba`, `29343b55b1f59582b174e78190632a45f1e93e51`, `c895c6eb91788516ca5a1d16705a8162a9d6161e`, `8eaeea457d3d2ff7fc7cdfde590984b2ef37e69d`, `c10713999033846f081f0e9dc01cb51b4f478d25`, `128b7e15e604827367ba4e90364ef2689722e09a`, `e906acd8055f14c14bedf9f833c88e0992476007`  
 - Focused unit test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (10 tests passed in CI #966; API unit/coverage job: 213 files passed, 6 skipped; 4,359 tests passed, 110 skipped)  
 - HTTP regression test: `apps/api/src/__tests__/integration/catalog-offer-tenant-authorization.http.spec.ts` (19 tests passed in CI #966)  
 - Migration ID(s): none for G-001  
