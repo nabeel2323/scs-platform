@@ -200,10 +200,12 @@ export class PaymentsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('merchant:orders:read')
   async merchantListPayments(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
   ) {
-    return this.payments.listPayments({ storeId, status });
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.payments.listMerchantPayments(caller, { storeId, status });
   }
 
   /** GET /v1/merchant/settlements — settlements for merchant's stores. */
@@ -215,6 +217,7 @@ export class PaymentsController {
     @Query('storeId') storeId?: string,
     @Query('status') status?: string,
   ) {
-    return this.payments.listSettlements({ storeId, status });
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    return this.payments.listMerchantSettlements(caller, { storeId, status });
   }
 }
