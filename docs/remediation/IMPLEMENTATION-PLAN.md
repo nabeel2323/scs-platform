@@ -753,3 +753,10 @@ The E6 checker had not actually executed: the root script invoked missing `ts-no
 ## 22. G-013 foreign-key index review — 19 November 2026
 
 The read-only live inventory reports 71 foreign-key constraints without a matching valid leading-column index, compared with the earlier advisor count of 55. Only four candidate tables have non-zero estimated rows (sessions 19, device_credentials 6, role_permissions 4, organization_members 3); all are small. Cumulative scan counters on currently empty tables do not justify index creation. The current pg_stat_statements sample does not identify representative high-volume application joins. No indexes were added. Defer DDL until representative staging data is loaded and exact query plans demonstrate a benefit, then measure read gains and write/storage overhead. See `FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md`.
+
+
+---
+
+## 23. G-022 pg_trgm relocation review — 19 November 2026
+
+The extension is relocatable, but it is owned by the Supabase-managed `supabase_admin` superuser. The connected `postgres` role is not a member and cannot `SET ROLE` to the owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` without schema qualification. Although the `extensions` schema exists and the current `postgres` search_path includes it, the Render API/migration role is not verified. Do not change extension ownership or attempt relocation from the current connection. Require a Supabase owner-supported path, isolated migration test, and runtime role/search_path confirmation. See `PG-TRGM-RELOCATION-REVIEW-2026-11-19.md`.
