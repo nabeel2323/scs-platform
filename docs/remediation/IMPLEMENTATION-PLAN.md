@@ -711,3 +711,16 @@ The first attempt to include the new read-only audit utility in API typecheck us
 ## 18. Execution update — G-019 mobile promotion removal
 
 The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. Added authenticated DELETE /v1/cart/promo, which clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.
+
+
+---
+
+## 19. Phase 0 testability and deployment documentation update
+
+Added three living remediation artifacts:
+
+- [TEST-CAMPAIGN-MANIFEST.md](./TEST-CAMPAIGN-MANIFEST.md) records exact root/API/web/admin/mobile/contract/container/E2E/k6/migration commands, prerequisites, CI gate behavior, the Phase 6 sequence and the shared-database safety restrictions.
+- [SYNTHETIC-TEST-IDENTITY-MATRIX.md](./SYNTHETIC-TEST-IDENTITY-MATRIX.md) defines the two-buyer/two-merchant tenant matrix, owner/staff/admin/moderator/suspended/inactive/unauthenticated identities, minimum fixture data and negative authorization cases. A shared fixture factory and cross-suite adoption remain required before P0-05 can be closed.
+- [DEPLOYMENT-MIGRATION-RUNBOOK.md](../deployment/REMEDIATION-DEPLOYMENT-AND-MIGRATION-RUNBOOK.md) documents API startup behavior, the advisory-locked migration runner, transactional migration ledger, RBAC-only idempotent seed, release workflow, manual-dispatch mutation warning, Render exact-SHA deployment and forward-fix policy.
+
+P0-03 is complete because the audit-baseline comparison found no code fixes hidden in the seven intervening commits (documentation only). P0-04, P0-06 and P0-08 are complete by source review/documentation. P0-05 remains partial until reusable fixture factories are adopted. P0-07 remains partial until the current Render workspace/service configuration is rechecked; the documented auto-deploy-disabled observation is historical, not a fresh live assertion.
