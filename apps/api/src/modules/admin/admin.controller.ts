@@ -347,7 +347,7 @@ export class AdminController {
   }
 
   @Patch('products/:id/moderate')
-  @RequirePermission('admin:merchants:read')
+  @RequirePermission('admin:products:moderate')
   async moderateProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ModerateProductDto,
