@@ -2,9 +2,9 @@ name: Format merchant permission UI once
 # One-shot formatting helper; delete after successful run.
 
 on:
-  push:
+  pull_request:
     branches:
-      - remediation/phase-0-1-tenant-security
+      - develop
 
 permissions:
   contents: write
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: pnpm/action-setup@v4
         with:
@@ -35,5 +35,5 @@ jobs:
           git add apps/web/src/app/merchant/inventory/page.tsx apps/web/src/app/merchant/pricing/page.tsx apps/web/src/app/merchant/offers/page.tsx
           if ! git diff --cached --quiet; then
             git commit -m "style(web): format merchant permission pages"
-            git push origin "HEAD:${{ github.ref_name }}"
+            git push origin "HEAD:${{ github.head_ref }}"
           fi
