@@ -1018,3 +1018,23 @@ The Admin Attributes list correctly requires catalog:attributes:manage, but the 
 No API authorization change, RBAC seed change or database migration was required.
 
 **Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
+
+
+## 38. G-034 — Enforce operation-specific permissions in financial Admin workflows — 19 November 2026
+
+### Finding
+
+The Payments, Settlements, Reconciliation and Settlement Adjustments pages invoked useRequirePerms but ignored the returned hasAccess value. Several pages also rendered mutation controls using only their page-level read permission. The API guards were already enforcing the dedicated write/verify/approve permissions, so this produced misleading UI actions and avoidable 403 responses for read-only users. It was not an API authorization bypass.
+
+### Remediation committed
+
+- Payments: enforce admin:payments:read at page level; show the Verification Queue and Confirm/Reject controls only with admin:payments:verify. Read-only users default to All Payments and never request the verification queue.
+- Settlements: enforce admin:settlements:read at page level; show Mark Paid only with admin:settlements:write.
+- Reconciliation: enforce admin:reconciliation:read at page level; show Run and Resolve controls only with admin:reconciliation:write.
+- Settlement adjustments: enforce admin:adjustments:read at page level; gate Submit with admin:adjustments:write and Approve/Post with admin:adjustments:approve.
+- Add defensive permission checks inside mutation handlers in addition to hiding the controls.
+- Add Admin UI regression coverage for read-only users across all four pages.
+
+No API permission change, database migration or RBAC seed change was required; the backend route guards already enforce these permissions.
+
+**Status:** implementation and focused Admin UI tests committed; current-head lint/typecheck, Admin tests and full CI verification pending.
