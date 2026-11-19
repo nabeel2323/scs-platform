@@ -451,3 +451,53 @@ describe('OrdersService.previewCheckout', () => {
     })).rejects.toThrow('Missing shipping selection for store store-2');
   });
 });
+
+describe('OrdersService.checkout payment method support', () => {
+  it('rejects DIGITAL before opening the order transaction', async () => {
+    const db = {
+      query: {
+        carts: {
+          findFirst: vi.fn(async () => ({
+            id: 'cart-1',
+            promotionId: null,
+            promoCode: null,
+          })),
+        },
+        cartItems: {
+          findMany: vi.fn(async () => [{
+            id: 'line-1',
+            storeId: 'store-1',
+            variantId: 'variant-1',
+            offerId: null,
+            quantity: 1,
+            lineTotalMinor: 1000,
+          }]),
+        },
+        productVariants: {
+          findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })),
+        },
+        products: {
+          findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })),
+        },
+        stores: {
+          findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR', orgId: 'org-1' }]),
+        },
+      },
+      transaction: vi.fn(),
+    };
+    const service = new OrdersService(
+      { db } as any,
+      {} as any,
+      { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
+    );
+
+    await expect(service.checkout({
+      buyerId: 'buyer-1',
+      deliveryAddress: { street: 'Main St', city: 'Riyadh' },
+      paymentMethod: 'DIGITAL',
+      shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
+    })).rejects.toThrow('Unsupported payment method: DIGITAL');
+
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+});

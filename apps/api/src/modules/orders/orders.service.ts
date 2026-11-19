@@ -20,6 +20,7 @@ import {
 import { shipments, shipmentEvents } from './shipment.schema';
 import { paymentRecords } from '../payments/payments.schema';
 import { PaymentsService } from '../payments/payments.service';
+import { isSupportedPaymentMethod, SUPPORTED_PAYMENT_METHODS } from '../payments/payments.types';
 import { carts, cartItems } from './cart.schema';
 import { CartService } from './cart.service';
 import { getOrderQuantityViolation } from './order-quantity';
@@ -573,9 +574,10 @@ export class OrdersService {
 
     // P12: Resolve payment method (default to CASH_ON_DELIVERY for legacy compat)
     const paymentMethod = input.paymentMethod || 'CASH_ON_DELIVERY';
-    const validPaymentMethods = ['BANK_TRANSFER', 'CASH_ON_DELIVERY', 'VOUCHER', 'DIGITAL'];
-    if (!validPaymentMethods.includes(paymentMethod)) {
-      throw new BadRequestException(`Invalid payment method: ${paymentMethod}`);
+    if (!isSupportedPaymentMethod(paymentMethod)) {
+      throw new BadRequestException(
+        `Unsupported payment method: ${paymentMethod}. Supported methods: ${SUPPORTED_PAYMENT_METHODS.join(', ')}`,
+      );
     }
 
     try {

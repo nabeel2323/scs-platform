@@ -55,7 +55,8 @@ import {
   PaymentStatus,
   RefundReason,
   REFUND_REASONS,
-  PAYMENT_METHODS,
+  isSupportedPaymentMethod,
+  SUPPORTED_PAYMENT_METHODS,
   DEFAULT_PAYMENT_EXPIRY_HOURS,
 } from './payments.types';
 
@@ -95,6 +96,12 @@ export class PaymentsService {
     paymentMethod: PaymentMethod,
     idempotencyKey: string,
   ): Promise<string> {
+    if (!isSupportedPaymentMethod(paymentMethod)) {
+      throw new BadRequestException(
+        `Unsupported payment method: ${paymentMethod}. Supported methods: ${SUPPORTED_PAYMENT_METHODS.join(', ')}`,
+      );
+    }
+
     const id = crypto.randomUUID();
     const provider = this.registry.getDefault();
 

@@ -351,11 +351,14 @@ Only after the P0 is closed, G-023 is fixed, the DB access model is verified, an
 **Acceptance:** two or more currencies never produce a misleading single total; same-currency totals remain correct; no unknown currency is silently formatted as SAR. Web/admin tests and lint/typecheck passed CI #687.
 
 ### 2.4 Close G-008 — unsupported DIGITAL payment
-- Until a real digital gateway is implemented and approved, reject DIGITAL at the API boundary.
-- Align DTOs, generated clients, web/mobile controls, admin configuration and documentation with supported manual methods.
+- **Implemented — CI verification pending:** define `SUPPORTED_PAYMENT_METHODS` from the actually registered manual-verification provider (`BANK_TRANSFER`, `CASH_ON_DELIVERY`, `VOUCHER`). Keep `DIGITAL` in the persisted `PAYMENT_METHODS` vocabulary only for historical rows and the existing database CHECK constraint.
+- Reject unsupported methods in `OrdersService.checkout` before opening the order transaction, and repeat the guard in `PaymentsService.createPaymentInTransaction` before resolving a provider or inserting payment records.
+- Buyer web/mobile choices remain aligned with the supported manual methods; the web DIGITAL option is disabled and mobile does not offer it.
+- No migration is needed: the database constraint may continue to read historical DIGITAL values, while the API rejects new DIGITAL payment attempts.
+- Add unit tests proving DIGITAL is not in the supported set, checkout rejects it before transaction entry, and the payment service rejects it before provider resolution/payment writes.
 - If gateway scope is later approved, treat it as a separate architecture project: intent/auth/capture, signed webhooks, idempotency, reconciliation, refunds, failure recovery and provider sandbox verification.
 
-**Acceptance:** unsupported methods fail explicitly and consistently; no order can be marked paid without a valid provider/manual verification path.
+**Acceptance:** unsupported methods fail explicitly at checkout and payment-record creation; no order/payment record can be created for DIGITAL without a registered provider/manual verification path.
 
 ### 2.5 Close the commercial portion of G-007 — mobile checkout contract
 - **Implemented and CI-verified in CI #711:** mobile requests a shipping estimate per supplier, requires an explicit delivery/pickup selection per supplier, and submits the chosen supported payment method with checkout.
