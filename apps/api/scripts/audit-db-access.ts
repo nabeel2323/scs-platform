@@ -51,6 +51,25 @@ async function main(): Promise<void> {
       WHERE r.rolname = current_user
     `);
 
+    const roleAttributes = await client.query<QueryResultRow>(`
+      SELECT rolname AS role_name,
+             rolsuper AS is_superuser,
+             rolbypassrls AS bypasses_rls,
+             rolcreaterole AS can_create_roles,
+             rolcreatedb AS can_create_databases,
+             rolcanlogin AS can_login,
+             rolinherit AS inherits_role_privileges
+      FROM pg_roles
+      WHERE rolname IN (
+        current_user,
+        'authenticator',
+        'anon',
+        'authenticated',
+        'service_role'
+      )
+      ORDER BY rolname
+    `);
+
     const clientRoles = await client.query<QueryResultRow>(`
       WITH role_names AS (
         SELECT rolname AS role_name
@@ -219,14 +238,37 @@ async function main(): Promise<void> {
     `);
 
     const memberships = await client.query<QueryResultRow>(`
-      SELECT member.rolname AS member_role,
-             granted.rolname AS granted_role,
-             m.admin_option
-      FROM pg_auth_members m
-      JOIN pg_roles granted ON granted.oid = m.roleid
-      JOIN pg_roles member ON member.oid = m.member
-      WHERE member.rolname = current_user
-      ORDER BY granted.rolname
+      WITH RECURSIVE membership_paths AS (
+        SELECT r.oid AS root_oid,
+               r.rolname AS root_role,
+               r.oid AS granted_role_oid,
+               0 AS depth,
+               ARRAY[r.oid] AS visited
+        FROM pg_roles r
+        WHERE r.rolname IN (
+          current_user,
+          'authenticator',
+          'anon',
+          'authenticated',
+          'service_role'
+        )
+        UNION ALL
+        SELECT mp.root_oid,
+               mp.root_role,
+               m.roleid,
+               mp.depth + 1,
+               mp.visited || m.roleid
+        FROM membership_paths mp
+        JOIN pg_auth_members m ON m.member = mp.granted_role_oid
+        WHERE NOT m.roleid = ANY(mp.visited)
+      )
+      SELECT DISTINCT mp.root_role AS member_role,
+             granted.rolname AS inherited_role,
+             mp.depth AS membership_depth
+      FROM membership_paths mp
+      JOIN pg_roles granted ON granted.oid = mp.granted_role_oid
+      WHERE mp.depth > 0
+      ORDER BY member_role, membership_depth, inherited_role
     `);
 
     const report = {
@@ -234,7 +276,7 @@ async function main(): Promise<void> {
       generatedAt: new Date().toISOString(),
       mutationPerformed: false,
       connectionStringPrinted: false,
-      identity: identity.rows[0] ?? null,
+      identity: identity.rows[0] ?? null,\n      relevantRoleAttributes: roleAttributes.rows,
       effectivePrivileges: clientRoles.rows,
       publicSchemaPrivileges: schemaPrivileges.rows,
       publicTableGrantsToPublic: publicTableGrants.rows,
@@ -245,7 +287,7 @@ async function main(): Promise<void> {
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
       extensionInventory: extensionInventory.rows,
-      currentRoleMemberships: memberships.rows,
+      inheritedRoleMemberships: memberships.rows,
       otherDatabaseConnections: otherConnections.rows,
     };
 
