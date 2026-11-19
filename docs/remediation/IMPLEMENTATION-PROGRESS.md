@@ -473,3 +473,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - API typecheck identified two integration points introduced by G-010: the existing M7.2.3-A.1 concurrency test constructed ShippingCarrierWorker with the old eight-argument constructor, and the provider's unsupported-label reason is optional.
 - Added a storage mock to the integration test constructor and a safe fallback reason when the provider omits one. No runtime configuration or live carrier behavior was changed.
 - CI #731's remaining dependent API jobs were skipped after typecheck failed; a fresh full CI run is required to verify G-009, G-010 and G-019.
+
+
+### CI #734 diagnosis and correction — 19 November 2026
+- Flutter analyze/tests passed in CI #734.
+- API typecheck found one remaining strict-null issue in the carrier label content-type parser: the first split element is possibly undefined under the repository's TypeScript settings.
+- Updated the parser to default an absent media type to an empty string before normalization. The earlier constructor and optional provider-reason issues are resolved.
+- API unit/integration and downstream jobs were skipped after the typecheck gate; rerun full CI on the corrected head before closing G-009/G-019 or treating G-010 as CI-verified.
