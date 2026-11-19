@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0–3 remain in progress; G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed. G-006 implementation is CI-verified on `8b77243c` by CI #703; its explicit stale-term/concurrency acceptance review remains open. G-002, G-007 and G-008 remain open P1 findings.
+**Tracker status:** ACTIVE — Phases 0–4 are in progress; G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed. G-006 implementation is CI-verified on `8b77243c` by CI #703; its explicit stale-term/concurrency acceptance review remains open. G-007 implementation is CI-verified on `34728979` by CI #711; full journey UAT remains in Phase 6. G-002 and G-008 remain open P1 findings; G-007 remains tracked as implemented pending UAT.
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 3 |
+| Phases in progress | 4 |
 | Original audit findings | 22 |
 | Additional findings discovered during remediation | 7 (G-023–G-029) |
 | P0 open | 0 |
@@ -44,7 +44,7 @@
 | 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary, initial store ownership and DB role/grant/RLS design verified; limited staging testing may be authorized | 25% |
 | 2 | Commercial correctness & checkout contract | IN PROGRESS | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 30% |
 | 3 | Event, worker & fulfillment reliability | IN PROGRESS | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 40% |
-| 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
+| 4 | Client workflow parity & truthful notifications | IN PROGRESS | G-007 checkout parity implemented; remaining merchant/admin workflows and G-009/G-019 still open | 15% |
 | 5 | Operational hardening, CI, data hygiene & documentation | NOT STARTED | CI, repository, docs, deployment and recovery controls ready | 0% |
 | 6 | Consolidated full verification & release decision | NOT STARTED | One final full test campaign and evidence-based go/no-go decision | 0% |
 
@@ -62,7 +62,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | CLOSED — CI #687 | Search cards resolve the exact selected offer's active price-list tier at its MOQ (or explicit base price where no list is linked), return concrete variant and offer identity, and cart add/batch/update plus checkout repricing preserve that offer. Owner-priced cart lines remain separate from offer-backed lines; selected prices are keyed by offer + variant + quantity. Resolver (13 tests), product-card (8 tests) and cart (7 tests) suites passed API unit/coverage CI #687; integration, web/admin, lint/typecheck and build jobs also passed. |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | CLOSED — CI #687 | Checkout now groups item and selected shipping amounts by their own normalized currency; pickup adds no fee; missing currencies mark the estimate incomplete; no SAR fallback or cross-currency grand total is shown. A single-currency total is shown only when complete. Five focused currency tests and the web/admin test job passed CI #687. |
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | IMPLEMENTED — CI #703; ACCEPTANCE REVIEW OPEN | MOQ-relative formula agreed; API cart/pricing/checkout enforcement, locked authoritative checkout terms, web/mobile step controls and selected-offer increment exposure implemented. CI #703 passed all jobs. Explicit changed-offer-term and concurrency acceptance cases still require confirmation before CLOSED. |
-| G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | OPEN | Shared API contract first; client parity afterward |
+| G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | IMPLEMENTED — CI #711; UAT PENDING | Per-store mobile shipping/pickup and payment selections; server checkout preview uses authoritative promotion/shipping/VAT calculation; web/mobile review and confirmation aligned. CI #711 passed all executed jobs. Full buyer journey and order detail/tracking UAT remain in Phase 6. |
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | OPEN | Reject unsupported method unless gateway separately approved |
 | G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | OPEN | Implement provider or truthful NOT_CONFIGURED state |
 | G-010 | P2 | Carrier label worker handler is no-op | 3 | OPEN | Use provider sandbox; no live shipment without approval |
@@ -181,9 +181,9 @@ Status definitions:
 | P2-08 | Validate currency exponent/formatting and same-currency totals | G-005 | COMPLETE — CI #687 | Five tests cover same-currency totals, mixed currencies, shipping currency, missing currency and pickup behavior. |
 | P2-09 | Reject DIGITAL unless a real provider is registered | G-008 | TODO | |
 | P2-10 | Align API contracts and web/admin payment choices | G-008 | TODO | |
-| P2-11 | Define mobile per-store shipping/payment and tax contract | G-007 | TODO | |
-| P2-12 | Update mobile request/review UI and generated clients | G-007 | TODO | |
-| P2-13 | Add targeted API/web/mobile contract tests | G-004–G-008 | IN PROGRESS | G-006 focused API tests and full CI #703 passed; G-007/G-008 targeted parity tests remain. |
+| P2-11 | Define mobile per-store shipping/payment and tax contract | G-007 | COMPLETE — CI #711 | API preview uses the same financial helper as checkout; shipping estimate exposes actual fulfillmentMethod; server validates each supplier selection. |
+| P2-12 | Update mobile request/review UI and generated clients | G-007 | COMPLETE — CI #711 | Mobile per-store selection, payment choice, tax-inclusive review and persisted delivery/VAT confirmation implemented; web aligned to same preview. |
+| P2-13 | Add targeted API/web/mobile contract tests | G-004–G-008 | PARTIAL — CI #711 | G-006 and G-007 targeted tests passed (CI #703/#711); G-008 unsupported-method rejection tests remain. |
 
 **Exit gate:** seller attribution, quantity rules, currency totals, supported payment methods and tax/fulfillment semantics are consistent across API and clients.
 
@@ -218,8 +218,8 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | TODO | |
-| P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | |
+| P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | COMPLETE — CI #711 | Server-calculated tax-inclusive preview, per-supplier fulfillment/payment request and order confirmation details implemented. Full journey UAT reserved for Phase 6. |
+| P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | Verify per-suborder order detail and tracking in Phase 6 UAT. |
 | P4-03 | Add mobile remove-promotion operation/UI | G-019 | TODO | |
 | P4-04 | Define truthful notification delivery states | G-009 | TODO | |
 | P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | TODO | |
@@ -306,6 +306,8 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | 2026-11-19 | G-006 MOQ/orderIncrement enforcement | commits `2521c63`, `ed3bb96`, `8b77243` on `remediation/phase-0-1-tenant-security`; PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) | Agreed MOQ-relative rule: quantity >= MOQ and (quantity - MOQ) divisible by orderIncrement. Enforced shared validation across cart add/batch/update/validation, selected-offer pricing and checkout; checkout re-reads and locks authoritative offer/variant terms in its transaction. Invalid negative/fractional/non-finite/unsafe quantities are rejected; zero explicitly removes a cart line. Product-card offer data exposes orderIncrement and web/mobile controls use the MOQ step. | CI #703 on `8b77243c3fc015bf19f66d0cd71b613398311a70`: all executed jobs passed, including API unit/coverage, API integration, lint/typecheck/format, Flutter, web/admin, boundary lint, full migration apply, contract/codegen, build and container smoke. k6 and staging release skipped by workflow conditions. No live DB migration or deployment. | IMPLEMENTED — CI VERIFIED; ACCEPTANCE REVIEW OPEN | Audit/add explicit changed-offer-term-after-cart and competing update/checkout race tests; then close G-006 and continue G-007 mobile checkout parity. |
 
+| 2026-11-19 | G-007 mobile checkout parity and tax preview | commit `347289796961a8f80368e20a0fa7fa33d7a8c999` on `remediation/phase-0-1-tenant-security`; PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) | Added per-store shipping estimates and explicit delivery/pickup selection to Flutter; mobile submits per-store shipping selections and selected payment method. Added `POST /v1/checkout/preview` using the same backend promotion, authoritative shipping fee and VAT calculation as checkout; final checkout recalculates before persistence. Shipping estimate includes actual `fulfillmentMethod`. Web and mobile show supplier subtotal, discount, delivery, VAT and tax-inclusive totals; order confirmation shows persisted delivery/tax. Pickup remains available when delivery estimates fail. | CI #711 passed all executed jobs: API unit/coverage 4,444 passed/110 skipped across 226 files; API integration; lint/typecheck/format; Flutter; web/admin; boundary lint; full migration apply; contract/codegen; production build; container image and smoke (health/P13/non-root). k6 and staging release skipped. No live DB migration or deployment. | IMPLEMENTED — CI VERIFIED; PHASE 6 UAT PENDING | Complete buyer journey and per-suborder order-detail/tracking UAT in Phase 6; continue with G-008 unsupported DIGITAL rejection. |
+
 ### Required task log entry format
 
 For substantial tasks, add a short subsection below:
@@ -357,9 +359,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Next:** continue Phase 2 with G-007 mobile checkout parity, then G-008 unsupported DIGITAL payment rejection. Complete G-006 stale-term/concurrency acceptance review before closing it. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
+**Next:** continue Phase 2 with G-008 unsupported DIGITAL payment rejection. Complete G-006 stale-term/concurrency acceptance review before closing it. G-007 implementation is CI-verified; its full buyer journey/order-detail UAT remains in Phase 6. G-002 runtime-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified.
 
-**Current state (19 November 2026):** G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed with CI evidence. CI #703 on `8b77243c3fc015bf19f66d0cd71b613398311a70` passed all executed jobs: lint/typecheck, Flutter analysis/tests, API integration, web/admin tests, boundary lint, API unit/coverage, full migration apply on isolated CI PostgreSQL, contract/codegen, production build and container build/smoke. k6 smoke and staging release were skipped by workflow conditions. G-006's agreed MOQ-relative rule and server enforcement are implemented; focused pricing/cart regression tests passed, but explicit changed-offer-term and concurrency acceptance cases remain to be reviewed before closure. G-007 and G-008 remain open. G-002 remains partial: live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. No live database migration, staging write, Render configuration change or deployment has been performed.
+**Current state (19 November 2026):** G-001, G-003–G-005, G-011, G-020 and G-023–G-029 are verified/closed with CI evidence. CI #711 on `347289796961a8f80368e20a0fa7fa33d7a8c999` passed all executed jobs: lint/typecheck/format, Flutter analysis/tests, API unit/coverage (4,444 passed; 110 skipped across 226 files), API integration, web/admin tests, boundary lint, full migration apply on isolated CI PostgreSQL, contract/codegen, production build and container build/smoke including health, P13 configuration and non-root checks. k6 smoke and staging release were skipped by workflow conditions. G-006's agreed MOQ-relative rule and server enforcement are implemented; explicit changed-offer-term and concurrency acceptance cases remain to be reviewed before closure. G-007's per-supplier shipping/payment, server-calculated VAT preview and confirmation parity are implemented and CI-verified; full buyer journey/order-detail UAT remains in Phase 6. G-008 unsupported DIGITAL rejection remains open. G-002 remains partial: live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. No live database migration, staging write, Render configuration change or deployment has been performed.
 
 
 | 2026-11-18 | CI #636 failure diagnosis and G-011 durable auto-completion claims | commits `605ed04`, `0ea9908`, `0805f11`, `eaed103`, `58990ad`, `08c89f2`, `c93281a` on `remediation/phase-0-1-tenant-security` | CI #636 confirmed all jobs except API unit/coverage passed. Fixed the admin category-count regression test to preserve the draft-inclusive admin contract. Increased the P9 PostgreSQL benchmark test and container teardown allowances to tolerate the observed CI resource contention. Implemented G-011 durable five-minute order claim leases, expired-claim recovery, conditional release, and a fenced OrdersService status update requiring the same current claim owner and unexpired lease. Added focused worker unit tests. | CI #636: lint/typecheck, integration, migration full apply, web/admin, Flutter and E6 passed; API coverage failed on the stale category-count expectation plus P9 availability test timeout (60s) and afterAll timeout (30s). Latest CI #643 is pending for head `c93281a`. Vercel preview statuses separately report external `build-rate-limit` failures. | IN PROGRESS — LATEST CI PENDING | Verify CI #643, add real PostgreSQL two-worker and buyer-confirmation race coverage for G-011, then continue G-003 integration proof. No live migration, deployment or shared DB change. |

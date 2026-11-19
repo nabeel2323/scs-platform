@@ -16,7 +16,7 @@
 
 > **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
 >
-> **Execution snapshot — 19 November 2026:** CI #687 passed all executed GitHub Actions jobs on commit `dc071157992bb9869fcc059d3bc079bd764f8186`: lint/typecheck, Flutter analysis/tests, API unit/coverage, API integration, boundary lint E6, full migration apply on isolated CI PostgreSQL, web/admin tests, build, container build/smoke and contract/codegen. k6 smoke and staging release were skipped by workflow conditions; no deployment occurred. G-011 remains CLOSED from CI #647; G-028 remains CLOSED from CI #647; G-029 remains CLOSED from CI #592. G-003 is now CLOSED: a PostgreSQL Testcontainers integration test invokes the real `OutboxDispatcher.poll()` and `ShippingCarrierWorker.poll()` methods against persisted carrier and non-carrier events and passed in CI #687; raw SQL claim aliases were corrected to map database snake_case columns to worker camelCase fields. G-004 is CLOSED: selected-offer price resolution is wired through search-card enrichment, cart add/batch/update and checkout price-delta checks; resolver (13), product-card (8) and cart (7) focused tests passed in CI #687. G-005 is CLOSED: checkout groups item and selected shipping amounts by currency, never adds different currencies, flags missing currencies and omits an invalid single-currency total; all five focused currency tests passed in CI #687. G-002 remains partial pending effective API/migration DB-role verification; G-006 is implemented and CI-verified on the current branch; its stale-term/concurrency acceptance review remains open. G-007 and G-008 remain open. The user confirms one PostgreSQL database is shared across all branches and no separate production infrastructure is deployed. Migrations 0070 and 0071 passed isolated CI full apply but have NOT been applied to the shared live database. No live migration, deployment, grant change or RLS enablement has been authorized or performed.
+> **Execution snapshot — 19 November 2026:** CI #711 passed every executed GitHub Actions job on current head `347289796961a8f80368e20a0fa7fa33d7a8c999`: lint/typecheck/format, Flutter analysis/tests, API unit/coverage (4,444 passed; 110 skipped across 226 files), API integration, boundary lint E6, full migration apply on isolated CI PostgreSQL, web/admin tests, contract/codegen, production build and container build/smoke (deployment invariants, service startup, health endpoints, P13 configuration and non-root execution). k6 smoke and staging release were skipped by workflow conditions; no deployment occurred. G-011 remains CLOSED from CI #647; G-028 remains CLOSED from CI #647; G-029 remains CLOSED from CI #592. G-003, G-004 and G-005 remain CLOSED with CI evidence. G-006 implementation is CI-verified from CI #703, with explicit stale-offer/concurrency acceptance review still open. G-007 mobile checkout implementation is CI-verified by CI #711; full journey UAT remains reserved for Phase 6. G-002 remains partial pending effective API/migration DB-role verification; G-008 unsupported DIGITAL rejection remains open. No live database migration, staging write or deployment was performed.
 
 ---
 
@@ -358,12 +358,15 @@ Only after the P0 is closed, G-023 is fixed, the DB access model is verified, an
 **Acceptance:** unsupported methods fail explicitly and consistently; no order can be marked paid without a valid provider/manual verification path.
 
 ### 2.5 Close the commercial portion of G-007 — mobile checkout contract
-- Align mobile with the canonical checkout API for per-store shipping selections, payment selection and tax treatment.
-- Make VAT/fees visible before order submission using the same backend calculation and wording.
-- Do not silently default to COD or a global shipping method when the buyer expects per-store selection.
-- If the initial release intentionally restricts choices, disclose the restriction consistently and validate it server-side.
+- **Implemented and CI-verified in CI #711:** mobile requests a shipping estimate per supplier, requires an explicit delivery/pickup selection per supplier, and submits the chosen supported payment method with checkout.
+- Added `POST /v1/checkout/preview`, which reuses the backend checkout financial calculation for promotion discounts, authoritative shipping fees and configured VAT. Checkout revalidates and recalculates the totals before persistence; the preview is explicitly an estimate, not a reservation or payment.
+- The shipping estimate response now exposes each method's actual `fulfillmentMethod`, so clients do not infer platform/merchant delivery from the method's display type.
+- Mobile and web review screens display supplier-level item subtotal, discount, delivery fee, VAT and tax-inclusive total from the same API response. Order confirmation displays the persisted delivery and VAT values. Web's former VAT disclosure that omitted tax from the displayed totals was removed.
+- When delivery estimates are unavailable, mobile/web preserve pickup as a safe option; delivery choices are shown only when the address is eligible.
+- API client tests cover shipping estimate, preview payload and checkout selections; API preview tests cover server VAT/totals and missing per-store selection. CI #711 passed all executed jobs.
+- **Remaining Phase 6 validation:** run the full browser/mobile buyer journey and verify order detail/tracking per-suborder fulfillment. Do not mark the full Phase 4 finding closed solely from component/unit CI.
 
-**Acceptance:** mobile request and review screen reflect the exact choices and totals persisted by the API; no contradictory VAT disclosure.
+**Acceptance:** mobile request and review screen reflect the exact choices and totals persisted by the API; no contradictory VAT disclosure; final server recalculation remains authoritative; Phase 6 journey UAT confirms order detail/tracking parity.
 
 ### Phase 2 exit gate
 API contract, generated clients and web/mobile commercial calculations agree. Targeted tests cover each corrected rule. No full browser/mobile journey campaign yet.
@@ -423,9 +426,11 @@ Carrier, outbox and order-worker processing are proven with automated integratio
 **Purpose:** Complete the agreed user-facing workflow without promising behavior the backend does not deliver.
 
 ### 4.1 Complete G-007 mobile parity
-- Complete per-store shipping/payment choices and tax/fee review in mobile.
-- Align validation, error display, loading/retry and order confirmation with web/API.
-- Confirm order detail and tracking show per-sub-order fulfillment accurately.
+- **Implementation complete — CI #711 passed:** mobile collects per-supplier shipping/pickup choices, sends the selected payment method, and displays server-calculated supplier totals including discounts, delivery fees and VAT.
+- Added API-backed checkout preview using the same pricing/financial helper as order creation; final checkout recalculates mutable terms before persisting.
+- Added actual `fulfillmentMethod` to shipping estimate results and aligned web/mobile behavior, including pickup fallback when delivery estimates are unavailable.
+- Mobile API tests cover estimate, preview and checkout request payloads. Flutter analysis/tests, API unit/coverage, API integration, web/admin, build, contract/codegen, migration and container smoke all passed CI #711.
+- **Phase 6 UAT remains:** verify complete buyer journey, per-suborder order details and tracking; verify stale fee/method changes are communicated correctly.
 
 ### 4.2 Close G-019 — remove applied promotion on mobile
 - Expose the supported remove-promotion operation in mobile client/UI.
@@ -627,6 +632,6 @@ These two files are the authoritative working references for this remediation pr
 
 ## 14. Current recommendation
 
-Continue **Phase 2** with G-006 (MOQ/orderIncrement), then G-007 mobile checkout parity and G-008 unsupported DIGITAL payment rejection. G-002 effective database-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified. Keep full manual journey testing consolidated in Phase 6.
+Continue **Phase 2** with G-008 unsupported DIGITAL payment rejection. Complete the explicit G-006 stale-offer/concurrency acceptance review before closing G-006. G-007 implementation is CI-verified; its full journey UAT remains in Phase 6. G-002 effective database-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified. Keep full manual journey testing consolidated in Phase 6.
 
-**Current overall status: IN PROGRESS.** CI #703 passed every executed job on `8b77243c3fc015bf19f66d0cd71b613398311a70`, including API unit/coverage, API integration, web/admin, lint/typecheck, Flutter, boundary lint, isolated full migration apply, contract/codegen, production build and container smoke. k6 smoke and staging release were skipped. G-003, G-004 and G-005 are CLOSED with latest-head CI evidence; G-011, G-028 and G-029 remain closed on their prior verified runs. G-006 implementation is CI-verified but its explicit stale-offer/concurrency acceptance review remains open. G-002 remains partial pending actual API/migration role verification; G-007 and G-008 remain open. No staging/production deployment or live database migration has been performed.
+**Current overall status: IN PROGRESS.** CI #711 passed every executed job on `347289796961a8f80368e20a0fa7fa33d7a8c999`: API unit/coverage (4,444 passed; 110 skipped), API integration, web/admin, lint/typecheck/format, Flutter, boundary lint, isolated full migration apply, contract/codegen, production build and container smoke. k6 smoke and staging release were skipped. G-003, G-004 and G-005 are CLOSED with CI evidence; G-011, G-028 and G-029 remain closed on their prior verified runs. G-006 implementation is CI-verified but its explicit stale-offer/concurrency acceptance review remains open. G-007 implementation is CI-verified; full journey UAT is reserved for Phase 6. G-002 remains partial pending actual API/migration role verification; G-008 remains open. No staging/production deployment or live database migration has been performed.
