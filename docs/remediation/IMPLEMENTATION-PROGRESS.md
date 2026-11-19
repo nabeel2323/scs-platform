@@ -742,3 +742,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 - The dispute detail route previously checked admin:disputes:read, which is not seeded. It now checks support:disputes:resolve, matching both the dispute list and GET /v1/admin/disputes/:id API guard.
 - Added a regression test that loads the dispute detail page with the canonical dispute-review permission and verifies the detail API request. G-032 remains open until current-head Admin tests and full CI pass.
+
+### G-033 attribute detail permission correction — 19 November 2026
+- The Admin Attributes list requires catalog:attributes:manage, but the detail page checked catalog:categories:write and denied the seeded attribute managers. The detail page now uses catalog:attributes:manage.
+- Added regression coverage proving a user with the canonical attribute-management permission can load the attribute detail route. G-033 remains open until current-head Admin tests and full CI pass.
