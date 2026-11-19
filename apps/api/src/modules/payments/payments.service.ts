@@ -30,14 +30,13 @@ import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service'
 import { StorageService } from '../../common/storage/storage.service';
 import { paymentRecords, paymentEvents, refunds, settlementRecords } from './payments.schema';
 import { orders, orderFinancialBreakdown, orderStatusHistory } from '../orders/orders.schema';
-import { stores, storeMembers } from '../merchant/merchant.schema';
+import { stores } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import {
   CallerContext,
   assertOrderAccessible,
   assertStoreInOrg,
-  assertStoreMember,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { assertPaymentTransition, isPaymentTerminal } from './payments.state-machine';
@@ -1117,9 +1116,9 @@ export class PaymentsService {
   /**
    * List payments visible to an authenticated merchant.
    *
-   * Scope is derived from the caller's active organization and ACTIVE
-   * store_members rows. A supplied storeId narrows that scope; it never
-   * replaces membership authorization.
+   * Scope is derived from the caller's active organization, matching the
+   * platform's org-wide merchant order-read permission. A supplied storeId
+   * narrows that scope and must belong to the active organization.
    */
   async listMerchantPayments(
     caller: CallerContext,
@@ -1133,13 +1132,10 @@ export class PaymentsService {
     }
     if (filters?.storeId) {
       await assertStoreInOrg(this.db, caller, filters.storeId);
-      await assertStoreMember(this.db, caller, filters.storeId);
     }
 
     const conditions = [
       eq(stores.orgId, caller.activeOrg),
-      eq(storeMembers.userId, caller.sub),
-      eq(storeMembers.status, 'ACTIVE'),
     ];
     if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
     if (filters?.status) conditions.push(eq(paymentRecords.status, filters.status));
@@ -1151,14 +1147,6 @@ export class PaymentsService {
       .from(paymentRecords)
       .innerJoin(orders, eq(paymentRecords.orderId, orders.id))
       .innerJoin(stores, eq(orders.storeId, stores.id))
-      .innerJoin(
-        storeMembers,
-        and(
-          eq(storeMembers.storeId, stores.id),
-          eq(storeMembers.userId, caller.sub),
-          eq(storeMembers.status, 'ACTIVE'),
-        ),
-      )
       .where(and(...conditions))
       .orderBy(desc(paymentRecords.createdAt))
       .limit(100);
@@ -1169,9 +1157,9 @@ export class PaymentsService {
   /**
    * List settlements visible to an authenticated merchant.
    *
-   * Scope is derived from the caller's active organization and ACTIVE
-   * store_members rows. A supplied storeId narrows that scope; it never
-   * replaces membership authorization.
+   * Scope is derived from the caller's active organization, matching the
+   * platform's org-wide merchant settlement-read permission. A supplied storeId
+   * narrows that scope and must belong to the active organization.
    */
   async listMerchantSettlements(
     caller: CallerContext,
