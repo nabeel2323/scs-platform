@@ -136,7 +136,7 @@ describe('M7.2.3-A.1 — PostgreSQL Concurrency & Security', () => {
     const emailResolver = new CarrierEmailResolver(databaseService);
     const retryPolicy = new CarrierRetryPolicy();
     const circuitBreaker = new CarrierCircuitBreaker();
-    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver, retryPolicy, circuitBreaker);
+    worker = new ShippingCarrierWorker(databaseService, registry, credentialsService, configurationsService, observability, emailResolver, retryPolicy, circuitBreaker, { putObject: async () => ({}) } as any);
   }, 120_000);
 
   afterAll(async () => {

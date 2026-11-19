@@ -792,7 +792,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const result = await provider.generateLabel(shipmentId);
     if (!result.supported) {
       throw new NonRetryableCarrierError(
-        result.reason,
+        result.reason ?? 'Carrier provider declined label generation',
         { providerKey, operation: 'generateLabel' },
       );
     }
