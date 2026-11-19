@@ -1,4 +1,5 @@
 name: Format merchant permission UI once
+# One-shot formatting helper; delete after successful run.
 
 on:
   push:
