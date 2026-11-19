@@ -1038,7 +1038,6 @@ No API permission change, database migration or RBAC seed change was required; t
 
 **Status:** implementation and focused Admin UI tests committed; current-head lint/typecheck, Admin tests and full CI verification pending.
 
-
 ## 39. G-035 — Enforce operation-specific permissions in merchant delivery UI — 19 November 2026
 
 ### Finding
