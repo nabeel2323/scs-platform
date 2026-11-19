@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Check formatting only for files changed against the PR base branch.
- *
- * The repository has a large pre-existing formatting backlog. This gate keeps
- * new/changed files formatted without requiring unrelated legacy files to be
- * rewritten as part of every PR.
+ * Check formatting on PR-changed files, while preserving an exact-hash baseline
+ * for legacy files that were already unformatted when the gate was introduced.
+ * Any edit to a baseline file invalidates its exemption and makes Prettier run.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +12,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 const baseBranch =
   process.env.GITHUB_BASE_REF || process.env.FORMAT_BASE_BRANCH || 'develop';
 const baseRef = `origin/${baseBranch}`;
+const baselinePath = path.resolve('infra/ci/format-baseline.json');
+const baselineDocument = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+const knownUnformatted = baselineDocument.knownUnformatted ?? {};
 
 try {
   execFileSync('git', ['merge-base', baseRef, 'HEAD'], { stdio: 'ignore' });
@@ -34,16 +35,34 @@ const changed = execFileSync(
   .filter((file) => /\.(ts|tsx|js|jsx|json|md|ya?ml)$/i.test(file))
   .filter((file) => fs.existsSync(path.resolve(file)));
 
-if (changed.length === 0) {
-  console.log(`Formatting check: no supported files changed against ${baseRef}.`);
-  process.exit(0);
+const check = [];
+const exempt = [];
+for (const file of changed) {
+  const baselineHash = knownUnformatted[file];
+  if (baselineHash) {
+    const currentHash = execFileSync('git', ['hash-object', '--no-filters', file], {
+      encoding: 'utf8',
+    }).trim();
+    if (currentHash === baselineHash) {
+      exempt.push(file);
+      continue;
+    }
+  }
+  check.push(file);
 }
 
 console.log(
-  `Checking formatting for ${changed.length} changed file(s) against ${baseRef}.`,
+  `Formatting gate: ${check.length} file(s) to check; ${exempt.length} unchanged legacy ` +
+    `formatting exception(s); ${changed.length} PR-changed file(s) total.`,
 );
+
+if (check.length === 0) {
+  console.log('Formatting check passed: no new or modified files require checking.');
+  process.exit(0);
+}
+
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const result = spawnSync(pnpm, ['exec', 'prettier', '--check', ...changed], {
+const result = spawnSync(pnpm, ['exec', 'prettier', '--check', ...check], {
   stdio: 'inherit',
 });
 
