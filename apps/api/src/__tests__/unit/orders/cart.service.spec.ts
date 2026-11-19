@@ -389,4 +389,27 @@ describe('CartService MOQ and order-increment enforcement', () => {
     (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
     await expect(svc.updateItemQuantity('buyer-1', 'line-1', 2.5)).rejects.toThrow('positive integer');
   });
+
+  it('rejects negative quantity updates without deleting the cart line', async () => {
+    const svc = new CartService({ db: {} } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).getCartItem = vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' }));
+    const remove = vi.fn();
+    (svc as any).removeItem = remove;
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', -1))
+      .rejects.toThrow('positive integer or zero');
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it('keeps zero as the explicit remove-item operation', async () => {
+    const svc = new CartService({ db: {} } as any, {} as any);
+    (svc as any).getOrCreateCart = vi.fn(async () => ({ id: 'cart-1' }));
+    (svc as any).getCartItem = vi.fn(async () => ({ id: 'line-1', cartId: 'cart-1' }));
+    const remove = vi.fn(async () => ({ removed: true }));
+    (svc as any).removeItem = remove;
+
+    await expect(svc.updateItemQuantity('buyer-1', 'line-1', 0)).resolves.toEqual({ removed: true });
+    expect(remove).toHaveBeenCalledWith('buyer-1', 'line-1');
+  });
 });

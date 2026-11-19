@@ -123,6 +123,7 @@ export async function enrichProductCards<T extends CardSource>(
     basePriceMinor: number | null;
     currency: string;
     moq: number;
+    orderIncrement: number | null;
     priceListId: string | null;
   };
 

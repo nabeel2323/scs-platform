@@ -364,11 +364,13 @@ export class CartService {
       throw new BadRequestException('Item does not belong to your cart');
     }
 
-    if (quantity <= 0) {
+    // Zero is the explicit remove-from-cart gesture. Negative, fractional,
+    // NaN and infinite values are invalid quantities and must never delete a line.
+    if (quantity === 0) {
       return this.removeItem(userId, itemId);
     }
-    if (!Number.isInteger(quantity)) {
-      throw new BadRequestException('Quantity must be a positive integer');
+    if (!Number.isSafeInteger(quantity) || quantity < 0) {
+      throw new BadRequestException('Quantity must be a positive integer or zero to remove the item');
     }
 
     // ADVERSARIAL FIX: re-resolve the price tier when quantity changes. Without

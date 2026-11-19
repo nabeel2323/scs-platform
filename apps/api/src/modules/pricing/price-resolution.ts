@@ -58,6 +58,7 @@ export interface OfferPriceSource {
   currency: string;
   basePriceMinor: number | null;
   moq: number;
+  orderIncrement?: number | null;
   priceListId: string | null;
 }
 
@@ -108,7 +109,7 @@ export async function resolveSelectedOfferPrices(
       !offer ||
       offer.status !== 'ACTIVE' ||
       !offer.isAvailable ||
-      request.quantity < offer.moq ||
+      getOrderQuantityViolation(request.quantity, offer.moq, offer.orderIncrement ?? null) != null ||
       (offer.variantId != null && offer.variantId !== request.variantId)
     ) return [];
     return [{ request, offer }];

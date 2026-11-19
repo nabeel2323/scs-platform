@@ -154,6 +154,7 @@ describe('resolveSelectedOfferPrices', () => {
     variantId: null,
     status: 'ACTIVE',
     isAvailable: true,
+    orderIncrement: 3,
     currency: 'SAR',
     basePriceMinor: 1250,
     moq: 5,
@@ -242,6 +243,17 @@ describe('resolveSelectedOfferPrices', () => {
       minQty: 5,
       priceListId: null,
     });
+    expect(db.calls()).toBe(0);
+  });
+
+  it('does not price an offer at a quantity that violates its MOQ increment', async () => {
+    const db = selectedOfferDb([]);
+    const prices = await resolveSelectedOfferPrices(
+      db as any,
+      [baseOffer],
+      [{ offerId: baseOffer.id, variantId: 'variant-a', quantity: 7 }],
+    );
+    expect(prices.size).toBe(0);
     expect(db.calls()).toBe(0);
   });
 
