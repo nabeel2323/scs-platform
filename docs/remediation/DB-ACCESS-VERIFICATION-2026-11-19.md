@@ -127,3 +127,41 @@ A separate catalog query using `aclexplode` found zero direct table grants to `P
 The `normalize_arabic(text)` function is owned by `postgres`, is not SECURITY DEFINER, and its body uses PostgreSQL built-ins only (`regexp_replace`, `chr`, `translate`, `replace`, `lower`, `trim`). The current live function has no pinned `proconfig`; migration 0070's `search_path = pg_catalog` change is compatible but remains unapplied to the shared database.
 
 The `pg_trgm` extension is owned by `supabase_admin`, not by the connected `postgres` role. The current role is not a member of `supabase_admin` and cannot `SET ROLE`; do not attempt relocation from this connection. See the separate G-022 review.
+
+## Expanded live ACL and role-chain verification — 19 November 2026
+
+A fresh read-only inspection through the connected Supabase project (SCS-PlatForm, PostgreSQL 17.6) confirmed the following. The connection identity remains the Supabase Management API's postgres role, not the Render API's verified runtime identity.
+
+### Direct grants on existing application tables
+
+aclexplode across all 114 public tables shows explicit table ACL entries for each of anon, authenticated and service_role:
+
+| Grantee | MAINTAIN | REFERENCES | TRIGGER | TRUNCATE | SELECT/INSERT/UPDATE/DELETE |
+|---|---:|---:|---:|---:|---:|
+| anon | 114 | 114 | 114 | 114 | 0 |
+| authenticated | 114 | 114 | 114 | 114 | 0 |
+| service_role | 114 | 114 | 114 | 114 | 0 |
+
+These are direct ACL entries, not privileges inherited through the pseudo-role PUBLIC. The separate public-schema ACL check confirms USAGE but not CREATE for anon/authenticated; CREATE is held by pg_database_owner. No direct table grants to PUBLIC were found.
+
+### Default ACL recurrence
+
+pg_default_acl confirms that objects created by postgres in public inherit MAINTAIN, REFERENCES, TRIGGER and TRUNCATE grants for anon/authenticated/service_role on tables. This is the source of recurrence for future objects created by that owner role.
+
+The separate supabase_admin default ACL entries include broader DML grants for the Supabase-managed roles. Do not alter those managed defaults as part of application remediation; they belong to a different owner role and require separate platform-owner review.
+
+Migration 0070 is designed to revoke all existing and future table/sequence privileges from anon and authenticated for the migration execution role. It intentionally does not revoke service_role privileges. Before applying it anywhere shared, verify that the migration executes as the same owner role whose defaults were inspected (postgres in this MCP session is not proof of the Render/GitHub migration identity). Service-role treatment remains a separate server-only decision.
+
+### Membership and role switching
+
+The live role graph confirms:
+- authenticator has membership in anon, authenticated and service_role with SET permitted and INHERIT disabled on each membership.
+- pg_has_role(authenticator, target_role, SET) is true for all three targets; USAGE is false. The API authenticator can switch into the selected JWT role but does not automatically inherit its object privileges.
+- service_role is NOLOGIN and BYPASSRLS. anon and authenticated are NOLOGIN and do not BYPASSRLS.
+- The inspection postgres role has BYPASSRLS and broad administrative membership. It must not be treated as the API runtime role.
+
+### Interpretation and scope
+
+The grants are excessive and should be removed from public client roles as planned, but this query does not prove that PostgREST exposes a TRUNCATE or table-maintenance HTTP operation. It also does not demonstrate that the Render API uses these roles. The immediate proven facts are the explicit PostgreSQL privileges and their default-ACL recurrence; exploitability through any specific public endpoint requires separate route/function-path analysis.
+
+RLS remains disabled on all 114 tables. No database mutation, privilege change, migration, RLS enablement, deployment or staging write was performed.
