@@ -572,3 +572,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - CI #764 on commit `bc2c85c` still failed only at `pnpm format:check:changed`; Prettier flagged the two remediation tracker documents. TypeScript checks passed; dependent jobs were skipped by the workflow dependency graph.
 - Added a branch-scoped formatter workflow to run the repository's locked Prettier version against the three remediation documents and commit only formatting changes. This is a temporary correction mechanism; remove it after the documents pass the blocking changed-file format gate.
 - Full CI on the formatter-produced head remains required before claiming the documentation correction verified.
+
+
+### Remediation document formatting correction — 19 November 2026
+- The repository-locked Prettier 3.9.6 formatter ran successfully in the temporary branch-scoped workflow and committed the formatted implementation plan, progress tracker and database classification document at `8649cea1f4594d26e45abe56fafff74118eaf700`.
+- The temporary formatter workflow was removed immediately after the one-time correction; no ongoing write-enabled formatter automation remains.
+- CI #767 was triggered on the preceding unformatted commit and is not evidence for the formatted head. CI #768 on the formatted bot commit was marked `action_required` by GitHub because the run was initiated by the automation actor; it is not counted as a pass or failure.
+- A subsequent normal repository-authored documentation commit is triggering the full CI gate against the formatted contents. Do not close the formatting correction until the blocking changed-file Prettier job passes on that head.
