@@ -74,7 +74,7 @@ async function main(): Promise<void> {
       WITH role_names AS (
         SELECT rolname AS role_name
         FROM pg_roles
-        WHERE rolname IN ('anon', 'authenticated', 'service_role')
+        WHERE rolname IN ('authenticator', 'anon', 'authenticated', 'service_role')
         UNION
         SELECT current_user
       ), tables AS (
@@ -111,6 +111,21 @@ async function main(): Promise<void> {
       ORDER BY x.privilege_type
     `);
 
+    const publicTableGrantsToApiRoles = await client.query<QueryResultRow>(`
+      SELECT grantee.rolname AS grantee,
+             x.privilege_type,
+             count(DISTINCT c.oid)::int AS table_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) x
+      JOIN pg_roles grantee ON grantee.oid = x.grantee
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND grantee.rolname IN ('authenticator', 'anon', 'authenticated', 'service_role')
+      GROUP BY grantee.rolname, x.privilege_type
+      ORDER BY grantee.rolname, x.privilege_type
+    `);
+
     const publicSequenceGrants = await client.query<QueryResultRow>(`
       SELECT x.privilege_type,
              count(DISTINCT c.oid)::int AS sequence_count
@@ -122,6 +137,21 @@ async function main(): Promise<void> {
         AND x.grantee = 0
       GROUP BY x.privilege_type
       ORDER BY x.privilege_type
+    `);
+
+    const publicSequenceGrantsToApiRoles = await client.query<QueryResultRow>(`
+      SELECT grantee.rolname AS grantee,
+             x.privilege_type,
+             count(DISTINCT c.oid)::int AS sequence_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('S', c.relowner))) x
+      JOIN pg_roles grantee ON grantee.oid = x.grantee
+      WHERE n.nspname = 'public'
+        AND c.relkind = 'S'
+        AND grantee.rolname IN ('authenticator', 'anon', 'authenticated', 'service_role')
+      GROUP BY grantee.rolname, x.privilege_type
+      ORDER BY grantee.rolname, x.privilege_type
     `);
 
     const publicDefaultAclGrants = await client.query<QueryResultRow>(`
@@ -297,7 +327,9 @@ async function main(): Promise<void> {
       effectivePrivileges: clientRoles.rows,
       publicSchemaPrivileges: schemaPrivileges.rows,
       publicTableGrantsToPublic: publicTableGrants.rows,
+      publicTableGrantsToApiRoles: publicTableGrantsToApiRoles.rows,
       publicSequenceGrantsToPublic: publicSequenceGrants.rows,
+      publicSequenceGrantsToApiRoles: publicSequenceGrantsToApiRoles.rows,
       publicDefaultAclGrants: publicDefaultAclGrants.rows,
       publicSequencePrivileges: sequencePrivileges.rows,
       rowLevelSecurity: rls.rows[0] ?? null,
