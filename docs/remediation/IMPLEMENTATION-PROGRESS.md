@@ -725,4 +725,5 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - No Render environment values, worker flags, staging data, OTP provider or deployment settings were changed.
 
 ### Evidence formatting pass — 19 November 2026
+
 - The G-002 live ACL report, architecture proposal, implementation plan and progress tracker have received the additional live database and source-review evidence. Repository-locked Prettier is being applied before the next full CI run.
