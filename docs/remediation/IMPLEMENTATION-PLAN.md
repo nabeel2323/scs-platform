@@ -675,3 +675,19 @@ This section supplements the original plan without rewriting historical audit fi
 7. Continue remaining Phase 0–5 work packages; run the consolidated Phase 6 campaign only after implementation and documented deferrals are ready.
 
 **Safety boundary remains unchanged:** no live grant changes, RLS enablement, migration application, Render configuration change, worker activation, or deployment is authorized by this implementation update.
+
+
+---
+
+## 15. Execution update — G-009 truthful notification states
+
+The general notification dispatcher previously returned fabricated provider IDs and marked SMS, FCM/PUSH and WhatsApp rows as SENT despite placeholder implementations. This has been corrected using the explicitly permitted NOT_CONFIGURED behavior in the Phase 4 acceptance criteria:
+
+- SMS primary/fallback stubs no longer simulate success; notification rows are marked NOT_CONFIGURED with `SMS_PROVIDER_NOT_CONFIGURED`.
+- PUSH no longer returns a fabricated FCM ID; rows are marked NOT_CONFIGURED with `PUSH_NO_ACTIVE_DEVICE_TOKEN` or `PUSH_PROVIDER_NOT_CONFIGURED`.
+- WhatsApp no longer marks placeholder sends SENT; rows are marked NOT_CONFIGURED with `WHATSAPP_PROVIDER_NOT_CONFIGURED`.
+- IN_APP remains persisted and available through the in-app API. Its SENT state means the notification item was persisted; realtime delivery remains best-effort and is not proof of device receipt.
+- Four focused unit regression tests were added for SMS, push with/without active tokens, and WhatsApp. Provider sandbox/retry testing remains partial until a real provider adapter and approved sandbox credentials exist.
+- Notification provider-selection and troubleshooting documentation now distinguish OTP provider configuration from general outbound notification adapters.
+
+CI verification is pending on the current PR head. No external notification provider was invoked, no customer notification was sent, and no provider credentials were changed.
