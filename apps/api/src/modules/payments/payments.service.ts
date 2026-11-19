@@ -1134,9 +1134,7 @@ export class PaymentsService {
       await assertStoreInOrg(this.db, caller, filters.storeId);
     }
 
-    const conditions = [
-      eq(stores.orgId, caller.activeOrg),
-    ];
+    const conditions = [eq(stores.orgId, caller.activeOrg)];
     if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
     if (filters?.status) conditions.push(eq(paymentRecords.status, filters.status));
     if (filters?.paymentMethod)
