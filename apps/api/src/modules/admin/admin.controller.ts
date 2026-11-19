@@ -362,7 +362,7 @@ export class AdminController {
 
   @Post('products/:id/moderate')
   @HttpCode(200)
-  @RequirePermission('admin:merchants:read')
+  @RequirePermission('admin:products:moderate')
   async moderateProductPost(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ModerateProductDto,
