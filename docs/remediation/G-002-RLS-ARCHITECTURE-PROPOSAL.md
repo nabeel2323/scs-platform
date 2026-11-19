@@ -16,6 +16,7 @@ The connected Supabase inspection session is `postgres` with `BYPASSRLS`; it is 
 **Do not apply migration 0070/0071 to the shared database, enable RLS, alter grants, change extension ownership or deploy this proposal.**
 
 The correct architecture is not a blanket RLS toggle. It is a verified split between:
+
 - a migration owner used only by reviewed migration jobs;
 - a least-privilege API runtime identity;
 - optionally a separate worker identity if worker query patterns and operational constraints justify it;
@@ -36,19 +37,20 @@ The correct architecture is not a blanket RLS toggle. It is a verified split bet
 - The current Render staging service is on `develop`, auto-deploy is disabled, and the service connector does not reveal the database username.
 
 See:
+
 - [Database table access classification](./DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md)
 - [Database access verification](./DB-ACCESS-VERIFICATION-2026-11-19.md)
 - [Implementation plan](./IMPLEMENTATION-PLAN.md)
 
 ## 3. Target role separation
 
-| Identity | Purpose | Required posture | Prohibited use |
-|---|---|---|---|
-| Migration owner | Apply reviewed schema/ACL migrations | Object ownership or narrowly granted DDL; secret restricted to release workflow; no app traffic | API request handling |
-| API runtime | Serve authenticated SCS API requests | No superuser; preferably no BYPASSRLS after tenant context is proven; only required table/sequence/function grants | Browser/mobile clients; schema DDL |
-| Worker runtime (optional) | Outbox, carrier, reconciliation and lifecycle workers | Separate credential only if worker isolation and rollout are operationally supportable; narrowly scoped grants | Public clients |
-| Supabase Data API roles | PostgREST/client-facing access | No direct application table CRUD unless a separately approved client use case and matching policies exist | SCS business workflows |
-| Inspection/admin identity | Read-only audits and controlled administration | Separate human/admin access, audited and time-bound | Runtime API or routine migrations |
+| Identity                  | Purpose                                               | Required posture                                                                                                   | Prohibited use                     |
+| ------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| Migration owner           | Apply reviewed schema/ACL migrations                  | Object ownership or narrowly granted DDL; secret restricted to release workflow; no app traffic                    | API request handling               |
+| API runtime               | Serve authenticated SCS API requests                  | No superuser; preferably no BYPASSRLS after tenant context is proven; only required table/sequence/function grants | Browser/mobile clients; schema DDL |
+| Worker runtime (optional) | Outbox, carrier, reconciliation and lifecycle workers | Separate credential only if worker isolation and rollout are operationally supportable; narrowly scoped grants     | Public clients                     |
+| Supabase Data API roles   | PostgREST/client-facing access                        | No direct application table CRUD unless a separately approved client use case and matching policies exist          | SCS business workflows             |
+| Inspection/admin identity | Read-only audits and controlled administration        | Separate human/admin access, audited and time-bound                                                                | Runtime API or routine migrations  |
 
 Do not create or grant roles until the actual existing role identities, ownership, Supabase-managed role constraints and connection-pool behavior have been reviewed.
 
@@ -57,6 +59,7 @@ Do not create or grant roles until the actual existing role identities, ownershi
 A true RLS design for the direct Drizzle API requires trusted request context to be attached to every query in the transaction that executes it.
 
 Candidate transaction-local context:
+
 - `app.actor_kind`: `user` or `system`.
 - `app.user_id`: verified SCS user UUID from the authenticated request.
 - `app.active_org_id`: verified active organization UUID after membership validation.
@@ -80,6 +83,7 @@ The current services use the shared `DatabaseService.db` surface. A request-scop
 ### 4.2 Background workers
 
 Workers do not have an end-user JWT. They need an explicit system actor context with a worker identity and narrow capabilities. Policies must distinguish:
+
 - tenant work items whose event carries a verified organization/store owner;
 - system tables such as outbox events and worker leases;
 - operational financial jobs with explicit claim/lease ownership and audit requirements.
@@ -89,6 +93,7 @@ Do not simply give every worker BYPASSRLS. If a separate worker identity is sele
 ### 4.3 Table policy families
 
 The 114-relation inventory identifies domain families, but the exact row predicates remain to be derived from the Drizzle schema, foreign keys and service query paths. Candidate policy families are:
+
 - identity/session/device credentials: user ownership; sensitive credential/audit records restricted to authentication services and platform security roles;
 - organization/store/warehouse: active organization membership plus active store membership;
 - catalog: public API-visible state is ACTIVE/PUBLISHED only; non-public states require owning-store membership or platform moderation role;
@@ -114,23 +119,24 @@ These are families, not executable policy SQL. Every table needs an explicit own
 
 ## 6. Required implementation and verification sequence
 
-| Step | Deliverable | Exit evidence |
-|---|---|---|
-| A | Capture API runtime `current_user` and `session_user` without printing DSNs | Read-only API-side diagnostic or trusted startup audit |
-| B | Capture migration workflow role using staging secret | Read-only CI audit artifact; no secret output |
-| C | Reconcile API/migration role memberships, ownership, BYPASSRLS, grants and search_path | Reviewed role/access matrix |
-| D | Inventory every DB access path, raw SQL call, nested transaction and worker | Source audit with explicit exceptions |
-| E | Build exact per-table tenant ownership and operation matrix | 114 relations classified with row predicate and caller class |
-| F | Prototype transaction-local context on isolated PostgreSQL | Pool reuse, concurrent request, exception and rollback tests |
-| G | Implement dedicated runtime/migration identities in isolated environment | Least-privilege grants and migration owner proof |
-| H | Implement table-specific policies in an isolated migration | API regression suite and two-tenant negative matrix |
-| I | Validate fresh install and representative upgrade | Isolated migration apply and rollback/forward-fix evidence |
-| J | Obtain approved staging maintenance window | Explicit deployment approval; verify before/after access |
-| K | Production release decision | Phase 6 gates and explicit go/no-go |
+| Step | Deliverable                                                                            | Exit evidence                                                |
+| ---- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A    | Capture API runtime `current_user` and `session_user` without printing DSNs            | Read-only API-side diagnostic or trusted startup audit       |
+| B    | Capture migration workflow role using staging secret                                   | Read-only CI audit artifact; no secret output                |
+| C    | Reconcile API/migration role memberships, ownership, BYPASSRLS, grants and search_path | Reviewed role/access matrix                                  |
+| D    | Inventory every DB access path, raw SQL call, nested transaction and worker            | Source audit with explicit exceptions                        |
+| E    | Build exact per-table tenant ownership and operation matrix                            | 114 relations classified with row predicate and caller class |
+| F    | Prototype transaction-local context on isolated PostgreSQL                             | Pool reuse, concurrent request, exception and rollback tests |
+| G    | Implement dedicated runtime/migration identities in isolated environment               | Least-privilege grants and migration owner proof             |
+| H    | Implement table-specific policies in an isolated migration                             | API regression suite and two-tenant negative matrix          |
+| I    | Validate fresh install and representative upgrade                                      | Isolated migration apply and rollback/forward-fix evidence   |
+| J    | Obtain approved staging maintenance window                                             | Explicit deployment approval; verify before/after access     |
+| K    | Production release decision                                                            | Phase 6 gates and explicit go/no-go                          |
 
 ## 7. Test matrix
 
 At minimum, test:
+
 - buyer A cannot read/write buyer B carts, favorites, notifications, messages, orders or returns;
 - merchant A cannot read/write merchant B stores, warehouses, inventory, products, offers, prices, imports or analytics;
 - a same-organization user without active store membership is denied store-private data;

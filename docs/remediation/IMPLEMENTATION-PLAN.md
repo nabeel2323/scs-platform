@@ -854,7 +854,6 @@ The table-by-table domain and access-intent inventory is complete. It is not yet
 
 No live database mutation, migration, grant change, RLS change, Render configuration change, worker activation or deployment was performed.
 
-
 ## 29. RLS architecture proposal and release-gate reconciliation — 19 November 2026
 
 Added [G-002 RLS Architecture Proposal](./G-002-RLS-ARCHITECTURE-PROPOSAL.md) after the fresh live inventory. It records the current direct Drizzle access model, target role separation, transaction-local tenant-context candidate, worker requirements, policy families, risks of blanket RLS and the isolated-test sequence. This is a design proposal only; no production SQL or executable RLS policy was generated.
