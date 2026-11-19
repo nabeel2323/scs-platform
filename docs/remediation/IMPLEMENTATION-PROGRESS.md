@@ -700,3 +700,13 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Extended `db:audit-access` to report role attributes for the effective session role and PostgREST roles (`authenticator`, `anon`, `authenticated`, `service_role`), including superuser/BYPASSRLS/login/inherit flags.
 - Replaced the direct-only membership report with a cycle-safe recursive membership graph so inherited role grants are visible for the same identities.
 - The audit remains read-only, runs inside `BEGIN READ ONLY`, does not print connection strings or application rows, and makes no schema/privilege changes. Typecheck and formatter verification are pending.
+
+### CI #843 and expanded G-002 live ACL evidence — 19 November 2026
+
+- CI #843 passed all 10 executable jobs on commit `58053f61e9d3679e81b999e2a9f24f4c8ad4f5ab`: lint/typecheck/format, Flutter, API unit/coverage, PostgreSQL integration, web/admin, E6 boundary lint, isolated migration full apply, contract/codegen, build and container smoke. k6 and staging release were skipped.
+- Fresh read-only live SQL against SCS-PlatForm PostgreSQL 17.6 confirms 114 public tables and 0 RLS-enabled/forced. Direct ACL entries grant MAINTAIN, REFERENCES, TRIGGER and TRUNCATE to anon, authenticated and service_role on all 114; effective SELECT/INSERT/UPDATE/DELETE remain 0 for those roles.
+- postgres-owned public-table default ACLs repeat those four privileges for future tables created by postgres. Supabase-managed supabase_admin defaults are separate; do not modify them in this remediation.
+- authenticator has SET but not INHERIT membership edges to anon/authenticated/service_role. The MCP session is postgres with BYPASSRLS and is not evidence of the Render API/migration login.
+- The read-only audit utility now emits direct table/sequence grants to API roles, includes authenticator in privilege inventories, and returns transitive role membership edges. The corrected recursive SQL was separately run against the live catalog and verified.
+- Read-only database audit workflow run #3 failed on a push event without producing usable API/migration identity evidence. No environment approval was bypassed. G-002 remains BLOCKED pending actual API and migration role proof; no shared DB changes were made.
+- The audit utility and documentation changes made after CI #843 require a fresh CI run. k6, staging release, performance verification and Phase 6 remain outstanding.
