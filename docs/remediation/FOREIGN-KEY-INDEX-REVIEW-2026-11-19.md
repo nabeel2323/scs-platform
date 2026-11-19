@@ -15,12 +15,12 @@ The current data does not justify creating indexes for all candidates. Only four
 
 ## Non-empty candidate tables
 
-| Table | Estimated live rows | Seq scans | Index scans | Total size |
-|---|---:|---:|---:|---:|
-| sessions | 19 | 6 | 47 | 96 kB |
-| device_credentials | 6 | 14 | 43 | 88 kB |
-| role_permissions | 4 | 55 | 6,518 | 80 kB |
-| organization_members | 3 | 15 | 135 | 40 kB |
+| Table                | Estimated live rows | Seq scans | Index scans | Total size |
+| -------------------- | ------------------: | --------: | ----------: | ---------: |
+| sessions             |                  19 |         6 |          47 |      96 kB |
+| device_credentials   |                   6 |        14 |          43 |      88 kB |
+| role_permissions     |                   4 |        55 |       6,518 |      80 kB |
+| organization_members |                   3 |        15 |         135 |      40 kB |
 
 The candidate inventory includes two missing foreign-key indexes on `device_credentials` and two on `organization_members`. The row estimates are approximate PostgreSQL statistics, not exact counts.
 
