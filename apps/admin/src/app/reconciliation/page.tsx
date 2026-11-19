@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminRequest } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader } from '@scs/ui-kit';
 
 interface Discrepancy {
@@ -57,7 +57,8 @@ function fmtMinor(minor: number | null) {
 }
 
 export default function ReconciliationPage() {
-  useRequirePerms(['admin:reconciliation:read']);
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:reconciliation:read']);
+  const { hasAccess: canWrite } = useRequirePerms(['admin:reconciliation:write']);
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -67,25 +68,28 @@ export default function ReconciliationPage() {
   const [periodEnd, setPeriodEnd] = useState('');
 
   const load = useCallback(() => {
+    if (!hasAccess) return;
     setLoading(true);
     adminRequest<ReconciliationRun[]>('admin/reconciliation')
       .then(data => setRuns(data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [hasAccess]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (hasAccess) load(); }, [load, hasAccess]);
 
   const loadRunDetail = useCallback(async (id: string) => {
+    if (!hasAccess) return;
     try {
       const run = await adminRequest<ReconciliationRun>(`admin/reconciliation/${id}`);
       setSelectedRun(run);
     } catch (e: any) {
       setError(e.message);
     }
-  }, []);
+  }, [hasAccess]);
 
   const handleRun = async () => {
+    if (!canWrite) return;
     if (!periodStart || !periodEnd) { setError('Period start and end are required'); return; }
     setRunning(true);
     setError('');
@@ -104,6 +108,7 @@ export default function ReconciliationPage() {
   };
 
   const handleResolve = async (discrepancyId: string) => {
+    if (!canWrite) return;
     const notes = prompt('Resolution notes (required):');
     if (!notes) return;
     try {
@@ -123,7 +128,7 @@ export default function ReconciliationPage() {
       <PageHeader title="Reconciliation" subtitle="Monthly financial reconciliation and discrepancy management" />
 
       {/* Run new reconciliation */}
-      <div style={{ background: '#1a1d24', borderRadius: 12, border: '1px solid #2a2d34', padding: 16, marginBottom: 20 }}>
+      {canWrite && <div style={{ background: '#1a1d24', borderRadius: 12, border: '1px solid #2a2d34', padding: 16, marginBottom: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Execute Reconciliation</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)}
@@ -136,7 +141,7 @@ export default function ReconciliationPage() {
             {running ? 'Running...' : 'Run'}
           </button>
         </div>
-      </div>
+      </div>}
 
       {error && <div style={{ background: '#7f1d1d', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
       {loading && <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>Loading...</div>}
