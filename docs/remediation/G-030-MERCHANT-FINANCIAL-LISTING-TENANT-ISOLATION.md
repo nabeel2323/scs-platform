@@ -11,7 +11,7 @@
 Source review found two merchant listing routes whose service calls did not carry the authenticated tenant context:
 
 - `GET /v1/merchant/payments` called the general `listPayments({ storeId, status })` method. That method attempted to build order-level store/buyer filters, but the constructed `orderConditions` were never applied to the payment query. A missing store filter returned all payments; a supplied store filter also failed to constrain the final result.
-- `GET /v1/merchant/settlements` called the general `listSettlements({ storeId, status })` method without the authenticated caller. Without a store filter, the method returned all settlements; with a caller-supplied store ID, it did not verify active organization ownership or active store membership.
+- `GET /v1/merchant/settlements` called the general `listSettlements({ storeId, status })` method without the authenticated caller. Without a store filter, the method returned all settlements; with a caller-supplied store ID, it did not verify active organization ownership.
 
 Both controller routes require the functional `merchant:orders:read` permission. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles receive this permission as an organization-wide read capability. The correct object-level boundary is the authenticated caller's active organization; `store_members` is not the intended authorization boundary for these financial read routes.
 
@@ -43,7 +43,7 @@ The source-level finding does not assert that a specific production user exploit
 
 Added tests for:
 - Two independent merchant organizations: merchant A sees only payment A and merchant B sees only payment B.
-- Same-organization user without active store membership cannot list the store's payment records when a store is explicitly requested.
+- A same-organization user with the merchant read permission but without a `store_members` row can read only their own organization's records; a foreign-organization store ID is denied.
 - Merchant A cannot request merchant B's store ID.
 - Merchant A and merchant B see only their own settlement rows.
 - Admin/service store and buyer filters return only payments linked to matching orders.
