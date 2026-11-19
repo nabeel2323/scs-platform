@@ -733,4 +733,5 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 - Added the dedicated admin:products:moderate permission. SUPER_ADMIN, ADMIN and MODERATOR receive it from canonical RBAC seed data; read-only merchant inspection remains admin:merchants:read.
 - The Admin API moderation mutation and UI action buttons now require the dedicated permission. API guard/role-matrix tests and Admin UI permission-gating tests are committed. The controlled release seed will add the new role-permission rows idempotently; no live seed or role mutation was performed.
+- Phase 4 admin UI review also hid Create User, Create Product and Edit Product controls unless the corresponding write permission is present; regression tests cover read-only users.
 - G-031 is a P1 finding and remains open until current-head CI verifies API unit/coverage, Admin tests, lint/typecheck and full integration gates.
