@@ -106,7 +106,8 @@ describe('G-001 merchant offer tenant authorization (HTTP)', () => {
       .useValue({
         canActivate(context: any) {
           const request = context.switchToHttp().getRequest();
-          const identity = identities[request.headers['x-test-identity']];
+          const identityKey = String(request.headers['x-test-identity'] ?? '');
+          const identity = identities[identityKey];
           if (!identity) return false;
           request.user = identity;
           return true;
