@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminRequest } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import { PageHeader } from '@scs/ui-kit';
 
 interface Approval {
@@ -66,7 +66,9 @@ function canPostFx(fxStatus: string) {
 }
 
 export default function SettlementAdjustmentsPage() {
-  useRequirePerms(['admin:adjustments:read']);
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:adjustments:read']);
+  const { hasAccess: canWrite } = useRequirePerms(['admin:adjustments:write']);
+  const { hasAccess: canApprove } = useRequirePerms(['admin:adjustments:approve']);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -74,6 +76,7 @@ export default function SettlementAdjustmentsPage() {
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(() => {
+    if (!hasAccess) return;
     setLoading(true);
     const sp = new URLSearchParams();
     if (statusFilter) sp.set('status', statusFilter);
@@ -82,11 +85,13 @@ export default function SettlementAdjustmentsPage() {
       .then(data => setAdjustments(data))
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, [statusFilter, hasAccess]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (hasAccess) load(); }, [load, hasAccess]);
 
   const handleAction = async (id: string, action: string) => {
+    if (action === 'submit' && !canWrite) return;
+    if (['approve', 'reject', 'post'].includes(action) && !canApprove) return;
     setActing(id);
     try {
       if (action === 'submit') {
@@ -167,15 +172,15 @@ export default function SettlementAdjustmentsPage() {
               )}
 
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {adj.status === 'DRAFT' && (
+                {adj.status === 'DRAFT' && canWrite && (
                   <button onClick={() => handleAction(adj.id, 'submit')} disabled={acting === adj.id}
                     style={{ background: '#f59e0b', color: '#000', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Submit</button>
                 )}
-                {adj.status === 'PENDING_APPROVAL' && (
+                {adj.status === 'PENDING_APPROVAL' && canApprove && (
                   <button onClick={() => handleAction(adj.id, 'approve')} disabled={acting === adj.id}
                     style={{ background: '#3b82f6', color: '#fff', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Approve</button>
                 )}
-                {adj.status === 'APPROVED' && canPostFx(adj.fxStatus) && (
+                {adj.status === 'APPROVED' && canApprove && canPostFx(adj.fxStatus) && (
                   <button onClick={() => handleAction(adj.id, 'post')} disabled={acting === adj.id}
                     style={{ background: '#22c55e', color: '#000', border: 0, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Post</button>
                 )}
