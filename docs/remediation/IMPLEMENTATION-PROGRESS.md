@@ -649,3 +649,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - G-030 authorization was aligned with the seeded RBAC contract: MERCHANT_OWNER and MERCHANT_STAFF receive organization-wide `merchant:orders:read`. Financial listings therefore scope to the authenticated active organization, not `store_members`; an explicit store ID must belong to the active organization. Same-organization merchant staff without a store membership remain authorized by their organization-level permission.
 - The PostgreSQL fixture now creates an ACTIVE MERCHANT_STAFF organization member without a store_members row, proving org-level read behavior while retaining cross-organization denial.
 - Full current-head CI is required after the formatter commit and this tracker update. G-030 remains P0/OPEN until API unit/coverage and PostgreSQL integration suites pass.
+
+
+### G-030 CI #815 typecheck correction — 19 November 2026
+- CI #815 passed repository lint and Flutter analysis/tests, then failed API typecheck on the optional index-signature access to the new `orgStaffA` fixture identity.
+- Corrected the fixture lookup to use the required indexed property with a non-null assertion after the fixture creates it. No runtime authorization logic changed.
+- The next full CI run must verify typecheck, formatting, API unit/coverage, PostgreSQL integration, migration apply, web/admin, build and container smoke before G-030 can close.
