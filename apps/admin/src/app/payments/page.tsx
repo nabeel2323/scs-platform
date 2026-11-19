@@ -8,7 +8,7 @@ import {
   fetchStalePayments,
   type AdminPayment,
 } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import {
   PageHeader, Card, Button, colors, typeScale, radii,
 } from '@scs/ui-kit';
@@ -42,14 +42,17 @@ function formatMinor(minor: number | null, currency?: string) {
 }
 
 export default function AdminPaymentsPage() {
-  useRequirePerms(['admin:payments:read']);
-  const [tab, setTab] = useState<Tab>('queue');
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:payments:read']);
+  const { hasAccess: canVerifyPayments } = useRequirePerms(['admin:payments:verify']);
+  const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : 'all');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [acting, setActing] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!hasAccess) return;
+    if (tab === 'queue' && !canVerifyPayments) { setTab('all'); return; }
     setLoading(true);
     setError('');
     try {
@@ -63,11 +66,12 @@ export default function AdminPaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab]);
+  }, [tab, hasAccess, canVerifyPayments]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (hasAccess) load(); }, [load, hasAccess]);
 
   const handleVerify = async (paymentId: string, decision: 'CONFIRMED' | 'REJECTED') => {
+    if (!canVerifyPayments) return;
     setActing(paymentId);
     setError('');
     try {
@@ -81,10 +85,12 @@ export default function AdminPaymentsPage() {
   };
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'queue', label: 'Verification Queue' },
+    ...(canVerifyPayments ? [{ key: 'queue' as const, label: 'Verification Queue' }] : []),
     { key: 'all', label: 'All Payments' },
     { key: 'stale', label: 'Stale / Expiring' },
   ];
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:payments:read']} missingPerms={missingPerms} />;
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -125,7 +131,7 @@ export default function AdminPaymentsPage() {
                 <th style={{ textAlign: 'right', padding: '10px 8px' }}>Amount</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Reference</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Created</th>
-                {tab === 'queue' && <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>}
+                {tab === 'queue' && canVerifyPayments && <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -141,7 +147,7 @@ export default function AdminPaymentsPage() {
                     {p.receiptReference || '—'}
                   </td>
                   <td style={{ padding: '10px 8px', fontSize: 11 }}>{new Date(p.createdAt).toLocaleDateString()}</td>
-                  {tab === 'queue' && (
+                  {tab === 'queue' && canVerifyPayments && (
                     <td style={{ padding: '10px 8px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                       <Button size="sm" variant="primary" disabled={acting === p.id}
                         onClick={() => handleVerify(p.id, 'CONFIRMED')}>Confirm</Button>{' '}
