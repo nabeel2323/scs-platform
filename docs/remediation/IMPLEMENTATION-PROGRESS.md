@@ -658,4 +658,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ### G-030 evidence formatting correction — 19 November 2026
 
-- CI #817 passed API lint and typecheck, then the blocking changed-file Prettier gate flagged the G-030 report and this progress tracker. The exact repository formatter is being applied; the gate remains blocking.
+- CI #817 passed API lint and typecheck, then the blocking changed-file Prettier gate flagged the G-030 report and this progress tracker. Repository-locked Prettier completed successfully in the one-time formatter run; the temporary workflow was removed immediately after. The blocking gate remains in place.
