@@ -28,7 +28,7 @@ import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { catalogRequests } from '../../modules/catalog/catalog.requests.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
 import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
-import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
+import { stores, storeMembers, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { auditLogs, outboxEvents } from '../../modules/audit/audit.schema';
 import { masterOrders, orders } from '../../modules/orders/orders.schema';
@@ -36,7 +36,7 @@ import { disputes } from '../../modules/reviews/support.schema';
 import { warehouses } from '../../modules/merchant/merchant.schema';
 import { inventoryItems } from '../../modules/inventory/inventory.schema';
 import {
-  assertProductInOrg, assertStoreInOrg,
+  assertProductInOrg, assertStoreInOrg, assertStoreMember,
   type CallerContext,
 } from '../../common/tenant-scope';
 import { ForbiddenException, BadRequestException } from '@nestjs/common';
@@ -66,7 +66,7 @@ const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
 // ── Test identities ────────────────────────────────────────────────────────
 
 let orgA: string, orgB: string;
-let merchantA: string, merchantB: string, buyerUser: string, adminUser: string;
+let merchantA: string, merchantB: string, buyerUser: string, adminUser: string, storeStaffA: string, inactiveMemberA: string;
 let storeA: string, storeB: string;
 let roleIdMerchantA: string, roleIdMerchantB: string;
 
@@ -102,7 +102,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         productTypes, productTypeAttributes,
         productAttributeValues, variantAttributeValues,
         merchantOffers, catalogRequests, searchQueries,
-        stores, verificationRequests, users, organizations, disputes,
+        stores, storeMembers, verificationRequests, users, organizations, disputes,
         priceLists, priceTiers, warehouses, inventoryItems,
       },
     }) as unknown as DatabaseService['db'];
@@ -136,6 +136,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     merchantB = randomUUID();
     buyerUser = randomUUID();
     adminUser = randomUUID();
+    storeStaffA = randomUUID();
+    inactiveMemberA = randomUUID();
     storeA = randomUUID();
     storeB = randomUUID();
     roleIdMerchantA = randomUUID();
@@ -153,6 +155,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       { id: merchantA, fullName: 'Merchant A', phone: '+10000000002' },
       { id: merchantB, fullName: 'Merchant B', phone: '+10000000003' },
       { id: buyerUser, fullName: 'Buyer User', phone: '+10000000004' },
+      { id: storeStaffA, fullName: 'Store A Staff', phone: '+10000000005' },
+      { id: inactiveMemberA, fullName: 'Inactive Store Member', phone: '+10000000006' },
     ]);
 
     // Stores (each org owns one store)
@@ -171,6 +175,13 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId },
       { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
+      { id: randomUUID(), orgId: orgA, userId: storeStaffA, roleId: merchantRoleId },
+      { id: randomUUID(), orgId: orgA, userId: inactiveMemberA, roleId: merchantRoleId },
+    ]);
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeA, userId: storeStaffA, role: 'STAFF', status: 'ACTIVE' },
     ]);
   }, 180_000);
 
@@ -639,6 +650,22 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       await expect(
         assertProductInOrg(database, adminCaller(), productId),
       ).resolves.toBeUndefined();
+    });
+
+    it('active store staff is authorized for their own store', async () => {
+      const staffCaller: CallerContext = { sub: storeStaffA, role: 'MERCHANT', activeOrg: orgA };
+      await expect(assertStoreInOrg(database, staffCaller, storeA)).resolves.toBeUndefined();
+      await expect(assertStoreMember(database, staffCaller, storeA)).resolves.toBeUndefined();
+    });
+
+    it('same-organization user without active store membership is denied', async () => {
+      const nonMemberCaller: CallerContext = { sub: inactiveMemberA, role: 'MERCHANT', activeOrg: orgA };
+      await expect(assertStoreInOrg(database, nonMemberCaller, storeA)).resolves.toBeUndefined();
+      await expect(assertStoreMember(database, nonMemberCaller, storeA)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Merchant B cannot access Merchant A store membership', async () => {
+      await expect(assertStoreMember(database, callerB(), storeA)).rejects.toThrow(ForbiddenException);
     });
 
     it('Merchant B cannot create offer with Merchant A storeId → rejected', async () => {
