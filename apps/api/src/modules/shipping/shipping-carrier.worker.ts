@@ -841,12 +841,14 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       });
 
       if (response.status === 429 || response.status >= 500) {
+        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
         throw new RetryableCarrierError(
           `Carrier label download returned HTTP ${response.status}`,
           { providerKey, operation: 'downloadLabel' },
         );
       }
       if (!response.ok) {
+        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
         throw new NonRetryableCarrierError(
           `Carrier label download returned HTTP ${response.status}`,
           { providerKey, operation: 'downloadLabel' },
@@ -858,6 +860,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         .trim()
         .toLowerCase();
       if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
+        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
         throw new NonRetryableCarrierError(
           'Carrier label response is not a PDF document',
           { providerKey, operation: 'downloadLabel' },
@@ -866,6 +869,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
       const declaredLength = Number(response.headers.get('content-length') || 0);
       if (declaredLength > maxLabelBytes) {
+        try { await response.body?.cancel(); } catch { /* Ignore response cleanup errors. */ }
         throw new NonRetryableCarrierError(
           'Carrier label exceeds the 10 MiB size limit',
           { providerKey, operation: 'downloadLabel' },
@@ -932,7 +936,12 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       key: storageKey,
       body: pdf,
       contentType: 'application/pdf',
-      metadata: { shipmentId, providerKey, outboxEventId: eventId },
+      metadata: { 'shipment-id': shipmentId, 'provider-key': providerKey, 'outbox-event-id': eventId },
+    }).catch(() => {
+      throw new RetryableCarrierError(
+        'Could not persist carrier label object to storage',
+        { providerKey, operation: 'persistLabel' },
+      );
     });
 
     await this.db.db.insert(shipmentLabels).values({
@@ -947,6 +956,11 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       providerKey,
       labelType: 'SHIPPING',
       createdAt: new Date(),
+    }).catch(() => {
+      throw new RetryableCarrierError(
+        'Could not persist carrier label metadata',
+        { providerKey, operation: 'persistLabel' },
+      );
     });
 
     this.logger.log(

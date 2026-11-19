@@ -125,3 +125,19 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 });
+
+
+describe('ShippingCarrierWorker label persistence failures', () => {
+  it('classifies object-storage failures as retryable and does not insert metadata', async () => {
+    const { worker, storage, insertValues } = makeWorker();
+    storage.putObject.mockRejectedValue(new Error('synthetic S3 failure'));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(PDF, {
+      status: 200,
+      headers: { 'content-type': 'application/pdf' },
+    })));
+
+    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
+      .rejects.toMatchObject({ retryable: true, operation: 'persistLabel' });
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+});
