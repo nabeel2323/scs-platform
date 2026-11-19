@@ -1,5 +1,7 @@
 # Pilot Launch — Go/No-Go Checklist
 
+> **Current readiness notice — 19 November 2026.** This checklist is a historical pilot template, not an active go decision. PR #138 remains draft; G-002 database role/access verification is an open pre-production gate; G-007 journey UAT and the consolidated Phase 6 campaign are not complete. Consult [the current remediation plan](../remediation/IMPLEMENTATION-PLAN.md) and [evidence tracker](../remediation/IMPLEMENTATION-PROGRESS.md) before authorizing pilot activity.
+
 ## Pre-Launch Readiness
 
 ### Technical Readiness
@@ -32,7 +34,7 @@
 - [ ] Verification review SLA (48h) process defined
 - [ ] Incident response playbook tested (< 30 min response)
 - [ ] OTP/SMS failover drill completed
-- [ ] Backup + PITR configured (quarterly restore drill scheduled)
+- [ ] Backup/PITR configuration and ownership documented; restore drills are deferred by user direction and are not part of the current release campaign.
 - [ ] Monitoring dashboards accessible to ops team
 - [ ] On-call rotation defined
 
