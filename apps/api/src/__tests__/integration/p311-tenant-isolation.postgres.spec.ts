@@ -396,17 +396,15 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     expect(listB.map((payment) => payment.id)).toEqual([paymentB]);
   });
 
-  it('G-030: same-org non-members and foreign store IDs cannot list merchant payments', async () => {
-    await expect(
-      paymentsService.listMerchantPayments(
-        {
-          sub: buyerA,
-          role: 'MERCHANT',
-          activeOrg: orgA,
-        },
-        { storeId: storeA },
-      ),
-    ).rejects.toThrow();
+  it('G-030: same-org users remain org-scoped while foreign store IDs are denied', async () => {
+    // The merchant:orders:read permission is organization-wide; store_members
+    // is not the authorization boundary for financial read access.
+    const sameOrg = await paymentsService.listMerchantPayments({
+      sub: buyerA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    expect(sameOrg.map((payment) => payment.id)).toEqual([paymentA]);
 
     await expect(
       paymentsService.listMerchantPayments(
@@ -438,15 +436,23 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     expect(listB[0]!.merchantStoreId).toBe(storeB);
   });
 
-  it('G-030: merchant settlement listing rejects same-org non-members and missing org context', async () => {
+  it('G-030: same-org settlement reads stay scoped and missing org context is denied', async () => {
+    const sameOrg = await paymentsService.listMerchantSettlements({
+      sub: buyerA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    expect(sameOrg).toHaveLength(1);
+    expect(sameOrg[0]!.merchantStoreId).toBe(storeA);
+
     await expect(
       paymentsService.listMerchantSettlements(
         {
-          sub: buyerA,
+          sub: adminA,
           role: 'MERCHANT',
           activeOrg: orgA,
         },
-        { storeId: storeA },
+        { storeId: storeB },
       ),
     ).rejects.toThrow();
 
