@@ -238,36 +238,52 @@ async function main(): Promise<void> {
     `);
 
     const memberships = await client.query<QueryResultRow>(`
-      WITH RECURSIVE membership_paths AS (
-        SELECT r.oid AS root_oid,
-               r.rolname AS root_role,
-               r.oid AS granted_role_oid,
-               0 AS depth,
-               ARRAY[r.oid] AS visited
+      WITH RECURSIVE membership_paths(
+        root_role,
+        granted_role_oid,
+        depth,
+        visited,
+        admin_option,
+        inherit_option,
+        set_option
+      ) AS (
+        SELECT r.rolname,
+               m.roleid,
+               1,
+               ARRAY[r.oid, m.roleid],
+               m.admin_option,
+               m.inherit_option,
+               m.set_option
         FROM pg_roles r
+        JOIN pg_auth_members m ON m.member = r.oid
         WHERE r.rolname IN (
           current_user,
+          session_user,
           'authenticator',
           'anon',
           'authenticated',
           'service_role'
         )
         UNION ALL
-        SELECT mp.root_oid,
-               mp.root_role,
+        SELECT mp.root_role,
                m.roleid,
                mp.depth + 1,
-               mp.visited || m.roleid
+               mp.visited || m.roleid,
+               m.admin_option,
+               m.inherit_option,
+               m.set_option
         FROM membership_paths mp
         JOIN pg_auth_members m ON m.member = mp.granted_role_oid
         WHERE NOT m.roleid = ANY(mp.visited)
       )
-      SELECT DISTINCT mp.root_role AS member_role,
+      SELECT mp.root_role AS member_role,
              granted.rolname AS inherited_role,
-             mp.depth AS membership_depth
+             mp.depth AS membership_depth,
+             mp.admin_option,
+             mp.inherit_option,
+             mp.set_option
       FROM membership_paths mp
       JOIN pg_roles granted ON granted.oid = mp.granted_role_oid
-      WHERE mp.depth > 0
       ORDER BY member_role, membership_depth, inherited_role
     `);
 
