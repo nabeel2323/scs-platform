@@ -760,5 +760,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The financial Admin pages and read-only regression tests have been updated; repository-locked Prettier is applied before the next full CI run.
 
 ### Final Admin workflow formatting and CI correction — 19 November 2026
+
 - CI #909 passed Flutter analysis/tests and completed all workspace typechecks, then the changed-file Prettier gate identified eight files: the Admin management test, attribute detail page, four financial workflow pages, and the implementation plan/progress tracker.
 - The repository-locked formatter is being rerun explicitly against all eight files before another full CI attempt. No application test failure was reported by CI #909 because downstream test jobs were skipped after the formatting gate.

@@ -35,8 +35,14 @@ function AttributeDetailContent({ id }: { id: string }) {
     if (!ready || !hasAccess) return;
     setLoading(true);
     adminRequest<AdminRecord>(`attributes/${encodeURIComponent(id)}`)
-      .then(data => { setAttr(data); setLoading(false); })
-      .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load attribute'); setLoading(false); });
+      .then((data) => {
+        setAttr(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load attribute');
+        setLoading(false);
+      });
   }, [id, ready, hasAccess]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
@@ -50,44 +56,81 @@ function AttributeDetailContent({ id }: { id: string }) {
 
   const defItems: KVItem[] = [
     { key: 'name', label: 'Name', value: String(attr['name'] || 'Not set') },
-    { key: 'code', label: 'Code', value: <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{String(attr['code'] || attr['name'] || 'Not set')}</span> },
+    {
+      key: 'code',
+      label: 'Code',
+      value: (
+        <span style={{ fontFamily: 'monospace', fontSize: 13 }}>
+          {String(attr['code'] || attr['name'] || 'Not set')}
+        </span>
+      ),
+    },
     { key: 'type', label: 'Type', value: <AdminStatusBadge status={attrType} /> },
     { key: 'scope', label: 'Scope', value: <AdminStatusBadge status={scope} /> },
     { key: 'unit', label: 'Unit', value: attr['unit'] ? String(attr['unit']) : '—' },
-    { key: 'isFilterable', label: 'Filterable', value: attr['isFilterable'] !== false ? 'Yes' : 'No' },
-    { key: 'isSearchable', label: 'Searchable', value: attr['isSearchable'] !== false ? 'Yes' : 'No' },
+    {
+      key: 'isFilterable',
+      label: 'Filterable',
+      value: attr['isFilterable'] !== false ? 'Yes' : 'No',
+    },
+    {
+      key: 'isSearchable',
+      label: 'Searchable',
+      value: attr['isSearchable'] !== false ? 'Yes' : 'No',
+    },
     { key: 'createdAt', label: 'Created', value: formatDate(attr['createdAt'] as string) },
     { key: 'updatedAt', label: 'Updated', value: formatDate(attr['updatedAt'] as string) },
-    { key: 'id', label: 'Attribute ID', value: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
-        <AdminCopyButton value={id} label="" />
-      </span>
-    )},
+    {
+      key: 'id',
+      label: 'Attribute ID',
+      value: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{id}</span>
+          <AdminCopyButton value={id} label="" />
+        </span>
+      ),
+    },
   ];
 
   // Type-specific validation items
   const validationItems: KVItem[] = [];
   if (attrType === 'NUMERIC' || attrType === 'NUMBER') {
     validationItems.push(
-      { key: 'minValue', label: 'Minimum', value: attr['minValue'] != null ? String(attr['minValue']) : '—' },
-      { key: 'maxValue', label: 'Maximum', value: attr['maxValue'] != null ? String(attr['maxValue']) : '—' },
-      { key: 'precision', label: 'Precision', value: attr['precision'] != null ? String(attr['precision']) : '—' },
+      {
+        key: 'minValue',
+        label: 'Minimum',
+        value: attr['minValue'] != null ? String(attr['minValue']) : '—',
+      },
+      {
+        key: 'maxValue',
+        label: 'Maximum',
+        value: attr['maxValue'] != null ? String(attr['maxValue']) : '—',
+      },
+      {
+        key: 'precision',
+        label: 'Precision',
+        value: attr['precision'] != null ? String(attr['precision']) : '—',
+      },
     );
   }
   if (attrType === 'BOOLEAN') {
-    validationItems.push(
-      { key: 'defaultValue', label: 'Default', value: attr['defaultValue'] != null ? String(attr['defaultValue']) : '—' },
-    );
+    validationItems.push({
+      key: 'defaultValue',
+      label: 'Default',
+      value: attr['defaultValue'] != null ? String(attr['defaultValue']) : '—',
+    });
   }
 
   // Options (for ENUM type)
-  const options = Array.isArray(attr['options']) ? attr['options'] as AdminRecord[] : [];
+  const options = Array.isArray(attr['options']) ? (attr['options'] as AdminRecord[]) : [];
 
   return (
     <div>
       <AdminDetailHeader
-        breadcrumbs={[{ label: 'Catalog', href: '/attributes' }, { label: 'Attributes', href: '/attributes' }]}
+        breadcrumbs={[
+          { label: 'Catalog', href: '/attributes' },
+          { label: 'Attributes', href: '/attributes' },
+        ]}
         backLabel="Back to Attributes"
         backHref="/attributes"
         title={String(attr['name'] || 'Attribute')}
@@ -110,18 +153,37 @@ function AttributeDetailContent({ id }: { id: string }) {
             {options.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {options.map((opt, i) => (
-                  <div key={(opt['id'] as string) || i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '8px 14px', border: '1px solid #d9e2e6', borderRadius: 6, background: '#fff',
-                  }}>
-                    <span style={{ fontWeight: 500 }}>{String(opt['value'] || opt['name'] || '—')}</span>
-                    {opt['valueAr'] != null && <span dir="rtl" style={{ color: '#5b6b74', fontSize: 13 }}>{String(opt['valueAr'])}</span>}
-                    {opt['label'] != null && <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(opt['label'])}</span>}
+                  <div
+                    key={(opt['id'] as string) || i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 14px',
+                      border: '1px solid #d9e2e6',
+                      borderRadius: 6,
+                      background: '#fff',
+                    }}
+                  >
+                    <span style={{ fontWeight: 500 }}>
+                      {String(opt['value'] || opt['name'] || '—')}
+                    </span>
+                    {opt['valueAr'] != null && (
+                      <span dir="rtl" style={{ color: '#5b6b74', fontSize: 13 }}>
+                        {String(opt['valueAr'])}
+                      </span>
+                    )}
+                    {opt['label'] != null && (
+                      <span style={{ fontSize: 12, color: '#5b6b74' }}>{String(opt['label'])}</span>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
-              <AdminEmptyState title="No options defined" description="This ENUM attribute has no allowed options configured." />
+              <AdminEmptyState
+                title="No options defined"
+                description="This ENUM attribute has no allowed options configured."
+              />
             )}
           </AdminDetailSection>
         )}
@@ -133,5 +195,9 @@ function AttributeDetailContent({ id }: { id: string }) {
 export default function AttributeDetailPage() {
   const params = useParams();
   const id = params['id'] as string;
-  return <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}><AttributeDetailContent id={id} /></Suspense>;
+  return (
+    <Suspense fallback={<AdminLoadingSkeleton kvRows={6} />}>
+      <AttributeDetailContent id={id} />
+    </Suspense>
+  );
 }
