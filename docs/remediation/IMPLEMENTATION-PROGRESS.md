@@ -591,3 +591,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Added focused worker tests proving HTTP 5xx and download timeouts are retryable, HTTP 4xx is terminal, and no label object/metadata is persisted on those failures.
 - Existing tests cover successful PDF persistence, SSRF rejection, duplicate-event idempotency, invalid PDF payloads and storage failure. The label-request controller tests cover shipment locking and duplicate request suppression.
 - Expanded tests await CI #772 or a newer latest-head run. CI #762 had already passed container build/smoke. No real Aramex sandbox or live shipment operation was performed.
+
+
+### Documentation formatting gate — 19 November 2026
+- The four living remediation documents were submitted to the repository's locked Prettier 3.9.6 formatter. The temporary formatter workflow is removed after its one-time run; the blocking CI changed-file format gate remains the final verification.
