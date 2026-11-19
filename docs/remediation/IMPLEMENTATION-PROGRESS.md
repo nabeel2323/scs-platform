@@ -64,7 +64,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-006 | P1 | Offer orderIncrement not enforced | 2 | CLOSED — CI #718 | MOQ-relative formula is enforced across cart/pricing/checkout; checkout locks and re-reads authoritative offer terms. Changed-offer-term revalidation and the real PostgreSQL two-session seller-edit/buyer-checkout contention test passed in the CI #718 integration suite. Cleanup restores original MOQ/orderIncrement, fixing the CI #717 fixture leak. |
 | G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | IMPLEMENTED — CI #711; UAT PENDING | Per-store mobile shipping/pickup and payment selections; server checkout preview uses authoritative promotion/shipping/VAT calculation; web/mobile review and confirmation aligned. CI #711 passed all executed jobs. Full buyer journey and order detail/tracking UAT remain in Phase 6. |
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | CLOSED — CI #714 | Persisted vocabulary retains DIGITAL only for historical rows; SUPPORTED_PAYMENT_METHODS reflects the registered manual-verification provider. Checkout rejects unsupported methods before opening the order transaction; PaymentsService repeats the guard before provider resolution/payment writes. Web disables DIGITAL and mobile omits it. Unit tests prove legacy retention, whitelist contents, supported-method acceptance, checkout pre-transaction rejection and payment-service no-side-effect rejection. |
-| G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | OPEN | Implement provider or truthful NOT_CONFIGURED state |
+| G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | IMPLEMENTED — CI PENDING | General notification SMS, FCM and WhatsApp stubs now persist NOT_CONFIGURED with stable reason codes; fake provider IDs and SENT timestamps were removed. IN_APP remains persisted and its SENT status is explicitly documented as in-app persistence, not external device delivery. Four regression tests cover SMS, push with/without active tokens, and WhatsApp. Provider sandbox delivery remains outside this finding and requires a real approved provider adapter. |
 | G-010 | P2 | Carrier label worker handler is no-op | 3 | OPEN | Use provider sandbox; no live shipment without approval |
 | G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | CLOSED — CI VERIFIED | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Unit and PostgreSQL two-worker/lease-recovery/buyer-confirmation race tests passed in CI #647; migration 0071 full apply also passed in isolated CI PostgreSQL. |
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
@@ -221,9 +221,9 @@ Status definitions:
 | P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | COMPLETE — CI #711 | Server-calculated tax-inclusive preview, per-supplier fulfillment/payment request and order confirmation details implemented. Full journey UAT reserved for Phase 6. |
 | P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | Verify per-suborder order detail and tracking in Phase 6 UAT. |
 | P4-03 | Add mobile remove-promotion operation/UI | G-019 | TODO | |
-| P4-04 | Define truthful notification delivery states | G-009 | TODO | |
-| P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | TODO | |
-| P4-06 | Add provider sandbox and retry/status tests | G-009 | TODO | |
+| P4-04 | Define truthful notification delivery states | G-009 | COMPLETE | External channels use NOT_CONFIGURED until a real adapter confirms provider acceptance; IN_APP SENT means persisted in-app item only. Documented in notifications provider selection/troubleshooting guides. |
+| P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | COMPLETE — NOT_CONFIGURED | Removed fake SMS/FCM/WhatsApp success responses and generated message IDs. Rows now record NOT_CONFIGURED with channel-specific reason codes. No external provider calls are made. |
+| P4-06 | Add provider sandbox and retry/status tests | G-009 | PARTIAL — REGRESSION TESTS ADDED | Four unit tests verify truthful NOT_CONFIGURED states and absence of sentAt/providerMsgId for unconfigured channels. Provider sandbox/retry behavior is deferred until a real provider adapter and sandbox credentials are approved; no live customer notification was sent. |
 | P4-07 | Verify in-scope admin list/detail/edit/archive workflows | Workflow parity | TODO | |
 | P4-08 | Verify merchant workflow permission and error states | Workflow parity | TODO | |
 | P4-09 | Update relevant user-facing help and screen documentation | G-018 | TODO | |
@@ -423,3 +423,12 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 5. Continue the remaining Phase 0–5 findings in the plan; Phase 6 remains one consolidated campaign after implementation.
 
 **Safety:** no live SQL mutation, grant change, RLS enablement, worker activation, Render configuration change or deployment was performed in this update.
+
+
+### G-009 implementation update — 19 November 2026
+- Replaced simulated SMS primary/fallback IDs, FCM fake IDs, and WhatsApp placeholder success with a shared NOT_CONFIGURED persistence path.
+- SMS records `SMS_PROVIDER_NOT_CONFIGURED`; PUSH records `PUSH_NO_ACTIVE_DEVICE_TOKEN` or `PUSH_PROVIDER_NOT_CONFIGURED`; WhatsApp records `WHATSAPP_PROVIDER_NOT_CONFIGURED`.
+- No external provider is called and no external channel receives SENT or a fabricated provider message ID.
+- IN_APP remains a supported persisted channel; documentation clarifies that SENT represents successful persistence, not guaranteed realtime/socket delivery.
+- Added four regression cases in `external-provider-state.spec.ts`; CI verification pending.
+- Updated notification provider-selection and troubleshooting documentation.
