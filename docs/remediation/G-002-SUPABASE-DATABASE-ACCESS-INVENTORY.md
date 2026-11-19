@@ -199,3 +199,70 @@ pnpm --filter @scs/api db:identity
 The command is read-only and emits catalog/role metadata only. Run it from the repository root in the `scs-api-staging` service shell; do not copy or print `DATABASE_URL`. No such runtime-shell execution was available through the connected Render integration in this session.
 
 No DDL, grants, revokes, role memberships, RLS policies, secrets, environment variables, migrations, seeds, deployments or business data were changed by this evidence refresh.
+
+
+### 9.5 Source schema and live relation reconciliation
+
+A source-level enumeration of the API's Drizzle schema files found **99 declared application relations across 25 schema files**. A read-only catalog comparison matched all 99 declared relation names to live relations in `public`; no declared schema relation was missing from the database.
+
+| Source schema | Declared relations |
+|---|---|
+| `modules/audit/audit.schema.ts` | `audit_logs`, `outbox_events`, `feature_flags`, `analytics_events` |
+| `modules/catalog-import/catalog-import.schema.ts` | `catalog_imports`, `catalog_import_errors` |
+| `modules/catalog/catalog.offer.schema.ts` | `merchant_offers`, `product_offer_review_state` |
+| `modules/catalog/catalog.requests.schema.ts` | `catalog_requests` |
+| `modules/catalog/catalog.schema.ts` | `categories`, `brands`, `products`, `product_moderation`, `product_variants`, `product_media`, `favorites`, `saved_suppliers`, `import_jobs`, `import_job_chunks`, `product_sources` |
+| `modules/catalog/catalog.taxonomy.schema.ts` | `attribute_definitions`, `attribute_options`, `attribute_groups`, `product_types`, `product_type_attributes`, `product_attribute_values`, `variant_attribute_values` |
+| `modules/catalog/search.schema.ts` | `search_queries` |
+| `modules/identity/identity.schema.ts` | `users`, `organizations`, `roles`, `permissions`, `role_permissions`, `organization_members`, `organization_update_requests`, `sessions`, `device_credentials`, `credential_audit_log`, `account_link_log` |
+| `modules/inventory/inventory.schema.ts` | `inventory_items`, `stock_movements` |
+| `modules/merchant/merchant.schema.ts` | `stores`, `warehouses`, `business_documents`, `verification_requests`, `store_members` |
+| `modules/notifications/notifications.schema.ts` | `notifications`, `notification_preferences`, `device_tokens` |
+| `modules/operations/operations.schema.ts` | `worker_leases`, `ops_controls`, `ops_control_audit`, `ops_alerts`, `p13_pilot_allowlist` |
+| `modules/orders/cart.schema.ts` | `carts`, `cart_items` |
+| `modules/orders/orders.schema.ts` | `master_orders`, `orders`, `order_items`, `order_financial_breakdown`, `order_status_history` |
+| `modules/orders/shipment.schema.ts` | `shipments`, `shipment_events` |
+| `modules/payments/payments.schema.ts` | `payment_records`, `payment_events`, `refunds`, `settlement_records` |
+| `modules/pricing/pricing.schema.ts` | `price_lists`, `price_tiers` |
+| `modules/promotions/promotions.schema.ts` | `promotions`, `promotion_redemptions` |
+| `modules/returns/business-calendar.schema.ts` | `business_calendars`, `business_calendar_holidays`, `business_calendar_audit` |
+| `modules/returns/financial.schema.ts` | `commission_reversals`, `settlement_adjustments`, `settlement_adjustment_approvals`, `reconciliation_runs`, `reconciliation_discrepancies` |
+| `modules/returns/returns.schema.ts` | `return_requests`, `return_request_items`, `return_request_events` |
+| `modules/reviews/reviews.schema.ts` | `reviews`, `trust_snapshots` |
+| `modules/reviews/support.schema.ts` | `disputes`, `dispute_events`, `conversations`, `messages` |
+| `modules/shipping/shipping.schema.ts` | `shipping_methods`, `delivery_zones`, `delivery_zone_methods`, `shipment_labels`, `delivery_proofs`, `driver_profiles`, `driver_store_assignments`, `carrier_webhook_events`, `carrier_credentials`, `carrier_configurations` |
+| `modules/system/bootstrap.schema.ts` | `bootstrap_authorizations` |
+
+The central `apps/api/src/drizzle/schema.ts` barrel re-exports 24 schema files (97 relation declarations). The two catalog-import relations are imported directly by `CatalogImportService` from `catalog-import.schema.ts`; they are present in the live database and are not missing schema objects.
+
+The remaining 15 of the 114 live public relations are fully accounted for:
+
+- 13 child partitions of `analytics_events`: `analytics_events_default` and `analytics_events_p20260101` through `analytics_events_p20261201`.
+- `_migration_log`, used by the migration runner.
+- `backfill_errors`, created by migration `0053_attribute_backfill.sql` as a migration audit table for the legacy JSONB-to-typed-attribute backfill.
+
+Thus the count reconciles as 99 declared application relations + 13 analytics partitions + 2 migration/support tables = 114 live public relations. This resolves the table-count discrepancy. It does **not** yet complete the access-boundary matrix: per-table required operations, caller classes, worker paths, ACL grantors and default-privilege provenance still need to be mapped.
+
+### 9.6 Role-attributed query workload evidence
+
+The live `pg_stat_statements` extension is version 1.11. Its statistics had last been reset at 31 October 2026 20:38:07 UTC. Read-only aggregation showed:
+
+| Role | Distinct statements | Calls | Rows |
+|---|---:|---:|---:|
+| `postgres` | 467 | 229,829 | 59,566 |
+| `pgbouncer` | 3 | 7,589 | 28,181 |
+| `supabase_admin` | 41 | 6,746 | 21,190 |
+| `authenticator` | 20 | 215 | 18,723 |
+| `supabase_auth_admin` | 13 | 177 | 332 |
+| `supabase_read_only_user` | 5 | 18 | 2,027 |
+| `supabase_storage_admin` | 9 | 9 | 77 |
+
+Normalized query text attributed to `postgres` includes application-specific operations against `outbox_events`, `orders`, `stores`, `worker_leases`, `ops_alerts`, `commission_reversals`, `return_requests`, `settlement_adjustments`, `refunds`, `payment_records`, and `shipments`. The largest relation-reference call totals were `outbox_events` (177,711), `orders` (12,628), `stores` (9,127), `role_permissions` (6,565), and `ops_alerts` (5,648). These are sums of calls across normalized statements referencing each relation; they are workload indicators, not unique API requests, and self-joins can count a statement more than once for a relation.
+
+The observed statement shapes include outbox polling/claiming, worker lease reads, order auto-completion claims, shipment recovery updates, and financial reconciliation checks. Together with the Supavisor/Render shutdown timing correlation in §9.3, this is **strong evidence that application/worker workload is executed under the `postgres` role**. It is still not a definitive mapping to a particular process: `pg_stat_statements` aggregates by database role, not client application, and includes any management or migration statements executed under that role. The actual Render runtime identity must still be established by the sanitized diagnostic running inside the service process.
+
+### 9.7 Diagnostic SQL compatibility against live PostgreSQL 17.6
+
+The role-tree, role-membership, relation-privilege and sequence-privilege query shapes used by `inspect-db-identity.mjs` were also executed read-only against the live PostgreSQL 17.6 project. All four query shapes completed successfully. The observed management connection role `postgres` has `LOGIN`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, and `BYPASSRLS`; its membership graph includes Supabase-managed roles such as `anon`, `authenticated`, `authenticator`, `service_role`, and PostgreSQL monitoring/read roles. The `postgres` role has all checked table privileges on the 114 public relations and all checked privileges on the one public sequence.
+
+This validates the catalog SQL against PostgreSQL 17.6, but it is **not** the Render runtime identity result: these direct MCP SQL calls use the management connection. The runtime and migration connection identities remain separate verification targets.
