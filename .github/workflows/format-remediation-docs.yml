@@ -58,5 +58,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md docs/remediation/DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md docs/remediation/G-002-RLS-ARCHITECTURE-PROPOSAL.md docs/production/CAPABILITY-MATRIX.md docs/pilot/go-no-go-checklist.md docs/monitoring/slo-and-alerting.md docs/playbooks/operational-playbooks.md apps/api/src/modules/payments/payments.service.ts apps/api/src/modules/payments/payments.controller.ts apps/api/src/__tests__/integration/p311-tenant-isolation.postgres.spec.ts apps/api/src/__tests__/unit/payments/payments-controller-tenant-scope.spec.ts apps/api/src/__tests__/unit/shipping-carrier-worker-label.spec.ts
           git commit -m "style(docs): format remediation and readiness docs"
-          git pull --rebase origin remediation/phase-0-1-tenant-security
+          git pull --rebase --autostash origin remediation/phase-0-1-tenant-security
           git push origin HEAD:remediation/phase-0-1-tenant-security
