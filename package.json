@@ -28,7 +28,8 @@
     "infra:down": "docker compose -f infra/docker-compose.dev.yml down",
     "infra:logs": "docker compose -f infra/docker-compose.dev.yml logs -f",
     "boundary-lint": "pnpm --filter @scs/api exec tsx ../../infra/ci/boundary-lint.ts",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "format:check:changed": "node infra/ci/format-changed-files.mjs"
   },
   "devDependencies": {
     "@swc/cli": "0.5.2",

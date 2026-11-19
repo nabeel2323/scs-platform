@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -97,17 +99,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
-      # Advisory only. This repo predates Prettier enforcement: it has repo-wide
-      # formatting debt plus CRLF line endings (core.autocrlf on Windows, no
-      # .gitattributes) while .prettierrc requires endOfLine=lf. Normalizing 100+
-      # untouched files is out of scope for the Phase 1 gap fixes, so this step
-      # reports the debt without blocking PRs. New/changed files are expected to
-      # be Prettier-clean.
-      # Advisory until the legacy repository-wide formatting debt is normalized.
-      # CI #739 found 1,181 pre-existing files that fail the current Prettier config.
-      # Do not mass-reformat unrelated production/docs files in this remediation.
-      - run: pnpm format:check
-        continue-on-error: true
+      # Enforce formatting on every file changed by this PR. The legacy full-repo
+      # formatting debt is tracked separately and must not hide new formatting regressions.
+      - run: pnpm format:check:changed
 
   # â”€â”€ Boundary Lint (E6) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   boundary-lint:

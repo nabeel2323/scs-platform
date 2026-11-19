@@ -240,7 +240,7 @@ Status definitions:
 |---|---|---|---|---|
 | P5-01 | Add develop/release branch protection and rulesets | G-014 | BLOCKED — ADMIN ACTION | Rulesets are empty and classic protection cannot be read or changed through the current connection. |
 | P5-02 | Fix boundary-lint workflow invocation | G-015 | COMPLETE | Root script uses API workspace tsx and resolves apps/api/src/modules; CI #738 executed the checker and exposed the existing debt. |
-| P5-03 | Make formatting and boundary checks blocking | G-015 | IMPLEMENTED — CI PENDING | format:check and the 193-entry baseline boundary guard are configured as blocking; verify the new workflow in the next CI run. |
+| P5-03 | Enforce formatting on PR-changed files and block boundary regressions | G-015 | IMPLEMENTED — CI #740 PENDING COMPLETION | Added a changed-files Prettier gate using the PR base merge-base and full git history checkout. The 193-entry E6 baseline gate passed in CI #740 with zero new violations. Full-repository formatting remains a separately tracked legacy backlog; no mass rewrite. |
 | P5-04 | Classify and scan .m73b6-scratch contents | G-016 | PARTIAL — INVENTORY/TEXT SCAN COMPLETE | File inventory and visible text scan completed; binary tar contents were not independently extracted. All scratch artifacts were removed from the current tree. |
 | P5-05 | Remove unnecessary scratch artifacts and add ignore rules | G-016 | COMPLETE | Removed 1,277 files / approximately 37.9 MB and added ignore rules. |
 | P5-06 | Verify/remove JWT-shaped artifact and duplicate; rotate if needed | G-017 | COMPLETE | Expired short-lived HS256 test token removed from current tree; no signing secret embedded and no rotation indicated. Historical Git objects remain. |
@@ -515,3 +515,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - G-009 and G-019 are closed on CI #738. G-010 implementation and API tests pass; container smoke and Aramex sandbox remain outstanding.
 - Phase 5 has started. Formatting and boundary gates are configured as blocking in the staged workflow; the next CI run must verify them. The boundary gate blocks new imports against a reviewed 193-entry legacy baseline; it does not claim zero legacy violations.
 - G-013 and G-022 are under read-only database analysis only. No index DDL, extension relocation, grant changes, RLS changes, migrations, seed or deployment were performed.
+
+
+### Formatting gate correction — 19 November 2026
+- CI #739 exposed 1,181 repository-wide Prettier failures. Those are legacy debt, not a safe reason to block the whole PR or mass-reformat unrelated code.
+- Replaced the advisory full-repository check with a blocking PR-changed-files check. The new script compares `origin/$GITHUB_BASE_REF...HEAD`, checks only changed supported files, and requires full git history in checkout.
+- The 193-entry E6 baseline gate passed in CI #740: 193 current legacy entries, zero newly introduced imports. CI #740 API unit suite passed 4,467 tests with 110 skipped; integration tests were still running at tracker update.
