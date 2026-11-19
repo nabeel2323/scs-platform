@@ -11,6 +11,7 @@ import { fetchMyStores, Store } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState, formatMinor } from '../../../components/Shared';
 import { PageHeader, colors, typeScale, radii } from '@scs/ui-kit';
+import { useAuth } from '../../../components/AuthProvider';
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   DRAFT: { bg: colors.bgSubtle, fg: colors.muted },
@@ -27,6 +28,8 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function MerchantOffersPage() {
+  const { user, loading: authLoading } = useAuth();
+  const canWriteOffers = !!user?.perms?.includes('catalog:offers:write');
   const [stores, setStores] = useState<Store[]>([]);
   const [storeId, setStoreId] = useState('');
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -80,12 +83,13 @@ export default function MerchantOffersPage() {
   }, [storeId, filterStatus]);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     fetchMyStores().then(s => {
       setStores(s);
       const picked = pickStore(s);
       if (picked) setStoreId(picked.id);
     }).catch(() => setError('Failed to load stores'));
-  }, []);
+  }, [authLoading, user]);
 
   useEffect(() => { loadOffers(); }, [loadOffers]);
 
@@ -200,6 +204,9 @@ export default function MerchantOffersPage() {
     URL.revokeObjectURL(url);
   }
 
+  if (authLoading) return <LoadingSpinner />;
+  if (!user) return <div role="alert">Please sign in to access offers.</div>;
+
   return (
     <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
       <PageHeader title="My Offers" subtitle="Manage your product offers for the marketplace" />
@@ -225,13 +232,13 @@ export default function MerchantOffersPage() {
         >
           Download CSV
         </button>
-        <button onClick={() => setShowCreate(!showCreate)} style={{ marginLeft: 'auto', padding: '8px 16px', background: colors.brand[700], color: '#fff', border: 'none', borderRadius: radii.sm, cursor: 'pointer', ...typeScale.button }}>
+        {canWriteOffers && <button onClick={() => setShowCreate(!showCreate)} style={{ marginLeft: 'auto', padding: '8px 16px', background: colors.brand[700], color: '#fff', border: 'none', borderRadius: radii.sm, cursor: 'pointer', ...typeScale.button }}>
           {showCreate ? 'Cancel' : '+ New Offer'}
-        </button>
+        </button>}
       </div>
 
       {/* Create form */}
-      {showCreate && (
+      {canWriteOffers && showCreate && (
         <form onSubmit={handleCreate} style={{ marginBottom: 24, padding: 16, border: `1px solid ${colors.border}`, borderRadius: radii.md, background: colors.bgSubtle }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
             <label style={labelStyle}>
@@ -324,8 +331,8 @@ export default function MerchantOffersPage() {
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatMinor(a?.revenueMinor ?? 0, o.currency)}</td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>{new Date(o.createdAt).toLocaleDateString()}</td>
                   <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-                    {o.status === 'DRAFT' && <button onClick={() => handlePropose(o.id)} style={actionBtn}>Propose</button>}
-                    {(o.status === 'PROPOSED' || o.status === 'ACTIVE') && <button onClick={() => handleWithdraw(o.id)} style={actionBtn}>Withdraw</button>}
+                    {canWriteOffers && o.status === 'DRAFT' && <button onClick={() => handlePropose(o.id)} style={actionBtn}>Propose</button>}
+                    {canWriteOffers && (o.status === 'PROPOSED' || o.status === 'ACTIVE') && <button onClick={() => handleWithdraw(o.id)} style={actionBtn}>Withdraw</button>}
                   </td>
                 </tr>
                 );
