@@ -814,15 +814,85 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     const maxLabelBytes = 10 * 1024 * 1024;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15_000);
-    let response: Response;
+    let pdf: Buffer;
     try {
-      response = await fetch(result.labelData, {
+      const response = await fetch(result.labelData, {
         method: 'GET',
         headers: { Accept: 'application/pdf, application/octet-stream' },
         redirect: 'error',
         signal: controller.signal,
       });
+
+      if (response.status === 429 || response.status >= 500) {
+        throw new RetryableCarrierError(
+          `Carrier label download returned HTTP ${response.status}`,
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+      if (!response.ok) {
+        throw new NonRetryableCarrierError(
+          `Carrier label download returned HTTP ${response.status}`,
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+
+      const contentType = (response.headers.get('content-type') || '')
+        .split(';')[0]
+        .trim()
+        .toLowerCase();
+      if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
+        throw new NonRetryableCarrierError(
+          'Carrier label response is not a PDF document',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+
+      const declaredLength = Number(response.headers.get('content-length') || 0);
+      if (declaredLength > maxLabelBytes) {
+        throw new NonRetryableCarrierError(
+          'Carrier label exceeds the 10 MiB size limit',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+      if (!response.body) {
+        throw new NonRetryableCarrierError(
+          'Carrier label response has no body',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          totalBytes += chunk.value.byteLength;
+          if (totalBytes > maxLabelBytes) {
+            try { await reader.cancel(); } catch { /* Preserve the size-limit error. */ }
+            throw new NonRetryableCarrierError(
+              'Carrier label exceeds the 10 MiB size limit',
+              { providerKey, operation: 'downloadLabel' },
+            );
+          }
+          chunks.push(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      pdf = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+      if (pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-') {
+        throw new NonRetryableCarrierError(
+          'Carrier label payload does not have a valid PDF signature',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
     } catch (error) {
+      if (error instanceof NonRetryableCarrierError || error instanceof RetryableCarrierError) {
+        throw error;
+      }
       if (controller.signal.aborted) {
         throw new RetryableCarrierError(
           'Carrier label download timed out',
@@ -834,75 +904,8 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         { providerKey, operation: 'downloadLabel' },
       );
     } finally {
+      // Keep the timeout active through response-body streaming, not just headers.
       clearTimeout(timeout);
-    }
-
-    if (response.status === 429 || response.status >= 500) {
-      throw new RetryableCarrierError(
-        `Carrier label download returned HTTP ${response.status}`,
-        { providerKey, operation: 'downloadLabel' },
-      );
-    }
-    if (!response.ok) {
-      throw new NonRetryableCarrierError(
-        `Carrier label download returned HTTP ${response.status}`,
-        { providerKey, operation: 'downloadLabel' },
-      );
-    }
-
-    const contentType = (response.headers.get('content-type') || '')
-      .split(';')[0]
-      .trim()
-      .toLowerCase();
-    if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
-      throw new NonRetryableCarrierError(
-        'Carrier label response is not a PDF document',
-        { providerKey, operation: 'downloadLabel' },
-      );
-    }
-
-    const declaredLength = Number(response.headers.get('content-length') || 0);
-    if (declaredLength > maxLabelBytes) {
-      throw new NonRetryableCarrierError(
-        'Carrier label exceeds the 10 MiB size limit',
-        { providerKey, operation: 'downloadLabel' },
-      );
-    }
-
-    if (!response.body) {
-      throw new NonRetryableCarrierError(
-        'Carrier label response has no body',
-        { providerKey, operation: 'downloadLabel' },
-      );
-    }
-
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-    try {
-      while (true) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        totalBytes += chunk.value.byteLength;
-        if (totalBytes > maxLabelBytes) {
-          await reader.cancel();
-          throw new NonRetryableCarrierError(
-            'Carrier label exceeds the 10 MiB size limit',
-            { providerKey, operation: 'downloadLabel' },
-          );
-        }
-        chunks.push(chunk.value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-
-    const pdf = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
-    if (pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-') {
-      throw new NonRetryableCarrierError(
-        'Carrier label payload does not have a valid PDF signature',
-        { providerKey, operation: 'downloadLabel' },
-      );
     }
 
     const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
