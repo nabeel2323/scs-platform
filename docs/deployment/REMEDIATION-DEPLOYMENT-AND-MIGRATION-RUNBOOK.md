@@ -96,3 +96,12 @@ The user has confirmed that one PostgreSQL database is shared across branches. T
 - [ ] Worker topology/flags and alert sink are verified; no unintended worker activation.
 - [ ] User/admin documentation and release notes updated.
 - [ ] No unapproved payment, shipment, notification or customer-data side effect occurred.
+
+
+### Fresh staging topology verification — 19 November 2026
+
+The Render workspace was rechecked read-only. The current service is `scs-api-staging`, a single web service on branch `develop`, with auto-deploy disabled, one configured instance, Frankfurt region, free plan, and health check `/v1/readyz`. Its build command installs dependencies and builds `@scs/api`; its start command is `pnpm --filter @scs/api start:prod`. Neither command runs migrations or seeds. The release workflow is the separate mutating path: it runs `db:migrate`, the RBAC-only `db:seed`, verifies the migration ledger, then deploys the same commit SHA.
+
+No separate Render background-worker service or Render-managed PostgreSQL instance is configured in the inspected workspace. Runtime logs show `OutboxDispatcher` registered at a 1-second poll interval and `ShippingCarrierWorker` at 5 seconds inside the API process. `P13MonitorService` scans every 60 seconds in log-only mode; `ReturnExpirationWorker` is disabled because `P13_WORKER_ENABLED` is unset; the P13 alert channel is log-only because no webhook is configured. Current service configuration reports one instance; repeated worker-registration messages in logs correspond to different instance IDs over restarts and do not prove simultaneous multi-instance execution.
+
+Operational implications: do not assume a Render restart migrates the database; do not enable protected P13 work until its feature flag, worker ownership, pause/resume controls and alert webhook are configured and verified; do not treat the API process as a dedicated worker service. No environment values were read, and no service settings, deployment, restart, migration, seed or worker flag were changed during this verification.
