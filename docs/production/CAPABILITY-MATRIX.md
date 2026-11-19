@@ -1,5 +1,7 @@
 # SCS Platform — Capability Matrix
 
+> **Historical baseline — 25 September 2026.** This matrix has not been re-certified against the 19 November 2026 remediation head. Its checkmarks and phase-gate statement are historical claims, not current release evidence. Current readiness, verified commits and open blockers are maintained in [the remediation plan](../remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../remediation/IMPLEMENTATION-PROGRESS.md). PR #138 remains draft and the consolidated Phase 6 campaign has not started.
+
 **Last Updated:** 2026-09-25
 **Phase:** 5 (Frontend Capability & Workflow Completion)
 **Status Legend:** ✅ COMPLETE | ⚠️ PARTIAL | ❌ MISSING | 🔶 BACKEND GAP
