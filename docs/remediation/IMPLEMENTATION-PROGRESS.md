@@ -612,3 +612,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Marked `docs/monitoring/slo-and-alerting.md` thresholds as proposed, not measured/active, and called out the mismatch between Kubernetes/pod terminology and the currently observed Render service topology.
 - Added explicit shared-database and live-side-effect safety warnings to `docs/playbooks/operational-playbooks.md`.
 - G-018 remains PARTIAL: this targeted reconciliation covers the most misleading readiness and operational documents, not all 533 files under `docs/`. Remaining guides must be reconciled alongside their owning code changes.
+
+
+### Documentation formatter handoff — 19 November 2026
+- The current-readiness notices and operational documentation corrections are being normalized with the repository's locked Prettier version before the next full CI verification.
