@@ -1,5 +1,6 @@
 import {
   Controller,
+  Inject,
   Get,
   Post,
   Patch,
@@ -42,8 +43,8 @@ import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../c
 @UseGuards(JwtAuthGuard)
 export class CatalogOfferController {
   constructor(
-    private readonly offerService: CatalogOfferService,
-    private readonly db: DatabaseService,
+    @Inject(CatalogOfferService) private readonly offerService: CatalogOfferService,
+    @Inject(DatabaseService) private readonly db: DatabaseService,
   ) {}
 
   // ── Read routes ───────────────────────────────────────────────
