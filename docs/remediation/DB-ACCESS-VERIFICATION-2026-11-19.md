@@ -52,14 +52,16 @@ Effective privileges were counted using PostgreSQL `has_table_privilege` across 
 
 The raw ACL for representative tables (`users`, `orders`, `merchant_offers`, `products`) confirms these non-DML grants are explicit. In particular, TRUNCATE is a destructive privilege and should not be granted to public client roles. MAINTAIN is a PostgreSQL 17 table-maintenance privilege; it is not row-read or row-write access, but is also unnecessary for these client roles.
 
-All three roles have USAGE but not CREATE on schema `public`.
+All three roles have USAGE but not CREATE on schema `public`. A separate `aclexplode` review of all 114 public tables and public-schema/global default ACLs found **zero grants to the pseudo-role `PUBLIC`**. No table privilege is being inherited by every database role through `PUBLIC` in the inspected snapshot.
 
 ## Default privileges
 
 The live `pg_default_acl` inventory shows:
 
 - Default privileges for objects created by `postgres` in `public` grant anon/authenticated/service_role table privileges including MAINTAIN, REFERENCES, TRIGGER and TRUNCATE.
-- Default privileges owned by `supabase_admin` include broad table DML grants for anon/authenticated/service_role, sequence grants and function EXECUTE grants.
+- Default privileges owned by `supabase_admin` include broad table DML grants for anon/authenticated/service_role, sequence grants and function EXECUTE grants. The connected `postgres` role is not a member of `supabase_admin` and cannot assume it.
+- The connected role's effective search path includes `public, extensions`; the Render API/migration role is not known.
+- `pg_trgm` is owned by `supabase_admin` (superuser), is relocatable, and has 47 extension-owned objects. Five application GIN indexes use `gin_trgm_ops`. The current `postgres` role is not a member of the extension owner and cannot safely execute `ALTER EXTENSION ... SET SCHEMA`.
 
 Do not modify the Supabase-managed `supabase_admin` default ACL without a separate ownership and platform-support review. The `postgres` default ACL is the application-relevant grant recurrence that migration 0070 is intended to address when executed by the appropriate owner role.
 
@@ -72,7 +74,7 @@ Migration 0070 currently revokes all table and sequence privileges from anon/aut
 - anon/authenticated can execute all 32 public functions.
 - All 32 had no function-level configuration in the broad inventory query; this is an inventory signal, not proof that every function needs a pinned search_path. Review each function's body, volatility and exposure before changing it.
 - Security Advisor flags `public.normalize_arabic(text)` for mutable search_path. Migration 0070 pins it to `pg_catalog` and CI asserts that setting.
-- Security Advisor also flags `pg_trgm` installed in `public`. G-022 remains open; extension relocation requires dependency/index review and is not part of this G-002 grant remediation.
+- Security Advisor also flags `pg_trgm` installed in `public`. The extension owner and role-membership review show that relocation is blocked from the connected `postgres` role; see `PG-TRGM-RELOCATION-REVIEW-2026-11-19.md`.
 
 ## Migration ledger
 
@@ -116,3 +118,12 @@ A manually dispatched GitHub workflow, `.github/workflows/db-access-audit.yml`, 
 ## Safety statement
 
 This report is based on read-only live queries and source inspection. No SQL mutation, migration, grant change, RLS enablement, worker activation, Render configuration change or deployment was performed.
+
+
+## Additional ACL and extension-owner verification — 19 November 2026
+
+A separate catalog query using `aclexplode` found zero direct table grants to `PUBLIC` across all 114 public tables and zero default-ACL grants to `PUBLIC` for public-schema or global defaults. This narrows the immediate exposure assessment: the inspected client roles have no table CRUD grants, and no privilege is inherited through the PUBLIC pseudo-role. Their explicit TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants remain unnecessary and are the target of migration 0070 for anon/authenticated.
+
+The `normalize_arabic(text)` function is owned by `postgres`, is not SECURITY DEFINER, and its body uses PostgreSQL built-ins only (`regexp_replace`, `chr`, `translate`, `replace`, `lower`, `trim`). The current live function has no pinned `proconfig`; migration 0070's `search_path = pg_catalog` change is compatible but remains unapplied to the shared database.
+
+The `pg_trgm` extension is owned by `supabase_admin`, not by the connected `postgres` role. The current role is not a member of `supabase_admin` and cannot `SET ROLE`; do not attempt relocation from this connection. See the separate G-022 review.

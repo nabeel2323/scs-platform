@@ -760,3 +760,12 @@ The read-only live inventory reports 71 foreign-key constraints without a matchi
 ## 23. G-022 pg_trgm relocation review — 19 November 2026
 
 The extension is relocatable, but it is owned by the Supabase-managed `supabase_admin` superuser. The connected `postgres` role is not a member and cannot `SET ROLE` to the owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` without schema qualification. Although the `extensions` schema exists and the current `postgres` search_path includes it, the Render API/migration role is not verified. Do not change extension ownership or attempt relocation from the current connection. Require a Supabase owner-supported path, isolated migration test, and runtime role/search_path confirmation. See `PG-TRGM-RELOCATION-REVIEW-2026-11-19.md`.
+
+
+---
+
+## 24. Database ACL and search-path reconciliation — 19 November 2026
+
+The latest read-only catalog review found no direct table grants to the PUBLIC pseudo-role across the 114 public tables and no PUBLIC default-ACL grants. The explicit client-role grants remain excessive: anon, authenticated and service_role have no table CRUD, but retain TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on all 114 tables. Migration 0070 is CI-verified but not applied to the shared database. `normalize_arabic(text)` remains unpinned live; it is not SECURITY DEFINER and its body uses pg_catalog built-ins only. G-020 therefore remains partial until the controlled migration is applied.
+
+The `pg_trgm` extension is relocatable but owned by Supabase-managed `supabase_admin`; the connected `postgres` role cannot assume that owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` unqualified. G-022 is blocked until an owner-supported relocation path and actual API/migration search paths are verified. No live database changes were made.

@@ -41,6 +41,7 @@ async function main(): Promise<void> {
              current_database() AS database_name,
              current_setting('server_version') AS server_version,
              current_setting('application_name') AS application_name,
+             current_setting('search_path') AS search_path,
              r.rolsuper AS is_superuser,
              r.rolbypassrls AS bypasses_rls,
              r.rolcreaterole AS can_create_roles,
@@ -76,6 +77,65 @@ async function main(): Promise<void> {
       FROM role_names r CROSS JOIN tables t
       GROUP BY r.role_name
       ORDER BY r.role_name
+    `);
+
+    const publicTableGrants = await client.query<QueryResultRow>(`
+      SELECT x.privilege_type,
+             count(DISTINCT c.oid)::int AS table_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) x
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND x.grantee = 0
+      GROUP BY x.privilege_type
+      ORDER BY x.privilege_type
+    `);
+
+    const publicSequenceGrants = await client.query<QueryResultRow>(`
+      SELECT x.privilege_type,
+             count(DISTINCT c.oid)::int AS sequence_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('S', c.relowner))) x
+      WHERE n.nspname = 'public'
+        AND c.relkind = 'S'
+        AND x.grantee = 0
+      GROUP BY x.privilege_type
+      ORDER BY x.privilege_type
+    `);
+
+    const publicDefaultAclGrants = await client.query<QueryResultRow>(`
+      SELECT d.defaclrole::regrole::text AS owner_role,
+             COALESCE(n.nspname, '*') AS schema_name,
+             d.defaclobjtype AS object_type,
+             x.privilege_type,
+             count(*)::int AS grant_count
+      FROM pg_default_acl d
+      LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace
+      CROSS JOIN LATERAL aclexplode(d.defaclacl) x
+      WHERE (n.nspname = 'public' OR d.defaclnamespace = 0)
+        AND x.grantee = 0
+      GROUP BY 1, 2, 3, 4
+      ORDER BY 1, 2, 3, 4
+    `);
+
+    const extensionInventory = await client.query<QueryResultRow>(`
+      SELECT e.extname,
+             n.nspname AS extension_schema,
+             owner.rolname AS extension_owner,
+             e.extrelocatable,
+             count(d.objid)::int AS extension_owned_objects
+      FROM pg_extension e
+      JOIN pg_namespace n ON n.oid = e.extnamespace
+      JOIN pg_roles owner ON owner.oid = e.extowner
+      LEFT JOIN pg_depend d
+        ON d.refclassid = 'pg_extension'::regclass
+       AND d.refobjid = e.oid
+       AND d.deptype = 'e'
+      WHERE e.extname IN ('pg_trgm')
+      GROUP BY e.extname, n.nspname, owner.rolname, e.extrelocatable
+      ORDER BY e.extname
     `);
 
     const schemaPrivileges = await client.query<QueryResultRow>(`
@@ -136,7 +196,12 @@ async function main(): Promise<void> {
              count(*) FILTER (WHERE p.prosecdef)::int AS security_definer_count,
              count(*) FILTER (WHERE has_function_privilege('anon', p.oid, 'EXECUTE'))::int AS anon_executable,
              count(*) FILTER (WHERE has_function_privilege('authenticated', p.oid, 'EXECUTE'))::int AS authenticated_executable,
-             count(*) FILTER (WHERE p.proconfig IS NULL)::int AS without_function_config
+             count(*) FILTER (WHERE p.proconfig IS NULL)::int AS without_function_config,
+             count(*) FILTER (WHERE EXISTS (
+               SELECT 1
+               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+               WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+             ))::int AS public_executable
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'public'
     `);
@@ -172,10 +237,14 @@ async function main(): Promise<void> {
       identity: identity.rows[0] ?? null,
       effectivePrivileges: clientRoles.rows,
       publicSchemaPrivileges: schemaPrivileges.rows,
+      publicTableGrantsToPublic: publicTableGrants.rows,
+      publicSequenceGrantsToPublic: publicSequenceGrants.rows,
+      publicDefaultAclGrants: publicDefaultAclGrants.rows,
       publicSequencePrivileges: sequencePrivileges.rows,
       rowLevelSecurity: rls.rows[0] ?? null,
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
+      extensionInventory: extensionInventory.rows,
       currentRoleMemberships: memberships.rows,
       otherDatabaseConnections: otherConnections.rows,
     };
