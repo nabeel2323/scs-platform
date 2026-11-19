@@ -7,17 +7,20 @@
  * new/changed files formatted without requiring unrelated legacy files to be
  * rewritten as part of every PR.
  */
-const fs = require('node:fs');
-const path = require('node:path');
-const { execFileSync, spawnSync } = require('node:child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
 
-const baseBranch = process.env.GITHUB_BASE_REF || process.env.FORMAT_BASE_BRANCH || 'develop';
+const baseBranch =
+  process.env.GITHUB_BASE_REF || process.env.FORMAT_BASE_BRANCH || 'develop';
 const baseRef = `origin/${baseBranch}`;
 
 try {
   execFileSync('git', ['merge-base', baseRef, 'HEAD'], { stdio: 'ignore' });
 } catch {
-  console.error(`Cannot find merge base for ${baseRef} and HEAD. Ensure checkout fetch-depth is 0.`);
+  console.error(
+    `Cannot find merge base for ${baseRef} and HEAD. Ensure checkout fetch-depth is 0.`,
+  );
   process.exit(1);
 }
 
@@ -36,7 +39,9 @@ if (changed.length === 0) {
   process.exit(0);
 }
 
-console.log(`Checking formatting for ${changed.length} changed file(s) against ${baseRef}.`);
+console.log(
+  `Checking formatting for ${changed.length} changed file(s) against ${baseRef}.`,
+);
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const result = spawnSync(pnpm, ['exec', 'prettier', '--check', ...changed], {
   stdio: 'inherit',
