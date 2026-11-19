@@ -174,3 +174,16 @@ The platform separates these capabilities:
 `POST /v1/organizations` requires `identity:organizations:create`. Organization updates, membership management, and organization update requests continue to require `identity:organizations:write`. The creation permission does not authorize a buyer to manage another organization's members or settings.
 
 Migration `0069_organization_onboarding_permission.sql` registers the new permission and grants it idempotently to `BUYER` plus every existing role that already held `identity:organizations:write`, preserving prior organization-creation access. The API seed definition mirrors the grants for fresh installations. After organization creation, the creator is assigned the `MERCHANT_OWNER` membership and the web onboarding flow switches to that organization to obtain the corresponding merchant permission claims.
+
+## Product Moderation Permission Boundary
+
+Product list/detail access and product moderation are separate capabilities:
+
+| Operation | Required permission | Roles seeded with permission |
+| --- | --- | --- |
+| Read admin product moderation list/detail and media previews | `admin:merchants:read` | SUPER_ADMIN, ADMIN, MODERATOR |
+| Approve, reject or archive a product through `PATCH /v1/admin/products/:id/moderate` | `admin:products:moderate` | SUPER_ADMIN, ADMIN, MODERATOR |
+
+`admin:merchants:read` alone must never authorize a moderation mutation. Custom roles that only need to inspect merchant/product records should not receive `admin:products:moderate`. The Admin UI's `ProductModerationActions` component checks the dedicated permission, and the API `PermissionsGuard` enforces it independently.
+
+The permission is registered in `apps/api/src/common/database/rbac-seed.data.ts`. The idempotent RBAC seed creates the permission and role mappings; it is not a schema migration. The controlled release workflow runs `db:seed` after migrations. Existing access tokens carry a permission snapshot, so after the seed runs, users should refresh their session/re-authenticate to receive the new claim. Until then, the new API guard fails closed.
