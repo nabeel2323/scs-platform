@@ -500,3 +500,11 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - CI #736's boundary job reported success only because the step was `continue-on-error`; its log showed `ts-node: not found` and the checker had a wrong module-root path.
 - Root script now uses the API workspace's installed `tsx`; checker resolves `apps/api/src/modules` from `infra/ci`.
 - The gate remains advisory until the corrected checker executes, all reported cross-module violations are addressed, and the result is zero violations. Do not count the prior green job as E6 evidence.
+
+
+### CI #736 results and correction — 19 November 2026
+- Passed: API lint/typecheck, Flutter analyze/tests, web/admin tests, isolated migration full apply, and the other completed CI jobs.
+- API unit/coverage: 4,465 passed, 110 skipped, 2 failed. Both failures were in the new G-010 label-request controller tests: two locked-shipment fixtures omitted carrierShipmentId/provider fields, so the intended precondition correctly rejected the requests. The fixtures now include the locked row fields in commit 78efd99.
+- API integration job was still running when the corrected head superseded CI #736; it is not counted as passed evidence.
+- Boundary Lint appeared green only because continue-on-error was enabled; logs show the previous command failed with `ts-node: not found`. The root command and checker module path are corrected in the current head; next CI must show the actual checker output.
+- Full verification remains pending. Vercel web/admin preview checks are still affected by account build-rate-limit failures; no frontend deployment was performed.
