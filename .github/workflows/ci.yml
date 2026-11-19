@@ -124,11 +124,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Run the repository's actual modular-monolith boundary checker.
-      # It remains advisory while the known cross-module import debt is cleaned up;
-      # unlike the previous wiring, this executes the E6 rule set itself.
+      # Blocking regression gate against the reviewed legacy baseline.
+      # New cross-module imports fail CI; existing debt remains explicitly tracked.
       - run: pnpm boundary-lint
-        continue-on-error: true
 
   # â”€â”€ Unit Tests + Coverage Gates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-unit:
