@@ -363,33 +363,23 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Current state (19 November 2026):** G-001, G-003–G-005, G-008, G-011, G-020 and G-023–G-029 are verified/closed with CI evidence. CI #711 on `347289796961a8f80368e20a0fa7fa33d7a8c999` passed all executed jobs: lint/typecheck/format, Flutter analysis/tests, API unit/coverage (4,444 passed; 110 skipped across 226 files), API integration, web/admin tests, boundary lint, full migration apply on isolated CI PostgreSQL, contract/codegen, production build and container build/smoke including health, P13 configuration and non-root checks. k6 smoke and staging release were skipped by workflow conditions. G-006's agreed MOQ-relative rule and server enforcement are implemented; explicit changed-offer-term and concurrency acceptance cases remain to be reviewed before closure. G-007's per-supplier shipping/payment, server-calculated VAT preview and confirmation parity are implemented and CI-verified; full buyer journey/order-detail UAT remains in Phase 6. G-008 unsupported DIGITAL rejection is CLOSED by CI #714: API unit coverage includes five focused payment-method support tests, the checkout unit test rejects DIGITAL before transaction entry, and web/mobile choices remain aligned. G-002 remains partial: live inspection confirms 114 public tables, all postgres-owned, no RLS, residual anon/authenticated TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants, zero anon/authenticated CRUD on app tables, no public sequence privileges for those roles, and an unverified API/migration DB username. No live database migration, staging write, Render configuration change or deployment has been performed.
 
-
 | 2026-11-18 | CI #636 failure diagnosis and G-011 durable auto-completion claims | commits `605ed04`, `0ea9908`, `0805f11`, `eaed103`, `58990ad`, `08c89f2`, `c93281a` on `remediation/phase-0-1-tenant-security` | CI #636 confirmed all jobs except API unit/coverage passed. Fixed the admin category-count regression test to preserve the draft-inclusive admin contract. Increased the P9 PostgreSQL benchmark test and container teardown allowances to tolerate the observed CI resource contention. Implemented G-011 durable five-minute order claim leases, expired-claim recovery, conditional release, and a fenced OrdersService status update requiring the same current claim owner and unexpired lease. Added focused worker unit tests. | CI #636: lint/typecheck, integration, migration full apply, web/admin, Flutter and E6 passed; API coverage failed on the stale category-count expectation plus P9 availability test timeout (60s) and afterAll timeout (30s). Latest CI #643 is pending for head `c93281a`. Vercel preview statuses separately report external `build-rate-limit` failures. | IN PROGRESS — LATEST CI PENDING | Verify CI #643, add real PostgreSQL two-worker and buyer-confirmation race coverage for G-011, then continue G-003 integration proof. No live migration, deployment or shared DB change. |
-
 
 | 2026-11-18 | G-011 PostgreSQL multi-instance and buyer-confirmation race coverage | commit `95a7363` on `remediation/phase-0-1-tenant-security` | Added a Testcontainers PostgreSQL integration test with two AutoCompleteWorker instances. It verifies only one instance claims a due order, the second instance reclaims an expired lease, and a buyer-confirmation status/claim clear prevents the stale worker's fenced OrdersService transition. | New integration test committed; CI run #645 was superseded by this test commit. Await fresh latest-head CI. | IN PROGRESS — CI PENDING | Verify latest CI; if the PostgreSQL test passes, close G-011 after independent review of the migration and fencing behavior. |
 
-
 | 2026-11-19 | G-011 durable AutoCompleteWorker lease and race remediation | commits `0805f11`, `58990ad`, `08c89f2`, `c93281a`, `57e170a`, `95a7363`, `874f07b` on `remediation/phase-0-1-tenant-security` | Added migration 0071 and Drizzle claim fields; implemented persisted five-minute claims, SKIP LOCKED acquisition, expired lease recovery, owner-conditional release and claim-owner/lease-fenced completion. Added focused unit tests and PostgreSQL Testcontainers coverage for competing workers, lease recovery and buyer-confirmation race. | CI #647 passed all executed jobs: lint/typecheck, Flutter, API unit/coverage, API integration, boundary lint E6, migration full apply, web/admin tests, build, container build/smoke and contract/codegen. k6 smoke and staging release were skipped by workflow conditions. | CLOSED — CI VERIFIED | Continue G-003 production-consumer integration proof. |
-
 
 | 2026-11-19 | G-003 production outbox poller integration proof | commit `2856d5c` on `remediation/phase-0-1-tenant-security` | Added a PostgreSQL Testcontainers integration test that inserts carrier and non-carrier outbox events, invokes the real `OutboxDispatcher.poll()`, verifies the carrier event remains PENDING while the generic event becomes DISPATCHED, then invokes the real `ShippingCarrierWorker.poll()` and verifies the carrier event is claimed and safely retried for an unsupported event type without being acknowledged. Source review also found that raw SQL `RETURNING *` yields database snake_case column names while the worker consumes camelCase properties; the claim query now aliases its returned fields explicitly, and the integration test asserts the exact event type reaches retry classification. | Test committed; latest-head CI pending. Existing unit coverage for generic exclusion and dedicated worker claim/recovery/unknown-event behavior passed in prior CI #592/#647 as applicable. | IN PROGRESS — CI PENDING | Run latest CI; fix integration failures and verify the persisted-event ownership proof. |
 
-
 | 2026-11-19 | G-003 raw claim-row mapping correction | commits `7aed300`, `919ad41` on `remediation/phase-0-1-tenant-security` | Corrected `ShippingCarrierWorker.claimEvents()` raw SQL `RETURNING` fields to explicitly alias snake_case database columns to the camelCase properties consumed by event processing. Extended the persisted-event integration test to assert the real unsupported carrier event type reaches retry classification, preventing a false-positive test that would otherwise pass on an undefined event type. | Latest-head CI pending. | IN PROGRESS — CI PENDING | Verify the production-poller integration test and mapping fix in CI. |
-
 
 | 2026-11-19 | G-004 selected seller and price parity remediation | commits `973680a`, `2507837`, `8cace3c`, `464175a`, `0fca2dc`, `db2aacc`, `edf52c2`, `12e7370`, `8f65c70` on `remediation/phase-0-1-tenant-security` | Source review confirmed the search card's offerId/storeId handoff existed, but card price was read from `merchant_offers.base_price_minor` while cart pricing could use another offer's price list (including variant-level precedence over the selected product-level offer). Added batch `resolveSelectedOfferPrices` to resolve a specified offer's own active price-list tier at the requested quantity, or its explicit base price when no list is linked. Product-card enrichment now displays this resolved value and concrete variant. Cart add, batch add, quantity update and checkout price-delta checks preserve the exact selected offer. Owner-priced cart lines are no longer merged into offer-backed lines. Price results are keyed by offer/variant/quantity to support multiple variants under one product-level offer. Unavailable offers are excluded from validation. | Focused resolver, product-card and cart tests committed; latest-head CI pending. | IN PROGRESS — CI PENDING | Verify latest API unit/coverage, integration, web/admin, build and migration jobs; then close G-004 only after latest-head CI passes. |
 
-
 | 2026-11-19 | G-004 multi-variant and cart-line identity hardening | commits `a2d905d`, `68df198`, `02a3aaa`, `ac94efa`, `92c87fd`, `56aecb1`, `69c692d`, `2e0a401` | Extended exact-offer price results to key by (offerId, variantId, quantity), preventing a product-level offer's price for one variant from overwriting another variant's result during checkout repricing. Search-card enrichment now returns the concrete active variant for product-level offers. Cart line lookup explicitly matches `offer_id IS NULL` for owner-priced items, preventing them from merging into an existing seller-offer line. | Focused unit tests committed; latest-head CI pending. | IN PROGRESS — CI PENDING | Verify latest CI and resolve any test/type errors before closing G-004. |
-
 
 | 2026-11-19 | G-003, G-004 and G-005 latest-head verification | CI #687 on commit `dc071157992bb9869fcc059d3bc079bd764f8186` | G-003 production-poller integration test passed within API integration CI; generic dispatcher and carrier worker ownership is verified for persisted carrier/non-carrier events, including unsupported-event retry. G-004 exact-offer price resolver (13 tests), product-card (8) and cart (7) focused suites passed API unit/coverage; integration and all other applicable jobs passed. G-005 checkout currency helper passed all 5 focused tests; web/admin tests and lint/typecheck passed. | CI #687 passed every executed job: lint/typecheck, Flutter, API integration, web/admin, boundary lint, unit/coverage (4,419 passed; 110 skipped), migration full apply on isolated CI PostgreSQL, container build/smoke, contract/codegen and build. k6 smoke and staging release were skipped. | CLOSED — CI VERIFIED | Continue Phase 2 with G-006; G-002 remains a pre-production access-model gate. No deployment or live migration. |
 
-
 | 2026-11-19 | G-008 unsupported DIGITAL payment rejection | CI #714 on current PR head `5b0670a327a70f553e69175ec2d0a6e981244039` | `PAYMENT_METHODS` retains DIGITAL only for historical persistence; `SUPPORTED_PAYMENT_METHODS` contains BANK_TRANSFER, CASH_ON_DELIVERY and VOUCHER. Checkout rejects unsupported methods before transaction entry; PaymentsService rejects before provider resolution and payment insert. Buyer web disables DIGITAL; mobile offers only supported methods. Focused payment-method support suite passed (5 tests), including the checkout test proving no transaction starts. | CI #714 passed all executed jobs on current head: lint/typecheck, Flutter, API unit/coverage (4,452 passed; 110 skipped; 227 files passed/6 skipped), API integration, web/admin, boundary lint, isolated full migration apply, build, contract/codegen and container build/smoke. k6 and staging release skipped. | CLOSED — CI VERIFIED | Keep DIGITAL out of all new checkout/payment flows; any future gateway requires a separately approved provider architecture. No live migration or deployment. |
-
 
 ---
 
@@ -424,7 +414,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 **Safety:** no live SQL mutation, grant change, RLS enablement, worker activation, Render configuration change or deployment was performed in this update.
 
-
 ### G-009 implementation update — 19 November 2026
 - Replaced simulated SMS primary/fallback IDs, FCM fake IDs, and WhatsApp placeholder success with a shared NOT_CONFIGURED persistence path.
 - SMS records `SMS_PROVIDER_NOT_CONFIGURED`; PUSH records `PUSH_NO_ACTIVE_DEVICE_TOKEN` or `PUSH_PROVIDER_NOT_CONFIGURED`; WhatsApp records `WHATSAPP_PROVIDER_NOT_CONFIGURED`.
@@ -432,7 +421,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - IN_APP remains a supported persisted channel; documentation clarifies that SENT represents successful persistence, not guaranteed realtime/socket delivery.
 - Added four regression cases in `external-provider-state.spec.ts`; CI verification pending.
 - Updated notification provider-selection and troubleshooting documentation.
-
 
 ### G-010 implementation update — 19 November 2026
 - Added authenticated POST /v1/shipments/:id/labels to enqueue label work with tenant authorization, shipment-row serialization, and active/pending duplicate checks.
@@ -442,18 +430,15 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Shipment label list/detail responses now include short-lived presigned download URLs for managed label objects.
 - Added four mocked unit tests. Real Aramex sandbox verification is still unavailable; no live shipment or provider call was made.
 
-
 ### CI #729 diagnosis — 19 November 2026
 - CI #729 failed in API typecheck because the new tsconfig include glob `scripts/**/*.ts` unintentionally pulled in pre-existing M5/M6 operational scripts that are not part of the API build and already contain strict-type errors (unknown response values and possibly undefined strings).
 - The new database audit script itself produced no reported TypeScript error. The scope is corrected to typecheck only `scripts/audit-db-access.ts`, avoiding unrelated legacy tooling and ensuring the new utility is checked.
 - Mobile analyze/tests passed in CI #729. API unit/integration and downstream jobs were skipped after the typecheck gate failed; G-009/G-010 verification remains pending until the corrected full CI run.
 
-
 ### CI trigger and frontend preview note — 19 November 2026
 - Corrected the API TypeScript include to compile only the new database audit utility after CI #729 showed that a broad scripts glob pulled in unrelated pre-existing manual M5/M6 script errors.
 - Current implementation head: `d624805be3ec5e2c35770b7ab3398555f7e76557`. Full CI verification is pending for the combined G-009, G-019 and G-010 changes.
 - Vercel web/admin status checks reported build-rate-limit failures from the Taif Vercel account. These are external preview-build quota failures, not successful builds or deployments. No Vercel deployment was performed by this implementation work.
-
 
 ### G-019 implementation update — 19 November 2026
 - Added authenticated DELETE /v1/cart/promo; it clears both the raw promo code and resolved promotion ID from the current buyer's active cart and returns refreshed cart state.
@@ -468,12 +453,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Label list/detail responses include short-lived presigned URLs for managed labels.
 - Added worker and controller tests. Real Aramex sandbox verification is pending; no live shipment/provider call was made.
 
-
 ### CI #731 diagnosis and correction — 19 November 2026
 - API typecheck identified two integration points introduced by G-010: the existing M7.2.3-A.1 concurrency test constructed ShippingCarrierWorker with the old eight-argument constructor, and the provider's unsupported-label reason is optional.
 - Added a storage mock to the integration test constructor and a safe fallback reason when the provider omits one. No runtime configuration or live carrier behavior was changed.
 - CI #731's remaining dependent API jobs were skipped after typecheck failed; a fresh full CI run is required to verify G-009, G-010 and G-019.
-
 
 ### CI #734 diagnosis and correction — 19 November 2026
 - Flutter analyze/tests passed in CI #734.
@@ -481,13 +464,11 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Updated the parser to default an absent media type to an empty string before normalization. The earlier constructor and optional provider-reason issues are resolved.
 - API unit/integration and downstream jobs were skipped after the typecheck gate; rerun full CI on the corrected head before closing G-009/G-019 or treating G-010 as CI-verified.
 
-
 ### Phase 0 documentation update — 19 November 2026
 - Added TEST-CAMPAIGN-MANIFEST.md with root/API/web/admin/mobile/contract/container/E2E/k6/migration commands, prerequisites, current CI gate behavior and Phase 6 sequence.
 - Added SYNTHETIC-TEST-IDENTITY-MATRIX.md defining two buyers, two merchants, owner/staff/admin/moderator/suspended/inactive/unauthenticated cases and minimum synthetic data/negative authorization matrix. Shared fixture factory adoption remains partial.
 - Added DEPLOYMENT-MIGRATION-RUNBOOK.md documenting API startup, migration runner, RBAC seed, release workflow, manual dispatch mutation warning, Render exact-SHA deploy, shared-database constraints and forward-fix behavior.
 - P0-03, P0-04, P0-06 and P0-08 are now complete by source/document evidence; P0-05 is partial until reusable fixtures are adopted; P0-07 remains partial pending a fresh Render service check.
-
 
 ### G-016/G-017 repository artifact cleanup — 19 November 2026
 - Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), including the 19.1 MB archive and duplicated project context, plus the root `test-token.txt` artifact.
@@ -495,12 +476,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Enumerated the scratch file tree and scanned the visible token, diff, CI parser and smoke-script text artifacts. The database URLs found were localhost/CI-container test endpoints; no private-key, AWS access-key or GitHub-token pattern was found. The token was expired; no signing secret was embedded.
 - The GitHub connector could not independently extract the binary tar contents. The archive and all scratch files are removed from the current tree, but historical Git objects remain; no history rewrite or secret rotation is justified by the evidence available.
 
-
 ### G-015 boundary-lint execution correction — 19 November 2026
 - CI #736's boundary job reported success only because the step was `continue-on-error`; its log showed `ts-node: not found` and the checker had a wrong module-root path.
 - Root script now uses the API workspace's installed `tsx`; checker resolves `apps/api/src/modules` from `infra/ci`.
 - The gate remains advisory until the corrected checker executes, all reported cross-module violations are addressed, and the result is zero violations. Do not count the prior green job as E6 evidence.
-
 
 ### CI #736 results and correction — 19 November 2026
 - Passed: API lint/typecheck, Flutter analyze/tests, web/admin tests, isolated migration full apply, and the other completed CI jobs.
@@ -509,43 +488,36 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Boundary Lint appeared green only because continue-on-error was enabled; logs show the previous command failed with `ts-node: not found`. The root command and checker module path are corrected in the current head; next CI must show the actual checker output.
 - Full verification remains pending. Vercel web/admin preview checks are still affected by account build-rate-limit failures; no frontend deployment was performed.
 
-
 ### CI #738 and Phase 5 progress — 19 November 2026
 - CI #738 completed API unit/coverage with 4,467 passed / 110 skipped across 230 passing test files (6 files skipped); API integration suite passed all 12 executed tests. Lint/typecheck/format, Flutter, web/admin, isolated migration full apply, contract/codegen, build and the advisory boundary job passed. Container build/smoke was still running at the time of this tracker update; k6 and staging release were skipped.
 - G-009 and G-019 are closed on CI #738. G-010 implementation and API tests pass; container smoke and Aramex sandbox remain outstanding.
 - Phase 5 has started. Formatting and boundary gates are configured as blocking in the staged workflow; the next CI run must verify them. The boundary gate blocks new imports against a reviewed 193-entry legacy baseline; it does not claim zero legacy violations.
 - G-013 and G-022 are under read-only database analysis only. No index DDL, extension relocation, grant changes, RLS changes, migrations, seed or deployment were performed.
 
-
 ### Formatting gate correction — 19 November 2026
 - CI #739 exposed 1,181 repository-wide Prettier failures. Those are legacy debt, not a safe reason to block the whole PR or mass-reformat unrelated code.
 - Replaced the advisory full-repository check with a blocking PR-changed-files check. The new script compares `origin/$GITHUB_BASE_REF...HEAD`, checks only changed supported files, and requires full git history in checkout.
 - The 193-entry E6 baseline gate passed in CI #740: 193 current legacy entries, zero newly introduced imports. CI #740 API unit suite passed 4,467 tests with 110 skipped; integration tests were still running at tracker update.
-
 
 ### Runtime and OTP security verification — 19 November 2026
 - Render service metadata and logs were rechecked read-only. Current staging service topology and worker activation are recorded in `STAGING-RUNTIME-TOPOLOGY-2026-11-19.md`; no deploy, restart or configuration change was performed.
 - OTP source review found raw provider exception logging on the deployed `develop` revision. The remediation branch now logs error classes only, redacts common request-body secret fields, and includes synthetic leak regression tests. The sampled Render log window did not reproduce a six-digit OTP log; this is not treated as proof that all historical leakage is resolved.
 - The exact-hash formatting baseline preserves existing style debt while making future edits to exempt files subject to Prettier. The three newly edited OTP files were formatted using the same Prettier version as CI.
 
-
 ### G-013 foreign-key index candidate review — 19 November 2026
 - A read-only exact leading-column inventory found 71 candidate foreign keys; the earlier Supabase advisor count was 55. The difference remains a methodology reconciliation item, not a reason to add indexes.
 - Only four candidate tables have non-zero estimated live rows: sessions (19), device_credentials (6), role_permissions (4) and organization_members (3). All are small. Several tables with high cumulative scan counts currently have zero estimated live rows.
 - The available pg_stat_statements snapshot does not contain representative high-volume application joins that justify a specific FK index. No index DDL was run. The review and next evidence requirements are documented in FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md.
-
 
 ### G-022 pg_trgm ownership and relocation review — 19 November 2026
 - The `extensions` schema exists and the connected `postgres` role has CREATE/USAGE there, but `pg_trgm` is owned by `supabase_admin`, which is a separate superuser. The connected `postgres` role is not a member of `supabase_admin` and cannot `SET ROLE` to it.
 - The extension is relocatable and has 47 extension-owned objects. Five application GIN indexes use `gin_trgm_ops`; catalog search uses unqualified `similarity()` calls. The current `postgres` search_path includes `extensions`, but the Render API/migration role is still unknown.
 - No extension relocation, owner change, grant change or search_path change was attempted. The migration is blocked until an owner-supported Supabase path and actual runtime role/search_path are confirmed. See PG-TRGM-RELOCATION-REVIEW-2026-11-19.md.
 
-
 ### Database ACL and search-path reconciliation — 19 November 2026
 - A catalog-level `aclexplode` check found no direct table grants to the PUBLIC pseudo-role across the 114 public tables and no PUBLIC default-ACL grants. This complements the effective `has_table_privilege` results; it does not replace the RLS design requirement.
 - `normalize_arabic(text)` is not SECURITY DEFINER, is owned by postgres and uses pg_catalog built-ins only. Its live function configuration remains unpinned because migration 0070 is not applied; therefore G-020 is partial, not closed.
 - G-022 is blocked because `pg_trgm` is owned by `supabase_admin`; the connected postgres role cannot assume that owner. No live database changes were made.
-
 
 ### Worker topology and protected-job review — 19 November 2026
 - Render read-only metadata: one API web service, one configured instance, no dedicated worker service; start command is `pnpm --filter @scs/api start:prod`, auto-deploy remains disabled.
@@ -553,7 +525,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Source confirms carrier and auto-complete workers use database row claims/leases. The P13 return worker requires an explicit environment opt-in, a durable lease with epoch fencing, and an unpaused control; it only escalates overdue returns to admin review.
 - Generic OutboxDispatcher currently logs and marks non-carrier events dispatched without an atomic claim. This is not an external side effect today (dispatch is a log statement) and the staging service is configured for one instance; do not scale the API horizontally or add side-effecting consumers to this dispatcher without introducing an atomic claim/lease and multi-instance tests.
 - No alert webhook is configured; P13 monitoring is log-only. No environment values, service settings, worker flags, database rows, migrations, or deployments were changed.
-
 
 ### Current-head verification — CI #762 — 19 November 2026
 - Current PR #138 head `f8a765d0a70a9f110b7a5408d869a1424d8382b1` completed CI #762 successfully. All 10 executable jobs passed: lint/typecheck/changed-file formatting, Flutter analyze/tests, isolated PostgreSQL full migration apply plus public-schema privilege/search_path assertions, API integration tests, web/admin tests, E6 boundary lint, API unit/coverage, contract/codegen, container build/smoke, and production build. k6 smoke and staging release were skipped by workflow conditions.
