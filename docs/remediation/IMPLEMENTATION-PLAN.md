@@ -787,3 +787,10 @@ The generic OutboxDispatcher currently logs and marks non-carrier events dispatc
 ## 26. Reusable synthetic tenant fixture foundation
 
 P0-05 now has a shared PostgreSQL identity fixture factory at `apps/api/src/__tests__/helpers/tenant-fixtures.ts`. It creates two organizations, two buyers, two merchant owners, two active stores and their owner memberships in one transaction using fresh UUIDs and synthetic phone identifiers. P311 financial tenant isolation, P4 HTTP authorization and Phase 1 marketplace integration suites now consume this common identity graph while retaining their domain-specific order, financial, catalog and warehouse fixtures. The helper is restricted to disposable integration-test databases; no shared Supabase data is used. CI verification is pending.
+
+
+---
+
+## 27. Current-head CI verification — 19 November 2026
+
+CI #762 passed all 10 executable jobs on PR #138 head `f8a765d0a70a9f110b7a5408d869a1424d8382b1`: lint/typecheck/changed-file formatting, Flutter analyze/tests, API unit/coverage, API PostgreSQL integration, web/admin tests, E6 boundary lint, isolated migration full apply with public-schema privilege and function-search_path assertions, contract/codegen, production build, and container build/smoke. k6 smoke and staging release were skipped. P0-05 synthetic two-tenant fixture adoption and G-006 two-session offer-lock contention/cleanup are verified by this run. No shared Supabase mutation or staging deployment occurred. G-002 remains blocked on actual Render API/migration DB role evidence and table classification.
