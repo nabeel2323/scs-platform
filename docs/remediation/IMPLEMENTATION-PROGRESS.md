@@ -772,7 +772,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Added tests proving missing shipment-read permission prevents network requests and shipment-read-only users can inspect delivery details without seeing mutation controls. Existing merchant delivery tests now use the canonical permission grants.
 - The API already enforces these endpoint permissions; this change aligns the client with the backend. No API authorization, RBAC seed or database change was made. CI #916 failed only at Prettier on the API test before the delivery UI commits; latest-head CI remains pending.
 
-
 ### Current-head CI #936 and staging deployment reconciliation — 19 November 2026
 
 - CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa9808fe25206264766f2523`. API unit/coverage reported 4,483 passed and 110 skipped across 237 test files (231 passed, 6 skipped). PostgreSQL integration, lint/typecheck/format, Flutter, web/admin, E6 boundary lint, isolated migration full apply, contract/codegen, build and container smoke all passed. k6 smoke and staging release were skipped.
