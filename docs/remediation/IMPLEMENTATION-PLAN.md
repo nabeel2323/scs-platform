@@ -695,6 +695,6 @@ CI verification is pending on the current PR head. No external notification prov
 
 ---
 
-## 16. Execution update — G-019 mobile promotion removal
+## 17. Execution update — G-010 carrier label persistence
 
-The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. The backend exposed only POST /v1/cart/promo. This is now implemented as an authenticated DELETE /v1/cart/promo operation that clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen now expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.
+The shipping.carrier.label worker previously logged that label generation was not implemented and then allowed the outbox event to be acknowledged. It now invokes the registered provider's generateLabel operation, fails closed for missing/unsupported providers, validates the returned URL with the provider-specific HTTPS/host/DNS SSRF allowlist, rejects redirects, applies a bounded timeout and 10 MiB size limit, verifies PDF content type/signature, and stores the PDF in the private S3 uploads bucket. The outbox event UUID is reused as the S3 object key suffix and shipment_labels primary key so retries do not create duplicate rows or objects. Shipment label list/detail read models include short-lived presigned download URLs for managed labels. Four mocked unit tests cover success, SSRF rejection, idempotency and invalid PDF payloads. Real Aramex sandbox verification remains unavailable pending authorized credentials; no live shipment or provider call was made. CI verification is pending.

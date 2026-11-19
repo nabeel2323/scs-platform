@@ -1,14 +1,16 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { eq, and, or, isNull, lt, lte, like, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierConfigurationsService } from './carrier-configurations.service';
 import { outboxEvents } from '../audit/audit.schema';
 import { shipments } from '../orders/shipment.schema';
-import { carrierWebhookEvents } from './shipping.schema';
+import { carrierWebhookEvents, shipmentLabels } from './shipping.schema';
 import { generateIdempotencyKey, CarrierCreateStatus, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
-import { classifyCarrierError, RetryableCarrierError } from './carrier-errors';
+import { classifyCarrierError, NonRetryableCarrierError, RetryableCarrierError } from './carrier-errors';
+import { carrierEndpointAllowlistRegistry } from './ssrf-protection';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierEmailResolver } from './carrier-email-resolver';
 import { CarrierRetryPolicy } from './carrier-retry-policy';
@@ -64,6 +66,7 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
     private readonly emailResolver: CarrierEmailResolver,
     private readonly retryPolicy: CarrierRetryPolicy,
     private readonly circuitBreaker: CarrierCircuitBreaker,
+    private readonly storage: StorageService,
   ) {}
 
   onModuleInit() {
@@ -735,8 +738,200 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
    * Handle shipping.carrier.label.
    */
   private async handleLabel(event: any): Promise<void> {
-    const shipmentId = event.aggregateId;
-    this.logger.log(`Carrier label requested for shipment ${shipmentId} — not yet implemented.`);
+    const shipmentId = event.aggregateId as string | undefined;
+    const eventId = event.id as string | undefined;
+    if (!shipmentId) {
+      throw new NonRetryableCarrierError(
+        'shipping.carrier.label requires aggregateId (shipmentId)',
+        { providerKey: 'unknown', operation: 'generateLabel' },
+      );
+    }
+    if (!eventId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)) {
+      throw new NonRetryableCarrierError(
+        'shipping.carrier.label requires a UUID outbox event id for idempotent persistence',
+        { providerKey: 'unknown', operation: 'generateLabel' },
+      );
+    }
+
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, shipmentId),
+    });
+    if (!shipment) {
+      throw new NonRetryableCarrierError(
+        `Shipment ${shipmentId} not found`,
+        { providerKey: 'unknown', operation: 'generateLabel' },
+      );
+    }
+
+    // The outbox event ID is the stable identity for both the object key and
+    // shipment_labels row. A retry after an S3 upload/DB insert interruption
+    // overwrites the same object and cannot create duplicate label rows.
+    const existingLabel = await this.db.db.query.shipmentLabels.findFirst({
+      where: eq(shipmentLabels.id, eventId),
+    });
+    if (existingLabel) {
+      this.logger.log(`Shipment label event ${eventId} already persisted — skipping.`);
+      return;
+    }
+
+    const providerKey = shipment.shippingProviderKey || 'manual-driver';
+    const provider = this.registry.findProvider(providerKey);
+    if (!provider) {
+      throw new NonRetryableCarrierError(
+        `Provider '${providerKey}' is not registered for label generation`,
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+    if (!provider.capabilities.canGenerateLabel) {
+      throw new NonRetryableCarrierError(
+        `Provider '${providerKey}' does not support label generation`,
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+
+    const result = await provider.generateLabel(shipmentId);
+    if (!result.supported) {
+      throw new NonRetryableCarrierError(
+        result.reason,
+        { providerKey, operation: 'generateLabel' },
+      );
+    }
+
+    // Provider label URLs are untrusted input. Reuse the carrier-specific
+    // HTTPS/host/DNS allowlist before downloading; redirects are rejected below.
+    const validation = await carrierEndpointAllowlistRegistry.validateForProvider(
+      result.labelData,
+      providerKey,
+      true,
+    );
+    if (!validation.valid) {
+      throw new NonRetryableCarrierError(
+        `Carrier label URL rejected by SSRF validation: ${validation.reason}`,
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    const maxLabelBytes = 10 * 1024 * 1024;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    let response: Response;
+    try {
+      response = await fetch(result.labelData, {
+        method: 'GET',
+        headers: { Accept: 'application/pdf, application/octet-stream' },
+        redirect: 'error',
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new RetryableCarrierError(
+          'Carrier label download timed out',
+          { providerKey, operation: 'downloadLabel' },
+        );
+      }
+      throw new RetryableCarrierError(
+        'Carrier label download failed',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      throw new RetryableCarrierError(
+        `Carrier label download returned HTTP ${response.status}`,
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+    if (!response.ok) {
+      throw new NonRetryableCarrierError(
+        `Carrier label download returned HTTP ${response.status}`,
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    const contentType = (response.headers.get('content-type') || '')
+      .split(';')[0]
+      .trim()
+      .toLowerCase();
+    if (!['application/pdf', 'application/octet-stream'].includes(contentType)) {
+      throw new NonRetryableCarrierError(
+        'Carrier label response is not a PDF document',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    const declaredLength = Number(response.headers.get('content-length') || 0);
+    if (declaredLength > maxLabelBytes) {
+      throw new NonRetryableCarrierError(
+        'Carrier label exceeds the 10 MiB size limit',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    if (!response.body) {
+      throw new NonRetryableCarrierError(
+        'Carrier label response has no body',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    try {
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        totalBytes += chunk.value.byteLength;
+        if (totalBytes > maxLabelBytes) {
+          await reader.cancel();
+          throw new NonRetryableCarrierError(
+            'Carrier label exceeds the 10 MiB size limit',
+            { providerKey, operation: 'downloadLabel' },
+          );
+        }
+        chunks.push(chunk.value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const pdf = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), totalBytes);
+    if (pdf.length < 5 || pdf.subarray(0, 5).toString('ascii') !== '%PDF-') {
+      throw new NonRetryableCarrierError(
+        'Carrier label payload does not have a valid PDF signature',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+
+    const bucket = process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads';
+    const storageKey = `shipping-labels/${shipmentId}/${eventId}.pdf`;
+    await this.storage.putObject({
+      bucket,
+      key: storageKey,
+      body: pdf,
+      contentType: 'application/pdf',
+      metadata: { shipmentId, providerKey, outboxEventId: eventId },
+    });
+
+    await this.db.db.insert(shipmentLabels).values({
+      id: eventId,
+      shipmentId,
+      labelNumber: shipment.carrierShipmentId?.slice(0, 120) || null,
+      storageKey,
+      mimeType: 'application/pdf',
+      sizeBytes: pdf.length,
+      trackingUrl: null,
+      isVoid: false,
+      providerKey,
+      labelType: 'SHIPPING',
+      createdAt: new Date(),
+    });
+
+    this.logger.log(
+      `Persisted carrier PDF label for shipment ${shipmentId} (${pdf.length} bytes)`,
+    );
   }
 
   /**

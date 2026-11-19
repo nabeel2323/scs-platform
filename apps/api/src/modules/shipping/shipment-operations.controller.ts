@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Param, Body, Query, UseGuards, HttpCode,
-  NotFoundException, BadRequestException,
+  NotFoundException, BadRequestException, Optional,
 } from '@nestjs/common';
 import { eq, and, desc, asc, or, inArray, sql, ilike } from 'drizzle-orm';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -9,6 +9,7 @@ import {
   CurrentUser, JwtPayload, RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
+import { StorageService } from '../../common/storage/storage.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
 import { shipmentLabels } from './shipping.schema';
@@ -59,6 +60,7 @@ export class ShipmentOperationsController {
     private readonly db: DatabaseService,
     private readonly registry: ShippingProviderRegistry,
     private readonly ordersService: OrdersService,
+    @Optional() private readonly storage?: StorageService,
   ) {}
 
   // ── POST /v1/shipments/:id/create ──────────────────────────────────────
@@ -282,18 +284,7 @@ export class ShipmentOperationsController {
 
     return {
       shipmentId: id,
-      labels: labels.map((l) => ({
-        id: l.id,
-        labelNumber: l.labelNumber,
-        storageKey: l.storageKey,
-        mimeType: l.mimeType,
-        sizeBytes: l.sizeBytes,
-        trackingUrl: l.trackingUrl,
-        isVoid: l.isVoid,
-        providerKey: l.providerKey,
-        labelType: l.labelType,
-        createdAt: l.createdAt,
-      })),
+      labels: await Promise.all(labels.map((label) => this.toLabelView(label))),
     };
   }
 
@@ -491,20 +482,36 @@ export class ShipmentOperationsController {
         sequence: e.sequence,
         createdAt: e.createdAt,
       })),
-      labels: labels.map((l) => ({
-        id: l.id,
-        labelNumber: l.labelNumber,
-        storageKey: l.storageKey,
-        mimeType: l.mimeType,
-        trackingUrl: l.trackingUrl,
-        isVoid: l.isVoid,
-        labelType: l.labelType,
-        createdAt: l.createdAt,
-      })),
+      labels: await Promise.all(labels.map((label) => this.toLabelView(label))),
     };
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  private async toLabelView(label: any) {
+    const isManagedObject = typeof label.storageKey === 'string'
+      && label.storageKey.startsWith('shipping-labels/');
+    const downloadUrl = this.storage && isManagedObject
+      ? await this.storage.createPresignedGetUrl(
+          process.env['S3_UPLOADS_BUCKET'] || 'scs-uploads',
+          label.storageKey,
+        )
+      : null;
+
+    return {
+      id: label.id,
+      labelNumber: label.labelNumber,
+      storageKey: label.storageKey,
+      downloadUrl,
+      mimeType: label.mimeType,
+      sizeBytes: label.sizeBytes,
+      trackingUrl: label.trackingUrl,
+      isVoid: label.isVoid,
+      providerKey: label.providerKey,
+      labelType: label.labelType,
+      createdAt: label.createdAt,
+    };
+  }
 
   private isPrivilegedRole(role: string | null | undefined): boolean {
     return ['SUPER_ADMIN', 'ADMIN', 'MODERATOR'].includes(role || '');

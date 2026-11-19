@@ -74,7 +74,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | OPEN | Classify and scan before removal |
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
-| G-019 | P2 | Mobile cannot remove applied promotion | 4 | IMPLEMENTED — CI PENDING | Added authenticated DELETE /v1/cart/promo; CartService clears both promoCode and promotionId on the buyer's active cart and returns refreshed cart state. Flutter ApiService and cart screen expose a busy-safe Remove action. API service and Flutter client regression tests added. |
+| G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
@@ -220,7 +220,7 @@ Status definitions:
 |---|---|---|---|---|
 | P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | COMPLETE — CI #711 | Server-calculated tax-inclusive preview, per-supplier fulfillment/payment request and order confirmation details implemented. Full journey UAT reserved for Phase 6. |
 | P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | Verify per-suborder order detail and tracking in Phase 6 UAT. |
-| P4-03 | Add mobile remove-promotion operation/UI | G-019 | COMPLETE — CI PENDING | Authenticated DELETE route clears promoCode + promotionId; Flutter ApiService and cart screen show a removable applied-promo action with loading/error handling. Backend and mobile API regression tests added. |
+| P4-03 | Add mobile remove-promotion operation/UI | G-019 | TODO | |
 | P4-04 | Define truthful notification delivery states | G-009 | COMPLETE | External channels use NOT_CONFIGURED until a real adapter confirms provider acceptance; IN_APP SENT means persisted in-app item only. Documented in notifications provider selection/troubleshooting guides. |
 | P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | COMPLETE — NOT_CONFIGURED | Removed fake SMS/FCM/WhatsApp success responses and generated message IDs. Rows now record NOT_CONFIGURED with channel-specific reason codes. No external provider calls are made. |
 | P4-06 | Add provider sandbox and retry/status tests | G-009 | PARTIAL — REGRESSION TESTS ADDED | Four unit tests verify truthful NOT_CONFIGURED states and absence of sentAt/providerMsgId for unconfigured channels. Provider sandbox/retry behavior is deferred until a real provider adapter and sandbox credentials are approved; no live customer notification was sent. |
@@ -434,8 +434,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Updated notification provider-selection and troubleshooting documentation.
 
 
-### G-019 implementation update — 19 November 2026
-- Added authenticated DELETE /v1/cart/promo; it clears both the raw promo code and resolved promotion ID from the current buyer's active cart and returns refreshed cart state.
-- Added the Flutter ApiService method and a Remove action in the applied-promotion row, including busy state and error feedback.
-- Added API service and Flutter client regression tests. CI verification pending.
-- No promotion was applied or removed in a live user account.
+### G-010 implementation update — 19 November 2026
+- Replaced the carrier label worker no-op with provider-driven label generation.
+- Provider-returned label URLs are revalidated with the carrier-specific HTTPS/host/DNS allowlist; redirects are rejected, download timeout is bounded, content type/PDF signature are checked, and payloads are limited to 10 MiB.
+- PDF bytes are stored in the private S3 uploads bucket. Outbox event UUID is used for both object key and shipment_labels row ID, making retries idempotent across an upload/DB interruption.
+- Shipment label list/detail responses now include short-lived presigned download URLs for managed label objects.
+- Added four mocked unit tests. Real Aramex sandbox verification is still unavailable; no live shipment or provider call was made.
