@@ -272,7 +272,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Validate read-only database identity diagnostic
-        run: pnpm --filter @scs/api db:identity
+        run: |
+          node --check apps/api/scripts/inspect-db-identity.mjs
+          pnpm --filter @scs/api db:identity
         env:
           DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
       # S1.12 D-CI-2: `pnpm --filter @scs/api test:integration` runs Vitest with
