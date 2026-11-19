@@ -435,6 +435,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 
 ### G-010 implementation update — 19 November 2026
+- Added authenticated POST /v1/shipments/:id/labels to enqueue label work with tenant authorization, shipment-row serialization, and active/pending duplicate checks.
 - Replaced the carrier label worker no-op with provider-driven label generation.
 - Provider-returned label URLs are revalidated with the carrier-specific HTTPS/host/DNS allowlist; redirects are rejected, download timeout is bounded, content type/PDF signature are checked, and payloads are limited to 10 MiB.
 - PDF bytes are stored in the private S3 uploads bucket. Outbox event UUID is used for both object key and shipment_labels row ID, making retries idempotent across an upload/DB interruption.

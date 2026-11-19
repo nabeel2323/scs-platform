@@ -290,17 +290,29 @@ export class ShipmentOperationsController {
     let outcome:
       | { status: 'AVAILABLE'; labelId: string }
       | { status: 'IN_PROGRESS'; eventId: string }
-      | { status: 'QUEUED'; eventId: string };
+      | { status: 'QUEUED'; eventId: string }
+      | undefined;
 
     // Serialize concurrent label requests for this shipment. The worker also
     // uses the outbox UUID as the label row/object identity for retry safety.
     await this.db.db.transaction(async (tx) => {
       const locked = await tx
-        .select({ id: shipments.id })
+        .select({
+          id: shipments.id,
+          carrierShipmentId: shipments.carrierShipmentId,
+          shippingProviderKey: shipments.shippingProviderKey,
+        })
         .from(shipments)
         .where(eq(shipments.id, id))
         .for('update');
-      if (locked.length === 0) throw new NotFoundException('Shipment not found');
+      const lockedShipment = locked[0];
+      if (!lockedShipment) throw new NotFoundException('Shipment not found');
+      if (!lockedShipment.carrierShipmentId) {
+        throw new BadRequestException('Create the carrier shipment before requesting a label');
+      }
+      if ((lockedShipment.shippingProviderKey || 'manual-driver') !== providerKey) {
+        throw new BadRequestException('The assigned shipping provider changed; refresh and retry');
+      }
 
       const [existingLabel] = await tx
         .select({ id: shipmentLabels.id })

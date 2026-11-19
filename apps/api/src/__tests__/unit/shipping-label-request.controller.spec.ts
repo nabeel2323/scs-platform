@@ -40,7 +40,7 @@ const caller = { sub: 'merchant-1', role: 'MERCHANT', activeOrg: 'org-1' };
 describe('ShipmentOperationsController.requestLabel (G-010)', () => {
   it('queues one carrier label event under a shipment row lock', async () => {
     const { controller, tx, insertValues } = makeController([
-      [{ id: 'shipment-1' }],
+      [{ id: 'shipment-1', carrierShipmentId: 'waybill-1', shippingProviderKey: 'aramex' }],
       [],
       [],
     ]);
