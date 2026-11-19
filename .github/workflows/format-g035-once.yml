@@ -1,0 +1,60 @@
+name: One-time G-035 merchant delivery formatter
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - apps/api/src/modules/admin/admin.controller.ts
+      - apps/api/src/__tests__/unit/admin/admin-tables.spec.ts
+      - apps/web/src/app/merchant/deliveries/page.tsx
+      - apps/web/src/app/merchant/deliveries/[id]/page.tsx
+      - apps/web/src/__tests__/merchant-deliveries.test.tsx
+      - docs/remediation/IMPLEMENTATION-PLAN.md
+      - docs/remediation/IMPLEMENTATION-PROGRESS.md
+
+permissions:
+  contents: write
+
+concurrency:
+  group: g035-format-once
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.9'
+      - run: pnpm install --frozen-lockfile
+      - name: Format remediation files
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/modules/admin/admin.controller.ts \
+            apps/api/src/__tests__/unit/admin/admin-tables.spec.ts \
+            apps/web/src/app/merchant/deliveries/page.tsx \
+            'apps/web/src/app/merchant/deliveries/[id]/page.tsx' \
+            apps/web/src/__tests__/merchant-deliveries.test.tsx \
+            docs/remediation/IMPLEMENTATION-PLAN.md \
+            docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatting
+        run: |
+          set -euo pipefail
+          files=(apps/api/src/modules/admin/admin.controller.ts apps/api/src/__tests__/unit/admin/admin-tables.spec.ts apps/web/src/app/merchant/deliveries/page.tsx 'apps/web/src/app/merchant/deliveries/[id]/page.tsx' apps/web/src/__tests__/merchant-deliveries.test.tsx docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md)
+          if git diff --quiet -- "${files[@]}"; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${files[@]}"
+          git commit -m "style(web): format merchant permission remediation"
+          git pull --rebase --autostash origin remediation/phase-0-1-tenant-security
+          git push origin HEAD:remediation/phase-0-1-tenant-security
