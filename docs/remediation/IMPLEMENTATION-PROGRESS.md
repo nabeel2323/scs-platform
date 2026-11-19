@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0–5 are in progress; Phase 6 is not started. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019 and G-023–G-029 are verified/closed. G-020 is only CI-verified; migration 0070 has not been applied to the shared database. G-007 implementation remains CI-verified with full buyer journey/order-detail/tracking UAT reserved for Phase 6. G-010 label processing is implemented; container build/smoke passed CI #762, expanded retry/timeout regression tests await current-head CI, and real Aramex sandbox verification remains unavailable. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. G-022 is blocked by Supabase-managed extension ownership. No live database mutation or deployment was performed.
+**Tracker status:** ACTIVE — Phases 0–5 are in progress; Phase 6 is not started. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019 and G-023–G-029 are verified/closed; G-030 is a newly discovered P0 with remediation committed and CI pending. G-020 is only CI-verified; migration 0070 has not been applied to the shared database. G-007 implementation remains CI-verified with full buyer journey/order-detail/tracking UAT reserved for Phase 6. G-010 label processing is implemented; container build/smoke passed CI #762, expanded retry/timeout regression tests await current-head CI, and real Aramex sandbox verification remains unavailable. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. G-022 is blocked by Supabase-managed extension ownership. No live database mutation or deployment was performed.
 
 ---
 
@@ -18,8 +18,8 @@
 | Phases completed                                  |                                                                            0 |
 | Phases in progress                                |                                                                            5 |
 | Original audit findings                           |                                                                           22 |
-| Additional findings discovered during remediation |                                                              7 (G-023–G-029) |
-| P0 open                                           |                                                                            0 |
+| Additional findings discovered during remediation |                                                             8 (G-023–G-030) |
+| P0 open                                           |                                                              1 (G-030) |
 | P1 open                                           |                                                             2 (G-002, G-007) |
 | P2 open                                           |                                                6 (G-010, G-012–G-015, G-018) |
 | P3 open                                           |                                                                            2 |
@@ -79,6 +79,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-021 |       P3 | Formal RFQ/quotation/PO workflow absent                                                                                   |  5 (decision) | OPEN                                                                                 | Decide whether in launch scope; separate project if required                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | G-022 |       P3 | pg_trgm extension installed in public schema                                                                              |             5 | BLOCKED — EXTENSION OWNER IS SUPABASE_ADMIN                                          | pg_trgm is relocatable and the extensions schema exists, but the extension owner is supabase_admin (superuser). The connected postgres role is not superuser, is not a member of supabase_admin and cannot SET ROLE. Five user GIN indexes depend on gin_trgm_ops; catalog search calls similarity() unqualified. API/migration role is still unverified. No extension DDL or ownership change is safe through the current connection. See PG-TRGM-RELOCATION-REVIEW-2026-11-19.md.                                                                                                                                                              |
 | G-023 |       P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes |             1 | VERIFIED IN CI                                                                       | Store + ACTIVE OWNER membership + creation outbox event are inserted in one transaction; service regression suite passed in CI run #536                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| G-030 | P0 | Merchant payment/settlement listings lack authenticated tenant scope | 1 | OPEN — FIX COMMITTED; CI PENDING | Merchant routes now pass JWT caller context to dedicated listing methods. Payment queries join through order/store/ACTIVE store membership and active organization; settlement queries join store/membership; explicit store IDs are checked. Admin store/buyer payment filters now apply matching order IDs. Two-tenant PostgreSQL and controller tests added; latest-head CI pending. |
 
 Status definitions:
 
@@ -616,3 +617,11 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### Documentation formatter handoff — 19 November 2026
 
 - The current-readiness notices and operational documentation corrections are being normalized with the repository's locked Prettier version before the next full CI verification.
+
+
+### G-030 merchant payment and settlement listing tenant isolation — 19 November 2026
+- Source review found merchant listing routes calling unscoped service methods. The previous payment list method built store/buyer order conditions but never applied them to the returned payment query.
+- Added dedicated merchant payment and settlement listing methods. Both require the caller's active organization and join through ACTIVE store membership; explicit store IDs are validated against both organization ownership and membership.
+- Updated both merchant controller methods to pass the authenticated JWT caller context. Corrected admin/service payment store/buyer filters to constrain matching order IDs.
+- Added controller tests for caller-context forwarding and PostgreSQL two-tenant tests for merchant A/B, same-org non-member, foreign store ID and store/buyer filter behavior.
+- G-030 is P0 and remains OPEN until latest-head CI passes all relevant API unit and PostgreSQL integration tests. No shared database or live financial records were modified.
