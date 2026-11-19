@@ -266,3 +266,21 @@ The observed statement shapes include outbox polling/claiming, worker lease read
 The role-tree, role-membership, relation-privilege and sequence-privilege query shapes used by `inspect-db-identity.mjs` were also executed read-only against the live PostgreSQL 17.6 project. All four query shapes completed successfully. The observed management connection role `postgres` has `LOGIN`, `CREATEDB`, `CREATEROLE`, `REPLICATION`, and `BYPASSRLS`; its membership graph includes Supabase-managed roles such as `anon`, `authenticated`, `authenticator`, `service_role`, and PostgreSQL monitoring/read roles. The `postgres` role has all checked table privileges on the 114 public relations and all checked privileges on the one public sequence.
 
 This validates the catalog SQL against PostgreSQL 17.6, but it is **not** the Render runtime identity result: these direct MCP SQL calls use the management connection. The runtime and migration connection identities remain separate verification targets.
+
+
+### 9.8 ACL grantor and default-privilege provenance (20 November 2026)
+
+A read-only `aclexplode` inspection of the ACLs for all 114 public relations identifies `postgres` as the grantor for every observed `MAINTAIN`, `REFERENCES`, `TRIGGER`, and `TRUNCATE` privilege granted to `anon`, `authenticated`, and `service_role`. No grant option was present, and no `PUBLIC` grants were observed. This provenance aligns with the current relation ownership snapshot: all public relations are owned by `postgres`. It does not establish the original human/configuration reason for the grants or whether the privileges are required by a managed integration.
+
+The default-privilege catalog shows materially different future-object behavior by object creator:
+
+| Creator / schema | Default table privileges for client roles | Default sequence privileges | Default function privileges |
+|---|---|---|---|
+| `postgres` / `public` | `MAINTAIN`, `REFERENCES`, `TRIGGER`, `TRUNCATE` for `anon`, `authenticated`, `service_role` | No client-role defaults; owner privileges only | No client-role defaults; owner `EXECUTE` only |
+| `supabase_admin` / `public` | Full CRUD plus structural privileges for `anon`, `authenticated`, `service_role` | `SELECT`, `UPDATE`, `USAGE` for those roles | `EXECUTE` for those roles |
+
+All currently observed public objects are owned by `postgres`; no current public object is owned by `supabase_admin`. Consequently, the `supabase_admin` public-schema defaults are not reflected in the ACLs of current public objects, but they remain a potential privilege source for future public objects created by that role. The public schema grants `USAGE` but not `CREATE` to `anon`, `authenticated`, and `service_role`; `postgres` and `supabase_admin` have `CREATE`.
+
+Other Supabase-managed schemas (`auth`, `extensions`, `graphql`, `graphql_public`, `realtime`, and `storage`) have separate managed default ACLs. They were inventoried as context only and must not be changed as part of a blanket public-schema remediation.
+
+**Interpretation and constraint:** current ACL grantor and default-ACL configuration are now mapped, but the business/managed-service dependency and historical origin of these grants are not established. Do not revoke current privileges or alter default ACLs until each privilege's dependency is validated, the creator-role paths are understood, and a narrowly scoped migration plus rollback plan is reviewed. No ACL, schema privilege, role, membership, RLS policy or database object was changed by this query.
