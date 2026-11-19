@@ -13,7 +13,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
 import { INestApplication, VersioningType } from '@nestjs/common';
-import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { CatalogOfferController } from '../../modules/catalog/catalog.offer.controller';
 import type { CatalogOfferService } from '../../modules/catalog/catalog.offer.service';
