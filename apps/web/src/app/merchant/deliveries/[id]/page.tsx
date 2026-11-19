@@ -80,8 +80,9 @@ export default function MerchantDeliveryDetailPage() {
     }
   };
 
-  if (authLoading || !user || (loading && !detail)) return <LoadingSpinner />;
+  if (authLoading || !user) return <LoadingSpinner />;
   if (!canReadShipments) return <div role="alert" style={{ padding: 24 }}>You do not have permission to view this delivery. Required: fulfillment:shipments:read.</div>;
+  if (loading && !detail) return <LoadingSpinner />;
   if (!detail) return <div style={{ padding: 24 }}><ErrorBanner message={error || 'Delivery not found'} onRetry={load} /></div>;
 
   const s = detail.shipment;
