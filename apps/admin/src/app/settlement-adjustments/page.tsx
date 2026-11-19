@@ -109,6 +109,8 @@ export default function SettlementAdjustmentsPage() {
     }
   };
 
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:adjustments:read']} missingPerms={missingPerms} />;
+
   return (
     <div style={{ padding: '24px 28px', minHeight: '100vh', background: '#0f1115', color: '#e5e7eb' }}>
       <PageHeader title="Settlement Adjustments" subtitle="Financial adjustment approval workflow" />
