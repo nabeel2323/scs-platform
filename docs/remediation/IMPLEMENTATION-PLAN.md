@@ -640,7 +640,6 @@ Continue with the explicit G-006 stale-offer/concurrency acceptance review befor
 
 **Current overall status: IN PROGRESS.** CI #711 passed every executed job on `347289796961a8f80368e20a0fa7fa33d7a8c999`: API unit/coverage (4,444 passed; 110 skipped), API integration, web/admin, lint/typecheck/format, Flutter, boundary lint, isolated full migration apply, contract/codegen, production build and container smoke. k6 smoke and staging release were skipped. G-003, G-004 and G-005 are CLOSED with CI evidence; G-011, G-028 and G-029 remain closed on their prior verified runs. G-006 implementation is CI-verified but its explicit stale-offer/concurrency acceptance review remains open. G-007 implementation is CI-verified; full journey UAT is reserved for Phase 6. G-002 remains partial pending actual API/migration role verification; G-008 is CLOSED with CI #714 evidence. No staging/production deployment or live database migration has been performed.
 
-
 ---
 
 ## 14. Execution update — 19 November 2026
@@ -676,7 +675,6 @@ This section supplements the original plan without rewriting historical audit fi
 
 **Safety boundary remains unchanged:** no live grant changes, RLS enablement, migration application, Render configuration change, worker activation, or deployment is authorized by this implementation update.
 
-
 ---
 
 ## 15. Execution update — G-009 truthful notification states
@@ -692,7 +690,6 @@ The general notification dispatcher previously returned fabricated provider IDs 
 
 CI verification is pending on the current PR head. No external notification provider was invoked, no customer notification was sent, and no provider credentials were changed.
 
-
 ---
 
 ## 17. Execution update — G-010 carrier label persistence
@@ -701,17 +698,14 @@ The shipping.carrier.label worker previously logged that label generation was no
 
 The label request is reachable through authenticated `POST /v1/shipments/:id/labels` (permission `fulfillment:labels:write`). The route checks tenant ownership, requires an existing carrier shipment and a provider with label capability, serializes concurrent requests by locking the shipment row, and returns an existing active label or pending request rather than enqueueing duplicates. The worker uses the outbox event UUID for retry-idempotent S3 and database persistence. The route does not call the carrier synchronously.
 
-
 ### CI #729 correction
 The first attempt to include the new read-only audit utility in API typecheck used a broad scripts glob and exposed unrelated pre-existing M5/M6 manual-tooling type errors. The tsconfig now includes only `scripts/audit-db-access.ts`; the manual tools remain outside the production API typecheck scope. CI #729's Flutter analyze/tests passed; the API typecheck failure prevented the remaining dependent test jobs from running. Re-run full CI after this correction before treating G-009/G-010 as verified.
-
 
 ---
 
 ## 18. Execution update — G-019 mobile promotion removal
 
 The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. Added authenticated DELETE /v1/cart/promo, which clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.
-
 
 ---
 
@@ -725,17 +719,14 @@ Added three living remediation artifacts:
 
 P0-03 is complete because the audit-baseline comparison found no code fixes hidden in the seven intervening commits (documentation only). P0-04, P0-06 and P0-08 are complete by source review/documentation. P0-05 remains partial until reusable fixture factories are adopted. P0-07 remains partial until the current Render workspace/service configuration is rechecked; the documented auto-deploy-disabled observation is historical, not a fresh live assertion.
 
-
 ---
 
 ## 20. G-016/G-017 repository artifact cleanup
 
 Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), its 19.1 MB P4.18 archive and duplicated context, plus the root `test-token.txt`. Added ignore rules to prevent reintroduction. A targeted scan of visible text artifacts found only localhost/CI PostgreSQL URLs and an expired short-lived HS256 test JWT; no private-key, AWS access-key or GitHub-token pattern was found. The token contained no signing secret and is expired, so secret rotation is not indicated. The GitHub connector could not independently extract the binary tar contents; current-tree artifacts are removed, but historical Git objects remain. No history rewrite was performed.
 
-
 ### G-015 boundary-lint execution correction
 The E6 checker had not actually executed: the root script invoked missing `ts-node`, and its module-root path was wrong. The command now uses the API workspace's installed `tsx`, and the checker resolves `apps/api/src/modules`. Keep the CI step advisory until the corrected checker reports zero violations and remaining cross-module imports are remediated; only then make the job blocking.
-
 
 ---
 
@@ -747,20 +738,17 @@ The E6 checker had not actually executed: the root script invoked missing `ts-no
 - G-014 branch protection remains blocked by repository-admin access. G-018 documentation reconciliation is partial. G-013 has 71 current FK-index candidates versus the earlier 55 count; no blanket indexes will be added. G-022 has a relocatable `pg_trgm` extension and five dependent GIN indexes; actual API/migration roles must be confirmed before any relocation.
 - Payment-gateway and RFQ/quotation/PO scope decisions remain open; current recommendation is manual payment verification for this release and defer RFQ/PO to a separate milestone. Backup/restore remains deferred by user direction until pre-production review.
 
-
 ---
 
 ## 22. G-013 foreign-key index review — 19 November 2026
 
 The read-only live inventory reports 71 foreign-key constraints without a matching valid leading-column index, compared with the earlier advisor count of 55. Only four candidate tables have non-zero estimated rows (sessions 19, device_credentials 6, role_permissions 4, organization_members 3); all are small. Cumulative scan counters on currently empty tables do not justify index creation. The current pg_stat_statements sample does not identify representative high-volume application joins. No indexes were added. Defer DDL until representative staging data is loaded and exact query plans demonstrate a benefit, then measure read gains and write/storage overhead. See `FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md`.
 
-
 ---
 
 ## 23. G-022 pg_trgm relocation review — 19 November 2026
 
 The extension is relocatable, but it is owned by the Supabase-managed `supabase_admin` superuser. The connected `postgres` role is not a member and cannot `SET ROLE` to the owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` without schema qualification. Although the `extensions` schema exists and the current `postgres` search_path includes it, the Render API/migration role is not verified. Do not change extension ownership or attempt relocation from the current connection. Require a Supabase owner-supported path, isolated migration test, and runtime role/search_path confirmation. See `PG-TRGM-RELOCATION-REVIEW-2026-11-19.md`.
-
 
 ---
 
@@ -769,7 +757,6 @@ The extension is relocatable, but it is owned by the Supabase-managed `supabase_
 The latest read-only catalog review found no direct table grants to the PUBLIC pseudo-role across the 114 public tables and no PUBLIC default-ACL grants. The explicit client-role grants remain excessive: anon, authenticated and service_role have no table CRUD, but retain TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on all 114 tables. Migration 0070 is CI-verified but not applied to the shared database. `normalize_arabic(text)` remains unpinned live; it is not SECURITY DEFINER and its body uses pg_catalog built-ins only. G-020 therefore remains partial until the controlled migration is applied.
 
 The `pg_trgm` extension is relocatable but owned by Supabase-managed `supabase_admin`; the connected `postgres` role cannot assume that owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` unqualified. G-022 is blocked until an owner-supported relocation path and actual API/migration search paths are verified. No live database changes were made.
-
 
 ---
 
@@ -781,13 +768,11 @@ Source review confirms carrier events and auto-complete orders use atomic databa
 
 The generic OutboxDispatcher currently logs and marks non-carrier events dispatched without an atomic claim. That is not an external side effect today, but it is a horizontal-scaling constraint: do not scale the API beyond one instance or add side-effecting consumers to this dispatcher until atomic claim/lease semantics and multi-instance tests exist. No runtime or database changes were made. See `STAGING-RUNTIME-TOPOLOGY-2026-11-19.md`.
 
-
 ---
 
 ## 26. Reusable synthetic tenant fixture foundation
 
 P0-05 now has a shared PostgreSQL identity fixture factory at `apps/api/src/__tests__/helpers/tenant-fixtures.ts`. It creates two organizations, two buyers, two merchant owners, two active stores and their owner memberships in one transaction using fresh UUIDs and synthetic phone identifiers. P311 financial tenant isolation, P4 HTTP authorization and Phase 1 marketplace integration suites now consume this common identity graph while retaining their domain-specific order, financial, catalog and warehouse fixtures. The helper is restricted to disposable integration-test databases; no shared Supabase data is used. CI verification is pending.
-
 
 ---
 
