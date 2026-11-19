@@ -447,8 +447,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
 
   it('G-030: same-org settlement reads stay scoped and missing org context is denied', async () => {
     const sameOrg = await paymentsService.listMerchantSettlements({
-      sub: buyerA,
-      role: 'MERCHANT',
+      sub: orgStaffA,
+      role: 'MERCHANT_STAFF',
       activeOrg: orgA,
     });
     expect(sameOrg).toHaveLength(1);
