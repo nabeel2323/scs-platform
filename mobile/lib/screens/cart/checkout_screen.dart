@@ -75,14 +75,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         (grouped[item.storeId] ??= []).add(item);
       }
       final entries = grouped.entries.toList();
-      final estimates = await Future.wait(entries.map((entry) {
+      final estimates = await Future.wait(entries.map((entry) async {
         final subtotal = entry.value.fold<int>(
             0, (sum, item) => sum + item.lineTotalMinor);
-        return ref.read(apiServiceProvider).fetchShippingEstimate(
-              storeId: entry.key,
-              subtotalMinor: subtotal,
-              city: _cityCtrl.text.trim(),
-            );
+        try {
+          return await ref.read(apiServiceProvider).fetchShippingEstimate(
+                storeId: entry.key,
+                subtotalMinor: subtotal,
+                city: _cityCtrl.text.trim(),
+              );
+        } catch (_) {
+          // Preserve a safe pickup path when delivery estimates are unavailable.
+          return <String, dynamic>{
+            'storeId': entry.key,
+            'subtotalMinor': subtotal,
+            'deliveryAvailable': false,
+            'methods': <dynamic>[],
+            'estimateUnavailable': true,
+          };
+        }
       }));
       if (!mounted) return;
       setState(() {
@@ -341,7 +352,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ..._shippingEstimates.entries.map((entry) {
           final storeId = entry.key;
           final estimate = entry.value;
-          final methods = (estimate['methods'] as List? ?? [])
+          final methods = (estimate['deliveryAvailable'] == false
+                  ? <dynamic>[]
+                  : (estimate['methods'] as List? ?? []))
               .whereType<Map>()
               .map((method) => Map<String, dynamic>.from(method))
               .where((method) => method['status'] != 'UNAVAILABLE')
@@ -368,7 +381,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Text(storeName,
                       style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
-                  if (estimate['deliveryAvailable'] == false)
+                  if (estimate['estimateUnavailable'] == true)
+                    const Text('Delivery options could not be loaded. Pickup is still available.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted))
+                  else if (estimate['deliveryAvailable'] == false)
                     const Text('Delivery is not available for this address. Pickup may still be available.',
                         style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
                   ...methods.map((method) {

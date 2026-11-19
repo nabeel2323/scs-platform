@@ -49,6 +49,7 @@ export default function CheckoutPage() {
     else grouped.set(item.storeId, [item]);
   }
   const multiStore = grouped.size > 1;
+  const storeCount = grouped.size;
   // Load shipping estimates for each store when cart loads or address changes
   useEffect(() => {
     if (cartItems.length === 0 || grouped.size === 0) return;
@@ -61,7 +62,9 @@ export default function CheckoutPage() {
         const storeName = items[0]?.storeName || `Supplier ${storeId.slice(0, 8)}`;
         try {
           const estimate = await fetchShippingEstimate(storeId, subtotal, city || undefined);
-          const availableMethods = estimate.methods.filter(m => m.status !== 'UNAVAILABLE');
+          const availableMethods = estimate.deliveryAvailable
+            ? estimate.methods.filter(m => m.status !== 'UNAVAILABLE')
+            : [];
           const defaultMethod = availableMethods[0];
           const isPickup = !defaultMethod;
           newSelections.set(storeId, {
@@ -76,7 +79,7 @@ export default function CheckoutPage() {
           newSelections.set(storeId, {
             storeId,
             storeName,
-            fulfillmentMethod: 'PLATFORM_DELIVERY',
+            fulfillmentMethod: 'PICKUP',
             shippingMethodId: null,
             estimate: null,
           });
@@ -104,11 +107,12 @@ export default function CheckoutPage() {
     if (
       cartItems.length === 0 ||
       estimatesLoading ||
-      storeSelections.size !== grouped.size ||
+      storeSelections.size !== storeCount ||
       !address.trim() ||
       !city.trim()
     ) {
       setCheckoutPreview(null);
+      setPreviewLoading(false);
       return;
     }
     let active = true;
@@ -135,7 +139,7 @@ export default function CheckoutPage() {
         if (active) setPreviewLoading(false);
       });
     return () => { active = false; };
-  }, [cartItems.length, estimatesLoading, storeSelections, address, city]);
+  }, [cartItems.length, estimatesLoading, storeSelections, storeCount, address, city]);
 
   const handleSubmit = async () => {
     if (!address.trim()) { setError('Delivery address is required'); return; }
@@ -216,10 +220,15 @@ export default function CheckoutPage() {
                     </div>
 
                     {/* Per-store shipping selection */}
-                    {sel?.estimate && sel.estimate.methods.length > 0 && (
+                    {sel && (
                       <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.borderLight}` }}>
                         <div style={{ ...typeScale.bodySm, fontWeight: 600, color: colors.brand[700], marginBottom: 4 }}>Shipping</div>
-                        {sel.estimate.methods.filter(m => m.status !== 'UNAVAILABLE').map(m => (
+                        {sel.estimate?.deliveryAvailable === false && (
+                          <div style={{ ...typeScale.bodySm, color: colors.muted, marginBottom: 4 }}>
+                            {sel.estimate ? 'Delivery is unavailable for this address.' : 'Delivery options could not be loaded.'} Pickup remains available.
+                          </div>
+                        )}
+                        {(sel.estimate?.deliveryAvailable ? sel.estimate.methods.filter(m => m.status !== 'UNAVAILABLE') : []).map(m => (
                           <label key={m.methodId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer', ...typeScale.bodySm }}>
                             <input type="radio" name={`shipping-${storeId}`} checked={sel.shippingMethodId === m.methodId}
                               onChange={() => updateSelection(storeId, { shippingMethodId: m.methodId, fulfillmentMethod: m.fulfillmentMethod })} />
@@ -234,7 +243,6 @@ export default function CheckoutPage() {
                             )}
                           </label>
                         ))}
-                        {/* Pickup option */}
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer', ...typeScale.bodySm }}>
                           <input type="radio" name={`shipping-${storeId}`} checked={sel.fulfillmentMethod === 'PICKUP'}
                             onChange={() => updateSelection(storeId, { fulfillmentMethod: 'PICKUP', shippingMethodId: null })} />
