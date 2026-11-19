@@ -1,0 +1,53 @@
+name: One-time G-002 evidence formatter
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md
+      - docs/remediation/G-002-RLS-ARCHITECTURE-PROPOSAL.md
+      - docs/remediation/IMPLEMENTATION-PLAN.md
+      - docs/remediation/IMPLEMENTATION-PROGRESS.md
+
+permissions:
+  contents: write
+
+concurrency:
+  group: g002-evidence-format-once
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.9'
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Format evidence and trackers
+        run: pnpm exec prettier --write docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md docs/remediation/G-002-RLS-ARCHITECTURE-PROPOSAL.md docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatting
+        run: |
+          set -euo pipefail
+          files=(docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md docs/remediation/G-002-RLS-ARCHITECTURE-PROPOSAL.md docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md)
+          if git diff --quiet -- "${files[@]}"; then
+            echo "Evidence files already satisfy Prettier."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${files[@]}"
+          git commit -m "style(docs): format G-002 evidence"
+          git pull --rebase --autostash origin remediation/phase-0-1-tenant-security
+          git push origin HEAD:remediation/phase-0-1-tenant-security
