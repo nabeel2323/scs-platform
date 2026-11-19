@@ -33,13 +33,17 @@ vi.mock('../lib/api', () => ({ adminRequest: vi.fn(), moderateAdminProduct: vi.f
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: (requiredPerms: string[]) => {
     navigation.requiredPerms = requiredPerms;
-    const hasAccess = navigation.allowed && (
-      navigation.allowedPermissions === null ||
-      requiredPerms.every((permission) => navigation.allowedPermissions!.includes(permission))
-    );
+    const hasAccess =
+      navigation.allowed &&
+      (navigation.allowedPermissions === null ||
+        requiredPerms.every((permission) => navigation.allowedPermissions!.includes(permission)));
     return {
       hasAccess,
-      missingPerms: hasAccess ? [] : requiredPerms.filter((permission) => !navigation.allowedPermissions?.includes(permission)),
+      missingPerms: hasAccess
+        ? []
+        : requiredPerms.filter(
+            (permission) => !navigation.allowedPermissions?.includes(permission),
+          ),
     };
   },
   AccessDenied: () => <p>Access Denied</p>,
@@ -209,8 +213,8 @@ describe('accessible dialogs and row actions', () => {
 
   it('hides product edit controls from users with read and moderation but no product-write permission', async () => {
     navigation.allowedPermissions = ['admin:merchants:read', 'admin:products:moderate'];
-    vi.mocked(adminRequest).mockImplementation(async path =>
-      path.includes('media-previews') ? { previews: {} } : product
+    vi.mocked(adminRequest).mockImplementation(async (path) =>
+      path.includes('media-previews') ? { previews: {} } : product,
     );
     render(<ProductDetails id={product.id} fullPage />);
     await screen.findByText('Complete description');
