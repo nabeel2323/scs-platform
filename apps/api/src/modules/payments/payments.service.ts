@@ -39,13 +39,14 @@ import {
   orderFinancialBreakdown,
   orderStatusHistory,
 } from '../orders/orders.schema';
-import { stores } from '../merchant/merchant.schema';
+import { stores, storeMembers } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import {
   CallerContext,
   assertOrderAccessible,
   assertStoreInOrg,
+  assertStoreMember,
   isTenantPrivileged,
 } from '../../common/tenant-scope';
 import { assertPaymentTransition, isPaymentTerminal } from './payments.state-machine';
@@ -1174,7 +1175,9 @@ export class PaymentsService {
       conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
     }
 
-    // If filtering by store or buyer, join through orders
+    // If filtering by store or buyer, resolve matching order IDs first.
+    // The previous implementation constructed orderConditions but never
+    // applied them, which silently widened a filtered request to all payments.
     if (filters?.storeId || filters?.buyerId) {
       const orderConditions = [];
       if (filters.storeId) {
@@ -1184,11 +1187,13 @@ export class PaymentsService {
         orderConditions.push(eq(orders.buyerId, filters.buyerId));
       }
 
-      return this.db.db.query.paymentRecords.findMany({
-        where: and(...conditions),
-        orderBy: [desc(paymentRecords.createdAt)],
-        limit: 100,
+      const matchingOrders = await this.db.db.query.orders.findMany({
+        where: and(...orderConditions),
+        columns: { id: true },
       });
+      const orderIds = matchingOrders.map((order) => order.id);
+      if (orderIds.length === 0) return [];
+      conditions.push(inArray(paymentRecords.orderId, orderIds));
     }
 
     return this.db.db.query.paymentRecords.findMany({
@@ -1196,6 +1201,106 @@ export class PaymentsService {
       orderBy: [desc(paymentRecords.createdAt)],
       limit: 100,
     });
+  }
+
+  /**
+   * List payments visible to an authenticated merchant.
+   *
+   * Scope is derived from the caller's active organization and ACTIVE
+   * store_members rows. A supplied storeId narrows that scope; it never
+   * replaces membership authorization.
+   */
+  async listMerchantPayments(
+    caller: CallerContext,
+    filters?: { storeId?: string; status?: string; paymentMethod?: string },
+  ) {
+    if (isTenantPrivileged(caller)) {
+      return this.listPayments(filters);
+    }
+    if (!caller.activeOrg) {
+      throw new ForbiddenException('An active organization is required to view merchant payments');
+    }
+    if (filters?.storeId) {
+      await assertStoreInOrg(this.db, caller, filters.storeId);
+      await assertStoreMember(this.db, caller, filters.storeId);
+    }
+
+    const conditions = [
+      eq(stores.orgId, caller.activeOrg),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ];
+    if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
+    if (filters?.status) conditions.push(eq(paymentRecords.status, filters.status));
+    if (filters?.paymentMethod) conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
+
+    const rows = await this.db.db
+      .select({ payment: paymentRecords })
+      .from(paymentRecords)
+      .innerJoin(orders, eq(paymentRecords.orderId, orders.id))
+      .innerJoin(stores, eq(orders.storeId, stores.id))
+      .innerJoin(
+        storeMembers,
+        and(
+          eq(storeMembers.storeId, stores.id),
+          eq(storeMembers.userId, caller.sub),
+          eq(storeMembers.status, 'ACTIVE'),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(desc(paymentRecords.createdAt))
+      .limit(100);
+
+    return rows.map((row) => row.payment);
+  }
+
+  /**
+   * List settlements visible to an authenticated merchant.
+   *
+   * Scope is derived from the caller's active organization and ACTIVE
+   * store_members rows. A supplied storeId narrows that scope; it never
+   * replaces membership authorization.
+   */
+  async listMerchantSettlements(
+    caller: CallerContext,
+    filters?: { storeId?: string; status?: string },
+  ) {
+    if (isTenantPrivileged(caller)) {
+      return this.listSettlements(filters);
+    }
+    if (!caller.activeOrg) {
+      throw new ForbiddenException('An active organization is required to view merchant settlements');
+    }
+    if (filters?.storeId) {
+      await assertStoreInOrg(this.db, caller, filters.storeId);
+      await assertStoreMember(this.db, caller, filters.storeId);
+    }
+
+    const conditions = [
+      eq(stores.orgId, caller.activeOrg),
+      eq(storeMembers.userId, caller.sub),
+      eq(storeMembers.status, 'ACTIVE'),
+    ];
+    if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
+    if (filters?.status) conditions.push(eq(settlementRecords.status, filters.status));
+
+    const rows = await this.db.db
+      .select({ settlement: settlementRecords })
+      .from(settlementRecords)
+      .innerJoin(stores, eq(settlementRecords.merchantStoreId, stores.id))
+      .innerJoin(
+        storeMembers,
+        and(
+          eq(storeMembers.storeId, stores.id),
+          eq(storeMembers.userId, caller.sub),
+          eq(storeMembers.status, 'ACTIVE'),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(desc(settlementRecords.createdAt))
+      .limit(100);
+
+    return rows.map((row) => row.settlement);
   }
 
   /**
