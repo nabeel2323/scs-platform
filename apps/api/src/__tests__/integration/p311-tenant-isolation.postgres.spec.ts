@@ -179,7 +179,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     });
     orgA = identity.orgA;
     orgB = identity.orgB;
-    orgStaffA = identity.users.orgStaffA;
+    orgStaffA = identity.users['orgStaffA']!;
     const merchantStaffRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_STAFF'`);
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
