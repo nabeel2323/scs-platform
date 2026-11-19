@@ -181,7 +181,7 @@ describe('Merchant deliveries list', () => {
       loading: false,
     };
     render(<MerchantDeliveriesPage />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('fulfillment:shipments:read');
+    expect((await screen.findByRole('alert')).textContent).toContain('fulfillment:shipments:read');
     expect(shipops.listShipments).not.toHaveBeenCalled();
   });
 });
@@ -227,7 +227,7 @@ describe('Merchant delivery console', () => {
       loading: false,
     };
     render(<MerchantDeliveryDetailPage />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('fulfillment:shipments:read');
+    expect((await screen.findByRole('alert')).textContent).toContain('fulfillment:shipments:read');
     expect(shipops.getShipmentDetail).not.toHaveBeenCalled();
   });
 
