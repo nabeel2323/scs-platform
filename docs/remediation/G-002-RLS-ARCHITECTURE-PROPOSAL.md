@@ -168,3 +168,15 @@ The Render connector also omits environment variable values and usernames. Do no
 - P1-10: PARTIAL — isolated migration validation only; no shared-database changes.
 
 No live database mutation, migration, grant change, RLS enablement, extension relocation, Render configuration change or deployment was performed.
+
+## 10. Expanded live ACL and role-chain evidence — 19 November 2026
+
+A fresh read-only query against the connected SCS-PlatForm PostgreSQL 17.6 database confirms explicit MAINTAIN, REFERENCES, TRIGGER and TRUNCATE ACL entries for anon, authenticated and service_role on all 114 public tables. None of these roles has effective SELECT/INSERT/UPDATE/DELETE on those 114 tables in the inspected snapshot. The grants are not inherited through PUBLIC.
+
+The postgres default ACL for public tables repeats those four privileges for the same three roles on future tables created by postgres. The Supabase-managed supabase_admin default ACL is separate and contains broader DML defaults; do not change it as part of this application remediation.
+
+authenticator can SET ROLE to anon, authenticated and service_role, but does not inherit their privileges automatically (SET=true, INHERIT=false for each membership). The live MCP connection itself is postgres with BYPASSRLS and is not evidence of the Render API or migration identity.
+
+Migration 0070 revokes all table/sequence privileges and future defaults for anon/authenticated for the role executing the migration. It does not revoke service_role. This is consistent with treating service_role as server-only, but its current direct grants should remain explicitly reviewed in the final access matrix. Do not apply migration 0070 to the shared database until the actual migration owner is confirmed.
+
+These results strengthen the case for least-privilege ACL cleanup but do not establish that PostgREST exposes TRUNCATE/MAINTAIN operations or that the SCS API uses these roles. RLS remains disabled on all 114 public tables. No database change was made.
