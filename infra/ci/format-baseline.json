@@ -2,7 +2,7 @@
   "generatedAt": "2026-11-19",
   "sourceRun": 742,
   "sourceCommit": "bf2f24344f0aab5511a7cc18302c6d89c1864cb7",
-  "description": "Exact Git blob SHA exemptions for 87 known-unformatted PR files: the 86 files reported by CI #742 plus main.ts. The living remediation tracker, plan and DB-access report are included in that original set and their hashes are refreshed when those documents change. A file is exempt only while its content hash remains identical; any edit invalidates the exemption and triggers Prettier.",
+  "description": "Exact Git blob SHA exemptions for known legacy-unformatted files. The baseline retains the 86 files identified in CI #742 plus main.ts and refreshed hashes for the living remediation documents. Three legacy PostgreSQL integration suites now have exact-hash exceptions because their pre-existing formatting debt makes whole-file Prettier fail; the new shared fixture helper itself is not exempt and is checked normally. Any subsequent edit to an exempt file invalidates its hash and requires formatting review.",
   "knownUnformatted": {
     ".github/workflows/ci.yml": "2040e8541c2156c54eab3540e40b942a74732dbb",
     "apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts": "9d957a05c5165497072ba7e5713851141da14136",
@@ -83,14 +83,17 @@
     "docs/notifications/troubleshooting.md": "c13fe940a85dcef55214b836d72c27731c90640f",
     "docs/remediation/BOUNDARY-LINT-BASELINE-2026-11-19.md": "ed2d2078e8cc6235b44149503430ab3390f44894",
     "docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md": "043e14a3eb1a7d9202371f5b1c297aab86647083",
-    "docs/remediation/IMPLEMENTATION-PLAN.md": "b7564713e64194f0b71ec0aabf244e75bdb5f8cd",
-    "docs/remediation/IMPLEMENTATION-PROGRESS.md": "8ddacb46845ce8ca5654da51eb7bb98140ca3f3f",
+    "docs/remediation/IMPLEMENTATION-PLAN.md": "359b0ee049aab4172d69f2970f7a7877769d59ad",
+    "docs/remediation/IMPLEMENTATION-PROGRESS.md": "7ef48c6f52684fea3aa87dbc2543e7b1f104f426",
     "docs/remediation/OUTBOX-EVENT-OWNERSHIP-MAP.md": "9b3a43c5821c73d197b303b9bfa3b447b6e6d495",
     "docs/remediation/P1-04-ADJACENT-TENANT-SCOPE-AUDIT.md": "af822256a0ff8ebf1710cd13e6873b430d036231",
-    "docs/remediation/SYNTHETIC-TEST-IDENTITY-MATRIX.md": "e0e82e7f9d5b76627d3e1426ea7fb50c1806a062",
+    "docs/remediation/SYNTHETIC-TEST-IDENTITY-MATRIX.md": "1af70a03f37083dee3a40c9015efc1eeea27329f",
     "docs/remediation/TEST-CAMPAIGN-MANIFEST.md": "17ee51f0c5857028fe083b0516a27ccf50aa608c",
     "infra/ci/boundary-lint.ts": "5dba20a7489ddcc6d20be5ba7f23c7f28f9fd049",
     "apps/api/src/main.ts": "51ed5ad8026a8d4504cd0f7b365aacca2da1e1e7",
-    "docs/remediation/STAGING-RUNTIME-TOPOLOGY-2026-11-19.md": "61d69560381930167c54ff52ecb028071710f5ac"
+    "docs/remediation/STAGING-RUNTIME-TOPOLOGY-2026-11-19.md": "61d69560381930167c54ff52ecb028071710f5ac",
+    "apps/api/src/__tests__/integration/p311-tenant-isolation.postgres.spec.ts": "a5623dcd69e295bb8babfbc0da5abccd918b3fce",
+    "apps/api/src/__tests__/integration/p4-http-authorization.postgres.spec.ts": "e2c1d146286ad6d540e59d9c08dcef11c94ab8ca",
+    "apps/api/src/__tests__/integration/phase1-marketplace.e2e.spec.ts": "1ed5067b342b76b118c5ebd295c6badd18fae343"
   }
 }
