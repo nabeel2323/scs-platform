@@ -325,7 +325,7 @@ The source audit linked to G-001 identified additional object-level authorizatio
 
 ### 1.7 Close G-030 — merchant payment and settlement listing tenant isolation (P0)
 
-A source audit found that merchant payment and settlement listing routes did not enforce the authenticated caller's active store membership. The previous `listPayments` implementation built store/buyer order filters but failed to apply them to the payment query, and merchant routes called unscoped list methods without passing caller context.
+A source audit found that merchant payment and settlement listing routes did not enforce the authenticated caller's active organization scope. The previous `listPayments` implementation built store/buyer order filters but failed to apply them to the payment query, and merchant routes called unscoped list methods without passing caller context.
 
 - Add dedicated merchant listing service methods that join payments/settlements through orders and stores, constrained to the caller's active organization. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles have organization-wide `merchant:orders:read`; store_members is not the authorization boundary for this read capability.
 - A caller-supplied `storeId` narrows the active-organization scope and must belong to that organization; it never grants cross-organization access.
