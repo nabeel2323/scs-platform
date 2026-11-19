@@ -13,8 +13,12 @@ import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState } from '../../../components/Shared';
 import { PageHeader } from '@scs/ui-kit';
 import { TierLadder } from '../../../components/QuantityStepper';
+import { useAuth } from '../../../components/AuthProvider';
 
 export default function MerchantPricingPage() {
+  const { user, loading: authLoading } = useAuth();
+  const canReadPricing = !!user?.perms?.includes('merchant:pricing:read');
+  const canWritePricing = !!user?.perms?.includes('merchant:pricing:write');
   const [storeId, setStoreId] = useState('');
   const [noStore, setNoStore] = useState(false);
   const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -83,6 +87,10 @@ export default function MerchantPricingPage() {
   }, [loadTiers]);
 
   useEffect(() => {
+    if (authLoading || !user || !canReadPricing) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const stores = await fetchMyStores();
@@ -95,11 +103,11 @@ export default function MerchantPricingPage() {
         setLoading(false);
       }
     })();
-  }, [loadLists]);
+  }, [authLoading, user, canReadPricing, loadLists]);
 
   // Load all store variants for the searchable dropdown and tier table display
   useEffect(() => {
-    if (!storeId) return;
+    if (!storeId || !canReadPricing) return;
     (async () => {
       try {
         const products: any[] = [];
@@ -116,7 +124,7 @@ export default function MerchantPricingPage() {
         setAllVariants(variantArrays.flat());
       } catch { /* silent */ }
     })();
-  }, [storeId]);
+  }, [storeId, canReadPricing]);
 
   // Close variant dropdown on outside click
   useEffect(() => {
@@ -235,6 +243,10 @@ export default function MerchantPricingPage() {
   const zeroPricedVariants = Object.entries(tiersByVariant).filter(([, t]) => t.some((tier: { unitPriceMinor: number }) => tier.unitPriceMinor === 0));
   const zeroPricedCount = zeroPricedVariants.length;
 
+  if (authLoading) return <LoadingSpinner />;
+  if (!user) return <div role="alert">Please sign in to access pricing.</div>;
+  if (!canReadPricing) return <div role="alert" style={{ padding: 24 }}>You do not have permission to view pricing. Required permission: merchant:pricing:read.</div>;
+
   if (noStore) {
     return (
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}>
@@ -260,7 +272,7 @@ export default function MerchantPricingPage() {
           subtitle="Price lists and volume tiers"
           actions={
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowCreateList(true)} style={headerBtn}>+ New List</button>
+              {canWritePricing && <button onClick={() => setShowCreateList(true)} style={headerBtn}>+ New List</button>}
               <button onClick={() => storeId && loadLists(storeId)} style={headerBtn}>Refresh</button>
             </div>
           }
@@ -295,18 +307,18 @@ export default function MerchantPricingPage() {
           {priceLists.length === 0 && <option value="">No price lists</option>}
           {priceLists.map(pl => <option key={pl.id} value={pl.id}>{pl.name} ({pl.currency})</option>)}
         </select>
-        {selectedList && <button onClick={() => setShowAddTier(true)} style={primaryBtn}>+ Add Tier</button>}
+        {canWritePricing && selectedList && <button onClick={() => setShowAddTier(true)} style={primaryBtn}>+ Add Tier</button>}
       </div>
 
       {loading ? <LoadingSpinner /> : priceLists.length === 0 ? (
         <EmptyState
           title="No price lists"
           description="Create your first price list to start defining volume tiers."
-          action={<button onClick={() => setShowCreateList(true)} style={primaryBtn}>Create Price List</button>}
+          action={canWritePricing ? <button onClick={() => setShowCreateList(true)} style={primaryBtn}>Create Price List</button> : undefined}
         />
       ) : tiersLoading ? <LoadingSpinner /> : tiers.length === 0 ? (
         <EmptyState title="No price tiers" description="Add tiers to define volume-based pricing."
-          action={<button onClick={() => setShowAddTier(true)} style={primaryBtn}>+ Add Tier</button>} />
+          action={canWritePricing ? <button onClick={() => setShowAddTier(true)} style={primaryBtn}>+ Add Tier</button> : undefined} />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20 }}>
           <div style={tableWrap}>
@@ -352,8 +364,8 @@ export default function MerchantPricingPage() {
                         </td>
                         <td style={td}>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <button onClick={() => startEditTier(t)} style={editBtn}>Edit</button>
-                            <button onClick={() => handleRemoveTier(t.id)} style={deleteBtn}>Delete</button>
+                            {canWritePricing && <button onClick={() => startEditTier(t)} style={editBtn}>Edit</button>}
+                            {canWritePricing && <button onClick={() => handleRemoveTier(t.id)} style={deleteBtn}>Delete</button>}
                           </div>
                         </td>
                       </>
@@ -380,7 +392,7 @@ export default function MerchantPricingPage() {
       )}
 
       {/* Create Price List Dialog */}
-      {showCreateList && (
+      {canWritePricing && showCreateList && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>New Price List</h3>
@@ -404,7 +416,7 @@ export default function MerchantPricingPage() {
       )}
 
       {/* Add Tier Dialog */}
-      {showAddTier && (
+      {canWritePricing && showAddTier && (
         <div style={overlay}>
           <div style={dialog}>
             <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f3340', marginBottom: 12 }}>Add Price Tier</h3>
