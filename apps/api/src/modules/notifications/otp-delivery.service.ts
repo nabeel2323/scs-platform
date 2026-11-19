@@ -189,7 +189,7 @@ export class OtpDeliveryService {
       return result;
     } catch (error) {
       this.logger.error(
-        `Unexpected error during OTP delivery via ${channel} to ${request.subject}: ${error instanceof Error ? error.message : 'unknown'}`,
+        `Unexpected error during OTP delivery via ${channel}; provider details suppressed (correlation: ${request.correlationId || 'none'})`,
       );
 
       return {
