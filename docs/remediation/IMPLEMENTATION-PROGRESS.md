@@ -655,3 +655,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - CI #815 passed repository lint and Flutter analysis/tests, then failed API typecheck on the optional index-signature access to the new `orgStaffA` fixture identity.
 - Corrected the fixture lookup to use the required indexed property with a non-null assertion after the fixture creates it. No runtime authorization logic changed.
 - The next full CI run must verify typecheck, formatting, API unit/coverage, PostgreSQL integration, migration apply, web/admin, build and container smoke before G-030 can close.
+
+
+### G-030 evidence formatting correction — 19 November 2026
+- CI #817 passed API lint and typecheck, then the blocking changed-file Prettier gate flagged the G-030 report and this progress tracker. The exact repository formatter is being applied; the gate remains blocking.
