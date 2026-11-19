@@ -691,3 +691,10 @@ The general notification dispatcher previously returned fabricated provider IDs 
 - Notification provider-selection and troubleshooting documentation now distinguish OTP provider configuration from general outbound notification adapters.
 
 CI verification is pending on the current PR head. No external notification provider was invoked, no customer notification was sent, and no provider credentials were changed.
+
+
+---
+
+## 16. Execution update — G-019 mobile promotion removal
+
+The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. The backend exposed only POST /v1/cart/promo. This is now implemented as an authenticated DELETE /v1/cart/promo operation that clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen now expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.

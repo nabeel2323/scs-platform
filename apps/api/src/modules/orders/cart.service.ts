@@ -492,6 +492,16 @@ export class CartService {
     return this.getActiveCartWithItems(userId);
   }
 
+  /** Remove the applied promotion from the buyer's active cart. */
+  async removePromoCode(userId: string) {
+    const cart = await this.getOrCreateCart(userId);
+    await this.db.db
+      .update(carts)
+      .set({ promoCode: null, promotionId: null, updatedAt: new Date() })
+      .where(eq(carts.id, cart['id']));
+    return this.getActiveCartWithItems(userId);
+  }
+
   // ── Helpers ──────────────────────────────────────────────────
 
   async getCartItem(itemId: string) {

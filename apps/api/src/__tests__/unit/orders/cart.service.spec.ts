@@ -413,3 +413,27 @@ describe('CartService MOQ and order-increment enforcement', () => {
     expect(remove).toHaveBeenCalledWith('buyer-1', 'line-1');
   });
 });
+
+
+describe('CartService.removePromoCode', () => {
+  it('clears both the promo code and resolved promotion id for the active buyer cart', async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    const svc = new CartService({ db: { update } } as any, {} as any);
+    vi.spyOn(svc, 'getOrCreateCart').mockResolvedValue({ id: 'cart-1' } as any);
+    vi.spyOn(svc, 'getActiveCartWithItems').mockResolvedValue({
+      id: 'cart-1', promoCode: null, promotionId: null, items: [],
+    } as any);
+
+    const result = await svc.removePromoCode('buyer-1');
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({
+      promoCode: null,
+      promotionId: null,
+    }));
+    expect(where).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ id: 'cart-1', promoCode: null, promotionId: null });
+  });
+});

@@ -74,7 +74,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | OPEN | Classify and scan before removal |
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
-| G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
+| G-019 | P2 | Mobile cannot remove applied promotion | 4 | IMPLEMENTED — CI PENDING | Added authenticated DELETE /v1/cart/promo; CartService clears both promoCode and promotionId on the buyer's active cart and returns refreshed cart state. Flutter ApiService and cart screen expose a busy-safe Remove action. API service and Flutter client regression tests added. |
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
@@ -220,7 +220,7 @@ Status definitions:
 |---|---|---|---|---|
 | P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | COMPLETE — CI #711 | Server-calculated tax-inclusive preview, per-supplier fulfillment/payment request and order confirmation details implemented. Full journey UAT reserved for Phase 6. |
 | P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | Verify per-suborder order detail and tracking in Phase 6 UAT. |
-| P4-03 | Add mobile remove-promotion operation/UI | G-019 | TODO | |
+| P4-03 | Add mobile remove-promotion operation/UI | G-019 | COMPLETE — CI PENDING | Authenticated DELETE route clears promoCode + promotionId; Flutter ApiService and cart screen show a removable applied-promo action with loading/error handling. Backend and mobile API regression tests added. |
 | P4-04 | Define truthful notification delivery states | G-009 | COMPLETE | External channels use NOT_CONFIGURED until a real adapter confirms provider acceptance; IN_APP SENT means persisted in-app item only. Documented in notifications provider selection/troubleshooting guides. |
 | P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | COMPLETE — NOT_CONFIGURED | Removed fake SMS/FCM/WhatsApp success responses and generated message IDs. Rows now record NOT_CONFIGURED with channel-specific reason codes. No external provider calls are made. |
 | P4-06 | Add provider sandbox and retry/status tests | G-009 | PARTIAL — REGRESSION TESTS ADDED | Four unit tests verify truthful NOT_CONFIGURED states and absence of sentAt/providerMsgId for unconfigured channels. Provider sandbox/retry behavior is deferred until a real provider adapter and sandbox credentials are approved; no live customer notification was sent. |
@@ -432,3 +432,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - IN_APP remains a supported persisted channel; documentation clarifies that SENT represents successful persistence, not guaranteed realtime/socket delivery.
 - Added four regression cases in `external-provider-state.spec.ts`; CI verification pending.
 - Updated notification provider-selection and troubleshooting documentation.
+
+
+### G-019 implementation update — 19 November 2026
+- Added authenticated DELETE /v1/cart/promo; it clears both the raw promo code and resolved promotion ID from the current buyer's active cart and returns refreshed cart state.
+- Added the Flutter ApiService method and a Remove action in the applied-promotion row, including busy state and error feedback.
+- Added API service and Flutter client regression tests. CI verification pending.
+- No promotion was applied or removed in a live user account.

@@ -649,6 +649,7 @@ class ApiService {
 
   Future<void> applyPromo(String code) async =>
       _dio.post('/v1/cart/promo', data: {'code': code});
+  Future<void> removePromo() async => _dio.delete('/v1/cart/promo');
 
   // ── Checkout ──────────────────────────────────────────────
   Future<Map<String, dynamic>> fetchShippingEstimate({

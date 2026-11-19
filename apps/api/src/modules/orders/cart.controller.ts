@@ -52,6 +52,11 @@ export class CartController {
     return this.cartService.validateCart(user.sub);
   }
 
+  @Delete('promo')
+  async removePromo(@CurrentUser() user: JwtPayload) {
+    return this.cartService.removePromoCode(user.sub);
+  }
+
   @Post('promo')
   async applyPromo(
     @CurrentUser() user: JwtPayload,

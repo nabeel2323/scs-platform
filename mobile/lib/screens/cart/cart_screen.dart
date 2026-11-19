@@ -16,6 +16,7 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen> {
   final _promoCtrl = TextEditingController();
   bool _applyingPromo = false;
+  bool _removingPromo = false;
   bool _clearing = false;
 
   @override
@@ -67,6 +68,27 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       }
     } finally {
       if (mounted) setState(() => _applyingPromo = false);
+    }
+  }
+
+  Future<void> _removePromo() async {
+    setState(() => _removingPromo = true);
+    try {
+      await ref.read(apiServiceProvider).removePromo();
+      ref.invalidate(cartProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Promo code removed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiService.errorMessage(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _removingPromo = false);
     }
   }
 
@@ -139,9 +161,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  /// Promo code input (audit 4.3 row 153: `applyPromo()` existed but had no
-  /// UI). Apply-only — the API exposes no remove-promo route, so an applied
-  /// code renders as a confirmation chip rather than a removable one.
+  /// Promo code input and applied-promotion removal (finding G-019).
   Widget _promoSection(Cart c) {
     final applied = c.promoCode != null && c.promoCode!.isNotEmpty;
     return Card(
@@ -159,6 +179,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: TaifTokens.ok)),
+                ),
+                TextButton(
+                  onPressed: _removingPromo ? null : _removePromo,
+                  child: _removingPromo
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Remove'),
                 ),
               ])
             : Row(children: [
