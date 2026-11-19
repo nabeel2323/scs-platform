@@ -15,8 +15,8 @@ import { Test } from '@nestjs/testing';
 import { ForbiddenException, INestApplication, VersioningType } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { CatalogOfferController } from '../../modules/catalog/catalog.offer.controller';
-import type { CatalogOfferService } from '../../modules/catalog/catalog.offer.service';
-import type { DatabaseService } from '../../common/database/database.service';
+import { CatalogOfferService } from '../../modules/catalog/catalog.offer.service';
+import { DatabaseService } from '../../common/database/database.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 vi.mock('../../common/tenant-scope', async () => {
