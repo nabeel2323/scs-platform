@@ -59,7 +59,7 @@ export async function seedTwoTenantIdentityFixture(
   const orgB = randomUUID();
   const storeA = randomUUID();
   const storeB = randomUUID();
-  const users: Record<string, string> = {};
+  const users = {} as TwoTenantIdentityFixture['users'];
 
   const userEntries: Array<[string, TenantFixtureUser]> = [
     ['buyerA', options.users.buyerA],
