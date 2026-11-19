@@ -327,13 +327,13 @@ The source audit linked to G-001 identified additional object-level authorizatio
 
 A source audit found that merchant payment and settlement listing routes did not enforce the authenticated caller's active store membership. The previous `listPayments` implementation built store/buyer order filters but failed to apply them to the payment query, and merchant routes called unscoped list methods without passing caller context.
 
-- Add dedicated merchant listing service methods that join payments/settlements through orders and stores to an ACTIVE `store_members` row for the authenticated user, constrained to the caller's active organization.
-- A caller-supplied `storeId` narrows an already-authorized membership scope; it never grants access.
+- Add dedicated merchant listing service methods that join payments/settlements through orders and stores, constrained to the caller's active organization. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles have organization-wide `merchant:orders:read`; store_members is not the authorization boundary for this read capability.
+- A caller-supplied `storeId` narrows the active-organization scope and must belong to that organization; it never grants cross-organization access.
 - Pass the verified JWT caller context from both merchant controller routes.
 - Correct the admin/service `listPayments` store/buyer filter path so matching order IDs are applied to the payment query.
 - Add two-tenant PostgreSQL integration coverage for merchant A/B, same-org non-member, foreign store ID and admin filters, plus controller tests proving caller context is forwarded.
 
-**Acceptance:** merchant A cannot list merchant B payments or settlements; same-org non-members cannot list a store's financial records; missing active organization is denied; platform staff behavior remains intentional; store/buyer filters return only matching payments. Full CI and the real PostgreSQL integration suite must pass before closure.
+**Acceptance:** merchant A cannot list merchant B payments or settlements; same-organization users with the seeded merchant read permission remain scoped to their organization even without a store_members row; missing active organization is denied; foreign store IDs are denied; platform staff behavior remains intentional; store/buyer filters return only matching payments. Full CI and the real PostgreSQL integration suite must pass before closure.
 
 **Current implementation state:** service/controller changes and PostgreSQL/controller regression tests are committed on the remediation branch; latest-head CI is pending. Do not treat this P0 as closed until the integration and unit suites pass.
 
@@ -898,9 +898,9 @@ The ongoing financial-service source review found a tenant-isolation defect in `
 The remediation branch now:
 
 - passes the authenticated JWT caller context into dedicated merchant listing methods;
-- scopes payment rows through payment → order → store → ACTIVE store membership → active organization;
-- scopes settlement rows through settlement → store → ACTIVE store membership → active organization;
-- validates explicit store IDs against organization ownership and active membership;
+- scopes payment rows through payment → order → store → active organization;
+- scopes settlement rows through settlement → store → active organization;
+- validates explicit store IDs against organization ownership;
 - applies admin store/buyer filters to matching payment order IDs;
 - adds two-tenant PostgreSQL tests and controller forwarding tests.
 
