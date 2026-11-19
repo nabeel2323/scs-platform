@@ -58,8 +58,8 @@ export function ProductModerationActions({
   updatedAt?: string;
   onDone: (decision: string) => void;
 }) {
-  const { hasAccess } = useRequirePerms(['admin:merchants:read']);
-  const [busy, setBusy] = useState(false);
+  const { hasAccess } = useRequirePerms(['admin:products:moderate']);
+  const [busy, setBusy = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState('');
 
