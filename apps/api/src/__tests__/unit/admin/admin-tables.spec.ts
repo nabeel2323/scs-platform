@@ -66,7 +66,8 @@ describe('admin HTTP permission contracts', () => {
     expect(Reflect.getMetadata(METHOD_METADATA, controller.moderateProductPost)).toBe(RequestMethod.POST);
     expect(Reflect.getMetadata(METHOD_METADATA, controller.moderateProduct)).toBe(RequestMethod.PATCH);
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, controller.moderateProductPost)).toBe(200);
-    expect(Reflect.getMetadata(PERMISSIONS_KEY, controller.moderateProductPost)).toEqual(Reflect.getMetadata(PERMISSIONS_KEY, controller.moderateProduct));
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, controller.moderateProductPost)).toEqual(['admin:products:moderate']);
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, controller.moderateProduct)).toEqual(['admin:products:moderate']);
   });
 });
 
