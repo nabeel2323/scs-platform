@@ -447,3 +447,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - CI #729 failed in API typecheck because the new tsconfig include glob `scripts/**/*.ts` unintentionally pulled in pre-existing M5/M6 operational scripts that are not part of the API build and already contain strict-type errors (unknown response values and possibly undefined strings).
 - The new database audit script itself produced no reported TypeScript error. The scope is corrected to typecheck only `scripts/audit-db-access.ts`, avoiding unrelated legacy tooling and ensuring the new utility is checked.
 - Mobile analyze/tests passed in CI #729. API unit/integration and downstream jobs were skipped after the typecheck gate failed; G-009/G-010 verification remains pending until the corrected full CI run.
+
+
+### CI trigger and frontend preview note — 19 November 2026
+- Corrected the API TypeScript include to compile only the new database audit utility after CI #729 showed that a broad scripts glob pulled in unrelated pre-existing manual M5/M6 script errors.
+- Current implementation head: `d624805be3ec5e2c35770b7ab3398555f7e76557`. Full CI verification is pending for the combined G-009, G-019 and G-010 changes.
+- Vercel web/admin status checks reported build-rate-limit failures from the Taif Vercel account. These are external preview-build quota failures, not successful builds or deployments. No Vercel deployment was performed by this implementation work.
