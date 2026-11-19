@@ -36,6 +36,7 @@ import {
 } from '../../modules/returns/financial.schema';
 import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { PaymentsService } from '../../modules/payments/payments.service';
 import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
@@ -49,6 +50,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let settlementService: SettlementAdjustmentService;
   let reconciliationService: ReconciliationService;
   let commissionService: CommissionReversalService;
+  let paymentsService: PaymentsService;
 
   let orgA: string;
   let orgB: string;
@@ -60,6 +62,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let storeB: string;
   let orderA: string;
   let orderB: string;
+  let paymentA: string;
+  let paymentB: string;
   let retA: string;
   let retB: string;
   let adjustmentA: string;
@@ -97,6 +101,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     settlementService = new SettlementAdjustmentService(database, outbox);
     reconciliationService = new ReconciliationService(database);
     commissionService = new CommissionReversalService(database, outbox);
+    paymentsService = new PaymentsService(database, outbox, {} as any);
 
     // Shared identity graph: two independent tenants, buyers and active store owners.
     const identity = await seedTwoTenantIdentityFixture(pool, {
@@ -141,15 +146,25 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     );
 
     // Payment records (needed for return_requests FK)
-    const payA = randomUUID();
-    const payB = randomUUID();
+    paymentA = randomUUID();
+    paymentB = randomUUID();
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1, $2, 'CASH_ON_DELIVERY', 'CONFIRMED', 5500, 'SYP')`,
-      [payA, orderA],
+      [paymentA, orderA],
     );
     await pool.query(
       `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1, $2, 'CASH_ON_DELIVERY', 'CONFIRMED', 8500, 'SYP')`,
-      [payB, orderB],
+      [paymentB, orderB],
+    );
+
+    // Settlements used to verify merchant listing isolation (G-030).
+    await pool.query(
+      `INSERT INTO settlement_records
+         (id, sub_order_id, payment_record_id, merchant_store_id, gross_minor, refund_minor, commission_minor, fee_minor, net_minor, currency, status)
+       VALUES
+         ($1, $2, $3, $4, 5500, 0, 200, 500, 4800, 'SYP', 'CALCULATED'),
+         ($5, $6, $7, $8, 8500, 0, 300, 500, 7700, 'SYP', 'CALCULATED')`,
+      [randomUUID(), orderA, paymentA, storeA, randomUUID(), orderB, paymentB, storeB],
     );
 
     // Return requests (needed for commission_reversals FK)
@@ -288,5 +303,65 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     const idsA = new Set(listA.map((a: any) => a.id));
     const idsB = new Set(listB.map((a: any) => a.id));
     for (const id of idsA) { expect(idsB.has(id)).toBe(false); }
+  });
+
+  it('G-030: merchant payment listing returns only payments for active member stores', async () => {
+    const listA = await paymentsService.listMerchantPayments({
+      sub: adminA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    const listB = await paymentsService.listMerchantPayments({
+      sub: adminB,
+      role: 'MERCHANT',
+      activeOrg: orgB,
+    });
+
+    expect(listA.map((payment) => payment.id)).toEqual([paymentA]);
+    expect(listB.map((payment) => payment.id)).toEqual([paymentB]);
+  });
+
+  it('G-030: same-org non-members and foreign store IDs cannot list merchant payments', async () => {
+    await expect(
+      paymentsService.listMerchantPayments({
+        sub: buyerA,
+        role: 'MERCHANT',
+        activeOrg: orgA,
+      }, { storeId: storeA }),
+    ).rejects.toThrow();
+
+    await expect(
+      paymentsService.listMerchantPayments({
+        sub: adminA,
+        role: 'MERCHANT',
+        activeOrg: orgA,
+      }, { storeId: storeB }),
+    ).rejects.toThrow();
+  });
+
+  it('G-030: merchant settlement listing is scoped to active store membership', async () => {
+    const listA = await paymentsService.listMerchantSettlements({
+      sub: adminA,
+      role: 'MERCHANT',
+      activeOrg: orgA,
+    });
+    const listB = await paymentsService.listMerchantSettlements({
+      sub: adminB,
+      role: 'MERCHANT',
+      activeOrg: orgB,
+    });
+
+    expect(listA).toHaveLength(1);
+    expect(listA[0]!.merchantStoreId).toBe(storeA);
+    expect(listB).toHaveLength(1);
+    expect(listB[0]!.merchantStoreId).toBe(storeB);
+  });
+
+  it('G-030: admin payment filters are applied to the matching order set', async () => {
+    const listByStore = await paymentsService.listPayments({ storeId: storeA });
+    const listByBuyer = await paymentsService.listPayments({ buyerId: buyerB });
+
+    expect(listByStore.map((payment) => payment.id)).toEqual([paymentA]);
+    expect(listByBuyer.map((payment) => payment.id)).toEqual([paymentB]);
   });
 });
