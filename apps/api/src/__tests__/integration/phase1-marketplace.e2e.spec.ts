@@ -144,6 +144,9 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     const identity = await seedTwoTenantIdentityFixture(pool, {
       prefix: 'Phase1 Marketplace',
       country: 'SA',
+      currency: 'SAR',
+      storeStatus: 'DRAFT',
+      verificationStatus: 'PENDING',
       users: {
         buyerA: { fullName: 'Buyer Alpha' },
         buyerB: { fullName: 'Buyer Beta' },

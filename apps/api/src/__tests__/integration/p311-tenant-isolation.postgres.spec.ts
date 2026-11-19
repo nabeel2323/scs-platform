@@ -101,6 +101,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     // Shared identity graph: two independent tenants, buyers and active store owners.
     const identity = await seedTwoTenantIdentityFixture(pool, {
       prefix: 'P311 Tenant',
+      currency: 'SYP',
       users: {
         buyerA: { id: buyerA, fullName: 'Buyer A' },
         buyerB: { id: buyerB, fullName: 'Buyer B' },

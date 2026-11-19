@@ -303,6 +303,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   async function seedBusinessFixture(): Promise<void> {
     const identity = await seedTwoTenantIdentityFixture(pool, {
       prefix: 'P4 HTTP',
+      currency: 'SYP',
       users: {
         buyerA: { id: buyerA, fullName: 'Buyer A' },
         buyerB: { id: buyerB, fullName: 'Buyer B' },

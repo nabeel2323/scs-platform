@@ -10,6 +10,9 @@ export interface TwoTenantIdentityFixtureOptions {
   /** Short, human-readable prefix used in organization/store names and slugs. */
   prefix: string;
   country?: string;
+  currency?: string;
+  storeStatus?: string;
+  verificationStatus?: string;
   users: {
     buyerA: TenantFixtureUser;
     buyerB: TenantFixtureUser;
@@ -43,6 +46,9 @@ export async function seedTwoTenantIdentityFixture(
 ): Promise<TwoTenantIdentityFixture> {
   const suffix = randomUUID().replace(/-/g, '').slice(0, 10);
   const country = options.country ?? 'SY';
+  const currency = options.currency ?? 'SAR';
+  const storeStatus = options.storeStatus ?? 'ACTIVE';
+  const verificationStatus = options.verificationStatus ?? 'VERIFIED';
   const orgA = randomUUID();
   const orgB = randomUUID();
   const storeA = randomUUID();
@@ -91,8 +97,8 @@ export async function seedTwoTenantIdentityFixture(
       `INSERT INTO stores
          (id, org_id, slug, display_name, currency, status, verification_status)
        VALUES
-         ($1, $2, $3, $4, 'SYP', 'ACTIVE', 'VERIFIED'),
-         ($5, $6, $7, $8, 'SYP', 'ACTIVE', 'VERIFIED')`,
+         ($1, $2, $3, $4, $9, $10, $11),
+         ($5, $6, $7, $8, $9, $10, $11)`,
       [
         storeA,
         orgA,
@@ -102,6 +108,9 @@ export async function seedTwoTenantIdentityFixture(
         orgB,
         `${slugPrefix}-b-${suffix}`,
         options.storeNames?.b ?? `${options.prefix} Store B`,
+        currency,
+        storeStatus,
+        verificationStatus,
       ],
     );
 
