@@ -695,3 +695,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - G-002 remains BLOCKED pending verified effective API/migration database roles and an approved RLS/access architecture. No shared database grants or RLS policies were changed.
 - CI #832 skipped k6 and staging release. The consolidated Phase 6 campaign, staging E2E, performance verification and release decision remain pending.
 - No shared database mutation, staging write, deployment or production financial-data change was performed.
+
+
+### Read-only database audit role-chain enhancement — 19 November 2026
+
+- Extended `db:audit-access` to report role attributes for the effective session role and PostgREST roles (`authenticator`, `anon`, `authenticated`, `service_role`), including superuser/BYPASSRLS/login/inherit flags.
+- Replaced the direct-only membership report with a cycle-safe recursive membership graph so inherited role grants are visible for the same identities.
+- The audit remains read-only, runs inside `BEGIN READ ONLY`, does not print connection strings or application rows, and makes no schema/privilege changes. Typecheck and formatter verification are pending.
