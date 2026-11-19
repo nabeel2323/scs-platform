@@ -80,6 +80,7 @@ export interface CardEnrichment {
   lowestOfferStoreId: string | null;
   lowestOfferVariantId: string | null;
   lowestOfferMoq: number | null;
+  lowestOfferOrderIncrement: number | null;
   lowestOfferStore: StoreCard | null;
 }
 
@@ -145,6 +146,7 @@ export async function enrichProductCards<T extends CardSource>(
         basePriceMinor: true,
         currency: true,
         moq: true,
+        orderIncrement: true,
         priceListId: true,
       },
       orderBy: [asc(merchantOffers.activatedAt), asc(merchantOffers.id)],
@@ -397,6 +399,7 @@ export async function enrichProductCards<T extends CardSource>(
       lowestOfferStoreId: selectedOffer?.storeId ?? null,
       lowestOfferVariantId: selectedOffer?.variantId ?? null,
       lowestOfferMoq: selectedOffer?.moq ?? null,
+      lowestOfferOrderIncrement: selectedOffer?.orderIncrement ?? null,
       lowestOfferStore: selectedOffer ? (storeById.get(selectedOffer.storeId) ?? null) : null,
     };
   });
