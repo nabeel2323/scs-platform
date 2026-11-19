@@ -284,6 +284,14 @@ describe('M7.1 — Security & Concurrency', () => {
         [buyerA],
       );
 
+      // Preserve the shared fixture's original terms: later security and
+      // lifecycle concurrency cases create accepted orders using this offer.
+      const originalOffer = await pool.query<{ moq: number | null; order_increment: number | null }>(
+        'SELECT moq, order_increment FROM merchant_offers WHERE id = $1',
+        [offerA],
+      );
+      expect(originalOffer.rows[0]).toBeDefined();
+
       // Hold an uncommitted MOQ change. Checkout's initial non-locking read
       // sees the old MOQ, but its authoritative SELECT ... FOR UPDATE must
       // wait and then observe the newly committed MOQ.
@@ -331,16 +339,23 @@ describe('M7.1 — Security & Concurrency', () => {
         );
         expect(persisted.rows[0]?.count).toBe(beforeOrders.rows[0]?.count);
       } finally {
+        // Release the editor lock first, then let checkout settle before
+        // restoring the shared offer fixture for the following test cases.
+        await editor.query('ROLLBACK').catch(() => undefined);
         if (checkoutPromise) {
-          // Ensure a failed assertion cannot leave a checkout transaction
-          // hanging while the test tears down its database container.
           await Promise.race([
-            checkoutPromise.catch(() => undefined),
+            checkoutPromise.then(() => undefined, () => undefined),
             new Promise(resolve => setTimeout(resolve, 2_000)),
           ]);
         }
-        await editor.query('ROLLBACK').catch(() => undefined);
         editor.release();
+        const originalTerms = originalOffer.rows[0];
+        if (originalTerms) {
+          await pool.query(
+            'UPDATE merchant_offers SET moq = $2, order_increment = $3 WHERE id = $1',
+            [offerA, originalTerms.moq, originalTerms.order_increment],
+          );
+        }
       }
     }, 30_000);
   });
