@@ -723,3 +723,6 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - AppModule registers Orders, Shipping, Returns and Operations modules. AutoCompleteWorker and ShippingCarrierWorker start inside each API process with database claim/locking safeguards. Runtime replica count and staging worker topology remain unverified.
 - P13 ReturnExpirationWorker is OFF unless `P13_WORKER_ENABLED` is truthy; expected worker count defaults to 0 while disabled, pilot mode defaults to legacy, and alert delivery is log-only unless a signed webhook is configured. P13Monitor runs independently on each API process with database alert deduplication. Do not activate protected P13 jobs until holder count, allowlist and alert delivery are verified.
 - No Render environment values, worker flags, staging data, OTP provider or deployment settings were changed.
+
+### Evidence formatting pass — 19 November 2026
+- The G-002 live ACL report, architecture proposal, implementation plan and progress tracker have received the additional live database and source-review evidence. Repository-locked Prettier is being applied before the next full CI run.
