@@ -296,19 +296,18 @@ void main() {
       })).called(1);
     });
   });
-}
 
+  group('Cart promotion endpoints', () {
+    test('removePromo calls DELETE /v1/cart/promo', () async {
+      when(() => dio.delete('/v1/cart/promo')).thenAnswer((_) async => Response(
+            data: {'promoCode': null, 'promotionId': null},
+            requestOptions: RequestOptions(path: '/v1/cart/promo'),
+            statusCode: 200,
+          ));
 
-group('Cart promotion endpoints', () {
-  test('removePromo calls DELETE /v1/cart/promo', () async {
-    when(() => dio.delete('/v1/cart/promo')).thenAnswer((_) async => Response(
-          data: {'promoCode': null, 'promotionId': null},
-          requestOptions: RequestOptions(path: '/v1/cart/promo'),
-          statusCode: 200,
-        ));
+      await api.removePromo();
 
-    await api.removePromo();
-
-    verify(() => dio.delete('/v1/cart/promo')).called(1);
+      verify(() => dio.delete('/v1/cart/promo')).called(1);
+    });
   });
-});
+}
