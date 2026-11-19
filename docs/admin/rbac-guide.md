@@ -1,8 +1,9 @@
 # Role and Permission Management Guide
 
-**Version:** 1.0
+**Version:** 1.1
+**Last updated:** 19 November 2026
 **Status:** Implemented & Unit Tested
-**Branch:** `feature/admin-user-management-rbac-2026`
+**Current implementation:** `remediation/phase-0-1-tenant-security`
 
 ## Overview
 
