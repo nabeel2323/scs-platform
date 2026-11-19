@@ -77,3 +77,8 @@ Create per test run:
 - Each test owns its own transaction/container/schema where practical and restores any shared fixture fields in `finally`/cleanup.
 - Never leave temporary MOQ, currency, store status, role or membership changes behind.
 - Do not run these write fixtures against the connected shared Supabase project.
+
+
+## 7. Shared fixture implementation
+
+`apps/api/src/__tests__/helpers/tenant-fixtures.ts` provides an atomic two-tenant identity fixture factory for PostgreSQL integration tests. It creates fresh organizations, buyers, merchant owners, active stores and owner memberships, and accepts optional synthetic platform/finance identities. The helper must only be used with disposable test databases. P311 financial isolation, P4 HTTP authorization and Phase 1 marketplace suites are the first adopters.

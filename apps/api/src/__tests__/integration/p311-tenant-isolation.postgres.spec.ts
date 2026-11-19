@@ -36,6 +36,7 @@ import {
 } from '../../modules/returns/financial.schema';
 import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
@@ -97,25 +98,18 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     reconciliationService = new ReconciliationService(database);
     commissionService = new CommissionReversalService(database, outbox);
 
-    // Create orgs and users
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SY')`, [orgA]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SY')`, [orgB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin A', '+966500000003')`, [adminA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Admin B', '+966500000004')`, [adminB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+966500000005')`, [buyerA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer B', '+966500000006')`, [buyerB]);
-
-    // Stores (one per org)
-    storeA = randomUUID();
-    storeB = randomUUID();
-    await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1, $2, 'org-a-store', 'Org A Store', 'SYP', 'ACTIVE', 'VERIFIED')`,
-      [storeA, orgA],
-    );
-    await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1, $2, 'org-b-store', 'Org B Store', 'SYP', 'ACTIVE', 'VERIFIED')`,
-      [storeB, orgB],
-    );
+    // Shared identity graph: two independent tenants, buyers and active store owners.
+    const identity = await seedTwoTenantIdentityFixture(pool, {
+      prefix: 'P311 Tenant',
+      users: {
+        buyerA: { id: buyerA, fullName: 'Buyer A' },
+        buyerB: { id: buyerB, fullName: 'Buyer B' },
+        ownerA: { id: adminA, fullName: 'Admin A' },
+        ownerB: { id: adminB, fullName: 'Admin B' },
+      },
+    });
+    storeA = identity.storeA;
+    storeB = identity.storeB;
 
     // Master orders
     const masterA = randomUUID();

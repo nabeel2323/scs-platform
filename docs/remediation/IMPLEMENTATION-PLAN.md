@@ -780,3 +780,10 @@ Read-only Render metadata confirms one API web service, one configured instance,
 Source review confirms carrier events and auto-complete orders use atomic database claims; P13 return expiration additionally requires explicit enablement, a durable epoch-fenced lease and a readable/unpaused control before work, and rechecks ownership/pause before each item. Its only automatic business action is escalation to admin review, not approval, rejection, refund or terminal expiry. The P13 monitor has no external alert webhook; safe activation remains blocked pending a signed sink and a deliberate single-holder rollout.
 
 The generic OutboxDispatcher currently logs and marks non-carrier events dispatched without an atomic claim. That is not an external side effect today, but it is a horizontal-scaling constraint: do not scale the API beyond one instance or add side-effecting consumers to this dispatcher until atomic claim/lease semantics and multi-instance tests exist. No runtime or database changes were made. See `STAGING-RUNTIME-TOPOLOGY-2026-11-19.md`.
+
+
+---
+
+## 26. Reusable synthetic tenant fixture foundation
+
+P0-05 now has a shared PostgreSQL identity fixture factory at `apps/api/src/__tests__/helpers/tenant-fixtures.ts`. It creates two organizations, two buyers, two merchant owners, two active stores and their owner memberships in one transaction using fresh UUIDs and synthetic phone identifiers. P311 financial tenant isolation, P4 HTTP authorization and Phase 1 marketplace integration suites now consume this common identity graph while retaining their domain-specific order, financial, catalog and warehouse fixtures. The helper is restricted to disposable integration-test databases; no shared Supabase data is used. CI verification is pending.

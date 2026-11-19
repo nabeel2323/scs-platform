@@ -63,6 +63,7 @@ import { P13_PILOT_FLAG_KEY } from '../../modules/operations/p13-ops.config';
 import { getOpsCounter, resetOpsCounters } from '../../modules/operations/ops-counters';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as schema from '../../drizzle/schema';
+import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
@@ -300,29 +301,22 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   });
 
   async function seedBusinessFixture(): Promise<void> {
-    await pool.query(
-      `INSERT INTO organizations (id, type, name, country) VALUES ($1,'WHOLESALER','P4 HTTP Org A','SY'),($2,'WHOLESALER','P4 HTTP Org B','SY')`,
-      [orgA, orgB],
-    );
-    await pool.query(
-      `INSERT INTO users (id, full_name, phone) VALUES
-        ($1,'Buyer A','+966501100001'),($2,'Buyer B','+966501100002'),
-        ($3,'Merchant Owner A','+966501100003'),($4,'Merchant Owner B','+966501100004'),
-        ($5,'Platform Admin','+966501100005'),($6,'Finance A','+966501100006'),($7,'Finance B','+966501100007')`,
-      [buyerA, buyerB, merchantOwnerA, merchantOwnerB, adminUser, finUserA, finUserB],
-    );
-    storeA = randomUUID(); storeB = randomUUID();
-    await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status)
-       VALUES ($1,$2,'p4-http-store-a','P4 HTTP Store A','SYP','ACTIVE','VERIFIED'),
-              ($3,$4,'p4-http-store-b','P4 HTTP Store B','SYP','ACTIVE','VERIFIED')`,
-      [storeA, orgA, storeB, orgB],
-    );
-    // Store-level membership (migration 0054): owners are ACTIVE members of their own store only.
-    await pool.query(
-      `INSERT INTO store_members (id, store_id, user_id, role, status) VALUES ($1,$2,$3,'OWNER','ACTIVE'),($4,$5,$6,'OWNER','ACTIVE')`,
-      [randomUUID(), storeA, merchantOwnerA, randomUUID(), storeB, merchantOwnerB],
-    );
+    const identity = await seedTwoTenantIdentityFixture(pool, {
+      prefix: 'P4 HTTP',
+      users: {
+        buyerA: { id: buyerA, fullName: 'Buyer A' },
+        buyerB: { id: buyerB, fullName: 'Buyer B' },
+        ownerA: { id: merchantOwnerA, fullName: 'Merchant Owner A' },
+        ownerB: { id: merchantOwnerB, fullName: 'Merchant Owner B' },
+        additional: {
+          platformAdmin: { id: adminUser, fullName: 'Platform Admin' },
+          financeA: { id: finUserA, fullName: 'Finance A' },
+          financeB: { id: finUserB, fullName: 'Finance B' },
+        },
+      },
+    });
+    storeA = identity.storeA;
+    storeB = identity.storeB;
 
     const masterA = randomUUID(); const masterB = randomUUID();
     await pool.query(`INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$4,'SUBMITTED')`, [masterA, buyerA, masterB, buyerB]);

@@ -17,6 +17,7 @@ import { OrdersService } from '../../modules/orders/orders.service';
 import { InventoryService } from '../../modules/inventory/inventory.service';
 import { PromotionsService } from '../../modules/promotions/promotions.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
+import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 // Schemas
 import { products, productVariants, categories, brands, productMedia } from '../../modules/catalog/catalog.schema';
 import { attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues } from '../../modules/catalog/catalog.taxonomy.schema';
@@ -130,11 +131,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     inventoryService = new InventoryService(database, outbox);
 
     // ── Create test identities ────────────────────────────────────
-    orgA = randomUUID(); orgB = randomUUID();
-    merchantA = randomUUID(); merchantB = randomUUID();
-    buyerA = randomUUID(); buyerB = randomUUID();
     adminUser = randomUUID(); moderatorUser = randomUUID();
-    storeA = randomUUID(); storeB = randomUUID();
     warehouseA = randomUUID(); warehouseB = randomUUID();
 
     const roleRes = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER'`);
@@ -144,22 +141,30 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     const modRoleRes = await pool.query(`SELECT id FROM roles WHERE key = 'MODERATOR'`);
     moderatorRoleId = modRoleRes.rows[0].id;
 
-    await db.insert(organizations).values([
-      { id: orgA, name: 'Org Alpha', type: 'WHOLESALER', country: 'SA' },
-      { id: orgB, name: 'Org Beta', type: 'WHOLESALER', country: 'SA' },
-    ]);
-    await db.insert(users).values([
-      { id: adminUser, fullName: 'Admin User', phone: '+10000000001' },
-      { id: moderatorUser, fullName: 'Moderator User', phone: '+10000000002' },
-      { id: merchantA, fullName: 'Merchant Alpha', phone: '+10000000003' },
-      { id: merchantB, fullName: 'Merchant Beta', phone: '+10000000004' },
-      { id: buyerA, fullName: 'Buyer Alpha', phone: '+10000000005' },
-      { id: buyerB, fullName: 'Buyer Beta', phone: '+10000000006' },
-    ]);
-    await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'alpha-store', displayName: 'Alpha Store' },
-      { id: storeB, orgId: orgB, slug: 'beta-store', displayName: 'Beta Store' },
-    ]);
+    const identity = await seedTwoTenantIdentityFixture(pool, {
+      prefix: 'Phase1 Marketplace',
+      country: 'SA',
+      users: {
+        buyerA: { fullName: 'Buyer Alpha' },
+        buyerB: { fullName: 'Buyer Beta' },
+        ownerA: { fullName: 'Merchant Alpha' },
+        ownerB: { fullName: 'Merchant Beta' },
+        additional: {
+          platformAdmin: { id: adminUser, fullName: 'Admin User' },
+          platformModerator: { id: moderatorUser, fullName: 'Moderator User' },
+        },
+      },
+      organizationNames: { a: 'Org Alpha', b: 'Org Beta' },
+      storeNames: { a: 'Alpha Store', b: 'Beta Store' },
+    });
+    orgA = identity.orgA;
+    orgB = identity.orgB;
+    storeA = identity.storeA;
+    storeB = identity.storeB;
+    buyerA = identity.users.buyerA;
+    buyerB = identity.users.buyerB;
+    merchantA = identity.users.ownerA;
+    merchantB = identity.users.ownerB;
     await db.insert(warehouses).values([
       { id: warehouseA, storeId: storeA, name: 'Alpha Warehouse' },
       { id: warehouseB, storeId: storeB, name: 'Beta Warehouse' },
