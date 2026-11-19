@@ -29,6 +29,7 @@ const TABS = [
 export default function MerchantDeliveriesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const canReadShipments = user?.perms?.includes('fulfillment:shipments:read') === true;
   const [scope, setScope] = useState<'all' | 'exceptions' | 'rts'>('all');
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<ShipRow[]>([]);
@@ -37,23 +38,25 @@ export default function MerchantDeliveriesPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
-    if (!user) return;
+    if (!user || !canReadShipments) return;
     setLoading(true);
     setError('');
     listShipments({ scope, limit: PAGE, offset: page * PAGE })
       .then((r: { data: ShipRow[]; total: number }) => { setRows(r.data); setTotal(r.total); })
       .catch((e: any) => setError(e.message || 'Failed to load deliveries'))
       .finally(() => setLoading(false));
-  }, [user, scope, page]);
+  }, [user, canReadShipments, scope, page]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace('/auth/login?redirect=/merchant/deliveries'); return; }
     if (!isMerchantRole(user?.role)) { router.replace('/search'); return; }
+    if (!canReadShipments) return;
     load();
-  }, [authLoading, user, router, load]);
+  }, [authLoading, user, router, load, canReadShipments]);
 
   if (authLoading || !user) return <LoadingSpinner />;
+  if (!canReadShipments) return <div role="alert" style={{ maxWidth: 1000, margin: '24px auto', padding: 24 }}>You do not have permission to view merchant deliveries. Required: fulfillment:shipments:read.</div>;
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE));
 
