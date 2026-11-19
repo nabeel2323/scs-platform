@@ -665,3 +665,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Review of the in-progress coverage run identified a race in the new fake-timer test: it advanced the clock before the asynchronous shipment/provider/allowlist chain had reached `fetch` and installed the abort timer.
 - Updated the test to flush that promise chain and assert the fetch mock is installed before advancing 15 seconds. Production worker behavior is unchanged.
 - The previous CI run is superseded; a fresh full run must verify the corrected timeout test and G-030 tenant-isolation suites.
+
+
+### CI #823 formatting correction — 19 November 2026
+- CI #823 passed lint and TypeScript typechecking, then the changed-file Prettier gate identified only this progress tracker. No application-code formatting or typecheck errors were reported; the repository-locked formatter is being applied to the tracker.
