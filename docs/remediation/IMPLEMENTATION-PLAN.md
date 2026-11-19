@@ -337,10 +337,11 @@ Only after the P0 is closed, G-023 is fixed, the DB access model is verified, an
 - Checkout re-reads and locks the authoritative offer/variant terms inside its transaction before final validation; the cart update path rejects negative, fractional, non-finite and unsafe-integer quantities, while zero remains the explicit remove operation.
 - Web and mobile quantity controls expose the MOQ/increment step. The product-card pricing response now exposes the selected offer's `orderIncrement`.
 - Focused regression coverage was added for pricing rejection, invalid cart quantity updates and zero-as-remove semantics. Full CI #703 passed on commit `8b77243c3fc015bf19f66d0cd71b613398311a70`, including API unit/coverage, integration, lint/typecheck, web/admin, Flutter, migration apply, contract/codegen, build and container smoke.
-- **Acceptance review still required before closing:** verify explicit tests for an offer's MOQ/increment changing after cart creation, the locked checkout re-read rejecting that stale cart, and competing cart/checkout updates. CI green is necessary but does not by itself prove these specific scenarios.
+- **Stale-term/lock regression coverage added:** unit tests simulate MOQ and orderIncrement changes after cart creation, verify checkout re-reads the updated offer inside its transaction using `FOR UPDATE`, and confirm rejection occurs before order insertion.
+- **Remaining acceptance review:** this is a deterministic race-window/locking test, not a real multi-connection PostgreSQL contention test. Keep full competing cart-update/checkout concurrency stress verification in Phase 6 before claiming production concurrency proof.
 - Validation currently uses the service's request-validation errors; do not describe them as a stable machine-readable error-code contract until that is explicitly implemented and tested.
 
-**Acceptance:** valid/invalid MOQ boundaries and increment steps; authoritative offer-term changes after cart creation; checkout transaction re-read/locking; concurrency and stale-offer tests; consistent web/mobile controls.
+**Acceptance:** valid/invalid MOQ boundaries and increment steps; authoritative offer-term changes after cart creation; checkout transaction re-read/locking; deterministic race-window regression test; full concurrent DB contention verification in Phase 6; consistent web/mobile controls.
 
 ### 2.3 Close G-005 — mixed-currency checkout
 - **Implemented and verified in CI #687:** checkout groups item line totals by normalized currency and adds only the selected shipping method's fee in that method's own currency.

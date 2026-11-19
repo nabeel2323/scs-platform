@@ -501,3 +501,141 @@ describe('OrdersService.checkout payment method support', () => {
     expect(db.transaction).not.toHaveBeenCalled();
   });
 });
+
+describe('OrdersService.checkout authoritative offer lock', () => {
+  it.each([
+    {
+      name: 'MOQ changes after the cart was created',
+      quantity: 2,
+      initialMoq: 2,
+      initialIncrement: 1,
+      lockedMoq: 5,
+      lockedIncrement: 1,
+    },
+    {
+      name: 'orderIncrement changes after the cart was created',
+      quantity: 3,
+      initialMoq: 2,
+      initialIncrement: 1,
+      lockedMoq: 2,
+      lockedIncrement: 2,
+    },
+  ])('rejects when $name', async ({
+    quantity,
+    initialMoq,
+    initialIncrement,
+    lockedMoq,
+    lockedIncrement,
+  }) => {
+    const initialOffer = {
+      id: 'offer-1',
+      storeId: 'store-1',
+      status: 'ACTIVE',
+      isAvailable: true,
+      moq: initialMoq,
+      orderIncrement: initialIncrement,
+      priceListId: null,
+      warehouseId: null,
+      basePriceMinor: 1000,
+      compareAtPriceMinor: null,
+      currency: 'SAR',
+      leadTimeDays: null,
+    };
+    const lockedOffer = {
+      ...initialOffer,
+      moq: lockedMoq,
+      orderIncrement: lockedIncrement,
+    };
+    const lockModes: string[] = [];
+    let lockRead = 0;
+    const tx = {
+      query: {
+        productVariants: {
+          findMany: vi.fn(async () => [{
+            id: 'variant-1',
+            productId: 'product-1',
+          }]),
+        },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn(async (mode: string) => {
+              lockModes.push(mode);
+              lockRead += 1;
+              return lockRead === 1
+                ? [{ id: 'product-1', title: 'Widget', moq: 1 }]
+                : [lockedOffer];
+            }),
+          })),
+        })),
+      })),
+      insert: vi.fn(),
+    };
+    const db = {
+      query: {
+        carts: {
+          findFirst: vi.fn(async () => ({
+            id: 'cart-1',
+            promotionId: null,
+            promoCode: null,
+          })),
+        },
+        cartItems: {
+          findMany: vi.fn(async () => [{
+            id: 'line-1',
+            storeId: 'store-1',
+            variantId: 'variant-1',
+            offerId: 'offer-1',
+            quantity,
+            lineTotalMinor: quantity * 1000,
+          }]),
+        },
+        merchantOffers: {
+          findMany: vi.fn(async () => [initialOffer]),
+        },
+        productVariants: {
+          findFirst: vi.fn(async () => ({
+            id: 'variant-1',
+            productId: 'product-1',
+          })),
+        },
+        products: {
+          findFirst: vi.fn(async () => ({
+            id: 'product-1',
+            title: 'Widget',
+            moq: 1,
+          })),
+        },
+        stores: {
+          findMany: vi.fn(async () => [{
+            id: 'store-1',
+            currency: 'SAR',
+            orgId: 'org-1',
+          }]),
+        },
+      },
+      transaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(tx)),
+    };
+    const service = new OrdersService(
+      { db } as any,
+      {} as any,
+      { resolveApplicable: vi.fn(), calculateDiscount: vi.fn() } as any,
+    );
+
+    await expect(service.checkout({
+      buyerId: 'buyer-1',
+      deliveryAddress: { street: 'Main St', city: 'Riyadh' },
+      paymentMethod: 'CASH_ON_DELIVERY',
+      shippingSelections: [{
+        storeId: 'store-1',
+        fulfillmentMethod: 'PICKUP',
+      }],
+    })).rejects.toThrow('Widget:');
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+    expect(tx.select).toHaveBeenCalledTimes(2);
+    expect(lockModes).toEqual(['update', 'update']);
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+});
