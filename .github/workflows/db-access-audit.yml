@@ -2,12 +2,6 @@ name: Read-only Database Access Audit
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - remediation/phase-0-1-tenant-security
-    paths:
-      - .github/workflows/db-access-audit.yml
-      - apps/api/scripts/audit-db-access.ts
 
 permissions:
   contents: read
