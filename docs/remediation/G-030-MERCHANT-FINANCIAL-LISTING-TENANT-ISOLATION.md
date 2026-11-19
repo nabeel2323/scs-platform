@@ -13,7 +13,7 @@ Source review found two merchant listing routes whose service calls did not carr
 - `GET /v1/merchant/payments` called the general `listPayments({ storeId, status })` method. That method attempted to build order-level store/buyer filters, but the constructed `orderConditions` were never applied to the payment query. A missing store filter returned all payments; a supplied store filter also failed to constrain the final result.
 - `GET /v1/merchant/settlements` called the general `listSettlements({ storeId, status })` method without the authenticated caller. Without a store filter, the method returned all settlements; with a caller-supplied store ID, it did not verify active organization ownership or active store membership.
 
-Both controller routes require the functional `merchant:orders:read` permission. That permission alone is not an object-level tenant boundary.
+Both controller routes require the functional `merchant:orders:read` permission. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles receive this permission as an organization-wide read capability. The correct object-level boundary is the authenticated caller's active organization; `store_members` is not the intended authorization boundary for these financial read routes.
 
 The source-level finding does not assert that a specific production user exploited the defect. No production payment/settlement rows were accessed or modified during this review.
 
@@ -23,14 +23,14 @@ The source-level finding does not assert that a specific production user exploit
 
 - Added `listMerchantPayments(caller, filters)`.
   - Requires an active organization for non-platform callers.
-  - Validates an explicitly requested store against active organization ownership and ACTIVE store membership.
-  - Joins payment records → orders → stores → ACTIVE `store_members` for the authenticated user.
-  - Applies the active organization and optional store/status/payment-method filters in SQL.
+  - Requires an active organization and validates an explicitly requested store against that organization.
+  - Joins payment records → orders → stores and filters by the authenticated active organization.
+  - Applies optional store/status/payment-method filters in SQL.
 - Added `listMerchantSettlements(caller, filters)`.
   - Requires an active organization for non-platform callers.
-  - Validates an explicitly requested store against active organization ownership and ACTIVE store membership.
-  - Joins settlement records → stores → ACTIVE `store_members` for the authenticated user.
-  - Applies the active organization and optional store/status filters in SQL.
+  - Requires an active organization and validates an explicitly requested store against that organization.
+  - Joins settlement records → stores and filters by the authenticated active organization.
+  - Applies optional store/status filters in SQL.
 - Corrected the general `listPayments` store/buyer filter path by resolving matching order IDs and applying them to the payment query. Empty matches return an empty result, never an unfiltered list.
 - Platform staff retain the documented privileged behavior; merchant routes no longer rely on that bypass for ordinary merchant callers.
 
