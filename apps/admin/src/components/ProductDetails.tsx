@@ -191,6 +191,7 @@ export default function ProductDetails({
   onChanged?: () => void;
 }) {
   const { hasAccess } = useRequirePerms(['admin:merchants:read']);
+  const { hasAccess: canEditProduct } = useRequirePerms(['catalog:products:write']);
   const product = useAdminResource<AdminProduct>(`products/${encodeURIComponent(id)}`, hasAccess);
   const previews = useAdminResource<{ previews: Record<string, string> }>(
     `admin/products/${encodeURIComponent(id)}/media-previews`,
@@ -466,22 +467,24 @@ export default function ProductDetails({
         entityId={id}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Link
-              href={`/products/${id}/edit`}
-              style={{
-                padding: '6px 14px',
-                fontSize: 13,
-                fontWeight: 600,
-                background: '#1e6178',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 6,
-                textDecoration: 'none',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              Edit
-            </Link>
+            {canEditProduct && (
+              <Link
+                href={`/products/${id}/edit`}
+                style={{
+                  padding: '6px 14px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: '#1e6178',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Edit
+              </Link>
+            )}
             <ProductModerationActions
               id={id}
               status={value.status}
