@@ -279,6 +279,11 @@ describe('M7.1 — Security & Concurrency', () => {
         [randomUUID(), cartId, storeA, variantA, offerA],
       );
 
+      const beforeOrders = await pool.query<{ count: number }>(
+        'SELECT COUNT(*)::int AS count FROM orders WHERE buyer_id = $1',
+        [buyerA],
+      );
+
       // Hold an uncommitted MOQ change. Checkout's initial non-locking read
       // sees the old MOQ, but its authoritative SELECT ... FOR UPDATE must
       // wait and then observe the newly committed MOQ.
@@ -305,6 +310,7 @@ describe('M7.1 — Security & Concurrency', () => {
                FROM pg_stat_activity
               WHERE datname = current_database()
                 AND wait_event_type = 'Lock'
+                AND query ILIKE '%merchant_offers%'
                 AND query ILIKE '%FOR UPDATE%'
               LIMIT 1`,
           );
@@ -323,7 +329,7 @@ describe('M7.1 — Security & Concurrency', () => {
           'SELECT COUNT(*)::int AS count FROM orders WHERE buyer_id = $1',
           [buyerA],
         );
-        expect(persisted.rows[0]?.count).toBe(0);
+        expect(persisted.rows[0]?.count).toBe(beforeOrders.rows[0]?.count);
       } finally {
         if (checkoutPromise) {
           // Ensure a failed assertion cannot leave a checkout transaction
