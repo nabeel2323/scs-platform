@@ -986,7 +986,7 @@ A review of the Admin product moderation workflow found that PATCH /v1/admin/pro
 
 The canonical RBAC seed is idempotent and inserts missing permission/role-permission rows without deleting existing assignments. The controlled release workflow runs db:seed after migrations; no schema migration is needed for this permission. Existing access tokens contain a permission snapshot, so current users must refresh/re-authenticate after the seed is applied to receive the new permission claim. Until then the moderation endpoint fails closed.
 
-**Status:** implementation and focused tests committed; current-head lint, API unit/coverage, Admin test and full CI verification pending. No RBAC seed was run against the shared database and no production/staging data or roles were changed.
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
 
 ## 36. G-032 — Align dispute detail permission with the canonical RBAC contract — 19 November 2026
 
@@ -1002,7 +1002,7 @@ The Admin dispute detail page checked admin:disputes:read, a permission key that
 
 No API permission change or RBAC seed change was required. No database or role assignments were modified.
 
-**Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
 
 ## 37. G-033 — Align attribute detail permission with the catalog RBAC contract — 19 November 2026
 
@@ -1017,7 +1017,7 @@ The Admin Attributes list correctly requires catalog:attributes:manage, but the 
 
 No API authorization change, RBAC seed change or database migration was required.
 
-**Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
 
 ## 38. G-034 — Enforce operation-specific permissions in financial Admin workflows — 19 November 2026
 
@@ -1036,7 +1036,7 @@ The Payments, Settlements, Reconciliation and Settlement Adjustments pages invok
 
 No API permission change, database migration or RBAC seed change was required; the backend route guards already enforce these permissions.
 
-**Status:** implementation and focused Admin UI tests committed; current-head lint/typecheck, Admin tests and full CI verification pending.
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
 
 ## 39. G-035 — Enforce operation-specific permissions in merchant delivery UI — 19 November 2026
 
@@ -1054,7 +1054,7 @@ Merchant delivery list and detail pages checked only that the caller had a merch
 
 No API authorization, RBAC seed or database change was required; backend route guards already enforce these permissions.
 
-**Status:** implementation and focused Web tests committed; latest-head Web/Admin tests, lint/typecheck and full CI verification pending.
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
 
 ## Current-head addendum — CI #936 — 19 November 2026
 
