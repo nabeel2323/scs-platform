@@ -121,3 +121,10 @@ Required design work before DDL:
 7. Verify negative and positive access tests using the runtime role before staging rollout.
 
 No DDL, grant, revoke, role, migration, environment or deployment change was made during this inventory.
+
+
+## 2D. Sequence and managed-storage privilege cross-check
+
+A separate effective sequence-privilege query found two sequences in the checked `public` and `auth` schemas; anon, authenticated and service_role had no USAGE, SELECT or UPDATE privilege on either sequence.
+
+The complete postgres default-ACL snapshot also includes managed `storage` schema defaults. Supabase's `storage` schema grants the client roles access to storage metadata tables and functions, with RLS enabled on all eight listed storage relations. These grants are part of the managed Storage subsystem and must not be mass-revoked as if they were application `public` table grants. The seven storage relations with effective SELECT require policy-level verification. The storage `service_role` has broad privileges by design; do not repurpose that managed role as the API's runtime database login.
