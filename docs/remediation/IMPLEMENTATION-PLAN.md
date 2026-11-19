@@ -906,7 +906,6 @@ The remediation branch now:
 
 **Status:** implementation committed; current-head CI pending. P0 remains open until test evidence is green.
 
-
 ## 32. Current-head verification and G-030 closure — 19 November 2026
 
 Current branch head `d965e73da727aa136fa4af859f7f423de04d00d7` passed CI run **#832**. The following executable jobs completed successfully: lint/typecheck and changed-file formatting, Flutter analysis/tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, web/admin tests, isolated full migration apply, contract/codegen, build, and container build/smoke. The k6 smoke and staging release jobs were skipped by workflow conditions and are not claimed as passed.
