@@ -930,6 +930,7 @@ The next execution order is: complete the evidence-based G-002 role/access revie
 CI run #843 passed all 10 executable jobs on branch head 58053f61e9d3679e81b999e2a9f24f4c8ad4f5ab. Lint/typecheck/format, Flutter, API unit/coverage, PostgreSQL integration, web/admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke all passed. k6 and staging release were skipped.
 
 A fresh read-only Supabase MCP inspection of the SCS-PlatForm PostgreSQL 17.6 project added important G-002 evidence:
+
 - 114/114 public tables have RLS disabled.
 - aclexplode confirms direct MAINTAIN, REFERENCES, TRIGGER and TRUNCATE grants to anon, authenticated and service_role on all 114 tables; effective SELECT/INSERT/UPDATE/DELETE counts remain zero for these three roles.
 - postgres-owned public-table default ACLs repeat those four grants for future objects created by postgres. Supabase-managed supabase_admin defaults are separate and must not be modified as part of this remediation.

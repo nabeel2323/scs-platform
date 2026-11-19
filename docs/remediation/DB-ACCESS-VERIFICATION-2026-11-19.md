@@ -29,12 +29,12 @@ The SQL inspection session reported:
 
 ## Public table inventory and RLS
 
-| Measure | Live result |
-|---|---:|
-| Public ordinary/partitioned tables | 114 |
-| Tables owned by postgres (prior inventory; ownership remains to be rechecked alongside full classification) | 114 |
-| RLS enabled | 0 |
-| RLS forced | 0 |
+| Measure                                                                                                     | Live result |
+| ----------------------------------------------------------------------------------------------------------- | ----------: |
+| Public ordinary/partitioned tables                                                                          |         114 |
+| Tables owned by postgres (prior inventory; ownership remains to be rechecked alongside full classification) |         114 |
+| RLS enabled                                                                                                 |           0 |
+| RLS forced                                                                                                  |           0 |
 
 Supabase Security Advisor currently emits the critical `rls_disabled` finding for all 114 public tables. Its explanatory text says the tables are fully exposed for read/write through the anon key. The direct privilege checks below do **not** support that full read/write claim: `anon` and `authenticated` currently have no SELECT, INSERT, UPDATE or DELETE privilege on these 114 tables. The advisor is correctly flagging that RLS is absent, but its blanket description does not reflect the effective DML grants observed in this snapshot.
 
@@ -44,11 +44,11 @@ RLS being disabled remains a serious defense-in-depth and future-grant risk. It 
 
 Effective privileges were counted using PostgreSQL `has_table_privilege` across all 114 public tables:
 
-| Role | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| anon | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
-| authenticated | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
-| service_role | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
+| Role          | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN |
+| ------------- | -----: | -----: | -----: | -----: | -------: | ---------: | ------: | -------: |
+| anon          |      0 |      0 |      0 |      0 |      114 |        114 |     114 |      114 |
+| authenticated |      0 |      0 |      0 |      0 |      114 |        114 |     114 |      114 |
+| service_role  |      0 |      0 |      0 |      0 |      114 |        114 |     114 |      114 |
 
 The raw ACL for representative tables (`users`, `orders`, `merchant_offers`, `products`) confirms these non-DML grants are explicit. In particular, TRUNCATE is a destructive privilege and should not be granted to public client roles. MAINTAIN is a PostgreSQL 17 table-maintenance privilege; it is not row-read or row-write access, but is also unnecessary for these client roles.
 
@@ -119,7 +119,6 @@ A manually dispatched GitHub workflow, `.github/workflows/db-access-audit.yml`, 
 
 This report is based on read-only live queries and source inspection. No SQL mutation, migration, grant change, RLS enablement, worker activation, Render configuration change or deployment was performed.
 
-
 ## Additional ACL and extension-owner verification — 19 November 2026
 
 A separate catalog query using `aclexplode` found zero direct table grants to `PUBLIC` across all 114 public tables and zero default-ACL grants to `PUBLIC` for public-schema or global defaults. This narrows the immediate exposure assessment: the inspected client roles have no table CRUD grants, and no privilege is inherited through the PUBLIC pseudo-role. Their explicit TRUNCATE/REFERENCES/TRIGGER/MAINTAIN grants remain unnecessary and are the target of migration 0070 for anon/authenticated.
@@ -136,11 +135,11 @@ A fresh read-only inspection through the connected Supabase project (SCS-PlatFor
 
 aclexplode across all 114 public tables shows explicit table ACL entries for each of anon, authenticated and service_role:
 
-| Grantee | MAINTAIN | REFERENCES | TRIGGER | TRUNCATE | SELECT/INSERT/UPDATE/DELETE |
-|---|---:|---:|---:|---:|---:|
-| anon | 114 | 114 | 114 | 114 | 0 |
-| authenticated | 114 | 114 | 114 | 114 | 0 |
-| service_role | 114 | 114 | 114 | 114 | 0 |
+| Grantee       | MAINTAIN | REFERENCES | TRIGGER | TRUNCATE | SELECT/INSERT/UPDATE/DELETE |
+| ------------- | -------: | ---------: | ------: | -------: | --------------------------: |
+| anon          |      114 |        114 |     114 |      114 |                           0 |
+| authenticated |      114 |        114 |     114 |      114 |                           0 |
+| service_role  |      114 |        114 |     114 |      114 |                           0 |
 
 These are direct ACL entries, not privileges inherited through the pseudo-role PUBLIC. The separate public-schema ACL check confirms USAGE but not CREATE for anon/authenticated; CREATE is held by pg_database_owner. No direct table grants to PUBLIC were found.
 
@@ -155,6 +154,7 @@ Migration 0070 is designed to revoke all existing and future table/sequence priv
 ### Membership and role switching
 
 The live role graph confirms:
+
 - authenticator has membership in anon, authenticated and service_role with SET permitted and INHERIT disabled on each membership.
 - pg_has_role(authenticator, target_role, SET) is true for all three targets; USAGE is false. The API authenticator can switch into the selected JWT role but does not automatically inherit its object privileges.
 - service_role is NOLOGIN and BYPASSRLS. anon and authenticated are NOLOGIN and do not BYPASSRLS.
