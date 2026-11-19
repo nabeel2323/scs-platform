@@ -37,6 +37,42 @@ The expanded PostgreSQL ACL inventory confirms that each of `anon`, `authenticat
 
 No `SELECT`, `INSERT`, `UPDATE`, or `DELETE` privileges were found for those three roles on the 114 public relations in the checked ACL snapshot. This distinction matters: the concern is not a demonstrated direct CRUD path through the Supabase client roles; it is the unnecessary structural/maintenance privileges and the privileged API database identity.
 
+
+## 2A. Fresh Security Advisor and effective-privilege reconciliation (19 November 2026)
+
+A fresh Supabase Security Advisor run reports a **critical** `rls_disabled` finding for 117 tables: 114 in `public` and three in `partman`. Its generated description says the tables are fully exposed to `anon` and `authenticated`. This statement must be qualified against effective PostgreSQL privileges rather than copied as a proven direct Data API read/write path.
+
+A read-only SQL verification using `has_table_privilege` (which accounts for inherited and PUBLIC grants) produced this effective privilege count for all 114 ordinary/partitioned `public` relations:
+
+| Role | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| anon | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
+| authenticated | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
+| service_role | 0 | 0 | 0 | 0 | 114 | 114 | 114 | 114 |
+
+This is an important distinction:
+
+- The current effective privilege check does **not** show direct table SELECT/INSERT/UPDATE/DELETE access for these roles on the 114 public relations.
+- It **does** confirm that all three roles have TRUNCATE on all 114 public relations, which is a destructive table-level privilege and must be treated as a real least-privilege defect. They also have unnecessary REFERENCES, TRIGGER and MAINTAIN privileges.
+- The public schema grants USAGE to anon/authenticated/service_role. The partman schema does not grant USAGE to these roles, and the four discovered partman objects (three tables plus the `table_privs` view) have no effective CRUD/TRUNCATE privileges for them.
+- The checked auth tables (including the 11 with RLS disabled) show no effective SELECT or TRUNCATE privilege for anon/authenticated. The storage schema has RLS enabled on its eight listed relations; effective SELECT exists on seven, so the applicable storage RLS policies still need their own review.
+- The `extensions` schema exposes five extension objects with SELECT privileges to anon/authenticated. This is separate from access to application data tables.
+
+Therefore the Advisor is correct that RLS is disabled across the listed application tables and that this is a critical security posture issue, but its blanket sentence that every row can currently be read or modified through anon/authenticated is not established by the effective privileges queried here. The exact Data API route exposure and the TRUNCATE path need separate verification. Do not describe the discrepancy as a false positive until that verification is complete.
+
+The role-privilege query was read-only and included inherited privileges. No grants, revokes, policies or schema settings were changed.
+
+## 2B. Function exposure and search-path observations
+
+- The public schema contains 32 functions in the current snapshot. None is marked `SECURITY DEFINER`.
+- All 32 report no function-level `proconfig` (no pinned search_path); 31 are pg_trgm extension functions and one is `public.normalize_arabic(text)`.
+- `anon` and `authenticated` have effective EXECUTE on those public functions. The inspected `normalize_arabic` body uses built-ins and no application tables, but the mutable search_path warning remains and should be hardened in a versioned migration after verifying function dependencies.
+- The broader non-public schema inventory includes Supabase-managed functions; do not mass-alter their search paths or privileges.
+
+## 2C. Current scope count clarification
+
+The 114 public relations consist of 113 ordinary tables and one partitioned parent; partition children are included in the 114. The fresh Advisor's 117-table warning adds three partman tables. A broader catalog query also found `partman.table_privs`, a view, which is why a query counting tables/views reports four partman relations. This explains the 117-versus-118 object-count difference without treating the view as a table.
+
 ## 3. Default privileges
 
 The default ACL configured for objects created by `postgres` in `public` repeats the `MAINTAIN`, `REFERENCES`, `TRIGGER`, and `TRUNCATE` grants for `anon`, `authenticated`, and `service_role` on future tables. Therefore, correcting only current table ACLs would not fix the future-object grant behavior.
