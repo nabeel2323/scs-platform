@@ -905,3 +905,23 @@ The remediation branch now:
 - adds two-tenant PostgreSQL tests and controller forwarding tests.
 
 **Status:** implementation committed; current-head CI pending. P0 remains open until test evidence is green.
+
+
+## 32. Current-head verification and G-030 closure — 19 November 2026
+
+Current branch head `d965e73da727aa136fa4af859f7f423de04d00d7` passed CI run **#832**. The following executable jobs completed successfully: lint/typecheck and changed-file formatting, Flutter analysis/tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, web/admin tests, isolated full migration apply, contract/codegen, build, and container build/smoke. The k6 smoke and staging release jobs were skipped by workflow conditions and are not claimed as passed.
+
+**G-030 is CLOSED for implementation and automated regression coverage.** The dedicated merchant payment and settlement listing paths now bind records to the authenticated active organization, validate explicit store filters, preserve the seeded organization-wide merchant read permission, and have two-tenant PostgreSQL and controller tests. See [the G-030 evidence report](./G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md).
+
+**G-010 timeout regression is test-harness verified** in the same current-head CI: the expected 15-second timeout rejection is observed before fake timers advance, and the complete API unit/coverage job passed. The production worker change remains subject to its own operational/activation criteria in Phase 3; this does not close the wider P13 worker activation gate.
+
+The one-time progress formatter workflow has been deleted. No formatter automation with repository write permission remains.
+
+### Phase 5 control evidence and remaining limitations
+
+- A read of repository rulesets returned an empty list. The branch-protection endpoint for `develop` returned HTTP 403 (resource not accessible to this integration). Therefore G-014 remains **UNVERIFIED/OPEN**; do not infer that branch protection is absent or present from the inaccessible endpoint.
+- No shared database role/grant change or RLS enablement has been performed. G-002 remains **BLOCKED** pending a verified effective API/migration role inventory and an approved tenant-isolation architecture.
+- The full release campaign remains pending: k6/performance, staging release and safe staging E2E were not executed by CI #832.
+- No production deployment, shared-database migration, staging write or financial-data mutation was performed.
+
+The next execution order is: complete the evidence-based G-002 role/access review without changing grants; resolve G-014 through an authorized repository administrator or an available read-only policy view; continue the remaining Phase 3/4/5 findings with focused regression tests; then run the consolidated Phase 6 campaign only after the prerequisite release gates are met.
