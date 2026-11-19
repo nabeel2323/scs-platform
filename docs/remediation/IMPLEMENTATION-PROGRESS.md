@@ -629,3 +629,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ### G-030 formatter coverage — 19 November 2026
 - The temporary locked-Prettier workflow now includes the G-030 payment service/controller and PostgreSQL/controller tests, plus the earlier G-010 worker test and eight Markdown artifacts. It will be removed after one successful formatting pass.
+
+
+### G-030 evidence artifact — 19 November 2026
+- Added [G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md](./G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md) with source-level root cause, remediation paths, test coverage and closure criteria. The finding remains P0/OPEN pending latest-head CI.
