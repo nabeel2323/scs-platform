@@ -400,3 +400,54 @@ describe('OrdersService.checkout MOQ and order-increment enforcement', () => {
     expect(db.query.products.findFirst).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('OrdersService.previewCheckout', () => {
+  it('returns server-calculated VAT and totals for a supplier', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })) },
+        cartItems: { findMany: vi.fn(async () => [{
+          id: 'line-1', storeId: 'store-1', variantId: 'variant-1',
+          offerId: null, quantity: 2, lineTotalMinor: 10000,
+        }]) },
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
+        stores: { findMany: vi.fn(async () => [{ id: 'store-1', currency: 'SAR' }]) },
+      },
+    };
+    const service = new OrdersService({ db } as any, {} as any, {} as any);
+    const preview = await service.previewCheckout({
+      buyerId: 'buyer-1',
+      deliveryAddress: { street: 'Main St', city: 'Riyadh' },
+      shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
+    });
+    expect(preview.isEstimate).toBe(true);
+    expect(preview.stores).toEqual([{
+      storeId: 'store-1', currency: 'SAR', fulfillmentMethod: 'PICKUP',
+      shippingMethodId: null, subtotalMinor: 10000, discountMinor: 0,
+      deliveryFeeMinor: 0, taxMinor: 1500, totalMinor: 11500,
+    }]);
+    expect(preview.totalsByCurrency).toEqual({ SAR: 11500 });
+    expect(preview.hasUnpricedAmounts).toBe(false);
+  });
+
+  it('rejects a preview that omits a cart supplier selection', async () => {
+    const db = {
+      query: {
+        carts: { findFirst: vi.fn(async () => ({ id: 'cart-1', promoCode: null, promotionId: null })) },
+        cartItems: { findMany: vi.fn(async () => [
+          { id: 'line-1', storeId: 'store-1', variantId: 'variant-1', offerId: null, quantity: 1, lineTotalMinor: 1000 },
+          { id: 'line-2', storeId: 'store-2', variantId: 'variant-2', offerId: null, quantity: 1, lineTotalMinor: 2000 },
+        ]) },
+        productVariants: { findFirst: vi.fn(async () => ({ id: 'variant-1', productId: 'product-1' })) },
+        products: { findFirst: vi.fn(async () => ({ id: 'product-1', title: 'Widget', moq: 1 })) },
+      },
+    };
+    const service = new OrdersService({ db } as any, {} as any, {} as any);
+    await expect(service.previewCheckout({
+      buyerId: 'buyer-1',
+      deliveryAddress: { city: 'Riyadh' },
+      shippingSelections: [{ storeId: 'store-1', fulfillmentMethod: 'PICKUP' }],
+    })).rejects.toThrow('Missing shipping selection for store store-2');
+  });
+});

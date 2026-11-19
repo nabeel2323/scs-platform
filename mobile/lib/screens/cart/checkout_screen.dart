@@ -27,7 +27,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _addressCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-  String _fulfillment = 'PLATFORM_DELIVERY';
+  final Map<String, Map<String, dynamic>> _shippingEstimates = {};
+  final Map<String, Map<String, dynamic>> _shippingSelections = {};
+  Map<String, dynamic>? _checkoutPreview;
+  String _paymentMethod = 'CASH_ON_DELIVERY';
+  bool _loadingShipping = false;
+  bool _loadingPreview = false;
   int _step = 0; // 0 Address · 1 Fulfillment · 2 Review
   bool _submitting = false;
   String? _error;
@@ -49,7 +54,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  void _goToFulfillment() {
+  Future<void> _goToFulfillment() async {
     if (_addressCtrl.text.trim().isEmpty || _cityCtrl.text.trim().isEmpty) {
       setState(
           () => _error = 'Please enter a delivery street address and city.');
@@ -57,16 +62,85 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
     setState(() {
       _error = null;
+      _loadingShipping = true;
       _step = 1;
+      _shippingEstimates.clear();
+      _shippingSelections.clear();
+      _checkoutPreview = null;
     });
+    try {
+      final cart = await ref.read(cartProvider.future);
+      final grouped = <String, List<CartItem>>{};
+      for (final item in cart.items) {
+        (grouped[item.storeId] ??= []).add(item);
+      }
+      final entries = grouped.entries.toList();
+      final estimates = await Future.wait(entries.map((entry) {
+        final subtotal = entry.value.fold<int>(
+            0, (sum, item) => sum + item.lineTotalMinor);
+        return ref.read(apiServiceProvider).fetchShippingEstimate(
+              storeId: entry.key,
+              subtotalMinor: subtotal,
+              city: _cityCtrl.text.trim(),
+            );
+      }));
+      if (!mounted) return;
+      setState(() {
+        for (var i = 0; i < entries.length; i++) {
+          _shippingEstimates[entries[i].key] = {
+            ...estimates[i],
+            'storeName': entries[i].value.first.storeName,
+          };
+        }
+        _loadingShipping = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingShipping = false;
+          _error = ApiService.errorMessage(e);
+        });
+      }
+    }
   }
 
-  void _goToReview() {
+  Future<void> _goToReview() async {
+    final cart = await ref.read(cartProvider.future);
+    final storeIds = cart.items.map((item) => item.storeId).toSet();
+    final missing = storeIds.where((storeId) =>
+        !_shippingSelections.containsKey(storeId));
+    if (missing.isNotEmpty) {
+      setState(() => _error =
+          'Choose a shipping or pickup option for every supplier before continuing.');
+      return;
+    }
     setState(() {
       _error = null;
-      _idempotencyKey = const Uuid().v4();
-      _step = 2;
+      _loadingPreview = true;
     });
+    try {
+      final preview = await ref.read(apiServiceProvider).previewCheckout(
+        deliveryAddress: {
+          'street': _addressCtrl.text.trim(),
+          'city': _cityCtrl.text.trim(),
+        },
+        shippingSelections: _shippingSelections.values.toList(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _checkoutPreview = preview;
+        _idempotencyKey = const Uuid().v4();
+        _step = 2;
+        _loadingPreview = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingPreview = false;
+          _error = ApiService.errorMessage(e);
+        });
+      }
+    }
   }
 
   void _back() => setState(() {
@@ -89,7 +163,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         },
         notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
         idempotencyKey: key,
-        fulfillmentMethod: _fulfillment,
+        shippingSelections: _shippingSelections.values.toList(),
+        paymentMethod: _paymentMethod,
       );
       ref.invalidate(cartProvider);
       ref.invalidate(ordersProvider);
@@ -108,13 +183,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     }
   }
-
-  String _fulfillmentLabel(String m) => switch (m) {
-        'PLATFORM_DELIVERY' => 'Platform delivery',
-        'MERCHANT_DELIVERY' => 'Merchant delivery',
-        'PICKUP' => 'Store pickup',
-        _ => m.replaceAll('_', ' '),
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +215,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             if (_step > 0) ...[
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _submitting ? null : _back,
+                  onPressed: _submitting || _loadingShipping || _loadingPreview ? null : _back,
                   child: const Text('Back'),
                 ),
               ),
@@ -156,7 +224,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             Expanded(
               flex: _step > 0 ? 2 : 1,
               child: ElevatedButton(
-                onPressed: _submitting
+                onPressed: _submitting || _loadingShipping || _loadingPreview
                     ? null
                     : switch (_step) {
                         0 => _goToFulfillment,
@@ -170,7 +238,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : Text(switch (_step) {
                         0 => 'Continue',
-                        1 => 'Review order',
+                        1 => _loadingPreview ? 'Calculating totals…' : 'Review order',
                         _ => 'Place order',
                       }),
               ),
@@ -259,26 +327,110 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             enabled: !_submitting),
       ]);
 
-  // ── Step 1: Fulfillment ───────────────────────────────────
-  Widget _fulfillmentStep() =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Fulfillment Method',
-            style: TextStyle(fontWeight: FontWeight.w600)),
+  // ── Step 1: Per-supplier fulfillment ───────────────────────
+  Widget _fulfillmentStep() {
+    if (_loadingShipping && _shippingEstimates.isEmpty) {
+      return const Center(child: LoadingSpinner());
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Choose delivery for each supplier',
+            style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        RadioGroup<String>(
-          groupValue: _fulfillment,
-          onChanged: (v) {
-            if (!_submitting && v != null) {
-              setState(() => _fulfillment = v);
-            }
-          },
-          child: Column(children: [
-            ...['PLATFORM_DELIVERY', 'MERCHANT_DELIVERY', 'PICKUP'].map((m) =>
-                RadioListTile<String>(
-                    title: Text(_fulfillmentLabel(m)), value: m)),
-          ]),
-        ),
-      ]);
+        ..._shippingEstimates.entries.map((entry) {
+          final storeId = entry.key;
+          final estimate = entry.value;
+          final methods = (estimate['methods'] as List? ?? [])
+              .whereType<Map>()
+              .map((method) => Map<String, dynamic>.from(method))
+              .where((method) => method['status'] != 'UNAVAILABLE')
+              .toList();
+          final selection = _shippingSelections[storeId];
+          final selectedValue = selection?['fulfillmentMethod'] == 'PICKUP'
+              ? 'PICKUP'
+              : selection?['shippingMethodId'] as String?;
+          final storeName = ref.watch(cartProvider).maybeWhen(
+                data: (cart) => cart.items
+                    .where((item) => item.storeId == storeId)
+                    .map((item) => item.storeName)
+                    .firstWhere((name) => name != null && name.isNotEmpty,
+                        orElse: () => null) ?? 'Supplier',
+                orElse: () => 'Supplier',
+              );
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(storeName,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  if (estimate['deliveryAvailable'] == false)
+                    const Text('Delivery is not available for this address. Pickup may still be available.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                  ...methods.map((method) {
+                    final methodId = method['methodId'] as String;
+                    final fulfillmentMethod =
+                        (method['fulfillmentMethod'] as String?) ??
+                            'PLATFORM_DELIVERY';
+                    final fee = method['feeMinor'] as int? ?? 0;
+                    final currency = method['currency'] as String?;
+                    final daysMin = method['estimatedDaysMin'];
+                    final daysMax = method['estimatedDaysMax'];
+                    final details = [
+                      formatMinor(fee, currency),
+                      if (daysMin != null) '$daysMin–${daysMax ?? daysMin} days',
+                    ].join(' · ');
+                    return RadioListTile<String>(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: methodId,
+                      groupValue: selectedValue,
+                      onChanged: _submitting
+                          ? null
+                          : (_) => setState(() {
+                                _shippingSelections[storeId] = {
+                                  'storeId': storeId,
+                                  'fulfillmentMethod': fulfillmentMethod,
+                                  'shippingMethodId': methodId,
+                                };
+                                _checkoutPreview = null;
+                              }),
+                      title: Text(method['name'] as String? ?? 'Delivery'),
+                      subtitle: Text(details),
+                    );
+                  }),
+                  RadioListTile<String>(
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    value: 'PICKUP',
+                    groupValue: selectedValue,
+                    onChanged: _submitting
+                        ? null
+                        : (_) => setState(() {
+                              _shippingSelections[storeId] = {
+                                'storeId': storeId,
+                                'fulfillmentMethod': 'PICKUP',
+                              };
+                              _checkoutPreview = null;
+                            }),
+                    title: const Text('Store pickup'),
+                    subtitle: const Text('No delivery fee'),
+                  ),
+                  if (methods.isEmpty && estimate['deliveryAvailable'] != false)
+                    const Text('No delivery methods are configured. Select pickup if available.',
+                        style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
 
   // ── Step 2: Review ────────────────────────────────────────
   Widget _reviewStep() {
@@ -295,12 +447,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         for (final item in c.items) {
           (grouped[item.storeId] ??= []).add(item);
         }
-        // A5-3 / §9: a mixed-currency cart has no single payable total, so name
-        // a grand total only when every line agrees on the currency.
-        final currencies =
-            c.items.map((i) => i.currency).whereType<String>().toSet();
-        final single = currencies.length == 1 ? currencies.first : null;
-        final mixed = currencies.length > 1;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _sectionTitle('Deliver to'),
           _summaryTile(
@@ -310,38 +456,54 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ? null
                   : 'Notes: ${_notesCtrl.text.trim()}'),
           const SizedBox(height: 16),
-          _sectionTitle('Fulfillment'),
-          _summaryTile(Icons.local_shipping_outlined,
-              _fulfillmentLabel(_fulfillment), null),
+          _sectionTitle('Shipping by supplier'),
+          ...grouped.entries.map((entry) {
+            final selection = _shippingSelections[entry.key];
+            final estimate = _shippingEstimates[entry.key];
+            final matchingMethods = (estimate?['methods'] as List? ?? [])
+                .whereType<Map>()
+                .map((value) => Map<String, dynamic>.from(value))
+                .where((value) => value['methodId'] == selection?['shippingMethodId'])
+                .toList();
+            final method = matchingMethods.isEmpty ? null : matchingMethods.first;
+            final label = selection?['fulfillmentMethod'] == 'PICKUP'
+                ? 'Store pickup'
+                : (method?['name'] as String? ?? 'Delivery');
+            return _summaryTile(Icons.local_shipping_outlined,
+                entry.value.first.storeName ?? 'Supplier', label);
+          }),
           const SizedBox(height: 16),
           _sectionTitle('Items by supplier'),
           ...grouped.entries.map((e) => _merchantBlock(e.value)),
-          const SizedBox(height: 8),
-          // BG-2: delivery/tax are zero at checkout (pilot waiver) and invoiced
-          // per supplier on delivery — never fabricate a quote the API did not
-          // return.
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: TaifTokens.bg,
-                borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
-                border: Border.all(color: TaifTokens.line)),
-            child: const Row(children: [
-              Icon(Icons.info_outline, size: 16, color: TaifTokens.muted),
-              SizedBox(width: 8),
-              Expanded(
-                  child: Text(
-                'Delivery & tax are calculated and invoiced by each supplier on delivery.',
-                style: TextStyle(fontSize: 12, color: TaifTokens.muted),
-              )),
+          const SizedBox(height: 12),
+          _checkoutFinancialReview(),
+          const SizedBox(height: 16),
+          _sectionTitle('Payment method'),
+          RadioGroup<String>(
+            groupValue: _paymentMethod,
+            onChanged: (value) {
+              if (!_submitting && value != null) {
+                setState(() => _paymentMethod = value);
+              }
+            },
+            child: const Column(children: [
+              RadioListTile<String>(
+                value: 'CASH_ON_DELIVERY',
+                title: Text('Cash on delivery'),
+                subtitle: Text('Pay when your order arrives'),
+              ),
+              RadioListTile<String>(
+                value: 'BANK_TRANSFER',
+                title: Text('Bank transfer'),
+                subtitle: Text('Upload the transfer receipt for verification'),
+              ),
+              RadioListTile<String>(
+                value: 'VOUCHER',
+                title: Text('Voucher'),
+                subtitle: Text('Use an available platform voucher balance'),
+              ),
             ]),
           ),
-          const SizedBox(height: 16),
-          if (mixed)
-            const Text('Separate invoices per supplier',
-                style: TextStyle(fontWeight: FontWeight.w700))
-          else
-            _totalRow('Total', formatMinor(c.totalMinor, single)),
           if (c.promoCode != null && c.promoCode!.isNotEmpty)
             Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -357,6 +519,88 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           onAction: () => ref.invalidate(cartProvider)),
     );
   }
+
+  Widget _checkoutFinancialReview() {
+    final preview = _checkoutPreview;
+    if (preview == null) {
+      return const EmptyState(
+        title: 'Checkout estimate unavailable',
+        description: 'Return to delivery options and refresh the estimate.',
+        icon: Icons.receipt_long_outlined,
+      );
+    }
+    final stores = (preview['stores'] as List? ?? [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row));
+    final totals = Map<String, dynamic>.from(
+        preview['totalsByCurrency'] as Map? ?? {});
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Tax-inclusive estimate'),
+        ...stores.map((row) {
+          final currency = row['currency'] as String?;
+          final storeId = row['storeId'] as String;
+          final name = _shippingEstimates[storeId]?['storeName'] as String? ??
+              'Supplier';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(name,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(height: 8),
+                  _financialRow('Items', row['subtotalMinor'] as int? ?? 0, currency),
+                  if ((row['discountMinor'] as int? ?? 0) > 0)
+                    _financialRow('Discount', -(row['discountMinor'] as int), currency),
+                  _financialRow('Delivery', row['deliveryFeeMinor'] as int? ?? 0, currency),
+                  _financialRow('VAT', row['taxMinor'] as int? ?? 0, currency),
+                  const Divider(),
+                  _financialRow('Supplier total', row['totalMinor'] as int? ?? 0,
+                      currency, bold: true),
+                ],
+              ),
+            ),
+          );
+        }),
+        if (preview['hasUnpricedAmounts'] == true)
+          const Text('Some supplier totals have no confirmed currency.',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted))
+        else
+          ...totals.entries.map((entry) => _totalRow(
+              'Total (${entry.key})',
+              formatMinor((entry.value as num).toInt(), entry.key))),
+        const SizedBox(height: 6),
+        Text(
+          'VAT is estimated by the server using the current tax configuration. The server recalculates all amounts when you place the order.',
+          style: const TextStyle(fontSize: 12, color: TaifTokens.muted),
+        ),
+      ],
+    );
+  }
+
+  Widget _financialRow(String label, int amount, String? currency,
+          {bool bold = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+                  color: bold ? TaifTokens.brandPrimary : TaifTokens.muted)),
+          const Spacer(),
+          Text(formatMinor(amount, currency),
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w400)),
+        ]),
+      );
 
   Widget _merchantBlock(List<CartItem> items) {
     final name = items.first.storeName ?? 'Supplier';
@@ -469,7 +713,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     title: Text(s.storeName ?? 'Supplier',
                         style: const TextStyle(fontSize: 14)),
                     subtitle: Text(
-                        '${s.itemCount} ${s.itemCount == 1 ? 'item' : 'items'} · ${formatMinor(s.totalMinor, s.currency)}'),
+                        '${s.itemCount} ${s.itemCount == 1 ? 'item' : 'items'} · Delivery ${formatMinor(s.deliveryFeeMinor, s.currency)} · VAT ${formatMinor(s.taxMinor, s.currency)} · Total ${formatMinor(s.totalMinor, s.currency)}'),
                     trailing: StatusBadge(s.status),
                   ))),
               const SizedBox(height: 8),

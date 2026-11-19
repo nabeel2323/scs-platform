@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate, previewCheckout, CheckoutPreview } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
-import { computeCheckoutTotalsByCurrency } from '../../lib/checkout-currency';
 import {
   PageHeader, Card, Button, TextInput, Select, EmptyState,
   colors, typeScale, radii,
@@ -293,7 +292,7 @@ export default function CheckoutPage() {
                     </p>
                   </>
                 ) : (
-                  <div style={{ ...typeScale.bodySm, color: previewError ? colors.danger : colors.muted }}>
+                  <div style={{ ...typeScale.bodySm, color: colors.muted }}>
                     {previewError || 'Enter your delivery address and choose shipping for each supplier to calculate VAT and final estimates.'}
                   </div>
                 )}
