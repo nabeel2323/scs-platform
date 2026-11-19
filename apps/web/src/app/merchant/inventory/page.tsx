@@ -569,7 +569,7 @@ function InventoryPageContent() {
                             {canWriteInventory && <button onClick={() => openAdjust(item)} style={editBtn}>Adjust</button>}
                             <button onClick={() => openHistory(item)} style={historyBtn}>History</button>
                             {canWriteInventory && <button onClick={() => openSettings(item)} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Settings</button>}
-                            {warehouses.length > 1 && (
+                            {canWriteInventory && warehouses.length > 1 && (
                               <button onClick={() => { setTransferItemId(item.id); setTransferToWh(warehouses.find(w => w.id !== item.warehouseId)?.id || ''); }} style={{ ...editBtn, fontSize: 11, padding: '4px 8px' }}>Transfer</button>
                             )}
                           </div>
