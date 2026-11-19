@@ -1056,7 +1056,6 @@ No API authorization, RBAC seed or database change was required; backend route g
 
 **Status:** implementation and focused Web tests committed; latest-head Web/Admin tests, lint/typecheck and full CI verification pending.
 
-
 ## Current-head addendum — CI #936 — 19 November 2026
 
 CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa9808fe25206264766f2523`. API unit/coverage reported 4,483 passed and 110 skipped across 237 test files; PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke passed. k6 and staging release were skipped. G-031–G-035 are closed by this evidence. G-002 remains blocked until the actual Render API and migration database identities are verified. The live staging service still runs the baseline `develop` commit and has auto-deploy disabled. No deployment, shared-database write, grant change, RLS enablement or live migration was performed. This documentation-only update requires a fresh CI run for the resulting branch head.
