@@ -219,3 +219,32 @@ describe('PermissionsGuard — seeded role matrix', () => {
     }
   });
 });
+
+import { AdminController } from '../../../modules/admin/admin.controller';
+import { PERMISSIONS, ROLES } from '../../../common/database/rbac-seed.data';
+
+describe('Admin product moderation — dedicated permission', () => {
+  const moderationHandler = AdminController.prototype.moderateProduct;
+  const moderationPermission = 'admin:products:moderate';
+
+  it('declares the dedicated moderation permission on the mutation route', () => {
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, moderationHandler)).toEqual([moderationPermission]);
+    expect(PERMISSIONS).toContain(moderationPermission);
+  });
+
+  it('grants moderation only to platform admin, moderator and super admin roles', () => {
+    const rolePermissions = new Map(ROLES.map((role) => [role.key, role.permissions]));
+    for (const role of ['ADMIN', 'MODERATOR', 'SUPER_ADMIN']) {
+      expect(rolePermissions.get(role)).toContain(moderationPermission);
+      expect(canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!)).toBe(true);
+    }
+    for (const role of ['FINANCE', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'BUYER']) {
+      expect(rolePermissions.get(role)).not.toContain(moderationPermission);
+      expect(() => canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!)).toThrow(ForbiddenException);
+    }
+  });
+
+  it('does not treat merchant read access as product moderation authority', () => {
+    expect(() => canActivate(handlerRequiring(moderationPermission), ['admin:merchants:read'])).toThrow(ForbiddenException);
+  });
+});
