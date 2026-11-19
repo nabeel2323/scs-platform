@@ -710,3 +710,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The read-only audit utility now emits direct table/sequence grants to API roles, includes authenticator in privilege inventories, and returns transitive role membership edges. The corrected recursive SQL was separately run against the live catalog and verified.
 - Read-only database audit workflow run #3 failed on a push event without producing usable API/migration identity evidence. No environment approval was bypassed. G-002 remains BLOCKED pending actual API and migration role proof; no shared DB changes were made.
 - The audit utility and documentation changes made after CI #843 require a fresh CI run. k6, staging release, performance verification and Phase 6 remain outstanding.
+
+### CI #848 documentation-format gate correction — 19 November 2026
+- CI #848 completed API/web/admin/mobile typechecking successfully and Flutter tests passed, then the changed-file Prettier gate identified four documentation files (G-002 evidence report, RLS proposal, implementation plan and progress tracker). No application-code lint/typecheck failure was reported.
+- A one-time repository-locked Prettier pass is being applied to those four documents. The temporary formatter workflow will be removed immediately after its single successful pass; a fresh full CI run is required afterward.
