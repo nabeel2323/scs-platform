@@ -357,6 +357,32 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     expect(listB[0]!.merchantStoreId).toBe(storeB);
   });
 
+  it('G-030: merchant settlement listing rejects same-org non-members and missing org context', async () => {
+    await expect(
+      paymentsService.listMerchantSettlements({
+        sub: buyerA,
+        role: 'MERCHANT',
+        activeOrg: orgA,
+      }, { storeId: storeA }),
+    ).rejects.toThrow();
+
+    await expect(
+      paymentsService.listMerchantPayments({
+        sub: adminA,
+        role: 'MERCHANT',
+        activeOrg: null,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      paymentsService.listMerchantSettlements({
+        sub: adminA,
+        role: 'MERCHANT',
+        activeOrg: null,
+      }),
+    ).rejects.toThrow();
+  });
+
   it('G-030: admin payment filters are applied to the matching order set', async () => {
     const listByStore = await paymentsService.listPayments({ storeId: storeA });
     const listByBuyer = await paymentsService.listPayments({ buyerId: buyerB });
