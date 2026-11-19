@@ -21,7 +21,7 @@ vi.mock('../hooks/useRequirePerms', () => ({
 }));
 
 beforeEach(() => {
-  vi.clearAllMocks(); navigation.query = ''; navigation.allowed = true;
+  vi.clearAllMocks(); navigation.query = ''; navigation.allowed = true; navigation.requiredPerms = [];
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.open = true; } });
   Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.open = false; } });
 });
@@ -110,6 +110,15 @@ describe('accessible dialogs and row actions', () => {
     await act(async () => fail(new Error('Permission revoked')));
     expect(screen.getByText('Permission revoked')).toBeTruthy();
     expect(done).not.toHaveBeenCalled();
+  });
+
+  it('requires the dedicated product moderation permission and hides actions when denied', () => {
+    navigation.allowed = false;
+    render(<ProductModerationActions id="selected-id" status="DRAFT" onDone={vi.fn()} />);
+    expect(navigation.requiredPerms).toEqual(['admin:products:moderate']);
+    expect(screen.queryByText('Approve')).toBeNull();
+    expect(screen.queryByText('Reject')).toBeNull();
+    expect(screen.queryByText('Archive')).toBeNull();
   });
 });
 
