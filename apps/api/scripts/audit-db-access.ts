@@ -190,7 +190,7 @@ async function main(): Promise<void> {
     const schemaPrivileges = await client.query<QueryResultRow>(`
       WITH role_names AS (
         SELECT rolname AS role_name FROM pg_roles
-        WHERE rolname IN ('anon', 'authenticated', 'service_role')
+        WHERE rolname IN ('authenticator', 'anon', 'authenticated', 'service_role')
         UNION SELECT current_user
       )
       SELECT role_name,
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     const sequencePrivileges = await client.query<QueryResultRow>(`
       WITH role_names AS (
         SELECT rolname AS role_name FROM pg_roles
-        WHERE rolname IN ('anon', 'authenticated', 'service_role')
+        WHERE rolname IN ('authenticator', 'anon', 'authenticated', 'service_role')
         UNION SELECT current_user
       ), sequences AS (
         SELECT c.oid FROM pg_class c
