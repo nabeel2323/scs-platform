@@ -11,7 +11,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  */
 
 const ctl = vi.hoisted(() => ({
-  auth: { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: [] as string[] }, loading: false },
+  auth: { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: ['fulfillment:shipments:read', 'fulfillment:shipments:write', 'fulfillment:shipments:return', 'fulfillment:labels:read'] as string[] }, loading: false },
   replace: vi.fn(),
 }));
 
@@ -64,7 +64,7 @@ function detailFixture(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  ctl.auth = { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: [] }, loading: false };
+  ctl.auth = { user: { id: 'u-1', role: 'MERCHANT_OWNER', fullName: 'Merchant', perms: ['fulfillment:shipments:read', 'fulfillment:shipments:write', 'fulfillment:shipments:return', 'fulfillment:labels:read'] }, loading: false };
   vi.mocked(shipops.listShipments).mockResolvedValue({ data: [row], total: 1, limit: 25, offset: 0 });
   vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture() as never);
   for (const fn of [shipops.createCarrierShipment, shipops.cancelShipment, shipops.reportException, shipops.retryShipment, shipops.requestRTS, shipops.completeRTS]) {
@@ -94,6 +94,13 @@ describe('Merchant deliveries list', () => {
     render(<MerchantDeliveriesPage />);
     await waitFor(() => expect(ctl.replace).toHaveBeenCalledWith('/search'));
   });
+
+  it('does not load the delivery queue without shipment-read permission', async () => {
+    ctl.auth = { user: { id: 'u-3', role: 'MERCHANT_STAFF', fullName: 'Read denied', perms: [] }, loading: false };
+    render(<MerchantDeliveriesPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('fulfillment:shipments:read');
+    expect(shipops.listShipments).not.toHaveBeenCalled();
+  });
 });
 
 describe('Merchant delivery console', () => {
@@ -103,6 +110,24 @@ describe('Merchant delivery console', () => {
     expect(screen.getByText(/Acme Store/)).toBeTruthy();
     expect(screen.getByText('Tracking timeline')).toBeTruthy();
     expect(screen.getByText(/CREATED/)).toBeTruthy();
+  });
+
+  it('keeps shipment details readable but hides operations from read-only merchants', async () => {
+    ctl.auth = { user: { id: 'u-4', role: 'MERCHANT_STAFF', fullName: 'Read only', perms: ['fulfillment:shipments:read'] }, loading: false };
+    vi.mocked(shipops.getShipmentDetail).mockResolvedValue(detailFixture({ carrierShipmentId: null, carrierCreateStatus: 'PENDING', status: 'PREPARING', exceptionStatus: 'OPEN' }) as never);
+    render(<MerchantDeliveryDetailPage />);
+    expect(await screen.findByText('Overview')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Create carrier shipment' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Report exception' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request RTS' })).toBeNull();
+  });
+
+  it('does not fetch shipment details without shipment-read permission', async () => {
+    ctl.auth = { user: { id: 'u-5', role: 'MERCHANT_STAFF', fullName: 'No read', perms: [] }, loading: false };
+    render(<MerchantDeliveryDetailPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('fulfillment:shipments:read');
+    expect(shipops.getShipmentDetail).not.toHaveBeenCalled();
   });
 
   it('queues a carrier shipment for a shipment not yet booked', async () => {
