@@ -60,7 +60,7 @@ describe('ShipmentOperationsController.requestLabel (G-010)', () => {
 
   it('returns the existing active label instead of queueing a duplicate', async () => {
     const { controller, tx, insertValues } = makeController([
-      [{ id: 'shipment-1' }],
+      [{ id: 'shipment-1', carrierShipmentId: 'waybill-1', shippingProviderKey: 'aramex' }],
       [{ id: 'label-1' }],
     ]);
 
@@ -73,7 +73,7 @@ describe('ShipmentOperationsController.requestLabel (G-010)', () => {
 
   it('returns the existing pending request instead of queueing a duplicate', async () => {
     const { controller, tx, insertValues } = makeController([
-      [{ id: 'shipment-1' }],
+      [{ id: 'shipment-1', carrierShipmentId: 'waybill-1', shippingProviderKey: 'aramex' }],
       [],
       [{ id: 'event-1' }],
     ]);
