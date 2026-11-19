@@ -679,3 +679,19 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### G-010 rejection observer follow-up — 19 November 2026
 
 - The timeout regression test now registers its rejection assertion before the fake 15-second deadline is advanced, preventing Vitest from classifying the expected timeout as an unhandled rejection. CI #827 had otherwise passed all 4,480 unit tests and the full PostgreSQL integration suite; this harness correction is being revalidated.
+
+
+### Current-head CI #832 — 19 November 2026
+
+- CI #832 passed on current branch head `d965e73da727aa136fa4af859f7f423de04d00d7`. Lint/typecheck and changed-file formatting, Flutter analysis/tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, web/admin tests, isolated full migration apply, contract/codegen, build and container build/smoke all passed.
+- k6 smoke and staging release were skipped by workflow conditions; no performance or staging-release verification is claimed.
+- G-030 is CLOSED for implementation and automated regression coverage. Its two-tenant PostgreSQL tests, same-organization staff-without-store-membership case, foreign-store denial and controller context forwarding passed in current-head CI. See the updated G-030 evidence report.
+- G-010's corrected fake-timer timeout test passed as part of the current-head API unit/coverage job. This verifies the regression test and worker code path, not the wider operational P13 activation gate.
+- Deleted the temporary one-time formatter workflow after its successful formatting pass. No repository-write formatter workflow remains.
+
+### Phase 5 control status — 19 November 2026
+
+- Repository rulesets read returned an empty list. Reading the `develop` branch-protection endpoint returned HTTP 403 (resource not accessible to this integration), so G-014 remains UNVERIFIED/OPEN; no assumption is made about effective protection.
+- G-002 remains BLOCKED pending verified effective API/migration database roles and an approved RLS/access architecture. No shared database grants or RLS policies were changed.
+- CI #832 skipped k6 and staging release. The consolidated Phase 6 campaign, staging E2E, performance verification and release decision remain pending.
+- No shared database mutation, staging write, deployment or production financial-data change was performed.
