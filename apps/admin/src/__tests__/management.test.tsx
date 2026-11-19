@@ -15,6 +15,7 @@ import DetailDialog from '../components/DetailDialog';
 import ManagementPage, { rowClickOpensDetail } from '../components/ManagementPage';
 import ProductDetails, { ProductModerationActions } from '../components/ProductDetails';
 import UsersPage from '../app/users/page';
+import DisputeDetailPage from '../app/disputes/[id]/page';
 import { adminRequest, moderateAdminProduct } from '../lib/api';
 
 const navigation = vi.hoisted(() => ({
@@ -28,6 +29,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: navigation.replace }),
   usePathname: () => '/products',
   useSearchParams: () => new URLSearchParams(navigation.query),
+  useParams: () => ({ id: 'dispute-1' }),
 }));
 vi.mock('../lib/api', () => ({ adminRequest: vi.fn(), moderateAdminProduct: vi.fn() }));
 vi.mock('../hooks/useRequirePerms', () => ({
@@ -232,6 +234,21 @@ describe('accessible dialogs and row actions', () => {
     render(<UsersPage />);
     await screen.findByText('User Management');
     expect(screen.queryByText('Create User')).toBeNull();
+  });
+
+  it('uses the seeded dispute permission for the dispute detail route', async () => {
+    navigation.allowedPermissions = ['support:disputes:resolve'];
+    vi.mocked(adminRequest).mockResolvedValue({
+      id: 'dispute-1',
+      status: 'OPEN',
+      reason: 'Damaged goods',
+      amountMinor: 1000,
+      currency: 'SAR',
+    });
+    render(<DisputeDetailPage />);
+    await screen.findByText('Dispute #dispute-1');
+    expect(navigation.requiredPerms).toEqual(['support:disputes:resolve']);
+    expect(adminRequest).toHaveBeenCalledWith('admin/disputes/dispute-1');
   });
 });
 
