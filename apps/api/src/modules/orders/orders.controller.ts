@@ -15,6 +15,16 @@ export class OrdersController {
 
   // ── Checkout ─────────────────────────────────────────────────
 
+  @Post('checkout/preview')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('orders:write')
+  async previewCheckout(@CurrentUser() user: JwtPayload, @Body() input: CheckoutInput) {
+    return this.ordersService.previewCheckout({
+      ...input,
+      buyerId: user.sub,
+    });
+  }
+
   @Post('checkout')
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
