@@ -7,6 +7,7 @@
  *
  * It never reads application rows, prints connection strings, or mutates schema.
  */
+import * as fs from 'node:fs';
 import { Pool } from 'pg';
 
 type QueryResultRow = Record<string, unknown>;
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
     application_name: 'scs-db-access-audit',
     ...(process.env['PGSSLROOTCERT'] && {
       ssl: {
-        ca: (await import('node:fs')).readFileSync(process.env['PGSSLROOTCERT'], 'utf8'),
+        ca: fs.readFileSync(process.env['PGSSLROOTCERT'], 'utf8'),
         rejectUnauthorized: true,
       },
     }),
@@ -140,6 +141,18 @@ async function main(): Promise<void> {
       WHERE n.nspname = 'public'
     `);
 
+    const otherConnections = await client.query<QueryResultRow>(`
+      SELECT usename AS login_role,
+             application_name,
+             state,
+             count(*)::int AS connections
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND pid <> pg_backend_pid()
+      GROUP BY usename, application_name, state
+      ORDER BY usename, application_name, state
+    `);
+
     const memberships = await client.query<QueryResultRow>(`
       SELECT member.rolname AS member_role,
              granted.rolname AS granted_role,
@@ -164,6 +177,7 @@ async function main(): Promise<void> {
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
       currentRoleMemberships: memberships.rows,
+      otherDatabaseConnections: otherConnections.rows,
     };
 
     console.log(JSON.stringify(report, null, 2));
