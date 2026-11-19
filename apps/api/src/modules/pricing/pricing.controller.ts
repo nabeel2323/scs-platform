@@ -8,8 +8,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { CurrentUser, JwtPayload, RequirePermission } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
-import { productVariants, products } from '../catalog/catalog.schema';
-import { eq } from 'drizzle-orm';
+import { CatalogService } from '../catalog/index';
 
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -17,6 +16,7 @@ export class PricingController {
   constructor(
     private readonly pricingService: PricingService,
     private readonly db: DatabaseService,
+    private readonly catalogService: CatalogService,
   ) {}
 
   private caller(user: JwtPayload): CallerContext {
@@ -36,20 +36,11 @@ export class PricingController {
   }
 
   private async assertVariantStoreAccess(user: JwtPayload, variantId: string): Promise<string> {
-    const variant = await this.db.db.query.productVariants.findFirst({
-      where: eq(productVariants.id, variantId),
-      columns: { productId: true },
-    });
-    if (!variant) throw new ForbiddenException('You do not have access to this variant');
+    const storeId = await this.catalogService.getVariantStoreId(variantId);
+    if (!storeId) throw new ForbiddenException('You do not have access to this variant');
 
-    const product = await this.db.db.query.products.findFirst({
-      where: eq(products.id, variant.productId),
-      columns: { storeId: true },
-    });
-    if (!product?.storeId) throw new ForbiddenException('You do not have access to this variant');
-
-    await this.assertStoreAccess(user, product.storeId);
-    return product.storeId;
+    await this.assertStoreAccess(user, storeId);
+    return storeId;
   }
 
   // ── Price Lists ──────────────────────────────────────────────

@@ -1069,6 +1069,20 @@ export class CatalogService {
     }));
   }
 
+  async getVariantStoreId(variantId: string): Promise<string | null> {
+    const variant = await this.db.db.query.productVariants.findFirst({
+      where: eq(productVariants.id, variantId),
+      columns: { productId: true },
+    });
+    if (!variant) return null;
+
+    const product = await this.db.db.query.products.findFirst({
+      where: eq(products.id, variant.productId),
+      columns: { storeId: true },
+    });
+    return product?.storeId ?? null;
+  }
+
   async getProduct(id: string) {
     const product = await this.db.db.query.products.findFirst({
       where: and(eq(products.id, id), isNull(products.deletedAt)),
