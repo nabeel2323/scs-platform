@@ -6,7 +6,7 @@ import {
   markSettlementPaid,
   type AdminSettlement,
 } from '../../lib/api';
-import { useRequirePerms } from '../../hooks/useRequirePerms';
+import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
 import {
   PageHeader, Card, Button, colors, typeScale, radii,
 } from '@scs/ui-kit';
@@ -33,7 +33,8 @@ function fmt(minor: number, currency: string) {
 }
 
 export default function AdminSettlementsPage() {
-  useRequirePerms(['admin:settlements:read']);
+  const { hasAccess, missingPerms } = useRequirePerms(['admin:settlements:read']);
+  const { hasAccess: canWrite } = useRequirePerms(['admin:settlements:write']);
   const [settlements, setSettlements] = useState<AdminSettlement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,6 +42,7 @@ export default function AdminSettlementsPage() {
   const [filter, setFilter] = useState<string>('');
 
   const load = useCallback(async () => {
+    if (!hasAccess) return;
     setLoading(true);
     setError('');
     try {
@@ -51,11 +53,12 @@ export default function AdminSettlementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, hasAccess]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (hasAccess) load(); }, [load, hasAccess]);
 
   const handleMarkPaid = async (id: string) => {
+    if (!canWrite) return;
     setActing(id);
     try {
       await markSettlementPaid(id);
@@ -66,6 +69,8 @@ export default function AdminSettlementsPage() {
       setActing(null);
     }
   };
+
+  if (!hasAccess) return <AccessDenied requiredPerms={['admin:settlements:read']} missingPerms={missingPerms} />;
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -110,7 +115,7 @@ export default function AdminSettlementsPage() {
                 <th style={{ textAlign: 'right', padding: '10px 8px' }}>Commission</th>
                 <th style={{ textAlign: 'right', padding: '10px 8px' }}>Net</th>
                 <th style={{ textAlign: 'left', padding: '10px 8px' }}>Status</th>
-                <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>
+                {canWrite && <th style={{ textAlign: 'center', padding: '10px 8px' }}>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -133,12 +138,12 @@ export default function AdminSettlementsPage() {
                     {fmt(s.netMinor, s.currency)}
                   </td>
                   <td style={{ padding: '10px 8px' }}><SettlementBadge status={s.status} /></td>
-                  <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                  {canWrite && <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                     {['CALCULATED', 'DUE'].includes(s.status) && (
                       <Button size="sm" variant="primary" disabled={acting === s.id}
                         onClick={() => handleMarkPaid(s.id)}>Mark Paid</Button>
                     )}
-                  </td>
+                  </td>}
                 </tr>
               ))}
             </tbody>
