@@ -340,7 +340,7 @@ describe('accessible dialogs and row actions', () => {
       { id: 'adj-pending', subOrderId: 'order-2', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 2000, currency: 'SAR', fxStatus: 'BLOCKED', fxEvidence: null, status: 'PENDING_APPROVAL', reason: 'Pending', requiresDualApproval: true, approvalHash: 'hash-2', createdBy: 'user-2', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
       { id: 'adj-approved', subOrderId: 'order-3', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 3000, currency: 'SAR', fxStatus: 'RESOLVED', fxEvidence: null, status: 'APPROVED', reason: 'Approved', requiresDualApproval: true, approvalHash: 'hash-3', createdBy: 'user-3', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
     ];
-    vi.mocked(adminRequest).mockResolvedValue(adjustments);
+    vi.mocked(adminRequest).mockResolvedValue(adjustments as never);
     render(<SettlementAdjustmentsPage />);
     await screen.findByText('Settlement Adjustments');
     expect(screen.queryByText('Submit')).toBeNull();
