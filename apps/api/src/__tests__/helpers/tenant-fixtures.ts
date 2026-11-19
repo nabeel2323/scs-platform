@@ -29,7 +29,13 @@ export interface TwoTenantIdentityFixture {
   orgB: string;
   storeA: string;
   storeB: string;
-  users: Record<string, string>;
+  users: {
+    buyerA: string;
+    buyerB: string;
+    ownerA: string;
+    ownerB: string;
+    [key: string]: string;
+  };
 }
 
 /**
