@@ -76,11 +76,13 @@ export class TwilioSmsProvider implements NotificationProvider {
     try {
       // Mask phone number for logging (show only last 4 digits)
       const maskedPhone = this.maskPhone(phone);
-      logger.log(`Attempting SMS delivery to ${maskedPhone} (correlation: ${correlationId || 'none'})`);
+      logger.log(
+        `Attempting SMS delivery to ${maskedPhone} (correlation: ${correlationId || 'none'})`,
+      );
 
       // Build Twilio API request
       const url = `${TWILIO_API_BASE}/Accounts/${encodeURIComponent(this.config.accountSid)}/Messages.json`;
-      
+
       const body = new URLSearchParams({
         To: phone,
         From: this.config.fromNumber,
@@ -100,7 +102,7 @@ export class TwilioSmsProvider implements NotificationProvider {
         const response = await fetch(url, {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${credentials}`,
+            Authorization: `Basic ${credentials}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           body: body.toString(),
@@ -112,12 +114,12 @@ export class TwilioSmsProvider implements NotificationProvider {
         if (!response.ok) {
           const errorText = await response.text();
           logger.error(`Twilio API error: ${response.status} ${response.statusText}`);
-          
+
           // Parse Twilio error response
           try {
             const errorJson = JSON.parse(errorText);
             const errorCode = errorJson.code || errorJson.status;
-            
+
             // Permanent errors (invalid number, unauthorized, etc.)
             if (response.status === 400 || response.status === 401 || response.status === 403) {
               throw new ProviderPermanentError(
@@ -126,7 +128,7 @@ export class TwilioSmsProvider implements NotificationProvider {
                 `TWILIO_ERROR_${errorCode}`,
               );
             }
-            
+
             // Transient errors (rate limit, server error)
             if (response.status === 429 || response.status >= 500) {
               throw new ProviderTransientError(
@@ -137,7 +139,10 @@ export class TwilioSmsProvider implements NotificationProvider {
               );
             }
           } catch (parseError) {
-            if (parseError instanceof ProviderPermanentError || parseError instanceof ProviderTransientError) {
+            if (
+              parseError instanceof ProviderPermanentError ||
+              parseError instanceof ProviderTransientError
+            ) {
               throw parseError;
             }
             // If we can't parse the error, treat as transient
@@ -151,10 +156,12 @@ export class TwilioSmsProvider implements NotificationProvider {
         }
 
         // Parse successful response
-        const result: { sid?: string } = await response.json() as { sid?: string };
+        const result: { sid?: string } = (await response.json()) as { sid?: string };
         const messageId = result.sid;
 
-        logger.log(`SMS delivery accepted by Twilio (message: ${messageId}, correlation: ${correlationId || 'none'})`);
+        logger.log(
+          `SMS delivery accepted by Twilio (message: ${messageId}, correlation: ${correlationId || 'none'})`,
+        );
 
         return {
           success: true,
@@ -164,8 +171,11 @@ export class TwilioSmsProvider implements NotificationProvider {
         };
       } catch (fetchError) {
         clearTimeout(timeoutId);
-        
-        if (fetchError instanceof ProviderPermanentError || fetchError instanceof ProviderTransientError) {
+
+        if (
+          fetchError instanceof ProviderPermanentError ||
+          fetchError instanceof ProviderTransientError
+        ) {
           throw fetchError;
         }
 
@@ -208,7 +218,7 @@ export class TwilioSmsProvider implements NotificationProvider {
           deliveryOutcome: 'rejected' as const,
         };
       }
-      
+
       if (error instanceof ProviderTransientError) {
         // 429 / 5xx: the request reached Twilio but the delivery outcome cannot be
         // established — the message may still be sent. Classify as 'unknown' so the

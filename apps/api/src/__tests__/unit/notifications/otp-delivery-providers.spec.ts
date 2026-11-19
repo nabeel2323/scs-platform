@@ -15,7 +15,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TwilioSmsProvider } from '../../../modules/notifications/providers/twilio-sms.provider';
 import { WhatsAppProvider } from '../../../modules/notifications/providers/whatsapp.provider';
 import { OtpDeliveryService } from '../../../modules/notifications/otp-delivery.service';
-import { TwilioConfig, WhatsAppConfig } from '../../../modules/notifications/providers/provider.config';
+import {
+  TwilioConfig,
+  WhatsAppConfig,
+} from '../../../modules/notifications/providers/provider.config';
 
 describe('OTP Delivery Providers', () => {
   // ── Twilio SMS Provider ─────────────────────────────────────────
@@ -158,9 +161,7 @@ describe('OTP Delivery Providers', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       vi.spyOn(globalThis, 'fetch').mockRejectedValue(
-        new Error(
-          `transport failure with otp=${secretOtp} recipient=${secretPhone}`,
-        ),
+        new Error(`transport failure with otp=${secretOtp} recipient=${secretPhone}`),
       );
 
       await provider.sendOtp({
@@ -481,9 +482,11 @@ describe('OTP Delivery Providers', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const provider = {
         isConfigured: vi.fn().mockReturnValue(true),
-        sendOtp: vi.fn().mockRejectedValue(
-          new Error(`provider payload included otp=${secretOtp} recipient=${secretEmail}`),
-        ),
+        sendOtp: vi
+          .fn()
+          .mockRejectedValue(
+            new Error(`provider payload included otp=${secretOtp} recipient=${secretEmail}`),
+          ),
       };
       const registry = {
         isChannelPermitted: vi.fn().mockReturnValue(true),
@@ -491,11 +494,7 @@ describe('OTP Delivery Providers', () => {
       };
       const isolatedService = new OtpDeliveryService(registry as never);
 
-      const result = await isolatedService.deliverEmailOtp(
-        secretEmail,
-        secretOtp,
-        'corr-secret',
-      );
+      const result = await isolatedService.deliverEmailOtp(secretEmail, secretOtp, 'corr-secret');
 
       expect(result.success).toBe(false);
       expect(result.deliveryOutcome).toBe('unknown');
