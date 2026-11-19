@@ -173,12 +173,12 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await pool.query(
       `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor)
        VALUES ($1, $2, $3, $4, 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', 5000)`,
-      [retA, orderA, payA, buyerA],
+      [retA, orderA, paymentA, buyerA],
     );
     await pool.query(
       `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor)
        VALUES ($1, $2, $3, $4, 'REQUESTED', 'PRODUCT_NOT_AS_DESCRIBED', 8000)`,
-      [retB, orderB, payB, buyerB],
+      [retB, orderB, paymentB, buyerB],
     );
 
     // Insert settlement adjustments with real sub_order_id references
