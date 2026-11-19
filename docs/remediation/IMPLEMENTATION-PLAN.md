@@ -965,3 +965,26 @@ These defaults prevent accidental activation of protected return/refund work, bu
 - AutoComplete/carrier workers: source registration and durable claim boundaries are implemented; CI evidence exists for their focused ownership/concurrency cases. Staging topology and operational alerts remain OPEN.
 - P13 protected return worker: safe default OFF and unit coverage for expected worker count exist; real alert delivery and explicit activation remain DEFERRED pending approved staging configuration.
 - No provider request, staging write, Render environment change, worker activation or deployment was performed.
+
+
+## 35. G-031 — Separate product moderation from merchant read permission — 19 November 2026
+
+### Finding
+
+A review of the Admin product moderation workflow found that PATCH /v1/admin/products/:id/moderate required admin:merchants:read. The same read permission was used by the ProductModerationActions UI. A custom role granted only merchant/product read access could therefore approve, reject or archive products. This is a least-privilege failure even though the built-in ADMIN and MODERATOR roles are intended to moderate products.
+
+### Remediation committed
+
+- Added the dedicated admin:products:moderate permission to canonical RBAC seed data.
+- Granted it to SUPER_ADMIN, ADMIN and MODERATOR only. It is not granted to FINANCE, merchant, buyer or driver roles.
+- Changed the API moderation mutation to require admin:products:moderate. Product list/detail/media reads continue to require admin:merchants:read.
+- Changed ProductModerationActions to hide Approve, Reject and Archive unless admin:products:moderate is present.
+- Added API guard metadata/role-matrix tests proving admin:merchants:read alone is insufficient and that only the intended platform roles pass.
+- Added Admin UI regression coverage proving the moderation controls are hidden without the dedicated permission.
+- Updated the RBAC architecture and administrator guide.
+
+### Deployment and acceptance notes
+
+The canonical RBAC seed is idempotent and inserts missing permission/role-permission rows without deleting existing assignments. The controlled release workflow runs db:seed after migrations; no schema migration is needed for this permission. Existing access tokens contain a permission snapshot, so current users must refresh/re-authenticate after the seed is applied to receive the new permission claim. Until then the moderation endpoint fails closed.
+
+**Status:** implementation and focused tests committed; current-head lint, API unit/coverage, Admin test and full CI verification pending. No RBAC seed was run against the shared database and no production/staging data or roles were changed.
