@@ -1,7 +1,7 @@
 # G-030 — Merchant Payment and Settlement Listing Tenant Isolation
 
 **Severity:** P0  
-**Status:** FIX IMPLEMENTED — LATEST-HEAD CI PENDING  
+**Status:** CLOSED — CURRENT-HEAD CI VERIFIED  
 **Date discovered:** 19 November 2026  
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Finding class:** Broken object-level authorization / cross-tenant financial data disclosure
@@ -13,7 +13,7 @@ Source review found two merchant listing routes whose service calls did not carr
 - `GET /v1/merchant/payments` called the general `listPayments({ storeId, status })` method. That method attempted to build order-level store/buyer filters, but the constructed `orderConditions` were never applied to the payment query. A missing store filter returned all payments; a supplied store filter also failed to constrain the final result.
 - `GET /v1/merchant/settlements` called the general `listSettlements({ storeId, status })` method without the authenticated caller. Without a store filter, the method returned all settlements; with a caller-supplied store ID, it did not verify active organization ownership.
 
-Both controller routes require the functional `merchant:orders:read` permission. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles receive this permission as an organization-wide read capability. The correct object-level boundary is the authenticated caller's active organization; `store_members` is not the intended authorization boundary for these financial read routes.
+Both controller routes require `merchant:orders:read`. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles receive this permission as an organization-wide read capability. The correct object-level boundary is the authenticated caller's active organization; `store_members` is not the intended authorization boundary for these financial read routes.
 
 The source-level finding does not assert that a specific production user exploited the defect. No production payment/settlement rows were accessed or modified during this review.
 
@@ -36,7 +36,7 @@ The source-level finding does not assert that a specific production user exploit
 
 ### API controller
 
-- `merchantListPayments` now receives `@CurrentUser()`, builds the trusted `CallerContext` from JWT claims and calls `listMerchantPayments`.
+- `merchantListPayments` receives `@CurrentUser()`, builds the trusted `CallerContext` from JWT claims and calls `listMerchantPayments`.
 - `merchantSettlements` passes the same trusted caller context to `listMerchantSettlements`.
 
 ## 3. Regression coverage
@@ -60,11 +60,13 @@ Implementation files:
 - `apps/api/src/modules/payments/payments.service.ts`
 - `apps/api/src/modules/payments/payments.controller.ts`
 
-## 4. Verification status
+## 4. Verification evidence
 
-- Source changes committed on the remediation branch.
-- PostgreSQL Testcontainers and controller regression tests added.
-- Latest-head full CI has not yet completed; earlier CI attempts were cancelled by subsequent commits or stopped at the formatting gate before test jobs ran.
+- Current-head CI **#832** passed on `d965e73da727aa136fa4af859f7f423de04d00d7`.
+- API unit tests and coverage gates passed.
+- PostgreSQL integration tests passed, including the two-tenant G-030 regression fixture.
+- Lint/typecheck, changed-file formatting, Flutter analysis/tests, E6 boundary lint, isolated full migration apply, web/admin tests, contract/codegen, production build and container build/smoke all passed.
+- k6 smoke and staging release jobs were skipped by workflow conditions; this report does not claim performance or staging-release verification.
 - No shared Supabase mutation, financial data write, staging deployment or production deployment was performed.
 
-**Closure rule:** G-030 remains P0/OPEN until latest-head API unit/coverage, PostgreSQL integration, lint/typecheck, formatting and all dependent CI jobs pass.
+**Disposition:** G-030 is CLOSED for the code/test scope represented by CI #832. The broader Phase 6 release campaign and production authorization gates remain open.
