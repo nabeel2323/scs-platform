@@ -1004,7 +1004,6 @@ No API permission change or RBAC seed change was required. No database or role a
 
 **Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
 
-
 ## 37. G-033 — Align attribute detail permission with the catalog RBAC contract — 19 November 2026
 
 ### Finding
