@@ -28,17 +28,8 @@ import {
 import { DatabaseService } from '../../common/database/database.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { StorageService } from '../../common/storage/storage.service';
-import {
-  paymentRecords,
-  paymentEvents,
-  refunds,
-  settlementRecords,
-} from './payments.schema';
-import {
-  orders,
-  orderFinancialBreakdown,
-  orderStatusHistory,
-} from '../orders/orders.schema';
+import { paymentRecords, paymentEvents, refunds, settlementRecords } from './payments.schema';
+import { orders, orderFinancialBreakdown, orderStatusHistory } from '../orders/orders.schema';
 import { stores, storeMembers } from '../merchant/merchant.schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 import crypto from 'node:crypto';
@@ -62,12 +53,7 @@ import {
 } from './payments.types';
 
 // ── Allowed upload MIME types for payment proofs ────────────────
-const ALLOWED_PROOF_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-]);
+const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
 const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
@@ -109,9 +95,7 @@ export class PaymentsService {
     // Compute expiry for bank transfers
     let expiresAt: Date | null = null;
     if (paymentMethod === 'BANK_TRANSFER') {
-      const hours = Number(
-        process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS,
-      );
+      const hours = Number(process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS);
       expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
     }
 
@@ -184,9 +168,7 @@ export class PaymentsService {
 
     // Valid states for proof submission
     if (!['AWAITING_PAYMENT', 'REJECTED'].includes(payment.status)) {
-      throw new ConflictException(
-        `Cannot submit proof in ${payment.status} status`,
-      );
+      throw new ConflictException(`Cannot submit proof in ${payment.status} status`);
     }
 
     // Handle file upload if provided
@@ -217,12 +199,7 @@ export class PaymentsService {
           receiptReference: input.receiptReference || payment.receiptReference,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) {
@@ -256,9 +233,7 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(
-      `Payment ${paymentId}: proof submitted by buyer ${buyerId}`,
-    );
+    this.logger.log(`Payment ${paymentId}: proof submitted by buyer ${buyerId}`);
 
     return this.getPaymentOrThrow(paymentId);
   }
@@ -318,12 +293,7 @@ export class PaymentsService {
           confirmedAt: decision === 'CONFIRMED' ? new Date() : null,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) {
@@ -348,9 +318,7 @@ export class PaymentsService {
       // If CONFIRMED: finalize financial breakdown + transition order
       if (decision === 'CONFIRMED') {
         await this.finalizeFinancialBreakdown(tx, payment.orderId);
-        await this.transitionOrderAfterPaymentConfirmation(
-          tx, payment.orderId, actorId,
-        );
+        await this.transitionOrderAfterPaymentConfirmation(tx, payment.orderId, actorId);
       }
 
       // Outbox event
@@ -369,9 +337,7 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(
-      `Payment ${paymentId}: ${decision} by ${actorId}`,
-    );
+    this.logger.log(`Payment ${paymentId}: ${decision} by ${actorId}`);
 
     return this.getPaymentOrThrow(paymentId);
   }
@@ -405,9 +371,7 @@ export class PaymentsService {
     }
 
     if (payment.status !== 'AWAITING_PAYMENT') {
-      throw new ConflictException(
-        `Cannot confirm cash in ${payment.status} status`,
-      );
+      throw new ConflictException(`Cannot confirm cash in ${payment.status} status`);
     }
 
     const collectedAmount = input?.amountCollectedMinor ?? payment.amountMinor;
@@ -425,12 +389,7 @@ export class PaymentsService {
           verificationNotes: input?.notes || null,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) {
@@ -468,9 +427,7 @@ export class PaymentsService {
       );
     });
 
-    this.logger.log(
-      `Payment ${paymentId}: COD cash confirmed (${collectedAmount}) by ${actorId}`,
-    );
+    this.logger.log(`Payment ${paymentId}: COD cash confirmed (${collectedAmount}) by ${actorId}`);
 
     return this.getPaymentOrThrow(paymentId);
   }
@@ -483,10 +440,7 @@ export class PaymentsService {
    * Set finalizedAt on the order's financial breakdown.
    * After this, no UPDATE to the breakdown is permitted.
    */
-  private async finalizeFinancialBreakdown(
-    tx: any,
-    orderId: string,
-  ): Promise<void> {
+  private async finalizeFinancialBreakdown(tx: any, orderId: string): Promise<void> {
     const result = await tx
       .update(orderFinancialBreakdown)
       .set({ finalizedAt: new Date(), updatedAt: new Date() })
@@ -501,9 +455,7 @@ export class PaymentsService {
     // If no rows updated, either already finalized or no breakdown exists.
     // Already finalized is fine (idempotent). No breakdown is a data issue.
     if (result.length === 0) {
-      this.logger.warn(
-        `Financial breakdown for order ${orderId} already finalized or missing`,
-      );
+      this.logger.warn(`Financial breakdown for order ${orderId} already finalized or missing`);
     }
   }
 
@@ -538,12 +490,7 @@ export class PaymentsService {
       const flip = await tx
         .update(paymentRecords)
         .set({ status: toStatus, updatedAt: new Date() })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length > 0) {
@@ -585,12 +532,7 @@ export class PaymentsService {
           paymentStatus: 'CONFIRMED',
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(orders.id, orderId),
-            eq(orders.status, 'PAYMENT_PENDING'),
-          ),
-        )
+        .where(and(eq(orders.id, orderId), eq(orders.status, 'PAYMENT_PENDING')))
         .returning({ id: orders.id });
 
       if (flip.length > 0) {
@@ -650,9 +592,7 @@ export class PaymentsService {
     // Payment must be in a refundable state
     const refundableStatuses = ['CONFIRMED', 'CAPTURED', 'PARTIALLY_REFUNDED'];
     if (!refundableStatuses.includes(payment.status)) {
-      throw new ConflictException(
-        `Cannot refund payment in ${payment.status} status`,
-      );
+      throw new ConflictException(`Cannot refund payment in ${payment.status} status`);
     }
 
     const confirmedAmount = payment.confirmedAmountMinor ?? payment.amountMinor;
@@ -743,11 +683,7 @@ export class PaymentsService {
    * Approve a refund request. Admin action.
    * Transitions refund to SUCCEEDED and updates payment status if fully refunded.
    */
-  async approveRefund(
-    refundId: string,
-    approverId: string,
-    caller: CallerContext,
-  ) {
+  async approveRefund(refundId: string, approverId: string, caller: CallerContext) {
     if (!isTenantPrivileged(caller)) {
       throw new ForbiddenException('Only admins can approve refunds');
     }
@@ -771,12 +707,7 @@ export class PaymentsService {
           approvedBy: approverId,
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(refunds.id, refundId),
-            eq(refunds.status, 'REQUESTED'),
-          ),
-        )
+        .where(and(eq(refunds.id, refundId), eq(refunds.status, 'REQUESTED')))
         .returning({ id: refunds.id });
 
       if (flip.length === 0) {
@@ -849,11 +780,7 @@ export class PaymentsService {
    * Calculate and create a settlement record for a sub-order.
    * Uses the finalized financial breakdown — never recalculates from mutable data.
    */
-  async calculateSettlement(
-    subOrderId: string,
-    actorId: string,
-    caller: CallerContext,
-  ) {
+  async calculateSettlement(subOrderId: string, actorId: string, caller: CallerContext) {
     if (!isTenantPrivileged(caller)) {
       throw new ForbiddenException('Only admins can calculate settlements');
     }
@@ -873,12 +800,7 @@ export class PaymentsService {
     const refundResult = await this.db.db
       .select({ total: sql<number>`COALESCE(SUM(amount_minor), 0)` })
       .from(refunds)
-      .where(
-        and(
-          eq(refunds.paymentRecordId, payment.id),
-          eq(refunds.status, 'SUCCEEDED'),
-        ),
-      );
+      .where(and(eq(refunds.paymentRecordId, payment.id), eq(refunds.status, 'SUCCEEDED')));
     const totalRefunded = refundResult[0]?.total ?? 0;
 
     // Settlement formula: gross - refunds - commission - fees = net
@@ -948,7 +870,11 @@ export class PaymentsService {
     input?: { paymentReference?: string; notes?: string },
   ) {
     if (!isTenantPrivileged(caller)) {
-      await assertStoreInOrg(this.db, caller, (await this.getSettlement(settlementId)).merchantStoreId);
+      await assertStoreInOrg(
+        this.db,
+        caller,
+        (await this.getSettlement(settlementId)).merchantStoreId,
+      );
     }
 
     const flip = await this.db.db
@@ -998,12 +924,7 @@ export class PaymentsService {
         cancelledAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(paymentRecords.id, paymentId),
-          eq(paymentRecords.status, fromStatus),
-        ),
-      )
+      .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
       .returning({ id: paymentRecords.id });
 
     if (flip.length > 0) {
@@ -1053,12 +974,7 @@ export class PaymentsService {
           status: 'EXPIRED',
           updatedAt: new Date(),
         })
-        .where(
-          and(
-            eq(paymentRecords.id, paymentId),
-            eq(paymentRecords.status, fromStatus),
-          ),
-        )
+        .where(and(eq(paymentRecords.id, paymentId), eq(paymentRecords.status, fromStatus)))
         .returning({ id: paymentRecords.id });
 
       if (flip.length === 0) return; // Concurrent handler already expired
@@ -1079,12 +995,7 @@ export class PaymentsService {
         await tx
           .update(orders)
           .set({ status: 'CANCELLED', paymentStatus: 'EXPIRED', updatedAt: new Date() })
-          .where(
-            and(
-              eq(orders.id, payment.orderId),
-              eq(orders.status, 'PAYMENT_PENDING'),
-            ),
-          );
+          .where(and(eq(orders.id, payment.orderId), eq(orders.status, 'PAYMENT_PENDING')));
 
         await tx.insert(orderStatusHistory).values({
           id: crypto.randomUUID(),
@@ -1232,7 +1143,8 @@ export class PaymentsService {
     ];
     if (filters?.storeId) conditions.push(eq(stores.id, filters.storeId));
     if (filters?.status) conditions.push(eq(paymentRecords.status, filters.status));
-    if (filters?.paymentMethod) conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
+    if (filters?.paymentMethod)
+      conditions.push(eq(paymentRecords.paymentMethod, filters.paymentMethod));
 
     const rows = await this.db.db
       .select({ payment: paymentRecords })
@@ -1269,7 +1181,9 @@ export class PaymentsService {
       return this.listSettlements(filters);
     }
     if (!caller.activeOrg) {
-      throw new ForbiddenException('An active organization is required to view merchant settlements');
+      throw new ForbiddenException(
+        'An active organization is required to view merchant settlements',
+      );
     }
     if (filters?.storeId) {
       await assertStoreInOrg(this.db, caller, filters.storeId);
@@ -1316,10 +1230,7 @@ export class PaymentsService {
   /**
    * List settlements with optional filters.
    */
-  async listSettlements(filters?: {
-    storeId?: string;
-    status?: string;
-  }) {
+  async listSettlements(filters?: { storeId?: string; status?: string }) {
     const conditions = [];
     if (filters?.storeId) {
       conditions.push(eq(settlementRecords.merchantStoreId, filters.storeId));
@@ -1349,9 +1260,7 @@ export class PaymentsService {
    * Get stale payments for reconciliation.
    */
   async getStalePayments() {
-    const hours = Number(
-      process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS,
-    );
+    const hours = Number(process.env['PAYMENT_EXPIRY_HOURS'] || DEFAULT_PAYMENT_EXPIRY_HOURS);
     const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
 
     return this.db.db.query.paymentRecords.findMany({

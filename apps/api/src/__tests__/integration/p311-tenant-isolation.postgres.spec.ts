@@ -25,23 +25,43 @@ import { users, organizations, organizationMembers } from '../../modules/identit
 import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, refunds, settlementRecords } from '../../modules/payments/payments.schema';
-import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
 import {
-  commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
-  reconciliationRuns, reconciliationDiscrepancies,
+  returnRequests,
+  returnRequestItems,
+  returnRequestEvents,
+} from '../../modules/returns/returns.schema';
+import {
+  commissionReversals,
+  settlementAdjustments,
+  settlementAdjustmentApprovals,
+  reconciliationRuns,
+  reconciliationDiscrepancies,
 } from '../../modules/returns/financial.schema';
-import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
+import {
+  businessCalendars,
+  businessCalendarHolidays,
+  businessCalendarAudit,
+} from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { PaymentsService } from '../../modules/payments/payments.service';
 import { seedTwoTenantIdentityFixture } from '../helpers/tenant-fixtures';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
-const outbox = { dispatch: vi.fn().mockResolvedValue(undefined), publish: vi.fn().mockResolvedValue(undefined) } as unknown as OutboxDispatcher;
+const outbox = {
+  dispatch: vi.fn().mockResolvedValue(undefined),
+  publish: vi.fn().mockResolvedValue(undefined),
+} as unknown as OutboxDispatcher;
 
 describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => {
   let container: StartedPostgreSqlContainer;
@@ -74,28 +94,69 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     pool = new Pool({ connectionString: container.getConnectionUri() });
     const db = drizzle(pool, {
       schema: {
-        products, productVariants, merchantOffers, users, organizations, organizationMembers,
-        stores, warehouses, storeMembers, inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        shipments, shipmentEvents, outboxEvents, paymentRecords, refunds, settlementRecords,
-        returnRequests, returnRequestItems, returnRequestEvents,
-        commissionReversals, settlementAdjustments, settlementAdjustmentApprovals,
-        reconciliationRuns, reconciliationDiscrepancies,
-        businessCalendars, businessCalendarHolidays, businessCalendarAudit,
+        products,
+        productVariants,
+        merchantOffers,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        storeMembers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        shipments,
+        shipmentEvents,
+        outboxEvents,
+        paymentRecords,
+        refunds,
+        settlementRecords,
+        returnRequests,
+        returnRequestItems,
+        returnRequestEvents,
+        commissionReversals,
+        settlementAdjustments,
+        settlementAdjustmentApprovals,
+        reconciliationRuns,
+        reconciliationDiscrepancies,
+        businessCalendars,
+        businessCalendarHolidays,
+        businessCalendarAudit,
       },
     }) as unknown as DatabaseService['db'];
 
     // Run all migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql') && !EXCLUDED.has(f)).sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
+      .sort();
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sql); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); }
-      catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sql);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     database = { db } as any;
     settlementService = new SettlementAdjustmentService(database, outbox);
@@ -226,17 +287,18 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   it('TISO-01: listing adjustments scoped by orgId returns only own data', async () => {
     const listA = await settlementService.listAdjustments(orgA);
     const listB = await settlementService.listAdjustments(orgB);
-    expect(listA.length).toBe(1); expect(listA[0]!.id).toBe(adjustmentA);
-    expect(listB.length).toBe(1); expect(listB[0]!.id).toBe(adjustmentB);
+    expect(listA.length).toBe(1);
+    expect(listA[0]!.id).toBe(adjustmentA);
+    expect(listB.length).toBe(1);
+    expect(listB[0]!.id).toBe(adjustmentB);
     expect(listA.some((a: any) => a.id === adjustmentB)).toBe(false);
   });
 
   it('TISO-02: getAdjustment with wrong orgId throws NotFoundException', async () => {
-    await expect(
-      settlementService.getAdjustment(adjustmentB, orgA),
-    ).rejects.toThrow();
+    await expect(settlementService.getAdjustment(adjustmentB, orgA)).rejects.toThrow();
     const own = await settlementService.getAdjustment(adjustmentA, orgA);
-    expect(own).toBeDefined(); expect(own!.id).toBe(adjustmentA);
+    expect(own).toBeDefined();
+    expect(own!.id).toBe(adjustmentA);
   });
 
   it('TISO-03: approveAdjustment with wrong orgId throws', async () => {
@@ -244,7 +306,13 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await settlementService.submitForApproval(adjustmentB, adminB, orgB);
     // Org A tries to approve Org B's adjustment
     await expect(
-      settlementService.approveAdjustment(adjustmentB, adminA, 'ADMIN', { approverRole: 'ADMIN', notes: 'cross-org' }, orgA),
+      settlementService.approveAdjustment(
+        adjustmentB,
+        adminA,
+        'ADMIN',
+        { approverRole: 'ADMIN', notes: 'cross-org' },
+        orgA,
+      ),
     ).rejects.toThrow();
     // Verify Org B's adjustment was NOT modified
     const adj = await settlementService.getAdjustment(adjustmentB, orgB);
@@ -254,15 +322,19 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   it('TISO-04: listReversals scoped by orgId returns only own data', async () => {
     const listA = await commissionService.listReversals(orgA);
     const listB = await commissionService.listReversals(orgB);
-    expect(listA.length).toBe(1); expect(listA[0]!.orgId).toBe(orgA);
-    expect(listB.length).toBe(1); expect(listB[0]!.orgId).toBe(orgB);
+    expect(listA.length).toBe(1);
+    expect(listA[0]!.orgId).toBe(orgA);
+    expect(listB.length).toBe(1);
+    expect(listB[0]!.orgId).toBe(orgB);
   });
 
   it('TISO-05: listReconciliationRuns scoped by orgId returns only own data', async () => {
     const runsA = await reconciliationService.listReconciliationRuns(orgA);
     const runsB = await reconciliationService.listReconciliationRuns(orgB);
-    expect(runsA.length).toBe(1); expect(runsA[0]!.orgId).toBe(orgA);
-    expect(runsB.length).toBe(1); expect(runsB[0]!.orgId).toBe(orgB);
+    expect(runsA.length).toBe(1);
+    expect(runsA[0]!.orgId).toBe(orgA);
+    expect(runsB.length).toBe(1);
+    expect(runsB[0]!.orgId).toBe(orgB);
   });
 
   it('TISO-06: resolveDiscrepancy with wrong orgId throws', async () => {
@@ -275,7 +347,10 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     await expect(
       reconciliationService.resolveDiscrepancy(discId, adminA, 'cross-org attempt', orgA),
     ).rejects.toThrow();
-    const disc = await pool.query(`SELECT resolved FROM reconciliation_discrepancies WHERE id = $1`, [discId]);
+    const disc = await pool.query(
+      `SELECT resolved FROM reconciliation_discrepancies WHERE id = $1`,
+      [discId],
+    );
     expect(disc.rows[0].resolved).toBe(false);
   });
 
@@ -290,9 +365,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   });
 
   it('TISO-08: knowing UUID of another org adjustment does not grant read', async () => {
-    await expect(
-      settlementService.getAdjustment(adjustmentB, orgA),
-    ).rejects.toThrow();
+    await expect(settlementService.getAdjustment(adjustmentB, orgA)).rejects.toThrow();
   });
 
   it('TISO-09: concurrent cross-org listing returns isolated results', async () => {
@@ -302,7 +375,9 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     ]);
     const idsA = new Set(listA.map((a: any) => a.id));
     const idsB = new Set(listB.map((a: any) => a.id));
-    for (const id of idsA) { expect(idsB.has(id)).toBe(false); }
+    for (const id of idsA) {
+      expect(idsB.has(id)).toBe(false);
+    }
   });
 
   it('G-030: merchant payment listing returns only payments for active member stores', async () => {
@@ -323,19 +398,25 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
 
   it('G-030: same-org non-members and foreign store IDs cannot list merchant payments', async () => {
     await expect(
-      paymentsService.listMerchantPayments({
-        sub: buyerA,
-        role: 'MERCHANT',
-        activeOrg: orgA,
-      }, { storeId: storeA }),
+      paymentsService.listMerchantPayments(
+        {
+          sub: buyerA,
+          role: 'MERCHANT',
+          activeOrg: orgA,
+        },
+        { storeId: storeA },
+      ),
     ).rejects.toThrow();
 
     await expect(
-      paymentsService.listMerchantPayments({
-        sub: adminA,
-        role: 'MERCHANT',
-        activeOrg: orgA,
-      }, { storeId: storeB }),
+      paymentsService.listMerchantPayments(
+        {
+          sub: adminA,
+          role: 'MERCHANT',
+          activeOrg: orgA,
+        },
+        { storeId: storeB },
+      ),
     ).rejects.toThrow();
   });
 
@@ -359,11 +440,14 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
 
   it('G-030: merchant settlement listing rejects same-org non-members and missing org context', async () => {
     await expect(
-      paymentsService.listMerchantSettlements({
-        sub: buyerA,
-        role: 'MERCHANT',
-        activeOrg: orgA,
-      }, { storeId: storeA }),
+      paymentsService.listMerchantSettlements(
+        {
+          sub: buyerA,
+          role: 'MERCHANT',
+          activeOrg: orgA,
+        },
+        { storeId: storeA },
+      ),
     ).rejects.toThrow();
 
     await expect(

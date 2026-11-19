@@ -45,10 +45,7 @@ export class PaymentsController {
 
   /** GET /v1/payments/:id — view payment details (buyer owns it or admin). */
   @Get('payments/:id')
-  async getPayment(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async getPayment(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const payment = await this.payments.getPaymentOrThrow(id);
     const order = await this.payments.getOrderForPayment(payment.orderId);
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -94,10 +91,10 @@ export class PaymentsController {
     @Body() body: { amountMinor: number; reason: string; idempotencyKey?: string; notes?: string },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.payments.requestRefund(
-      id, body.amountMinor, body.reason, user.sub, caller,
-      { idempotencyKey: body.idempotencyKey, notes: body.notes },
-    );
+    return this.payments.requestRefund(id, body.amountMinor, body.reason, user.sub, caller, {
+      idempotencyKey: body.idempotencyKey,
+      notes: body.notes,
+    });
   }
 
   // ── Admin Endpoints ───────────────────────────────────────────
@@ -109,7 +106,8 @@ export class PaymentsController {
   async verifyPayment(
     @CurrentUser() user: JwtPayload,
     @Param('id') id: string,
-    @Body() body: { decision: 'CONFIRMED' | 'REJECTED'; notes?: string; verifiedAmountMinor?: number },
+    @Body()
+    body: { decision: 'CONFIRMED' | 'REJECTED'; notes?: string; verifiedAmountMinor?: number },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.verifyPayment(id, body.decision, user.sub, caller, {
@@ -122,10 +120,7 @@ export class PaymentsController {
   @Post('admin/refunds/:id/approve')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
-  async approveRefund(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') id: string,
-  ) {
+  async approveRefund(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.approveRefund(id, user.sub, caller);
   }
@@ -161,10 +156,7 @@ export class PaymentsController {
   @Post('admin/settlements/:id/calculate')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:write')
-  async calculateSettlement(
-    @CurrentUser() user: JwtPayload,
-    @Param('id') orderId: string,
-  ) {
+  async calculateSettlement(@CurrentUser() user: JwtPayload, @Param('id') orderId: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.payments.calculateSettlement(orderId, user.sub, caller);
   }
@@ -186,10 +178,7 @@ export class PaymentsController {
   @Get('admin/settlements')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:settlements:read')
-  async listSettlements(
-    @Query('storeId') storeId?: string,
-    @Query('status') status?: string,
-  ) {
+  async listSettlements(@Query('storeId') storeId?: string, @Query('status') status?: string) {
     return this.payments.listSettlements({ storeId, status });
   }
 

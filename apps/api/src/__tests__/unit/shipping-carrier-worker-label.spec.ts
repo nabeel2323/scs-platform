@@ -5,10 +5,12 @@ import { carrierEndpointAllowlistRegistry } from '../../modules/shipping/ssrf-pr
 const EVENT_ID = '11111111-1111-4111-8111-111111111111';
 const PDF = Buffer.from('%PDF-1.7\nsynthetic label\n%%EOF');
 
-function makeWorker(options: {
-  existingLabel?: unknown;
-  validation?: { valid: true; hostname: string; port: number } | { valid: false; reason: string };
-} = {}) {
+function makeWorker(
+  options: {
+    existingLabel?: unknown;
+    validation?: { valid: true; hostname: string; port: number } | { valid: false; reason: string };
+  } = {},
+) {
   const insertValues = vi.fn().mockResolvedValue(undefined);
   const findShipment = vi.fn().mockResolvedValue({
     id: 'shipment-1',
@@ -25,7 +27,9 @@ function makeWorker(options: {
       labelFormat: 'PDF',
     }),
   };
-  const storage = { putObject: vi.fn().mockResolvedValue({ bucket: 'scs-uploads', key: 'label-key' }) };
+  const storage = {
+    putObject: vi.fn().mockResolvedValue({ bucket: 'scs-uploads', key: 'label-key' }),
+  };
   const worker = Object.create(ShippingCarrierWorker.prototype) as any;
   worker.db = {
     db: {
@@ -39,12 +43,15 @@ function makeWorker(options: {
   worker.registry = { findProvider: vi.fn().mockReturnValue(provider) };
   worker.storage = storage;
   worker.logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
-  const validationSpy = vi.spyOn(carrierEndpointAllowlistRegistry, 'validateForProvider')
-    .mockResolvedValue(options.validation ?? {
-      valid: true,
-      hostname: 'ws.dev.aramex.net',
-      port: 443,
-    });
+  const validationSpy = vi
+    .spyOn(carrierEndpointAllowlistRegistry, 'validateForProvider')
+    .mockResolvedValue(
+      options.validation ?? {
+        valid: true,
+        hostname: 'ws.dev.aramex.net',
+        port: 443,
+      },
+    );
   return { worker, provider, storage, insertValues, findShipment, findLabel, validationSpy };
 }
 
@@ -57,10 +64,12 @@ afterEach(() => {
 describe('ShippingCarrierWorker label persistence (G-010)', () => {
   it('downloads a validated PDF, stores it idempotently, and persists label metadata', async () => {
     const { worker, provider, storage, insertValues, validationSpy } = makeWorker();
-    const fetchMock = vi.fn().mockResolvedValue(new Response(PDF, {
-      status: 200,
-      headers: { 'content-type': 'application/pdf' },
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(PDF, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' });
@@ -71,38 +80,47 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
       true,
     );
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(storage.putObject).toHaveBeenCalledWith(expect.objectContaining({
-      bucket: 'scs-uploads',
-      key: `shipping-labels/shipment-1/${EVENT_ID}.pdf`,
-      contentType: 'application/pdf',
-      body: PDF,
-    }));
-    expect(insertValues).toHaveBeenCalledWith(expect.objectContaining({
-      id: EVENT_ID,
-      shipmentId: 'shipment-1',
-      labelNumber: 'waybill-1',
-      storageKey: `shipping-labels/shipment-1/${EVENT_ID}.pdf`,
-      mimeType: 'application/pdf',
-      sizeBytes: PDF.length,
-      providerKey: 'aramex',
-      labelType: 'SHIPPING',
-    }));
+    expect(storage.putObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        bucket: 'scs-uploads',
+        key: `shipping-labels/shipment-1/${EVENT_ID}.pdf`,
+        contentType: 'application/pdf',
+        body: PDF,
+      }),
+    );
+    expect(insertValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: EVENT_ID,
+        shipmentId: 'shipment-1',
+        labelNumber: 'waybill-1',
+        storageKey: `shipping-labels/shipment-1/${EVENT_ID}.pdf`,
+        mimeType: 'application/pdf',
+        sizeBytes: PDF.length,
+        providerKey: 'aramex',
+        labelType: 'SHIPPING',
+      }),
+    );
     expect(provider.generateLabel).toHaveBeenCalledWith('shipment-1');
   });
 
   it('fails closed when the provider label URL does not pass SSRF validation', async () => {
-    const { worker, storage } = makeWorker({ validation: { valid: false, reason: 'host not allowed' } });
+    const { worker, storage } = makeWorker({
+      validation: { valid: false, reason: 'host not allowed' },
+    });
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
-      .rejects.toThrow('SSRF validation');
+    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' })).rejects.toThrow(
+      'SSRF validation',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 
   it('does not redownload or insert a label after the same outbox event already persisted', async () => {
-    const { worker, provider, storage, insertValues } = makeWorker({ existingLabel: { id: EVENT_ID } });
+    const { worker, provider, storage, insertValues } = makeWorker({
+      existingLabel: { id: EVENT_ID },
+    });
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -116,36 +134,54 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
 
   it('rejects non-PDF payloads without persisting an object', async () => {
     const { worker, storage } = makeWorker();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not a pdf', {
-      status: 200,
-      headers: { 'content-type': 'application/pdf' },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('not a pdf', {
+          status: 200,
+          headers: { 'content-type': 'application/pdf' },
+        }),
+      ),
+    );
 
-    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
-      .rejects.toThrow('PDF signature');
+    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' })).rejects.toThrow(
+      'PDF signature',
+    );
     expect(storage.putObject).not.toHaveBeenCalled();
   });
 
   it('classifies HTTP 5xx responses as retryable without persisting a label', async () => {
     const { worker, storage, insertValues } = makeWorker();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('temporary outage', {
-      status: 503,
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('temporary outage', {
+          status: 503,
+        }),
+      ),
+    );
 
-    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
-      .rejects.toMatchObject({ retryable: true, operation: 'downloadLabel' });
+    await expect(
+      worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }),
+    ).rejects.toMatchObject({ retryable: true, operation: 'downloadLabel' });
     expect(storage.putObject).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
   });
 
   it('classifies HTTP 4xx responses as terminal without persisting a label', async () => {
     const { worker, storage, insertValues } = makeWorker();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not found', {
-      status: 404,
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('not found', {
+          status: 404,
+        }),
+      ),
+    );
 
-    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
-      .rejects.toMatchObject({ retryable: false, operation: 'downloadLabel' });
+    await expect(
+      worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }),
+    ).rejects.toMatchObject({ retryable: false, operation: 'downloadLabel' });
     expect(storage.putObject).not.toHaveBeenCalled();
     expect(insertValues).not.toHaveBeenCalled();
   });
@@ -153,9 +189,14 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
   it('classifies download timeouts as retryable and aborts the request', async () => {
     vi.useFakeTimers();
     const { worker, storage, insertValues } = makeWorker();
-    const fetchMock = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
-      init.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
-    }));
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const pending = worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' });
@@ -171,18 +212,23 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
   });
 });
 
-
 describe('ShippingCarrierWorker label persistence failures', () => {
   it('classifies object-storage failures as retryable and does not insert metadata', async () => {
     const { worker, storage, insertValues } = makeWorker();
     storage.putObject.mockRejectedValue(new Error('synthetic S3 failure'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(PDF, {
-      status: 200,
-      headers: { 'content-type': 'application/pdf' },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(PDF, {
+          status: 200,
+          headers: { 'content-type': 'application/pdf' },
+        }),
+      ),
+    );
 
-    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
-      .rejects.toMatchObject({ retryable: true, operation: 'persistLabel' });
+    await expect(
+      worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }),
+    ).rejects.toMatchObject({ retryable: true, operation: 'persistLabel' });
     expect(insertValues).not.toHaveBeenCalled();
   });
 });
