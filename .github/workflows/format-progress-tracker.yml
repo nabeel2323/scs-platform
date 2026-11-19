@@ -1,0 +1,49 @@
+name: Format implementation progress tracker
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - docs/remediation/IMPLEMENTATION-PROGRESS.md
+
+permissions:
+  contents: write
+
+concurrency:
+  group: progress-format
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.9'
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Format progress tracker
+        run: pnpm exec prettier --write docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatting
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- docs/remediation/IMPLEMENTATION-PROGRESS.md; then
+            echo "Progress tracker already satisfies Prettier."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/remediation/IMPLEMENTATION-PROGRESS.md
+          git commit -m "style(docs): format implementation progress tracker"
+          git pull --rebase --autostash origin remediation/phase-0-1-tenant-security
+          git push origin HEAD:remediation/phase-0-1-tenant-security
