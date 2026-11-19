@@ -639,3 +639,39 @@ These two files are the authoritative working references for this remediation pr
 Continue with the explicit G-006 stale-offer/concurrency acceptance review before closing G-006. G-008 is CLOSED with CI #714 evidence. G-007 implementation is CI-verified; its full journey UAT remains in Phase 6. G-002 effective database-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified. Keep full manual journey testing consolidated in Phase 6.
 
 **Current overall status: IN PROGRESS.** CI #711 passed every executed job on `347289796961a8f80368e20a0fa7fa33d7a8c999`: API unit/coverage (4,444 passed; 110 skipped), API integration, web/admin, lint/typecheck/format, Flutter, boundary lint, isolated full migration apply, contract/codegen, production build and container smoke. k6 smoke and staging release were skipped. G-003, G-004 and G-005 are CLOSED with CI evidence; G-011, G-028 and G-029 remain closed on their prior verified runs. G-006 implementation is CI-verified but its explicit stale-offer/concurrency acceptance review remains open. G-007 implementation is CI-verified; full journey UAT is reserved for Phase 6. G-002 remains partial pending actual API/migration role verification; G-008 is CLOSED with CI #714 evidence. No staging/production deployment or live database migration has been performed.
+
+
+---
+
+## 14. Execution update — 19 November 2026
+
+This section supplements the original plan without rewriting historical audit findings or acceptance criteria.
+
+### Verified since the plan was opened
+- CI #718 passed all 10 executed jobs on `783c03814d1527184c0eb69c2df1c396944056cc`. k6 smoke and staging release were skipped; this is CI evidence only, not staging or production release evidence.
+- G-006 is CLOSED. The changed-offer-term test and the true PostgreSQL two-session offer-row contention test passed in CI #718. The test holds a seller MOQ update uncommitted, confirms buyer checkout waits on the row lock, commits the seller edit, verifies checkout re-reads the changed terms and creates no invalid order, then restores the fixture terms.
+- The OTP timeout/redaction regression suite also passed in CI #718; the broader forensic review of all provider/logging paths remains a Phase 0 task.
+
+### G-002 database evidence update
+- A 19-Nov read-only recheck found 114 public tables with RLS enabled/forced on 0.
+- Effective privileges across those 114 tables show anon/authenticated/service_role have no SELECT/INSERT/UPDATE/DELETE, but each has TRUNCATE/REFERENCES/TRIGGER/MAINTAIN. The Security Advisor's critical RLS-disabled finding remains valid; its generic assertion of unrestricted read/write is broader than the effective DML grants observed in this snapshot.
+- `postgres` default ACLs repeat non-DML grants for anon/authenticated/service_role. `supabase_admin` default ACLs include broader DML grants and must not be changed without a separate ownership/platform review.
+- The SQL inspection connection is `postgres`; this does not prove the Render API or staging migration role. No attributable SCS API connection appeared in the observed `pg_stat_activity` sample.
+- The custom application migration ledger remains at 69 entries through 0069. Migration 0070 and 0071 have not been applied to the shared database.
+- The API uses a direct node-postgres/Drizzle pool from `DATABASE_URL`; the staging release workflow maps `STAGING_DATABASE_URL` into that variable for the migration runner. The exact login/effective roles remain a required verification.
+
+### Added read-only verification capability
+- `apps/api/scripts/audit-db-access.ts` and `pnpm --filter @scs/api db:audit-access` report the login/effective role, role attributes, table and sequence privileges, schema access, RLS coverage, default ACLs and public function exposure. The utility does not read application rows, print DSNs or mutate the database.
+- `.github/workflows/db-access-audit.yml` is a manual staging-environment workflow. It runs only the read-only audit; it does not migrate, deploy, or write application data. GitHub requires a `workflow_dispatch` workflow to exist on the repository default branch before it can be dispatched; once promoted there, it checks out `develop` for the audit code.
+- Full evidence is recorded in [DB-ACCESS-VERIFICATION-2026-11-19.md](./DB-ACCESS-VERIFICATION-2026-11-19.md).
+
+### Revised immediate sequence
+1. Validate the new utility/workflow in CI and make the workflow available from the default branch through the normal review/merge path.
+2. Run the read-only audit against the configured staging migration connection and record the effective role without exposing its DSN.
+3. Obtain equivalent runtime identity evidence for the Render API process without printing or retrieving environment-variable values.
+4. Complete table-by-table access classification and the full grants/default-ACL/function/view/sequence inventory.
+5. Design and test the least-privilege API/migration role contract, including owner/BYPASSRLS behavior and compatibility with direct Drizzle access.
+6. Add isolated role-switching and cross-tenant database negative tests before preparing any staged grant/RLS migration.
+7. Continue remaining Phase 0–5 work packages; run the consolidated Phase 6 campaign only after implementation and documented deferrals are ready.
+
+**Safety boundary remains unchanged:** no live grant changes, RLS enablement, migration application, Render configuration change, worker activation, or deployment is authorized by this implementation update.
