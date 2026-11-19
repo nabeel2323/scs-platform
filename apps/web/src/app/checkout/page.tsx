@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate } from '../../lib/buyer-api';
+import { checkout, fetchCart, Cart, CartItem, fetchShippingEstimate, ShippingEstimate, previewCheckout, CheckoutPreview } from '../../lib/buyer-api';
 import { formatMinor, ErrorBanner, LoadingSpinner } from '../../components/Shared';
 import { computeCheckoutTotalsByCurrency } from '../../lib/checkout-currency';
 import {
@@ -31,6 +31,9 @@ export default function CheckoutPage() {
   const [storeSelections, setStoreSelections] = useState<Map<string, StoreSelection>>(new Map());
   const [estimatesLoading, setEstimatesLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH_ON_DELIVERY');
+  const [checkoutPreview, setCheckoutPreview] = useState<CheckoutPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
 
   useEffect(() => {
     fetchCart()
@@ -61,11 +64,11 @@ export default function CheckoutPage() {
           const estimate = await fetchShippingEstimate(storeId, subtotal, city || undefined);
           const availableMethods = estimate.methods.filter(m => m.status !== 'UNAVAILABLE');
           const defaultMethod = availableMethods[0];
-          const isPickup = !defaultMethod || defaultMethod.type === 'PICKUP';
+          const isPickup = !defaultMethod;
           newSelections.set(storeId, {
             storeId,
             storeName,
-            fulfillmentMethod: isPickup ? 'PICKUP' : 'PLATFORM_DELIVERY',
+            fulfillmentMethod: defaultMethod?.fulfillmentMethod || (isPickup ? 'PICKUP' : 'PLATFORM_DELIVERY'),
             shippingMethodId: defaultMethod?.methodId || null,
             estimate,
           });
@@ -96,23 +99,44 @@ export default function CheckoutPage() {
     });
   };
 
-  // Never add minor-unit amounts across different currencies. Keep the
-  // estimate explicitly grouped by currency, including each selected delivery fee.
-  const checkoutTotals = computeCheckoutTotalsByCurrency(
-    cartItems,
-    [...storeSelections.values()],
-  );
-  const checkoutCurrencyEntries = Object.entries(checkoutTotals.totalsByCurrency);
-  const singleCheckoutEntry = checkoutCurrencyEntries.length === 1
-    ? checkoutCurrencyEntries[0]
-    : undefined;
-  const hasSingleCheckoutCurrency =
-    !checkoutTotals.hasUnpricedAmounts && singleCheckoutEntry !== undefined;
-  const formatCheckoutTotal = () => {
-    if (!hasSingleCheckoutCurrency || !singleCheckoutEntry) return null;
-    const [currency, amount] = singleCheckoutEntry;
-    return formatMinor(amount, currency);
-  };
+  // Ask the API to calculate the exact per-supplier financial breakdown,
+  // including the configured VAT rate, promotion discount and authoritative fees.
+  useEffect(() => {
+    if (
+      cartItems.length === 0 ||
+      estimatesLoading ||
+      storeSelections.size !== grouped.size ||
+      !address.trim() ||
+      !city.trim()
+    ) {
+      setCheckoutPreview(null);
+      return;
+    }
+    let active = true;
+    setPreviewLoading(true);
+    setPreviewError('');
+    previewCheckout({
+      deliveryAddress: { street: address.trim(), city: city.trim() },
+      shippingSelections: [...storeSelections.values()].map(selection => ({
+        storeId: selection.storeId,
+        fulfillmentMethod: selection.fulfillmentMethod,
+        shippingMethodId: selection.shippingMethodId || undefined,
+      })),
+    })
+      .then(result => {
+        if (active) setCheckoutPreview(result);
+      })
+      .catch((error: any) => {
+        if (active) {
+          setCheckoutPreview(null);
+          setPreviewError(error.message || 'Could not calculate checkout totals');
+        }
+      })
+      .finally(() => {
+        if (active) setPreviewLoading(false);
+      });
+    return () => { active = false; };
+  }, [cartItems.length, estimatesLoading, storeSelections, address, city]);
 
   const handleSubmit = async () => {
     if (!address.trim()) { setError('Delivery address is required'); return; }
@@ -199,7 +223,7 @@ export default function CheckoutPage() {
                         {sel.estimate.methods.filter(m => m.status !== 'UNAVAILABLE').map(m => (
                           <label key={m.methodId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', cursor: 'pointer', ...typeScale.bodySm }}>
                             <input type="radio" name={`shipping-${storeId}`} checked={sel.shippingMethodId === m.methodId}
-                              onChange={() => updateSelection(storeId, { shippingMethodId: m.methodId })} />
+                              onChange={() => updateSelection(storeId, { shippingMethodId: m.methodId, fulfillmentMethod: m.fulfillmentMethod })} />
                             <span>{m.name}</span>
                             <span style={{ marginLeft: 'auto', color: m.status === 'FREE' ? colors.ok : colors.muted }}>
                               {m.status === 'FREE' ? 'Free' : formatMinor(m.feeMinor, m.currency)}
@@ -226,34 +250,54 @@ export default function CheckoutPage() {
               {cart?.promoCode && (
                 <div style={{ ...typeScale.bodySm, color: colors.ok, margin: '4px 0 8px' }}>Promo applied: {cart.promoCode}</div>
               )}
-              <div style={{ fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
-                {checkoutCurrencyEntries.length > 1 ? (
+              <div style={{ marginTop: 12, padding: '12px', border: `1px solid ${colors.borderLight}`, borderRadius: radii.sm }}>
+                <div style={{ ...typeScale.body, fontWeight: 700, color: colors.brand[700], marginBottom: 8 }}>
+                  Tax-inclusive estimate
+                </div>
+                {previewLoading ? (
+                  <div style={{ ...typeScale.bodySm, color: colors.muted }}>Calculating supplier totals, delivery and VAT…</div>
+                ) : checkoutPreview ? (
                   <>
-                    <div style={{ marginBottom: 6 }}>Estimated totals by currency</div>
-                    {checkoutCurrencyEntries.sort(([a], [b]) => a.localeCompare(b)).map(([currency, amount]) => (
-                      <div key={currency} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                        <span>{currency}</span>
+                    {checkoutPreview.stores.map(row => (
+                      <div key={row.storeId} style={{ padding: '8px 0', borderTop: `1px solid ${colors.borderLight}` }}>
+                        <div style={{ ...typeScale.body, fontWeight: 600, marginBottom: 4 }}>
+                          {grouped.get(row.storeId)?.[0]?.storeName || 'Supplier'}
+                        </div>
+                        {[
+                          ['Items', row.subtotalMinor],
+                          ['Discount', -row.discountMinor],
+                          ['Delivery', row.deliveryFeeMinor],
+                          ['VAT', row.taxMinor],
+                        ].map(([label, amount]) => (
+                          <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.bodySm, color: colors.muted }}>
+                            <span>{label}</span>
+                            <span>{formatMinor(Number(amount), row.currency || undefined)}</span>
+                          </div>
+                        ))}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.body, fontWeight: 700, marginTop: 4 }}>
+                          <span>Supplier total</span>
+                          <span>{formatMinor(row.totalMinor, row.currency || undefined)}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {checkoutPreview.hasUnpricedAmounts ? (
+                      <div style={{ ...typeScale.bodySm, color: colors.muted }}>Some supplier totals have no confirmed currency.</div>
+                    ) : Object.entries(checkoutPreview.totalsByCurrency).map(([currency, amount]) => (
+                      <div key={currency} style={{ display: 'flex', justifyContent: 'space-between', ...typeScale.body, fontWeight: 700, marginTop: 8 }}>
+                        <span>Total ({currency})</span>
                         <span>{formatMinor(amount, currency)}</span>
                       </div>
                     ))}
+                    <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
+                      VAT is estimated by the server using the current tax configuration. The server recalculates all amounts when you place the order.
+                    </p>
                   </>
-                ) : hasSingleCheckoutCurrency && singleCheckoutEntry ? (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Estimated total</span>
-                    <span>{formatMinor(singleCheckoutEntry[1], singleCheckoutEntry[0])}</span>
-                  </div>
                 ) : (
-                  <div>Estimated totals unavailable until every amount has a confirmed currency.</div>
-                )}
-                {checkoutTotals.hasUnpricedAmounts && (
-                  <div style={{ ...typeScale.bodySm, fontWeight: 400, color: colors.muted, marginTop: 6 }}>
-                    Some item or delivery amounts have no currency, so the estimate is incomplete.
+                  <div style={{ ...typeScale.bodySm, color: previewError ? colors.danger : colors.muted }}>
+                    {previewError || 'Enter your delivery address and choose shipping for each supplier to calculate VAT and final estimates.'}
                   </div>
                 )}
               </div>
-              <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
-                Final amounts are confirmed per supplier. Delivery fees and VAT are added per supplier.
-              </p>
               <div style={{ marginTop: 12, padding: '10px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm }}>
                 <div style={{ ...typeScale.label, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>Payment Method</div>
                 {[
@@ -311,8 +355,8 @@ export default function CheckoutPage() {
                 <div style={{ ...typeScale.bodySm, color: colors.muted, marginBottom: 12 }}>Loading shipping options...</div>
               )}
 
-              <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading} style={{ width: '100%' }}>
-                {submitting ? 'Placing Order...' : (formatCheckoutTotal() ? `Place Order · ${formatCheckoutTotal()}` : 'Place Order')}
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading || previewLoading || !checkoutPreview} style={{ width: '100%' }}>
+                {submitting ? 'Placing Order...' : 'Place Order'}
               </Button>
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Link href="/cart" style={{ ...typeScale.bodySm, color: colors.muted, textDecoration: 'none' }}>← Edit cart</Link>
