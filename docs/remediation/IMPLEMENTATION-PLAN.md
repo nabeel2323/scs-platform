@@ -891,12 +891,12 @@ Also:
 
 G-018 remains **PARTIAL**. This is a targeted correction of the most misleading readiness claims, not a complete audit of all 533 files under `docs/`. Remaining API/admin/merchant/buyer/mobile/permissions/worker/troubleshooting guides must be reconciled with current routes and verified behavior in their owning implementation work packages.
 
-
 ## 31. Newly discovered P0 — G-030 merchant financial listing isolation
 
 The ongoing financial-service source review found a tenant-isolation defect in `GET /v1/merchant/payments` and `GET /v1/merchant/settlements`. Merchant routes called list methods without authenticated caller context; the payment list's store/buyer filter construction was not applied to the final query. Treat this as a P0 release gate, not a documentation-only issue.
 
 The remediation branch now:
+
 - passes the authenticated JWT caller context into dedicated merchant listing methods;
 - scopes payment rows through payment → order → store → ACTIVE store membership → active organization;
 - scopes settlement rows through settlement → store → ACTIVE store membership → active organization;
