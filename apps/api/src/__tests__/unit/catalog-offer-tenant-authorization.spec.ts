@@ -15,6 +15,7 @@ const caller: JwtPayload = {
   sub: 'merchant-user',
   role: 'MERCHANT',
   activeOrg: 'merchant-org',
+  perms: ['catalog:offers:read'],
   iat: 1,
   exp: 2,
 };
