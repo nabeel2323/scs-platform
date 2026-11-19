@@ -1,5 +1,7 @@
 # Operational Playbooks
 
+> **Operational safety — 19 November 2026.** These playbooks are procedure templates, not authorization to run SQL or trigger business side effects. Use read-only queries only with an approved operational identity; never expose database credentials or run unreviewed SQL from a client. Do not create live shipments, send customer notifications, capture payments, change worker flags, apply migrations or write shared-database records without the relevant release/operations approval. Current deployment and migration constraints are in [the remediation runbook](../deployment/REMEDIATION-DEPLOYMENT-AND-MIGRATION-RUNBOOK.md).
+
 ## 1. Concierge Catalog Import
 
 **When:** A new merchant needs their catalog imported but cannot do it themselves.
