@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** INITIALIZED — no remediation phase has been started or closed under this tracker.
+**Tracker status:** IN PROGRESS — Phase 1 P0 tenant authorization remediation is implemented on an isolated branch; automated execution and independent verification are pending.
 
 ---
 
@@ -16,21 +16,21 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 0 |
+| Phases in progress | 1 |
 | Original audit findings | 22 |
 | P0 open | 1 |
 | P1 open | 7 |
 | P2 open | 12 |
 | P3 open | 2 |
 | Findings closed under this plan | 0 |
-| Findings partially remediated under this plan | 0 |
+| Findings partially remediated under this plan | 1 |
 | Final full test campaign | NOT STARTED |
 
 **Important:** These counts represent the starting audit register, not a claim that every finding has been revalidated on the current HEAD. Phase 0 must reconcile the current branch and update counts if later commits already fixed or changed a finding.
 
 ### Overall status
 
-<badge>PLANNED</badge> Implementation has not started under this remediation tracker. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
+<badge>IN PROGRESS</badge> Phase 1 has started. G-001 has a source-level remediation and focused regression tests on `security/p0-merchant-offer-tenant-scope`; tests have not yet been executed, so the finding remains PARTIAL and is not closed.
 
 ---
 
@@ -39,7 +39,7 @@
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | NOT STARTED | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 15% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -54,7 +54,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | OPEN | Must close before authenticated business testing |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | PARTIAL | Controller now checks active organization and store membership for list, analytics and trend; focused tests added but not executed. See Phase 1 evidence. |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
@@ -122,15 +122,16 @@ Status definitions:
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | TODO | |
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | TODO | |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | TODO | |
+| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Confirmed in `catalog.offer.controller.ts`: all three routes accepted caller-supplied `storeId` and queried service without tenant checks. |
+
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IMPLEMENTED — TEST PENDING | `assertStoreInOrg` and `assertStoreMember` now run before service access. |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — TEST PENDING | Both analytics and trend routes now require the same fail-closed checks. |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TODO | |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TEST ADDED — NOT EXECUTED | Focused controller regression tests cover org denial and missing active store membership for all three routes; full HTTP role matrix remains pending. |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
@@ -143,11 +144,12 @@ Status definitions:
 **Exit gate:** P0 tenant isolation PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
 
 **Phase evidence:**  
-- Implementation PR/commit: TBD  
-- Focused test commands/results: TBD  
-- Migration ID(s): TBD  
-- Independent review: TBD  
-- Phase decision: NOT STARTED
+- Implementation branch: `security/p0-merchant-offer-tenant-scope`  
+- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`  
+- Focused test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (added; NOT EXECUTED)  
+- Migration ID(s): none for G-001  
+- Independent review: pending  
+- Phase decision: IN PROGRESS — G-001 remains PARTIAL until automated execution and HTTP-level tenant matrix verification.
 
 ---
 
