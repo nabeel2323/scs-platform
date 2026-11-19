@@ -746,3 +746,10 @@ The E6 checker had not actually executed: the root script invoked missing `ts-no
 - The 1,277-file / approximately 37.9 MB `.m73b6-scratch` tree and expired JWT test artifact were removed from the current tree; history remains unchanged.
 - G-014 branch protection remains blocked by repository-admin access. G-018 documentation reconciliation is partial. G-013 has 71 current FK-index candidates versus the earlier 55 count; no blanket indexes will be added. G-022 has a relocatable `pg_trgm` extension and five dependent GIN indexes; actual API/migration roles must be confirmed before any relocation.
 - Payment-gateway and RFQ/quotation/PO scope decisions remain open; current recommendation is manual payment verification for this release and defer RFQ/PO to a separate milestone. Backup/restore remains deferred by user direction until pre-production review.
+
+
+---
+
+## 22. G-013 foreign-key index review — 19 November 2026
+
+The read-only live inventory reports 71 foreign-key constraints without a matching valid leading-column index, compared with the earlier advisor count of 55. Only four candidate tables have non-zero estimated rows (sessions 19, device_credentials 6, role_permissions 4, organization_members 3); all are small. Cumulative scan counters on currently empty tables do not justify index creation. The current pg_stat_statements sample does not identify representative high-volume application joins. No indexes were added. Defer DDL until representative staging data is loaded and exact query plans demonstrate a benefit, then measure read gains and write/storage overhead. See `FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md`.
