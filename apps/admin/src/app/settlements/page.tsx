@@ -1,15 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import {
-  fetchAdminSettlements,
-  markSettlementPaid,
-  type AdminSettlement,
-} from '../../lib/api';
+import { fetchAdminSettlements, markSettlementPaid, type AdminSettlement } from '../../lib/api';
 import { AccessDenied, useRequirePerms } from '../../hooks/useRequirePerms';
-import {
-  PageHeader, Card, Button, colors, typeScale, radii,
-} from '@scs/ui-kit';
+import { PageHeader, Card, Button, colors, typeScale, radii } from '@scs/ui-kit';
 
 const SETTLEMENT_COLORS: Record<string, string> = {
   PENDING: '#6b7280',
@@ -21,10 +15,19 @@ const SETTLEMENT_COLORS: Record<string, string> = {
 function SettlementBadge({ status }: { status: string }) {
   const bg = SETTLEMENT_COLORS[status] || '#6b7280';
   return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 12,
-      fontSize: 11, fontWeight: 600, color: '#fff', background: bg,
-    }}>{status}</span>
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '2px 8px',
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#fff',
+        background: bg,
+      }}
+    >
+      {status}
+    </span>
   );
 }
 
@@ -55,7 +58,9 @@ export default function AdminSettlementsPage() {
     }
   }, [filter, hasAccess]);
 
-  useEffect(() => { if (hasAccess) load(); }, [load, hasAccess]);
+  useEffect(() => {
+    if (hasAccess) load();
+  }, [load, hasAccess]);
 
   const handleMarkPaid = async (id: string) => {
     if (!canWrite) return;
@@ -70,7 +75,8 @@ export default function AdminSettlementsPage() {
     }
   };
 
-  if (!hasAccess) return <AccessDenied requiredPerms={['admin:settlements:read']} missingPerms={missingPerms} />;
+  if (!hasAccess)
+    return <AccessDenied requiredPerms={['admin:settlements:read']} missingPerms={missingPerms} />;
 
   return (
     <div style={{ padding: '24px 28px' }}>
@@ -79,10 +85,16 @@ export default function AdminSettlementsPage() {
       {/* Filter */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
         <label style={{ ...typeScale.label, fontSize: 12 }}>Status:</label>
-        <select value={filter} onChange={e => setFilter(e.target.value)} style={{
-          padding: '6px 10px', borderRadius: radii.sm, border: `1px solid ${colors.border}`,
-          fontSize: 13,
-        }}>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          style={{
+            padding: '6px 10px',
+            borderRadius: radii.sm,
+            border: `1px solid ${colors.border}`,
+            fontSize: 13,
+          }}
+        >
           <option value="">All</option>
           <option value="PENDING">Pending</option>
           <option value="CALCULATED">Calculated</option>
@@ -92,7 +104,17 @@ export default function AdminSettlementsPage() {
       </div>
 
       {error && (
-        <div style={{ padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: radii.sm, color: '#dc2626', marginBottom: 12, fontSize: 13 }}>
+        <div
+          style={{
+            padding: '10px 14px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: radii.sm,
+            color: '#dc2626',
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
           {error}
         </div>
       )}
@@ -119,7 +141,7 @@ export default function AdminSettlementsPage() {
               </tr>
             </thead>
             <tbody>
-              {settlements.map(s => (
+              {settlements.map((s) => (
                 <tr key={s.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                   <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
                     {(s.subOrderId || '').slice(0, 8)}
@@ -127,7 +149,9 @@ export default function AdminSettlementsPage() {
                   <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
                     {(s.merchantStoreId || '').slice(0, 8)}
                   </td>
-                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>{fmt(s.grossMinor, s.currency)}</td>
+                  <td style={{ padding: '10px 8px', textAlign: 'right' }}>
+                    {fmt(s.grossMinor, s.currency)}
+                  </td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', color: '#dc2626' }}>
                     {s.refundMinor > 0 ? `−${fmt(s.refundMinor, s.currency)}` : '—'}
                   </td>
@@ -137,13 +161,23 @@ export default function AdminSettlementsPage() {
                   <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 600 }}>
                     {fmt(s.netMinor, s.currency)}
                   </td>
-                  <td style={{ padding: '10px 8px' }}><SettlementBadge status={s.status} /></td>
-                  {canWrite && <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                    {['CALCULATED', 'DUE'].includes(s.status) && (
-                      <Button size="sm" variant="primary" disabled={acting === s.id}
-                        onClick={() => handleMarkPaid(s.id)}>Mark Paid</Button>
-                    )}
-                  </td>}
+                  <td style={{ padding: '10px 8px' }}>
+                    <SettlementBadge status={s.status} />
+                  </td>
+                  {canWrite && (
+                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                      {['CALCULATED', 'DUE'].includes(s.status) && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={acting === s.id}
+                          onClick={() => handleMarkPaid(s.id)}
+                        >
+                          Mark Paid
+                        </Button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

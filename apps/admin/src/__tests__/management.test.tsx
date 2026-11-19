@@ -303,20 +303,22 @@ describe('accessible dialogs and row actions', () => {
 
   it('hides settlement payment action from users with read-only settlement access', async () => {
     navigation.allowedPermissions = ['admin:settlements:read'];
-    vi.mocked(fetchAdminSettlements).mockResolvedValue([{
-      id: 'settlement-1',
-      subOrderId: 'sub-order-1',
-      merchantStoreId: 'store-1',
-      paymentRecordId: 'payment-1',
-      grossMinor: 1000,
-      refundMinor: 0,
-      commissionMinor: 100,
-      feeMinor: 0,
-      netMinor: 900,
-      currency: 'SAR',
-      status: 'DUE',
-      createdAt: '2026-11-19T10:00:00.000Z',
-    }]);
+    vi.mocked(fetchAdminSettlements).mockResolvedValue([
+      {
+        id: 'settlement-1',
+        subOrderId: 'sub-order-1',
+        merchantStoreId: 'store-1',
+        paymentRecordId: 'payment-1',
+        grossMinor: 1000,
+        refundMinor: 0,
+        commissionMinor: 100,
+        feeMinor: 0,
+        netMinor: 900,
+        currency: 'SAR',
+        status: 'DUE',
+        createdAt: '2026-11-19T10:00:00.000Z',
+      },
+    ]);
     render(<AdminSettlementsPage />);
     await screen.findByText('DUE');
     expect(screen.queryByText('Mark Paid')).toBeNull();
@@ -336,9 +338,60 @@ describe('accessible dialogs and row actions', () => {
   it('allows settlement adjustment reads without exposing submit, approve or post actions', async () => {
     navigation.allowedPermissions = ['admin:adjustments:read'];
     const adjustments = [
-      { id: 'adj-draft', subOrderId: 'order-1', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 1000, currency: 'SAR', fxStatus: 'BLOCKED', fxEvidence: null, status: 'DRAFT', reason: 'Draft', requiresDualApproval: true, approvalHash: 'hash-1', createdBy: 'user-1', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
-      { id: 'adj-pending', subOrderId: 'order-2', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 2000, currency: 'SAR', fxStatus: 'BLOCKED', fxEvidence: null, status: 'PENDING_APPROVAL', reason: 'Pending', requiresDualApproval: true, approvalHash: 'hash-2', createdBy: 'user-2', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
-      { id: 'adj-approved', subOrderId: 'order-3', returnRequestId: null, adjustmentType: 'REFUND_SUPPLEMENT', amountMinor: 3000, currency: 'SAR', fxStatus: 'RESOLVED', fxEvidence: null, status: 'APPROVED', reason: 'Approved', requiresDualApproval: true, approvalHash: 'hash-3', createdBy: 'user-3', notes: null, createdAt: '2026-11-19T10:00:00.000Z', approvals: [] },
+      {
+        id: 'adj-draft',
+        subOrderId: 'order-1',
+        returnRequestId: null,
+        adjustmentType: 'REFUND_SUPPLEMENT',
+        amountMinor: 1000,
+        currency: 'SAR',
+        fxStatus: 'BLOCKED',
+        fxEvidence: null,
+        status: 'DRAFT',
+        reason: 'Draft',
+        requiresDualApproval: true,
+        approvalHash: 'hash-1',
+        createdBy: 'user-1',
+        notes: null,
+        createdAt: '2026-11-19T10:00:00.000Z',
+        approvals: [],
+      },
+      {
+        id: 'adj-pending',
+        subOrderId: 'order-2',
+        returnRequestId: null,
+        adjustmentType: 'REFUND_SUPPLEMENT',
+        amountMinor: 2000,
+        currency: 'SAR',
+        fxStatus: 'BLOCKED',
+        fxEvidence: null,
+        status: 'PENDING_APPROVAL',
+        reason: 'Pending',
+        requiresDualApproval: true,
+        approvalHash: 'hash-2',
+        createdBy: 'user-2',
+        notes: null,
+        createdAt: '2026-11-19T10:00:00.000Z',
+        approvals: [],
+      },
+      {
+        id: 'adj-approved',
+        subOrderId: 'order-3',
+        returnRequestId: null,
+        adjustmentType: 'REFUND_SUPPLEMENT',
+        amountMinor: 3000,
+        currency: 'SAR',
+        fxStatus: 'RESOLVED',
+        fxEvidence: null,
+        status: 'APPROVED',
+        reason: 'Approved',
+        requiresDualApproval: true,
+        approvalHash: 'hash-3',
+        createdBy: 'user-3',
+        notes: null,
+        createdAt: '2026-11-19T10:00:00.000Z',
+        approvals: [],
+      },
     ];
     vi.mocked(adminRequest).mockResolvedValue(adjustments as never);
     render(<SettlementAdjustmentsPage />);

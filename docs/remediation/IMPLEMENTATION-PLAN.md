@@ -1019,7 +1019,6 @@ No API authorization change, RBAC seed change or database migration was required
 
 **Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
 
-
 ## 38. G-034 — Enforce operation-specific permissions in financial Admin workflows — 19 November 2026
 
 ### Finding
