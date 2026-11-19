@@ -16,6 +16,7 @@ import ManagementPage, { rowClickOpensDetail } from '../components/ManagementPag
 import ProductDetails, { ProductModerationActions } from '../components/ProductDetails';
 import UsersPage from '../app/users/page';
 import DisputeDetailPage from '../app/disputes/[id]/page';
+import AttributeDetailPage from '../app/attributes/[id]/page';
 import { adminRequest, moderateAdminProduct } from '../lib/api';
 
 const navigation = vi.hoisted(() => ({
@@ -249,6 +250,20 @@ describe('accessible dialogs and row actions', () => {
     await screen.findByText('Dispute #dispute-1');
     expect(navigation.requiredPerms).toEqual(['support:disputes:resolve']);
     expect(adminRequest).toHaveBeenCalledWith('admin/disputes/dispute-1');
+  });
+
+  it('uses the canonical attribute-management permission for attribute detail', async () => {
+    navigation.allowedPermissions = ['catalog:attributes:manage'];
+    vi.mocked(adminRequest).mockResolvedValue({
+      id: 'attribute-1',
+      name: 'Screen size',
+      type: 'NUMERIC',
+      scope: 'PRODUCT',
+    });
+    render(<AttributeDetailPage />);
+    await screen.findByText('Screen size');
+    expect(navigation.requiredPerms).toEqual(['catalog:attributes:manage']);
+    expect(adminRequest).toHaveBeenCalledWith('attributes/dispute-1');
   });
 });
 
