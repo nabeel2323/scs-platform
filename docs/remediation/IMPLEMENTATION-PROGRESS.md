@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** IN PROGRESS — Phase 1 P0 tenant authorization remediation is implemented on an isolated branch; automated execution and independent verification are pending.
+**Tracker status:** IN PROGRESS — G-001 controller remediation and regression suites are implemented on an isolated branch; CI run #952 passed. HTTP-level authorization coverage has now been added and is awaiting its first CI execution.
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### Overall status
 
-<badge>IN PROGRESS</badge> Phase 1 has started. G-001 has a source-level remediation and focused regression tests on `security/p0-merchant-offer-tenant-scope`; tests have not yet been executed, so the finding remains PARTIAL and is not closed.
+<badge>IN PROGRESS</badge> Phase 1 has started. G-001 source remediation and controller regression tests passed CI run #952. An additional NestJS HTTP-level authorization matrix has been added and awaits CI execution; G-001 remains PARTIAL until that suite and independent review pass.
 
 ---
 
@@ -54,7 +54,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | PARTIAL | Controller now checks active organization and store membership for list, analytics and trend; focused tests added but not executed. See Phase 1 evidence. |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | PARTIAL | Controller checks active organization and store membership for list, analytics and trend. Controller unit suite passed CI run #952; HTTP-level matrix added in commit `8703b2b5` and awaits CI. |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
@@ -128,10 +128,10 @@ Status definitions:
 |---|---|---|---|---|
 | P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Confirmed in `catalog.offer.controller.ts`: all three routes accepted caller-supplied `storeId` and queried service without tenant checks. |
 
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IMPLEMENTED — TEST PENDING | `assertStoreInOrg` and `assertStoreMember` now run before service access. |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — TEST PENDING | Both analytics and trend routes now require the same fail-closed checks. |
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IMPLEMENTED — CI PASS | `assertStoreInOrg` and `assertStoreMember` run before service access; CI run #952 passed. |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — CI PASS | Both analytics and trend routes require the same fail-closed checks; CI run #952 passed. |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TEST ADDED — NOT EXECUTED | Focused controller regression tests cover org denial and missing active store membership for all three routes; full HTTP role matrix remains pending. |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | PARTIAL — UNIT CI PASS; HTTP CI PENDING | Controller unit tests passed in CI run #952. Added `catalog-offer-tenant-authorization.http.spec.ts` covering owner, cross-org merchant, inactive member, buyer and platform staff across all three routes; awaiting CI execution. |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | API source uses DATABASE_URL; Supavisor postgres-session shutdown strongly correlates with Render SIGTERM, but exact Render env username is not directly exposed. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | SOURCE/RUNTIME VERIFIED | 114 public relations: 113 ordinary + 1 partitioned; all owned by postgres; RLS and FORCE RLS disabled. Detailed inventory report added. |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | SOURCE/RUNTIME VERIFIED | Current ACLs and postgres default ACLs expanded; anon/authenticated/service_role have MAINTAIN, REFERENCES, TRIGGER and TRUNCATE on all 114 relations, but no direct CRUD in this snapshot. |
@@ -146,11 +146,13 @@ Status definitions:
 **Phase evidence:**  
 - Implementation branch: `security/p0-merchant-offer-tenant-scope`  
 - Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`, `7116a4582eb4bb5c1acbca8d14fd79b182f8655a`  
-- Focused test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (added; NOT EXECUTED)  
+- Focused unit test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (CI run #952 — Unit Tests + Coverage Gates PASS)  
+- HTTP regression test: `apps/api/src/__tests__/integration/catalog-offer-tenant-authorization.http.spec.ts` (added; first CI execution pending)  
 - Migration ID(s): none for G-001  
 - Database inventory: `docs/remediation/G-002-SUPABASE-DATABASE-ACCESS-INVENTORY.md` (read-only; no DB changes)  
 - Independent review: pending  
-- Phase decision: IN PROGRESS — G-001 remains PARTIAL until automated execution and HTTP-level tenant matrix verification.
+- CI evidence: workflow run `44610599038` (#952), all executed GitHub Actions jobs SUCCESS, including API unit/coverage, integration, lint/typecheck/format, migration full apply, build/container smoke, web/admin and Flutter suites; staging release job SKIPPED.  
+- Phase decision: IN PROGRESS — G-001 remains PARTIAL until the new HTTP-level tenant matrix passes and independent review is complete.
 
 ---
 
@@ -281,7 +283,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | Plan initialization | develop / 9f5bc397… audit baseline | Created audit-driven sequence and tracker; no remediation code changed | Source/report review only | PLANNED | Start Phase 0 baseline reconciliation |
+| 2026-11-18 | Plan initialization | develop / 9f5bc397… audit baseline | Created audit-driven sequence and tracker; no remediation code changed | Source/report review only | PLANNED | Start Phase 0 baseline reconciliation |\n| 2026-11-19 | G-001 tenant authorization | `security/p0-merchant-offer-tenant-scope` / CI run #952 `44610599038` | Protected merchant offer list, analytics and trend with org + active store membership checks; added unit and HTTP authorization matrices | CI #952: lint/typecheck/format, API unit+coverage, API integration, migration apply, build/container smoke, web/admin, Flutter all PASS. HTTP matrix added after #952; pending new run. | PARTIAL — source + unit suite verified; HTTP suite pending | Execute new HTTP suite; then independent review and G-002 role/privilege design |
 
 ### Required task log entry format
 
