@@ -15,21 +15,21 @@ The classification below is a **source-informed access-intent classification**, 
 
 ## Classification rules
 
-| Class | Intended access boundary | Required authorization |
-|---|---|---|
-| Migration metadata | Migration runner only | Dedicated migration identity; never client-accessible |
-| Identity and authorization | Internal API/authentication services only | User/session ownership, organization membership, platform staff policy |
-| Merchant organization and onboarding | Authenticated API only | Active organization and store membership; document/verification permissions |
-| Catalog and merchandising | API-mediated buyer read of approved/published fields; merchant/admin writes | Published-state visibility plus owning-organization/store membership for private states and mutations |
-| Catalog ingestion and moderation | API/admin/merchant workflow only | Job/request owner, organization/store membership, explicit moderation permissions |
-| Inventory | API/worker only | Warehouse → store → organization and active store membership |
-| Pricing and promotions | API only | Offer/list ownership, buyer eligibility, quantity and promotion rules |
-| Buyer commerce and orders | API only | Buyer ownership, fulfilling-store organization, platform staff policy |
-| Communications and user preferences | API only | User/participant ownership; device-token and notification data remain private |
-| Payments, disputes and financial operations | API/admin/worker only | Buyer/order/store organization scope, approval permissions and immutable audit trail |
-| Fulfillment and returns | API/carrier/worker only | Shipment/store/organization, assigned driver, carrier credential and return ownership |
-| Platform operations and audit | Internal API/worker/admin only | Explicit operational permission; no merchant/buyer direct access |
-| Analytics | Internal ingestion and authorized aggregate/report APIs | Tenant and privacy filtering; raw events not client-accessible |
+| Class                                       | Intended access boundary                                                    | Required authorization                                                                                |
+| ------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Migration metadata                          | Migration runner only                                                       | Dedicated migration identity; never client-accessible                                                 |
+| Identity and authorization                  | Internal API/authentication services only                                   | User/session ownership, organization membership, platform staff policy                                |
+| Merchant organization and onboarding        | Authenticated API only                                                      | Active organization and store membership; document/verification permissions                           |
+| Catalog and merchandising                   | API-mediated buyer read of approved/published fields; merchant/admin writes | Published-state visibility plus owning-organization/store membership for private states and mutations |
+| Catalog ingestion and moderation            | API/admin/merchant workflow only                                            | Job/request owner, organization/store membership, explicit moderation permissions                     |
+| Inventory                                   | API/worker only                                                             | Warehouse → store → organization and active store membership                                          |
+| Pricing and promotions                      | API only                                                                    | Offer/list ownership, buyer eligibility, quantity and promotion rules                                 |
+| Buyer commerce and orders                   | API only                                                                    | Buyer ownership, fulfilling-store organization, platform staff policy                                 |
+| Communications and user preferences         | API only                                                                    | User/participant ownership; device-token and notification data remain private                         |
+| Payments, disputes and financial operations | API/admin/worker only                                                       | Buyer/order/store organization scope, approval permissions and immutable audit trail                  |
+| Fulfillment and returns                     | API/carrier/worker only                                                     | Shipment/store/organization, assigned driver, carrier credential and return ownership                 |
+| Platform operations and audit               | Internal API/worker/admin only                                              | Explicit operational permission; no merchant/buyer direct access                                      |
+| Analytics                                   | Internal ingestion and authorized aggregate/report APIs                     | Tenant and privacy filtering; raw events not client-accessible                                        |
 
 **Important:** these classes describe intended application access. They do not create PostgreSQL grants or RLS policies. Exact per-table row predicates and the runtime database role must be verified before DDL is designed.
 
