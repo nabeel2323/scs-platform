@@ -1,5 +1,7 @@
 # SLO Definitions & Alerting Rules
 
+> **Status — 19 November 2026.** The values below are proposed SLO targets and alert thresholds, not measured production SLOs or proof that dashboards/alerts are active. The currently observed staging topology is a single Render API web service; Kubernetes/pod-specific rows below must be adapted to actual Render metrics before being treated as operational controls. See [the remediation plan](../remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../remediation/IMPLEMENTATION-PROGRESS.md) for verified monitoring/worker status.
+
 ## Service Level Objectives
 
 ### API Availability
