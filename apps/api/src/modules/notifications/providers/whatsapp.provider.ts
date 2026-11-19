@@ -210,7 +210,9 @@ export class WhatsAppProvider implements NotificationProvider {
           fetchError instanceof Error && fetchError.name
             ? fetchError.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
             : 'UnknownError';
-        logger.error(`WhatsApp API network error [${errorType}] (correlation: ${correlationId || 'none'})`);
+        logger.error(
+          `WhatsApp API network error [${errorType}] (correlation: ${correlationId || 'none'})`,
+        );
         return {
           success: false,
           status: 'failed',

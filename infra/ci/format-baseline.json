@@ -89,6 +89,7 @@
     "docs/remediation/P1-04-ADJACENT-TENANT-SCOPE-AUDIT.md": "af822256a0ff8ebf1710cd13e6873b430d036231",
     "docs/remediation/SYNTHETIC-TEST-IDENTITY-MATRIX.md": "e0e82e7f9d5b76627d3e1426ea7fb50c1806a062",
     "docs/remediation/TEST-CAMPAIGN-MANIFEST.md": "17ee51f0c5857028fe083b0516a27ccf50aa608c",
-    "infra/ci/boundary-lint.ts": "5dba20a7489ddcc6d20be5ba7f23c7f28f9fd049"
+    "infra/ci/boundary-lint.ts": "5dba20a7489ddcc6d20be5ba7f23c7f28f9fd049",
+    "apps/api/src/main.ts": "51ed5ad8026a8d4504cd0f7b365aacca2da1e1e7"
   }
 }

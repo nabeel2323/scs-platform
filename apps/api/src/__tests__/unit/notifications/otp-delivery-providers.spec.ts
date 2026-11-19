@@ -158,7 +158,9 @@ describe('OTP Delivery Providers', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       vi.spyOn(globalThis, 'fetch').mockRejectedValue(
-        new Error(`transport failure with otp=${secretOtp} recipient=${secretPhone}`),
+        new Error(
+          `transport failure with otp=${secretOtp} recipient=${secretPhone}`,
+        ),
       );
 
       await provider.sendOtp({
@@ -489,7 +491,11 @@ describe('OTP Delivery Providers', () => {
       };
       const isolatedService = new OtpDeliveryService(registry as never);
 
-      const result = await isolatedService.deliverEmailOtp(secretEmail, secretOtp, 'corr-secret');
+      const result = await isolatedService.deliverEmailOtp(
+        secretEmail,
+        secretOtp,
+        'corr-secret',
+      );
 
       expect(result.success).toBe(false);
       expect(result.deliveryOutcome).toBe('unknown');
