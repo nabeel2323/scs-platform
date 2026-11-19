@@ -47,6 +47,7 @@ async function main() {
         current_database() AS database_name,
         current_setting('application_name', true) AS application_name,
         current_setting('server_version', true) AS server_version,
+        current_setting('server_version_num', true)::int AS server_version_num,
         inet_server_addr()::text AS server_address,
         inet_server_port() AS server_port
     `);
@@ -58,24 +59,38 @@ async function main() {
 
     const roleAttributes = await pool.query(
       `
+        WITH RECURSIVE role_tree(role_oid) AS (
+          SELECT oid FROM pg_roles WHERE rolname = ANY($1::text[])
+          UNION
+          SELECT membership.roleid
+          FROM pg_auth_members membership
+          JOIN role_tree tree ON tree.role_oid = membership.member
+        )
         SELECT
-          rolname AS role_name,
-          rolcanlogin AS can_login,
-          rolsuper AS is_superuser,
-          rolcreatedb AS can_create_database,
-          rolcreaterole AS can_create_role,
-          rolreplication AS can_replicate,
-          rolbypassrls AS bypasses_rls,
-          rolinherit AS inherits_privileges
-        FROM pg_roles
-        WHERE rolname = ANY($1::text[])
-        ORDER BY rolname
+          role.rolname AS role_name,
+          role.rolcanlogin AS can_login,
+          role.rolsuper AS is_superuser,
+          role.rolcreatedb AS can_create_database,
+          role.rolcreaterole AS can_create_role,
+          role.rolreplication AS can_replicate,
+          role.rolbypassrls AS bypasses_rls,
+          role.rolinherit AS inherits_privileges
+        FROM pg_roles role
+        WHERE role.oid IN (SELECT role_oid FROM role_tree)
+        ORDER BY role.rolname
       `,
       [roleNames],
     );
 
     const memberships = await pool.query(
       `
+        WITH RECURSIVE role_tree(role_oid) AS (
+          SELECT oid FROM pg_roles WHERE rolname = ANY($1::text[])
+          UNION
+          SELECT membership.roleid
+          FROM pg_auth_members membership
+          JOIN role_tree tree ON tree.role_oid = membership.member
+        )
         SELECT
           granted.rolname AS granted_role,
           member.rolname AS member_role,
@@ -85,26 +100,38 @@ async function main() {
         FROM pg_auth_members membership
         JOIN pg_roles granted ON granted.oid = membership.roleid
         JOIN pg_roles member ON member.oid = membership.member
-        WHERE member.rolname = ANY($1::text[])
-           OR granted.rolname = ANY($1::text[])
+        WHERE member.oid IN (SELECT role_oid FROM role_tree)
+           OR granted.oid IN (SELECT role_oid FROM role_tree)
         ORDER BY member.rolname, granted.rolname
       `,
       [roleNames],
     );
+
+    const tablePrivileges = [
+      ['SELECT', 'select_count'],
+      ['INSERT', 'insert_count'],
+      ['UPDATE', 'update_count'],
+      ['DELETE', 'delete_count'],
+      ['TRUNCATE', 'truncate_count'],
+      ['REFERENCES', 'references_count'],
+      ['TRIGGER', 'trigger_count'],
+    ];
+    // PostgreSQL 17 introduced the MAINTAIN table privilege.
+    if (identity.rows[0].server_version_num >= 170000) {
+      tablePrivileges.push(['MAINTAIN', 'maintain_count']);
+    }
+    const privilegeColumns = tablePrivileges
+      .map(([privilege, alias]) =>
+        `count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, '${privilege}'))::int AS ${alias}`,
+      )
+      .join(',\\n          ');
 
     const relationPrivileges = await pool.query(
       `
         SELECT
           role_name,
           count(*)::int AS public_relations_checked,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'SELECT'))::int AS select_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'INSERT'))::int AS insert_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'UPDATE'))::int AS update_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'DELETE'))::int AS delete_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'TRUNCATE'))::int AS truncate_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'REFERENCES'))::int AS references_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'TRIGGER'))::int AS trigger_count,
-          count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, 'MAINTAIN'))::int AS maintain_count
+          ${privilegeColumns}
         FROM unnest($1::text[]) AS roles(role_name)
         CROSS JOIN pg_class relation
         JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
