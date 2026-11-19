@@ -342,7 +342,7 @@ export default function MerchantPricingPage() {
                         ? <span style={{ fontSize: 12 }}><strong>{vi.sku}</strong>{vi.title ? ` · ${vi.title}` : ''}</span>
                         : <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#9ca3af' }}>Variant removed</span>; })()}
                     </td>
-                    {editingTier === t.id ? (
+                    {editingTier === t.id && canWritePricing ? (
                       <>
                         <td style={td}><input type="number" value={editMinQty} onChange={e => setEditMinQty(e.target.value)} style={inlineInput} min={1} /></td>
                         <td style={td}><input type="number" value={editMaxQty} onChange={e => setEditMaxQty(e.target.value)} style={inlineInput} min={0} placeholder="∞" /></td>
