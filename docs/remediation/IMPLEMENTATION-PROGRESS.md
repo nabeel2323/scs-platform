@@ -637,3 +637,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ### Final formatter pass — 19 November 2026
 - The temporary formatter now rebases its formatting commit onto the latest branch head before pushing, preventing stale-checkout non-fast-forward failures. No application or database behavior is changed by this formatter.
+
+
+### Formatter retry hardening — 19 November 2026
+- Updated the temporary formatter to use Git rebase autostash so its Prettier-only changes can be rebased safely if the branch advances while the workflow is running. The formatter remains temporary and will be deleted after the successful pass.
