@@ -864,12 +864,12 @@ The Phase 6 release-gate table previously contradicted the explicit Phase 5 and 
 
 G-010 received additional focused regression coverage for HTTP 5xx retry classification, HTTP 4xx terminal classification and abort-driven download timeout, supplementing success, SSRF, duplicate, PDF validation and storage-failure tests. The expanded tests await latest-head CI; no real Aramex sandbox request was made.
 
-
 ## 30. Documentation readiness reconciliation — 19 November 2026
 
 The G-018 review identified legacy documents that could be mistaken for current release certification. Added current-readiness notices to the User Guide, Developer Guide and Testing Guide. The Testing Guide's statement that all Phase 1 P0/P1 gaps were closed and that the platform was ready for pilot was replaced with the verified current state: PR #138 remains draft, G-002 is a pre-production gate, and Phase 6 has not started.
 
 Also:
+
 - Marked the 25-Sep Capability Matrix as a historical, non-recertified baseline; its checkmarks are not current release evidence.
 - Updated the pilot Go/No-Go checklist to state that backup/restore drills are deferred by user direction and excluded from the current campaign.
 - Marked SLO values as proposed targets rather than measured production SLOs; noted that Kubernetes/pod metrics must be adapted to the currently observed Render topology.
