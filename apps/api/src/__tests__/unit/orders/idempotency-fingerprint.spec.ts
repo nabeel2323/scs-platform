@@ -55,11 +55,11 @@ function createMocks(existingMaster?: any, cartItemsOverride?: any[]) {
     select: vi.fn(() => {
       let selectedTable: unknown;
       const builder: Record<string, any> = {};
-      builder.from = vi.fn((table: unknown) => { selectedTable = table; return builder; });
-      builder.where = vi.fn(() => builder);
-      builder.orderBy = vi.fn(() => builder);
-      builder.limit = vi.fn().mockResolvedValue([]);
-      builder.for = vi.fn(async () => {
+      builder['from'] = vi.fn((table: unknown) => { selectedTable = table; return builder; });
+      builder['where'] = vi.fn(() => builder);
+      builder['orderBy'] = vi.fn(() => builder);
+      builder['limit'] = vi.fn().mockResolvedValue([]);
+      builder['for'] = vi.fn(async () => {
         if (selectedTable === products) return [mockProduct];
         if (selectedTable === merchantOffers) {
           return resolvedCartItems.filter(item => item.offerId).map(item => ({
