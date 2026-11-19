@@ -668,4 +668,4 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ### CI #823 formatting correction — 19 November 2026
 
-- CI #823 passed lint and TypeScript typechecking, then the changed-file Prettier gate identified only this progress tracker. No application-code formatting or typecheck errors were reported; the repository-locked formatter is being applied to the tracker.
+- CI #823 passed lint and TypeScript typechecking, then the changed-file Prettier gate identified only this progress tracker. No application-code formatting or typecheck errors were reported; repository-locked Prettier completed successfully in the one-time formatter run; the temporary workflow was removed.
