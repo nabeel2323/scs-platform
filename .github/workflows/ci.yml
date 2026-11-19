@@ -271,6 +271,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate read-only database identity diagnostic
+        run: pnpm --filter @scs/api db:identity
+        env:
+          DATABASE_URL: postgresql://scs:scs_test@localhost:5432/scs_test
       # S1.12 D-CI-2: `pnpm --filter @scs/api test:integration` runs Vitest with
       # --no-file-parallelism (set in apps/api/package.json) so suites that share the
       # scs:throttle: namespace cannot clean up each other's keys. Never invoke
