@@ -988,7 +988,6 @@ The canonical RBAC seed is idempotent and inserts missing permission/role-permis
 
 **Status:** implementation and focused tests committed; current-head lint, API unit/coverage, Admin test and full CI verification pending. No RBAC seed was run against the shared database and no production/staging data or roles were changed.
 
-
 ## 36. G-032 — Align dispute detail permission with the canonical RBAC contract — 19 November 2026
 
 ### Finding
