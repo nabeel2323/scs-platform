@@ -76,6 +76,7 @@ export const PERMISSIONS: string[] = [
   // Admin (platform operations)
   'admin:orders:read',
   'admin:merchants:read',
+  // Mutating product moderation is separate from read-only merchant inspection.
   'admin:products:moderate',
   'admin:kpis:read',
   'admin:audit:read',
