@@ -14,12 +14,14 @@ import { managementTables } from '../lib/management-tables';
 import DetailDialog from '../components/DetailDialog';
 import ManagementPage, { rowClickOpensDetail } from '../components/ManagementPage';
 import ProductDetails, { ProductModerationActions } from '../components/ProductDetails';
+import UsersPage from '../app/users/page';
 import { adminRequest, moderateAdminProduct } from '../lib/api';
 
 const navigation = vi.hoisted(() => ({
   query: '',
   replace: vi.fn(),
   allowed: true,
+  allowedPermissions: null as string[] | null,
   requiredPerms: [] as string[],
 }));
 vi.mock('next/navigation', () => ({
@@ -31,7 +33,14 @@ vi.mock('../lib/api', () => ({ adminRequest: vi.fn(), moderateAdminProduct: vi.f
 vi.mock('../hooks/useRequirePerms', () => ({
   useRequirePerms: (requiredPerms: string[]) => {
     navigation.requiredPerms = requiredPerms;
-    return { hasAccess: navigation.allowed, missingPerms: navigation.allowed ? [] : ['denied'] };
+    const hasAccess = navigation.allowed && (
+      navigation.allowedPermissions === null ||
+      requiredPerms.every((permission) => navigation.allowedPermissions!.includes(permission))
+    );
+    return {
+      hasAccess,
+      missingPerms: hasAccess ? [] : requiredPerms.filter((permission) => !navigation.allowedPermissions?.includes(permission)),
+    };
   },
   AccessDenied: () => <p>Access Denied</p>,
 }));
@@ -40,6 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   navigation.query = '';
   navigation.allowed = true;
+  navigation.allowedPermissions = null;
   navigation.requiredPerms = [];
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
@@ -195,6 +205,29 @@ describe('accessible dialogs and row actions', () => {
     expect(screen.queryByText('Approve')).toBeNull();
     expect(screen.queryByText('Reject')).toBeNull();
     expect(screen.queryByText('Archive')).toBeNull();
+  });
+
+  it('hides product edit controls from users with read and moderation but no product-write permission', async () => {
+    navigation.allowedPermissions = ['admin:merchants:read', 'admin:products:moderate'];
+    vi.mocked(adminRequest).mockImplementation(async path =>
+      path.includes('media-previews') ? { previews: {} } : product
+    );
+    render(<ProductDetails id={product.id} fullPage />);
+    await screen.findByText('Complete description');
+    expect(screen.queryByText('Edit')).toBeNull();
+    expect(screen.getByText('Approve')).toBeTruthy();
+  });
+
+  it('hides create controls from read-only users on product and user management lists', async () => {
+    navigation.allowedPermissions = ['admin:merchants:read', 'admin:users:read'];
+    vi.mocked(adminRequest).mockResolvedValue({ data: [], total: 0 });
+    const { unmount } = render(<ManagementPage entity="products" />);
+    await screen.findByText('Product Moderation');
+    expect(screen.queryByText('Create product')).toBeNull();
+    unmount();
+    render(<UsersPage />);
+    await screen.findByText('User Management');
+    expect(screen.queryByText('Create User')).toBeNull();
   });
 });
 
