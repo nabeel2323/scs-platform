@@ -290,7 +290,7 @@ export default function MerchantPricingPage() {
               : `✓ All ${pricedVariantIds.size} priced variant(s) have valid prices`}
           </span>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {zeroPricedCount > 0 && (
+            {canWritePricing && zeroPricedCount > 0 && (
               <button onClick={() => { setShowAddTier(true); }} style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, background: '#b45309', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
                 Assign prices
               </button>
