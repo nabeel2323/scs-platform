@@ -235,15 +235,21 @@ describe('Admin product moderation — dedicated permission', () => {
     const rolePermissions = new Map(ROLES.map((role) => [role.key, role.permissions]));
     for (const role of ['ADMIN', 'MODERATOR', 'SUPER_ADMIN']) {
       expect(rolePermissions.get(role)).toContain(moderationPermission);
-      expect(canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!)).toBe(true);
+      expect(canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!)).toBe(
+        true,
+      );
     }
     for (const role of ['FINANCE', 'MERCHANT_OWNER', 'MERCHANT_STAFF', 'BUYER']) {
       expect(rolePermissions.get(role)).not.toContain(moderationPermission);
-      expect(() => canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!)).toThrow(ForbiddenException);
+      expect(() =>
+        canActivate(handlerRequiring(moderationPermission), rolePermissions.get(role)!),
+      ).toThrow(ForbiddenException);
     }
   });
 
   it('does not treat merchant read access as product moderation authority', () => {
-    expect(() => canActivate(handlerRequiring(moderationPermission), ['admin:merchants:read'])).toThrow(ForbiddenException);
+    expect(() =>
+      canActivate(handlerRequiring(moderationPermission), ['admin:merchants:read']),
+    ).toThrow(ForbiddenException);
   });
 });

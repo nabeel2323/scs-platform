@@ -966,7 +966,6 @@ These defaults prevent accidental activation of protected return/refund work, bu
 - P13 protected return worker: safe default OFF and unit coverage for expected worker count exist; real alert delivery and explicit activation remain DEFERRED pending approved staging configuration.
 - No provider request, staging write, Render environment change, worker activation or deployment was performed.
 
-
 ## 35. G-031 — Separate product moderation from merchant read permission — 19 November 2026
 
 ### Finding

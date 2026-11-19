@@ -23,18 +23,18 @@ Each permission is represented by a stable key (e.g., `admin:users:read`, `catal
 
 Permissions are organized by domain (module prefix before the first colon):
 
-| Domain | Description |
-|--------|-------------|
-| `admin` | Platform administration |
-| `auth` | Authentication and authorization |
-| `catalog` | Product catalog management |
-| `orders` | Order management |
-| `fulfillment` | Shipping and delivery |
-| `finance` | Financial operations |
-| `support` | Customer support |
-| `audit` | Audit and compliance |
-| `whatsapp` | WhatsApp messaging |
-| `sms` | SMS messaging |
+| Domain        | Description                      |
+| ------------- | -------------------------------- |
+| `admin`       | Platform administration          |
+| `auth`        | Authentication and authorization |
+| `catalog`     | Product catalog management       |
+| `orders`      | Order management                 |
+| `fulfillment` | Shipping and delivery            |
+| `finance`     | Financial operations             |
+| `support`     | Customer support                 |
+| `audit`       | Audit and compliance             |
+| `whatsapp`    | WhatsApp messaging               |
+| `sms`         | SMS messaging                    |
 
 ## Provider Registration
 
@@ -45,6 +45,7 @@ Permissions are registered in the RBAC seed data (`apps/api/src/common/database/
 3. **Role Assignments** — Which permissions belong to which roles
 
 Adding a new permission requires:
+
 1. Adding the permission key to the `PERMISSIONS` array
 2. Assigning it to appropriate roles in the `ROLES` array
 3. Running the idempotent RBAC seed (`pnpm --filter @scs/api db:seed`)
@@ -71,16 +72,17 @@ The `OTP_CHANNELS` environment variable controls which OTP channels are permitte
 
 ### Platform Role Protection
 
-| Role | Can Assign | Cannot Assign |
-|------|-----------|---------------|
-| SUPER_ADMIN | All roles | — |
-| ADMIN | Most roles | SUPER_ADMIN |
-| MODERATOR | Limited roles | Platform roles |
+| Role           | Can Assign          | Cannot Assign  |
+| -------------- | ------------------- | -------------- |
+| SUPER_ADMIN    | All roles           | —              |
+| ADMIN          | Most roles          | SUPER_ADMIN    |
+| MODERATOR      | Limited roles       | Platform roles |
 | MERCHANT_OWNER | Merchant roles only | Platform roles |
 
 ### Last SUPER_ADMIN Protection
 
 The last active SUPER_ADMIN cannot be:
+
 - Removed from their organization
 - Demoted to a lower role
 - Have their SUPER_ADMIN role revoked
@@ -90,6 +92,7 @@ This prevents accidental lockout from platform administration.
 ### Tenant Isolation
 
 Organization memberships are tenant-scoped:
+
 - Organization A admins cannot view Organization B users
 - Organization A admins cannot assign roles in Organization B
 - Role assignments are validated against organization membership
@@ -99,11 +102,11 @@ Organization memberships are tenant-scoped:
 
 All security-critical mutations use database transactions with PostgreSQL `FOR UPDATE` row locking to prevent write skew and race conditions:
 
-| Operation | Locking Strategy | Protection |
-|-----------|-----------------|------------|
-| User status change (`updateUserStatus`) | `FOR UPDATE` on user row + all SUPER_ADMIN membership rows | Prevents concurrent deactivation of the last two SUPER_ADMINs |
-| Membership removal (`removeRole`) | `FOR UPDATE` on target membership row + all SUPER_ADMIN membership rows | Prevents concurrent removal of the last SUPER_ADMIN membership |
-| Role permission update (`updateRolePermissions`) | `FOR UPDATE` on role row | Serializes concurrent permission edits to the same role |
+| Operation                                        | Locking Strategy                                                        | Protection                                                     |
+| ------------------------------------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| User status change (`updateUserStatus`)          | `FOR UPDATE` on user row + all SUPER_ADMIN membership rows              | Prevents concurrent deactivation of the last two SUPER_ADMINs  |
+| Membership removal (`removeRole`)                | `FOR UPDATE` on target membership row + all SUPER_ADMIN membership rows | Prevents concurrent removal of the last SUPER_ADMIN membership |
+| Role permission update (`updateRolePermissions`) | `FOR UPDATE` on role row                                                | Serializes concurrent permission edits to the same role        |
 
 ### Concurrency Strategy: Last SUPER_ADMIN Protection
 
@@ -131,28 +134,28 @@ This prevents lost updates where two administrators simultaneously edit the same
 
 All authorization-relevant actions are audited:
 
-| Action | Audit Event |
-|--------|-------------|
-| User created | `USER_CREATED` |
-| User profile updated | `USER_PROFILE_UPDATED` |
-| User status changed | `USER_STATUS_CHANGED` |
-| Role assigned | `ROLE_ASSIGNED` |
-| Role changed | `ROLE_CHANGED` |
-| Role permissions updated | `ROLE_PERMISSIONS_UPDATED` |
-| Organization membership added | `ORG_MEMBERSHIP_ADDED` |
-| Organization membership removed | `ORG_MEMBERSHIP_REMOVED` |
-| Privileged role granted | `PRIVILEGED_ROLE_GRANTED` |
-| Privileged role revoked | `PRIVILEGED_ROLE_REVOKED` |
+| Action                          | Audit Event                |
+| ------------------------------- | -------------------------- |
+| User created                    | `USER_CREATED`             |
+| User profile updated            | `USER_PROFILE_UPDATED`     |
+| User status changed             | `USER_STATUS_CHANGED`      |
+| Role assigned                   | `ROLE_ASSIGNED`            |
+| Role changed                    | `ROLE_CHANGED`             |
+| Role permissions updated        | `ROLE_PERMISSIONS_UPDATED` |
+| Organization membership added   | `ORG_MEMBERSHIP_ADDED`     |
+| Organization membership removed | `ORG_MEMBERSHIP_REMOVED`   |
+| Privileged role granted         | `PRIVILEGED_ROLE_GRANTED`  |
+| Privileged role revoked         | `PRIVILEGED_ROLE_REVOKED`  |
 
 Audit records exclude: passwords, OTPs, access tokens, refresh tokens, invitation secrets, API credentials.
 
 ## Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OTP_CHANNELS` | Comma-separated list of permitted OTP channels | Yes |
-| `FLAG_AUTH_EMAIL_OTP` | Enables email OTP feature | Yes (for email OTP) |
-| `OTP_HMAC_SECRET` | Secret for OTP HMAC signing | Yes (production) |
+| Variable              | Description                                    | Required            |
+| --------------------- | ---------------------------------------------- | ------------------- |
+| `OTP_CHANNELS`        | Comma-separated list of permitted OTP channels | Yes                 |
+| `FLAG_AUTH_EMAIL_OTP` | Enables email OTP feature                      | Yes (for email OTP) |
+| `OTP_HMAC_SECRET`     | Secret for OTP HMAC signing                    | Yes (production)    |
 
 ## Limitations
 
@@ -167,10 +170,10 @@ Newly registered users without an organization membership receive the `BUYER` ro
 
 The platform separates these capabilities:
 
-| Permission | Purpose | BUYER |
-|------------|---------|-------|
-| `identity:organizations:create` | Start organization onboarding by creating a new organization | Granted |
-| `identity:organizations:write` | Administer an existing organization, including updates and membership operations | Not granted |
+| Permission                      | Purpose                                                                          | BUYER       |
+| ------------------------------- | -------------------------------------------------------------------------------- | ----------- |
+| `identity:organizations:create` | Start organization onboarding by creating a new organization                     | Granted     |
+| `identity:organizations:write`  | Administer an existing organization, including updates and membership operations | Not granted |
 
 `POST /v1/organizations` requires `identity:organizations:create`. Organization updates, membership management, and organization update requests continue to require `identity:organizations:write`. The creation permission does not authorize a buyer to manage another organization's members or settings.
 
@@ -180,9 +183,9 @@ Migration `0069_organization_onboarding_permission.sql` registers the new permis
 
 Product list/detail access and product moderation are separate capabilities:
 
-| Operation | Required permission | Roles seeded with permission |
-| --- | --- | --- |
-| Read admin product moderation list/detail and media previews | `admin:merchants:read` | SUPER_ADMIN, ADMIN, MODERATOR |
+| Operation                                                                            | Required permission       | Roles seeded with permission  |
+| ------------------------------------------------------------------------------------ | ------------------------- | ----------------------------- |
+| Read admin product moderation list/detail and media previews                         | `admin:merchants:read`    | SUPER_ADMIN, ADMIN, MODERATOR |
 | Approve, reject or archive a product through `PATCH /v1/admin/products/:id/moderate` | `admin:products:moderate` | SUPER_ADMIN, ADMIN, MODERATOR |
 
 `admin:merchants:read` alone must never authorize a moderation mutation. Custom roles that only need to inspect merchant/product records should not receive `admin:products:moderate`. The Admin UI's `ProductModerationActions` component checks the dedicated permission, and the API `PermissionsGuard` enforces it independently.
