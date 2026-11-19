@@ -669,3 +669,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### CI #823 formatting correction — 19 November 2026
 
 - CI #823 passed lint and TypeScript typechecking, then the changed-file Prettier gate identified only this progress tracker. No application-code formatting or typecheck errors were reported; repository-locked Prettier completed successfully in the one-time formatter run; the temporary workflow was removed.
+
+
+### G-010 fake-timer rejection observer correction — 19 November 2026
+- The latest full API coverage run completed 4,480 tests successfully but failed Vitest's unhandled-rejection guard: the 15-second timeout rejection occurred before the test attached its `.rejects` assertion.
+- Updated the timeout test to attach the rejection observer before advancing fake timers, then await that observer after the timeout fires. This is test-only synchronization; the worker implementation is unchanged.
+- The same CI attempt's PostgreSQL integration suite passed, including the G-030 tenant-isolation fixture. A fresh full CI run is required after this correction.
