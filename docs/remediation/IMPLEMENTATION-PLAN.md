@@ -1037,3 +1037,22 @@ The Payments, Settlements, Reconciliation and Settlement Adjustments pages invok
 No API permission change, database migration or RBAC seed change was required; the backend route guards already enforce these permissions.
 
 **Status:** implementation and focused Admin UI tests committed; current-head lint/typecheck, Admin tests and full CI verification pending.
+
+
+## 39. G-035 — Enforce operation-specific permissions in merchant delivery UI — 19 November 2026
+
+### Finding
+
+Merchant delivery list and detail pages checked only that the caller had a merchant role. They did not check the active-organization permission set before requesting shipment details or exposing delivery mutations. Backend shipment endpoints already enforce granular grants, so read-only merchant roles could see controls that would fail with 403 responses, and users lacking shipment-read grants could initiate unnecessary requests.
+
+### Remediation committed
+
+- Require fulfillment:shipments:read before loading merchant delivery lists or shipment details; render an explicit access-denied state otherwise.
+- Gate carrier shipment creation, cancellation, retry, delivery exception reporting and RTS operations with fulfillment:shipments:write.
+- Gate label details with fulfillment:labels:read.
+- Gate physical return-to-stock recording with fulfillment:shipments:return.
+- Add defensive checks inside the delivery action runner and regression tests for missing read permission and read-only shipment access.
+
+No API authorization, RBAC seed or database change was required; backend route guards already enforce these permissions.
+
+**Status:** implementation and focused Web tests committed; latest-head Web/Admin tests, lint/typecheck and full CI verification pending.
