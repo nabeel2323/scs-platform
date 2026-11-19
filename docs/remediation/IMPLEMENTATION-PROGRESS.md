@@ -736,3 +736,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The Admin API moderation mutation and UI action buttons now require the dedicated permission. API guard/role-matrix tests and Admin UI permission-gating tests are committed. The controlled release seed will add the new role-permission rows idempotently; no live seed or role mutation was performed.
 - Phase 4 admin UI review also hid Create User, Create Product and Edit Product controls unless the corresponding write permission is present; regression tests cover read-only users.
 - G-031 is a P1 finding and remains open until current-head CI verifies API unit/coverage, Admin tests, lint/typecheck and full integration gates.
+
+### G-032 dispute detail permission correction — 19 November 2026
+- The dispute detail route previously checked admin:disputes:read, which is not seeded. It now checks support:disputes:resolve, matching both the dispute list and GET /v1/admin/disputes/:id API guard.
+- Added a regression test that loads the dispute detail page with the canonical dispute-review permission and verifies the detail API request. G-032 remains open until current-head Admin tests and full CI pass.
