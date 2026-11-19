@@ -467,3 +467,9 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Outbox event UUID is reused as the S3 object key suffix and shipment_labels primary key, making storage/metadata retries idempotent.
 - Label list/detail responses include short-lived presigned URLs for managed labels.
 - Added worker and controller tests. Real Aramex sandbox verification is pending; no live shipment/provider call was made.
+
+
+### CI #731 diagnosis and correction — 19 November 2026
+- API typecheck identified two integration points introduced by G-010: the existing M7.2.3-A.1 concurrency test constructed ShippingCarrierWorker with the old eight-argument constructor, and the provider's unsupported-label reason is optional.
+- Added a storage mock to the integration test constructor and a safe fallback reason when the provider omits one. No runtime configuration or live carrier behavior was changed.
+- CI #731's remaining dependent API jobs were skipped after typecheck failed; a fresh full CI run is required to verify G-009, G-010 and G-019.
