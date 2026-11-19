@@ -65,7 +65,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-007 | P1 | Mobile checkout omits per-store shipping/payment; VAT disclosure conflicts | 2, 4 | IMPLEMENTED — CI #711; UAT PENDING | Per-store mobile shipping/pickup and payment selections; server checkout preview uses authoritative promotion/shipping/VAT calculation; web/mobile review and confirmation aligned. CI #711 passed all executed jobs. Full buyer journey and order detail/tracking UAT remain in Phase 6. |
 | G-008 | P1 | API accepts DIGITAL without a registered digital provider | 2 | CLOSED — CI #714 | Persisted vocabulary retains DIGITAL only for historical rows; SUPPORTED_PAYMENT_METHODS reflects the registered manual-verification provider. Checkout rejects unsupported methods before opening the order transaction; PaymentsService repeats the guard before provider resolution/payment writes. Web disables DIGITAL and mobile omits it. Unit tests prove legacy retention, whitelist contents, supported-method acceptance, checkout pre-transaction rejection and payment-service no-side-effect rejection. |
 | G-009 | P2 | SMS/FCM/WhatsApp stubs report SENT | 4 | IMPLEMENTED — CI PENDING | General notification SMS, FCM and WhatsApp stubs now persist NOT_CONFIGURED with stable reason codes; fake provider IDs and SENT timestamps were removed. IN_APP remains persisted and its SENT status is explicitly documented as in-app persistence, not external device delivery. Four regression tests cover SMS, push with/without active tokens, and WhatsApp. Provider sandbox delivery remains outside this finding and requires a real approved provider adapter. |
-| G-010 | P2 | Carrier label worker handler is no-op | 3 | OPEN | Use provider sandbox; no live shipment without approval |
+| G-010 | P2 | Carrier label worker handler is no-op | 3 | IMPLEMENTED — CI PENDING; SANDBOX PENDING | Authenticated POST /v1/shipments/:id/labels queues a label event after tenant authorization, carrier shipment validation, and shipment-row lock/duplicate checks. Worker invokes the provider, validates the label URL with carrier SSRF allowlist, rejects redirects, bounds the full download, verifies PDF type/signature/10 MiB limit, stores the PDF in private S3 using event UUID idempotency, and persists shipment_labels. Label reads return short-lived presigned URLs. Worker and controller regression tests added. Real Aramex sandbox remains unverified; no live carrier calls. |
 | G-011 | P2 | AutoCompleteWorker claim is not durable | 3 | CLOSED — CI VERIFIED | Migration 0071 adds persisted five-minute claim leases; worker claims one order at a time with SKIP LOCKED, reclaims expired leases, conditionally releases only its own claim, and OrdersService fences the completion status update by current owner + unexpired lease. Unit and PostgreSQL two-worker/lease-recovery/buyer-confirmation race tests passed in CI #647; migration 0071 full apply also passed in isolated CI PostgreSQL. |
 | G-012 | P2 | Manual payments only; no automatic gateway/payout | 5 (decision) | OPEN | Product scope decision; do not silently expand scope |
 | G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
@@ -74,7 +74,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | OPEN | Classify and scan before removal |
 | G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
-| G-019 | P2 | Mobile cannot remove applied promotion | 4 | OPEN | API authoritative cart recalculation |
+| G-019 | P2 | Mobile cannot remove applied promotion | 4 | IMPLEMENTED — CI PENDING | Added authenticated DELETE /v1/cart/promo; CartService clears promoCode and promotionId on the buyer's active cart and returns refreshed state. Flutter ApiService and cart UI expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests added. |
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
 | G-021 | P3 | Formal RFQ/quotation/PO workflow absent | 5 (decision) | OPEN | Decide whether in launch scope; separate project if required |
 | G-022 | P3 | pg_trgm extension installed in public schema | 5 | OPEN | Live advisor confirms pg_trgm is installed in public; relocation not yet designed |
@@ -198,9 +198,9 @@ Status definitions:
 | P3-01 | Map event types to exactly one authoritative consumer | G-003 | COMPLETE — CI #687 | [Outbox Event Ownership Map](./OUTBOX-EVENT-OWNERSHIP-MAP.md) documents carrier and non-carrier publisher families; PostgreSQL integration test invokes both real poll methods against persisted events and verifies exclusive ownership. |
 | P3-02 | Prevent generic dispatcher from consuming carrier events and keep lease recovery within ownership boundary | G-003 | COMPLETE — CI #687 | Generic dispatcher exclusion, carrier-only claim/recovery and unsupported-event retry behavior passed API unit/coverage and PostgreSQL integration CI. |
 | P3-03 | Implement event retry, idempotency and terminal failure behavior | G-003 | COMPLETE — CI #687 | Carrier worker retry/dead-letter paths and unsupported-event retry behavior passed focused and integration CI. Provider-side idempotency and live carrier behavior remain outside this finding's verified scope. |
-| P3-04 | Connect carrier label event to provider label generation | G-010 | TODO | |
-| P3-05 | Persist label metadata and shipment state safely | G-010 | TODO | |
-| P3-06 | Test provider timeout, duplicate event and retry behavior | G-003/G-010 | TODO | |
+| P3-04 | Connect carrier label event to provider label generation | G-010 | COMPLETE — CI PENDING | Authenticated POST /v1/shipments/:id/labels queues the event; worker calls provider.generateLabel and unsupported providers fail closed into retry/dead-letter. |
+| P3-05 | Persist label metadata and shipment state safely | G-010 | COMPLETE — CI PENDING | PDF is stored in private S3; shipment_labels uses the outbox event UUID and object key for retry idempotency. Read models provide short-lived presigned URLs. |
+| P3-06 | Test provider timeout, duplicate event and retry behavior | G-003/G-010 | PARTIAL — MOCKED TESTS ADDED | Worker tests cover PDF persistence, SSRF rejection, duplicate event idempotency, invalid PDF and transient storage failure; controller tests cover duplicate active/pending request suppression. Real provider sandbox and end-to-end timeout/retry evidence remain pending. |
 | P3-07 | Implement durable AutoCompleteWorker lease/claim | G-011 | COMPLETE — CI #647 | Migration 0071 + Drizzle schema add claim timestamp/owner; worker persists a five-minute lease, recovers expired claims, and completion is fenced by owner + lease validity in the atomic status flip. |
 | P3-08 | Test multi-instance claim and buyer confirmation race | G-011 | COMPLETE — CI #647 | Focused unit tests cover persisted claim SQL, owner propagation and conditional release. PostgreSQL Testcontainers integration test races two worker instances, expires/reclaims the lease, then verifies buyer confirmation fences the stale worker; passed in CI #647. |
 | P3-09 | Document P13 worker registration and intended holder topology | Runtime | TODO | |
@@ -220,7 +220,7 @@ Status definitions:
 |---|---|---|---|---|
 | P4-01 | Complete mobile per-store shipping/payment and tax review | G-007 | COMPLETE — CI #711 | Server-calculated tax-inclusive preview, per-supplier fulfillment/payment request and order confirmation details implemented. Full journey UAT reserved for Phase 6. |
 | P4-02 | Complete mobile order detail/fulfillment parity | G-007 | TODO | Verify per-suborder order detail and tracking in Phase 6 UAT. |
-| P4-03 | Add mobile remove-promotion operation/UI | G-019 | TODO | |
+| P4-03 | Add mobile remove-promotion operation/UI | G-019 | COMPLETE — CI PENDING | Authenticated DELETE route clears promoCode + promotionId; Flutter ApiService and cart screen provide a removable applied-promo action with loading/error handling. Backend and mobile API tests added. |
 | P4-04 | Define truthful notification delivery states | G-009 | COMPLETE | External channels use NOT_CONFIGURED until a real adapter confirms provider acceptance; IN_APP SENT means persisted in-app item only. Documented in notifications provider selection/troubleshooting guides. |
 | P4-05 | Implement provider adapters or NOT_CONFIGURED behavior | G-009 | COMPLETE — NOT_CONFIGURED | Removed fake SMS/FCM/WhatsApp success responses and generated message IDs. Rows now record NOT_CONFIGURED with channel-specific reason codes. No external provider calls are made. |
 | P4-06 | Add provider sandbox and retry/status tests | G-009 | PARTIAL — REGRESSION TESTS ADDED | Four unit tests verify truthful NOT_CONFIGURED states and absence of sentAt/providerMsgId for unconfigured channels. Provider sandbox/retry behavior is deferred until a real provider adapter and sandbox credentials are approved; no live customer notification was sent. |
@@ -453,3 +453,17 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Corrected the API TypeScript include to compile only the new database audit utility after CI #729 showed that a broad scripts glob pulled in unrelated pre-existing manual M5/M6 script errors.
 - Current implementation head: `d624805be3ec5e2c35770b7ab3398555f7e76557`. Full CI verification is pending for the combined G-009, G-019 and G-010 changes.
 - Vercel web/admin status checks reported build-rate-limit failures from the Taif Vercel account. These are external preview-build quota failures, not successful builds or deployments. No Vercel deployment was performed by this implementation work.
+
+
+### G-019 implementation update — 19 November 2026
+- Added authenticated DELETE /v1/cart/promo; it clears both the raw promo code and resolved promotion ID from the current buyer's active cart and returns refreshed cart state.
+- Added the Flutter ApiService method and a Remove action in the applied-promotion row, including busy state and error feedback.
+- Added backend service and Flutter API regression tests. CI verification pending.
+- No live cart or promotion was modified.
+
+### G-010 implementation update — 19 November 2026
+- Added authenticated POST /v1/shipments/:id/labels to enqueue label work with tenant authorization, a carrier-shipment precondition, shipment-row locking, and active/pending duplicate checks.
+- Replaced the carrier label worker no-op with provider-driven generation, carrier-specific SSRF validation, redirect rejection, bounded streaming download, PDF validation and private S3 persistence.
+- Outbox event UUID is reused as the S3 object key suffix and shipment_labels primary key, making storage/metadata retries idempotent.
+- Label list/detail responses include short-lived presigned URLs for managed labels.
+- Added worker and controller tests. Real Aramex sandbox verification is pending; no live shipment/provider call was made.

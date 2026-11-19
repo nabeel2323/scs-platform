@@ -704,3 +704,10 @@ The label request is reachable through authenticated `POST /v1/shipments/:id/lab
 
 ### CI #729 correction
 The first attempt to include the new read-only audit utility in API typecheck used a broad scripts glob and exposed unrelated pre-existing M5/M6 manual-tooling type errors. The tsconfig now includes only `scripts/audit-db-access.ts`; the manual tools remain outside the production API typecheck scope. CI #729's Flutter analyze/tests passed; the API typecheck failure prevented the remaining dependent test jobs from running. Re-run full CI after this correction before treating G-009/G-010 as verified.
+
+
+---
+
+## 18. Execution update — G-019 mobile promotion removal
+
+The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. Added authenticated DELETE /v1/cart/promo, which clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.
