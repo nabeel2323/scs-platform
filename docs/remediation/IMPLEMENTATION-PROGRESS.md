@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0–4 are in progress; G-001, G-003–G-005, G-008, G-011, G-020 and G-023–G-029 are verified/closed. G-006 implementation is CI-verified on `8b77243c` by CI #703; its explicit stale-term/concurrency acceptance review remains open. G-007 implementation is CI-verified on `34728979` by CI #711; full journey UAT remains in Phase 6. G-002 remains open P1; G-006 and G-007 remain implemented pending acceptance/UAT.
+**Tracker status:** ACTIVE — Phases 0–4 remain in progress. G-001, G-003–G-006, G-008, G-011, G-020 and G-023–G-029 are verified/closed. G-006's explicit two-session offer-lock contention and stale-term acceptance test passed in CI #718 on `783c03814d1527184c0eb69c2df1c396944056cc`. G-007 implementation remains CI-verified; full buyer journey/order-detail/tracking UAT is reserved for Phase 6. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. Latest branch work adds a read-only database access audit utility/workflow; no live mutation or deployment was performed.
 
 ---
 
@@ -20,10 +20,10 @@
 | Original audit findings | 22 |
 | Additional findings discovered during remediation | 7 (G-023–G-029) |
 | P0 open | 0 |
-| P1 open | 3 (G-002, G-006–G-007) |
+| P1 open | 2 (G-002, G-007) |
 | P2 open | 10 (G-009–G-010, G-012–G-019) |
 | P3 open | 2 |
-| Findings closed under this plan | 14 (G-001, G-003–G-005, G-008, G-011, G-020, G-023–G-029) |
+| Findings closed under this plan | 15 (G-001, G-003–G-006, G-008, G-011, G-020, G-023–G-029) |
 | Findings implemented; latest-head CI pending | 0 |
 | Findings partially remediated | 1 (G-002) |
 | Final full test campaign | NOT STARTED |
@@ -32,7 +32,7 @@
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Implementation is active on `remediation/phase-0-1-tenant-security`. CI #687 passed all executed jobs on `dc071157992bb9869fcc059d3bc079bd764f8186`. G-003 is verified by persisted-event integration coverage invoking the production generic and carrier pollers; G-004 exact selected-offer pricing/cart attribution and G-005 per-currency checkout totals passed their focused tests and the full applicable CI jobs. G-011 and G-028 remain verified from CI #647; G-029 from CI #592. G-002 remains partial pending effective DB-role/access-path verification. The September roadmap's historical phase-completion statements are not used as closure evidence for this November audit.
+<badge color="success">IN PROGRESS</badge> Latest branch head `69a4698da9f93ea5b66f94480e150c60bdded0b4` includes the read-only database audit report and audit utility/workflow. CI #718 passed all 10 executed jobs on `783c03814d1527184c0eb69c2df1c396944056cc`; k6 smoke and staging release were skipped. G-006's two-session PostgreSQL offer-lock contention test and fixture cleanup are now CI-verified and G-006 is CLOSED. G-002 remains open: the live Supabase snapshot confirms 114 public tables with RLS disabled, but effective anon/authenticated privileges currently have no SELECT/INSERT/UPDATE/DELETE; they do have TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114. The Security Advisor's blanket read/write exposure wording is broader than the effective DML grants observed. The actual Render API and migration roles remain NOT VERIFIED; the MCP SQL session is `postgres` and is not evidence of the app role. No live database mutation or deployment was performed.
 
 ---
 
@@ -57,7 +57,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | VERIFIED IN CI | Controller enforces authenticated org + active store membership on all three routes; controller regression suite passed in CI run #536 |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Reconciled to 114 tables: no anon/auth CRUD, but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all tables and same postgres default ACL; all 114 RLS disabled |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | IN PROGRESS | Live 19-Nov read-only recheck: 114 public tables, RLS enabled/forced on 0; anon/authenticated have 0 SELECT/INSERT/UPDATE/DELETE but TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114. `postgres` default ACL repeats non-DML grants; `supabase_admin` default ACL is broader and must not be changed without ownership review. Security Advisor flags all 114 RLS-disabled; its blanket read/write description is not supported by the effective DML grant query. API/migration roles remain unverified. See [DB-ACCESS-VERIFICATION-2026-11-19.md](./DB-ACCESS-VERIFICATION-2026-11-19.md).
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | CLOSED — CI #687 | Generic dispatcher excludes `shipping.carrier.%`; dedicated worker claims only carrier events using `FOR UPDATE SKIP LOCKED`; stale lease recovery is carrier-prefix scoped; unsupported carrier event types enter retry/dead-letter handling. PostgreSQL Testcontainers integration coverage invokes the real OutboxDispatcher.poll() and ShippingCarrierWorker.poll() against persisted carrier/non-carrier events and verifies exclusive ownership plus retry behavior. API integration and unit/coverage jobs passed CI #687. Worker topology is source-documented; P13 activation/alerting and G-010 label generation remain separate work. |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | CLOSED — CI #687 | Search cards resolve the exact selected offer's active price-list tier at its MOQ (or explicit base price where no list is linked), return concrete variant and offer identity, and cart add/batch/update plus checkout repricing preserve that offer. Owner-priced cart lines remain separate from offer-backed lines; selected prices are keyed by offer + variant + quantity. Resolver (13 tests), product-card (8 tests) and cart (7 tests) suites passed API unit/coverage CI #687; integration, web/admin, lint/typecheck and build jobs also passed. |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | CLOSED — CI #687 | Checkout now groups item and selected shipping amounts by their own normalized currency; pickup adds no fee; missing currencies mark the estimate incomplete; no SAR fallback or cross-currency grand total is shown. A single-currency total is shown only when complete. Five focused currency tests and the web/admin test job passed CI #687. |
@@ -107,8 +107,8 @@ Status definitions:
 | P0-06 | Define final full test campaign command manifest | TODO | |
 | P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | PARTIAL | Staging auto-deploy is disabled; runbook not yet written |
 | P0-08 | Review startup migration/seed and safe deploy/forward-fix procedure | TODO | |
-| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | IN PROGRESS | 114 public tables, all owned by postgres, RLS off; anon/auth have no CRUD but have TRUNCATE/REFERENCES/TRIGGER; postgres default ACL repeats these; custom _migration_log has 69 rows |
-| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | IN PROGRESS | Existing OTP redaction suites cover OTP/email/phone values and provider failures; hardened `OtpDeliveryService` catch path to log only sanitized error class, with regression test for SMTP-like credentials and recipient data; latest-head CI pending |
+| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | IN PROGRESS | 19-Nov live recheck: 114 public tables; RLS enabled/forced 0; anon/authenticated/service_role have no DML on these tables but each has TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114; schema USAGE true/CREATE false for client roles; custom `_migration_log` has 69 rows through 0069. `postgres` and `supabase_admin` default ACLs differ; see DB access verification report. API/migration role identity and table classification remain open. |
+| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | IN PROGRESS | Sanitized `OtpDeliveryService` catch path and SMTP-like credential/recipient redaction regression are included in the branch; latest CI #718 passed unit/coverage. Full forensic review of every logging/provider path remains to be recorded before this task is closed. |
 | P0-11 | Document worker registration/flags/leases and protected-job safety | PARTIAL | Render evidence confirms OutboxDispatcher/ShippingCarrierWorker register; P13 worker disabled and alert sink absent in observed runtime; source topology review pending |
 | P0-12 | Backup/restore exercise | DEFERRED — USER DIRECTION | Not a prerequisite for this development remediation cycle; revisit only if required by the pre-production operational-readiness decision |
 
@@ -138,7 +138,7 @@ Status definitions:
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | VERIFIED IN CI | Shared access assertion protects analytics and trend routes; API unit/coverage suite passed in CI run #536 |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + G-024–G-029 | IN PROGRESS | G-024–G-026 fixes committed with regression tests; G-027 closed after CI #554; G-028 now has 19 focused tests (8 publication helper, 6 controller boundary, 2 category query/count, 3 canonical lookup); latest lookup/category-count changes await CI. G-029's 3 bulk mutation tests passed CI #592 and are closed. G-029's 3 bulk mutation tests passed in CI #592 and are closed. G-028 review also tightened buyer-facing canonical category reads to ACTIVE products and PUBLISHED product types; latest-head CI remains pending |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | VERIFIED IN CI | Controller regression tests cover authorized member, foreign org, missing membership and admin bypass; API unit/coverage suite passed in CI run #536 |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — TARGET DB CONFIRMED; ROLE UNVERIFIED | User confirmed one PostgreSQL database is shared across all branches and there is no separate production infrastructure deployed. The Render API and staging migration workflow target that same database. Source confirms the API uses a direct node-postgres/Drizzle Pool from Render DATABASE_URL; the reusable staging release workflow separately injects GitHub environment secret STAGING_DATABASE_URL into the migration runner. The API does not use a Supabase JS SDK directly (web/admin package dependencies and Flutter pubspec show API clients instead). Render staging service is scs-api-staging, branch develop, autoDeploy off, last live commit 9f5bc397; Render connector does not expose env-var names/values, and no Render Postgres resource is attached. Supabase pg_stat_activity shows only mgmt-api under postgres, no SCS API connection. MCP SQL current_user=postgres is the MCP session, not evidence of the API role. The database target is shared, but API and migration credentials could still authenticate as different PostgreSQL roles. This is not blocking ongoing application remediation; verify the effective roles before applying migration 0070 or enabling RLS, and revisit before production infrastructure is introduced. |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — SOURCE VERIFIED; LIVE ROLE NOT VERIFIED | API source uses direct `node-postgres`/Drizzle `DATABASE_URL`; production does not auto-run the development migration path. Staging release maps `STAGING_DATABASE_URL` to `DATABASE_URL` for the migration runner. Live Supabase MCP connection is `postgres`; `pg_stat_activity` showed no clearly attributable SCS API session. Neither result proves Render API or migration credentials. Added `apps/api/scripts/audit-db-access.ts`, package command `db:audit-access`, and manually dispatched read-only workflow `.github/workflows/db-access-audit.yml`; it reports effective/login role, role attributes, grants, default ACLs and RLS without printing DSNs or reading app rows. Workflow is dispatchable once present on the default branch and checks out `develop` for the audit code. See DB access verification report. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | IN PROGRESS | Read-only live query confirms 114 public tables, all owned by postgres; RLS enabled on 0 and forced on 0. Table-by-table access classification remains pending |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | IN PROGRESS | Read-only live queries confirm anon/authenticated have no SELECT/INSERT/UPDATE/DELETE on the 114 postgres-owned app tables (confirmed via has_table_privilege on users, organizations, orders, merchant_offers, products and inventory_items), but retain TRUNCATE/REFERENCES/TRIGGER/MAINTAIN on all 114. Public sequence privileges: anon/authenticated/authenticator/service_role have 0; postgres has USAGE/SELECT/UPDATE on 1. 32 public functions are executable by PUBLIC (31 also by anon/authenticated); inspected functions are not SECURITY DEFINER, mostly pg_trgm; normalize_arabic remains PUBLIC-executable with default search_path because 0070 is not applied. postgres default ACL repeats the four table privileges; separate supabase_admin defaults include broader grants and require internal-object classification. Role snapshot: postgres LOGIN+BYPASSRLS; service_role NOLOGIN+BYPASSRLS; authenticator LOGIN without BYPASSRLS. Schema/function/default-ACL matrix remains in progress |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | Must finish API runtime role and public Data API access classification before migration design |
@@ -389,3 +389,37 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 
 | 2026-11-19 | G-008 unsupported DIGITAL payment rejection | CI #714 on current PR head `5b0670a327a70f553e69175ec2d0a6e981244039` | `PAYMENT_METHODS` retains DIGITAL only for historical persistence; `SUPPORTED_PAYMENT_METHODS` contains BANK_TRANSFER, CASH_ON_DELIVERY and VOUCHER. Checkout rejects unsupported methods before transaction entry; PaymentsService rejects before provider resolution and payment insert. Buyer web disables DIGITAL; mobile offers only supported methods. Focused payment-method support suite passed (5 tests), including the checkout test proving no transaction starts. | CI #714 passed all executed jobs on current head: lint/typecheck, Flutter, API unit/coverage (4,452 passed; 110 skipped; 227 files passed/6 skipped), API integration, web/admin, boundary lint, isolated full migration apply, build, contract/codegen and container build/smoke. k6 and staging release skipped. | CLOSED — CI VERIFIED | Keep DIGITAL out of all new checkout/payment flows; any future gateway requires a separately approved provider architecture. No live migration or deployment. |
+
+
+---
+
+## 14. Execution update — 19 November 2026
+
+### Latest verified CI
+- CI #718 passed all 10 executed jobs on `783c03814d1527184c0eb69c2df1c396944056cc`.
+- Successful jobs: Lint & Typecheck; Mobile analyze/tests; Web & Admin tests; API Unit Tests + Coverage; Migration Full Apply (isolated CI PostgreSQL); Boundary Lint; Integration Tests; Contract Spec & Codegen; Container Build & Smoke Test; Build.
+- Skipped: k6 Smoke Test and Trigger Staging Release. A green CI run is not a staging deployment or release authorization.
+- G-006 is now CLOSED: the changed-offer-term revalidation and true PostgreSQL two-session offer-row lock contention case passed in the integration suite; CI #718 also verifies the fixture cleanup correction after CI #717.
+
+### Latest live database evidence
+- Read-only Supabase inspection on 19-Nov confirmed 114 public tables and RLS enabled/forced on 0.
+- Effective privileges on all 114 tables: anon/authenticated/service_role have no SELECT/INSERT/UPDATE/DELETE, but do have TRUNCATE/REFERENCES/TRIGGER/MAINTAIN.
+- `postgres` default ACL repeats the non-DML client-role grants. `supabase_admin` default ACL contains broader grants and is not to be changed without a separate ownership/platform review.
+- The Supabase Security Advisor's critical RLS-disabled finding remains valid as a defense-in-depth issue, but its generic claim that all rows are readable/writable is not supported by the effective DML grant checks from this snapshot.
+- The Supabase MCP SQL session is `postgres`; no identifiable SCS API session appeared in the inspected `pg_stat_activity` snapshot. The actual API and migration login/effective roles remain NOT VERIFIED.
+- Custom migration ledger remains at 69 entries through 0069. Migrations 0070/0071 have not been applied to the shared database.
+
+### New implementation artifacts
+- `apps/api/scripts/audit-db-access.ts` — read-only, no application-row reads, no DSN output, no database mutation.
+- `apps/api/package.json` — `db:audit-access` command.
+- `.github/workflows/db-access-audit.yml` — manual staging-environment read-only audit; no migration, deployment or write step.
+- `docs/remediation/DB-ACCESS-VERIFICATION-2026-11-19.md` — live evidence and next-step record.
+
+### Next execution order
+1. Validate the new audit utility through CI and run it against the configured staging connection once the workflow is available from the default branch; record the effective role only, never the DSN.
+2. Obtain equivalent runtime identity evidence for the Render API without revealing environment values.
+3. Complete the per-table access classification and role/default-ACL matrix; design the least-privilege API/migration role contract.
+4. Add isolated role-switching and cross-tenant database negative tests before preparing any RLS/grant migration.
+5. Continue the remaining Phase 0–5 findings in the plan; Phase 6 remains one consolidated campaign after implementation.
+
+**Safety:** no live SQL mutation, grant change, RLS enablement, worker activation, Render configuration change or deployment was performed in this update.
