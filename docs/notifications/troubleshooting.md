@@ -25,6 +25,17 @@
 ## General
 
 - No automatic fallback between SMTP and Resend providers.
-- `deliveryOutcome: 'accepted'` means the provider accepted the request — not confirmed mailbox delivery.
+- `deliveryOutcome: 'accepted'` means the provider accepted the request â€” not confirmed mailbox delivery.
 - API keys and credentials never appear in logs or error messages.
 
+
+## General outbound notification channels (non-OTP)
+
+| Channel | Current behavior | Status recorded |
+|---|---|---|
+| IN_APP | Persisted in the database; realtime event is best-effort | SENT means the in-app item was persisted, not that a device received a socket event |
+| SMS | No general-notification SMS adapter is configured | NOT_CONFIGURED / SMS_PROVIDER_NOT_CONFIGURED |
+| PUSH | FCM adapter is not implemented; missing active token is reported separately | NOT_CONFIGURED / PUSH_PROVIDER_NOT_CONFIGURED or PUSH_NO_ACTIVE_DEVICE_TOKEN |
+| WHATSAPP | General-notification WhatsApp adapter is not implemented | NOT_CONFIGURED / WHATSAPP_PROVIDER_NOT_CONFIGURED |
+
+Do not interpret a stored notification row as proof of external delivery. A real adapter must record provider acceptance separately from recipient delivery and must use provider message IDs only when returned by the provider.
