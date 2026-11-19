@@ -16,17 +16,11 @@ function makeHarness(options?: {
   const membershipFindFirst = vi.fn().mockResolvedValue(
     options?.membership === null ? null : { id: 'member-a' },
   );
-  const variantFindFirst = vi.fn().mockResolvedValue({ productId: 'product-a' });
-  const productFindFirst = vi.fn().mockResolvedValue({
-    storeId: options?.variantStoreId === null ? null : options?.variantStoreId ?? 'store-a',
-  });
   const db = {
     db: {
       query: {
         stores: { findFirst: storeFindFirst },
         storeMembers: { findFirst: membershipFindFirst },
-        productVariants: { findFirst: variantFindFirst },
-        products: { findFirst: productFindFirst },
       },
     },
   } as unknown as DatabaseService;
@@ -50,12 +44,18 @@ function makeHarness(options?: {
     resolvePrice: vi.fn().mockResolvedValue({ unitPriceMinor: 1000, tierId: 'tier-a' }),
   } as unknown as PricingService;
 
+  const catalogService = {
+    getVariantStoreId: vi.fn().mockResolvedValue(
+      options?.variantStoreId === null ? null : options?.variantStoreId ?? 'store-a',
+    ),
+  } as any;
+
   return {
-    controller: new PricingController(service, db),
+    controller: new PricingController(service, db, catalogService),
     service,
+    catalogService,
     storeFindFirst,
     membershipFindFirst,
-    productFindFirst,
   };
 }
 
