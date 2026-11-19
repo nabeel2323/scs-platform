@@ -728,3 +728,8 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### Evidence formatting pass — 19 November 2026
 
 - The G-002 live ACL report, architecture proposal, implementation plan and progress tracker have received the additional live database and source-review evidence. Repository-locked Prettier is being applied before the next full CI run.
+
+### G-031 permission separation implementation — 19 November 2026
+- Added the dedicated admin:products:moderate permission. SUPER_ADMIN, ADMIN and MODERATOR receive it from canonical RBAC seed data; read-only merchant inspection remains admin:merchants:read.
+- The Admin API moderation mutation and UI action buttons now require the dedicated permission. API guard/role-matrix tests and Admin UI permission-gating tests are committed. The controlled release seed will add the new role-permission rows idempotently; no live seed or role mutation was performed.
+- G-031 is a P1 finding and remains open until current-head CI verifies API unit/coverage, Admin tests, lint/typecheck and full integration gates.
