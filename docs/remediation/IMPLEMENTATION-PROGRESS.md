@@ -132,10 +132,10 @@ Status definitions:
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — CI PASS | Both analytics and trend routes require the same fail-closed checks; CI #966 passed. |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IMPLEMENTED — CI PASS; REVIEW PENDING | Controller unit tests (10) and HTTP matrix (19) passed in CI #966. Matrix covers owner, active store staff, foreign merchant, same-org non-member, buyer and platform staff across all three routes. Real-PostgreSQL lifecycle tests cover active staff, missing membership and foreign-store membership denial. Second-party review remains. |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | API source uses DATABASE_URL; Supavisor postgres-session shutdown strongly correlates with Render SIGTERM, but exact Render env username is not directly exposed. |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — SOURCE PATHS MAPPED; LIVE ROLE UNKNOWN | `DatabaseService` uses `DATABASE_URL`; production-like API startup skips auto-migration. `release.yml` maps `STAGING_DATABASE_URL` into `DATABASE_URL` for migration/seed/ledger steps. This does not prove the two URLs use different roles. Added sanitized read-only `pnpm --filter @scs/api db:identity`; must execute separately under both environments. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | SOURCE/RUNTIME VERIFIED | 114 public relations: 113 ordinary + 1 partitioned; all owned by postgres; RLS and FORCE RLS disabled. Detailed inventory report added. |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | SOURCE/RUNTIME VERIFIED — CRITICAL ACL ISSUE | Effective checks confirm anon/authenticated/service_role have TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on all 114 public relations but no SELECT/INSERT/UPDATE/DELETE; no checked sequence privileges. Supabase Advisor flags 117 tables RLS-disabled and describes them as exposed, so direct API exposure remains to reconcile. See expanded G-002 inventory. |
-| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | IN PROGRESS — BLOCKED ON ACCESS-MODEL DESIGN | Do not apply blanket RLS. Separate app runtime role from owner/migration identity, remove unnecessary TRUNCATE/MAINTAIN/REFERENCES/TRIGGER grants safely, review storage managed grants separately, and design trusted request context before table-specific RLS. |
+| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | DESIGN BASELINE DOCUMENTED — IMPLEMENTATION BLOCKED | See `G-002-LEAST-PRIVILEGE-REMEDIATION-DESIGN.md`. Proposed API runtime login/group role is separated from migration identity; transaction-bound request context is a prerequisite for RLS. No blanket RLS or managed-role revocation. Complete object/query/worker matrix and prove identities before DDL. |
 | P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
 | P1-12 | Harden normalize_arabic search_path safely | G-020 | TODO | |
@@ -149,7 +149,9 @@ Status definitions:
 - Focused unit test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (10 tests passed in CI #966; API unit/coverage job: 213 files passed, 6 skipped; 4,359 tests passed, 110 skipped)  
 - HTTP regression test: `apps/api/src/__tests__/integration/catalog-offer-tenant-authorization.http.spec.ts` (19 tests passed in CI #966)  
 - Migration ID(s): none for G-001  
-- Database inventory: `docs/remediation/G-002-SUPABASE-DATABASE-ACCESS-INVENTORY.md` (read-only; no DB changes)  
+- Database inventory: `docs/remediation/G-002-SUPABASE-DATABASE-ACCESS-INVENTORY.md` (read-only; no DB changes)
+- G-002 least-privilege design: `docs/remediation/G-002-LEAST-PRIVILEGE-REMEDIATION-DESIGN.md` (design only; no DDL)
+- Read-only role diagnostic: `apps/api/scripts/inspect-db-identity.mjs`, command `pnpm --filter @scs/api db:identity` (added; not yet executed against Render/Supabase)  
 - Real PostgreSQL membership tests: `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts` (included in passing `pnpm --filter @scs/api test:integration` job in CI #966)
 - Independent second-party review: pending  
 - CI evidence: workflow run `44610599038` (#952), all executed GitHub Actions jobs SUCCESS, including API unit/coverage, integration, lint/typecheck/format, migration full apply, build/container smoke, web/admin and Flutter suites; staging release job SKIPPED.  
@@ -285,6 +287,7 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
 | 2026-11-18 | Plan initialization | develop / 9f5bc397… audit baseline | Created audit-driven sequence and tracker; no remediation code changed | Source/report review only | PLANNED | Start Phase 0 baseline reconciliation |\n| 2026-11-19 | G-001 tenant authorization | `security/p0-merchant-offer-tenant-scope` / HEAD `0bb652d77eb30fbc3e0de5dbd68d4fc54d45f68f` / CI #966 `44622530364` | Enforced org + active store membership for list/analytics/trend; added controller unit, HTTP matrix and PostgreSQL membership coverage; corrected fixture role to schema-supported `MEMBER` | CI #966 all required jobs PASS. Unit/coverage: 213 files, 4,359 tests passed (6 files/110 tests skipped); HTTP matrix 19 passed; PostgreSQL integration command passed; migration full apply, build/container, lint/typecheck/format, boundary, web/admin and Flutter passed. k6 and staging release skipped. | READY FOR INDEPENDENT REVIEW — tests pass; second-party bypass review outstanding | Obtain independent security review; then close G-001 only if accepted; proceed with G-002 access-model design |
+| 2026-11-20 | G-002 least-privilege design baseline | `security/p0-merchant-offer-tenant-scope` / commits `dd39f85`, `e6d3638`, `cec4971`, `9639389`, `8101774`, `29343b5`, `c895c6e`, `8eaeea4` | Added staged least-privilege design, source-reviewed API vs release connection paths, and a sanitized read-only DB identity/effective-privilege diagnostic. Added a disposable PostgreSQL CI step to validate the diagnostic. | CI #966 passed before the G-002 tooling/docs changes. CI #974 for the current branch HEAD is pending; diagnostic has not been executed against live Render/Supabase identities. | PARTIAL — design documented; safe diagnostic added; actual role identity and per-object query matrix remain unverified | Wait for CI #974; then arrange read-only execution of `pnpm --filter @scs/api db:identity` in API runtime and migration environments; continue object/query/worker inventory. No live DDL/ACL/RLS changes |
 
 ### Required task log entry format
 
@@ -337,6 +340,8 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
+**Continue Phase 1, tasks P1-06/P1-09:** wait for the current branch CI to finish, then execute the sanitized `db:identity` diagnostic separately with the API runtime connection and the staging migration connection. Record only role/catalog metadata; never print or copy connection strings. Complete the relation/sequence/function/worker access matrix and ACL grantor/default-privilege provenance before drafting any DDL.
 
-**Current state:** no remediation code has been changed by initializing these documents.
+In parallel, obtain a second-party review of G-001's preserved privileged-role bypass policy. Do not close G-001 until that review is recorded.
+
+**Current safety state:** no Supabase DDL, grants, revokes, role memberships, RLS policies, Render environment values, staging deployments or production changes have been made.
