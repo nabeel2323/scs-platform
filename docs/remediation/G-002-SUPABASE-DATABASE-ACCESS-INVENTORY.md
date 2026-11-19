@@ -7,7 +7,7 @@
 | Inventory date | 19 November 2026 |
 | Scope | Public-schema relations, roles, memberships, default ACLs, function settings and migration ledger |
 | Access mode | Read-only SQL |
-| Status | INVENTORY VERIFIED; REMEDIATION DESIGN OPEN |
+| Status | INVENTORY VERIFIED; LEAST-PRIVILEGE DESIGN DOCUMENTED; IMPLEMENTATION OPEN |
 
 ## 1. Confirmed schema baseline
 
@@ -128,3 +128,21 @@ No DDL, grant, revoke, role, migration, environment or deployment change was mad
 A separate effective sequence-privilege query found two sequences in the checked `public` and `auth` schemas; anon, authenticated and service_role had no USAGE, SELECT or UPDATE privilege on either sequence.
 
 The complete postgres default-ACL snapshot also includes managed `storage` schema defaults. Supabase's `storage` schema grants the client roles access to storage metadata tables and functions, with RLS enabled on all eight listed storage relations. These grants are part of the managed Storage subsystem and must not be mass-revoked as if they were application `public` table grants. The seven storage relations with effective SELECT require policy-level verification. The storage `service_role` has broad privileges by design; do not repurpose that managed role as the API's runtime database login.
+
+
+## 8. Application and release identity path source review (20 November 2026)
+
+A read-only source review now supplements the live catalog inventory:
+
+- `apps/api/src/common/database/database.service.ts` creates the API's shared PostgreSQL pool from `DATABASE_URL`. The API's Drizzle handle uses that pool.
+- The automatic migration and RBAC seed path in `DatabaseService` runs only when `NODE_ENV` is `development` or `test`; it is not the production-like API runtime path.
+- `apps/api/infra/drizzle/migrate-pg.ts` uses `DATABASE_URL`, holds a session-level advisory lock during the migration sequence, and applies each migration with its ledger insert in one transaction.
+- `apps/api/infra/drizzle/seed-pg.ts` writes RBAC permissions, roles and role-permission mappings.
+- `.github/workflows/release.yml` maps the environment secret `STAGING_DATABASE_URL` to `DATABASE_URL` for the staging migration, RBAC seed and migration-ledger verification sequence.
+- The API runtime `DATABASE_URL` and the release workflow's `STAGING_DATABASE_URL` are separate configuration paths. The source does not prove that they authenticate as different PostgreSQL roles; neither secret value nor username was read.
+
+A least-privilege design is documented in [G-002 Least-Privilege Remediation Design](./G-002-LEAST-PRIVILEGE-REMEDIATION-DESIGN.md). It defines a proposed runtime login/group-role split, the request-context/RLS blocker, staged ACL remediation, required verification and rollback gates. It explicitly prohibits blanket RLS, indiscriminate managed-role revocation and live changes before evidence and approval.
+
+A read-only diagnostic was added at `apps/api/scripts/inspect-db-identity.mjs`, exposed as `pnpm --filter @scs/api db:identity`. It reports the current/session role, role attributes, inherited memberships and effective public table/sequence privileges without printing the connection string or credentials. CI now includes a disposable PostgreSQL validation step for the diagnostic. This script has not been run against Render or Supabase; the actual runtime and migration identities remain unverified until it is executed separately in those environments.
+
+**No live database change was made:** no DDL, grant, revoke, role, membership, RLS, secret, environment, migration, seed, staging or production mutation was performed.
