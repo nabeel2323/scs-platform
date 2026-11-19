@@ -597,7 +597,7 @@ This is the **one comprehensive platform test campaign**. It is not run repeated
 | Mobile parity                 | PASS for supported release scope                                                                   |
 | External providers            | PASS in sandbox or explicitly disabled and truthfully represented                                  |
 | CI/repository controls        | PASS; required checks block merge                                                                  |
-| Backup/restore                | PASS with recorded restore evidence                                                                |
+| Backup/restore                | DEFERRED BY USER DIRECTION; excluded from this release campaign                                    |
 | Performance                   | PASS against pre-agreed thresholds                                                                 |
 | Documentation                 | PASS; user/admin/deployment/troubleshooting docs match tested behavior                             |
 
@@ -853,3 +853,14 @@ The table-by-table domain and access-intent inventory is complete. It is not yet
 - P1-10: PARTIAL — isolated migration validation only; no shared-database migration or grant change.
 
 No live database mutation, migration, grant change, RLS change, Render configuration change, worker activation or deployment was performed.
+
+
+## 29. RLS architecture proposal and release-gate reconciliation — 19 November 2026
+
+Added [G-002 RLS Architecture Proposal](./G-002-RLS-ARCHITECTURE-PROPOSAL.md) after the fresh live inventory. It records the current direct Drizzle access model, target role separation, transaction-local tenant-context candidate, worker requirements, policy families, risks of blanket RLS and the isolated-test sequence. This is a design proposal only; no production SQL or executable RLS policy was generated.
+
+The staging read-only database audit workflow was updated to support a push trigger on the remediation branch, using the exact branch commit and the existing `staging` GitHub environment. The attempted run did not execute its job (the job remained waiting/approval-gated and the run concluded failure). Do not bypass environment protection. The API/migration usernames remain unverified; P1-06 and P1-09 remain blocked.
+
+The Phase 6 release-gate table previously contradicted the explicit Phase 5 and test-campaign statements deferring backup/restore drills by user direction. The gate is now consistently marked **DEFERRED BY USER DIRECTION** and excluded from this campaign. No backup/restore claim is made.
+
+G-010 received additional focused regression coverage for HTTP 5xx retry classification, HTTP 4xx terminal classification and abort-driven download timeout, supplementing success, SSRF, duplicate, PDF validation and storage-failure tests. The expanded tests await latest-head CI; no real Aramex sandbox request was made.
