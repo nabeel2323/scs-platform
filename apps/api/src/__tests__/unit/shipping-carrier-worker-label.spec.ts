@@ -51,6 +51,7 @@ function makeWorker(options: {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('ShippingCarrierWorker label persistence (G-010)', () => {
@@ -123,6 +124,50 @@ describe('ShippingCarrierWorker label persistence (G-010)', () => {
     await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
       .rejects.toThrow('PDF signature');
     expect(storage.putObject).not.toHaveBeenCalled();
+  });
+
+  it('classifies HTTP 5xx responses as retryable without persisting a label', async () => {
+    const { worker, storage, insertValues } = makeWorker();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('temporary outage', {
+      status: 503,
+    })));
+
+    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
+      .rejects.toMatchObject({ retryable: true, operation: 'downloadLabel' });
+    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it('classifies HTTP 4xx responses as terminal without persisting a label', async () => {
+    const { worker, storage, insertValues } = makeWorker();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not found', {
+      status: 404,
+    })));
+
+    await expect(worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' }))
+      .rejects.toMatchObject({ retryable: false, operation: 'downloadLabel' });
+    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it('classifies download timeouts as retryable and aborts the request', async () => {
+    vi.useFakeTimers();
+    const { worker, storage, insertValues } = makeWorker();
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const pending = worker.handleLabel({ id: EVENT_ID, aggregateId: 'shipment-1' });
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    await expect(pending).rejects.toMatchObject({
+      retryable: true,
+      operation: 'downloadLabel',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
   });
 });
 
