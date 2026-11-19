@@ -1003,3 +1003,19 @@ The Admin dispute detail page checked admin:disputes:read, a permission key that
 No API permission change or RBAC seed change was required. No database or role assignments were modified.
 
 **Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
+
+
+## 37. G-033 — Align attribute detail permission with the catalog RBAC contract — 19 November 2026
+
+### Finding
+
+The Admin Attributes list correctly requires catalog:attributes:manage, but the /attributes/:id detail page incorrectly checked catalog:categories:write. This denied seeded attribute managers, including the platform ADMIN role, from opening attribute details even though they could access the list. The underlying attribute detail GET route is authenticated and the Admin list is the authoritative UI permission boundary.
+
+### Remediation committed
+
+- Changed the attribute detail page to require catalog:attributes:manage, matching the list page and the canonical RBAC role matrix.
+- Added Admin UI regression coverage that renders the detail route with catalog:attributes:manage, verifies the attribute detail request and asserts the canonical permission key.
+
+No API authorization change, RBAC seed change or database migration was required.
+
+**Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
