@@ -152,6 +152,46 @@ describe('OTP Delivery Providers', () => {
       expect(result.deliveryOutcome).toBe('rejected');
     });
 
+    it('does not log raw network errors that may contain OTP payloads', async () => {
+      const secretOtp = '987654';
+      const secretPhone = '+966511122233';
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+        new Error(`transport failure with otp=${secretOtp} recipient=${secretPhone}`),
+      );
+
+      await provider.sendOtp({
+        phone: secretPhone,
+        otp: secretOtp,
+        channel: 'sms',
+      });
+
+      const logs = consoleErrorSpy.mock.calls.flat().join(' ');
+      expect(logs).not.toContain(secretOtp);
+      expect(logs).not.toContain(secretPhone);
+    });
+
+    it('does not log raw network errors that may contain OTP payloads', async () => {
+      const secretOtp = '987654';
+      const secretPhone = '+966511122233';
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+        new Error(`transport failure with otp=${secretOtp} recipient=${secretPhone}`),
+      );
+
+      await provider.sendOtp({
+        phone: secretPhone,
+        otp: secretOtp,
+        channel: 'whatsapp',
+      });
+
+      const logs = consoleErrorSpy.mock.calls.flat().join(' ');
+      expect(logs).not.toContain(secretOtp);
+      expect(logs).not.toContain(secretPhone);
+    });
+
     it('should not log OTP or full phone number', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -431,6 +471,31 @@ describe('OTP Delivery Providers', () => {
       expect(result.success).toBe(false);
       expect(result.errorReason).toBe('UNKNOWN_CHANNEL');
       expect(result.deliveryOutcome).toBe('rejected');
+    });
+
+    it('does not log raw provider exceptions containing OTP or recipient data', async () => {
+      const secretOtp = '987654';
+      const secretEmail = 'private.user@example.test';
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const provider = {
+        isConfigured: vi.fn().mockReturnValue(true),
+        sendOtp: vi.fn().mockRejectedValue(
+          new Error(`provider payload included otp=${secretOtp} recipient=${secretEmail}`),
+        ),
+      };
+      const registry = {
+        isChannelPermitted: vi.fn().mockReturnValue(true),
+        getForChannel: vi.fn().mockReturnValue(provider),
+      };
+      const isolatedService = new OtpDeliveryService(registry as never);
+
+      const result = await isolatedService.deliverEmailOtp(secretEmail, secretOtp, 'corr-secret');
+
+      expect(result.success).toBe(false);
+      expect(result.deliveryOutcome).toBe('unknown');
+      const logs = consoleErrorSpy.mock.calls.flat().join(' ');
+      expect(logs).not.toContain(secretOtp);
+      expect(logs).not.toContain(secretEmail);
     });
 
     it('should handle provider failure gracefully', async () => {

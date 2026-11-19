@@ -206,7 +206,11 @@ export class WhatsAppProvider implements NotificationProvider {
         }
 
         // Other network errors — delivery outcome is uncertain.
-        logger.error(`WhatsApp API network error: ${fetchError instanceof Error ? fetchError.message : 'unknown'}`);
+        const errorType =
+          fetchError instanceof Error && fetchError.name
+            ? fetchError.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+            : 'UnknownError';
+        logger.error(`WhatsApp API network error [${errorType}] (correlation: ${correlationId || 'none'})`);
         return {
           success: false,
           status: 'failed',
@@ -240,7 +244,11 @@ export class WhatsAppProvider implements NotificationProvider {
       }
 
       // Unexpected error — outcome cannot be established; preserve the challenge.
-      logger.error(`Unexpected error in WhatsApp provider: ${error instanceof Error ? error.message : 'unknown'}`);
+      const errorType =
+        error instanceof Error && error.name
+          ? error.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 48)
+          : 'UnknownError';
+      logger.error(`Unexpected error in WhatsApp provider [${errorType}]`);
       return {
         success: false,
         status: 'failed',
