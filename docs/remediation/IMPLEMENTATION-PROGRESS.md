@@ -625,3 +625,7 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Updated both merchant controller methods to pass the authenticated JWT caller context. Corrected admin/service payment store/buyer filters to constrain matching order IDs.
 - Added controller tests for caller-context forwarding and PostgreSQL two-tenant tests for merchant A/B, same-org non-member, foreign store ID and store/buyer filter behavior.
 - G-030 is P0 and remains OPEN until latest-head CI passes all relevant API unit and PostgreSQL integration tests. No shared database or live financial records were modified.
+
+
+### G-030 formatter coverage — 19 November 2026
+- The temporary locked-Prettier workflow now includes the G-030 payment service/controller and PostgreSQL/controller tests, plus the earlier G-010 worker test and eight Markdown artifacts. It will be removed after one successful formatting pass.
