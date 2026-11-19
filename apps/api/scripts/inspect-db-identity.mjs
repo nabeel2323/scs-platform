@@ -122,9 +122,9 @@ async function main() {
     }
     const privilegeColumns = tablePrivileges
       .map(([privilege, alias]) =>
-        `count(*) FILTER (WHERE has_table_privilege(role_name, relation.oid, '${privilege}'))::int AS ${alias}`,
+        `count(*) FILTER (WHERE has_table_privilege(role_name::name, relation.oid, '${privilege}'))::int AS ${alias}`,
       )
-      .join(',\\n          ');
+      .join(',\n          ');
 
     const relationPrivileges = await pool.query(
       `
@@ -148,14 +148,14 @@ async function main() {
         SELECT
           role_name,
           count(*)::int AS public_sequences_checked,
-          count(*) FILTER (WHERE has_sequence_privilege(role_name, sequence.oid, 'USAGE'))::int AS usage_count,
+          count(*) FILTER (WHERE has_sequence_privilege(role_name::name, seq.oid, 'USAGE'))::int AS usage_count,
           count(*) FILTER (WHERE has_sequence_privilege(role_name, sequence.oid, 'SELECT'))::int AS select_count,
           count(*) FILTER (WHERE has_sequence_privilege(role_name, sequence.oid, 'UPDATE'))::int AS update_count
         FROM unnest($1::text[]) AS roles(role_name)
-        CROSS JOIN pg_class sequence
-        JOIN pg_namespace namespace ON namespace.oid = sequence.relnamespace
+        CROSS JOIN pg_class seq
+        JOIN pg_namespace namespace ON namespace.oid = seq.relnamespace
         WHERE namespace.nspname = 'public'
-          AND sequence.relkind = 'S'
+          AND seq.relkind = 'S'
         GROUP BY role_name
         ORDER BY role_name
       `,
