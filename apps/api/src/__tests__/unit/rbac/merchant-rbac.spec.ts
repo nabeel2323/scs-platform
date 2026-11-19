@@ -3,6 +3,8 @@ import { Reflector } from '@nestjs/core';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { PermissionsGuard } from '../../../common/guards/permissions.guard';
 import { PERMISSIONS_KEY } from '../../../common/guards/current-user.decorator';
+import { AdminController } from '../../../modules/admin/admin.controller';
+import { PERMISSIONS, ROLES } from '../../../common/database/rbac-seed.data';
 
 /**
  * API-B6 — Merchant/Catalog write RBAC.
@@ -219,9 +221,6 @@ describe('PermissionsGuard — seeded role matrix', () => {
     }
   });
 });
-
-import { AdminController } from '../../../modules/admin/admin.controller';
-import { PERMISSIONS, ROLES } from '../../../common/database/rbac-seed.data';
 
 describe('Admin product moderation — dedicated permission', () => {
   const moderationHandler = AdminController.prototype.moderateProduct;
