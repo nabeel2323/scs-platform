@@ -753,3 +753,5 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Payment, settlement, reconciliation and settlement-adjustment pages previously called useRequirePerms but ignored its result and exposed some mutation actions to read-only users. The API guards were already enforcing operation-specific permissions, so this caused misleading controls and avoidable 403s rather than an API authorization bypass.
 - Added page-level read guards. Payment verification queue/actions require admin:payments:verify; settlement Mark Paid requires admin:settlements:write; reconciliation Run/Resolve requires admin:reconciliation:write; adjustment Submit requires admin:adjustments:write and Approve/Post requires admin:adjustments:approve.
 - Added UI regression tests for read-only roles across all four financial pages. G-034 remains open until current-head Admin tests and full CI pass.
+### G-034 financial workflow formatter pass — 19 November 2026
+- The financial Admin pages and read-only regression tests have been updated; repository-locked Prettier is applied before the next full CI run.
