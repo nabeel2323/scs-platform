@@ -114,3 +114,9 @@ Concurrent updates to the same role or user are serialized. The second transacti
 - Permission creation/deletion is not supported (permissions are seeded)
 - Direct user permission assignments (bypassing roles) are not supported
 - Role inheritance/hierarchy is not supported
+
+## Product Moderation Access
+
+Viewing the Admin Products list and changing a product are separate permissions. `admin:merchants:read` allows a user to inspect the product moderation list and detail; `admin:products:moderate` is required to approve, reject or archive a product. The seeded SUPER_ADMIN, ADMIN and MODERATOR roles receive the moderation permission. A custom read-only role must not receive it.
+
+The Admin UI hides moderation actions when the permission is absent, but the API guard is authoritative. The RBAC seed adds the permission and role mappings idempotently; the release workflow runs the seed after migrations. Existing JWT permission claims are snapshots, so users may need to refresh their session after the seed is applied.
