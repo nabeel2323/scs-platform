@@ -651,15 +651,49 @@ class ApiService {
       _dio.post('/v1/cart/promo', data: {'code': code});
 
   // ── Checkout ──────────────────────────────────────────────
-  Future<MasterOrder> checkout(
-      {required Map<String, dynamic> deliveryAddress,
-      String? notes,
-      String? idempotencyKey,
-      String? fulfillmentMethod}) async {
+  Future<Map<String, dynamic>> fetchShippingEstimate({
+    required String storeId,
+    required int subtotalMinor,
+    String? city,
+    String? postalCode,
+  }) async {
+    final response = await _dio.get(
+      '/v1/shipping/estimate',
+      queryParameters: {
+        'storeId': storeId,
+        'subtotal': subtotalMinor,
+        if (city != null && city.isNotEmpty) 'city': city,
+        if (postalCode != null && postalCode.isNotEmpty) 'postalCode': postalCode,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> previewCheckout({
+    required Map<String, dynamic> deliveryAddress,
+    required List<Map<String, dynamic>> shippingSelections,
+  }) async {
+    final response = await _dio.post('/v1/checkout/preview', data: {
+      'deliveryAddress': deliveryAddress,
+      'shippingSelections': shippingSelections,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<MasterOrder> checkout({
+    required Map<String, dynamic> deliveryAddress,
+    String? notes,
+    String? idempotencyKey,
+    String? fulfillmentMethod,
+    List<Map<String, dynamic>>? shippingSelections,
+    String? paymentMethod,
+  }) async {
     final d = <String, dynamic>{'deliveryAddress': deliveryAddress};
     if (notes != null) d['notes'] = notes;
     if (idempotencyKey != null) d['idempotencyKey'] = idempotencyKey;
     if (fulfillmentMethod != null) d['fulfillmentMethod'] = fulfillmentMethod;
+    if (shippingSelections != null) d['shippingSelections'] = shippingSelections;
+    if (paymentMethod != null) d['paymentMethod'] = paymentMethod;
     return MasterOrder.fromJson((await _dio.post('/v1/checkout',
             data: d,
             options: Options(

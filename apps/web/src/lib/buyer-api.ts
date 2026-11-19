@@ -504,6 +504,37 @@ export async function applyPromoCode(code: string): Promise<unknown> {
 
 // ── Checkout ─────────────────────────────────────────────────
 
+export interface CheckoutPreview {
+  isEstimate: boolean;
+  vatRate: number;
+  stores: Array<{
+    storeId: string;
+    currency: string | null;
+    fulfillmentMethod: string;
+    shippingMethodId: string | null;
+    subtotalMinor: number;
+    discountMinor: number;
+    deliveryFeeMinor: number;
+    taxMinor: number;
+    totalMinor: number;
+  }>;
+  totalsByCurrency: Record<string, number>;
+  hasUnpricedAmounts: boolean;
+}
+
+export async function previewCheckout(input: {
+  deliveryAddress: Record<string, unknown>;
+  shippingSelections: Array<{ storeId: string; fulfillmentMethod: string; shippingMethodId?: string }>;
+}): Promise<CheckoutPreview> {
+  const res = await authFetch(`${API_URL}/v1/checkout/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw await ApiError.from(res, `Checkout estimate failed (${res.status})`);
+  return res.json();
+}
+
 export async function checkout(input: {
   deliveryAddress: Record<string, unknown>;
   notes?: string;
@@ -2161,6 +2192,7 @@ export interface ShippingEstimate {
   deliveryAvailable: boolean;
   methods: Array<{
     methodId: string;
+    fulfillmentMethod: string;
     key: string | null;
     name: string;
     type: string;
