@@ -596,3 +596,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 ### Documentation formatting gate — 19 November 2026
 
 - The four living remediation documents were submitted to the repository's locked Prettier 3.9.6 formatter. The temporary formatter workflow is removed after its one-time run; the blocking CI changed-file format gate remains the final verification.
+
+
+### Latest Prettier correction — 19 November 2026
+- Repository-locked Prettier 3.9.6 completed successfully for the implementation plan, progress tracker, 114-relation classification and G-002 RLS proposal. The formatter commit is `21ad7802fd3d4b7f1d4b153a25644ca954069d00`.
+- The temporary formatter workflow was deleted after its successful run; no write-enabled formatter workflow remains in the repository.
+- CI #772 failed at the changed-file format gate before unit/integration jobs could run; the log identified the new G-010 worker test and progress tracker as the two unformatted files. Both were formatted by the successful formatter run.
+- CI #777 on the formatter bot commit was marked `action_required`; it is not treated as verification. A normal repository-authored documentation commit is being used to trigger the full CI suite against the formatted content.
