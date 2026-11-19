@@ -71,8 +71,8 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-013 | P2 | 55 foreign-key constraints lack covering indexes | 5 | OPEN | Workload/EXPLAIN-driven, not blanket indexing |
 | G-014 | P2 | develop branch unprotected | 5 | OPEN | Repository ruleset required |
 | G-015 | P2 | Formatting/boundary lint non-blocking or miswired | 5 | OPEN | Correct command, then make blocking |
-| G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | OPEN | Classify and scan before removal |
-| G-017 | P2 | JWT-shaped test artifact committed twice | 5 | OPEN | Verify provenance; remove/rotate if needed |
+| G-016 | P2 | Large tracked .m73b6-scratch tree | 5 | CLOSED IN HEAD — HISTORY RETAINS SNAPSHOT | Removed 1,277 tracked scratch files (about 37.9 MB), including the 19.1 MB P4.18 archive and duplicate project context. No runtime/build references were found. Targeted visible-text scan found only local CI PostgreSQL URLs and an expired test JWT; no private-key, AWS-key or GitHub-token patterns. Binary archive bytes were not independently extracted by the GitHub connector; prior Git history still retains the old tree. |
+| G-017 | P2 | JWT-shaped test artifact committed twice | 5 | CLOSED IN HEAD — EXPIRED ARTIFACT REMOVED | Root test-token.txt and its duplicate in the scratch context were removed. The token was an expired short-lived HS256 test token; no signing key or environment secret was embedded in the token file. No current code reference was found. No JWT secret rotation is indicated by the evidence; historical Git objects retain the expired token. |
 | G-018 | P2 | Mixed-age architecture/readiness documentation | 5 | OPEN | This plan/tracker become current remediation references |
 | G-019 | P2 | Mobile cannot remove applied promotion | 4 | IMPLEMENTED — CI PENDING | Added authenticated DELETE /v1/cart/promo; CartService clears promoCode and promotionId on the buyer's active cart and returns refreshed state. Flutter ApiService and cart UI expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests added. |
 | G-020 | P2 | normalize_arabic has mutable search_path | 1 | VERIFIED IN CI | Migration 0070 pins `normalize_arabic` to `pg_catalog`; full migration apply and search_path assertion passed in CI run #536 |
@@ -487,3 +487,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - Added SYNTHETIC-TEST-IDENTITY-MATRIX.md defining two buyers, two merchants, owner/staff/admin/moderator/suspended/inactive/unauthenticated cases and minimum synthetic data/negative authorization matrix. Shared fixture factory adoption remains partial.
 - Added DEPLOYMENT-MIGRATION-RUNBOOK.md documenting API startup, migration runner, RBAC seed, release workflow, manual dispatch mutation warning, Render exact-SHA deploy, shared-database constraints and forward-fix behavior.
 - P0-03, P0-04, P0-06 and P0-08 are now complete by source/document evidence; P0-05 is partial until reusable fixtures are adopted; P0-07 remains partial pending a fresh Render service check.
+
+
+### G-016/G-017 repository artifact cleanup — 19 November 2026
+- Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), including the 19.1 MB archive and duplicated project context, plus the root `test-token.txt` artifact.
+- Added ignore rules for `.m73b6-scratch/` and `test-token.txt` to prevent reintroduction.
+- Enumerated the scratch file tree and scanned the visible token, diff, CI parser and smoke-script text artifacts. The database URLs found were localhost/CI-container test endpoints; no private-key, AWS access-key or GitHub-token pattern was found. The token was expired; no signing secret was embedded.
+- The GitHub connector could not independently extract the binary tar contents. The archive and all scratch files are removed from the current tree, but historical Git objects remain; no history rewrite or secret rotation is justified by the evidence available.

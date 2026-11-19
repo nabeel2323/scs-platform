@@ -724,3 +724,10 @@ Added three living remediation artifacts:
 - [DEPLOYMENT-MIGRATION-RUNBOOK.md](../deployment/REMEDIATION-DEPLOYMENT-AND-MIGRATION-RUNBOOK.md) documents API startup behavior, the advisory-locked migration runner, transactional migration ledger, RBAC-only idempotent seed, release workflow, manual-dispatch mutation warning, Render exact-SHA deployment and forward-fix policy.
 
 P0-03 is complete because the audit-baseline comparison found no code fixes hidden in the seven intervening commits (documentation only). P0-04, P0-06 and P0-08 are complete by source review/documentation. P0-05 remains partial until reusable fixture factories are adopted. P0-07 remains partial until the current Render workspace/service configuration is rechecked; the documented auto-deploy-disabled observation is historical, not a fresh live assertion.
+
+
+---
+
+## 20. G-016/G-017 repository artifact cleanup
+
+Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), its 19.1 MB P4.18 archive and duplicated context, plus the root `test-token.txt`. Added ignore rules to prevent reintroduction. A targeted scan of visible text artifacts found only localhost/CI PostgreSQL URLs and an expired short-lived HS256 test JWT; no private-key, AWS access-key or GitHub-token pattern was found. The token contained no signing secret and is expired, so secret rotation is not indicated. The GitHub connector could not independently extract the binary tar contents; current-tree artifacts are removed, but historical Git objects remain. No history rewrite was performed.

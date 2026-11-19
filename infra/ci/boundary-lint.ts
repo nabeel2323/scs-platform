@@ -13,7 +13,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const MODULES_DIR = path.resolve(__dirname, '../src/modules');
+const MODULES_DIR = path.resolve(__dirname, '../../apps/api/src/modules');
 
 const MODULES = fs.readdirSync(MODULES_DIR).filter((d) => {
   const full = path.join(MODULES_DIR, d);
