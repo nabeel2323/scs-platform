@@ -799,14 +799,31 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
 
     // Provider label URLs are untrusted input. Reuse the carrier-specific
     // HTTPS/host/DNS allowlist before downloading; redirects are rejected below.
+    let labelUrl: URL;
+    try {
+      labelUrl = new URL(result.labelData);
+    } catch {
+      throw new NonRetryableCarrierError(
+        'Carrier label URL is invalid',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
+    if (labelUrl.username || labelUrl.password) {
+      throw new NonRetryableCarrierError(
+        'Carrier label URL must not contain embedded credentials',
+        { providerKey, operation: 'downloadLabel' },
+      );
+    }
     const validation = await carrierEndpointAllowlistRegistry.validateForProvider(
       result.labelData,
       providerKey,
       true,
     );
     if (!validation.valid) {
+      // Never include the provider URL or validator reason in logs/errors: a
+      // temporary label URL may contain a signed query token.
       throw new NonRetryableCarrierError(
-        `Carrier label URL rejected by SSRF validation: ${validation.reason}`,
+        'Carrier label URL failed SSRF validation',
         { providerKey, operation: 'downloadLabel' },
       );
     }
