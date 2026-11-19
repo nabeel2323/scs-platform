@@ -2,6 +2,12 @@ name: Read-only Database Access Audit
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - .github/workflows/db-access-audit.yml
+      - apps/api/scripts/audit-db-access.ts
 
 permissions:
   contents: read
@@ -20,7 +26,7 @@ jobs:
       - name: Checkout develop
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'develop' || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
