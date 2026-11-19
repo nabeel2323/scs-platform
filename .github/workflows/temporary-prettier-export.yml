@@ -1,9 +1,9 @@
 name: Temporary Prettier Export
 
 on:
-  push:
+  pull_request:
     branches:
-      - remediation/phase-0-1-tenant-security
+      - develop
 
 jobs:
   format-export:
