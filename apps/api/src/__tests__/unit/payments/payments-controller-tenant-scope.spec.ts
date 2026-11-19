@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PaymentsController } from '../../modules/payments/payments.controller';
+import { PaymentsController } from '../../../modules/payments/payments.controller';
 
 const user = {
   sub: 'merchant-user-a',
