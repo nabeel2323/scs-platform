@@ -987,3 +987,20 @@ A review of the Admin product moderation workflow found that PATCH /v1/admin/pro
 The canonical RBAC seed is idempotent and inserts missing permission/role-permission rows without deleting existing assignments. The controlled release workflow runs db:seed after migrations; no schema migration is needed for this permission. Existing access tokens contain a permission snapshot, so current users must refresh/re-authenticate after the seed is applied to receive the new permission claim. Until then the moderation endpoint fails closed.
 
 **Status:** implementation and focused tests committed; current-head lint, API unit/coverage, Admin test and full CI verification pending. No RBAC seed was run against the shared database and no production/staging data or roles were changed.
+
+
+## 36. G-032 — Align dispute detail permission with the canonical RBAC contract — 19 November 2026
+
+### Finding
+
+The Admin dispute detail page checked admin:disputes:read, a permission key that is not present in canonical RBAC seed data. The dispute list page and GET /v1/admin/disputes/:id endpoint use support:disputes:resolve. Consequently, a user with the intended seeded dispute-review permission could open the list but was denied the detail page before the API request.
+
+### Remediation committed
+
+- Changed the dispute detail page to require support:disputes:resolve, matching the canonical permission and API controller.
+- Updated the visible access-denied message to show the actual required permission.
+- Added Admin UI regression coverage that renders the detail page with the seeded permission, verifies the detail API request and asserts that the permission key matches the list/API contract.
+
+No API permission change or RBAC seed change was required. No database or role assignments were modified.
+
+**Status:** code and focused UI regression test committed; current-head Admin tests and full CI verification pending.
