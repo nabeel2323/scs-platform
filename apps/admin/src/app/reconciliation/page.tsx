@@ -197,8 +197,10 @@ export default function ReconciliationPage() {
                   <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, color: '#fff', background: SEVERITY_COLORS[d.discrepancyType] || '#6b7280' }}>
                     {d.discrepancyType}
                   </span>
-                  {d.resolved ? (
-                    <span style={{ fontSize: 11, color: '#22c55e' }}>Resolved</span>
+                  {d.resolved || !canWrite ? (
+                    <span style={{ fontSize: 11, color: d.resolved ? '#22c55e' : 'rgba(255,255,255,0.5)' }}>
+                      {d.resolved ? 'Resolved' : 'Unresolved'}
+                    </span>
                   ) : (
                     <button onClick={() => handleResolve(d.id)}
                       style={{ background: '#f59e0b', color: '#000', border: 0, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Resolve</button>
