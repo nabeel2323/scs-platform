@@ -555,6 +555,18 @@ jobs:
           echo "✓ SSL certificate ready: $SSL_FILE (permissions: $PERMS)"
           
           # ============================================================
+          # DATABASE IDENTITY: Read-only pre-migration diagnostic
+          # ============================================================
+          # This reports only role/catalog metadata and never prints the
+          # connection string, password, or SSL material. Keep it before the
+          # first mutating migration/seed operation so the release evidence
+          # captures the exact identity used by this staging release.
+          echo ""
+          echo "=== Read-only Database Identity Diagnostic ==="
+          PGSSLROOTCERT="$SSL_FILE" PGAPPNAME="scs-staging-db-identity" pnpm --filter @scs/api db:identity
+          echo "✓ Database identity diagnostic completed"
+          
+          # ============================================================
           # DATABASE OPERATION 1: Run migration runner
           # ============================================================
           echo ""

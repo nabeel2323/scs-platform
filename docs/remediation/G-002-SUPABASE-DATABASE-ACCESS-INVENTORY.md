@@ -146,3 +146,56 @@ A least-privilege design is documented in [G-002 Least-Privilege Remediation Des
 A read-only diagnostic was added at `apps/api/scripts/inspect-db-identity.mjs`, exposed as `pnpm --filter @scs/api db:identity`. It reports the current/session role, role attributes, inherited memberships and effective public table/sequence privileges without printing the connection string or credentials. CI now includes a disposable PostgreSQL validation step for the diagnostic. This script has not been run against Render or Supabase; the actual runtime and migration identities remain unverified until it is executed separately in those environments.
 
 **No live database change was made:** no DDL, grant, revoke, role, membership, RLS, secret, environment, migration, seed, staging or production mutation was performed.
+
+
+## 9. Fresh runtime, ACL and deployment correlation evidence (20 November 2026)
+
+### 9.1 Current read-only database posture
+
+A fresh read-only catalog query on 20 November reconfirmed:
+
+- 114 public ordinary/partitioned relations.
+- RLS enabled: 0; FORCE RLS enabled: 0; RLS disabled: 114.
+- Effective privileges on all 114 public relations remain unchanged from the 19 November snapshot for each of `anon`, `authenticated`, and `service_role`: SELECT/INSERT/UPDATE/DELETE = 0; TRUNCATE/REFERENCES/TRIGGER/MAINTAIN = 114.
+- The Security Advisor at 22:40:28 UTC returned two warnings: `function_search_path_mutable` for `public.normalize_arabic` and `extension_in_public` for `pg_trgm`. It did not return an `rls_disabled` lint in this run. This does not mean RLS is enabled: the direct catalog query still confirms all 114 relations have RLS disabled. The absence of that advisor lint is not a remediation or an approval to defer the underlying posture.
+
+### 9.2 Render service control-plane evidence
+
+Read-only Render metadata inspection identified one service in the connected workspace:
+
+| Field | Observed value |
+|---|---|
+| Service | `scs-api-staging` |
+| Service ID | `srv-daklr78ae00c73bstr50` |
+| Region | Frankfurt |
+| Branch | `develop` |
+| Auto deploy | Disabled (`autoDeploy=no`, trigger `off`) |
+| Instances | 1 |
+| Health endpoint | `/v1/readyz` |
+| Render Postgres instances in workspace | None |
+
+The latest live Render deployment visible in the control plane was commit `9f5bc397467dc92cdc8debd54797b6d730659c36`, completed 18 November 2026 09:40:25 UTC. The remediation branch has not been deployed. Render's service metadata response did not expose environment-variable values or provide an in-chat remote shell/command execution capability; no environment value was read or changed.
+
+### 9.3 Correlated API shutdown and Supavisor session
+
+A narrow, read-only log correlation was performed for 19 November 2026:
+
+- Render application log for the `scs-api-staging` service recorded `Command failed with signal "SIGTERM"` at 18:22:13.235 UTC on its single instance.
+- Supavisor logs recorded a connection using database role `postgres` from peer IP `74.220.51.161` at 18:19:58.035 UTC, followed by a client socket close from the same peer at 18:22:13.440 UTC. A prior client termination from the same peer was logged at 18:21:12.945 UTC.
+- The 205 ms timing between the Render SIGTERM and Supavisor socket-close event is a strong temporal correlation. However, the available Render service response did not include outbound-IP metadata, and Supavisor did not include an application name for that peer. Therefore this remains **high-confidence circumstantial evidence**, not direct proof that the Render API process authenticated as `postgres`. Do not convert it into a definitive configuration claim until the sanitized diagnostic runs inside the actual API runtime or the peer IP is independently mapped to the service.
+
+A separate `pg_stat_activity` snapshot at 22:39:25 UTC showed the management API connection as `postgres` with application name `mgmt-api`, plus Supabase internal connections; it did not show a live Render application session at that instant. The management API identity must not be confused with the application runtime identity.
+
+### 9.4 Next diagnostic execution path
+
+The staging release workflow now includes the sanitized `pnpm --filter @scs/api db:identity` command immediately before its first migration operation, using the same `STAGING_DATABASE_URL` and SSL CA as the migration runner. It sets the PostgreSQL application name to `scs-staging-db-identity`. This will establish the migration connection identity on the next authorized staging release; it has not run against the live staging database yet.
+
+The API runtime identity remains unverified. The diagnostic command is ready to run in the Render service's runtime shell:
+
+```bash
+pnpm --filter @scs/api db:identity
+```
+
+The command is read-only and emits catalog/role metadata only. Run it from the repository root in the `scs-api-staging` service shell; do not copy or print `DATABASE_URL`. No such runtime-shell execution was available through the connected Render integration in this session.
+
+No DDL, grants, revokes, role memberships, RLS policies, secrets, environment variables, migrations, seeds, deployments or business data were changed by this evidence refresh.
