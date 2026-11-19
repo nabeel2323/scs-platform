@@ -87,7 +87,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (!mounted) return;
       setState(() {
         for (var i = 0; i < entries.length; i++) {
-          _shippingEstimates[entries[i].key] = estimates[i];
+          _shippingEstimates[entries[i].key] = {
+            ...estimates[i],
+            'storeName': entries[i].value.first.storeName,
+          };
         }
         _loadingShipping = false;
       });
@@ -180,13 +183,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       }
     }
   }
-
-  String _fulfillmentLabel(String m) => switch (m) {
-        'PLATFORM_DELIVERY' => 'Platform delivery',
-        'MERCHANT_DELIVERY' => 'Merchant delivery',
-        'PICKUP' => 'Store pickup',
-        _ => m.replaceAll('_', ' '),
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -451,12 +447,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         for (final item in c.items) {
           (grouped[item.storeId] ??= []).add(item);
         }
-        // A5-3 / §9: a mixed-currency cart has no single payable total, so name
-        // a grand total only when every line agrees on the currency.
-        final currencies =
-            c.items.map((i) => i.currency).whereType<String>().toSet();
-        final single = currencies.length == 1 ? currencies.first : null;
-        final mixed = currencies.length > 1;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _sectionTitle('Deliver to'),
           _summaryTile(
@@ -470,11 +460,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ...grouped.entries.map((entry) {
             final selection = _shippingSelections[entry.key];
             final estimate = _shippingEstimates[entry.key];
-            final method = (estimate?['methods'] as List? ?? [])
+            final matchingMethods = (estimate?['methods'] as List? ?? [])
                 .whereType<Map>()
                 .map((value) => Map<String, dynamic>.from(value))
                 .where((value) => value['methodId'] == selection?['shippingMethodId'])
-                .firstOrNull;
+                .toList();
+            final method = matchingMethods.isEmpty ? null : matchingMethods.first;
             final label = selection?['fulfillmentMethod'] == 'PICKUP'
                 ? 'Store pickup'
                 : (method?['name'] as String? ?? 'Delivery');
