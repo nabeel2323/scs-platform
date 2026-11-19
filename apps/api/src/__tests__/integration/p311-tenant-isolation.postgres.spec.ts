@@ -50,8 +50,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let reconciliationService: ReconciliationService;
   let commissionService: CommissionReversalService;
 
-  const orgA = randomUUID();
-  const orgB = randomUUID();
+  let orgA: string;
+  let orgB: string;
   const adminA = randomUUID();
   const adminB = randomUUID();
   const buyerA = randomUUID();
@@ -108,6 +108,8 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
         ownerB: { id: adminB, fullName: 'Admin B' },
       },
     });
+    orgA = identity.orgA;
+    orgB = identity.orgB;
     storeA = identity.storeA;
     storeB = identity.storeB;
 

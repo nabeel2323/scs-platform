@@ -123,8 +123,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
   /** jti whose denylist entry is present — models a token revoked after switchOrg. */
   let revokedJti: string;
 
-  const orgA = randomUUID();
-  const orgB = randomUUID();
+  let orgA: string;
+  let orgB: string;
   const buyerA = randomUUID();
   const buyerB = randomUUID();
   const merchantOwnerA = randomUUID();
@@ -315,6 +315,8 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         },
       },
     });
+    orgA = identity.orgA;
+    orgB = identity.orgB;
     storeA = identity.storeA;
     storeB = identity.storeB;
 
