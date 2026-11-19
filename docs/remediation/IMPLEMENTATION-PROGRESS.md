@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** INITIALIZED — no remediation phase has been started or closed under this tracker.
+**Tracker status:** IN PROGRESS — G-001 tenant-scope implementation and unit/HTTP/PostgreSQL regression coverage pass CI #983; independent second-party security review remains pending. G-002 inventory/design and read-only identity diagnostic are documented, but live API/migration identities, per-table operation classification and managed-default-ACL dependency review remain open. OTP exception-log hardening is implemented in source with focused regression tests; CI for this change is pending and bounded staging logs contained readiness messages only, not an observed OTP delivery. No finding is closed yet.
 
 ---
 
@@ -16,21 +16,21 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 0 |
+| Phases in progress | 1 |
 | Original audit findings | 22 |
 | P0 open | 1 |
 | P1 open | 7 |
 | P2 open | 12 |
 | P3 open | 2 |
 | Findings closed under this plan | 0 |
-| Findings partially remediated under this plan | 0 |
+| Findings partially remediated under this plan | 1 |
 | Final full test campaign | NOT STARTED |
 
 **Important:** These counts represent the starting audit register, not a claim that every finding has been revalidated on the current HEAD. Phase 0 must reconcile the current branch and update counts if later commits already fixed or changed a finding.
 
 ### Overall status
 
-<badge>PLANNED</badge> Implementation has not started under this remediation tracker. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
+<badge>IN PROGRESS</badge> Phase 1 has started. G-001 source remediation, controller unit tests, HTTP authorization matrix and PostgreSQL membership tests passed CI run #966; the latest full CI #977 also passed on HEAD `128b7e15`. G-001 is READY FOR INDEPENDENT REVIEW; it remains open until a second-party security review accepts the privileged-role bypass policy. A focused unit suite now pins all four existing bypass roles (`SUPER_ADMIN`, `ADMIN`, `MODERATOR`, `SYSTEM`) and representative non-privileged roles; the suite is awaiting CI. G-002 has an evidence-backed design and CI-executed read-only identity diagnostic, but actual Render runtime and migration identities still need to be checked.
 
 ---
 
@@ -39,7 +39,7 @@
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | NOT STARTED | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 20% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -54,8 +54,8 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | OPEN | Must close before authenticated business testing |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | READY FOR INDEPENDENT REVIEW | All three read routes enforce org + active store membership before service access. Controller unit (10), HTTP matrix (19), and real-PostgreSQL lifecycle coverage passed CI #966 on `0bb652d`; second-party review of platform-role bypass remains. |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | 114 public relations reconciled to source schema/partitions/support tables. Effective ACLs, grantor and default-ACL provenance documented; runtime identity, per-table operation matrix and managed grant dependency review remain open. |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
@@ -122,32 +122,40 @@ Status definitions:
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | TODO | |
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | TODO | |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | TODO | |
+| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | SOURCE VERIFIED | Confirmed in `catalog.offer.controller.ts`: all three routes accepted caller-supplied `storeId` and queried service without tenant checks. |
+
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | IMPLEMENTED — CI PASS | `assertStoreInOrg` and `assertStoreMember` run before service access; CI #966 passed. |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | IMPLEMENTED — CI PASS | Both analytics and trend routes require the same fail-closed checks; CI #966 passed. |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TODO | |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
-| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
-| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
-| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IMPLEMENTED — CI PASS; REVIEW PENDING | Controller unit tests (10) and HTTP matrix (19) passed in CI #966. Matrix covers owner, active store staff, foreign merchant, same-org non-member, buyer and platform staff across all three routes. Real-PostgreSQL lifecycle tests cover active staff, missing membership and foreign-store membership denial. Second-party review remains. |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL — STRONG POSTGRES ROLE EVIDENCE; DIRECT RUNTIME IDENTITY PENDING | `DatabaseService` uses `DATABASE_URL`; production-like API startup skips auto-migration. Render/Supavisor logs correlate an API `SIGTERM` with a `postgres` session close 205 ms later. `pg_stat_statements` attributes 467 distinct statements and 229,829 calls since 31 October to `postgres`, including outbox, worker lease, order completion, shipment recovery and financial operations. This strongly suggests application/worker workload uses `postgres`, but role-level statistics do not identify the client process. The sanitized `db:identity` diagnostic is included in the staging release before migration/seed. CI #983 passed on HEAD `f44415b`; direct API runtime-shell execution and migration-identity execution against live staging remain outstanding. |
+| P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | RELATION COUNT RECONCILED; ACCESS CLASSIFICATION IN PROGRESS | Source enumeration found 99 Drizzle-declared relations; all 99 matched live public relations. The other 15 are 13 `analytics_events` partitions, `_migration_log`, and `backfill_errors`. This resolves the 114 relation count. Per-table access boundary/operation classification remains. See inventory §9.5. |
+| P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | GRANTOR/DEFAULT-ACL PROVENANCE MAPPED; DEPENDENCY REVIEW OPEN | Read-only `aclexplode` inspection identifies `postgres` as grantor for all four structural privileges on all 114 public relations; no grant options or PUBLIC grants were observed. `postgres` public-table defaults repeat those four privileges; `supabase_admin` public-table defaults include full CRUD plus structural privileges and sequence/function defaults, although no current public objects are owned by `supabase_admin`. Other managed-schema defaults remain out of scope. Historical/business dependency and safe remediation remain unverified; no ACL changes made. See inventory §9.8. |
+| P1-09 | Design least-privilege and table-specific RLS policies | G-002 | DESIGN BASELINE DOCUMENTED — IMPLEMENTATION BLOCKED | See `G-002-LEAST-PRIVILEGE-REMEDIATION-DESIGN.md`. Proposed API runtime login/group role is separated from migration identity; transaction-bound request context is a prerequisite for RLS. No blanket RLS or managed-role revocation. Complete object/query/worker matrix and prove identities before DDL. |
 | P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
 | P1-12 | Harden normalize_arabic search_path safely | G-020 | TODO | |
-| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
+| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | IMPLEMENTED — CI PENDING; STAGING DELIVERY SAMPLE NOT VERIFIED | Removed raw provider exception messages from the shared delivery service, Twilio network/exception paths and WhatsApp network/exception paths. Added three focused regression tests that inject exception text containing an OTP and full phone number and assert neither appears in Nest logger output. Existing identity/provider redaction tests cover normal success and delivery failure paths. Render log sample (18–19 Nov) contained OTP readiness logs but no OTP send event, so it is not an end-to-end delivery-log proof. |
 
 **Exit gate:** P0 tenant isolation PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
 
 **Phase evidence:**  
-- Implementation PR/commit: TBD  
-- Focused test commands/results: TBD  
-- Migration ID(s): TBD  
-- Independent review: TBD  
-- Phase decision: NOT STARTED
+- Implementation branch: `security/p0-merchant-offer-tenant-scope`  
+- Implementation commit(s): `1ad2e758661aa8d8baa6c12558eb9def11d9152a`, `65ffec69c80d6f7471395d328f6db30ea77c39dd`, `09f617d2a0cba0fbcc1e0369e8d6ed49ee09b85e`, `0f45e7f2b8eb8ca59b3bd73108e72a120f32a7d5`, `9dd0b00d6a975541507d8b666373157e7207a1eb`, `0bb652d77eb30fbc3e0de5dbd68d4fc54d45f68f`, `e6d3638331eb8214997ad54750c50b03c2b68e6e`, `cec4971c77e6ea00f6750471e60220cf82da8a31`, `963938973c6a2c8e51e564a74f38605c12ea7c86`, `8101774d3e5c117c2f78267523c20044884b85ba`, `29343b55b1f59582b174e78190632a45f1e93e51`, `c895c6eb91788516ca5a1d16705a8162a9d6161e`, `8eaeea457d3d2ff7fc7cdfde590984b2ef37e69d`, `c10713999033846f081f0e9dc01cb51b4f478d25`, `128b7e15e604827367ba4e90364ef2689722e09a`, `e906acd8055f14c14bedf9f833c88e0992476007`  
+- Focused unit test: `apps/api/src/__tests__/unit/catalog-offer-tenant-authorization.spec.ts` (10 tests passed in CI #966; API unit/coverage job: 213 files passed, 6 skipped; 4,359 tests passed, 110 skipped)  
+- HTTP regression test: `apps/api/src/__tests__/integration/catalog-offer-tenant-authorization.http.spec.ts` (19 tests passed in CI #966)  
+- Migration ID(s): none for G-001  
+- Database inventory: `docs/remediation/G-002-SUPABASE-DATABASE-ACCESS-INVENTORY.md` (read-only; no DB changes)
+- G-002 least-privilege design: `docs/remediation/G-002-LEAST-PRIVILEGE-REMEDIATION-DESIGN.md` (design only; no DDL)
+- Read-only role diagnostic: `apps/api/scripts/inspect-db-identity.mjs`, command `pnpm --filter @scs/api db:identity` (added; not yet executed against Render/Supabase)  
+- Real PostgreSQL membership tests: `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts` (included in passing `pnpm --filter @scs/api test:integration` job in CI #966)
+- Independent second-party review: pending  
+- CI evidence: workflow run `44610599038` (#952), all executed jobs SUCCESS. Latest CI #983: [run 44635280279](https://github.com/nabeel2323/scs-platform/actions/runs/44635280279), HEAD `f44415b15efd647a1650b6e7fe1681cb2743656b`, all required jobs SUCCESS (API unit/coverage, PostgreSQL integration, migration full apply, lint/typecheck/format, boundary lint, web/admin, Flutter, build, contract/codegen and container smoke); k6 and staging release skipped.
+- Phase decision: IN PROGRESS — G-001 is READY FOR INDEPENDENT REVIEW; do not mark CLOSED until second-party review accepts privileged-role bypass semantics and the route matrix.
 
 ---
 
@@ -278,7 +286,10 @@ Append a new entry for each implementation task. Keep entries concise but eviden
 
 | Date (UTC) | Phase / task | Branch + commit | Change summary | Focused checks | Outcome | Next action |
 |---|---|---|---|---|---|---|
-| 2026-11-18 | Plan initialization | develop / 9f5bc397… audit baseline | Created audit-driven sequence and tracker; no remediation code changed | Source/report review only | PLANNED | Start Phase 0 baseline reconciliation |
+| 2026-11-18 | Plan initialization | `develop` / `9f5bc397` audit baseline | Created audit-driven sequence and tracker; no remediation code changed. | Source/report review only. | PLANNED | Reconcile baseline and test harness. |
+| 2026-11-19 | G-001 merchant offer tenant authorization | `security/p0-merchant-offer-tenant-scope` / `0bb652d` / CI #966 | Enforced organization and active store membership on offer list, analytics and trend routes; added controller, HTTP and PostgreSQL membership coverage. | CI #966 passed all required jobs; API unit/coverage, HTTP matrix (19), PostgreSQL integration, migration apply, lint/typecheck, web/admin and Flutter passed. | READY FOR INDEPENDENT REVIEW — second-party review of privileged-role bypass remains outstanding. | Obtain independent security review; do not close before acceptance. |
+| 2026-11-20 | G-002 live database evidence and identity preflight | `security/p0-merchant-offer-tenant-scope` / `8cdf148`–`e92ddfc` / CI #982 | Reconciled 114 public relations, role-attributed workload evidence, ACL grantor/default-privilege provenance; added sanitized DB identity diagnostic to release preflight. | Read-only Supabase catalog/Advisor/pg_stat_statements and Render metadata/log inspection; CI #982 passed. | PARTIAL — exact API/migration identities and per-table access matrix remain outstanding; no live DDL/ACL/RLS changes. | Run API identity diagnostic in Render Shell; validate managed defaults and complete query/worker access matrix. |
+| 2026-11-20 | OTP exception-log redaction | `security/p0-merchant-offer-tenant-scope` / baseline `f44415b` / CI pending | Suppressed raw exception messages in OTP orchestration, Twilio and WhatsApp providers; added injected-secret exception regression tests. | Focused tests added to API unit suite; CI not yet run. Existing success/failure redaction tests remain in place. | IMPLEMENTED — VERIFICATION PENDING; bounded Render log sample had no OTP-send event and is not end-to-end delivery proof. | Verify CI; then inspect bounded post-deploy logs only after separately authorized staging release. |
 
 ### Required task log entry format
 
@@ -331,6 +342,8 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 
 ## 14. Next action
 
-**Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
+**Continue Phase 1:** verify the new OTP exception-redaction tests in CI; obtain the read-only API identity output from Render Shell using `pnpm --filter @scs/api db:identity` (never print or copy `DATABASE_URL`); collect migration identity evidence only on a separately authorized release; complete the per-table/query/worker access matrix; validate managed `supabase_admin` default-ACL dependencies. Do not apply grants, revokes or RLS until identities, query requirements, managed dependencies and rollback procedures are reviewed.
 
-**Current state:** no remediation code has been changed by initializing these documents.
+In parallel, obtain a second-party review of G-001's preserved privileged-role bypass policy. Do not close G-001 until that review is recorded.
+
+**Current safety state:** no Supabase DDL, grants, revokes, role memberships, RLS policies, Render environment values, staging deployments or production changes have been made. Render log inspection was read-only. PR #139 remains unmerged because the `develop` workflow invokes staging release after a successful develop push and the staging environment's required-reviewer gate could not be verified through the connected GitHub API.

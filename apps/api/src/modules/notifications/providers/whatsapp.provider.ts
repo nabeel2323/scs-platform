@@ -206,7 +206,7 @@ export class WhatsAppProvider implements NotificationProvider {
         }
 
         // Other network errors — delivery outcome is uncertain.
-        logger.error(`WhatsApp API network error: ${fetchError instanceof Error ? fetchError.message : 'unknown'}`);
+        logger.error(`WhatsApp API network error; provider details suppressed (correlation: ${correlationId || 'none'})`);
         return {
           success: false,
           status: 'failed',
@@ -240,7 +240,7 @@ export class WhatsAppProvider implements NotificationProvider {
       }
 
       // Unexpected error — outcome cannot be established; preserve the challenge.
-      logger.error(`Unexpected error in WhatsApp provider: ${error instanceof Error ? error.message : 'unknown'}`);
+      logger.error(`Unexpected error in WhatsApp provider; details suppressed (correlation: ${correlationId || 'none'})`);
       return {
         success: false,
         status: 'failed',

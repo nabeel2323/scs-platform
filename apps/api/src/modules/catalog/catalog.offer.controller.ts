@@ -1,5 +1,6 @@
 import {
   Controller,
+  Inject,
   Get,
   Post,
   Patch,
@@ -42,8 +43,8 @@ import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../c
 @UseGuards(JwtAuthGuard)
 export class CatalogOfferController {
   constructor(
-    private readonly offerService: CatalogOfferService,
-    private readonly db: DatabaseService,
+    @Inject(CatalogOfferService) private readonly offerService: CatalogOfferService,
+    @Inject(DatabaseService) private readonly db: DatabaseService,
   ) {}
 
   // ── Read routes ───────────────────────────────────────────────
@@ -70,8 +71,12 @@ export class CatalogOfferController {
   }
 
   @Get('merchant/offers')
-  listMerchantOffers(@Query('storeId') storeId?: string) {
+  async listMerchantOffers(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.offerService.listOffersForStore(storeId);
   }
 
@@ -81,6 +86,7 @@ export class CatalogOfferController {
    */
   @Get('merchant/offers/analytics/trend')
   async listMerchantOfferTrend(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('offerId') offerId?: string,
     @Query('granularity') granularity?: string,
@@ -88,6 +94,7 @@ export class CatalogOfferController {
     @Query('days') days?: string,
   ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     const gran: 'day' | 'week' = granularity === 'week' ? 'week' : 'day';
     // Range semantics: explicit `from` (ISO date) wins; else derive a rolling
     // window from `days` (default 90, capped 365). `to` is always "now".
@@ -115,14 +122,30 @@ export class CatalogOfferController {
    * NestJS literal-before-parameterized ordering invariant.
    */
   @Get('merchant/offers/analytics')
-  listMerchantOfferAnalytics(@Query('storeId') storeId?: string) {
+  async listMerchantOfferAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.offerService.listOfferAnalytics(storeId);
   }
 
   @Get('offers/:id')
   getOffer(@Param('id', ParseUUIDPipe) id: string) {
     return this.offerService.getOffer(id);
+  }
+
+  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+    const caller: CallerContext = {
+      sub: user.sub,
+      role: user.role,
+      activeOrg: user.activeOrg,
+    };
+    // Organization ownership and active store membership are both required.
+    // Platform staff retain the explicit bypass implemented by tenant-scope.
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
   }
 
   // ── Merchant write routes ─────────────────────────────────────

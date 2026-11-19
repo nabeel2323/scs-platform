@@ -174,7 +174,7 @@ export async function assertOrderAccessible(
  * Store-level membership check (migration 0054).
  *
  * Verifies that the caller is an ACTIVE member of the specified store.
- * Privileged roles (SUPER_ADMIN, ADMIN, MODERATOR) bypass this check.
+ * Privileged roles (SUPER_ADMIN, ADMIN, MODERATOR, SYSTEM) bypass this check.
  *
  * This helper is ADDITIVE to the existing org-level checks — it does NOT
  * replace assertStoreInOrg / assertProductInOrg.  Product Studio endpoints
