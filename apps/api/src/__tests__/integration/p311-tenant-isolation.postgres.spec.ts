@@ -84,6 +84,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   let orderB: string;
   let paymentA: string;
   let paymentB: string;
+  let orgStaffA: string;
   let retA: string;
   let retB: string;
   let adjustmentA: string;
@@ -173,10 +174,18 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
         buyerB: { id: buyerB, fullName: 'Buyer B' },
         ownerA: { id: adminA, fullName: 'Admin A' },
         ownerB: { id: adminB, fullName: 'Admin B' },
+        additional: { orgStaffA: { fullName: 'Organization Staff A' } },
       },
     });
     orgA = identity.orgA;
     orgB = identity.orgB;
+    orgStaffA = identity.users.orgStaffA;
+    const merchantStaffRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_STAFF'`);
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, orgStaffA, merchantStaffRole.rows[0]!.id],
+    );
     storeA = identity.storeA;
     storeB = identity.storeB;
 
@@ -397,11 +406,11 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
   });
 
   it('G-030: same-org users remain org-scoped while foreign store IDs are denied', async () => {
-    // The merchant:orders:read permission is organization-wide; store_members
-    // is not the authorization boundary for financial read access.
+    // This user has ACTIVE organization membership but no store_members row.
+    // merchant:orders:read is organization-wide for this role.
     const sameOrg = await paymentsService.listMerchantPayments({
-      sub: buyerA,
-      role: 'MERCHANT',
+      sub: orgStaffA,
+      role: 'MERCHANT_STAFF',
       activeOrg: orgA,
     });
     expect(sameOrg.map((payment) => payment.id)).toEqual([paymentA]);
@@ -418,7 +427,7 @@ describe('P13 Phase 3.1.1 — Adversarial Tenant Isolation (PostgreSQL)', () => 
     ).rejects.toThrow();
   });
 
-  it('G-030: merchant settlement listing is scoped to active store membership', async () => {
+  it('G-030: merchant settlement listing is scoped to the active organization', async () => {
     const listA = await paymentsService.listMerchantSettlements({
       sub: adminA,
       role: 'MERCHANT',
