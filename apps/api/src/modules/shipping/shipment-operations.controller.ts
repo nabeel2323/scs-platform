@@ -260,6 +260,87 @@ export class ShipmentOperationsController {
     };
   }
 
+  // ── POST /v1/shipments/:id/labels ──────────────────────────────────────
+
+  @Post(':id/labels')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('fulfillment:labels:write')
+  @HttpCode(202)
+  async requestLabel(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const caller = this.toCallerContext(user);
+    const shipment = await this.db.db.query.shipments.findFirst({
+      where: eq(shipments.id, id),
+    });
+    if (!shipment) throw new NotFoundException('Shipment not found');
+    await this.assertShipmentAccessible(shipment, caller);
+
+    if (!shipment.carrierShipmentId) {
+      throw new BadRequestException('Create the carrier shipment before requesting a label');
+    }
+
+    const providerKey = shipment.shippingProviderKey || 'manual-driver';
+    const provider = this.registry.findProvider(providerKey);
+    if (!provider || !provider.capabilities.canGenerateLabel) {
+      throw new BadRequestException('The assigned shipping provider does not support labels');
+    }
+
+    let outcome:
+      | { status: 'AVAILABLE'; labelId: string }
+      | { status: 'IN_PROGRESS'; eventId: string }
+      | { status: 'QUEUED'; eventId: string };
+
+    // Serialize concurrent label requests for this shipment. The worker also
+    // uses the outbox UUID as the label row/object identity for retry safety.
+    await this.db.db.transaction(async (tx) => {
+      const locked = await tx
+        .select({ id: shipments.id })
+        .from(shipments)
+        .where(eq(shipments.id, id))
+        .for('update');
+      if (locked.length === 0) throw new NotFoundException('Shipment not found');
+
+      const [existingLabel] = await tx
+        .select({ id: shipmentLabels.id })
+        .from(shipmentLabels)
+        .where(and(eq(shipmentLabels.shipmentId, id), eq(shipmentLabels.isVoid, false)))
+        .limit(1);
+      if (existingLabel) {
+        outcome = { status: 'AVAILABLE', labelId: existingLabel.id };
+        return;
+      }
+
+      const [pendingEvent] = await tx
+        .select({ id: outboxEvents.id })
+        .from(outboxEvents)
+        .where(and(
+          eq(outboxEvents.eventType, 'shipping.carrier.label'),
+          eq(outboxEvents.aggregateId, id),
+          inArray(outboxEvents.status, ['PENDING', 'PROCESSING']),
+        ))
+        .limit(1);
+      if (pendingEvent) {
+        outcome = { status: 'IN_PROGRESS', eventId: pendingEvent.id };
+        return;
+      }
+
+      const eventId = crypto.randomUUID();
+      await tx.insert(outboxEvents).values({
+        id: eventId,
+        eventType: 'shipping.carrier.label',
+        aggregateId: id,
+        payload: { shipmentId: id },
+        metadata: { providerKey },
+        status: 'PENDING',
+      });
+      outcome = { status: 'QUEUED', eventId };
+    });
+
+    return { shipmentId: id, ...outcome! };
+  }
+
   // ── GET /v1/shipments/:id/labels ───────────────────────────────────────
 
   @Get(':id/labels')
