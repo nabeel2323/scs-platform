@@ -27,7 +27,7 @@ import {
 } from '../../../components/detail';
 
 function DisputeDetailContent({ id }: { id: string }) {
-  const { hasAccess } = useRequirePerms(['admin:disputes:read']);
+  const { hasAccess } = useRequirePerms(['support:disputes:resolve']);
   const [ready, setReady] = useState(false);
   const [dispute, setDispute] = useState<AdminRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +56,7 @@ function DisputeDetailContent({ id }: { id: string }) {
   }, [activeTab, id]);
 
   if (!ready) return <AdminLoadingSkeleton kvRows={6} />;
-  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:disputes:read</div>;
+  if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: support:disputes:resolve</div>;
   if (loading) return <AdminLoadingSkeleton kvRows={6} />;
   if (error) return <AdminErrorState title="Unable to load dispute" message={error} />;
   if (!dispute) return null;
