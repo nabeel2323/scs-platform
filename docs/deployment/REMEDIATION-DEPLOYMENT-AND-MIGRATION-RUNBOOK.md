@@ -97,7 +97,6 @@ The user has confirmed that one PostgreSQL database is shared across branches. T
 - [ ] User/admin documentation and release notes updated.
 - [ ] No unapproved payment, shipment, notification or customer-data side effect occurred.
 
-
 ### Fresh staging topology verification — 19 November 2026
 
 The Render workspace was rechecked read-only. The current service is `scs-api-staging`, a single web service on branch `develop`, with auto-deploy disabled, one configured instance, Frankfurt region, free plan, and health check `/v1/readyz`. Its build command installs dependencies and builds `@scs/api`; its start command is `pnpm --filter @scs/api start:prod`. Neither command runs migrations or seeds. The release workflow is the separate mutating path: it runs `db:migrate`, the RBAC-only `db:seed`, verifies the migration ledger, then deploys the same commit SHA.

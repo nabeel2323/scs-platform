@@ -8,15 +8,15 @@
 
 The inspected workspace currently contains one web service, `scs-api-staging`:
 
-| Setting | Observed value |
-|---|---|
-| Source branch | `develop` |
-| Auto-deploy | Disabled |
-| Instance count | 1 |
-| Region / plan | Frankfurt / Free |
-| Health check | `/v1/readyz` |
-| Build command | Install dependencies, then build `@scs/api` |
-| Start command | `pnpm --filter @scs/api start:prod` |
+| Setting        | Observed value                              |
+| -------------- | ------------------------------------------- |
+| Source branch  | `develop`                                   |
+| Auto-deploy    | Disabled                                    |
+| Instance count | 1                                           |
+| Region / plan  | Frankfurt / Free                            |
+| Health check   | `/v1/readyz`                                |
+| Build command  | Install dependencies, then build `@scs/api` |
+| Start command  | `pnpm --filter @scs/api start:prod`         |
 
 The start command does not run migrations or seeds. The repository release workflow separately runs `db:migrate`, the RBAC-only `db:seed`, verifies the migration ledger, and then deploys the same commit SHA.
 
@@ -24,13 +24,13 @@ No separate Render background-worker service or Render-managed PostgreSQL instan
 
 ## Worker registration observed in Render logs
 
-| Component | Observed runtime behavior |
-|---|---|
-| `OutboxDispatcher` | Registered; polls every 1 second |
-| `ShippingCarrierWorker` | Registered; polls every 5 seconds |
-| `P13MonitorService` | Scans every 60 seconds in log-only mode |
+| Component                | Observed runtime behavior                      |
+| ------------------------ | ---------------------------------------------- |
+| `OutboxDispatcher`       | Registered; polls every 1 second               |
+| `ShippingCarrierWorker`  | Registered; polls every 5 seconds              |
+| `P13MonitorService`      | Scans every 60 seconds in log-only mode        |
 | `ReturnExpirationWorker` | Disabled because `P13_WORKER_ENABLED` is unset |
-| P13 alert channel | Log-only; no webhook configured |
+| P13 alert channel        | Log-only; no webhook configured                |
 
 The outbox dispatcher and carrier worker are registered inside the API process, not in a separate worker service. The service currently reports one configured instance. Repeated registration messages across different instance IDs in the sampled logs are consistent with restarts; they do not establish simultaneous execution by multiple instances.
 
