@@ -2,7 +2,7 @@
   "generatedAt": "2026-11-19",
   "sourceRun": 742,
   "sourceCommit": "bf2f24344f0aab5511a7cc18302c6d89c1864cb7",
-  "description": "Exact Git blob SHA exemptions for known legacy files already reported as unformatted. The baseline includes the 86 files identified in CI #742 plus exact-hash exceptions for main.ts and the living remediation tracker/plan. A file is exempt only while its content hash remains identical; any edit invalidates the exemption and triggers Prettier.",
+  "description": "Exact Git blob SHA exemptions for 87 known-unformatted PR files: the 86 files reported by CI #742 plus main.ts. The living remediation tracker, plan and DB-access report are included in that original set and their hashes are refreshed when those documents change. A file is exempt only while its content hash remains identical; any edit invalidates the exemption and triggers Prettier.",
   "knownUnformatted": {
     ".github/workflows/ci.yml": "2040e8541c2156c54eab3540e40b942a74732dbb",
     "apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts": "9d957a05c5165497072ba7e5713851141da14136",
