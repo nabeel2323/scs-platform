@@ -12,13 +12,12 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
-import { INestApplication, VersioningType } from '@nestjs/common';
+import { ForbiddenException, INestApplication, VersioningType } from '@nestjs/common';
 import type { AddressInfo } from 'node:net';
 import { CatalogOfferController } from '../../modules/catalog/catalog.offer.controller';
 import type { CatalogOfferService } from '../../modules/catalog/catalog.offer.service';
 import type { DatabaseService } from '../../common/database/database.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { ForbiddenException } from '@nestjs/common';
 
 vi.mock('../../common/tenant-scope', async () => {
   const actual = await vi.importActual<typeof import('../../common/tenant-scope')>(
