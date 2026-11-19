@@ -942,3 +942,26 @@ The read-only audit utility was enhanced to emit direct table/sequence ACL grant
 The standalone read-only GitHub audit run #3 failed on a push event before producing usable database identity evidence. It must not be treated as an audit success. No attempt was made to bypass the staging environment approval gate. The API/migration DATABASE_URL identities remain unverified.
 
 **Current status:** G-030 remains closed by CI #832; G-010 timeout test remains verified by CI #832 and CI #843. G-002 remains blocked pending API/migration role proof and a reviewed ACL/RLS plan. The latest audit-script changes and evidence-document updates require a fresh CI run. No shared database grants, defaults, RLS policies, migrations, staging data or deployment settings were changed.
+
+## 34. Phase 0/3 source review — OTP log redaction and worker activation boundaries — 19 November 2026
+
+### OTP logging source review
+
+Reviewed the current branch's IdentityService, OtpDeliveryService and Resend, SMTP, Twilio and WhatsApp providers. The inspected code paths do not log the OTP value. IdentityService logs masked phone/email identifiers; OtpDeliveryService receives a masked subject from the public phone/email entry points; the providers log masked recipients or stable provider error classes/codes rather than raw provider exception messages or response bodies. The internal mock delivery path is only used by test/dev injection and also receives a masked subject from the email OTP path.
+
+Existing regression coverage includes `otp-redaction.spec.ts`, `otp-security-remediation.spec.ts` and `otp-delivery-providers.spec.ts`, which assert that OTP values and full recipient identifiers do not appear in captured logs. This closes the source-code review for the currently inspected paths, not the earlier Render runtime finding. The deployed service version and fresh post-fix runtime logs have not been verified; no live OTP was sent as part of this review.
+
+### Worker registration and P13 safety defaults
+
+Source inspection confirms `OrdersModule`, `ShippingModule`, `ReturnsModule` and `OperationsModule` are imported by AppModule. AutoCompleteWorker and ShippingCarrierWorker are registered in their domain modules and start polling inside each API process after their startup delays. AutoComplete uses durable order claims; the carrier worker uses row-lock/lease-based event claims. Their multi-instance correctness remains dependent on the corresponding database concurrency tests and runtime replica configuration.
+
+ReturnExpirationWorker is registered through ReturnsModule but remains OFF unless `P13_WORKER_ENABLED` is explicitly truthy. `resolveP13OpsConfig` defaults expected P13 workers to zero while disabled, pilot mode to legacy, and the alert sink to log-only when no webhook is configured. A configured webhook is disabled unless a signing secret of at least 32 characters is present. P13MonitorService is separate from the protected worker: it starts on every API instance and scans on the configured cadence (default 60 seconds), with database alert deduplication.
+
+These defaults prevent accidental activation of protected return/refund work, but they do not prove the deployed environment's flags, actual replica count or alert delivery. The earlier Render inspection showed one API service and no separate worker service; that topology and current environment values have not been reverified in this execution. Do not enable P13 or change Render configuration until the expected holder count, pilot allowlist, signed alert sink and staging verification are approved.
+
+### Current acceptance status
+
+- OTP: source-level redaction review and existing regression tests are present; runtime log verification remains OPEN.
+- AutoComplete/carrier workers: source registration and durable claim boundaries are implemented; CI evidence exists for their focused ownership/concurrency cases. Staging topology and operational alerts remain OPEN.
+- P13 protected return worker: safe default OFF and unit coverage for expected worker count exist; real alert delivery and explicit activation remain DEFERRED pending approved staging configuration.
+- No provider request, staging write, Render environment change, worker activation or deployment was performed.
