@@ -344,7 +344,13 @@ jobs:
       #    If any migration fails, the gate fails and the PR cannot merge.
       - name: Full migration apply (enforcing — all discovered files)
         run: pnpm --filter @scs/api run db:migrate:ci
-  
+
+      # Exercise the exact read-only access audit against the disposable PostgreSQL
+      # instance after migrations have created the application roles and schema.
+      # This validates PostgreSQL-version compatibility without using staging secrets.
+      - name: Run read-only database access audit (PostgreSQL CI)
+        run: pnpm db:audit-access
+
       # 3) Verify pg_partman is configured after migration
       - name: Verify public schema access hardening
         run: |
