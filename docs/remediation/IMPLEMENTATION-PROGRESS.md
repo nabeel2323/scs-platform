@@ -374,3 +374,17 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 2. Review adjacent offer/object read routes and the complete G-001 acceptance criteria for bypass paths.
 3. Add any missing role-matrix or cross-tenant negative tests, then request normal review.
 4. Keep G-001 PARTIAL until all acceptance criteria are evidenced on the integrated baseline.
+
+
+### 2026-11-20 — G-001 CI failure analysis and fixture correction
+
+- **Task ID:** P1-01 through P1-05 (G-001)
+- **Finding(s):** G-001 — merchant offer tenant authorization
+- **Baseline SHA:** `f74eb588cc58fc99b105e749d39dbfbacb4f9775`
+- **Implementation PR:** [#144](https://github.com/nabeel2323/scs-platform/pull/144)
+- **Failure evidence:** GitHub Actions run [44660124704](https://github.com/nabeel2323/scs-platform/actions/runs/44660124704) exposed a fixture defect in `catalog-lifecycle.e2e.spec.ts`: the Drizzle test schema omitted `storeMembers`, and the fixture created organization memberships but no explicit store memberships. The new authorization correctly failed closed when `assertStoreMember` attempted the missing relation.
+- **Correction committed:** Added `storeMembers` to the integration-test Drizzle schema and seeded ACTIVE OWNER memberships for Merchant A and Merchant B in their respective stores. No production schema or migration changed.
+- **Commit:** `073800cbb845ae1263797102a9516b7cd3730638`
+- **CI at failure snapshot:** API lint/boundary checks and web/admin tests passed; API unit/coverage and integration jobs failed on the same fixture defect. PR #143 documentation branch CI passed its executable jobs.
+- **Next:** Re-run PR #144 CI, inspect any remaining failures, then continue endpoint authorization review. G-001 remains PARTIAL until full authorization matrix and review are complete.
+- **Operational boundary:** No Render or Supabase changes, deployment, migration, seed, worker activation, or staging business transaction.
