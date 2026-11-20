@@ -19,6 +19,16 @@ function makeController(options?: {
   const bulkProductOperations = vi.fn().mockResolvedValue({ affected: 1 });
   const db = {
     db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await membershipsFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
       query: {
         stores: { findFirst: storesFindFirst },
         storeMembers: { findFirst: membershipsFindFirst },
