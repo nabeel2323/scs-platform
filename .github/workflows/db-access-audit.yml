@@ -20,7 +20,7 @@ jobs:
       - name: Checkout develop
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'develop' || github.sha }}
+          ref: develop
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$DATABASE_URL"
-          pnpm --filter @scs/api db:audit-access
+          pnpm db:audit-access
 
       - name: Remove temporary CA certificate
         if: always()
