@@ -112,7 +112,7 @@ This checkpoint records the latest inspected pull-request CI, not a release deci
 
 | PR | Finding / scope | Latest inspected CI | Result | Notes |
 |---:|---|---:|---|---|
-| #138 | Main Phase 0–1 remediation | #948 on prior code head `a1cd9308` | PASS, 10 executable jobs | Current PR head `7143d2cf` contains four later documentation-only commits. CI on this exact head is still required. |
+| #138 | Main Phase 0–1 remediation | #948 on prior code head `a1cd9308` | PASS, 10 executable jobs | Current branch checkpoint `92cb3d24` includes G-001 hardening and reconciliation with develop commit `f74eb588`; branch is now 547 commits ahead / 0 behind develop. No GitHub Actions run covers this exact combined head. Vercel web/admin statuses are failing due provider deployment rate limit, not code test results. |
 | #142 | Runtime DB identity diagnostics | #990 / run `44656130587` | PASS, 10 executable jobs | Source-only; staging deployment remains separately gated. |
 | #143 | Alternate documentation reconciliation | #991 / run `44659481564` | PASS | Based on develop and substantially shorter than the detailed #138 tracker. Use as reconciliation evidence, not as a replacement for the detailed implementation history. |
 | #144 | G-001 merchant offer authorization | #1011 / run `44708168461` | PASS, 10 executable jobs | Draft implementation PR; compare against #138 before merging to avoid duplicate implementation. |
@@ -903,3 +903,12 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - PR #149's client-only currency buckets are less complete than this branch's server-authoritative checkout preview, which returns per-supplier financial rows and `totalsByCurrency`, including VAT and shipping. Do not replace the server-calculated contract with the simpler UI-only patch.
 - PR #150 passes CI #1023 and is newer than failed PR #146, but it records unconfigured delivery differently from this branch: PR #150 uses FAILED for missing-token push and throws for unconfigured provider stubs; this branch persists NOT_CONFIGURED with stable reason codes. Review the notification status contract and API/client compatibility before selecting one implementation.
 - PR #151 remains a useful additive UX/reference-data candidate. Its country/currency selectors pass CI #1022, but its mobile model changes overlap other work on the remediation branch and require integration-level review before merging.
+
+
+### Develop-branch reconciliation — 20 November 2026
+
+- PR #140's read-only DB access audit entry point was already merged into `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The remediation branch had diverged by one commit and contained a similar workflow variant.
+- Reconciled the branch rather than leaving duplicate definitions: the root `package.json` now exposes `db:audit-access` as a forwarding script; `.github/workflows/db-access-audit.yml` now matches the canonical `develop` version; `apps/api/scripts/audit-db-access.ts` was already byte-identical. The workflow remains manually dispatched and read-only.
+- Merged the already-landed develop commit into the remediation branch with merge commit `92cb3d2498ea6539923cc3e5ef67e7b6eb738451`. Compare against `develop` now reports 547 commits ahead and 0 behind; no behind commit remains to reconcile.
+- This is source/history reconciliation only. The read-only audit workflow was not dispatched, no staging DB query was initiated, and no database state was changed.
+- Exact-head GitHub Actions CI remains pending. The commit status API reports Vercel web/admin failures with `Deployment rate limited — retry in 24 hours`; these are external preview deployment statuses, not test-suite failures.
