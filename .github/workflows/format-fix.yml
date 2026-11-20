@@ -1,0 +1,80 @@
+name: One-time PR formatting correction
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - .github/workflows/format-fix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-pr-format-fix
+  cancel-in-progress: false
+
+jobs:
+  format-and-cleanup:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format only the seven CI-reported files
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/__tests__/unit/catalog/catalog-bulk-tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-publication-visibility.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-requests-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-service.tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-tenant-scope.spec.ts \
+            apps/api/src/__tests__/unit/merchant/merchant-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/pricing/pricing-controller.security.spec.ts
+          pnpm exec prettier --check \
+            apps/api/src/__tests__/unit/catalog/catalog-bulk-tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-publication-visibility.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-requests-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-service.tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-tenant-scope.spec.ts \
+            apps/api/src/__tests__/unit/merchant/merchant-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/pricing/pricing-controller.security.spec.ts
+
+      - name: Commit formatting and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/__tests__/unit/catalog/catalog-bulk-tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-publication-visibility.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-requests-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-service.tenant-isolation.spec.ts \
+            apps/api/src/__tests__/unit/inventory/inventory-tenant-scope.spec.ts \
+            apps/api/src/__tests__/unit/merchant/merchant-controller.security.spec.ts \
+            apps/api/src/__tests__/unit/pricing/pricing-controller.security.spec.ts
+          git rm .github/workflows/format-fix.yml
+          if git diff --cached --quiet; then
+            echo "No formatting changes were necessary."
+            exit 1
+          fi
+          git commit -m "style(security): format tenant isolation regression tests"
+          git push origin HEAD:remediation/phase-0-1-tenant-security
