@@ -475,7 +475,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         { storeId: storeA, productId, variantId: concVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: 'forged-user' },
         callerA(),
       );
-      await offerService.proposeOffer(concOffer.id, merchantA);
+      await offerService.proposeOffer(concOffer.id, callerA());
       await offerService.approveOffer(concOffer.id, adminUser);
 
       // Two concurrent reservation requests of 4 each (total demand = 8, stock = 5)
