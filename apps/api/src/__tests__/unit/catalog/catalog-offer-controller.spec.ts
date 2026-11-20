@@ -14,6 +14,7 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     listOffersForStore: vi.fn().mockResolvedValue([{ id: 'offer-1' }]),
     listOfferAnalytics: vi.fn().mockResolvedValue([{ offerId: 'offer-1' }]),
     listOfferTrend: vi.fn().mockResolvedValue([{ bucket: '2026-11-20' }]),
+    proposeOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
   };
   const db = {
     db: {
@@ -69,5 +70,15 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
     await expect(controller.listMerchantOffers(merchant)).resolves.toEqual([]);
     expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
     expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+  });
+
+  it('uses the authenticated principal instead of a client-supplied proposal actor', async () => {
+    const { controller, offerService } = makeController();
+    await controller.proposeOffer(merchant, 'offer-1', { proposedBy: 'attacker-user' });
+    expect(offerService.proposeOffer).toHaveBeenCalledWith(
+      'offer-1',
+      merchant.sub,
+      { sub: merchant.sub, role: merchant.role, activeOrg: merchant.activeOrg },
+    );
   });
 });
