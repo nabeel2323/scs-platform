@@ -1,0 +1,59 @@
+name: Read-only Database Access Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scs-read-only-db-access-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Inspect staging database identity and privileges (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '9.15.9'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare database CA certificate
+        env:
+          STAGING_PGSSLROOTCERT_PEM: ${{ secrets.STAGING_PGSSLROOTCERT_PEM }}
+        run: |
+          set -euo pipefail
+          test -n "$STAGING_PGSSLROOTCERT_PEM"
+          printf '%s' "$STAGING_PGSSLROOTCERT_PEM" > "$RUNNER_TEMP/staging-ca.crt"
+          chmod 600 "$RUNNER_TEMP/staging-ca.crt"
+
+      - name: Run read-only database access audit
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          PGSSLROOTCERT: ${{ runner.temp }}/staging-ca.crt
+          NODE_ENV: staging
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL"
+          pnpm db:audit-access
+
+      - name: Remove temporary CA certificate
+        if: always()
+        run: rm -f "$RUNNER_TEMP/staging-ca.crt"

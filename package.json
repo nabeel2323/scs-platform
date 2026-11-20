@@ -22,6 +22,7 @@
     "db:seed": "pnpm --filter @scs/api db:seed",
     "db:reset": "pnpm --filter @scs/api db:reset",
     "db:generate": "pnpm --filter @scs/api db:generate",
+    "db:audit-access": "pnpm --filter @scs/api db:audit-access",
     "contracts:build": "pnpm --filter @scs/contracts build",
     "contracts:generate": "pnpm --filter @scs/contracts generate",
     "infra:up": "docker compose -f infra/docker-compose.dev.yml up -d",
