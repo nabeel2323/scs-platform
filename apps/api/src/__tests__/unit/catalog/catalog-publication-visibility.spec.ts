@@ -32,6 +32,16 @@ function makeDb(options?: {
 
   return {
     db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await membershipsFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
       query: {
         products: { findFirst: productsFindFirst },
         stores: { findFirst: storesFindFirst },
@@ -131,6 +141,16 @@ function makeCatalogController(options?: {
     {} as any,
     {
       db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await membershipFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
         query: {
           products: { findFirst: productFindFirst },
           stores: { findFirst: storeFindFirst },
