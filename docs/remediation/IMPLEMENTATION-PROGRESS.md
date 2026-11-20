@@ -982,7 +982,6 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - G-001 remains PARTIAL pending successful exact-head verification, independent security review and full owner/staff/buyer/foreign-merchant/platform-admin acceptance coverage. G-002 remains BLOCKED pending approved protected staging audit, actual API and migration runtime identity, and reviewed least-privilege/RLS design.
 - k6, staging E2E, live OTP verification and staging release remain unverified. No shared database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
 
-
 ### 20 November 2026 — G-001 service-boundary tenant-context hardening
 
 **Implementation checkpoint — exact-head CI pending.**
