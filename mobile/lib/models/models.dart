@@ -1,6 +1,8 @@
 /// Data models for the Smart Commerce Platform.
 library;
 
+import '../core/reference_data.dart';
+
 class SearchResult {
   final List<Product> products;
   final int total;
