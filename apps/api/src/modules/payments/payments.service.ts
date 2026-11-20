@@ -95,6 +95,13 @@ export class PaymentsService {
     paymentMethod: PaymentMethod,
     idempotencyKey: string,
   ): Promise<string> {
+    // DIGITAL is part of the historical payment-method vocabulary, but this
+    // deployment has no digital gateway provider. Reject it before creating
+    // any payment/event rows rather than silently routing it to manual.
+    if (paymentMethod === 'DIGITAL') {
+      throw new BadRequestException('DIGITAL payments are not supported until a payment gateway is configured');
+    }
+
     const id = crypto.randomUUID();
     const provider = this.registry.getDefault();
 
