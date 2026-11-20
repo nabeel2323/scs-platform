@@ -60,6 +60,10 @@ let storeA: string, storeB: string;
 let warehouseA: string, warehouseB: string;
 let merchantRoleId: string, buyerRoleId: string;
 
+// Tenant contexts are created lazily because beforeAll populates the UUIDs.
+const callerA = () => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const callerB = () => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+
 describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -195,23 +199,32 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     variantC1 = vC1.id;
 
     // ── Offers ────────────────────────────────────────────────────
-    async function createActiveOffer(storeId: string, productId: string, variantId: string, priceMinor: number, proposedBy: string) {
-      const o = await offerService.createOffer({ storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy });
-      await offerService.proposeOffer(o.id, proposedBy);
+    async function createActiveOffer(
+      storeId: string,
+      productId: string,
+      variantId: string,
+      priceMinor: number,
+      caller: ReturnType<typeof callerA>,
+    ) {
+      const o = await offerService.createOffer(
+        { storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+        caller,
+      );
+      await offerService.proposeOffer(o.id, caller);
       await offerService.approveOffer(o.id, adminUser);
       return o.id;
     }
 
-    offerStoreA1 = await createActiveOffer(storeA, productA, variantA1, 10000, merchantA);
-    offerStoreA2 = await createActiveOffer(storeA, productA, variantA2, 15000, merchantA);
+    offerStoreA1 = await createActiveOffer(storeA, productA, variantA1, 10000, callerA());
+    offerStoreA2 = await createActiveOffer(storeA, productA, variantA2, 15000, callerA());
     // Offer for productB/variantB1 from storeA
-    const oB1 = await offerService.createOffer({ storeId: storeA, productId: productB, variantId: variantB1, currency: 'SAR', basePriceMinor: 20000, moq: 1, leadTimeDays: 3, proposedBy: merchantA });
+    const oB1 = await offerService.createOffer({ storeId: storeA, productId: productB, variantId: variantB1, currency: 'SAR', basePriceMinor: 20000, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' }, callerA());
     offerStoreB1 = oB1.id;
-    await offerService.proposeOffer(offerStoreB1, merchantA);
+    await offerService.proposeOffer(offerStoreB1, callerA());
     await offerService.approveOffer(offerStoreB1, adminUser);
 
     // Offers from storeB
-    offerStoreB2 = await createActiveOffer(storeB, productC, variantC1, 25000, merchantB);
+    offerStoreB2 = await createActiveOffer(storeB, productC, variantC1, 25000, callerB());
 
     // ── Price lists & tiers ───────────────────────────────────────
     const plA = randomUUID(); const plB = randomUUID();
@@ -526,7 +539,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
       const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
-      await offerService.proposeOffer(testOffer.id, merchantA);
+      await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
       // Order and accept (reserves)
@@ -554,7 +567,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 15, userId: merchantA });
       const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
-      await offerService.proposeOffer(testOffer.id, merchantA);
+      await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
       await cartService.addItem(buyerA, { variantId: testVariant.id, quantity: 6, offerId: testOffer.id });
@@ -603,14 +616,14 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(origPrice).toBe(10000);
 
       // Change offer price
-      await offerService.updateOfferPricing(offerStoreA1, { basePriceMinor: 99000 });
+      await offerService.updateOfferPricing(offerStoreA1, { basePriceMinor: 99000 }, callerA());
 
       // Order unchanged
       const after = await ordersService.getOrderWithItems(subId!);
       expect(after.items[0]!.unitPriceMinor).toBe(10000);
 
       // Restore
-      await offerService.updateOfferPricing(offerStoreA1, { basePriceMinor: 10000 });
+      await offerService.updateOfferPricing(offerStoreA1, { basePriceMinor: 10000 }, callerA());
     });
 
     it('order retains original SKU/title after product variant edit', async () => {
@@ -735,7 +748,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
       const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
-      await offerService.proposeOffer(testOffer.id, merchantA);
+      await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
       await cartService.addItem(buyerA, { variantId: testVariant.id, quantity: 5, offerId: testOffer.id });
