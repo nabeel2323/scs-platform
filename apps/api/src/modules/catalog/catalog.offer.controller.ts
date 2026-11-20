@@ -149,7 +149,6 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await this.authorizeMerchantStore(user, input.storeId);
     return this.offerService.createOffer(input);
   }
