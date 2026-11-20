@@ -17,6 +17,16 @@ function makeHarness(options?: {
   );
   const db = {
     db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await membershipFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
       query: {
         stores: { findFirst: storeFindFirst },
         storeMembers: { findFirst: membershipFindFirst },
