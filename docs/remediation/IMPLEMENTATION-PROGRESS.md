@@ -1030,7 +1030,6 @@ The formatting corrections, DB runtime-evidence report, implementation tracker a
 
 The post-format tree and tracker reconciliation are now at `17975caf086bfc5c9dc86785bcf9d0e0f541403e`. The formatter's Prettier `--write` and `--check` both succeeded on all four files. A fresh PR CI event is required for this final tree; prior run #1134 used the pre-format temporary-workflow commit and run #1135 returned `action_required` without creating jobs, so neither is accepted as final verification.
 
-
 ### Post-format verification checkpoint — 21 November 2026
 
 CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2b534046fa6202e`. Lint, TypeScript typecheck, Flutter analysis and Flutter tests passed; Prettier failed only on `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`, so dependent API unit/coverage, PostgreSQL integration, migration full-apply, Web/Admin, boundary, build, container and contract/codegen jobs were skipped. A second temporary self-cleaning workflow ran the repository-locked Prettier write/check successfully on both documents and completed successfully, removing itself. The post-format branch head is `a5227c897dc397ad4f890fe2bf96181c971e59f2`; full exact-head CI is still required. Neither the formatter job nor earlier CI runs constitute full verification of this head. G-001 remains PARTIAL and G-002 remains BLOCKED. No staging deployment, shared database mutation or environment change was performed.
