@@ -291,8 +291,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       basePriceMinor: 10000,
       moq: 1,
       leadTimeDays: 3,
-      proposedBy: merchantA,
-    });
+      proposedBy: 'forged-user',
+    }, callerA());
     offerA = oA.id;
     await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
@@ -305,8 +305,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       basePriceMinor: 9500,
       moq: 1,
       leadTimeDays: 5,
-      proposedBy: merchantB,
-    });
+      proposedBy: 'forged-user',
+    }, callerB());
     offerB = oB.id;
     await offerService.proposeOffer(offerB, callerB());
     await offerService.approveOffer(offerB, adminUser);
@@ -320,8 +320,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       basePriceMinor: 11000,
       moq: 1,
       leadTimeDays: 5,
-      proposedBy: merchantB,
-    });
+      proposedBy: 'forged-user',
+    }, callerB());
     offerB2 = oB2.id;
     await offerService.proposeOffer(offerB2, callerB());
     await offerService.approveOffer(offerB2, adminUser);
@@ -1031,8 +1031,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         currency: 'SAR',
         basePriceMinor: 5000,
         moq: 1,
-        proposedBy: merchantA,
-      });
+        proposedBy: 'forged-user',
+      }, callerA());
       await offerService.proposeOffer(limitedOffer.id, callerA());
       await offerService.approveOffer(limitedOffer.id, adminUser);
 
