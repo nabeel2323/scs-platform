@@ -617,8 +617,8 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     final compareAt = double.tryParse(_compareAtCtrl.text);
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
     final lead = int.tryParse(_leadTimeCtrl.text);
-    final priceMinor = price != null ? (price * 100).round() : null;
-    final compareMinor = compareAt != null ? (compareAt * 100).round() : null;
+    final priceMinor = price != null ? (price * currencyMinorUnitScale(_currency)).round() : null;
+    final compareMinor = compareAt != null ? (compareAt * currencyMinorUnitScale(_currency)).round() : null;
 
     return ListView(padding: const EdgeInsets.all(16), children: [
       const Text('Review your offer',
