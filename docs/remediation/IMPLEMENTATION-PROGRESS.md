@@ -19,16 +19,19 @@
 | Phases in progress                                |                                                                            6 |
 | Original audit findings                           |                                                                           22 |
 | Additional findings discovered during remediation |                                                             13 (G-023–G-035) |
-| P0 open                                           |                                                                            0 |
-| P1 open                                           |                                                             2 (G-002, G-007) |
-| P2 open                                           |                                                6 (G-010, G-012–G-015, G-018) |
-| P3 open                                           |                                                                            2 |
+| Total tracked findings                            |                                                                           35 |
+| P0 unresolved                                      |                                                                            0 |
+| P1 unresolved                                      |                                                             2 (G-002, G-007) |
+| P2 unresolved                                      |                 7 (G-010, G-012–G-015, G-018, G-020) |
+| P3 unresolved                                      |                                                             2 (G-021, G-022) |
 | Findings closed under this plan                   | 24 (G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019, G-023–G-035) |
-| Findings implemented; latest-head CI pending      |                                                                            0 |
-| Findings partially remediated                     |                                               4 (G-002, G-007, G-010, G-020) |
+| Findings partially remediated                     |                              5 (G-007, G-010, G-015, G-018, G-020) |
+| Findings in progress                               |                                                   2 (G-002, G-013) |
+| Findings blocked                                   |                                                   2 (G-014, G-022) |
+| Findings open                                      |                                                   2 (G-012, G-021) |
 | Final full test campaign                          |                                                                  NOT STARTED |
 
-**Counting note:** The original audit contains G-001–G-022. G-023–G-035 were added during remediation. G-030 is closed by CI #832/#843; G-031–G-035 are closed by CI #936. G-002/G-007/G-010/G-020 remain partial for the separate reasons recorded below.
+**Counting note:** The original audit contains G-001–G-022. G-023–G-035 were added during remediation. The 35-row register below now includes G-024–G-029, which were previously described in the phase task table but omitted from the finding register. Exactly 24 findings are closed; five are partial, two are in progress, two are blocked and two remain open. Priority totals count unresolved findings, including partial, in-progress and blocked items.
 
 ### Overall status
 
@@ -79,6 +82,12 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | G-021 |       P3 | Formal RFQ/quotation/PO workflow absent                                                                                   |  5 (decision) | OPEN                                                              | Decide whether in launch scope; separate project if required                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | G-022 |       P3 | pg_trgm extension installed in public schema                                                                              |             5 | BLOCKED — EXTENSION OWNER IS SUPABASE_ADMIN                       | pg_trgm is relocatable and the extensions schema exists, but the extension owner is supabase_admin (superuser). The connected postgres role is not superuser, is not a member of supabase_admin and cannot SET ROLE. Five user GIN indexes depend on gin_trgm_ops; catalog search calls similarity() unqualified. API/migration role is still unverified. No extension DDL or ownership change is safe through the current connection. See PG-TRGM-RELOCATION-REVIEW-2026-11-19.md.                                                                                                                                                                                                       |
 | G-023 |       P1 | Store creation omits initial OWNER store_members row; membership management is deadlocked until platform admin intervenes |             1 | VERIFIED IN CI                                                    | Store + ACTIVE OWNER membership + creation outbox event are inserted in one transaction; service regression suite passed in CI run #536                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| G-024 |       P1 | Merchant catalog request reads/writes lack consistent active-store authorization and trusted actor identity | 1 | CLOSED — CI #551 | Active organization and store membership are enforced; requester/reviewer identity is derived from JWT. Controller security suite passed 7/7 tests in CI #551. |
+| G-025 |       P1 | Store and warehouse lifecycle routes lack consistent target-store membership checks | 1 | CLOSED — CI #551 | Store update, warehouse create/list/update and verification submission enforce target store membership. Controller security suite passed 7/7 tests in CI #551. |
+| G-026 |       P1 | Pricing routes lack store ownership and variant/price-list consistency checks | 1 | CLOSED — CI #551 | Price-list/tier reads and writes enforce owning-store membership; variants must belong to the same store as their price list. Controller security suite passed 9/9 tests in CI #551. |
+| G-027 |       P1 | Inventory reads/writes do not consistently enforce active store membership | 1 | CLOSED — CI #554 | Inventory HTTP routes enforce active membership; low-stock reads are limited to active memberships in activeOrg; variant/warehouse store mismatch is rejected. Fourteen focused tests and all CI #554 jobs passed. |
+| G-028 |       P1 | Buyer/merchant product reads do not consistently enforce publication and ownership boundaries | 1 | CLOSED — CI #647 | ACTIVE products are buyer-visible; non-ACTIVE detail/variant/matrix/media reads require owning-store membership or platform privilege. Store grids, canonical categories/counts and canonical lookups enforce publication scope. Nineteen focused tests and applicable API suites passed CI #647. |
+| G-029 |       P1 | Bulk catalog mutations do not consistently require active store membership | 1 | CLOSED — CI #592 | Bulk delete/archive/draft requires active organization ownership and active store membership before mutation. Three focused controller tests passed API unit/coverage CI #592. |
 | G-030 |       P0 | Merchant payment/settlement listings lack authenticated tenant scope                                                      |             1 | CLOSED — CI #832/#843                                             | Merchant routes pass JWT caller context to dedicated listing methods. Payment and settlement queries scope to the authenticated active organization; explicit store IDs must belong to that organization. Merchant read permission is organization-wide, so store_members is not required. Admin store/buyer payment filters apply matching order IDs. Same-org staff without store membership and foreign-org denial are covered by PostgreSQL integration tests; controller context forwarding is covered by unit tests. API unit/coverage and PostgreSQL integration passed current-head CI #832/#843.                                                                                 |
 | G-031 |       P1 | Product moderation mutation uses merchant read permission instead of a dedicated moderation grant                         |          1, 4 | CLOSED — CI #936                                                  | `PATCH /v1/admin/products/:id/moderate` and the Admin UI previously treated `admin:merchants:read` as sufficient to approve/reject/archive products. Added `admin:products:moderate`, assigned it to SUPER_ADMIN/ADMIN/MODERATOR in canonical idempotent RBAC seed data, changed the API route and UI actions to require it, and added API guard/seed-matrix and Admin UI permission tests. Existing read-only custom roles now fail closed. Controlled release must run `db:seed`; existing JWT permission snapshots need refresh.                                                                                                                                                       |
 | G-032 |       P2 | Admin dispute detail page checks an unseeded permission and blocks all authorized dispute reviewers                       |             4 | CLOSED — CI #936                                                  | The dispute detail page required admin:disputes:read, which is absent from canonical RBAC seed data. The list page and GET /v1/admin/disputes/:id API require support:disputes:resolve. Aligned the detail page to support:disputes:resolve and added Admin UI regression coverage proving a seeded dispute reviewer can load the detail route. No API authorization change was needed.                                                                                                                                                                                                                                                                                                   |
@@ -94,6 +103,35 @@ Status definitions:
 - **READY FOR VERIFICATION:** implementation complete; evidence still needs independent review.
 - **CLOSED:** all Definition of Done conditions and acceptance criteria satisfied with evidence.
 - **DEFERRED:** explicitly excluded from current release by documented decision, risk and owner; not equivalent to fixed.
+
+---
+
+## 3A. CI and pull-request coordination checkpoint — 20 November 2026
+
+This checkpoint records the latest inspected pull-request CI, not a release decision. All listed PRs remain draft/unmerged unless explicitly changed through normal review.
+
+| PR | Finding / scope | Latest inspected CI | Result | Notes |
+|---:|---|---:|---|---|
+| #138 | Main Phase 0–1 remediation | #948 on prior code head `a1cd9308` | PASS, 10 executable jobs | Current PR head `7143d2cf` contains four later documentation-only commits. CI on this exact head is still required. |
+| #142 | Runtime DB identity diagnostics | #990 / run `44656130587` | PASS, 10 executable jobs | Source-only; staging deployment remains separately gated. |
+| #143 | Alternate documentation reconciliation | #991 / run `44659481564` | PASS | Based on develop and substantially shorter than the detailed #138 tracker. Use as reconciliation evidence, not as a replacement for the detailed implementation history. |
+| #144 | G-001 merchant offer authorization | #1011 / run `44708168461` | PASS, 10 executable jobs | Draft implementation PR; compare against #138 before merging to avoid duplicate implementation. |
+| #145 | G-020 normalize_arabic search_path | #1012 / run `44708242986` | PASS, 10 executable jobs | Does not authorize applying migration 0070 to the shared database. |
+| #146 | G-009 notification truthfulness (earlier attempt) | #1013 / run `44708460818` | FAIL | API unit tests failed because the new push test mock did not provide the database query chain expected by the service. Superseded in intent by PR #150; do not merge both. |
+| #147 | G-003 carrier outbox ownership | #1014 failed; #1024 running | Previous failure fixed in commit `590ac892`; revalidation pending | Previous failure was TS4111 in the new test mock; index-signature properties now use bracket access. The same carrier exclusion is already present on PR #138's branch (CI #687), so coordinate landing order and do not merge duplicate patches independently. |
+| #148 | G-008 reject unsupported DIGITAL payment | #1015 / run `44708682886` | PASS, 10 executable jobs | Draft implementation PR; reconcile with #138 before merging. |
+| #149 | G-005 multi-currency checkout display | #1016 / run `44708820666` | PASS, 10 executable jobs | Draft implementation PR; reconcile with #138 before merging. |
+| #150 | G-009 truthful notification delivery | #1023 / run `44715420748` | PASS, 10 executable jobs | Newer implementation than #146; external provider delivery remains unimplemented and is not claimed. |
+| #151 | Country and currency selectors | #1022 / run `44715048598` | PASS, 10 executable jobs | Draft UX/reference-data change; k6 and staging release were skipped. |
+
+**CI interpretation:** The ten executable jobs are lint/typecheck, Flutter analysis/tests, migration full apply in isolated CI PostgreSQL, web/admin tests, API unit/coverage, API integration, E6 boundary lint, container build/smoke, contract/codegen and build. k6 smoke and staging release were skipped on these runs. Green CI is not staging runtime verification, business UAT or release authorization.
+
+**Coordination rules:**
+- Keep PR #138 draft and do not deploy it. Its current head needs a fresh CI run after the documentation commits.
+- PRs #144–#150 overlap code already present on the remediation branch. Review exact file diffs and choose one authoritative landing path per finding; do not merge competing copies without checking whether the target branch already contains the change.
+- PR #150 is the preferred current G-009 candidate over failed PR #146, subject to independent review.
+- PR #147 is being revalidated after a test-only type correction; its carrier exclusion duplicates behavior already present on PR #138.
+- No merge, staging release, shared-database mutation, worker activation or external provider side effect is authorized by this checkpoint.
 
 ---
 
