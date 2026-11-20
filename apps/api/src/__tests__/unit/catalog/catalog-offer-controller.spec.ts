@@ -195,6 +195,24 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
     expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
   });
 
+  it('denies a foreign-organization merchant from reading offer detail', async () => {
+    const { controller, offerService } = makeController({ orgId: 'org-2' });
+    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+  });
+
+  it('fails closed when the merchant has no active organization', async () => {
+    const noActiveOrg = { ...merchant, activeOrg: null } as JwtPayload;
+    const { controller, offerService } = makeController();
+    await expect(controller.getOffer(noActiveOrg, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+  });
+
+
   it('denies an admin-role caller without offer governance permission', async () => {
     const adminWithoutPermission = {
       ...merchant,
