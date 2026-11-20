@@ -11,7 +11,7 @@ import { fetchMyStores, Store } from '../../../lib/api';
 import { pickStore } from '../../../lib/merchant-store';
 import { LoadingSpinner, ErrorBanner, EmptyState, formatMinor } from '../../../components/Shared';
 import { PageHeader, colors, typeScale, radii } from '@scs/ui-kit';
-import { CURRENCY_OPTIONS } from '../../../lib/reference-data';
+import { CURRENCY_OPTIONS, currencyMinorUnits } from '../../../lib/reference-data';
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   DRAFT: { bg: colors.bgSubtle, fg: colors.muted },
@@ -129,7 +129,7 @@ export default function MerchantOffersPage() {
         storeId,
         productId: formProductId,
         variantId: formVariantId || undefined,
-        basePriceMinor: Math.round(Number(formPrice) * 100),
+        basePriceMinor: Math.round(Number(formPrice) * (10 ** currencyMinorUnits(formCurrency))),
         currency: formCurrency,
         moq: Number(formMoq) || 1,
         leadTimeDays: formLeadTime ? Number(formLeadTime) : undefined,
