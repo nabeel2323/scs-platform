@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/reference_data.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
@@ -573,12 +574,12 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
         decoration: const InputDecoration(
           prefixIcon: Icon(Icons.currency_exchange),
         ),
-        items: const [
-          DropdownMenuItem(value: 'SAR', child: Text('SAR — Saudi Riyal')),
-          DropdownMenuItem(value: 'AED', child: Text('AED — UAE Dirham')),
-          DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),
-          DropdownMenuItem(value: 'EUR', child: Text('EUR — Euro')),
-        ],
+        items: currencyOptions
+            .map((currency) => DropdownMenuItem(
+                  value: currency.code,
+                  child: Text(currency.label),
+                ))
+            .toList(),
         onChanged: (v) {
           if (v != null) setState(() => _currency = v);
         },
