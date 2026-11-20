@@ -419,3 +419,13 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **Files:** `apps/api/src/modules/catalog/catalog.offer.controller.ts`; `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`.
 - **Verification:** Fresh CI remains pending; no local execution is claimed.
 - **Status:** G-001 PARTIAL. Generic offer-detail/read projection and admin governance actor attribution remain under review.
+
+
+### 2026-11-20 — G-001 admin reviewer attribution hardening
+
+- **Review observation:** Admin approval and rejection accepted `reviewerId` from the request body. That allowed an authorized administrator to attribute a governance action to another user.
+- **Correction:** Approval and rejection now derive the reviewer ID from the authenticated JWT principal. The rejection body contains only the reason. Added controller regression tests for both paths.
+- **Files:** `apps/api/src/modules/catalog/catalog.offer.controller.ts`; `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`.
+- **Commits:** `5b14497b8ff4af6d19c5dea18f6843612e357922`, `75d4549229aa688feb90e7a61de8e47eb622860b`.
+- **Verification:** CI for the updated branch head is pending. No local execution is claimed.
+- **Status:** G-001 PARTIAL. Generic offer-detail/read projection and governance audit attribution for suspend/reactivate remain to be reviewed.
