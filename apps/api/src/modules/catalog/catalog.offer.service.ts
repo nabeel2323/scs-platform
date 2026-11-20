@@ -751,7 +751,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: caller?.sub ?? offer.proposedBy,
+      actorId: caller.sub,
       action: 'offer.pricing_updated',
       resource: 'merchant_offer',
       resourceId: id,
