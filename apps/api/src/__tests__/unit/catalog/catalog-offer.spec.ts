@@ -233,3 +233,32 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
     expect(auditRecords[0]).toMatchObject({ actorType: 'MERCHANT', actorId: caller.sub, action: 'offer.pricing_updated' });
   });
 });
+
+
+describe('CatalogOfferService — admin governance audit attribution (G-001)', () => {
+  it('records the authenticated reviewer for suspension', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'ACTIVE' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'SUSPENDED' }] },
+    });
+    await svc.suspendOffer('o1', 'admin-authenticated');
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'ADMIN',
+      actorId: 'admin-authenticated',
+      action: 'offer.suspended',
+    });
+  });
+
+  it('records the authenticated reviewer for reactivation', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'SUSPENDED' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'ACTIVE' }] },
+    });
+    await svc.reactivateOffer('o1', 'admin-authenticated');
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'ADMIN',
+      actorId: 'admin-authenticated',
+      action: 'offer.reactivated',
+    });
+  });
+});
