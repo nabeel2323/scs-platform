@@ -927,3 +927,14 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - The current branch tree contains no `.m73b6-scratch/` files and no root `test-token.txt`. Those paths in the PR changed-file list are deletions, not files retained in the current branch tree.
 - PR #138 remains draft. Exact-head CI must be rerun after this tracker update; do not treat the earlier `action_required` run as a pass. G-001 remains PARTIAL, G-002 remains blocked on independent runtime identity and reviewed least-privilege/RLS design, and the migration/notification integration decisions remain open.
 - No staging release, deployment, shared-database mutation, migration, seed, grant/default-ACL change, RLS enablement, worker activation or business-side effect was performed.
+
+
+### Exact-head CI verification — 20 November 2026
+
+- PR #138 exact head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` completed GitHub Actions CI run [#1041](https://github.com/nabeel2323/scs-platform/actions/runs/44730559224) successfully.
+- All 10 executable jobs passed: Mobile (Flutter analyze/tests), Lint & Typecheck, Web & Admin App Tests, Integration Tests, Boundary Lint (E6), Migration Full Apply, Unit Tests + Coverage Gates, Contract Spec & Codegen, Container Build & Smoke Test, and Build. k6 Smoke Test and Trigger Staging Release were skipped.
+- CI #1040 had exposed six downstream PostgreSQL lifecycle failures because `suspendOffer()` set `is_available=false`, while `reactivateOffer()` restored only `status='ACTIVE'`. This conflated lifecycle suspension with the merchant's independent availability preference.
+- Fixed `suspendOffer()` to change lifecycle status without overwriting `is_available`; added a regression assertion that reactivation preserves availability. Commits: `8b1d3aa6beb691af59612580089648720b704d41` and `b092fd8970c1609f19cc2458ff4b04eaf48b5241`.
+- PR #138 remains open and draft. The two Vercel preview contexts still report provider build-rate-limit failures; these are external preview statuses and do not change the successful GitHub Actions result. No deployment was requested.
+- This run verifies the current source head against the executable CI suite only. k6, staging release, staging runtime verification and production release remain unverified/not authorized. G-001 remains PARTIAL; G-002 remains blocked pending approved runtime identity evidence and reviewed least-privilege/RLS design. Migration-numbering and notification status-contract conflicts remain open.
+- No merge, deployment, staging release, shared database mutation, migration, grant/default-ACL change, RLS enablement, worker activation or external business side effect was performed.
