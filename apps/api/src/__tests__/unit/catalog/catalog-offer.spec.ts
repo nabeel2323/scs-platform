@@ -28,6 +28,8 @@ interface HarnessQueries {
   productVariants?: QueryConfig;
   priceLists?: QueryConfig;
   warehouses?: QueryConfig;
+  stores?: QueryConfig;
+  storeMembers?: QueryConfig;
 }
 
 interface Harness {
@@ -61,6 +63,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         productVariants: q(queries.productVariants),
         priceLists: q(queries.priceLists),
         warehouses: q(queries.warehouses),
+        stores: q(queries.stores),
+        storeMembers: q(queries.storeMembers),
       },
       insert: () => ({
         values: (rows: unknown) => {
@@ -178,5 +182,41 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
     });
     await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 });
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
+  });
+});
+
+
+describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
+  const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
+
+  it('denies a same-organization non-member from withdrawing an offer', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: null },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('not authorized for this store');
+    expect(updated).toHaveLength(0);
+  });
+
+  it('allows an active store member to withdraw an offer in their organization', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'WITHDRAWN' }] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).resolves.toMatchObject({ status: 'WITHDRAWN' });
+    expect(updated[0]).toMatchObject({ status: 'WITHDRAWN', isAvailable: false });
+  });
+
+  it('denies a member when the offer store belongs to another organization', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-2' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('You do not have access to this store');
+    expect(updated).toHaveLength(0);
   });
 });
