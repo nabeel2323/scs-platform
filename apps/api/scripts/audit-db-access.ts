@@ -96,9 +96,11 @@ async function main(): Promise<void> {
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRUNCATE'))::int AS truncate_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'REFERENCES'))::int AS references_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRIGGER'))::int AS trigger_count,
-             ${supportsMaintainPrivilege
-               ? "count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int"
-               : 'NULL::int'} AS maintain_count
+             ${
+               supportsMaintainPrivilege
+                 ? "count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int"
+                 : 'NULL::int'
+             } AS maintain_count
       FROM role_names r CROSS JOIN tables t
       GROUP BY r.role_name
       ORDER BY r.role_name
