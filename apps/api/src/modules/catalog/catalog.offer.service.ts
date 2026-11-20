@@ -16,7 +16,12 @@ import crypto from 'node:crypto';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 const OFFER_STATUSES: ReadonlySet<OfferStatus> = new Set<OfferStatus>([
-  'DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN',
+  'DRAFT',
+  'PROPOSED',
+  'ACTIVE',
+  'SUSPENDED',
+  'REJECTED',
+  'WITHDRAWN',
 ]);
 
 /** Allowed status moves (§ offer lifecycle). Anything else is rejected. */
@@ -75,9 +80,9 @@ export interface UpdateOfferPricingInput {
 @Injectable()
 export class CatalogOfferService {
   constructor(
-      private readonly db: DatabaseService,
-      private readonly audit: AuditService,
-    ) {}
+    private readonly db: DatabaseService,
+    private readonly audit: AuditService,
+  ) {}
 
   private async getOrThrow(id: string) {
     const offer = await this.db.db.query.merchantOffers.findFirst({
@@ -88,7 +93,10 @@ export class CatalogOfferService {
   }
 
   private assertTransition(from: string, to: OfferStatus) {
-    if (!OFFER_STATUSES.has(from as OfferStatus) || !TRANSITIONS[from as OfferStatus].includes(to)) {
+    if (
+      !OFFER_STATUSES.has(from as OfferStatus) ||
+      !TRANSITIONS[from as OfferStatus].includes(to)
+    ) {
       throw new BadRequestException(`Illegal offer transition: ${from} → ${to}`);
     }
   }
@@ -126,7 +134,10 @@ export class CatalogOfferService {
 
     // Enforce one offer per (store, variant) or (store, product-default).
     const dupCond = input.variantId
-      ? and(eq(merchantOffers.storeId, input.storeId), eq(merchantOffers.variantId, input.variantId))
+      ? and(
+          eq(merchantOffers.storeId, input.storeId),
+          eq(merchantOffers.variantId, input.variantId),
+        )
       : and(
           eq(merchantOffers.storeId, input.storeId),
           eq(merchantOffers.productId, input.productId),
@@ -154,7 +165,7 @@ export class CatalogOfferService {
       priceListId: input.priceListId ?? null,
       warehouseId: input.warehouseId ?? null,
       externalRef: input.externalRef ?? null,
-      proposedBy: status === 'PROPOSED' ? input.proposedBy ?? null : null,
+      proposedBy: status === 'PROPOSED' ? (input.proposedBy ?? null) : null,
       metadata: input.metadata ?? {},
     });
 
@@ -203,19 +214,23 @@ export class CatalogOfferService {
    */
   async listOffersForProductRanked(productId: string) {
     const offers = await this.db.db.query.merchantOffers.findMany({
-      where: and(
-        eq(merchantOffers.productId, productId),
-        eq(merchantOffers.status, 'ACTIVE'),
-      ),
+      where: and(eq(merchantOffers.productId, productId), eq(merchantOffers.status, 'ACTIVE')),
       columns: {
-        id: true, storeId: true, productId: true, variantId: true,
-        currency: true, basePriceMinor: true, moq: true, leadTimeDays: true,
-        priceListId: true, activatedAt: true,
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        currency: true,
+        basePriceMinor: true,
+        moq: true,
+        leadTimeDays: true,
+        priceListId: true,
+        activatedAt: true,
       },
     });
     if (offers.length === 0) return [];
 
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
     const aggregates = await this.db.db
       .select({
         offerId: orderItems.offerId,
@@ -226,7 +241,7 @@ export class CatalogOfferService {
       .where(and(inArray(orderItems.offerId, offerIds)))
       .groupBy(orderItems.offerId);
     const byOffer = new Map(
-      aggregates.map(a => [
+      aggregates.map((a) => [
         a.offerId as string,
         {
           ordersCount: Number(a.ordersCount ?? 0),
@@ -235,17 +250,24 @@ export class CatalogOfferService {
       ]),
     );
 
-    const storeIds = Array.from(new Set(offers.map(o => o.storeId)));
+    const storeIds = Array.from(new Set(offers.map((o) => o.storeId)));
     const storeRows = await this.db.db.query.stores.findMany({
       where: inArray(stores.id, storeIds),
       // PHASE 23: `hidePopularityBadge` is fetched here (not filtered out) so a
       // store's opt-out only affects the *buyer projection* — the sort key
       // stays on true counts, then we null out disclosure fields per row.
-      columns: { id: true, displayName: true, slug: true, currency: true, verificationStatus: true, hidePopularityBadge: true },
+      columns: {
+        id: true,
+        displayName: true,
+        slug: true,
+        currency: true,
+        verificationStatus: true,
+        hidePopularityBadge: true,
+      },
     });
-    const storeById = new Map(storeRows.map(s => [s.id, s]));
+    const storeById = new Map(storeRows.map((s) => [s.id, s]));
 
-    const enriched = offers.map(o => {
+    const enriched = offers.map((o) => {
       const agg = byOffer.get(o.id) ?? { ordersCount: 0, unitsSold: 0 };
       const s = storeById.get(o.storeId);
       return {
@@ -348,15 +370,22 @@ export class CatalogOfferService {
     const offers = await this.db.db.query.merchantOffers.findMany({
       where: eq(merchantOffers.storeId, storeId),
       columns: {
-        id: true, storeId: true, productId: true, variantId: true,
-        status: true, currency: true, basePriceMinor: true,
-        moq: true, leadTimeDays: true, createdAt: true,
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        status: true,
+        currency: true,
+        basePriceMinor: true,
+        moq: true,
+        leadTimeDays: true,
+        createdAt: true,
       },
       orderBy: [desc(merchantOffers.createdAt)],
     });
     if (offers.length === 0) return [];
 
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
 
     // 2) Aggregate line-level sales per offer. `lineTotalMinor` is the
     //    authoritative charged amount (the cart snapshot); SUM over the group
@@ -373,7 +402,7 @@ export class CatalogOfferService {
       .groupBy(orderItems.offerId);
 
     const byOffer = new Map(
-      aggregates.map(a => [
+      aggregates.map((a) => [
         a.offerId as string,
         {
           ordersCount: Number(a.ordersCount ?? 0),
@@ -386,9 +415,9 @@ export class CatalogOfferService {
     // 3) Merge zero-sale offers into the response and attach labels from the
     //    canonical variant/product where available.
     const variantIds = Array.from(
-      new Set(offers.map(o => o.variantId).filter(Boolean) as string[]),
+      new Set(offers.map((o) => o.variantId).filter(Boolean) as string[]),
     );
-    const productIds = Array.from(new Set(offers.map(o => o.productId)));
+    const productIds = Array.from(new Set(offers.map((o) => o.productId)));
     const [variantRows, productRows] = await Promise.all([
       variantIds.length
         ? this.db.db.query.productVariants.findMany({
@@ -401,10 +430,10 @@ export class CatalogOfferService {
         columns: { id: true, title: true },
       }),
     ]);
-    const variantById = new Map(variantRows.map(v => [v.id, v]));
-    const productById = new Map(productRows.map(p => [p.id, p]));
+    const variantById = new Map(variantRows.map((v) => [v.id, v]));
+    const productById = new Map(productRows.map((p) => [p.id, p]));
 
-    return offers.map(o => {
+    return offers.map((o) => {
       const agg = byOffer.get(o.id) ?? { ordersCount: 0, unitsSold: 0, revenueMinor: 0 };
       const v = o.variantId ? variantById.get(o.variantId) : undefined;
       const p = productById.get(o.productId);
@@ -449,12 +478,14 @@ export class CatalogOfferService {
     granularity?: 'day' | 'week';
     from?: Date;
     to?: Date;
-  }): Promise<Array<{
-    bucket: string;
-    ordersCount: number;
-    unitsSold: number;
-    revenueMinor: number;
-  }>> {
+  }): Promise<
+    Array<{
+      bucket: string;
+      ordersCount: number;
+      unitsSold: number;
+      revenueMinor: number;
+    }>
+  > {
     if (!opts.storeId) return [];
     // Whitelist granularity before interpolation — Postgres date_trunc accepts
     // text but we build the SQL string via sql.raw so validate strictly.
@@ -469,7 +500,7 @@ export class CatalogOfferService {
       columns: { id: true },
     });
     if (offers.length === 0) return [];
-    const offerIds = offers.map(o => o.id);
+    const offerIds = offers.map((o) => o.id);
 
     // 2) Build the WHERE clause; date range is optional.
     const whereParts = [inArray(orderItems.offerId, offerIds)];
@@ -492,7 +523,7 @@ export class CatalogOfferService {
       .groupBy(bucketExpr)
       .orderBy(asc(bucketExpr));
 
-    return groups.map(g => ({
+    return groups.map((g) => ({
       bucket: g.bucket,
       ordersCount: Number(g.ordersCount ?? 0),
       unitsSold: Number(g.unitsSold ?? 0),
@@ -713,7 +744,10 @@ export class CatalogOfferService {
       action: 'offer.pricing_updated',
       resource: 'merchant_offer',
       resourceId: id,
-      metadata: { storeId: offer.storeId, changes: Object.keys(input).filter(k => (input as any)[k] != null) },
+      metadata: {
+        storeId: offer.storeId,
+        changes: Object.keys(input).filter((k) => (input as any)[k] != null),
+      },
     });
 
     return this.getOffer(id);

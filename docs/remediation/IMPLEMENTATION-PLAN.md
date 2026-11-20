@@ -1060,7 +1060,6 @@ No API authorization, RBAC seed or database change was required; backend route g
 
 CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa9808fe25206264766f2523`. API unit/coverage reported 4,483 passed and 110 skipped across 237 test files; PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke passed. k6 and staging release were skipped. G-031–G-035 are closed by this evidence. G-002 remains blocked until the actual Render API and migration database identities are verified. The live staging service still runs the baseline `develop` commit and has auto-deploy disabled. No deployment, shared-database write, grant change, RLS enablement or live migration was performed. This documentation-only update requires a fresh CI run for the resulting branch head.
 
-
 ## Runtime database identity checkpoint — 20 November 2026
 
 - CI #948 passed all 10 executable jobs on PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36`. The k6 smoke and staging release jobs were skipped.
@@ -1070,11 +1069,9 @@ CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa
 - G-002 remains BLOCKED pending independently verified API runtime identity, ownership/default-ACL mapping, and a reviewed least-privilege role and table-specific RLS plan. The audit found 114 public tables/partitions with RLS enabled/forced on 0; effective CRUD grants were 0/114 for anon/authenticated/service_role, while excessive non-DML grants and owner-specific default ACL risks remain.
 - No shared database mutation, grant/default-ACL change, RLS enablement, migration, seed, Render setting change, restart, worker activation, staging write or deployment was performed.
 
-
 ### Documentation-head verification gate — 20 November 2026
 
 The 20-November reconciliation was committed after CI #948 in documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`. CI #948 therefore verifies the preceding implementation head, not these later documentation commits. No PR-triggered workflow run is currently returned for either documentation commit; latest-head CI verification remains pending. Keep PR #138 draft until a successful run covers the current branch head.
-
 
 ---
 
@@ -1092,15 +1089,15 @@ The remediation branch contains a broad, integrated implementation set and remai
 
 ### Observed overlaps and blockers
 
-| Focused PR | Finding | Integration observation |
-|---:|---|---|
-| #144 | G-001 | Ported into PR #138: offer-detail authorization, service-level active store membership, JWT actor attribution, tests and lifecycle fixtures. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending. |
-| #145 | G-020 | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered. |
-| #147 | G-003 | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending. |
-| #148 | G-008 | Adds a DIGITAL-only guard, but PR #138 already uses the broader `SUPPORTED_PAYMENT_METHODS` allowlist and rejects unsupported methods before provider resolution/payment writes (CI #714). The focused patch is weaker/overlapping; do not merge independently. |
-| #149 | G-005 | Its client-side currency buckets are superseded by PR #138's server checkout preview, per-supplier totals, VAT disclosure and `totalsByCurrency` rendering. Do not replace the more complete server-authoritative checkout surface with this UI-only patch. |
-| #150 | G-009 | CI #1023 passed and it supersedes failed PR #146, but its delivery status semantics differ from PR #138: PR #150 records missing-token push as FAILED and throws for unconfigured channels; PR #138 persists NOT_CONFIGURED with stable reason codes. Reconcile the canonical status contract before porting/merging either version. |
-| #151 | UX reference data | Adds country/currency selectors and reference data across web/mobile. This is not a direct duplicate of the G-001–G-009 fixes but touches mobile models also changed on PR #138; review generated/model compatibility during integration. |
+| Focused PR | Finding           | Integration observation                                                                                                                                                                                                                                                                                                              |
+| ---------: | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|       #144 | G-001             | Ported into PR #138: offer-detail authorization, service-level active store membership, JWT actor attribution, tests and lifecycle fixtures. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending.                                                     |
+|       #145 | G-020             | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered.                                                         |
+|       #147 | G-003             | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending.                                                                                                      |
+|       #148 | G-008             | Adds a DIGITAL-only guard, but PR #138 already uses the broader `SUPPORTED_PAYMENT_METHODS` allowlist and rejects unsupported methods before provider resolution/payment writes (CI #714). The focused patch is weaker/overlapping; do not merge independently.                                                                      |
+|       #149 | G-005             | Its client-side currency buckets are superseded by PR #138's server checkout preview, per-supplier totals, VAT disclosure and `totalsByCurrency` rendering. Do not replace the more complete server-authoritative checkout surface with this UI-only patch.                                                                          |
+|       #150 | G-009             | CI #1023 passed and it supersedes failed PR #146, but its delivery status semantics differ from PR #138: PR #150 records missing-token push as FAILED and throws for unconfigured channels; PR #138 persists NOT_CONFIGURED with stable reason codes. Reconcile the canonical status contract before porting/merging either version. |
+|       #151 | UX reference data | Adds country/currency selectors and reference data across web/mobile. This is not a direct duplicate of the G-001–G-009 fixes but touches mobile models also changed on PR #138; review generated/model compatibility during integration.                                                                                            |
 
 ### CI checkpoint — 20 November 2026
 
@@ -1118,18 +1115,15 @@ All these CI runs skipped k6 and the staging release. None establishes staging E
 
 No PR was merged, no deployment/release was triggered, no shared database migration/grant/default-ACL/RLS change was performed, no worker was activated, and no external notification, payment or carrier side effect was initiated as part of this checkpoint.
 
-
 ### G-001 integration update — 20 November 2026
 
 The focused PR #144 G-001 hardening has been ported into `remediation/phase-0-1-tenant-security`: offer detail object authorization, service-level active store-membership checks on propose/update/withdraw, JWT-derived actor attribution for merchant/admin actions, controller/service regression tests, and PostgreSQL lifecycle fixture updates. PR #144 CI #1011 is supporting evidence for the focused patch, but the combined remediation branch still requires exact-head CI and independent review. G-001 remains PARTIAL and the Phase 1 authenticated-business-testing gate remains closed until its full acceptance criteria are satisfied. PR #144 must not be merged independently while the same changes are present on PR #138.
-
 
 ### Develop history reconciliation — 20 November 2026
 
 PR #140's read-only database access audit was already merged into `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The remediation branch was reconciled with that commit using merge commit `92cb3d2498ea6539923cc3e5ef67e7b6eb738451`. The root package now exposes the `db:audit-access` forwarding script, the read-only audit workflow matches the canonical develop version, and the audit script was already identical. The branch compares as 547 commits ahead / 0 behind develop. The audit workflow remains manually dispatched and read-only; it was not run as part of this merge.
 
 The current combined remediation head still has no exact-head GitHub Actions run. The Vercel web/admin commit statuses report `Deployment rate limited — retry in 24 hours`; treat these as external preview-provider failures, not as successful CI or application-test results. Keep PR #138 draft.
-
 
 ### G-002 runtime identity diagnostic integration — 20 November 2026
 

@@ -23,7 +23,12 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertStoreInOrg, assertStoreMember, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
+import {
+  assertStoreInOrg,
+  assertStoreMember,
+  isTenantPrivileged,
+  type CallerContext,
+} from '../../common/tenant-scope';
 
 /**
  * Merchant Offer API — canonical-product multi-seller offers (§ Merchant Offer).
@@ -79,10 +84,7 @@ export class CatalogOfferController {
   }
 
   @Get('merchant/offers')
-  async listMerchantOffers(
-    @CurrentUser() user: JwtPayload,
-    @Query('storeId') storeId?: string,
-  ) {
+  async listMerchantOffers(@CurrentUser() user: JwtPayload, @Query('storeId') storeId?: string) {
     if (!storeId) return [];
     await this.authorizeMerchantStore(user, storeId);
     return this.offerService.listOffersForStore(storeId);
@@ -140,10 +142,7 @@ export class CatalogOfferController {
   }
 
   @Get('offers/:id')
-  async getOffer(
-    @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async getOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     const offer = await this.offerService.getOffer(id);
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
 
@@ -201,10 +200,7 @@ export class CatalogOfferController {
   @Post('merchant/offers/:id/withdraw')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  async withdrawOffer(
-    @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async withdrawOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     return this.offerService.withdrawOffer(id, caller);
   }
@@ -214,10 +210,7 @@ export class CatalogOfferController {
   @Post('admin/offers/:id/approve')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  approveOffer(
-    @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  approveOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.offerService.approveOffer(id, user.sub);
   }
 
@@ -235,20 +228,14 @@ export class CatalogOfferController {
   @Post('admin/offers/:id/suspend')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  suspendOffer(
-    @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  suspendOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.offerService.suspendOffer(id, user.sub);
   }
 
   @Post('admin/offers/:id/activate')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  reactivateOffer(
-    @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  reactivateOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.offerService.reactivateOffer(id, user.sub);
   }
 }

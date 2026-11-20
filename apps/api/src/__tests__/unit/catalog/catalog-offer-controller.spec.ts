@@ -26,12 +26,20 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     db: {
       query: {
         stores: {
-          findFirst: vi.fn().mockResolvedValue(
-            opts.orgId === undefined ? { orgId: 'org-1' } : opts.orgId ? { orgId: opts.orgId } : null,
-          ),
+          findFirst: vi
+            .fn()
+            .mockResolvedValue(
+              opts.orgId === undefined
+                ? { orgId: 'org-1' }
+                : opts.orgId
+                  ? { orgId: opts.orgId }
+                  : null,
+            ),
         },
         storeMembers: {
-          findFirst: vi.fn().mockResolvedValue(opts.member === false ? null : { id: 'membership-1' }),
+          findFirst: vi
+            .fn()
+            .mockResolvedValue(opts.member === false ? null : { id: 'membership-1' }),
         },
       },
     },
@@ -43,31 +51,41 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
 describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {
   it('allows an active store member to list only the requested store offers', async () => {
     const { controller, offerService } = makeController();
-    await expect(controller.listMerchantOffers(merchant, 'store-1')).resolves.toEqual([{ id: 'offer-1' }]);
+    await expect(controller.listMerchantOffers(merchant, 'store-1')).resolves.toEqual([
+      { id: 'offer-1' },
+    ]);
     expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
   });
 
   it('denies a same-organization user who is not an active member', async () => {
     const { controller, offerService } = makeController({ member: false });
-    await expect(controller.listMerchantOffers(merchant, 'store-1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.listMerchantOffers(merchant, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(offerService.listOffersForStore).not.toHaveBeenCalled();
   });
 
   it('denies a store belonging to another organization before querying offers', async () => {
     const { controller, offerService } = makeController({ orgId: 'org-2' });
-    await expect(controller.listMerchantOfferAnalytics(merchant, 'store-2')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.listMerchantOfferAnalytics(merchant, 'store-2')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(offerService.listOfferAnalytics).not.toHaveBeenCalled();
   });
 
   it('applies the same membership check to analytics trends', async () => {
     const { controller, offerService } = makeController({ member: false });
-    await expect(controller.listMerchantOfferTrend(merchant, 'store-1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.listMerchantOfferTrend(merchant, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(offerService.listOfferTrend).not.toHaveBeenCalled();
   });
 
   it('applies the same membership check to store-wide analytics', async () => {
     const { controller, offerService } = makeController();
-    await expect(controller.listMerchantOfferAnalytics(merchant, 'store-1')).resolves.toEqual([{ offerId: 'offer-1' }]);
+    await expect(controller.listMerchantOfferAnalytics(merchant, 'store-1')).resolves.toEqual([
+      { offerId: 'offer-1' },
+    ]);
     expect(offerService.listOfferAnalytics).toHaveBeenCalledWith('store-1');
   });
 
@@ -81,14 +99,13 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
   it('uses the authenticated principal instead of a client-supplied proposal actor', async () => {
     const { controller, offerService } = makeController();
     await controller.proposeOffer(merchant, 'offer-1', { proposedBy: 'attacker-user' });
-    expect(offerService.proposeOffer).toHaveBeenCalledWith(
-      'offer-1',
-      merchant.sub,
-      { sub: merchant.sub, role: merchant.role, activeOrg: merchant.activeOrg },
-    );
+    expect(offerService.proposeOffer).toHaveBeenCalledWith('offer-1', merchant.sub, {
+      sub: merchant.sub,
+      role: merchant.role,
+      activeOrg: merchant.activeOrg,
+    });
   });
 });
-
 
 describe('CatalogOfferController — create offer actor attribution (G-001)', () => {
   it('overrides a forged proposedBy value with the authenticated principal', async () => {
@@ -108,7 +125,6 @@ describe('CatalogOfferController — create offer actor attribution (G-001)', ()
   });
 });
 
-
 describe('CatalogOfferController — admin offer actor attribution (G-001)', () => {
   const admin = { sub: 'admin-user-1', role: 'ADMIN', activeOrg: null } as JwtPayload;
 
@@ -124,7 +140,6 @@ describe('CatalogOfferController — admin offer actor attribution (G-001)', () 
     expect(offerService.rejectOffer).toHaveBeenCalledWith('offer-1', admin.sub, 'Policy violation');
   });
 });
-
 
 describe('CatalogOfferController — suspension actor attribution (G-001)', () => {
   const admin = { sub: 'admin-user-1', role: 'ADMIN', activeOrg: null } as JwtPayload;
@@ -142,17 +157,20 @@ describe('CatalogOfferController — suspension actor attribution (G-001)', () =
   });
 });
 
-
 describe('CatalogOfferController — offer detail object authorization (G-001)', () => {
   it('allows an active member of the owning store to read offer detail', async () => {
     const { controller, offerService } = makeController();
-    await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({ id: 'offer-1' });
+    await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({
+      id: 'offer-1',
+    });
     expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
   });
 
   it('denies a same-organization non-member from reading offer detail', async () => {
     const { controller, offerService } = makeController({ member: false });
-    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
   });
 
@@ -163,7 +181,9 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       perms: [],
     } as JwtPayload;
     const { controller } = makeController();
-    await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('allows a privileged admin with offer governance permission', async () => {
@@ -177,7 +197,6 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
   });
 });
 
-
 describe('CatalogOfferController — privileged merchant-list policy (G-001)', () => {
   it('allows a privileged administrator through the explicit tenant policy', async () => {
     const admin = {
@@ -187,7 +206,9 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
       perms: ['catalog:offers:govern'],
     } as JwtPayload;
     const { controller, offerService, db } = makeController();
-    await expect(controller.listMerchantOffers(admin, 'store-1')).resolves.toEqual([{ id: 'offer-1' }]);
+    await expect(controller.listMerchantOffers(admin, 'store-1')).resolves.toEqual([
+      { id: 'offer-1' },
+    ]);
     expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
     expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
     expect(db.db.query.storeMembers.findFirst).not.toHaveBeenCalled();

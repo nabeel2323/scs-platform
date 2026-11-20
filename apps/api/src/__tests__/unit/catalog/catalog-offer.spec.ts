@@ -86,7 +86,11 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
   };
 
   // @ts-expect-error — partial mock is sufficient for the service's call surface
-  const svc = new CatalogOfferService(db, { record: async (entry: unknown) => { auditRecords.push(entry); } });
+  const svc = new CatalogOfferService(db, {
+    record: async (entry: unknown) => {
+      auditRecords.push(entry);
+    },
+  });
   return { svc, inserted, updated, auditRecords };
 }
 
@@ -146,8 +150,12 @@ describe('CatalogOfferService — lifecycle', () => {
   });
 
   it('requires a reason to reject a proposed offer', async () => {
-    const { svc } = makeHarness({ merchantOffers: { findFirst: { id: 'o1', status: 'PROPOSED' } } });
-    await expect(svc.rejectOffer('o1', 'admin-1', '  ')).rejects.toBeInstanceOf(BadRequestException);
+    const { svc } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', status: 'PROPOSED' } },
+    });
+    await expect(svc.rejectOffer('o1', 'admin-1', '  ')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('throws when the offer does not exist', async () => {
@@ -179,14 +187,18 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
 
   it('updates terms when the price list belongs to the offer store', async () => {
     const { svc, updated } = makeHarness({
-      merchantOffers: { findFirst: [{ id: 'o1', storeId: 's1', status: 'DRAFT' }, { id: 'o1', storeId: 's1', status: 'DRAFT' }] },
+      merchantOffers: {
+        findFirst: [
+          { id: 'o1', storeId: 's1', status: 'DRAFT' },
+          { id: 'o1', storeId: 's1', status: 'DRAFT' },
+        ],
+      },
       priceLists: { findFirst: { id: 'pl1', storeId: 's1' } },
     });
     await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 });
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
   });
 });
-
 
 describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
   const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
@@ -218,7 +230,9 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
       stores: { findFirst: { orgId: 'org-2' } },
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
-    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('You do not have access to this store');
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow(
+      'You do not have access to this store',
+    );
     expect(updated).toHaveLength(0);
   });
 
@@ -230,10 +244,13 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
     await svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller);
-    expect(auditRecords[0]).toMatchObject({ actorType: 'MERCHANT', actorId: caller.sub, action: 'offer.pricing_updated' });
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'MERCHANT',
+      actorId: caller.sub,
+      action: 'offer.pricing_updated',
+    });
   });
 });
-
 
 describe('CatalogOfferService — admin governance audit attribution (G-001)', () => {
   it('records the authenticated reviewer for suspension', async () => {
@@ -263,7 +280,6 @@ describe('CatalogOfferService — admin governance audit attribution (G-001)', (
   });
 });
 
-
 describe('CatalogOfferService — proposal and pricing mutation membership enforcement (G-001)', () => {
   const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
 
@@ -273,7 +289,9 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow('not authorized for this store');
+    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow(
+      'not authorized for this store',
+    );
     expect(updated).toHaveLength(0);
   });
 
@@ -283,7 +301,9 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow('not authorized for this store');
+    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
+      'not authorized for this store',
+    );
     expect(updated).toHaveLength(0);
   });
 });

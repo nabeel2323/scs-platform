@@ -88,9 +88,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       const identity = identityResult.rows[0];
       if (identity) {
-        DatabaseService.logger.log(
-          `Runtime database identity: ${JSON.stringify(identity)}`,
-        );
+        DatabaseService.logger.log(`Runtime database identity: ${JSON.stringify(identity)}`);
       } else {
         DatabaseService.logger.warn(
           'Runtime database identity query returned no role metadata; identity remains unverified.',
@@ -180,7 +178,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           }
           DatabaseService.logger.log(`Migrations complete (${pending.length} applied).`);
         } else {
-          DatabaseService.logger.log(`Database up-to-date — all ${files.length} migration(s) applied.`);
+          DatabaseService.logger.log(
+            `Database up-to-date — all ${files.length} migration(s) applied.`,
+          );
         }
       } else {
         DatabaseService.logger.warn(`Migrations directory not found: ${migrationsDir}`);
@@ -193,7 +193,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       // Don't crash — let the app try to start anyway (tables may already exist).
     } finally {
       if (client) {
-        try { await client.release(); } catch { /* ignore */ }
+        try {
+          await client.release();
+        } catch {
+          /* ignore */
+        }
       }
       await bootstrapPool.end();
     }
@@ -261,7 +265,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         DatabaseService.logger.log('Seed: RBAC data up-to-date.');
       }
     } catch (err: any) {
-      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
       DatabaseService.logger.error(`Seed failed: ${err.message}`);
     }
   }
