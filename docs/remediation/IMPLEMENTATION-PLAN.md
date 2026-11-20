@@ -1129,3 +1129,8 @@ The focused PR #144 G-001 hardening has been ported into `remediation/phase-0-1-
 PR #140's read-only database access audit was already merged into `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The remediation branch was reconciled with that commit using merge commit `92cb3d2498ea6539923cc3e5ef67e7b6eb738451`. The root package now exposes the `db:audit-access` forwarding script, the read-only audit workflow matches the canonical develop version, and the audit script was already identical. The branch compares as 547 commits ahead / 0 behind develop. The audit workflow remains manually dispatched and read-only; it was not run as part of this merge.
 
 The current combined remediation head still has no exact-head GitHub Actions run. The Vercel web/admin commit statuses report `Deployment rate limited — retry in 24 hours`; treat these as external preview-provider failures, not as successful CI or application-test results. Keep PR #138 draft.
+
+
+### G-002 runtime identity diagnostic integration — 20 November 2026
+
+The safe startup identity fingerprint from PR #142 has been ported into the remediation branch's `DatabaseService`. It queries the actual API pool and logs only session/effective role, database name, role capability flags and TLS. It does not log connection strings, hostnames, client addresses, credentials, SQL text or raw errors, and diagnostic failure is non-fatal. PR #142 CI #990 is supporting evidence for the isolated change; exact-head CI on the combined branch remains pending. The actual deployed role is not verified until a separately approved staging release exposes the startup record. No release or deployment is authorized by this plan.
