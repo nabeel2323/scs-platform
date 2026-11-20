@@ -101,7 +101,7 @@ export class CatalogOfferService {
     }
   }
 
-  async createOffer(input: CreateOfferInput) {
+  async createOffer(input: CreateOfferInput, caller: CallerContext) {
     if (!input.storeId?.trim()) throw new BadRequestException('Offer requires a store');
     if (!input.productId?.trim()) throw new BadRequestException('Offer requires a product');
     const status = input.status ?? 'DRAFT';
@@ -116,6 +116,9 @@ export class CatalogOfferService {
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
     }
+
+    await assertStoreInOrg(this.db, caller, input.storeId);
+    await assertStoreMember(this.db, caller, input.storeId);
 
     const product = await this.db.db.query.products.findFirst({
       where: eq(products.id, input.productId),
@@ -165,14 +168,14 @@ export class CatalogOfferService {
       priceListId: input.priceListId ?? null,
       warehouseId: input.warehouseId ?? null,
       externalRef: input.externalRef ?? null,
-      proposedBy: status === 'PROPOSED' ? (input.proposedBy ?? null) : null,
+      proposedBy: status === 'PROPOSED' ? caller.sub : null,
       metadata: input.metadata ?? {},
     });
 
     // PHASE 9: Audit — offer created
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: input.proposedBy ?? null,
+      actorId: caller.sub,
       action: 'offer.created',
       resource: 'merchant_offer',
       resourceId: id,
