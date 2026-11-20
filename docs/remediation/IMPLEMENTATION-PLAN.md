@@ -1074,3 +1074,46 @@ CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa
 ### Documentation-head verification gate — 20 November 2026
 
 The 20-November reconciliation was committed after CI #948 in documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`. CI #948 therefore verifies the preceding implementation head, not these later documentation commits. No PR-triggered workflow run is currently returned for either documentation commit; latest-head CI verification remains pending. Keep PR #138 draft until a successful run covers the current branch head.
+
+
+---
+
+## Pull-request integration and CI coordination checkpoint — 20 November 2026
+
+The remediation branch contains a broad, integrated implementation set and remains a draft working branch. Several focused pull requests have independently ported subsets of the same work onto `develop`. A green CI result on a focused PR does not establish that its patch is independent of the remediation branch.
+
+### Integration rules
+
+1. Maintain one authoritative implementation for each finding. Before merging any focused PR, compare its changed files and behavior against the corresponding code already present on `remediation/phase-0-1-tenant-security`.
+2. Do not merge both copies of a finding merely because both CI runs are green. If a focused PR is selected to land first, reconcile the remediation branch against the resulting `develop` state before the next integration.
+3. Preserve PR #138 as draft. Its current head is a working integration branch, not an approved release candidate. No deployment or shared-database action follows from CI success.
+4. Treat PR #143 as a documentation reconciliation proposal based on `develop`; do not replace the much more detailed PR #138 plan/tracker with its shorter documents. Incorporate its corrections into the detailed tracker while retaining the historical implementation evidence.
+5. Require exact-head CI evidence for the current PR head before claiming that head is verified. Documentation changes made through the GitHub Contents API have not, so far, produced a workflow run; record this as pending rather than assuming a previous run covers them.
+
+### Observed overlaps and blockers
+
+| Focused PR | Finding | Integration observation |
+|---:|---|---|
+| #144 | G-001 | Changes merchant offer controller/service and tests that are also changed on PR #138. Compare the full tenant-authorization behavior and regression coverage before choosing the landing path. |
+| #145 | G-020 | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered. |
+| #147 | G-003 | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending. |
+| #148 | G-008 | Changes the payments service and adds a separate unsupported-DIGITAL test, overlapping the payment-method guard already present on PR #138 and verified in CI #714. |
+| #149 | G-005 | Changes the web checkout page already changed on PR #138; compare presentation behavior and tests before merging either copy. |
+| #150 | G-009 | Changes the notification service also changed on PR #138. CI #1023 passed; this is the preferred focused candidate over the failed earlier PR #146, subject to exact behavior review. |
+| #151 | UX reference data | Adds country/currency selectors and reference data across web/mobile. This is not a direct duplicate of the G-001–G-009 fixes but touches mobile models also changed on PR #138; review generated/model compatibility during integration. |
+
+### CI checkpoint — 20 November 2026
+
+- PR #150 CI #1023 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #151 CI #1022 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #149 CI #1016, PR #148 CI #1015 and PR #144 CI #1011 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #145 CI #1012 passed all ten executable jobs; this does not resolve the migration-numbering conflict or authorize applying migration 0070 to the shared database.
+- PR #146 CI #1013 failed in API unit tests because the notification test's database mock did not satisfy the service query chain. PR #150 is the newer G-009 candidate.
+- PR #147 CI #1014 failed API typecheck because test-mock properties from an index signature used dot notation. The test was corrected in commit `590ac892`; CI #1024 is still running at this checkpoint.
+- PR #138 CI #948 passed ten executable jobs on earlier code head `a1cd9308`. Its current head includes later documentation commits and has no exact-head workflow run yet.
+
+All these CI runs skipped k6 and the staging release. None establishes staging E2E, production readiness or release authorization.
+
+### Change-control boundary
+
+No PR was merged, no deployment/release was triggered, no shared database migration/grant/default-ACL/RLS change was performed, no worker was activated, and no external notification, payment or carrier side effect was initiated as part of this checkpoint.
