@@ -349,9 +349,9 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       stores: { findFirst: { orgId: 'org-2' } },
     });
 
-    await expect(
-      svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller),
-    ).rejects.toThrow('You do not have access to this store');
+    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
+      'You do not have access to this store',
+    );
     expect(updated).toHaveLength(0);
   });
 
