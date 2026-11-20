@@ -1187,3 +1187,8 @@ PR #138 source head `dc2436ef6e2fadd1a982e44f935fcc5f56bc6d0b` was evaluated by 
 ## Grouped formatting correction — 21 November 2026
 
 The exact-head CI #1133 run passed lint, typecheck and Flutter analysis/tests but failed the changed-file Prettier gate on four files: `catalog-offer-controller.spec.ts`, `DB-ACCESS-VERIFICATION-2026-11-19.md`, `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`. The repository-locked Prettier write/check completed successfully for all four in a temporary self-cleaning workflow. Commit `96820fe00da6c7db29736e04cea82ebcf78b36b9` groups the formatting updates and removes the temporary workflow. Full exact-head CI is still required; do not treat the formatter run as test, migration or build verification. Keep PR #138 draft and G-001 partial/G-002 blocked pending their stated evidence gates.
+
+
+## Post-format verification checkpoint — 21 November 2026
+
+CI #1136 ran on pre-format documentation head `e8afb2d8713217e9b4f77de3f2b534046fa6202e`. Lint, TypeScript typecheck, Flutter analysis and tests passed. The changed-file formatting gate failed only on `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`; dependent API, PostgreSQL, migration, web/admin, boundary and build jobs were skipped. The repository-locked formatter subsequently passed write/check for both documents and removed its temporary workflow. The post-format branch head is `a5227c897dc397ad4f890fe2bf96181c971e59f2`; a full exact-head CI run is required. Keep PR #138 draft. G-001 remains PARTIAL and G-002 remains BLOCKED pending their stated independent evidence gates.
