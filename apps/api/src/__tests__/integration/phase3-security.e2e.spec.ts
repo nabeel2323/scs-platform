@@ -272,9 +272,27 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       { id: randomUUID(), orgId: orgB, userId: buyerB, roleId: buyerRoleId },
     ]);
     await db.insert(storeMembers).values([
-      { id: randomUUID(), storeId: storeA, userId: merchantOwnerA, role: 'OWNER', status: 'ACTIVE' },
-      { id: randomUUID(), storeId: storeA, userId: merchantStaffA, role: 'MEMBER', status: 'ACTIVE' },
-      { id: randomUUID(), storeId: storeB, userId: merchantOwnerB, role: 'OWNER', status: 'ACTIVE' },
+      {
+        id: randomUUID(),
+        storeId: storeA,
+        userId: merchantOwnerA,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      },
+      {
+        id: randomUUID(),
+        storeId: storeA,
+        userId: merchantStaffA,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+      },
+      {
+        id: randomUUID(),
+        storeId: storeB,
+        userId: merchantOwnerB,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      },
     ]);
 
     // ── Catalog: 2 products across 2 stores ──────────────────────

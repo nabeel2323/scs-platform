@@ -46,8 +46,7 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
       select: vi.fn(() => ({
         from: () => ({
           where: () => ({
-            limit: async () =>
-              opts.member === false ? [] : [{ id: 'membership-1' }],
+            limit: async () => (opts.member === false ? [] : [{ id: 'membership-1' }]),
           }),
         }),
       })),

@@ -58,9 +58,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
     return async () => (spec as Row | undefined | null) ?? null;
   };
 
-  const storeMemberFindFirst = firstFn(
-    queries.storeMembers?.findFirst ?? { id: 'membership-1' },
-  );
+  const storeMemberFindFirst = firstFn(queries.storeMembers?.findFirst ?? { id: 'membership-1' });
   const q = (cfg?: QueryConfig) => ({
     findFirst: firstFn(cfg?.findFirst),
     findMany: async (config?: unknown) => {

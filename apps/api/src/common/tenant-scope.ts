@@ -45,9 +45,7 @@ export function financialOrgScope(caller: CallerContext): string | null {
   if (isTenantPrivileged(caller)) return caller.activeOrg ?? null;
   if (!caller.activeOrg) {
     recordOpsCounter('financial_isolation_denials_total', 1, 'missing_active_org');
-    throw new ForbiddenException(
-      'An active organization is required to access financial records',
-    );
+    throw new ForbiddenException('An active organization is required to access financial records');
   }
   return caller.activeOrg;
 }
@@ -184,7 +182,8 @@ export async function assertWarehouseMember(
       where: eq(warehouses.id, warehouseId),
       columns: { storeId: true },
     });
-    if (!privilegedWarehouse) throw new ForbiddenException('You do not have access to this warehouse');
+    if (!privilegedWarehouse)
+      throw new ForbiddenException('You do not have access to this warehouse');
     return privilegedWarehouse.storeId;
   }
 
@@ -215,7 +214,8 @@ export async function assertVariantStoreMember(
       where: eq(products.id, privilegedVariant.productId),
       columns: { storeId: true },
     });
-    if (!privilegedProduct?.storeId) throw new ForbiddenException('You do not have access to this variant');
+    if (!privilegedProduct?.storeId)
+      throw new ForbiddenException('You do not have access to this variant');
     return privilegedProduct.storeId;
   }
 
