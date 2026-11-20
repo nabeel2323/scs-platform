@@ -40,7 +40,7 @@ import {
   organizationMembers,
   roles,
 } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
@@ -270,6 +270,11 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       { id: randomUUID(), orgId: orgA, userId: merchantStaffA, roleId: merchantStaffRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
       { id: randomUUID(), orgId: orgB, userId: buyerB, roleId: buyerRoleId },
+    ]);
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantOwnerA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeA, userId: merchantStaffA, role: 'MEMBER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantOwnerB, role: 'OWNER', status: 'ACTIVE' },
     ]);
 
     // ── Catalog: 2 products across 2 stores ──────────────────────
