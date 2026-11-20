@@ -327,3 +327,51 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
     expect(updated).toHaveLength(0);
   });
 });
+
+describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)', () => {
+  const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
+
+  it('denies a foreign-organization merchant from proposing an offer', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's2', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-2' } },
+    });
+
+    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow(
+      'You do not have access to this store',
+    );
+    expect(updated).toHaveLength(0);
+  });
+
+  it('denies a foreign-organization merchant from changing offer pricing', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's2', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-2' } },
+    });
+
+    await expect(
+      svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller),
+    ).rejects.toThrow('You do not have access to this store');
+    expect(updated).toHaveLength(0);
+  });
+
+  it('allows an active member to propose and attributes the event to that member', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+    const { svc, updated, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'PROPOSED' }] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+
+    await expect(svc.proposeOffer('o1', caller.sub, caller)).resolves.toMatchObject({
+      status: 'PROPOSED',
+    });
+    expect(updated[0]).toMatchObject({ status: 'PROPOSED', proposedBy: caller.sub });
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'MERCHANT',
+      actorId: caller.sub,
+      action: 'offer.proposed',
+    });
+  });
+});
+
