@@ -72,8 +72,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         productVariants: q(queries.productVariants),
         priceLists: q(queries.priceLists),
         warehouses: q(queries.warehouses),
-        stores: q(queries.stores),
-        storeMembers: q(queries.storeMembers),
+        stores: q(queries.stores ?? { findFirst: { orgId: 'org-1' } }),
+        storeMembers: q(queries.storeMembers ?? { findFirst: { id: 'membership-1' } }),
       },
       insert: () => ({
         values: (rows: unknown) => {
@@ -190,7 +190,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
       priceLists: { findFirst: { id: 'pl1', storeId: 's2' } },
     });
-    await expect(svc.updateOfferPricing('o1', { priceListId: 'pl1' })).rejects.toBeInstanceOf(
+    await expect(svc.updateOfferPricing('o1', { priceListId: 'pl1' }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
@@ -200,7 +200,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
       warehouses: { findFirst: { id: 'wh1', storeId: 's2' } },
     });
-    await expect(svc.updateOfferPricing('o1', { warehouseId: 'wh1' })).rejects.toBeInstanceOf(
+    await expect(svc.updateOfferPricing('o1', { warehouseId: 'wh1' }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
@@ -215,7 +215,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       },
       priceLists: { findFirst: { id: 'pl1', storeId: 's1' } },
     });
-    await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 });
+    await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' });
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
   });
 });
@@ -309,7 +309,7 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow(
+    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow(
       'not authorized for this store',
     );
     expect(updated).toHaveLength(0);
@@ -337,7 +337,7 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       stores: { findFirst: { orgId: 'org-2' } },
     });
 
-    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow(
+    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow(
       'You do not have access to this store',
     );
     expect(updated).toHaveLength(0);
@@ -363,7 +363,7 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
 
-    await expect(svc.proposeOffer('o1', caller.sub, caller)).resolves.toMatchObject({
+    await expect(svc.proposeOffer('o1', caller)).resolves.toMatchObject({
       status: 'PROPOSED',
     });
     expect(updated[0]).toMatchObject({ status: 'PROPOSED', proposedBy: caller.sub });
