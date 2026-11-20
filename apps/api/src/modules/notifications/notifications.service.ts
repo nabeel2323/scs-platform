@@ -324,14 +324,11 @@ export class NotificationsService implements OnModuleInit {
       .where(and(eq(deviceTokens.userId, userId), eq(deviceTokens.isActive, true)));
 
     if (tokens.length === 0) {
-      await this.db.db
-        .update(notifications)
-        .set({ status: 'SENT', provider: 'fcm-no-token', sentAt: new Date() })
-        .where(eq(notifications.id, notificationId));
-      return;
+      throw new Error('PUSH_NOT_CONFIGURED: no active device tokens are registered');
     }
 
-    // FCM send (placeholder — in production, use firebase-admin SDK)
+    // A configured FCM adapter must be installed before this channel can report
+    // success. The default implementation below fails closed.
     const fcmResult = await this.fcmSend(tokens.map((t: any) => t.token), title, body);
 
     await this.db.db
@@ -340,31 +337,24 @@ export class NotificationsService implements OnModuleInit {
       .where(eq(notifications.id, notificationId));
   }
 
-  private async sendWhatsApp(notificationId: string, _userId: string, _body: string) {
-    // Placeholder — in production, integrate WhatsApp Business API
-    await this.db.db
-      .update(notifications)
-      .set({ status: 'SENT', provider: 'whatsapp', sentAt: new Date() })
-      .where(eq(notifications.id, notificationId));
+  private async sendWhatsApp(_notificationId: string, _userId: string, _body: string) {
+    // No WhatsApp Business adapter is registered for general notifications.
+    // Never mark a placeholder operation as SENT.
+    throw new Error('WHATSAPP_NOT_CONFIGURED');
   }
 
-  // ── Provider Stubs ───────────────────────────────────────────
+  // ── Provider Stubs (fail closed until real adapters are configured) ──
 
   private async smsProviderPrimary(_phone: string, _body: string): Promise<string> {
-    // In production: call primary SMS API (e.g., Unifonic, Twilio)
-    // For now, simulate success
-    return `primary-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('SMS_PRIMARY_NOT_CONFIGURED');
   }
 
   private async smsProviderFallback(_phone: string, _body: string): Promise<string> {
-    // In production: call fallback SMS API
-    return `fallback-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('SMS_FALLBACK_NOT_CONFIGURED');
   }
 
   private async fcmSend(_tokens: string[], _title: string, _body: string): Promise<string> {
-    // In production: use firebase-admin SDK
-    // admin.messaging().sendEachForMulticast({ tokens, notification: { title, body } })
-    return `fcm-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('PUSH_PROVIDER_NOT_CONFIGURED');
   }
 
   // ── Preferences ──────────────────────────────────────────────
