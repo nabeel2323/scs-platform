@@ -928,7 +928,6 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - PR #138 remains draft. Exact-head CI must be rerun after this tracker update; do not treat the earlier `action_required` run as a pass. G-001 remains PARTIAL, G-002 remains blocked on independent runtime identity and reviewed least-privilege/RLS design, and the migration/notification integration decisions remain open.
 - No staging release, deployment, shared-database mutation, migration, seed, grant/default-ACL change, RLS enablement, worker activation or business-side effect was performed.
 
-
 ### Exact-head CI verification — 20 November 2026
 
 - PR #138 exact head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` completed GitHub Actions CI run [#1041](https://github.com/nabeel2323/scs-platform/actions/runs/44730559224) successfully.

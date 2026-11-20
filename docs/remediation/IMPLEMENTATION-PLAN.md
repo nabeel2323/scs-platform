@@ -1148,7 +1148,6 @@ remains draft. G-001 remains partial, G-002 remains blocked, and the migration
 numbering and notification status-contract conflicts remain unresolved. No
 staging release, deployment or shared-database mutation was performed.
 
-
 ### Current verification gate — 20 November 2026
 
 PR #138 head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` passed GitHub Actions CI #1041: all 10 executable jobs passed, including PostgreSQL integration, API unit/coverage, migration full apply, container build/smoke, contract/codegen and production build. k6 and staging release were skipped. The run follows a targeted fix for offer lifecycle semantics: suspension must not overwrite the merchant's independent `is_available` preference; reactivation now preserves it, with a regression assertion.
