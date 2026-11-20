@@ -1,4 +1,4 @@
-name: G-001 Prettier diagnostic
+name: G-001 Prettier output diagnostic
 
 on:
   push:
@@ -23,5 +23,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec prettier --version
-      - run: pnpm exec prettier --check apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
+      - name: Format and check phase4
+        run: |
+          pnpm exec prettier --version
+          pnpm exec prettier --write apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
+          pnpm exec prettier --check apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase4-prettier-diagnostic
+          path: apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
+          if-no-files-found: error
