@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** ACTIVE — Phases 0–5 are in progress; Phase 6 is not started. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019, G-023–G-035 are verified/closed by their recorded CI evidence. G-031–G-035 are CLOSED by current-head CI #936. G-020 remains CI-verified but migration 0070 is not applied to the shared database. G-007 implementation is CI-verified; buyer journey/order-detail/tracking UAT remains in Phase 6. G-010 label processing and timeout regression tests are CI-verified in #832/#843; real Aramex sandbox verification remains unavailable. G-002 remains open pending actual API/migration role evidence and a reviewed database access model. G-022 is blocked by Supabase-managed extension ownership. No live database mutation or deployment was performed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36` passed CI #948 (10 executable jobs); k6 and staging release were skipped. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019, G-023–G-035 remain verified/closed by their recorded CI evidence. G-002 remains BLOCKED: read-only audit run #4 established the staging migration/audit credential as privileged `postgres`, but not the Render API runtime identity. PR #142 adds a non-secret API-pool identity diagnostic and its CI run `44656130587` passed; it remains source-only pending review/merge and a separately authorized staging release. G-007 full buyer journey/order-detail/tracking UAT remains in Phase 6; G-010 real Aramex sandbox verification remains unavailable; G-020 migration 0070 is not applied to the shared database; G-022 remains blocked by Supabase-managed extension ownership. No shared database mutation, staging write, environment change, worker activation or deployment was performed.
 
 ---
 
@@ -780,3 +780,32 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The Render OTP log sample contains startup/provider configuration and route registration records; it does not provide a post-remediation live OTP request/verification exercise. OTP runtime remediation therefore remains unverified until the fixed code is deployed in an authorized staging window and fresh logs are reviewed without exposing OTP values.
 - G-002 remains blocked pending effective API and migration PostgreSQL identity evidence. The connected Supabase inspection session is `postgres` and is not a substitute for either runtime identity. Do not apply migration 0070, alter grants/default ACLs, enable RLS, or change Supabase-managed extension ownership as part of this continuation.
 - This tracker update is documentation-only; the final documentation head must pass its own CI run. No shared database mutation, staging write, environment change, worker activation or deployment was performed.
+
+
+## 20 November 2026 — runtime database identity follow-up
+
+### CI #948 — PR #138
+
+- Verified CI #948 on head `a1cd93085136db59fe82aa858ae4ff4227547d36`: all 10 executable jobs passed, including API unit/coverage, PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke.
+- k6 smoke and staging release were skipped. No performance, staging runtime, deployment or release authorization is claimed.
+- The blocking E6 gate passes with the existing 193 reviewed legacy violations; this does not close G-015.
+
+### G-002 — read-only staging DB audit run #4
+
+- The protected read-only audit completed successfully. The `STAGING_DATABASE_URL` credential used by the audit and staging migration workflow authenticates as `session_user = current_user = postgres`; role flags include `BYPASSRLS`, `CREATEROLE` and `CREATEDB`. This confirms the migration/audit credential is highly privileged and is not a dedicated least-privilege migration role.
+- The snapshot contains 114 public tables/partitions and 0 with RLS enabled or forced. Effective SELECT/INSERT/UPDATE/DELETE privileges are 0/114 for anon, authenticated and service_role, while TRUNCATE/REFERENCES/TRIGGER/MAINTAIN and owner-specific default ACL risks remain. Function EXECUTE exposure and extension ownership require separate intent review.
+- The audit did not identify a uniquely attributable Render API session. Supavisor-normalized session metadata and timing correlation are insufficient to prove API identity. G-002 remains BLOCKED.
+- No database grants, defaults, RLS policies, data, migrations, seeds or extensions were changed; audit result records `mutationPerformed: false`.
+
+### PR #142 — safe API runtime identity diagnostics
+
+- Opened [PR #142](https://github.com/nabeel2323/scs-platform/pull/142) on `security/runtime-db-identity-diagnostics`. It adds a non-secret identity query to the actual API `pg.Pool`, reporting session/effective role names, database name, role capability flags and TLS status. It does not log the DSN, host, client address, credentials, SQL text or raw diagnostic errors; diagnostic failure is non-fatal.
+- CI run `44656130587` passed all executable jobs, including API unit/coverage, PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, migration full apply, contract/codegen, build and container smoke.
+- This is source/test-pipeline evidence only. The diagnostic must be reviewed and merged under normal controls, then included in a separately authorized staging release before the runtime identity can be marked verified. No deployment or environment change was performed.
+
+### Next gates
+
+1. Review PR #142's diagnostic query and ensure its safe logging contract remains intact.
+2. After normal review/merge and explicit release authorization, deploy through the existing protected release workflow and inspect the non-secret API startup identity record. Do not trigger the release as part of this implementation continuation.
+3. Independently map API runtime privileges, migration ownership, table/function exposure and default ACLs. Design role separation and table-specific RLS policies before any shared-database DDL.
+4. Keep PR #138 draft. Do not apply migration 0070/0071, alter shared grants/default ACLs, enable RLS, activate P13 workers, or run staging business writes until the relevant architecture and release gates are approved.
