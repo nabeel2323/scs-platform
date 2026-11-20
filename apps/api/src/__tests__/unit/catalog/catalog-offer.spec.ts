@@ -36,11 +36,13 @@ interface Harness {
   svc: CatalogOfferService;
   inserted: unknown[];
   updated: unknown[];
+  auditRecords: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
+  const auditRecords: unknown[] = [];
 
   const firstFn = (spec?: Row | Array<Row | null> | null) => {
     if (Array.isArray(spec)) {
@@ -84,8 +86,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
   };
 
   // @ts-expect-error — partial mock is sufficient for the service's call surface
-  const svc = new CatalogOfferService(db, { record: async () => {} });
-  return { svc, inserted, updated };
+  const svc = new CatalogOfferService(db, { record: async (entry: unknown) => { auditRecords.push(entry); } });
+  return { svc, inserted, updated, auditRecords };
 }
 
 describe('CatalogOfferService — create', () => {
@@ -218,5 +220,16 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
     });
     await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('You do not have access to this store');
     expect(updated).toHaveLength(0);
+  });
+
+  it('attributes pricing audit events to the authenticated member, not the original proposer', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT', proposedBy: 'original-proposer' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, offer] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller);
+    expect(auditRecords[0]).toMatchObject({ actorType: 'MERCHANT', actorId: caller.sub, action: 'offer.pricing_updated' });
   });
 });
