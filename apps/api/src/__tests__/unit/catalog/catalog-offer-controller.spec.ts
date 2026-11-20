@@ -212,7 +212,6 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
     expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
   });
 
-
   it('denies an admin-role caller without offer governance permission', async () => {
     const adminWithoutPermission = {
       ...merchant,
@@ -220,9 +219,9 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       perms: [],
     } as JwtPayload;
     const { controller, offerService } = makeController();
-    await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      controller.getOffer(adminWithoutPermission, 'offer-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 
@@ -233,7 +232,9 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       perms: ['catalog:offers:govern'],
     } as JwtPayload;
     const { controller } = makeController();
-    await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({ id: 'offer-1' });
+    await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({
+      id: 'offer-1',
+    });
   });
 });
 
