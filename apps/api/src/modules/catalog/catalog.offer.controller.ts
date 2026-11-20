@@ -168,9 +168,9 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
-    await this.authorizeMerchantStore(user, input.storeId);
-    // The authenticated principal owns proposal and audit attribution; never trust input.proposedBy.
-    return this.offerService.createOffer({ ...input, proposedBy: user.sub });
+    const caller = await this.authorizeMerchantStore(user, input.storeId);
+    // The service rechecks tenant ownership; authenticated caller owns audit attribution.
+    return this.offerService.createOffer(input, caller);
   }
 
   @Post('merchant/offers/:id/propose')
