@@ -1094,7 +1094,7 @@ The remediation branch contains a broad, integrated implementation set and remai
 
 | Focused PR | Finding | Integration observation |
 |---:|---|---|
-| #144 | G-001 | Changes merchant offer controller/service and tests that are also changed on PR #138. Compare the full tenant-authorization behavior and regression coverage before choosing the landing path. |
+| #144 | G-001 | The focused controller/service authorization, actor-attribution tests and lifecycle-fixture hardening have now been ported into PR #138's remediation branch. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending. |
 | #145 | G-020 | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered. |
 | #147 | G-003 | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending. |
 | #148 | G-008 | Changes the payments service and adds a separate unsupported-DIGITAL test, overlapping the payment-method guard already present on PR #138 and verified in CI #714. |
@@ -1117,3 +1117,8 @@ All these CI runs skipped k6 and the staging release. None establishes staging E
 ### Change-control boundary
 
 No PR was merged, no deployment/release was triggered, no shared database migration/grant/default-ACL/RLS change was performed, no worker was activated, and no external notification, payment or carrier side effect was initiated as part of this checkpoint.
+
+
+### G-001 integration update — 20 November 2026
+
+The focused PR #144 G-001 hardening has been ported into `remediation/phase-0-1-tenant-security`: offer detail object authorization, service-level active store-membership checks on propose/update/withdraw, JWT-derived actor attribution for merchant/admin actions, controller/service regression tests, and PostgreSQL lifecycle fixture updates. PR #144 CI #1011 is supporting evidence for the focused patch, but the combined remediation branch still requires exact-head CI and independent review. G-001 remains PARTIAL and the Phase 1 authenticated-business-testing gate remains closed until its full acceptance criteria are satisfied. PR #144 must not be merged independently while the same changes are present on PR #138.
