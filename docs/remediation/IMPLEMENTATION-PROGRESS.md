@@ -809,3 +809,10 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 2. After normal review/merge and explicit release authorization, deploy through the existing protected release workflow and inspect the non-secret API startup identity record. Do not trigger the release as part of this implementation continuation.
 3. Independently map API runtime privileges, migration ownership, table/function exposure and default ACLs. Design role separation and table-specific RLS policies before any shared-database DDL.
 4. Keep PR #138 draft. Do not apply migration 0070/0071, alter shared grants/default ACLs, enable RLS, activate P13 workers, or run staging business writes until the relevant architecture and release gates are approved.
+
+
+### Post-reconciliation CI gate — 20 November 2026
+
+- The plan and tracker reconciliation were pushed as documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`.
+- CI #948 passed on the preceding PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36`; it does not verify these later documentation commits.
+- GitHub currently returns no PR-triggered workflow run for either documentation commit. Latest-head CI remains pending; keep PR #138 draft and do not treat the documentation update as fully verified until CI covers the new head.
