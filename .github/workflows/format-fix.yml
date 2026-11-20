@@ -17,15 +17,14 @@ jobs:
         with:
           ref: remediation/phase-0-1-tenant-security
           fetch-depth: 0
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
       - name: Format and verify remediation trackers
