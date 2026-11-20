@@ -162,7 +162,9 @@ export class CatalogOfferController {
     @Body() body: { proposedBy?: string },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.offerService.proposeOffer(id, body.proposedBy, caller);
+    // The authenticated principal is the sole source of the audit actor.
+    // Never trust a client-supplied proposedBy value.
+    return this.offerService.proposeOffer(id, user.sub, caller);
   }
 
   @Patch('merchant/offers/:id/pricing')
