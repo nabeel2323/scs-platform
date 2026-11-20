@@ -6,14 +6,14 @@ describe('OutboxDispatcher event ownership', () => {
   it('excludes carrier events from the generic dispatcher claim query', async () => {
     let predicate: unknown;
     const chain: Record<string, any> = {};
-    chain.from = () => chain;
-    chain.where = (where: unknown) => {
+    chain['from'] = () => chain;
+    chain['where'] = (where: unknown) => {
       predicate = where;
       return chain;
     };
-    chain.orderBy = () => chain;
-    chain.limit = () => chain;
-    chain.then = (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve);
+    chain['orderBy'] = () => chain;
+    chain['limit'] = () => chain;
+    chain['then'] = (resolve: (value: unknown[]) => unknown) => Promise.resolve([]).then(resolve);
 
     const service = new OutboxDispatcher({
       db: { select: () => chain },
