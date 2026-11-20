@@ -46,6 +46,14 @@ export class CatalogOfferController {
     private readonly db: DatabaseService,
   ) {}
 
+  /** Merchant dashboards are store-scoped, not merely organization-scoped. */
+  private async authorizeMerchantStore(user: JwtPayload, storeId: string): Promise<CallerContext> {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
+    return caller;
+  }
+
   // ── Read routes ───────────────────────────────────────────────
 
   @Get('products/:productId/offers')
@@ -70,8 +78,12 @@ export class CatalogOfferController {
   }
 
   @Get('merchant/offers')
-  listMerchantOffers(@Query('storeId') storeId?: string) {
+  async listMerchantOffers(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.authorizeMerchantStore(user, storeId);
     return this.offerService.listOffersForStore(storeId);
   }
 
@@ -81,6 +93,7 @@ export class CatalogOfferController {
    */
   @Get('merchant/offers/analytics/trend')
   async listMerchantOfferTrend(
+    @CurrentUser() user: JwtPayload,
     @Query('storeId') storeId?: string,
     @Query('offerId') offerId?: string,
     @Query('granularity') granularity?: string,
@@ -88,6 +101,7 @@ export class CatalogOfferController {
     @Query('days') days?: string,
   ) {
     if (!storeId) return [];
+    await this.authorizeMerchantStore(user, storeId);
     const gran: 'day' | 'week' = granularity === 'week' ? 'week' : 'day';
     // Range semantics: explicit `from` (ISO date) wins; else derive a rolling
     // window from `days` (default 90, capped 365). `to` is always "now".
@@ -115,8 +129,12 @@ export class CatalogOfferController {
    * NestJS literal-before-parameterized ordering invariant.
    */
   @Get('merchant/offers/analytics')
-  listMerchantOfferAnalytics(@Query('storeId') storeId?: string) {
+  async listMerchantOfferAnalytics(
+    @CurrentUser() user: JwtPayload,
+    @Query('storeId') storeId?: string,
+  ) {
     if (!storeId) return [];
+    await this.authorizeMerchantStore(user, storeId);
     return this.offerService.listOfferAnalytics(storeId);
   }
 
@@ -132,9 +150,7 @@ export class CatalogOfferController {
   @RequirePermission('catalog:offers:write')
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, input.storeId);
-    // P7 Phase 1 — F-SEC-02: require store membership for offer creation.
-    await assertStoreMember(this.db, caller, input.storeId);
+    await this.authorizeMerchantStore(user, input.storeId);
     return this.offerService.createOffer(input);
   }
 
