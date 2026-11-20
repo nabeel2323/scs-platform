@@ -374,4 +374,3 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
     });
   });
 });
-
