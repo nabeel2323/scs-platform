@@ -1,11 +1,11 @@
 # SCS Platform — Audit-Driven Implementation Progress Tracker
 
-**Living tracker. Update this file as part of every remediation task and phase transition.**  
-**Created:** 18 November 2026  
-**Plan:** [Audit-Driven Remediation & Testability Implementation Plan](./IMPLEMENTATION-PLAN.md)  
-**Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
-**Repository:** `nabeel2323/scs-platform`  
-**Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
+**Living tracker. Update this file as part of every remediation task and phase transition.**
+**Created:** 18 November 2026
+**Plan:** [Audit-Driven Remediation & Testability Implementation Plan](./IMPLEMENTATION-PLAN.md)
+**Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)
+**Repository:** `nabeel2323/scs-platform`
+**Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
 **Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36` passed CI #948 (10 executable jobs); k6 and staging release were skipped. G-001, G-003–G-006, G-008–G-009, G-011, G-016–G-017, G-019, G-023–G-035 remain verified/closed by their recorded CI evidence. G-002 remains BLOCKED: read-only audit run #4 established the staging migration/audit credential as privileged `postgres`, but not the Render API runtime identity. PR #142 adds a non-secret API-pool identity diagnostic and its CI run `44656130587` passed; it remains source-only pending review/merge and a separately authorized staging release. G-007 full buyer journey/order-detail/tracking UAT remains in Phase 6; G-010 real Aramex sandbox verification remains unavailable; G-020 migration 0070 is not applied to the shared database; G-022 remains blocked by Supabase-managed extension ownership. No shared database mutation, staging write, environment change, worker activation or deployment was performed.
 
 ---
@@ -138,9 +138,9 @@ This checkpoint records the latest inspected pull-request CI, not a release deci
 
 ## 4. Phase 0 — Baseline reconciliation & testability foundation
 
-**Status:** IN PROGRESS  
-**Phase owner:** Remediation lead / repository maintainer  
-**Entry commit:** `develop` / `3f7268dbc75828190f16165ca7e8dd4e315c421c`  
+**Status:** IN PROGRESS
+**Phase owner:** Remediation lead / repository maintainer
+**Entry commit:** `develop` / `3f7268dbc75828190f16165ca7e8dd4e315c421c`
 **Working branch:** `remediation/phase-0-1-tenant-security`
 
 | Task  | Description                                                              | Status                                                                  | Evidence / result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -328,9 +328,9 @@ This checkpoint records the latest inspected pull-request CI, not a release deci
 | Backup/restore            | Isolated restore and recovery evidence                            | NOT RUN |                   |
 | Business UAT              | Agreed buyer/merchant/admin scenarios                             | NOT RUN |                   |
 
-**Final decision:** NOT ASSESSED  
-**Release candidate SHA:** TBD  
-**Full campaign date:** TBD  
+**Final decision:** NOT ASSESSED
+**Release candidate SHA:** TBD
+**Full campaign date:** TBD
 **Report:** TBD
 
 ---
@@ -947,9 +947,16 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - The workflow remains manual-dispatch only and protected by the staging environment. It was not dispatched and no approval was requested. No staging secret was accessed; no deployment, migration, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business side effect occurred.
 - PR #138 remains open and draft. G-002 remains BLOCKED until an authorized operator dispatches the reviewed immutable revision, approves the protected environment, and the actual API and migration identities are independently established. The audit report is evidence gathering only; it does not authorize privilege or RLS changes.
 
-
 ### G-002 PostgreSQL CI execution coverage — 20 November 2026
 
 - PR #138 exact source head `3e856985893a5eb5da63434b856f0eacd20bcb29` passed GitHub Actions CI #1049: all 10 executable jobs succeeded, including PostgreSQL integration, full migration apply, formatting, typecheck, container smoke and build. k6 and staging release were skipped. The Vercel web/admin preview contexts remain externally rate-limited and are not part of the successful GitHub Actions result.
 - Extended the disposable PostgreSQL migration job to execute `pnpm db:audit-access` immediately after the full migration apply. This exercises the actual read-only audit against the CI PostgreSQL instance, after application roles and schema are provisioned; it uses no staging credentials and does not touch a shared database. Commit: `d8652850adf84d0b61986683a97d29149cd7670d`.
 - The new workflow step is not yet verified: it requires a new CI run on the updated workflow commit. Keep PR #138 draft. Do not dispatch the protected staging audit, deploy, migrate a shared database, alter grants/default ACLs, enable RLS, or activate workers as part of this gate.
+
+### CI #1051 formatting-gate correction — 20 November 2026
+
+- CI run [#1051](https://github.com/nabeel2323/scs-platform/actions/runs/44755411592) ran on PR #138 merge ref `e920e1e27f3bf3a830ef2a1523c22a9bdfc3ba23`, containing source head `2efe9319b00e70e4f9c6398dadb07c4fc2a323cf`.
+- `pnpm lint` and `pnpm typecheck` passed; Flutter analysis and tests passed. `pnpm format:check:changed` failed and flagged `.github/workflows/ci.yml`, `docs/remediation/IMPLEMENTATION-PLAN.md` and `docs/remediation/IMPLEMENTATION-PROGRESS.md`.
+- Migration Full Apply and downstream jobs were skipped because the lint job failed. Therefore the new `pnpm db:audit-access` PostgreSQL CI step has not yet executed and is not verified.
+- Removed trailing whitespace and normalized blank-line spacing in the three flagged files. A new exact-head CI run is required to verify the formatting correction and execute the disposable PostgreSQL audit.
+- PR #138 remains open and draft. No protected staging workflow was dispatched; no deployment, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business-side effect was performed.
