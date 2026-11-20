@@ -1,0 +1,47 @@
+name: G-001 Prettier artifact
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format G-001 test files
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/integration/phase1-marketplace.e2e.spec.ts \
+            apps/api/src/__tests__/integration/phase2-multi-merchant.e2e.spec.ts \
+            apps/api/src/__tests__/integration/phase3-security.e2e.spec.ts \
+            apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts \
+            apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g001-prettier-output
+          path: |
+            apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts
+            apps/api/src/__tests__/integration/phase1-marketplace.e2e.spec.ts
+            apps/api/src/__tests__/integration/phase2-multi-merchant.e2e.spec.ts
+            apps/api/src/__tests__/integration/phase3-security.e2e.spec.ts
+            apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
+            apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts
+            apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts
+          if-no-files-found: error
