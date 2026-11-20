@@ -1129,7 +1129,6 @@ The current combined remediation head still has no exact-head GitHub Actions run
 
 The safe startup identity fingerprint from PR #142 has been ported into the remediation branch's `DatabaseService`. It queries the actual API pool and logs only session/effective role, database name, role capability flags and TLS. It does not log connection strings, hostnames, client addresses, credentials, SQL text or raw errors, and diagnostic failure is non-fatal. PR #142 CI #990 is supporting evidence for the isolated change; exact-head CI on the combined branch remains pending. The actual deployed role is not verified until a separately approved staging release exposes the startup record. No release or deployment is authorized by this plan.
 
-
 ## Latest execution checkpoint — 20 November 2026
 
 The nine files identified by PR #138's changed-file formatting failure have been

@@ -919,7 +919,6 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - PR #147 CI #1024 is still running. Nine executable jobs have passed; only Container Build/Smoke remains in progress. The completed unit suite reports 4,328 passed and 110 skipped; the PostgreSQL integration job and Build/Contract jobs passed. k6 was skipped.
 - PR #138 remains draft. No merge, deployment, staging release, shared DB mutation, migration, seed, worker activation, payment, shipment or notification side effect was initiated.
 
-
 ### Latest CI and formatting checkpoint — 20 November 2026
 
 - PR #147 CI run [#1024](https://github.com/nabeel2323/scs-platform/actions/runs/44724574256) completed successfully: all 10 executable jobs passed, including Container Build & Smoke Test. API unit/coverage reported 4,328 passed and 110 skipped. k6 smoke and staging release were skipped. This is supporting evidence for the focused G-003 carrier-event fix; it is not a substitute for combined-branch verification.
