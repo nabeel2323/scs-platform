@@ -184,7 +184,7 @@ export class CatalogOfferController {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     // The authenticated principal is the sole source of the audit actor.
     // Never trust a client-supplied proposedBy value.
-    return this.offerService.proposeOffer(id, user.sub, caller);
+    return this.offerService.proposeOffer(id, caller);
   }
 
   @Patch('merchant/offers/:id/pricing')
