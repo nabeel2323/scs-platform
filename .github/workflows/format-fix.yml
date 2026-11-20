@@ -1,0 +1,52 @@
+name: One-time remediation document formatter
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+    paths:
+      - .github/workflows/format-fix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remediation-doc-format-fix
+  cancel-in-progress: false
+
+jobs:
+  format-and-cleanup:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Format and verify remediation documents
+        run: |
+          pnpm exec prettier --write \
+            docs/remediation/IMPLEMENTATION-PLAN.md \
+            docs/remediation/IMPLEMENTATION-PROGRESS.md
+          pnpm exec prettier --check \
+            docs/remediation/IMPLEMENTATION-PLAN.md \
+            docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatted documents and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/remediation/IMPLEMENTATION-PLAN.md docs/remediation/IMPLEMENTATION-PROGRESS.md
+          git rm .github/workflows/format-fix.yml
+          git commit -m "style(docs): format remediation verification records"
+          git push origin HEAD:remediation/phase-0-1-tenant-security
