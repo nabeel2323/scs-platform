@@ -217,14 +217,20 @@ export class CatalogOfferController {
   @Post('admin/offers/:id/suspend')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  suspendOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.suspendOffer(id);
+  suspendOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.offerService.suspendOffer(id, user.sub);
   }
 
   @Post('admin/offers/:id/activate')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  reactivateOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.reactivateOffer(id);
+  reactivateOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.offerService.reactivateOffer(id, user.sub);
   }
 }
