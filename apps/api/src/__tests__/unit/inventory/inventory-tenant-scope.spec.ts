@@ -51,6 +51,16 @@ function makeDb(options?: {
 
   return {
     db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await membershipsFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
       query: {
         stores: { findFirst: storesFindFirst },
         warehouses: { findFirst: warehousesFindFirst },
