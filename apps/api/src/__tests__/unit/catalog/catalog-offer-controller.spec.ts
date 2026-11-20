@@ -215,6 +215,8 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
       role: 'ADMIN',
       activeOrg: null,
       perms: ['catalog:offers:govern'],
+      iat: 1,
+      exp: 2,
     } as JwtPayload;
     const { controller, offerService, db } = makeController();
     await expect(controller.listMerchantOffers(admin, 'store-1')).resolves.toEqual([
@@ -231,6 +233,8 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
       role: 'ADMIN',
       activeOrg: null,
       perms: [],
+      iat: 1,
+      exp: 2,
     } as JwtPayload;
     const { controller, offerService, db } = makeController();
     await expect(controller.listMerchantOffers(admin, 'store-1')).rejects.toBeInstanceOf(
