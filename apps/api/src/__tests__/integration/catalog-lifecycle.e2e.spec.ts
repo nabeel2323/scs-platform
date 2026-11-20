@@ -84,6 +84,19 @@ let merchantA: string, merchantB: string, buyerUser: string, adminUser: string;
 let storeA: string, storeB: string;
 let roleIdMerchantA: string, roleIdMerchantB: string;
 
+// Caller factories are shared by lifecycle and tenant-isolation scenarios.
+// They read IDs populated by beforeAll, so they remain safe to declare here.
+const callerA = (): CallerContext => ({
+  sub: merchantA,
+  role: 'MERCHANT_OWNER',
+  activeOrg: orgA,
+});
+const callerB = (): CallerContext => ({
+  sub: merchantB,
+  role: 'MERCHANT_OWNER',
+  activeOrg: orgB,
+});
+
 describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -705,17 +718,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   // ═══════════════════════════════════════════════════════════════════
 
   describe('Scenario K — Security / tenant isolation', () => {
-    // NOTE: caller contexts must be built AFTER beforeAll assigns UUIDs
-    const callerB = (): CallerContext => ({
-      sub: merchantB,
-      role: 'MERCHANT_OWNER',
-      activeOrg: orgB,
-    });
-    const callerA = (): CallerContext => ({
-      sub: merchantA,
-      role: 'MERCHANT_OWNER',
-      activeOrg: orgA,
-    });
+    // Caller factories above read the UUIDs populated by beforeAll.
     const adminCaller = (): CallerContext => ({
       sub: adminUser,
       role: 'SUPER_ADMIN',
