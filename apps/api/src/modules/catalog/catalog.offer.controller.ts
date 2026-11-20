@@ -63,13 +63,10 @@ export class CatalogOfferController {
   // ── Read routes ───────────────────────────────────────────────
 
   @Get('products/:productId/offers')
-  listOffersForProduct(
-    @Param('productId', ParseUUIDPipe) productId: string,
-    @Query('status') status?: string,
-  ) {
-    return this.offerService.listOffersForProduct(productId, {
-      status: status as never,
-    });
+  listOffersForProduct(@Param('productId', ParseUUIDPipe) productId: string) {
+    // Status is intentionally not caller-selectable on the buyer-facing route.
+    // The service returns only ACTIVE + available offers.
+    return this.offerService.listOffersForProduct(productId);
   }
 
   /**
