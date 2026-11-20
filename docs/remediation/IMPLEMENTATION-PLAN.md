@@ -1191,3 +1191,8 @@ The exact-head CI #1133 run passed lint, typecheck and Flutter analysis/tests bu
 ## Post-format verification checkpoint — 21 November 2026
 
 CI #1136 ran on pre-format documentation head `e8afb2d8713217e9b4f77de3f2b534046fa6202e`. Lint, TypeScript typecheck, Flutter analysis and tests passed. The changed-file formatting gate failed only on `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`; dependent API, PostgreSQL, migration, web/admin, boundary and build jobs were skipped. The repository-locked formatter subsequently passed write/check for both documents and removed its temporary workflow. The post-format branch head is `a5227c897dc397ad4f890fe2bf96181c971e59f2`; a full exact-head CI run is required. Keep PR #138 draft. G-001 remains PARTIAL and G-002 remains BLOCKED pending their stated independent evidence gates.
+
+
+## Exact-head CI checkpoint — 21 November 2026
+
+PR #138 source head `c7165d891b87e008e9872e6aaefa299eaef9a61d` passed [CI #1142](https://github.com/nabeel2323/scs-platform/actions/runs/44832686714). All 10 executable jobs passed, including changed-file formatting, lint/typecheck, Flutter, API unit/coverage, PostgreSQL integration, Web/Admin, E6 boundary lint, isolated full migration apply and read-only database audit, contract/codegen, container smoke and build. k6 and staging release were skipped. This verifies the current exact source head in CI, not staging or production. Keep PR #138 open and draft: G-001 remains PARTIAL pending independent security review and complete role/tenant acceptance evidence; G-002 remains BLOCKED pending approved protected staging identity audit and reviewed database access design. No shared database or staging mutation, migration, grant/RLS change or deployment was performed.
