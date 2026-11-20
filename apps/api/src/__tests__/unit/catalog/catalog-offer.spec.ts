@@ -37,12 +37,14 @@ interface Harness {
   inserted: unknown[];
   updated: unknown[];
   auditRecords: unknown[];
+  findManyCalls: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
   const auditRecords: unknown[] = [];
+  const findManyCalls: unknown[] = [];
 
   const firstFn = (spec?: Row | Array<Row | null> | null) => {
     if (Array.isArray(spec)) {
@@ -54,7 +56,10 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   const q = (cfg?: QueryConfig) => ({
     findFirst: firstFn(cfg?.findFirst),
-    findMany: async () => cfg?.findMany ?? [],
+    findMany: async (config?: unknown) => {
+      findManyCalls.push(config);
+      return cfg?.findMany ?? [];
+    },
   });
 
   const db = {
@@ -91,7 +96,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
       auditRecords.push(entry);
     },
   });
-  return { svc, inserted, updated, auditRecords };
+  return { svc, inserted, updated, auditRecords, findManyCalls };
 }
 
 describe('CatalogOfferService — create', () => {
@@ -140,6 +145,18 @@ describe('CatalogOfferService — create', () => {
     const offer = await svc.createOffer({ storeId: 's1', productId: 'p1', moq: 5 });
     expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT', moq: 5 });
     expect((offer as Row)['id']).toBe('o1');
+  });
+});
+
+describe('CatalogOfferService — buyer product offer visibility (G-001)', () => {
+  it('queries only ACTIVE and available offers for a canonical product', async () => {
+    const { svc, findManyCalls } = makeHarness();
+    await svc.listOffersForProduct('product-1');
+
+    const query = findManyCalls[0] as { where?: unknown };
+    const where = JSON.stringify(query?.where);
+    expect(where).toContain('ACTIVE');
+    expect(where).toContain('true');
   });
 });
 
