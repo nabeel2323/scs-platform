@@ -641,7 +641,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller?.sub ?? offer.proposedBy,
       action: 'offer.withdrawn',
       resource: 'merchant_offer',
       resourceId: id,
@@ -707,7 +707,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller?.sub ?? offer.proposedBy,
       action: 'offer.pricing_updated',
       resource: 'merchant_offer',
       resourceId: id,
