@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** INITIALIZED — no remediation phase has been started or closed under this tracker.
+**Tracker status:** Phase 1 IN PROGRESS; G-001 PARTIAL. Implementation evidence is appended below; no finding is closed.
 
 ---
 
@@ -16,21 +16,21 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 0 |
+| Phases in progress | 1 |
 | Original audit findings | 22 |
-| P0 open | 1 |
+| P0 open/partial | 1 |
 | P1 open | 7 |
 | P2 open | 12 |
 | P3 open | 2 |
 | Findings closed under this plan | 0 |
-| Findings partially remediated under this plan | 0 |
+| Findings partially remediated under this plan | 1 |
 | Final full test campaign | NOT STARTED |
 
 **Important:** These counts represent the starting audit register, not a claim that every finding has been revalidated on the current HEAD. Phase 0 must reconcile the current branch and update counts if later commits already fixed or changed a finding.
 
 ### Overall status
 
-<badge>PLANNED</badge> Implementation has not started under this remediation tracker. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
+<badge color="warning">IN PROGRESS</badge> Phase 1 implementation is underway. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
 
 ---
 
@@ -39,7 +39,7 @@
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
 | 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | NOT STARTED | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 20% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -54,7 +54,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
-| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | OPEN | Must close before authenticated business testing |
+| G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | PARTIAL | PR #144 implements store/org membership checks, object-detail authorization and authenticated audit actors; CI passed on `4d4824b`. Draft/unmerged; independent review and full acceptance evidence remain. |
 | G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
@@ -126,11 +126,11 @@ Status definitions:
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
-| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | TODO | |
-| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | TODO | |
-| P1-03 | Enforce scope for analytics and trend routes | G-001 | TODO | |
-| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
-| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TODO | |
+| P1-01 | Reproduce merchant offer list/analytics scope defect | G-001 | DONE | Reproduced in source review; missing store membership was confirmed by integration fixture failure and corrected. |
+| P1-02 | Enforce authenticated store/org membership for offer list | G-001 | DONE | PR #144 enforces active org ownership + ACTIVE store membership for merchant list, analytics and trend. |
+| P1-03 | Enforce scope for analytics and trend routes | G-001 | DONE | Same authenticated store/org checks applied before service queries. |
+| P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | IN PROGRESS | Generic `GET /offers/:id` now requires owning-store membership for merchant callers or `catalog:offers:govern` for privileged callers; broader adjacent endpoint inventory remains. |
+| P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | IN PROGRESS | Added detail-route tests for owning member, same-org nonmember denial, privileged role without permission denial, and permitted admin. Full role matrix and review remain. |
 | P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
@@ -439,3 +439,16 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **Commits:** `5902dd759d209cd1b186cd89ecbd74df78fa829f`, `5179380041bc1bba077637592d29a393b01367b4`, `94f5abf6ab57daa7977c4aa0f8fdd36a41b0fe73`, `d599c67d1b68f5957831edeb081d426255b6924b`.
 - **Verification:** CI for the final implementation head is pending. No local execution is claimed.
 - **Status:** G-001 PARTIAL. The generic `GET /offers/:id` response still needs a consumer/visibility contract review before changing its behavior.
+
+
+### 2026-11-20 — G-001 detail-route authorization and CI verification
+
+- **Task ID:** P1-04 / P1-05
+- **Finding:** G-001 — merchant offer tenant authorization and audit integrity.
+- **Implementation PR:** [#144](https://github.com/nabeel2323/scs-platform/pull/144), draft and unmerged.
+- **Latest branch HEAD:** `4d4824b12083c84307a1bbc0161d6993a5380839`.
+- **Change:** Generic `GET /offers/:id` no longer returns an offer to any authenticated user who knows its UUID. Merchant callers must belong to the owning store and active organization; privileged callers must hold `catalog:offers:govern`. Added tests for owning-store member access, same-org non-member denial, admin without governance permission denial, and authorized admin access.
+- **Earlier CI correction:** Updated three integration/unit test call sites to supply the authenticated governance actor required by suspend/reactivate service methods.
+- **CI:** [Run 44705855034](https://github.com/nabeel2323/scs-platform/actions/runs/44705855034) SUCCESS on exact HEAD `4d4824b12083c84307a1bbc0161d6993a5380839`. Lint/typecheck/format, API unit+coverage, API integration, web/admin, Flutter, full disposable-PostgreSQL migration apply, boundary lint, contracts/codegen, build and container smoke all passed. k6 and staging release were skipped.
+- **Status:** G-001 remains PARTIAL. CI is green, but PR is draft/unmerged and independent review plus the complete authorization acceptance matrix remain outstanding. No Render deploy or staging transaction occurred.
+- **Next:** Complete broader endpoint inventory, then proceed with G-020 source/function hardening review. G-002 remains read-only inventory/design until role and policy decisions are reviewed; no DB changes.
