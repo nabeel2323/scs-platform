@@ -326,12 +326,12 @@ export class NotificationsService implements OnModuleInit {
     if (tokens.length === 0) {
       await this.db.db
         .update(notifications)
-        .set({ status: 'SENT', provider: 'fcm-no-token', sentAt: new Date() })
+        .set({ status: 'FAILED', provider: null, failureReason: 'FCM_NOT_CONFIGURED_NO_DEVICE_TOKEN', failedAt: new Date() })
         .where(eq(notifications.id, notificationId));
       return;
     }
 
-    // FCM send (placeholder — in production, use firebase-admin SDK)
+    // Do not claim delivery until a real FCM adapter is configured.
     const fcmResult = await this.fcmSend(tokens.map((t: any) => t.token), title, body);
 
     await this.db.db
@@ -340,31 +340,22 @@ export class NotificationsService implements OnModuleInit {
       .where(eq(notifications.id, notificationId));
   }
 
-  private async sendWhatsApp(notificationId: string, _userId: string, _body: string) {
-    // Placeholder — in production, integrate WhatsApp Business API
-    await this.db.db
-      .update(notifications)
-      .set({ status: 'SENT', provider: 'whatsapp', sentAt: new Date() })
-      .where(eq(notifications.id, notificationId));
+  private async sendWhatsApp(_notificationId: string, _userId: string, _body: string) {
+    throw new Error('WHATSAPP_NOT_CONFIGURED');
   }
 
   // ── Provider Stubs ───────────────────────────────────────────
 
   private async smsProviderPrimary(_phone: string, _body: string): Promise<string> {
-    // In production: call primary SMS API (e.g., Unifonic, Twilio)
-    // For now, simulate success
-    return `primary-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('PRIMARY_SMS_NOT_CONFIGURED');
   }
 
   private async smsProviderFallback(_phone: string, _body: string): Promise<string> {
-    // In production: call fallback SMS API
-    return `fallback-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('FALLBACK_SMS_NOT_CONFIGURED');
   }
 
   private async fcmSend(_tokens: string[], _title: string, _body: string): Promise<string> {
-    // In production: use firebase-admin SDK
-    // admin.messaging().sendEachForMulticast({ tokens, notification: { title, body } })
-    return `fcm-${crypto.randomUUID().slice(0, 8)}`;
+    throw new Error('FCM_NOT_CONFIGURED');
   }
 
   // ── Preferences ──────────────────────────────────────────────
