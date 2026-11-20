@@ -15,3 +15,7 @@ This is CI evidence for the listed source head only. It is not staging or produc
 - G-001: PARTIAL — independent security review and complete role/tenant acceptance evidence remain required.
 - G-002: BLOCKED — protected staging audit, actual API/migration runtime identities and reviewed least-privilege/RLS design remain required.
 - PR #138 remains open and draft. No staging deployment, shared database mutation, migration, grant/default-ACL change or RLS enablement was performed.
+
+## Documentation formatting follow-up
+
+The implementation plan and progress tracker were normalized with the repository-locked Prettier 3.9.6 in formatter workflow [run #7](https://github.com/nabeel2323/scs-platform/actions/runs/44837991726). Both the write and check steps passed, and the temporary formatter workflow removed itself. The resulting branch head is `6fd811893c90ea1092a00ead6ac5acb4bba0f282`. A fresh full PR CI run on the resulting head is required; CI #1142 remains evidence for the earlier source/test head only.
