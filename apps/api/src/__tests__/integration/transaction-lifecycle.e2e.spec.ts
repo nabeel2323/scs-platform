@@ -525,8 +525,12 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       const validation = await cartService.validateCart(buyerB);
       expect(validation.stale.length + validation.repriced.length).toBeGreaterThanOrEqual(1);
 
-      // Reactivate for subsequent tests
+      // Reactivate for subsequent tests. Suspension must not overwrite the
+      // merchant's independent availability preference.
       await offerService.reactivateOffer(offerA, adminUser);
+      const reactivatedOffer = await offerService.getOffer(offerA);
+      expect(reactivatedOffer.status).toBe('ACTIVE');
+      expect(reactivatedOffer.isAvailable).toBe(true);
     });
   });
 
