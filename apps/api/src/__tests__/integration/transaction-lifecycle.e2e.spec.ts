@@ -86,6 +86,10 @@ let storeA: string, storeB: string;
 let warehouseA: string, warehouseB: string;
 let merchantRoleId: string;
 
+// Tenant contexts are created lazily because beforeAll populates the UUIDs.
+const callerA = () => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const callerB = () => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+
 describe('Transaction Foundation E2E — real PostgreSQL', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -290,7 +294,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       proposedBy: merchantA,
     });
     offerA = oA.id;
-    await offerService.proposeOffer(offerA, merchantA);
+    await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
 
     const oB = await offerService.createOffer({
@@ -304,7 +308,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       proposedBy: merchantB,
     });
     offerB = oB.id;
-    await offerService.proposeOffer(offerB, merchantB);
+    await offerService.proposeOffer(offerB, callerB());
     await offerService.approveOffer(offerB, adminUser);
 
     // Offer for variant2 from storeB (needed for multi-merchant cart tests)
@@ -319,7 +323,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       proposedBy: merchantB,
     });
     offerB2 = oB2.id;
-    await offerService.proposeOffer(offerB2, merchantB);
+    await offerService.proposeOffer(offerB2, callerB());
     await offerService.approveOffer(offerB2, adminUser);
 
     // ── Price lists & tiers (needed for cart pricing) ─────────────
@@ -496,7 +500,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(originalPrice).toBe(10000); // Store A price
 
       // Change the offer price
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 15000 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 15000 }, callerA());
 
       // Verify historical order still shows original price
       const afterRes = await pool.query(
@@ -506,7 +510,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       expect(Number(afterRes.rows[0].unit_price_minor)).toBe(10000);
 
       // Restore price for subsequent tests
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 }, callerA());
     });
   });
 
@@ -769,9 +773,9 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         currency: 'SAR',
         basePriceMinor: 5000,
         moq: 1,
-        proposedBy: merchantA,
-      });
-      await offerService.proposeOffer(freshOffer.id, merchantA);
+        proposedBy: 'forged-user',
+      }, callerA());
+      await offerService.proposeOffer(freshOffer.id, callerA());
       await offerService.approveOffer(freshOffer.id, adminUser);
 
       // Two concurrent reservations via the inventory service
@@ -1029,7 +1033,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         moq: 1,
         proposedBy: merchantA,
       });
-      await offerService.proposeOffer(limitedOffer.id, merchantA);
+      await offerService.proposeOffer(limitedOffer.id, callerA());
       await offerService.approveOffer(limitedOffer.id, adminUser);
 
       const plId = (
