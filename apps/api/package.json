@@ -29,6 +29,7 @@
     "db:demo": "tsx src/scripts/demo-data.ts",
     "db:reset": "tsx infra/drizzle/reset.ts",
     "db:generate": "drizzle-kit generate",
+    "db:audit-access": "tsx scripts/audit-db-access.ts",
     "clean": "rimraf dist"
   },
   "dependencies": {
