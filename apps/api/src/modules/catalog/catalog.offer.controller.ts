@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   CatalogOfferService,
@@ -22,7 +23,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant Offer API — canonical-product multi-seller offers (§ Merchant Offer).
@@ -139,8 +140,25 @@ export class CatalogOfferController {
   }
 
   @Get('offers/:id')
-  getOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.getOffer(id);
+  async getOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const offer = await this.offerService.getOffer(id);
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+
+    // Admin detail consumers require the same governance permission as the admin UI.
+    if (isTenantPrivileged(caller)) {
+      if (!user.perms?.includes('catalog:offers:govern')) {
+        throw new ForbiddenException('Insufficient permissions');
+      }
+      return offer;
+    }
+
+    // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
+    await assertStoreInOrg(this.db, caller, offer.storeId);
+    await assertStoreMember(this.db, caller, offer.storeId);
+    return offer;
   }
 
   // ── Merchant write routes ─────────────────────────────────────
