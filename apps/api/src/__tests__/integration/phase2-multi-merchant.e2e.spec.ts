@@ -207,7 +207,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       caller: ReturnType<typeof callerA>,
     ) {
       const o = await offerService.createOffer(
-        { storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+        {
+          storeId,
+          productId,
+          variantId,
+          currency: 'SAR',
+          basePriceMinor: priceMinor,
+          moq: 1,
+          leadTimeDays: 3,
+          proposedBy: 'forged-user',
+        },
         caller,
       );
       await offerService.proposeOffer(o.id, caller);
@@ -218,7 +227,10 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     offerStoreA1 = await createActiveOffer(storeA, productA, variantA1, 10000, callerA());
     offerStoreA2 = await createActiveOffer(storeA, productA, variantA2, 15000, callerA());
     // Offer for productB/variantB1 from storeA
-    const oB1 = await offerService.createOffer({ storeId: storeA, productId: productB, variantId: variantB1, currency: 'SAR', basePriceMinor: 20000, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' }, callerA());
+    const oB1 = await offerService.createOffer(
+      { storeId: storeA, productId: productB, variantId: variantB1, currency: 'SAR', basePriceMinor: 20000, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+      callerA(),
+    );
     offerStoreB1 = oB1.id;
     await offerService.proposeOffer(offerStoreB1, callerA());
     await offerService.approveOffer(offerStoreB1, adminUser);
@@ -538,7 +550,18 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
-      const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
+      const testOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId: productA,
+          variantId: testVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
@@ -566,7 +589,18 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 15, userId: merchantA });
-      const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
+      const testOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId: productA,
+          variantId: testVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
@@ -747,7 +781,18 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
       const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
-      const testOffer = await offerService.createOffer({ storeId: storeA, productId: productA, variantId: testVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
+      const testOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId: productA,
+          variantId: testVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
