@@ -197,20 +197,21 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
   approveOffer(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string },
   ) {
-    return this.offerService.approveOffer(id, body.reviewerId);
+    return this.offerService.approveOffer(id, user.sub);
   }
 
   @Post('admin/offers/:id/reject')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
   rejectOffer(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string; reason: string },
+    @Body() body: { reason: string },
   ) {
-    return this.offerService.rejectOffer(id, body.reviewerId, body.reason);
+    return this.offerService.rejectOffer(id, user.sub, body.reason);
   }
 
   @Post('admin/offers/:id/suspend')
