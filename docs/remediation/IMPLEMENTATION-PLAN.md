@@ -1069,3 +1069,8 @@ CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa
 - PR #142 (`security/runtime-db-identity-diagnostics`) adds a startup query on that actual API pool. It logs only session/effective role names, database name, role capability flags and TLS status; failures are non-fatal and use a fixed warning. Its CI run `44656130587` passed the API unit/coverage, PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, migration, contract/codegen, build and container jobs. It has not been merged or deployed.
 - G-002 remains BLOCKED pending independently verified API runtime identity, ownership/default-ACL mapping, and a reviewed least-privilege role and table-specific RLS plan. The audit found 114 public tables/partitions with RLS enabled/forced on 0; effective CRUD grants were 0/114 for anon/authenticated/service_role, while excessive non-DML grants and owner-specific default ACL risks remain.
 - No shared database mutation, grant/default-ACL change, RLS enablement, migration, seed, Render setting change, restart, worker activation, staging write or deployment was performed.
+
+
+### Documentation-head verification gate — 20 November 2026
+
+The 20-November reconciliation was committed after CI #948 in documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`. CI #948 therefore verifies the preceding implementation head, not these later documentation commits. No PR-triggered workflow run is currently returned for either documentation commit; latest-head CI verification remains pending. Keep PR #138 draft until a successful run covers the current branch head.
