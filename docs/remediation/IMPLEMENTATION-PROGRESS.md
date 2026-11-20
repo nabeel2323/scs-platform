@@ -981,3 +981,17 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - CI [#1069](https://github.com/nabeel2323/scs-platform/actions/runs/44798898165) on `565124c` passed lint/typecheck and Flutter, but failed the changed-file Prettier gate for `catalog-offer.spec.ts`; downstream jobs were skipped. The formatting-only correction is commit `5768869a34288d00988e29abde6560aeef8f064e` and requires a new exact-head CI run.
 - G-001 remains PARTIAL pending successful exact-head verification, independent security review and full owner/staff/buyer/foreign-merchant/platform-admin acceptance coverage. G-002 remains BLOCKED pending approved protected staging audit, actual API and migration runtime identity, and reviewed least-privilege/RLS design.
 - k6, staging E2E, live OTP verification and staging release remain unverified. No shared database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
+
+
+### 20 November 2026 — G-001 service-boundary tenant-context hardening
+
+**Implementation checkpoint — exact-head CI pending.**
+
+- Made authenticated caller context mandatory for the offer mutation service methods: offer creation, proposal, pricing updates and withdrawal.
+- The service now performs store organization and active membership checks for these mutations. Proposal and audit actor attribution are derived from `caller.sub`; client-supplied `proposedBy` is not trusted.
+- Updated the HTTP controller to pass the caller context into offer creation and proposal operations. Existing route-level permission checks remain in place.
+- Updated PostgreSQL lifecycle fixtures across catalog lifecycle, marketplace, multi-merchant, security, import-commerce and transaction flows to exercise explicit tenant contexts. Added unit coverage for foreign-organization offer creation denial and authenticated creator/audit attribution.
+- CI #1082 exposed remaining direct service call sites in older integration fixtures. Those fixtures were corrected. CI #1089 then confirmed TypeScript typechecking passed; its formatting gate identified seven changed files. Those files have now been formatted with the repository-locked Prettier 3.9.6, and the one-time formatter has been removed from the branch.
+- Latest implementation head before this tracker update: `bee2469f573c96b23dbd786a31c02aa9938c302e`. A fresh exact-head CI run is required; no result is claimed for the formatted service-boundary changes yet.
+- G-001 remains **PARTIAL** pending exact-head CI, independent security review, and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and actual runtime identity evidence.
+- No staging or production database changes, grants/default-ACL changes, RLS changes, migrations, worker activation, environment-protection changes or deployments were performed.
