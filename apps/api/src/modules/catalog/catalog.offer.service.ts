@@ -544,18 +544,16 @@ export class CatalogOfferService {
 
   // ── Lifecycle transitions ────────────────────────────────────
 
-  async proposeOffer(id: string, proposedBy?: string | null, caller?: CallerContext) {
+  async proposeOffer(id: string, caller: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) {
-      await assertStoreInOrg(this.db, caller, offer.storeId);
-      await assertStoreMember(this.db, caller, offer.storeId);
-    }
+    await assertStoreInOrg(this.db, caller, offer.storeId);
+    await assertStoreMember(this.db, caller, offer.storeId);
     this.assertTransition(offer.status, 'PROPOSED');
     await this.db.db
       .update(merchantOffers)
       .set({
         status: 'PROPOSED',
-        proposedBy: proposedBy ?? offer.proposedBy,
+        proposedBy: caller.sub,
         reviewedBy: null,
         reviewedAt: null,
         rejectionReason: null,
@@ -565,7 +563,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: proposedBy ?? null,
+      actorId: caller.sub,
       action: 'offer.proposed',
       resource: 'merchant_offer',
       resourceId: id,
@@ -674,12 +672,10 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async withdrawOffer(id: string, caller?: CallerContext) {
+  async withdrawOffer(id: string, caller: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) {
-      await assertStoreInOrg(this.db, caller, offer.storeId);
-      await assertStoreMember(this.db, caller, offer.storeId);
-    }
+    await assertStoreInOrg(this.db, caller, offer.storeId);
+    await assertStoreMember(this.db, caller, offer.storeId);
     this.assertTransition(offer.status, 'WITHDRAWN');
     await this.db.db
       .update(merchantOffers)
@@ -688,7 +684,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: caller?.sub ?? offer.proposedBy,
+      actorId: caller.sub,
       action: 'offer.withdrawn',
       resource: 'merchant_offer',
       resourceId: id,
@@ -706,12 +702,10 @@ export class CatalogOfferService {
    * belong to the SAME store as the offer — an offer may not spend another
    * store's price book or stock.
    */
-  async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller?: CallerContext) {
+  async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) {
-      await assertStoreInOrg(this.db, caller, offer.storeId);
-      await assertStoreMember(this.db, caller, offer.storeId);
-    }
+    await assertStoreInOrg(this.db, caller, offer.storeId);
+    await assertStoreMember(this.db, caller, offer.storeId);
     if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
