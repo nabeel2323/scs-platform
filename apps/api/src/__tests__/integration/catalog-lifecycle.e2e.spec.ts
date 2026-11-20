@@ -696,11 +696,11 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(approved.status).toBe('ACTIVE');
 
       // Suspend
-      const suspended = await offerService.suspendOffer(govOffer.id);
+      const suspended = await offerService.suspendOffer(govOffer.id, adminUser);
       expect(suspended.status).toBe('SUSPENDED');
 
       // Reactivate
-      const reactivated = await offerService.reactivateOffer(govOffer.id);
+      const reactivated = await offerService.reactivateOffer(govOffer.id, adminUser);
       expect(reactivated.status).toBe('ACTIVE');
     });
 

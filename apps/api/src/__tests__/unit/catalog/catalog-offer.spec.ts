@@ -152,7 +152,7 @@ describe('CatalogOfferService — lifecycle', () => {
 
   it('throws when the offer does not exist', async () => {
     const { svc } = makeHarness({ merchantOffers: { findFirst: null } });
-    await expect(svc.suspendOffer('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.suspendOffer('missing', 'admin-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
