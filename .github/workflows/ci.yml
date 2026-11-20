@@ -316,12 +316,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-  
+
       # Build the CI postgres image with PostGIS + pg_partman from the repo Dockerfile.
       # This ensures the migration gate uses the same extension set as production.
       - name: Build CI postgres image (PostGIS + pg_partman)
         run: docker build -t scs-ci-postgres:ci -f infra/deploy/ci-postgres.Dockerfile infra/deploy/
-  
+
       # Start a disposable postgres container from the custom image.
       - name: Start disposable postgres with pg_partman
         run: |
@@ -338,7 +338,7 @@ jobs:
       #    non-empty, and that the DB is reachable — without writing.
       - name: Dry-run (validate ordering)
         run: pnpm --filter @scs/api run db:migrate:ci -- --dry-run
-  
+
       # 2) ENFORCING: Full migration apply. All migration files must apply cleanly,
       #    including 0013 and 0018 which require pg_partman. No continue-on-error.
       #    If any migration fails, the gate fails and the PR cannot merge.
@@ -411,7 +411,7 @@ jobs:
         run: |
           docker exec ci-migration-pg psql -U scs -d scs_test -c \
             "SELECT parent_table, partition_type, partition_interval FROM partman.part_config;"
-  
+
       - name: Cleanup
         if: always()
         run: docker rm -f ci-migration-pg 2>/dev/null || true
