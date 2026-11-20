@@ -55,6 +55,11 @@ export class CatalogOfferController {
   /** Merchant dashboards are store-scoped, not merely organization-scoped. */
   private async authorizeMerchantStore(user: JwtPayload, storeId: string): Promise<CallerContext> {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    // Platform staff bypass tenant membership, not the functional permission
+    // boundary. Keep merchant dashboard reads aligned with GET /offers/:id.
+    if (isTenantPrivileged(caller) && !user.perms?.includes('catalog:offers:govern')) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
     await assertStoreInOrg(this.db, caller, storeId);
     await assertStoreMember(this.db, caller, storeId);
     return caller;
