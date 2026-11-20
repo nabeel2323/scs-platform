@@ -1,0 +1,58 @@
+name: Temporary remediation formatting repair
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-remove-helper:
+    if: github.event_name == 'push' && github.event.deleted == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format only files identified by the failed PR check
+        run: |
+          pnpm exec prettier --write \
+            apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts \
+            apps/api/src/common/database/database.service.ts \
+            apps/api/src/modules/catalog/catalog.offer.controller.ts \
+            apps/api/src/modules/catalog/catalog.offer.service.ts \
+            docs/remediation/IMPLEMENTATION-PLAN.md \
+            docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatted files and remove this temporary workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/integration/transaction-lifecycle.e2e.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts \
+            apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts \
+            apps/api/src/common/database/database.service.ts \
+            apps/api/src/modules/catalog/catalog.offer.controller.ts \
+            apps/api/src/modules/catalog/catalog.offer.service.ts \
+            docs/remediation/IMPLEMENTATION-PLAN.md \
+            docs/remediation/IMPLEMENTATION-PROGRESS.md
+          git rm .github/workflows/remediation-format-fix.yml
+          git commit -m "style(remediation): format tenant security changes"
+          git push origin HEAD:remediation/phase-0-1-tenant-security
