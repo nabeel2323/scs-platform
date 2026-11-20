@@ -397,3 +397,16 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **Correction:** The controller now always supplies the authenticated JWT principal (`user.sub`) to `proposeOffer`; the request-body field is ignored for actor attribution. Added a regression test proving a forged `proposedBy` value cannot replace the authenticated principal.
 - **Commits:** `9034a79e0672dfdd5ae3ff09adbecbd23a55e0a6`, `3aa3e72b60863b45344b2c53b86d508c879905f9`
 - **Status:** PARTIAL — pending CI for the updated head and broader review of offer-detail visibility and all merchant mutation paths.
+
+
+### 2026-11-20 — G-001 CI green and audit attribution follow-up
+
+- **Finding:** G-001 — merchant offer tenant authorization and audit integrity
+- **PR:** [#144](https://github.com/nabeel2323/scs-platform/pull/144)
+- **Verified CI head:** `e9cd0bdebfc4990d707b3fca98a0a4b360eec0e6`
+- **CI run:** [44661813971](https://github.com/nabeel2323/scs-platform/actions/runs/44661813971)
+- **Results:** Lint & Typecheck, Flutter analyze/test, Web & Admin App Tests, Boundary Lint (E6), Integration Tests, Unit Tests + Coverage Gates, Migration Full Apply, Container Build & Smoke Test, Contract Spec & Codegen, and Build all SUCCESS. k6 Smoke Test and Trigger Staging Release were SKIPPED. No staging release was triggered.
+- **Further review:** Merchant pricing and withdrawal audit records previously attributed actions to the offer's original proposer rather than the authenticated caller. The service now uses `caller.sub` when caller context is available, retaining the legacy fallback only for non-request/internal invocations. Added a regression test for pricing audit attribution.
+- **Commits:** `aab6c8faf5bfe60923a41a58a535207be5c25454`, `b44a14d9fa27a62062bfa5967ec0d5fbbb7000e7`.
+- **Status:** PARTIAL. The latest audit-attribution commits require a fresh CI run. Generic `GET /offers/:id` visibility still needs a product/API contract review before any access restriction is introduced. PR #144 remains draft and unmerged.
+- **Operational boundary:** Vercel preview quota is not a code gate and was not retried. No Render/Supabase mutation, deployment, migration, seed, worker activation, or staging business transaction.
