@@ -1131,16 +1131,19 @@ The safe startup identity fingerprint from PR #142 has been ported into the reme
 
 ## Latest execution checkpoint — 20 November 2026
 
-The nine files identified by PR #138's changed-file formatting failure have been
-formatted with the repository-locked Prettier version. The temporary formatting
-workflow removed itself in the same commit. Formatting commit:
-`37a1904c2ae70308ea5382c682f2d26493c60435`.
-
 PR #147 CI #1024 passed all 10 executable jobs, including container build and
-smoke. Its k6 and staging-release jobs were skipped. PR #138's subsequent CI
-run #1035 is recorded as `action_required` with no jobs exposed; exact-head CI
-must not be called green until the GitHub approval gate is satisfied and the
-run completes. PR #138 remains draft. G-001 remains partial, G-002 remains
-blocked, and the migration numbering and notification status-contract conflicts
-remain unresolved. No staging release, deployment or shared-database mutation
-is authorized or was performed.
+smoke; k6 and staging release were skipped.
+
+PR #138 CI #1037 reached the changed-file formatting gate after lint/typecheck
+and failed because the two remediation documents had been updated after the
+prior Prettier pass. The seven G-001/G-002 source and test files passed that
+formatting check. Both documents were then formatted with Prettier 3.9.6 in
+commit `f2c0bf67fddda8180f788cb868aed2aa193229d5`. The temporary formatter
+removed itself in the same commit.
+
+The current branch tree contains no `.m73b6-scratch/` files or root
+`test-token.txt`; the PR's changed-file list records those paths as deletions.
+A fresh exact-head CI run is required after this documentation update. PR #138
+remains draft. G-001 remains partial, G-002 remains blocked, and the migration
+numbering and notification status-contract conflicts remain unresolved. No
+staging release, deployment or shared-database mutation was performed.
