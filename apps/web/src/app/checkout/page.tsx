@@ -45,9 +45,23 @@ export default function CheckoutPage() {
     if (list) list.push(item);
     else grouped.set(item.storeId, [item]);
   }
-  const cartCurrencies = new Set(cartItems.map((i) => i.currency).filter(Boolean));
-  const cartCurrency = cartCurrencies.size === 1 ? Array.from(cartCurrencies)[0] : undefined;
   const multiStore = grouped.size > 1;
+
+  // A cart can contain suppliers using different currencies. Never add minor
+  // units across currencies or let formatMinor's SAR default disguise a mixed
+  // currency total. Keep item and selected shipping amounts in currency buckets.
+  const currencyTotals = new Map<string, number>();
+  for (const item of cartItems) {
+    const currency = item.currency || 'UNKNOWN';
+    currencyTotals.set(currency, (currencyTotals.get(currency) || 0) + item.lineTotalMinor);
+  }
+  for (const selection of storeSelections.values()) {
+    if (!selection.estimate || !selection.shippingMethodId) continue;
+    const method = selection.estimate.methods.find(m => m.methodId === selection.shippingMethodId);
+    if (!method) continue;
+    const currency = method.currency || 'UNKNOWN';
+    currencyTotals.set(currency, (currencyTotals.get(currency) || 0) + method.feeMinor);
+  }
 
   // Load shipping estimates for each store when cart loads or address changes
   useEffect(() => {
@@ -96,18 +110,6 @@ export default function CheckoutPage() {
       if (current) next.set(storeId, { ...current, ...patch });
       return next;
     });
-  };
-
-  // Compute total including per-store shipping
-  const computeTotal = (): number => {
-    let total = cart?.totalMinor || 0;
-    for (const [, sel] of storeSelections) {
-      if (sel.estimate && sel.shippingMethodId) {
-        const method = sel.estimate.methods.find(m => m.methodId === sel.shippingMethodId);
-        if (method) total += method.feeMinor;
-      }
-    }
-    return total;
   };
 
   const handleSubmit = async () => {
@@ -222,12 +224,17 @@ export default function CheckoutPage() {
               {cart?.promoCode && (
                 <div style={{ ...typeScale.bodySm, color: colors.ok, margin: '4px 0 8px' }}>Promo applied: {cart.promoCode}</div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
-                <span>Estimated total</span>
-                <span>{formatMinor(computeTotal(), cartCurrency)}</span>
+              <div style={{ fontSize: 16, fontWeight: 700, color: colors.brand[700] }}>
+                <span>Estimated amounts by currency</span>
+                {Array.from(currencyTotals.entries()).map(([currency, amount]) => (
+                  <div key={currency} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                    <span style={{ ...typeScale.bodySm, fontWeight: 500 }}>{currency === 'UNKNOWN' ? 'Currency unavailable' : currency}</span>
+                    <span>{currency === 'UNKNOWN' ? (amount / 100).toFixed(2) : formatMinor(amount, currency)}</span>
+                  </div>
+                ))}
               </div>
               <p style={{ ...typeScale.bodySm, color: colors.muted, margin: '8px 0 0' }}>
-                Final amounts are confirmed per supplier. Delivery fees and VAT are added per supplier.
+                Amounts are grouped by currency; they are not converted or combined. Final totals, discounts, delivery fees and VAT are confirmed per supplier.
               </p>
               <div style={{ marginTop: 12, padding: '10px 12px', background: colors.bgSubtle, border: `1px solid ${colors.border}`, borderRadius: radii.sm }}>
                 <div style={{ ...typeScale.label, fontWeight: 600, color: colors.brand[700], marginBottom: 8 }}>Payment Method</div>
@@ -287,7 +294,7 @@ export default function CheckoutPage() {
               )}
 
               <Button size="lg" onClick={handleSubmit} disabled={submitting || estimatesLoading} style={{ width: '100%' }}>
-                {submitting ? 'Placing Order...' : `Place Order · ${formatMinor(computeTotal(), cartCurrency)}`}
+                {submitting ? 'Placing Order...' : 'Place Order'}
               </Button>
               <div style={{ textAlign: 'center', marginTop: 12 }}>
                 <Link href="/cart" style={{ ...typeScale.bodySm, color: colors.muted, textDecoration: 'none' }}>← Edit cart</Link>
