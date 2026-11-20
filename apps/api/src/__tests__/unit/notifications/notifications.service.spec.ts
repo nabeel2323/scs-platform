@@ -81,7 +81,7 @@ describe('NotificationsService — truthful delivery states (G-009)', () => {
         },
       }),
     };
-    const svc = new NotificationsService({ db: { db } } as any);
+    const svc = new NotificationsService({ db } as any);
     await (svc as any).sendPush('n-1', 'u-1', 'Title', 'Body');
     expect(update?.['status']).toBe('FAILED');
     expect(update?.['failureReason']).toBe('FCM_NOT_CONFIGURED_NO_DEVICE_TOKEN');
