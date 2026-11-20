@@ -18,17 +18,23 @@ function makeDb(options?: {
   storeOrgId?: string | null;
   membership?: { id: string } | null;
 }) {
-  const productsFindFirst = vi.fn().mockResolvedValue(
-    options?.productStoreId === null
-      ? null
-      : { storeId: options?.productStoreId ?? 'store-a', status: options?.status ?? 'DRAFT' },
-  );
-  const storesFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const membershipsFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : options?.membership ?? { id: 'membership-a' },
-  );
+  const productsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.productStoreId === null
+        ? null
+        : { storeId: options?.productStoreId ?? 'store-a', status: options?.status ?? 'DRAFT' },
+    );
+  const storesFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const membershipsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.membership === null ? null : (options?.membership ?? { id: 'membership-a' }),
+    );
 
   return {
     db: {
@@ -114,7 +120,6 @@ describe('Catalog publication visibility boundary', () => {
   });
 });
 
-
 function makeCatalogController(options?: {
   productStatus?: string;
   storeOrgId?: string | null;
@@ -124,9 +129,11 @@ function makeCatalogController(options?: {
     storeId: 'store-a',
     status: options?.productStatus ?? 'ACTIVE',
   });
-  const storeFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
+  const storeFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
   const membershipFindFirst = vi.fn().mockResolvedValue(options?.membership ?? null);
   const catalogService = {
     listProductsByStore: vi.fn().mockResolvedValue([]),
@@ -141,16 +148,16 @@ function makeCatalogController(options?: {
     {} as any,
     {
       db: {
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(async () => {
-              const membership = await membershipFindFirst();
-              return membership ? [membership] : [];
-            }),
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(async () => {
+                const membership = await membershipFindFirst();
+                return membership ? [membership] : [];
+              }),
+            })),
           })),
         })),
-      })),
         query: {
           products: { findFirst: productFindFirst },
           stores: { findFirst: storeFindFirst },

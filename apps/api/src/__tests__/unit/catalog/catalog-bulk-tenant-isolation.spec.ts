@@ -10,12 +10,16 @@ function makeController(options?: {
   storeOrgId?: string | null;
   membership?: { id: string } | null;
 }) {
-  const storesFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const membershipsFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : options?.membership ?? { id: 'membership-a' },
-  );
+  const storesFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const membershipsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.membership === null ? null : (options?.membership ?? { id: 'membership-a' }),
+    );
   const bulkProductOperations = vi.fn().mockResolvedValue({ affected: 1 });
   const db = {
     db: {

@@ -10,12 +10,14 @@ function makeHarness(options?: {
   membership?: { id: string } | null;
   variantStoreId?: string | null;
 }) {
-  const storeFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const membershipFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : { id: 'member-a' },
-  );
+  const storeFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const membershipFindFirst = vi
+    .fn()
+    .mockResolvedValue(options?.membership === null ? null : { id: 'member-a' });
   const db = {
     db: {
       select: vi.fn(() => ({
@@ -55,9 +57,11 @@ function makeHarness(options?: {
   } as unknown as PricingService;
 
   const catalogService = {
-    getVariantStoreId: vi.fn().mockResolvedValue(
-      options?.variantStoreId === null ? null : options?.variantStoreId ?? 'store-a',
-    ),
+    getVariantStoreId: vi
+      .fn()
+      .mockResolvedValue(
+        options?.variantStoreId === null ? null : (options?.variantStoreId ?? 'store-a'),
+      ),
   } as any;
 
   return {
@@ -92,17 +96,17 @@ describe('PricingController — tenant isolation', () => {
 
   it('denies cross-organization price-list reads', async () => {
     const h = makeHarness({ storeOrgId: 'org-a' });
-    await expect(
-      h.controller.listPriceLists(foreignMerchant, 'store-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.listPriceLists(foreignMerchant, 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.listPriceListsByStore).not.toHaveBeenCalled();
   });
 
   it('denies same-organization users without active store membership', async () => {
     const h = makeHarness({ membership: null });
-    await expect(
-      h.controller.listPriceLists(merchantUser, 'store-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.listPriceLists(merchantUser, 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.listPriceListsByStore).not.toHaveBeenCalled();
   });
 
@@ -142,9 +146,9 @@ describe('PricingController — tenant isolation', () => {
 
   it('checks the owning price list before deleting a tier', async () => {
     const h = makeHarness({ membership: null });
-    await expect(
-      h.controller.removeTier(merchantUser, 'tier-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.removeTier(merchantUser, 'tier-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.removeTier).not.toHaveBeenCalled();
   });
 

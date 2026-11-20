@@ -18,19 +18,31 @@ function makeService(options?: {
   activeMembership?: { id: string } | null;
 }) {
   const inventoryItemsFindMany = vi.fn().mockResolvedValue([{ id: 'inventory-a' }]);
-  const storeMembersFindMany = vi.fn().mockResolvedValue(options?.memberships ?? [{ storeId: 'store-a' }]);
+  const storeMembersFindMany = vi
+    .fn()
+    .mockResolvedValue(options?.memberships ?? [{ storeId: 'store-a' }]);
   const storesFindMany = vi.fn().mockResolvedValue(options?.memberStores ?? [{ id: 'store-a' }]);
-  const warehousesFindMany = vi.fn().mockResolvedValue(options?.warehouses ?? [{ id: 'warehouse-a', storeId: 'store-a' }]);
-  const warehousesFindFirst = vi.fn().mockResolvedValue(
-    options?.warehouseStoreId === null ? null : { storeId: options?.warehouseStoreId ?? 'store-a' },
-  );
+  const warehousesFindMany = vi
+    .fn()
+    .mockResolvedValue(options?.warehouses ?? [{ id: 'warehouse-a', storeId: 'store-a' }]);
+  const warehousesFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.warehouseStoreId === null
+        ? null
+        : { storeId: options?.warehouseStoreId ?? 'store-a' },
+    );
   const storesFindFirst = vi.fn().mockResolvedValue({ orgId: 'org-a' });
-  const storeMembersFindFirst = vi.fn().mockResolvedValue(
-    options?.activeMembership === null ? null : options?.activeMembership ?? { id: 'membership-a' },
-  );
+  const storeMembersFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.activeMembership === null
+        ? null
+        : (options?.activeMembership ?? { id: 'membership-a' }),
+    );
   const variantsFindFirst = vi.fn().mockResolvedValue({ productId: 'product-a' });
   const productsFindFirst = vi.fn().mockResolvedValue({
-    storeId: options?.productStoreId === null ? null : options?.productStoreId ?? 'store-a',
+    storeId: options?.productStoreId === null ? null : (options?.productStoreId ?? 'store-a'),
   });
   const insert = vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) }));
   const db = {
@@ -127,9 +139,9 @@ describe('InventoryService — tenant-scoped low-stock and item creation', () =>
   it('denies an explicit warehouse low-stock read without active store membership', async () => {
     const h = makeService({ activeMembership: null });
 
-    await expect(
-      h.service.getLowStockItems('warehouse-a', merchant),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.service.getLowStockItems('warehouse-a', merchant)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
 
     expect(h.spies.inventoryItemsFindMany).not.toHaveBeenCalled();
   });
@@ -138,11 +150,14 @@ describe('InventoryService — tenant-scoped low-stock and item creation', () =>
     const h = makeService({ productStoreId: 'store-b' });
 
     await expect(
-      h.service.createItem({
-        variantId: 'variant-a',
-        warehouseId: 'warehouse-a',
-        initialQty: 10,
-      }, merchant),
+      h.service.createItem(
+        {
+          variantId: 'variant-a',
+          warehouseId: 'warehouse-a',
+          initialQty: 10,
+        },
+        merchant,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(h.spies.insert).not.toHaveBeenCalled();
@@ -153,10 +168,13 @@ describe('InventoryService — tenant-scoped low-stock and item creation', () =>
     h.spies.storesFindFirst.mockResolvedValue({ orgId: 'org-b' });
 
     await expect(
-      h.service.createItem({
-        variantId: 'variant-a',
-        warehouseId: 'warehouse-a',
-      }, merchant),
+      h.service.createItem(
+        {
+          variantId: 'variant-a',
+          warehouseId: 'warehouse-a',
+        },
+        merchant,
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(h.spies.insert).not.toHaveBeenCalled();

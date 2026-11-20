@@ -22,32 +22,42 @@ function makeDb(options?: {
   storeOrgId?: string | null;
   membership?: { id: string } | null;
 }) {
-  const storesFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const warehousesFindFirst = vi.fn().mockResolvedValue(
-    options?.warehouseStoreId === null
-      ? null
-      : { storeId: options?.warehouseStoreId ?? 'store-a' },
-  );
-  const variantsFindFirst = vi.fn().mockResolvedValue(
-    options?.variantProductId === null
-      ? null
-      : { productId: options?.variantProductId ?? 'product-a' },
-  );
-  const productsFindFirst = vi.fn().mockResolvedValue(
-    options?.productStoreId === null
-      ? null
-      : { storeId: options?.productStoreId ?? 'store-a' },
-  );
-  const inventoryFindFirst = vi.fn().mockResolvedValue(
-    options?.inventoryWarehouseId === null
-      ? null
-      : { warehouseId: options?.inventoryWarehouseId ?? 'warehouse-a' },
-  );
-  const membershipsFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : options?.membership ?? { id: 'membership-a' },
-  );
+  const storesFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const warehousesFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.warehouseStoreId === null
+        ? null
+        : { storeId: options?.warehouseStoreId ?? 'store-a' },
+    );
+  const variantsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.variantProductId === null
+        ? null
+        : { productId: options?.variantProductId ?? 'product-a' },
+    );
+  const productsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.productStoreId === null ? null : { storeId: options?.productStoreId ?? 'store-a' },
+    );
+  const inventoryFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.inventoryWarehouseId === null
+        ? null
+        : { warehouseId: options?.inventoryWarehouseId ?? 'warehouse-a' },
+    );
+  const membershipsFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.membership === null ? null : (options?.membership ?? { id: 'membership-a' }),
+    );
 
   return {
     db: {

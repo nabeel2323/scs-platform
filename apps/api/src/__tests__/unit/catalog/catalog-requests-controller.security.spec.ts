@@ -5,16 +5,15 @@ import type { CatalogRequestsService } from '../../../modules/catalog/catalog.re
 import type { DatabaseService } from '../../../common/database/database.service';
 import type { JwtPayload } from '../../../common/guards/current-user.decorator';
 
-function makeHarness(options?: {
-  storeOrgId?: string | null;
-  membership?: { id: string } | null;
-}) {
-  const storeFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const membershipFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : { id: 'member-a' },
-  );
+function makeHarness(options?: { storeOrgId?: string | null; membership?: { id: string } | null }) {
+  const storeFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const membershipFindFirst = vi
+    .fn()
+    .mockResolvedValue(options?.membership === null ? null : { id: 'member-a' });
   const db = {
     db: {
       select: vi.fn(() => ({
@@ -83,9 +82,9 @@ describe('CatalogRequestsController — tenant isolation', () => {
 
   it('denies an organization member who is not an active store member', async () => {
     const h = makeHarness({ membership: null });
-    await expect(
-      h.controller.listMerchantRequests(merchantUser, 'store-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.listMerchantRequests(merchantUser, 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.listMerchantRequests).not.toHaveBeenCalled();
   });
 
@@ -121,7 +120,9 @@ describe('CatalogRequestsController — tenant isolation', () => {
 
   it('uses the authenticated reviewer identity for admin rejection', async () => {
     const h = makeHarness();
-    await h.controller.rejectRequest('request-a', merchantUser, { reason: 'Insufficient evidence' });
+    await h.controller.rejectRequest('request-a', merchantUser, {
+      reason: 'Insufficient evidence',
+    });
     expect(h.service.rejectRequest).toHaveBeenCalledWith(
       'request-a',
       'merchant-a',

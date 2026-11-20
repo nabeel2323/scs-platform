@@ -6,16 +6,15 @@ import type { DatabaseService } from '../../../common/database/database.service'
 import type { JwtPayload } from '../../../common/guards/current-user.decorator';
 import type { StorageService } from '../../../common/storage/storage.service';
 
-function makeHarness(options?: {
-  storeOrgId?: string | null;
-  membership?: { id: string } | null;
-}) {
-  const storeFindFirst = vi.fn().mockResolvedValue(
-    options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
-  );
-  const membershipFindFirst = vi.fn().mockResolvedValue(
-    options?.membership === null ? null : { id: 'member-a' },
-  );
+function makeHarness(options?: { storeOrgId?: string | null; membership?: { id: string } | null }) {
+  const storeFindFirst = vi
+    .fn()
+    .mockResolvedValue(
+      options?.storeOrgId === null ? null : { orgId: options?.storeOrgId ?? 'org-a' },
+    );
+  const membershipFindFirst = vi
+    .fn()
+    .mockResolvedValue(options?.membership === null ? null : { id: 'member-a' });
   const db = {
     db: {
       select: vi.fn(() => ({
@@ -75,17 +74,17 @@ describe('MerchantController — store and warehouse tenant isolation', () => {
 
   it('denies cross-organization warehouse reads', async () => {
     const h = makeHarness({ storeOrgId: 'org-a' });
-    await expect(
-      h.controller.listWarehouses(foreignMerchant, 'store-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.listWarehouses(foreignMerchant, 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.listWarehousesByStore).not.toHaveBeenCalled();
   });
 
   it('denies same-organization users without active store membership', async () => {
     const h = makeHarness({ membership: null });
-    await expect(
-      h.controller.listWarehouses(merchantUser, 'store-a'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.listWarehouses(merchantUser, 'store-a')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.listWarehousesByStore).not.toHaveBeenCalled();
   });
 
@@ -100,7 +99,9 @@ describe('MerchantController — store and warehouse tenant isolation', () => {
   it('checks target-store membership before creating a warehouse', async () => {
     const h = makeHarness({ storeOrgId: 'org-a' });
     await expect(
-      h.controller.createWarehouse(foreignMerchant, 'store-a', { name: 'Foreign warehouse' } as any),
+      h.controller.createWarehouse(foreignMerchant, 'store-a', {
+        name: 'Foreign warehouse',
+      } as any),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(h.service.createWarehouse).not.toHaveBeenCalled();
   });
@@ -116,9 +117,9 @@ describe('MerchantController — store and warehouse tenant isolation', () => {
 
   it('checks store membership before submitting verification', async () => {
     const h = makeHarness({ membership: null });
-    await expect(
-      h.controller.submitVerification('store-a', merchantUser),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(h.controller.submitVerification('store-a', merchantUser)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(h.service.submitVerification).not.toHaveBeenCalled();
   });
 });
