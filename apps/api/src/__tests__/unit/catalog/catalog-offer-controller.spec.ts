@@ -119,7 +119,7 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
 });
 
 describe('CatalogOfferController — create offer actor attribution (G-001)', () => {
-  it('overrides a forged proposedBy value with the authenticated principal', async () => {
+  it('passes tenant context while leaving actor attribution to the service', async () => {
     const { controller, offerService } = makeController();
     await controller.createOffer(merchant, {
       storeId: 'store-1',
