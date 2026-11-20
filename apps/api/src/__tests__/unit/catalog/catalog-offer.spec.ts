@@ -28,17 +28,21 @@ interface HarnessQueries {
   productVariants?: QueryConfig;
   priceLists?: QueryConfig;
   warehouses?: QueryConfig;
+  stores?: QueryConfig;
+  storeMembers?: QueryConfig;
 }
 
 interface Harness {
   svc: CatalogOfferService;
   inserted: unknown[];
   updated: unknown[];
+  auditRecords: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
+  const auditRecords: unknown[] = [];
 
   const firstFn = (spec?: Row | Array<Row | null> | null) => {
     if (Array.isArray(spec)) {
@@ -61,6 +65,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         productVariants: q(queries.productVariants),
         priceLists: q(queries.priceLists),
         warehouses: q(queries.warehouses),
+        stores: q(queries.stores),
+        storeMembers: q(queries.storeMembers),
       },
       insert: () => ({
         values: (rows: unknown) => {
@@ -80,8 +86,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
   };
 
   // @ts-expect-error — partial mock is sufficient for the service's call surface
-  const svc = new CatalogOfferService(db, { record: async () => {} });
-  return { svc, inserted, updated };
+  const svc = new CatalogOfferService(db, { record: async (entry: unknown) => { auditRecords.push(entry); } });
+  return { svc, inserted, updated, auditRecords };
 }
 
 describe('CatalogOfferService — create', () => {
@@ -146,7 +152,7 @@ describe('CatalogOfferService — lifecycle', () => {
 
   it('throws when the offer does not exist', async () => {
     const { svc } = makeHarness({ merchantOffers: { findFirst: null } });
-    await expect(svc.suspendOffer('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.suspendOffer('missing', 'admin-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -178,5 +184,81 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
     });
     await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 });
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
+  });
+});
+
+
+describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
+  const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
+
+  it('denies a same-organization non-member from withdrawing an offer', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: null },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('not authorized for this store');
+    expect(updated).toHaveLength(0);
+  });
+
+  it('allows an active store member to withdraw an offer in their organization', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'WITHDRAWN' }] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).resolves.toMatchObject({ status: 'WITHDRAWN' });
+    expect(updated[0]).toMatchObject({ status: 'WITHDRAWN', isAvailable: false });
+  });
+
+  it('denies a member when the offer store belongs to another organization', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-2' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('You do not have access to this store');
+    expect(updated).toHaveLength(0);
+  });
+
+  it('attributes pricing audit events to the authenticated member, not the original proposer', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT', proposedBy: 'original-proposer' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, offer] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller);
+    expect(auditRecords[0]).toMatchObject({ actorType: 'MERCHANT', actorId: caller.sub, action: 'offer.pricing_updated' });
+  });
+});
+
+
+describe('CatalogOfferService — admin governance audit attribution (G-001)', () => {
+  it('records the authenticated reviewer for suspension', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'ACTIVE' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'SUSPENDED' }] },
+    });
+    await svc.suspendOffer('o1', 'admin-authenticated');
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'ADMIN',
+      actorId: 'admin-authenticated',
+      action: 'offer.suspended',
+    });
+  });
+
+  it('records the authenticated reviewer for reactivation', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'SUSPENDED' };
+    const { svc, auditRecords } = makeHarness({
+      merchantOffers: { findFirst: [offer, { ...offer, status: 'ACTIVE' }] },
+    });
+    await svc.reactivateOffer('o1', 'admin-authenticated');
+    expect(auditRecords[0]).toMatchObject({
+      actorType: 'ADMIN',
+      actorId: 'admin-authenticated',
+      action: 'offer.reactivated',
+    });
   });
 });
