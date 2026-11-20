@@ -119,9 +119,9 @@ This checkpoint records the latest inspected pull-request CI, not a release deci
 | #145 | G-020 normalize_arabic search_path | #1012 / run `44708242986` | PASS, 10 executable jobs | Does not authorize applying migration 0070 to the shared database. |
 | #146 | G-009 notification truthfulness (earlier attempt) | #1013 / run `44708460818` | FAIL | API unit tests failed because the new push test mock did not provide the database query chain expected by the service. Superseded in intent by PR #150; do not merge both. |
 | #147 | G-003 carrier outbox ownership | #1014 failed; #1024 running | Previous failure fixed in commit `590ac892`; revalidation pending | Previous failure was TS4111 in the new test mock; index-signature properties now use bracket access. The same carrier exclusion is already present on PR #138's branch (CI #687), so coordinate landing order and do not merge duplicate patches independently. |
-| #148 | G-008 reject unsupported DIGITAL payment | #1015 / run `44708682886` | PASS, 10 executable jobs | Draft implementation PR; reconcile with #138 before merging. |
-| #149 | G-005 multi-currency checkout display | #1016 / run `44708820666` | PASS, 10 executable jobs | Draft implementation PR; reconcile with #138 before merging. |
-| #150 | G-009 truthful notification delivery | #1023 / run `44715420748` | PASS, 10 executable jobs | Newer implementation than #146; external provider delivery remains unimplemented and is not claimed. |
+| #148 | G-008 reject unsupported DIGITAL payment | #1015 / run `44708682886` | PASS, 10 executable jobs | Weaker/overlapping DIGITAL-only guard; PR #138 already has the broader supported-method allowlist and pre-provider rejection. Do not merge independently. |
+| #149 | G-005 multi-currency checkout display | #1016 / run `44708820666` | PASS, 10 executable jobs | UI-only currency buckets are superseded by PR #138's server-authoritative checkout preview, per-supplier totals and VAT disclosure. Do not replace the more complete checkout surface. |
+| #150 | G-009 truthful notification delivery | #1023 / run `44715420748` | PASS, 10 executable jobs | Supersedes failed #146, but status semantics differ from PR #138 (FAILED vs NOT_CONFIGURED). Reconcile the canonical delivery-state contract before integration; external provider delivery remains unimplemented. |
 | #151 | Country and currency selectors | #1022 / run `44715048598` | PASS, 10 executable jobs | Draft UX/reference-data change; k6 and staging release were skipped. |
 
 **CI interpretation:** The ten executable jobs are lint/typecheck, Flutter analysis/tests, migration full apply in isolated CI PostgreSQL, web/admin tests, API unit/coverage, API integration, E6 boundary lint, container build/smoke, contract/codegen and build. k6 smoke and staging release were skipped on these runs. Green CI is not staging runtime verification, business UAT or release authorization.
@@ -895,3 +895,11 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - No Vercel deployment was requested or manually initiated by this remediation work. No release or staging action was triggered.
 - PR #147 CI #1024 remains in progress on corrected test commit `590ac8922bcacc03d18d4bf62eb163155dc2188b`; lint/typecheck, Flutter, web/admin, migration full apply and E6 have passed, while API unit/coverage and PostgreSQL integration are still running.
 - The G-001 code/test hardening from PR #144 has been ported into this branch. The focused PR #144 CI #1011 is supporting evidence only; the combined current branch still needs a full test run and independent review.
+
+
+### Focused PR behavior comparison — 20 November 2026
+
+- PR #148's DIGITAL-only guard is narrower than the already integrated `SUPPORTED_PAYMENT_METHODS` allowlist on this branch; retain the broader guard and do not merge the focused copy independently.
+- PR #149's client-only currency buckets are less complete than this branch's server-authoritative checkout preview, which returns per-supplier financial rows and `totalsByCurrency`, including VAT and shipping. Do not replace the server-calculated contract with the simpler UI-only patch.
+- PR #150 passes CI #1023 and is newer than failed PR #146, but it records unconfigured delivery differently from this branch: PR #150 uses FAILED for missing-token push and throws for unconfigured provider stubs; this branch persists NOT_CONFIGURED with stable reason codes. Review the notification status contract and API/client compatibility before selecting one implementation.
+- PR #151 remains a useful additive UX/reference-data candidate. Its country/currency selectors pass CI #1022, but its mobile model changes overlap other work on the remediation branch and require integration-level review before merging.
