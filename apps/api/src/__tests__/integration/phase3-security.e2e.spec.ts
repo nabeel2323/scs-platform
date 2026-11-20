@@ -229,7 +229,16 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       caller: ReturnType<typeof callerA>,
     ) {
       const o = await offerService.createOffer(
-        { storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+        {
+          storeId,
+          productId,
+          variantId,
+          currency: 'SAR',
+          basePriceMinor: priceMinor,
+          moq: 1,
+          leadTimeDays: 3,
+          proposedBy: 'forged-user',
+        },
         caller,
       );
       await offerService.proposeOffer(o.id, caller);
