@@ -262,3 +262,28 @@ describe('CatalogOfferService — admin governance audit attribution (G-001)', (
     });
   });
 });
+
+
+describe('CatalogOfferService — proposal and pricing mutation membership enforcement (G-001)', () => {
+  const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
+
+  it('denies a same-organization non-member from proposing an offer', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: null },
+    });
+    await expect(svc.proposeOffer('o1', caller.sub, caller)).rejects.toThrow('not authorized for this store');
+    expect(updated).toHaveLength(0);
+  });
+
+  it('denies a same-organization non-member from changing offer pricing', async () => {
+    const { svc, updated } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: null },
+    });
+    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow('not authorized for this store');
+    expect(updated).toHaveLength(0);
+  });
+});
