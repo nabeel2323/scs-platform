@@ -13,7 +13,7 @@ import { priceLists } from '../pricing/pricing.schema';
 import { orderItems } from '../orders/orders.schema';
 import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
 import crypto from 'node:crypto';
-import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 const OFFER_STATUSES: ReadonlySet<OfferStatus> = new Set<OfferStatus>([
   'DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN',
@@ -504,7 +504,10 @@ export class CatalogOfferService {
 
   async proposeOffer(id: string, proposedBy?: string | null, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
+    }
     this.assertTransition(offer.status, 'PROPOSED');
     await this.db.db
       .update(merchantOffers)
@@ -626,7 +629,10 @@ export class CatalogOfferService {
 
   async withdrawOffer(id: string, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
+    }
     this.assertTransition(offer.status, 'WITHDRAWN');
     await this.db.db
       .update(merchantOffers)
@@ -655,7 +661,10 @@ export class CatalogOfferService {
    */
   async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
+    }
     if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
