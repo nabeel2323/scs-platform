@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { CatalogOfferService } from '../../../modules/catalog/catalog.offer.service';
 
@@ -154,9 +156,10 @@ describe('CatalogOfferService — buyer product offer visibility (G-001)', () =>
     await svc.listOffersForProduct('product-1');
 
     const query = findManyCalls[0] as { where?: unknown };
-    const where = JSON.stringify(query?.where);
-    expect(where).toContain('ACTIVE');
-    expect(where).toContain('true');
+    expect(query.where).toBeDefined();
+    const compiled = new PgDialect().sqlToQuery(query.where as SQL);
+    expect(compiled.params).toContain('ACTIVE');
+    expect(compiled.params).toContain(true);
   });
 });
 
