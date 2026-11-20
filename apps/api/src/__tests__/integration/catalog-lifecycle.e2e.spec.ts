@@ -441,8 +441,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         moq: 1,
         leadTimeDays: 5,
         externalRef: 'SKU-A-001',
-        proposedBy: merchantA,
-      });
+        proposedBy: 'forged-user',
+      }, callerA());
       offerA = offer.id;
 
       expect(offer.storeId).toBe(storeA);
@@ -475,8 +475,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         moq: 2,
         leadTimeDays: 7,
         externalRef: 'SKU-B-001',
-        proposedBy: merchantB,
-      });
+        proposedBy: 'forged-user',
+      }, callerB());
       offerB = offer.id;
 
       expect(offer.storeId).toBe(storeB);
@@ -791,8 +791,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         currency: 'SAR',
         basePriceMinor: 500000,
         moq: 1,
-        proposedBy: merchantA,
-      });
+        proposedBy: 'forged-user',
+      }, callerA());
 
       // Propose → Approve
       await offerService.proposeOffer(govOffer.id, callerA());
