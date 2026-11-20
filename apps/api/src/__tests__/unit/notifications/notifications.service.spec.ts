@@ -83,9 +83,9 @@ describe('NotificationsService — truthful delivery states (G-009)', () => {
     };
     const svc = new NotificationsService({ db: { db } } as any);
     await (svc as any).sendPush('n-1', 'u-1', 'Title', 'Body');
-    expect(update?.status).toBe('FAILED');
-    expect(update?.failureReason).toBe('FCM_NOT_CONFIGURED_NO_DEVICE_TOKEN');
-    expect(update?.sentAt).toBeUndefined();
+    expect(update?.['status']).toBe('FAILED');
+    expect(update?.['failureReason']).toBe('FCM_NOT_CONFIGURED_NO_DEVICE_TOKEN');
+    expect(update?.['sentAt']).toBeUndefined();
   });
 
   it('fails closed for the unimplemented WhatsApp channel', async () => {
