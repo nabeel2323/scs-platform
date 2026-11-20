@@ -1172,3 +1172,10 @@ Keep PR #138 open and draft. External Vercel web/admin preview statuses remain r
 ### PostgreSQL CI audit gate — 20 November 2026
 
 CI #1051 on the PR merge ref stopped at the changed-file formatting gate. Lint and typecheck passed; the Flutter analysis and tests passed. Prettier flagged `.github/workflows/ci.yml` and both remediation tracking documents. Because the lint job failed, Migration Full Apply and the newly added read-only database audit step were skipped. The formatting corrections are being applied before rerunning the complete gate. No staging audit, deployment, shared-database mutation or release action was performed.
+
+### PostgreSQL CI audit execution — 20 November 2026
+
+- Exact branch head `1ec2a60d9bce6ff502fa7baa9e740798fc2b60f9` passed CI [#1053](https://github.com/nabeel2323/scs-platform/actions/runs/44756359937): all 10 executable jobs succeeded. The changed-file formatting gate, full migration apply, and PostgreSQL audit step all passed; k6 and staging release were skipped.
+- The audit ran read-only against disposable PostgreSQL 16.16 and reported `mutationPerformed: false` and `connectionStringPrinted: false`. It identified the CI migration login `scs` as superuser/BYPASSRLS, with 116 public tables and zero RLS-enabled tables. `anon` and `authenticated` had no effective table privileges in this migrated fixture. This is fixture evidence only and does not establish the staging API or migration identity.
+- Follow-up hardening: the CI migration gate now creates a random-password, non-superuser `scs_audit` login with no schema/table grants and runs the audit using that identity. This avoids treating the migration owner's superuser session as a sufficient test of the audit's catalog-read requirements. The restricted-login execution is pending a fresh CI run.
+- G-002 remains BLOCKED pending an authorized protected staging audit and independent confirmation of the real API/migration runtime identities. No staging dispatch, deployment, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business side effect was performed.
