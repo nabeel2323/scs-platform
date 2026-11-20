@@ -198,9 +198,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
         { priceListId: 'pl1' },
         { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
       ),
-    ).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a warehouse owned by a different store', async () => {
@@ -214,9 +212,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
         { warehouseId: 'wh1' },
         { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
       ),
-    ).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('updates terms when the price list belongs to the offer store', async () => {
@@ -239,7 +235,6 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
 });
 
 describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
-
   it('denies a same-organization non-member from withdrawing an offer', async () => {
     const { svc, updated } = makeHarness({
       merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
@@ -326,9 +321,7 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow(
-      'not authorized for this store',
-    );
+    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow('not authorized for this store');
     expect(updated).toHaveLength(0);
   });
 
@@ -397,9 +390,9 @@ describe('CatalogOfferService — create tenant authorization (G-001)', () => {
     const { svc, inserted } = makeHarness({
       stores: { findFirst: { orgId: 'org-2' } },
     });
-    await expect(
-      svc.createOffer({ storeId: 's2', productId: 'p1' }, caller),
-    ).rejects.toThrow('You do not have access to this store');
+    await expect(svc.createOffer({ storeId: 's2', productId: 'p1' }, caller)).rejects.toThrow(
+      'You do not have access to this store',
+    );
     expect(inserted).toHaveLength(0);
   });
 

@@ -445,17 +445,20 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario D — Merchant A creates offer', () => {
     it('creates an offer for 16GB/512GB variant', async () => {
-      const offer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: variant16_512,
-        currency: 'SAR',
-        basePriceMinor: 450000,
-        moq: 1,
-        leadTimeDays: 5,
-        externalRef: 'SKU-A-001',
-        proposedBy: 'forged-user',
-      }, callerA());
+      const offer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: variant16_512,
+          currency: 'SAR',
+          basePriceMinor: 450000,
+          moq: 1,
+          leadTimeDays: 5,
+          externalRef: 'SKU-A-001',
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       offerA = offer.id;
 
       expect(offer.storeId).toBe(storeA);
@@ -479,17 +482,20 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
   describe('Scenario E — Merchant B offers same variant', () => {
     it('creates a second offer on the same canonical product + variant', async () => {
-      const offer = await offerService.createOffer({
-        storeId: storeB,
-        productId,
-        variantId: variant16_512,
-        currency: 'SAR',
-        basePriceMinor: 430000,
-        moq: 2,
-        leadTimeDays: 7,
-        externalRef: 'SKU-B-001',
-        proposedBy: 'forged-user',
-      }, callerB());
+      const offer = await offerService.createOffer(
+        {
+          storeId: storeB,
+          productId,
+          variantId: variant16_512,
+          currency: 'SAR',
+          basePriceMinor: 430000,
+          moq: 2,
+          leadTimeDays: 7,
+          externalRef: 'SKU-B-001',
+          proposedBy: 'forged-user',
+        },
+        callerB(),
+      );
       offerB = offer.id;
 
       expect(offer.storeId).toBe(storeB);
@@ -787,15 +793,18 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
   describe('Scenario L — Admin governance', () => {
     it('admin can approve/reject/suspend/reactivate offers', async () => {
       // Create a fresh offer to test the full lifecycle
-      const govOffer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: variant16_1tb,
-        currency: 'SAR',
-        basePriceMinor: 500000,
-        moq: 1,
-        proposedBy: 'forged-user',
-      }, callerA());
+      const govOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: variant16_1tb,
+          currency: 'SAR',
+          basePriceMinor: 500000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
 
       // Propose → Approve
       await offerService.proposeOffer(govOffer.id, callerA());

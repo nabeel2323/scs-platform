@@ -17,15 +17,40 @@ import { InventoryService } from '../../modules/inventory/inventory.service';
 import { PromotionsService } from '../../modules/promotions/promotions.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 // Schemas
-import { products, productVariants, categories, brands, productMedia } from '../../modules/catalog/catalog.schema';
-import { attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues } from '../../modules/catalog/catalog.taxonomy.schema';
+import {
+  products,
+  productVariants,
+  categories,
+  brands,
+  productMedia,
+} from '../../modules/catalog/catalog.schema';
+import {
+  attributeDefinitions,
+  attributeOptions,
+  attributeGroups,
+  productTypes,
+  productTypeAttributes,
+  productAttributeValues,
+  variantAttributeValues,
+} from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
-import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  roles,
+} from '../../modules/identity/identity.schema';
 import { stores, warehouses } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { outboxEvents, auditLogs } from '../../modules/audit/audit.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
 
@@ -47,7 +72,9 @@ import { searchQueries } from '../../modules/catalog/search.schema';
  */
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const storage = { createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`) } as any;
+const storage = {
+  createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`),
+} as any;
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
@@ -111,14 +138,37 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productVariants, categories, brands, productMedia,
-        attributeDefinitions, attributeOptions, attributeGroups,
-        productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues,
-        merchantOffers, stores, warehouses, users, organizations,
-        priceLists, priceTiers,
-        inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        outboxEvents, auditLogs, searchQueries,
+        products,
+        productVariants,
+        categories,
+        brands,
+        productMedia,
+        attributeDefinitions,
+        attributeOptions,
+        attributeGroups,
+        productTypes,
+        productTypeAttributes,
+        productAttributeValues,
+        variantAttributeValues,
+        merchantOffers,
+        stores,
+        warehouses,
+        users,
+        organizations,
+        priceLists,
+        priceTiers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        outboxEvents,
+        auditLogs,
+        searchQueries,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -126,34 +176,62 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     const migrationsDir = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
     for (const file of (await readdir(migrationsDir))
-      .filter(f => f.endsWith('.sql') && !excluded.includes(f))
+      .filter((f) => f.endsWith('.sql') && !excluded.includes(f))
       .sort()) {
       await pool.query(await readFile(path.join(migrationsDir, file), 'utf8'));
     }
 
     // ── Seed RBAC ─────────────────────────────────────────────────
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Instantiate services ──────────────────────────────────────
     database = { db } as DatabaseService;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
+    catalog = new CatalogService(
+      database,
+      redis as any,
+      outbox,
+      storage,
+      audit,
+      conditionalRules,
+      taxonomy,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     offerService = new CatalogOfferService(database, audit);
     const promotionsService = new PromotionsService(database);
     cartService = new CartService(database, promotionsService);
-    ordersService = new OrdersService(database, outbox, promotionsService, realtime, cartService, notifications);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotionsService,
+      realtime,
+      cartService,
+      notifications,
+    );
     inventoryService = new InventoryService(database, outbox);
 
     // ── Create test identities ────────────────────────────────────
-    orgA = randomUUID(); orgB = randomUUID();
-    merchantOwnerA = randomUUID(); merchantOwnerB = randomUUID();
+    orgA = randomUUID();
+    orgB = randomUUID();
+    merchantOwnerA = randomUUID();
+    merchantOwnerB = randomUUID();
     merchantStaffA = randomUUID();
-    buyerA = randomUUID(); buyerB = randomUUID();
-    adminUser = randomUUID(); moderatorUser = randomUUID();
-    storeA = randomUUID(); storeB = randomUUID();
-    warehouseA = randomUUID(); warehouseB = randomUUID();
+    buyerA = randomUUID();
+    buyerB = randomUUID();
+    adminUser = randomUUID();
+    moderatorUser = randomUUID();
+    storeA = randomUUID();
+    storeB = randomUUID();
+    warehouseA = randomUUID();
+    warehouseB = randomUUID();
 
     // Fetch role IDs
     const roleRes = await pool.query(`SELECT id, key FROM roles`);
@@ -202,19 +280,51 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     const pt = await taxonomy.createProductType({ code: 'gadget', name: 'Gadget', categoryId });
     productTypeId = pt.id;
     await taxonomy.setProductTypeAttributes(productTypeId, [
-      { attributeDefinitionId: (await taxonomy.createAttribute({ code: 'color', name: 'Color', type: 'TEXT', scope: 'VARIANT' })).id, required: true, scope: 'VARIANT', displayOrder: 0 },
+      {
+        attributeDefinitionId: (
+          await taxonomy.createAttribute({
+            code: 'color',
+            name: 'Color',
+            type: 'TEXT',
+            scope: 'VARIANT',
+          })
+        ).id,
+        required: true,
+        scope: 'VARIANT',
+        displayOrder: 0,
+      },
     ]);
     await taxonomy.publishProductType(productTypeId);
 
     // Product A (storeA / Org Alpha)
-    const pA = await catalog.createProduct({ storeId: storeA, title: 'Product Alpha', categoryId, brandId, productTypeId, images: ['a.png'] }, merchantOwnerA);
+    const pA = await catalog.createProduct(
+      {
+        storeId: storeA,
+        title: 'Product Alpha',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['a.png'],
+      },
+      merchantOwnerA,
+    );
     productA = pA.id;
     await catalog.updateProduct(productA, { status: 'ACTIVE' });
     const vA = await catalog.createVariant(productA, { sku: 'PA-V1', title: 'Product Alpha V1' });
     variantA = vA.id;
 
     // Product B (storeB / Org Beta)
-    const pB = await catalog.createProduct({ storeId: storeB, title: 'Product Beta', categoryId, brandId, productTypeId, images: ['b.png'] }, merchantOwnerB);
+    const pB = await catalog.createProduct(
+      {
+        storeId: storeB,
+        title: 'Product Beta',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['b.png'],
+      },
+      merchantOwnerB,
+    );
     productB = pB.id;
     await catalog.updateProduct(productB, { status: 'ACTIVE' });
     const vB = await catalog.createVariant(productB, { sku: 'PB-V1', title: 'Product Beta V1' });
@@ -250,10 +360,25 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     offerB = await createActiveOffer(storeB, productB, variantB, 20000, callerB());
 
     // ── Price lists & tiers ───────────────────────────────────────
-    const plA = randomUUID(); const plB = randomUUID();
+    const plA = randomUUID();
+    const plB = randomUUID();
     await db.insert(priceLists).values([
-      { id: plA, storeId: storeA, name: 'Alpha Retail', currency: 'SAR', isActive: true, priority: 10 },
-      { id: plB, storeId: storeB, name: 'Beta Retail', currency: 'SAR', isActive: true, priority: 10 },
+      {
+        id: plA,
+        storeId: storeA,
+        name: 'Alpha Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
+      {
+        id: plB,
+        storeId: storeB,
+        name: 'Beta Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
     ]);
     await db.insert(priceTiers).values([
       { id: randomUUID(), priceListId: plA, variantId: variantA, unitPriceMinor: 10000, minQty: 1 },
@@ -261,18 +386,35 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     ]);
 
     // ── Inventory ─────────────────────────────────────────────────
-    const iA = await inventoryService.createItem({ variantId: variantA, warehouseId: warehouseA, initialQty: 100, userId: merchantOwnerA });
+    const iA = await inventoryService.createItem({
+      variantId: variantA,
+      warehouseId: warehouseA,
+      initialQty: 100,
+      userId: merchantOwnerA,
+    });
     invItemA = iA.id;
-    const iB = await inventoryService.createItem({ variantId: variantB, warehouseId: warehouseB, initialQty: 50, userId: merchantOwnerB });
+    const iB = await inventoryService.createItem({
+      variantId: variantB,
+      warehouseId: warehouseB,
+      initialQty: 50,
+      userId: merchantOwnerB,
+    });
     invItemB = iB.id;
 
     // ── Create an order for IDOR tests ────────────────────────────
     await cartService.addItem(buyerA, { variantId: variantA, quantity: 2, offerId: offerA });
-    const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-security-${randomUUID()}` });
+    const co = await ordersService.checkout({
+      buyerId: buyerA,
+      deliveryAddress: {},
+      idempotencyKey: `p3-security-${randomUUID()}`,
+    });
     orderA = (co.subOrders.find((s: any) => s.storeId === storeA) as any)?.id as string;
   }, 180_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
   // 1. ROLES & PERMISSIONS
@@ -376,26 +518,42 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   describe('2. Cross-Organization Isolation', () => {
     it('Merchant Owner A cannot read Store B orders', async () => {
       await expect(
-        ordersService.listOrders(undefined, storeB, undefined, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.listOrders(undefined, storeB, undefined, {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant Owner B cannot read Store A orders', async () => {
       await expect(
-        ordersService.listOrders(undefined, storeA, undefined, { sub: merchantOwnerB, role: 'MERCHANT_OWNER', activeOrg: orgB }),
+        ordersService.listOrders(undefined, storeA, undefined, {
+          sub: merchantOwnerB,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgB,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant Owner A cannot read Store B order detail', async () => {
       // orderA belongs to storeA (Org Alpha). Merchant B should not access it.
       await expect(
-        ordersService.getOrderWithItems(orderA, { sub: merchantOwnerB, role: 'MERCHANT_OWNER', activeOrg: orgB }),
+        ordersService.getOrderWithItems(orderA, {
+          sub: merchantOwnerB,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgB,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant Owner A cannot access Merchant B warehouse inventory', async () => {
       await expect(
-        inventoryService.listByWarehouse(warehouseB, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        inventoryService.listByWarehouse(warehouseB, {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
@@ -410,20 +568,31 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
 
     it('Merchant Owner A cannot update Merchant B inventory item', async () => {
       await expect(
-        inventoryService.adjustStock({ inventoryItemId: invItemB, quantity: -1, reason: 'test' }, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        inventoryService.adjustStock(
+          { inventoryItemId: invItemB, quantity: -1, reason: 'test' },
+          { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA },
+        ),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant Staff A cannot access Merchant B warehouse', async () => {
       await expect(
-        inventoryService.listByWarehouse(warehouseB, { sub: merchantStaffA, role: 'MERCHANT_STAFF', activeOrg: orgA }),
+        inventoryService.listByWarehouse(warehouseB, {
+          sub: merchantStaffA,
+          role: 'MERCHANT_STAFF',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Buyer A cannot read Buyer B master order', async () => {
       // Create a Buyer B order
       await cartService.addItem(buyerB, { variantId: variantB, quantity: 1, offerId: offerB });
-      const coB = await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: `p3-buyerb-${randomUUID()}` });
+      const coB = await ordersService.checkout({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: `p3-buyerb-${randomUUID()}`,
+      });
 
       // Buyer A tries to read Buyer B's master order
       await expect(
@@ -438,7 +607,11 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       if (!buyerBSubOrder) return;
 
       await expect(
-        ordersService.getOrderWithItems(buyerBSubOrder, { sub: buyerA, role: 'BUYER', activeOrg: orgA }),
+        ordersService.getOrderWithItems(buyerBSubOrder, {
+          sub: buyerA,
+          role: 'BUYER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
   });
@@ -450,47 +623,83 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     it('Merchant A cannot accept Merchant B order', async () => {
       // Create order from store B
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-crossmerch-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-crossmerch-${randomUUID()}`,
+      });
       const subB = (co.subOrders.find((s: any) => s.storeId === storeB) as any)?.id as string;
 
       await expect(
-        ordersService.acceptOrder(subB, merchantOwnerA, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.acceptOrder(subB, merchantOwnerA, {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A cannot reject Merchant B order', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-crossmerch2-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-crossmerch2-${randomUUID()}`,
+      });
       const subB = (co.subOrders.find((s: any) => s.storeId === storeB) as any)?.id as string;
 
       await expect(
-        ordersService.rejectOrder(subB, merchantOwnerA, 'test', { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.rejectOrder(subB, merchantOwnerA, 'test', {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A cannot transition Merchant B order status', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-crossmerch3-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-crossmerch3-${randomUUID()}`,
+      });
       const subB = (co.subOrders.find((s: any) => s.storeId === storeB) as any)?.id as string;
 
       await expect(
-        ordersService.transitionStatus(subB, 'PREPARING', merchantOwnerA, 'MERCHANT', undefined, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.transitionStatus(subB, 'PREPARING', merchantOwnerA, 'MERCHANT', undefined, {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A cannot cancel Merchant B order', async () => {
       await cartService.addItem(buyerA, { variantId: variantB, quantity: 1, offerId: offerB });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-crossmerch4-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-crossmerch4-${randomUUID()}`,
+      });
       const subB = (co.subOrders.find((s: any) => s.storeId === storeB) as any)?.id as string;
 
       await expect(
-        ordersService.cancelOrder(subB, merchantOwnerA, 'CUSTOMER_REQUEST', { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.cancelOrder(subB, merchantOwnerA, 'CUSTOMER_REQUEST', {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A cannot read Merchant B inventory movements', async () => {
       await expect(
-        inventoryService.listMovements(invItemB, 50, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        inventoryService.listMovements(invItemB, 50, {
+          sub: merchantOwnerA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
   });
@@ -501,12 +710,18 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   describe('4. IDOR Tests', () => {
     it('Buyer A cannot access another buyer order by ID', async () => {
       // Get a different buyer's order
-      const otherOrders = await pool.query(`SELECT id FROM orders WHERE buyer_id = $1 LIMIT 1`, [buyerB]);
+      const otherOrders = await pool.query(`SELECT id FROM orders WHERE buyer_id = $1 LIMIT 1`, [
+        buyerB,
+      ]);
       if (otherOrders.rows.length === 0) return;
       const otherOrderId = otherOrders.rows[0].id;
 
       await expect(
-        ordersService.getOrderWithItems(otherOrderId, { sub: buyerA, role: 'BUYER', activeOrg: orgA }),
+        ordersService.getOrderWithItems(otherOrderId, {
+          sub: buyerA,
+          role: 'BUYER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
@@ -518,22 +733,35 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       if (otherMasters.rows.length === 0) return;
 
       await expect(
-        ordersService.getMasterOrder(otherMasters.rows[0].id, { sub: buyerA, role: 'BUYER', activeOrg: orgA }),
+        ordersService.getMasterOrder(otherMasters.rows[0].id, {
+          sub: buyerA,
+          role: 'BUYER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Buyer A cannot access status history of another buyer order', async () => {
-      const otherOrders = await pool.query(`SELECT id FROM orders WHERE buyer_id = $1 LIMIT 1`, [buyerB]);
+      const otherOrders = await pool.query(`SELECT id FROM orders WHERE buyer_id = $1 LIMIT 1`, [
+        buyerB,
+      ]);
       if (otherOrders.rows.length === 0) return;
 
       await expect(
-        ordersService.getStatusHistory(otherOrders.rows[0].id, { sub: buyerA, role: 'BUYER', activeOrg: orgA }),
+        ordersService.getStatusHistory(otherOrders.rows[0].id, {
+          sub: buyerA,
+          role: 'BUYER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant Staff A cannot access inventory item in Merchant B warehouse', async () => {
       await expect(
-        inventoryService.adjustStock({ inventoryItemId: invItemB, quantity: -1, reason: 'test' }, { sub: merchantStaffA, role: 'MERCHANT_STAFF', activeOrg: orgA }),
+        inventoryService.adjustStock(
+          { inventoryItemId: invItemB, quantity: -1, reason: 'test' },
+          { sub: merchantStaffA, role: 'MERCHANT_STAFF', activeOrg: orgA },
+        ),
       ).rejects.toThrow(/access/i);
     });
   });
@@ -543,25 +771,43 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('5. Admin / Moderator Privilege Boundaries', () => {
     it('ADMIN can read any order (bypass tenant scope)', async () => {
-      const result = await ordersService.getOrderWithItems(orderA, { sub: adminUser, role: 'ADMIN', activeOrg: null });
+      const result = await ordersService.getOrderWithItems(orderA, {
+        sub: adminUser,
+        role: 'ADMIN',
+        activeOrg: null,
+      });
       expect(result.id).toBe(orderA);
     });
 
     it('ADMIN can read any inventory (bypass tenant scope)', async () => {
-      const result = await inventoryService.listByWarehouse(warehouseA, { sub: adminUser, role: 'ADMIN', activeOrg: null });
+      const result = await inventoryService.listByWarehouse(warehouseA, {
+        sub: adminUser,
+        role: 'ADMIN',
+        activeOrg: null,
+      });
       expect(result.length).toBeGreaterThanOrEqual(0);
     });
 
     it('ADMIN can read any master order (bypass tenant scope)', async () => {
-      const masterRes = await pool.query(`SELECT master_order_id FROM orders WHERE id = $1`, [orderA]);
+      const masterRes = await pool.query(`SELECT master_order_id FROM orders WHERE id = $1`, [
+        orderA,
+      ]);
       const masterId = masterRes.rows[0]?.master_order_id;
       if (!masterId) return;
-      const result = await ordersService.getMasterOrder(masterId, { sub: adminUser, role: 'ADMIN', activeOrg: null });
+      const result = await ordersService.getMasterOrder(masterId, {
+        sub: adminUser,
+        role: 'ADMIN',
+        activeOrg: null,
+      });
       expect(result.id).toBe(masterId);
     });
 
     it('MODERATOR can read orders (bypass tenant scope)', async () => {
-      const result = await ordersService.getOrderWithItems(orderA, { sub: moderatorUser, role: 'MODERATOR', activeOrg: null });
+      const result = await ordersService.getOrderWithItems(orderA, {
+        sub: moderatorUser,
+        role: 'MODERATOR',
+        activeOrg: null,
+      });
       expect(result.id).toBe(orderA);
     });
 
@@ -601,20 +847,34 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('6. Resource Ownership', () => {
     it('Buyer A can read their own order', async () => {
-      const result = await ordersService.getOrderWithItems(orderA, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
+      const result = await ordersService.getOrderWithItems(orderA, {
+        sub: buyerA,
+        role: 'BUYER',
+        activeOrg: orgA,
+      });
       expect(result.id).toBe(orderA);
     });
 
     it('Buyer A can read their own master order', async () => {
-      const masterRes = await pool.query(`SELECT master_order_id FROM orders WHERE id = $1`, [orderA]);
+      const masterRes = await pool.query(`SELECT master_order_id FROM orders WHERE id = $1`, [
+        orderA,
+      ]);
       const masterId = masterRes.rows[0]?.master_order_id;
       if (!masterId) return;
-      const result = await ordersService.getMasterOrder(masterId, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
+      const result = await ordersService.getMasterOrder(masterId, {
+        sub: buyerA,
+        role: 'BUYER',
+        activeOrg: orgA,
+      });
       expect(result.id).toBe(masterId);
     });
 
     it('Buyer A can list their own orders', async () => {
-      const result = await ordersService.listOrders(buyerA, undefined, undefined, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
+      const result = await ordersService.listOrders(buyerA, undefined, undefined, {
+        sub: buyerA,
+        role: 'BUYER',
+        activeOrg: orgA,
+      });
       expect(result.length).toBeGreaterThan(0);
       for (const order of result) {
         expect(order.buyerId).toBe(buyerA);
@@ -622,29 +882,48 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     });
 
     it('Merchant Owner A can read Store A orders', async () => {
-      const result = await ordersService.listOrders(undefined, storeA, undefined, { sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+      const result = await ordersService.listOrders(undefined, storeA, undefined, {
+        sub: merchantOwnerA,
+        role: 'MERCHANT_OWNER',
+        activeOrg: orgA,
+      });
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('Merchant Owner A can accept Store A order', async () => {
       // Create a fresh order for accept
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-own-accept-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-own-accept-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       const result = await ordersService.acceptOrder(subId!, merchantOwnerA);
       expect(result.status).toBe('ACCEPTED');
     });
 
     it('Merchant Staff A can list Store A orders', async () => {
-      const result = await ordersService.listOrders(undefined, storeA, undefined, { sub: merchantStaffA, role: 'MERCHANT_STAFF', activeOrg: orgA });
+      const result = await ordersService.listOrders(undefined, storeA, undefined, {
+        sub: merchantStaffA,
+        role: 'MERCHANT_STAFF',
+        activeOrg: orgA,
+      });
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('Buyer A can cancel their own order', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-own-cancel-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-own-cancel-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
+        sub: buyerA,
+        role: 'BUYER',
+      });
       const order = await ordersService.getOrder(subId!);
       expect(order.status).toBe('CANCELLED');
     });
@@ -661,25 +940,39 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       // At the service level, buyerId is used as-is — security is at the controller layer.
       // We verify the controller pattern exists by checking the source.
       const controllerSrc = await readFile(
-        path.resolve(__dirname, '../../modules/orders/orders.controller.ts'), 'utf8',
+        path.resolve(__dirname, '../../modules/orders/orders.controller.ts'),
+        'utf8',
       );
       expect(controllerSrc).toContain('buyerId: user.sub');
     });
 
     it('order items preserve server-side price, not client-supplied', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-tamper-price-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-tamper-price-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      const items = await pool.query(`SELECT unit_price_minor FROM order_items WHERE order_id = $1`, [subId]);
+      const items = await pool.query(
+        `SELECT unit_price_minor FROM order_items WHERE order_id = $1`,
+        [subId],
+      );
       // Price is server-resolved from price lists, not from client input
       expect(Number(items.rows[0].unit_price_minor)).toBe(10000);
     });
 
     it('offer snapshot is server-captured, not client-supplied', async () => {
       await cartService.addItem(buyerA, { variantId: variantA, quantity: 1, offerId: offerA });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p3-tamper-snap-${randomUUID()}` });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p3-tamper-snap-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
-      const items = await pool.query(`SELECT offer_snapshot FROM order_items WHERE order_id = $1`, [subId]);
+      const items = await pool.query(`SELECT offer_snapshot FROM order_items WHERE order_id = $1`, [
+        subId,
+      ]);
       const snap = items.rows[0].offer_snapshot;
       expect(snap).toBeTruthy();
       expect(snap.basePriceMinor).toBe(10000);
@@ -692,17 +985,23 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('8. Database Integrity After Security Tests', () => {
     it('no negative inventory', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0 OR (qty_on_hand - qty_reserved) < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0 OR (qty_on_hand - qty_reserved) < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no orphan order items', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('all sub-orders have a master order', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 

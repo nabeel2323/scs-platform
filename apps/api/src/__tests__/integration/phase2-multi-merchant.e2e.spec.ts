@@ -17,15 +17,40 @@ import { InventoryService } from '../../modules/inventory/inventory.service';
 import { PromotionsService } from '../../modules/promotions/promotions.service';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 // Schemas
-import { products, productVariants, categories, brands, productMedia } from '../../modules/catalog/catalog.schema';
-import { attributeDefinitions, attributeOptions, attributeGroups, productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues } from '../../modules/catalog/catalog.taxonomy.schema';
+import {
+  products,
+  productVariants,
+  categories,
+  brands,
+  productMedia,
+} from '../../modules/catalog/catalog.schema';
+import {
+  attributeDefinitions,
+  attributeOptions,
+  attributeGroups,
+  productTypes,
+  productTypeAttributes,
+  productAttributeValues,
+  variantAttributeValues,
+} from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
-import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
+import {
+  users,
+  organizations,
+  organizationMembers,
+  roles,
+} from '../../modules/identity/identity.schema';
 import { stores, warehouses } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { outboxEvents, auditLogs } from '../../modules/audit/audit.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
 
@@ -45,7 +70,9 @@ import { searchQueries } from '../../modules/catalog/search.schema';
  */
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
-const storage = { createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`) } as any;
+const storage = {
+  createPresignedGetUrl: vi.fn(async (_b: string, key: string) => `https://cdn.test/${key}`),
+} as any;
 const outbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
 const audit = { record: vi.fn().mockResolvedValue(undefined) } as any;
 const redis = { get: vi.fn(), set: vi.fn(), del: vi.fn() } as any;
@@ -89,14 +116,37 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
       schema: {
-        products, productVariants, categories, brands, productMedia,
-        attributeDefinitions, attributeOptions, attributeGroups,
-        productTypes, productTypeAttributes, productAttributeValues, variantAttributeValues,
-        merchantOffers, stores, warehouses, users, organizations,
-        priceLists, priceTiers,
-        inventoryItems, stockMovements, carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        outboxEvents, auditLogs, searchQueries,
+        products,
+        productVariants,
+        categories,
+        brands,
+        productMedia,
+        attributeDefinitions,
+        attributeOptions,
+        attributeGroups,
+        productTypes,
+        productTypeAttributes,
+        productAttributeValues,
+        variantAttributeValues,
+        merchantOffers,
+        stores,
+        warehouses,
+        users,
+        organizations,
+        priceLists,
+        priceTiers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        outboxEvents,
+        auditLogs,
+        searchQueries,
       },
     }) as unknown as DatabaseService['db'];
 
@@ -104,33 +154,60 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     const migrationsDir = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
     const excluded = ['0013_analytics.sql', '0018_analytics_retention.sql'];
     for (const file of (await readdir(migrationsDir))
-      .filter(f => f.endsWith('.sql') && !excluded.includes(f))
+      .filter((f) => f.endsWith('.sql') && !excluded.includes(f))
       .sort()) {
       await pool.query(await readFile(path.join(migrationsDir, file), 'utf8'));
     }
 
     // ── Seed RBAC ─────────────────────────────────────────────────
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Instantiate services ──────────────────────────────────────
     database = { db } as DatabaseService;
     const conditionalRules = new ConditionalRulesService();
     taxonomy = new CatalogTaxonomyService(database);
-    catalog = new CatalogService(database, redis as any, outbox, storage, audit, conditionalRules, taxonomy, {} as any, {} as any, {} as any);
+    catalog = new CatalogService(
+      database,
+      redis as any,
+      outbox,
+      storage,
+      audit,
+      conditionalRules,
+      taxonomy,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
     offerService = new CatalogOfferService(database, audit);
     promotionsService = new PromotionsService(database);
     cartService = new CartService(database, promotionsService);
-    ordersService = new OrdersService(database, outbox, promotionsService, realtime, cartService, notifications);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotionsService,
+      realtime,
+      cartService,
+      notifications,
+    );
     inventoryService = new InventoryService(database, outbox);
 
     // ── Create test identities ────────────────────────────────────
-    orgA = randomUUID(); orgB = randomUUID();
-    merchantA = randomUUID(); merchantB = randomUUID();
-    buyerA = randomUUID(); buyerB = randomUUID();
+    orgA = randomUUID();
+    orgB = randomUUID();
+    merchantA = randomUUID();
+    merchantB = randomUUID();
+    buyerA = randomUUID();
+    buyerB = randomUUID();
     adminUser = randomUUID();
-    storeA = randomUUID(); storeB = randomUUID();
-    warehouseA = randomUUID(); warehouseB = randomUUID();
+    storeA = randomUUID();
+    storeB = randomUUID();
+    warehouseA = randomUUID();
+    warehouseB = randomUUID();
 
     const roleRes = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER'`);
     merchantRoleId = roleRes.rows[0].id;
@@ -171,12 +248,34 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     const pt = await taxonomy.createProductType({ code: 'gadget', name: 'Gadget', categoryId });
     productTypeId = pt.id;
     await taxonomy.setProductTypeAttributes(productTypeId, [
-      { attributeDefinitionId: (await taxonomy.createAttribute({ code: 'color', name: 'Color', type: 'TEXT', scope: 'VARIANT' })).id, required: true, scope: 'VARIANT', displayOrder: 0 },
+      {
+        attributeDefinitionId: (
+          await taxonomy.createAttribute({
+            code: 'color',
+            name: 'Color',
+            type: 'TEXT',
+            scope: 'VARIANT',
+          })
+        ).id,
+        required: true,
+        scope: 'VARIANT',
+        displayOrder: 0,
+      },
     ]);
     await taxonomy.publishProductType(productTypeId);
 
     // Product A (storeA) — 2 variants
-    const pA = await catalog.createProduct({ storeId: storeA, title: 'Product Alpha', categoryId, brandId, productTypeId, images: ['a.png'] }, merchantA);
+    const pA = await catalog.createProduct(
+      {
+        storeId: storeA,
+        title: 'Product Alpha',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['a.png'],
+      },
+      merchantA,
+    );
     productA = pA.id;
     await catalog.updateProduct(productA, { status: 'ACTIVE' });
     const vA1 = await catalog.createVariant(productA, { sku: 'PA-V1', title: 'Product Alpha V1' });
@@ -185,17 +284,40 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     variantA2 = vA2.id;
 
     // Product B (storeA) — 1 variant
-    const pB = await catalog.createProduct({ storeId: storeA, title: 'Product Bravo', categoryId, brandId, productTypeId, images: ['b.png'] }, merchantA);
+    const pB = await catalog.createProduct(
+      {
+        storeId: storeA,
+        title: 'Product Bravo',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['b.png'],
+      },
+      merchantA,
+    );
     productB = pB.id;
     await catalog.updateProduct(productB, { status: 'ACTIVE' });
     const vB1 = await catalog.createVariant(productB, { sku: 'PB-V1', title: 'Product Bravo V1' });
     variantB1 = vB1.id;
 
     // Product C (storeB) — 1 variant
-    const pC = await catalog.createProduct({ storeId: storeB, title: 'Product Charlie', categoryId, brandId, productTypeId, images: ['c.png'] }, merchantB);
+    const pC = await catalog.createProduct(
+      {
+        storeId: storeB,
+        title: 'Product Charlie',
+        categoryId,
+        brandId,
+        productTypeId,
+        images: ['c.png'],
+      },
+      merchantB,
+    );
     productC = pC.id;
     await catalog.updateProduct(productC, { status: 'ACTIVE' });
-    const vC1 = await catalog.createVariant(productC, { sku: 'PC-V1', title: 'Product Charlie V1' });
+    const vC1 = await catalog.createVariant(productC, {
+      sku: 'PC-V1',
+      title: 'Product Charlie V1',
+    });
     variantC1 = vC1.id;
 
     // ── Offers ────────────────────────────────────────────────────
@@ -228,7 +350,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     offerStoreA2 = await createActiveOffer(storeA, productA, variantA2, 15000, callerA());
     // Offer for productB/variantB1 from storeA
     const oB1 = await offerService.createOffer(
-      { storeId: storeA, productId: productB, variantId: variantB1, currency: 'SAR', basePriceMinor: 20000, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+      {
+        storeId: storeA,
+        productId: productB,
+        variantId: variantB1,
+        currency: 'SAR',
+        basePriceMinor: 20000,
+        moq: 1,
+        leadTimeDays: 3,
+        proposedBy: 'forged-user',
+      },
       callerA(),
     );
     offerStoreB1 = oB1.id;
@@ -239,30 +370,92 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     offerStoreB2 = await createActiveOffer(storeB, productC, variantC1, 25000, callerB());
 
     // ── Price lists & tiers ───────────────────────────────────────
-    const plA = randomUUID(); const plB = randomUUID();
+    const plA = randomUUID();
+    const plB = randomUUID();
     await db.insert(priceLists).values([
-      { id: plA, storeId: storeA, name: 'Alpha Retail', currency: 'SAR', isActive: true, priority: 10 },
-      { id: plB, storeId: storeB, name: 'Beta Retail', currency: 'SAR', isActive: true, priority: 10 },
+      {
+        id: plA,
+        storeId: storeA,
+        name: 'Alpha Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
+      {
+        id: plB,
+        storeId: storeB,
+        name: 'Beta Retail',
+        currency: 'SAR',
+        isActive: true,
+        priority: 10,
+      },
     ]);
     await db.insert(priceTiers).values([
-      { id: randomUUID(), priceListId: plA, variantId: variantA1, unitPriceMinor: 10000, minQty: 1 },
-      { id: randomUUID(), priceListId: plA, variantId: variantA2, unitPriceMinor: 15000, minQty: 1 },
-      { id: randomUUID(), priceListId: plA, variantId: variantB1, unitPriceMinor: 20000, minQty: 1 },
-      { id: randomUUID(), priceListId: plB, variantId: variantC1, unitPriceMinor: 25000, minQty: 1 },
+      {
+        id: randomUUID(),
+        priceListId: plA,
+        variantId: variantA1,
+        unitPriceMinor: 10000,
+        minQty: 1,
+      },
+      {
+        id: randomUUID(),
+        priceListId: plA,
+        variantId: variantA2,
+        unitPriceMinor: 15000,
+        minQty: 1,
+      },
+      {
+        id: randomUUID(),
+        priceListId: plA,
+        variantId: variantB1,
+        unitPriceMinor: 20000,
+        minQty: 1,
+      },
+      {
+        id: randomUUID(),
+        priceListId: plB,
+        variantId: variantC1,
+        unitPriceMinor: 25000,
+        minQty: 1,
+      },
     ]);
 
     // ── Inventory ─────────────────────────────────────────────────
-    const iA1 = await inventoryService.createItem({ variantId: variantA1, warehouseId: warehouseA, initialQty: 100, userId: merchantA });
+    const iA1 = await inventoryService.createItem({
+      variantId: variantA1,
+      warehouseId: warehouseA,
+      initialQty: 100,
+      userId: merchantA,
+    });
     invA1 = iA1.id;
-    const iA2 = await inventoryService.createItem({ variantId: variantA2, warehouseId: warehouseA, initialQty: 50, userId: merchantA });
+    const iA2 = await inventoryService.createItem({
+      variantId: variantA2,
+      warehouseId: warehouseA,
+      initialQty: 50,
+      userId: merchantA,
+    });
     invA2 = iA2.id;
-    const iB1 = await inventoryService.createItem({ variantId: variantB1, warehouseId: warehouseA, initialQty: 30, userId: merchantA });
+    const iB1 = await inventoryService.createItem({
+      variantId: variantB1,
+      warehouseId: warehouseA,
+      initialQty: 30,
+      userId: merchantA,
+    });
     invB1 = iB1.id;
-    const iC1 = await inventoryService.createItem({ variantId: variantC1, warehouseId: warehouseB, initialQty: 40, userId: merchantB });
+    const iC1 = await inventoryService.createItem({
+      variantId: variantC1,
+      warehouseId: warehouseB,
+      initialQty: 40,
+      userId: merchantB,
+    });
     invB2 = iC1.id;
   }, 180_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
   // 1. MULTI-MERCHANT ORDER (2+ products per store)
@@ -273,11 +466,27 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
 
     it('checkout with 3 items from Store A + 1 from Store B creates correct structure', async () => {
       // Store A: Product A variant 1, Product A variant 2, Product B variant 1
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 3, offerId: offerStoreA1 });
-      await cartService.addItem(buyerA, { variantId: variantA2, quantity: 2, offerId: offerStoreA2 });
-      await cartService.addItem(buyerA, { variantId: variantB1, quantity: 1, offerId: offerStoreB1 });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 3,
+        offerId: offerStoreA1,
+      });
+      await cartService.addItem(buyerA, {
+        variantId: variantA2,
+        quantity: 2,
+        offerId: offerStoreA2,
+      });
+      await cartService.addItem(buyerA, {
+        variantId: variantB1,
+        quantity: 1,
+        offerId: offerStoreB1,
+      });
       // Store B: Product C variant 1
-      await cartService.addItem(buyerA, { variantId: variantC1, quantity: 5, offerId: offerStoreB2 });
+      await cartService.addItem(buyerA, {
+        variantId: variantC1,
+        quantity: 5,
+        offerId: offerStoreB2,
+      });
 
       const result = await ordersService.checkout({
         buyerId: buyerA,
@@ -331,9 +540,17 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
 
       // Financial breakdown exists for both
       for (const sub of [subOrderA, subOrderB]) {
-        const bd = await pool.query(`SELECT * FROM order_financial_breakdown WHERE order_id = $1`, [sub.id]);
+        const bd = await pool.query(`SELECT * FROM order_financial_breakdown WHERE order_id = $1`, [
+          sub.id,
+        ]);
         expect(bd.rows.length).toBe(1);
-        expect(Number(bd.rows[0].products_minor)).toBe(Number(sub.id === subOrderA.id ? subAFin.rows[0].subtotal_minor : subBFin.rows[0].subtotal_minor));
+        expect(Number(bd.rows[0].products_minor)).toBe(
+          Number(
+            sub.id === subOrderA.id
+              ? subAFin.rows[0].subtotal_minor
+              : subBFin.rows[0].subtotal_minor,
+          ),
+        );
       }
     });
 
@@ -362,20 +579,32 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     it('Merchant A cannot read Merchant B sub-order', async () => {
       if (!orderFromStoreB) return;
       await expect(
-        ordersService.getOrderWithItems(orderFromStoreB, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.getOrderWithItems(orderFromStoreB, {
+          sub: merchantA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant B cannot read Merchant A sub-order', async () => {
       if (!orderFromStoreA) return;
       await expect(
-        ordersService.getOrderWithItems(orderFromStoreA, { sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB }),
+        ordersService.getOrderWithItems(orderFromStoreA, {
+          sub: merchantB,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgB,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A cannot list Merchant B warehouse inventory', async () => {
       await expect(
-        inventoryService.listByWarehouse(warehouseB, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        inventoryService.listByWarehouse(warehouseB, {
+          sub: merchantA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
@@ -390,19 +619,31 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
 
     it('Merchant A cannot list orders for Store B', async () => {
       await expect(
-        ordersService.listOrders(undefined, storeB, undefined, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA }),
+        ordersService.listOrders(undefined, storeB, undefined, {
+          sub: merchantA,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgA,
+        }),
       ).rejects.toThrow(/access/i);
     });
 
     it('Merchant A can list orders for Store A', async () => {
-      const result = await ordersService.listOrders(undefined, storeA, undefined, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+      const result = await ordersService.listOrders(undefined, storeA, undefined, {
+        sub: merchantA,
+        role: 'MERCHANT_OWNER',
+        activeOrg: orgA,
+      });
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('Merchant B offer data not visible via Merchant A order access', async () => {
       // Merchant A order should only contain offers from storeA
       if (!orderFromStoreA) return;
-      const order = await ordersService.getOrderWithItems(orderFromStoreA, { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+      const order = await ordersService.getOrderWithItems(orderFromStoreA, {
+        sub: merchantA,
+        role: 'MERCHANT_OWNER',
+        activeOrg: orgA,
+      });
       for (const item of order.items) {
         if (item.offer) {
           expect(item.offer.storeId).toBe(storeA);
@@ -417,8 +658,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   describe('3. Order acceptance lifecycle', () => {
     it('ACCEPT: reserves stock, writes history, publishes event', async () => {
       // Fresh order for accept test
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 5, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-accept-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 5,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-accept-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       expect(subId).toBeTruthy();
 
@@ -440,7 +689,9 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(statuses).toContain('ACCEPTED');
 
       // Outbox event published
-      const acceptCalls = (outbox.publish as any).mock.calls.filter((c: any[]) => c[0] === 'order.accepted');
+      const acceptCalls = (outbox.publish as any).mock.calls.filter(
+        (c: any[]) => c[0] === 'order.accepted',
+      );
       expect(acceptCalls.length).toBeGreaterThanOrEqual(1);
 
       // RESERVE movement exists
@@ -452,14 +703,24 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     });
 
     it('PARTIAL ACCEPT: confirms subset, recalculates financials', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 10, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-partial-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 10,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-partial-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       const items = await ordersService.getOrderWithItems(subId!);
       const itemId = items.items[0]!.id;
 
       // Confirm only 3 of 10
-      const result = await ordersService.partiallyAcceptOrder(subId!, merchantA, [{ itemId, qtyConfirmed: 3 }]);
+      const result = await ordersService.partiallyAcceptOrder(subId!, merchantA, [
+        { itemId, qtyConfirmed: 3 },
+      ]);
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
 
       // Financial recalculation: 3 × unitPrice
@@ -473,8 +734,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     });
 
     it('REJECT: releases stock, writes history, publishes event', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 4, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-reject-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 4,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-reject-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Accept first (to reserve stock)
@@ -483,8 +752,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const reservedAfterAccept = afterAccept.qtyReserved;
 
       // Now reject (need a fresh order since reject is from PENDING_CONFIRMATION)
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 2, offerId: offerStoreA1 });
-      const co2 = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-reject2-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 2,
+        offerId: offerStoreA1,
+      });
+      const co2 = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-reject2-${randomUUID()}`,
+      });
       const subId2 = co2.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Reject directly from PENDING_CONFIRMATION
@@ -496,13 +773,23 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(history.map((h: any) => h.toStatus)).toContain('REJECTED');
 
       // Outbox event
-      const rejectCalls = (outbox.publish as any).mock.calls.filter((c: any[]) => c[0] === 'order.rejected');
+      const rejectCalls = (outbox.publish as any).mock.calls.filter(
+        (c: any[]) => c[0] === 'order.rejected',
+      );
       expect(rejectCalls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('CANCEL: releases reserved stock, writes history', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 3, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-cancel-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 3,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-cancel-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Accept to reserve
@@ -510,7 +797,10 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const afterAccept = await inventoryService.getItem(invA1);
 
       // Cancel
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
+        sub: buyerA,
+        role: 'BUYER',
+      });
       const afterCancel = await inventoryService.getItem(invA1);
       expect(afterCancel.qtyReserved).toBe(afterAccept.qtyReserved - 3);
 
@@ -527,13 +817,25 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     });
 
     it('authorization: cross-merchant cannot accept another merchant order', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 1, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-auth-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 1,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-auth-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Merchant B (different org) trying to accept Store A's order → should fail tenant check
       await expect(
-        ordersService.acceptOrder(subId!, merchantB, { sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB }),
+        ordersService.acceptOrder(subId!, merchantB, {
+          sub: merchantB,
+          role: 'MERCHANT_OWNER',
+          activeOrg: orgB,
+        }),
       ).rejects.toThrow();
     });
   });
@@ -544,12 +846,25 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   describe('4. Inventory full flow', () => {
     it('reserve → cancel releases stock back', async () => {
       // Create isolated inventory
-      const testVariant = await catalog.createVariant(productA, { sku: `INV-${Date.now()}`, title: 'Inv Test' });
-      const plId = (await pool.query(`SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`)).rows[0].id;
-      await db.update(priceTiers)
+      const testVariant = await catalog.createVariant(productA, {
+        sku: `INV-${Date.now()}`,
+        title: 'Inv Test',
+      });
+      const plId = (
+        await pool.query(
+          `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+        )
+      ).rows[0].id;
+      await db
+        .update(priceTiers)
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
-      const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
+      const testInv = await inventoryService.createItem({
+        variantId: testVariant.id,
+        warehouseId: warehouseA,
+        initialQty: 20,
+        userId: merchantA,
+      });
       const testOffer = await offerService.createOffer(
         {
           storeId: storeA,
@@ -566,8 +881,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       await offerService.approveOffer(testOffer.id, adminUser);
 
       // Order and accept (reserves)
-      await cartService.addItem(buyerA, { variantId: testVariant.id, quantity: 8, offerId: testOffer.id });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-inv-cancel-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: testVariant.id,
+        quantity: 8,
+        offerId: testOffer.id,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-inv-cancel-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
 
@@ -576,19 +899,35 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(afterReserve.qtyOnHand - afterReserve.qtyReserved).toBe(12);
 
       // Cancel → release
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
+        sub: buyerA,
+        role: 'BUYER',
+      });
       const afterCancel = await inventoryService.getItem(testInv.id);
       expect(afterCancel.qtyReserved).toBe(0);
       expect(afterCancel.qtyOnHand).toBe(20);
     });
 
     it('reserve → deliver consumes stock', async () => {
-      const testVariant = await catalog.createVariant(productA, { sku: `INVD-${Date.now()}`, title: 'Inv Deliver Test' });
-      const plId = (await pool.query(`SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`)).rows[0].id;
-      await db.update(priceTiers)
+      const testVariant = await catalog.createVariant(productA, {
+        sku: `INVD-${Date.now()}`,
+        title: 'Inv Deliver Test',
+      });
+      const plId = (
+        await pool.query(
+          `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+        )
+      ).rows[0].id;
+      await db
+        .update(priceTiers)
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
-      const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 15, userId: merchantA });
+      const testInv = await inventoryService.createItem({
+        variantId: testVariant.id,
+        warehouseId: warehouseA,
+        initialQty: 15,
+        userId: merchantA,
+      });
       const testOffer = await offerService.createOffer(
         {
           storeId: storeA,
@@ -604,8 +943,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
-      await cartService.addItem(buyerA, { variantId: testVariant.id, quantity: 6, offerId: testOffer.id });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-inv-deliver-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: testVariant.id,
+        quantity: 6,
+        offerId: testOffer.id,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-inv-deliver-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
 
@@ -631,7 +978,9 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     });
 
     it('no negative stock or over-reservation at any point', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0 OR (qty_on_hand - qty_reserved) < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0 OR (qty_on_hand - qty_reserved) < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
   });
@@ -641,8 +990,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('5. Snapshot immutability', () => {
     it('order retains original price after offer price change', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 2, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-snap-price-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 2,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-snap-price-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       const origItems = await ordersService.getOrderWithItems(subId!);
@@ -661,8 +1018,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
     });
 
     it('order retains original SKU/title after product variant edit', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 1, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-snap-variant-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 1,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-snap-variant-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       const origItems = await ordersService.getOrderWithItems(subId!);
@@ -670,7 +1035,10 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       const origTitle = origItems.items[0]!.title;
 
       // Edit variant (this would normally be done via catalog service)
-      await pool.query(`UPDATE product_variants SET title = 'CHANGED TITLE', sku = 'CHANGED-SKU' WHERE id = $1`, [variantA1]);
+      await pool.query(
+        `UPDATE product_variants SET title = 'CHANGED TITLE', sku = 'CHANGED-SKU' WHERE id = $1`,
+        [variantA1],
+      );
 
       // Order unchanged
       const after = await ordersService.getOrderWithItems(subId!);
@@ -678,15 +1046,28 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       expect(after.items[0]!.title).toBe(origTitle);
 
       // Restore
-      await pool.query(`UPDATE product_variants SET title = 'Product Alpha V1', sku = 'PA-V1' WHERE id = $1`, [variantA1]);
+      await pool.query(
+        `UPDATE product_variants SET title = 'Product Alpha V1', sku = 'PA-V1' WHERE id = $1`,
+        [variantA1],
+      );
     });
 
     it('offer snapshot captures offer terms at checkout time', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 1, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-snap-offer-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 1,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-snap-offer-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
-      const items = await pool.query(`SELECT offer_snapshot FROM order_items WHERE order_id = $1`, [subId]);
+      const items = await pool.query(`SELECT offer_snapshot FROM order_items WHERE order_id = $1`, [
+        subId,
+      ]);
       const snapshot = items.rows[0].offer_snapshot;
       expect(snapshot).toBeTruthy();
       expect(snapshot.basePriceMinor).toBe(10000);
@@ -701,41 +1082,74 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('6. Events / Outbox', () => {
     it('order.submitted event written during checkout', async () => {
-      const before = await pool.query(`SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`);
+      const before = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`,
+      );
       const beforeCount = before.rows[0].cnt;
 
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 1, offerId: offerStoreA1 });
-      await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-evt-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 1,
+        offerId: offerStoreA1,
+      });
+      await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-evt-${randomUUID()}`,
+      });
 
-      const after = await pool.query(`SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`);
+      const after = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted'`,
+      );
       expect(after.rows[0].cnt).toBe(beforeCount + 1);
     });
 
     it('order.accepted published via outbox.publish', async () => {
-      const calls = (outbox.publish as any).mock.calls.filter((c: any[]) => c[0] === 'order.accepted');
+      const calls = (outbox.publish as any).mock.calls.filter(
+        (c: any[]) => c[0] === 'order.accepted',
+      );
       expect(calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('order.rejected published via outbox.publish', async () => {
-      const calls = (outbox.publish as any).mock.calls.filter((c: any[]) => c[0] === 'order.rejected');
+      const calls = (outbox.publish as any).mock.calls.filter(
+        (c: any[]) => c[0] === 'order.rejected',
+      );
       expect(calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('order.cancelled published via outbox.publish', async () => {
-      const calls = (outbox.publish as any).mock.calls.filter((c: any[]) => c[0] === 'order.cancelled');
+      const calls = (outbox.publish as any).mock.calls.filter(
+        (c: any[]) => c[0] === 'order.cancelled',
+      );
       expect(calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('transactional outbox events not duplicated on idempotent checkout', async () => {
       const idemKey = `p2-evt-dup-${randomUUID()}`;
-      await cartService.addItem(buyerB, { variantId: variantA1, quantity: 1, offerId: offerStoreA1 });
-      await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
+      await cartService.addItem(buyerB, {
+        variantId: variantA1,
+        quantity: 1,
+        offerId: offerStoreA1,
+      });
+      await ordersService.checkout({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
 
       // Second call with same key
-      await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
+      await ordersService.checkout({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
 
       // Only one outbox event for this key
-      const masterRes = await pool.query(`SELECT id FROM master_orders WHERE idempotency_key = $1`, [idemKey]);
+      const masterRes = await pool.query(
+        `SELECT id FROM master_orders WHERE idempotency_key = $1`,
+        [idemKey],
+      );
       const masterId = masterRes.rows[0].id;
       const evtRes = await pool.query(
         `SELECT COUNT(*)::int AS cnt FROM outbox_events WHERE event_type = 'order.submitted' AND payload->>'masterOrderId' = $1`,
@@ -750,37 +1164,78 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('7. Retry / idempotency testing', () => {
     it('checkout retry with same key returns same order', async () => {
-      await cartService.addItem(buyerB, { variantId: variantC1, quantity: 1, offerId: offerStoreB2 });
+      await cartService.addItem(buyerB, {
+        variantId: variantC1,
+        quantity: 1,
+        offerId: offerStoreB2,
+      });
       const idemKey = `p2-retry-co-${randomUUID()}`;
-      const first = await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
-      const second = await ordersService.checkout({ buyerId: buyerB, deliveryAddress: {}, idempotencyKey: idemKey });
+      const first = await ordersService.checkout({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
+      const second = await ordersService.checkout({
+        buyerId: buyerB,
+        deliveryAddress: {},
+        idempotencyKey: idemKey,
+      });
       expect(first.id).toBe(second.id);
     });
 
     it('double cancel does not corrupt stock', async () => {
-      await cartService.addItem(buyerA, { variantId: variantA1, quantity: 2, offerId: offerStoreA1 });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-retry-cancel-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: variantA1,
+        quantity: 2,
+        offerId: offerStoreA1,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-retry-cancel-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
       await ordersService.acceptOrder(subId!, merchantA);
-      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' });
+      await ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
+        sub: buyerA,
+        role: 'BUYER',
+      });
 
       // Second cancel should fail at FSM level
       await expect(
-        ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', { sub: buyerA, role: 'BUYER' }),
+        ordersService.cancelOrder(subId!, buyerA, 'CUSTOMER_REQUEST', {
+          sub: buyerA,
+          role: 'BUYER',
+        }),
       ).rejects.toThrow();
 
       // Stock not corrupted
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('concurrent accept does not double-reserve stock', async () => {
-      const testVariant = await catalog.createVariant(productA, { sku: `CONC2-${Date.now()}`, title: 'Conc Accept' });
-      const plId = (await pool.query(`SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`)).rows[0].id;
-      await db.update(priceTiers)
+      const testVariant = await catalog.createVariant(productA, {
+        sku: `CONC2-${Date.now()}`,
+        title: 'Conc Accept',
+      });
+      const plId = (
+        await pool.query(
+          `SELECT id FROM price_lists WHERE store_id = '${storeA}' AND is_active = true LIMIT 1`,
+        )
+      ).rows[0].id;
+      await db
+        .update(priceTiers)
         .set({ unitPriceMinor: 5000, updatedAt: new Date() })
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, testVariant.id)));
-      const testInv = await inventoryService.createItem({ variantId: testVariant.id, warehouseId: warehouseA, initialQty: 20, userId: merchantA });
+      const testInv = await inventoryService.createItem({
+        variantId: testVariant.id,
+        warehouseId: warehouseA,
+        initialQty: 20,
+        userId: merchantA,
+      });
       const testOffer = await offerService.createOffer(
         {
           storeId: storeA,
@@ -796,8 +1251,16 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       await offerService.proposeOffer(testOffer.id, callerA());
       await offerService.approveOffer(testOffer.id, adminUser);
 
-      await cartService.addItem(buyerA, { variantId: testVariant.id, quantity: 5, offerId: testOffer.id });
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `p2-conc-accept-${randomUUID()}` });
+      await cartService.addItem(buyerA, {
+        variantId: testVariant.id,
+        quantity: 5,
+        offerId: testOffer.id,
+      });
+      const co = await ordersService.checkout({
+        buyerId: buyerA,
+        deliveryAddress: {},
+        idempotencyKey: `p2-conc-accept-${randomUUID()}`,
+      });
       const subId = co.subOrders.find((s: any) => s.storeId === storeA)?.id;
 
       // Two concurrent accepts — SELECT FOR UPDATE on order row serialises them
@@ -807,7 +1270,7 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       ]);
 
       // Exactly one succeeds; the other fails FSM (ACCEPTED → ACCEPTED invalid)
-      const successes = results.filter(r => r.status === 'fulfilled');
+      const successes = results.filter((r) => r.status === 'fulfilled');
       expect(successes.length).toBe(1);
 
       // Stock reserved exactly once (5 units)
@@ -821,37 +1284,51 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
   // ═══════════════════════════════════════════════════════════════════
   describe('8. Database integrity after complex flows', () => {
     it('no orphan order items', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM order_items oi LEFT JOIN orders o ON oi.order_id = o.id WHERE o.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no orphan sub-orders', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN master_orders m ON o.master_order_id = m.id WHERE m.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no negative reserved quantity', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE qty_reserved < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('no negative available quantity', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE (qty_on_hand - qty_reserved) < 0`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM inventory_items WHERE (qty_on_hand - qty_reserved) < 0`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('financial breakdown exists for every sub-order', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN order_financial_breakdown b ON o.id = b.order_id WHERE b.order_id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN order_financial_breakdown b ON o.id = b.order_id WHERE b.order_id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('status history exists for every sub-order', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN LATERAL (SELECT 1 FROM order_status_history h WHERE h.order_id = o.id LIMIT 1) h ON true WHERE h IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM orders o LEFT JOIN LATERAL (SELECT 1 FROM order_status_history h WHERE h.order_id = o.id LIMIT 1) h ON true WHERE h IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 
     it('stock movements reference valid inventory items', async () => {
-      const res = await pool.query(`SELECT COUNT(*)::int AS cnt FROM stock_movements sm LEFT JOIN inventory_items ii ON sm.inventory_item_id = ii.id WHERE ii.id IS NULL`);
+      const res = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM stock_movements sm LEFT JOIN inventory_items ii ON sm.inventory_item_id = ii.id WHERE ii.id IS NULL`,
+      );
       expect(res.rows[0].cnt).toBe(0);
     });
 

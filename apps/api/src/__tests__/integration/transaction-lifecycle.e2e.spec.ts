@@ -283,45 +283,54 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
     variant2Id = v2.id;
 
     // ── Offers ────────────────────────────────────────────────────
-    const oA = await offerService.createOffer({
-      storeId: storeA,
-      productId,
-      variantId,
-      currency: 'SAR',
-      basePriceMinor: 10000,
-      moq: 1,
-      leadTimeDays: 3,
-      proposedBy: 'forged-user',
-    }, callerA());
+    const oA = await offerService.createOffer(
+      {
+        storeId: storeA,
+        productId,
+        variantId,
+        currency: 'SAR',
+        basePriceMinor: 10000,
+        moq: 1,
+        leadTimeDays: 3,
+        proposedBy: 'forged-user',
+      },
+      callerA(),
+    );
     offerA = oA.id;
     await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
 
-    const oB = await offerService.createOffer({
-      storeId: storeB,
-      productId,
-      variantId,
-      currency: 'SAR',
-      basePriceMinor: 9500,
-      moq: 1,
-      leadTimeDays: 5,
-      proposedBy: 'forged-user',
-    }, callerB());
+    const oB = await offerService.createOffer(
+      {
+        storeId: storeB,
+        productId,
+        variantId,
+        currency: 'SAR',
+        basePriceMinor: 9500,
+        moq: 1,
+        leadTimeDays: 5,
+        proposedBy: 'forged-user',
+      },
+      callerB(),
+    );
     offerB = oB.id;
     await offerService.proposeOffer(offerB, callerB());
     await offerService.approveOffer(offerB, adminUser);
 
     // Offer for variant2 from storeB (needed for multi-merchant cart tests)
-    const oB2 = await offerService.createOffer({
-      storeId: storeB,
-      productId,
-      variantId: variant2Id,
-      currency: 'SAR',
-      basePriceMinor: 11000,
-      moq: 1,
-      leadTimeDays: 5,
-      proposedBy: 'forged-user',
-    }, callerB());
+    const oB2 = await offerService.createOffer(
+      {
+        storeId: storeB,
+        productId,
+        variantId: variant2Id,
+        currency: 'SAR',
+        basePriceMinor: 11000,
+        moq: 1,
+        leadTimeDays: 5,
+        proposedBy: 'forged-user',
+      },
+      callerB(),
+    );
     offerB2 = oB2.id;
     await offerService.proposeOffer(offerB2, callerB());
     await offerService.approveOffer(offerB2, adminUser);
@@ -766,15 +775,18 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, freshVariant.id)));
 
       // Create a fresh offer for this variant
-      const freshOffer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: freshVariant.id,
-        currency: 'SAR',
-        basePriceMinor: 5000,
-        moq: 1,
-        proposedBy: 'forged-user',
-      }, callerA());
+      const freshOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: freshVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       await offerService.proposeOffer(freshOffer.id, callerA());
       await offerService.approveOffer(freshOffer.id, adminUser);
 
@@ -1024,15 +1036,18 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       });
 
       // Create offer and price for the limited variant
-      const limitedOffer = await offerService.createOffer({
-        storeId: storeA,
-        productId,
-        variantId: limitedVariant.id,
-        currency: 'SAR',
-        basePriceMinor: 5000,
-        moq: 1,
-        proposedBy: 'forged-user',
-      }, callerA());
+      const limitedOffer = await offerService.createOffer(
+        {
+          storeId: storeA,
+          productId,
+          variantId: limitedVariant.id,
+          currency: 'SAR',
+          basePriceMinor: 5000,
+          moq: 1,
+          proposedBy: 'forged-user',
+        },
+        callerA(),
+      );
       await offerService.proposeOffer(limitedOffer.id, callerA());
       await offerService.approveOffer(limitedOffer.id, adminUser);
 
