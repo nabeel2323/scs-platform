@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { outboxEvents } from '../../modules/audit/audit.schema';
-import { eq, and, or, isNull, lte } from 'drizzle-orm';
+import { eq, and, or, isNull, lte, notLike } from 'drizzle-orm';
 
 /**
  * Outbox Dispatcher — polls outbox_events for PENDING events and dispatches them.
@@ -88,6 +88,10 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
         .where(
           and(
             eq(outboxEvents.status, 'PENDING'),
+            // Carrier events have a dedicated lease-based consumer. Excluding
+            // them here prevents this generic logger/dispatcher from racing the
+            // ShippingCarrierWorker and marking work complete without delivery.
+            notLike(outboxEvents.eventType, 'shipping.carrier.%'),
             or(
               isNull(outboxEvents.nextAttemptAt),
               lte(outboxEvents.nextAttemptAt, now),
