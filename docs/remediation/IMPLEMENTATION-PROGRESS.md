@@ -1023,7 +1023,6 @@ CI #1131 ran against PR #138 source head `dc2436ef6e2fadd1a982e44f935fcc5f56bc6d
 
 The formatting corrections, DB runtime-evidence report, implementation tracker and plan reconciliation were committed atomically in `9a798353283650bfe9cd28ba9afbf4b722f38d02` (four files, one commit). GitHub Actions is being re-triggered against the updated PR head; no prior CI result is attributed to this commit.
 
-
 ### Grouped Prettier remediation — 21 November 2026
 
 - CI #1133 on head `6063645058d026c49fcddc1499a78bc169d7de95` confirmed four files required the repository's locked Prettier formatting: the G-001 offer-controller unit test and the database-access verification, implementation plan and progress tracker documents. Lint, TypeScript typecheck and Flutter analysis/tests passed; the formatting gate failed and downstream jobs were skipped.
