@@ -40,7 +40,7 @@ import {
   organizationMembers,
   roles,
 } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { promotions, promotionRedemptions } from '../../modules/promotions/promotions.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
@@ -237,6 +237,10 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerB, roleId: buyerRoleId },
+    ]);
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
     ]);
 
     // ── Catalog setup ─────────────────────────────────────────────
