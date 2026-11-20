@@ -13,3 +13,19 @@ ALTER FUNCTION public.normalize_arabic(TEXT)
 
 -- Verification is performed by the migration test suite / post-migration
 -- catalog inspection: pg_proc.proconfig must contain search_path=pg_catalog.
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'normalize_arabic'
+      AND pg_get_function_identity_arguments(p.oid) = 'input text'
+      AND COALESCE(p.proconfig, ARRAY[]::text[]) @> ARRAY['search_path=pg_catalog']
+  ) THEN
+    RAISE EXCEPTION 'G-020: normalize_arabic search_path was not pinned to pg_catalog';
+  END IF;
+END;
+$$;
