@@ -1147,3 +1147,10 @@ A fresh exact-head CI run is required after this documentation update. PR #138
 remains draft. G-001 remains partial, G-002 remains blocked, and the migration
 numbering and notification status-contract conflicts remain unresolved. No
 staging release, deployment or shared-database mutation was performed.
+
+
+### Current verification gate — 20 November 2026
+
+PR #138 head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` passed GitHub Actions CI #1041: all 10 executable jobs passed, including PostgreSQL integration, API unit/coverage, migration full apply, container build/smoke, contract/codegen and production build. k6 and staging release were skipped. The run follows a targeted fix for offer lifecycle semantics: suspension must not overwrite the merchant's independent `is_available` preference; reactivation now preserves it, with a regression assertion.
+
+Keep PR #138 open and draft. External Vercel web/admin preview statuses remain rate-limited and failing; they are not GitHub Actions test failures and no preview deployment was initiated. This CI result does not close G-001 or G-002, authorize staging/business testing, or resolve the competing migration numbering and notification status-contract decisions. Continue with the G-002 identity/access evidence and documented integration decisions under the existing no-live-mutation/no-deployment boundary.
