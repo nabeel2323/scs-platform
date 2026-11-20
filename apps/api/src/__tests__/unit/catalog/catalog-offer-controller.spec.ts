@@ -16,6 +16,8 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     listOfferTrend: vi.fn().mockResolvedValue([{ bucket: '2026-11-20' }]),
     proposeOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     createOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    approveOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    rejectOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
   };
   const db = {
     db: {
@@ -100,5 +102,22 @@ describe('CatalogOfferController — create offer actor attribution (G-001)', ()
       status: 'PROPOSED',
       proposedBy: merchant.sub,
     });
+  });
+});
+
+
+describe('CatalogOfferController — admin offer actor attribution (G-001)', () => {
+  const admin = { sub: 'admin-user-1', role: 'ADMIN', activeOrg: null } as JwtPayload;
+
+  it('uses the authenticated admin for approval, not a body-supplied reviewer', async () => {
+    const { controller, offerService } = makeController();
+    await controller.approveOffer(admin, 'offer-1');
+    expect(offerService.approveOffer).toHaveBeenCalledWith('offer-1', admin.sub);
+  });
+
+  it('uses the authenticated admin for rejection, not a body-supplied reviewer', async () => {
+    const { controller, offerService } = makeController();
+    await controller.rejectOffer(admin, 'offer-1', { reason: 'Policy violation' });
+    expect(offerService.rejectOffer).toHaveBeenCalledWith('offer-1', admin.sub, 'Policy violation');
   });
 });
