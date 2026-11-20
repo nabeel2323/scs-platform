@@ -65,6 +65,10 @@ let warehouseA: string, warehouseB: string;
 let merchantOwnerRoleId: string, merchantStaffRoleId: string, buyerRoleId: string;
 let adminRoleId: string, moderatorRoleId: string, superAdminRoleId: string;
 
+// Tenant contexts are created lazily because beforeAll populates the UUIDs.
+const callerA = () => ({ sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const callerB = () => ({ sub: merchantOwnerB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+
 // Role permission counts from seed-pg.ts
 const EXPECTED_PERM_COUNTS: Record<string, number> = {
   SUPER_ADMIN: 88,
@@ -217,15 +221,24 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
     variantB = vB.id;
 
     // ── Offers ────────────────────────────────────────────────────
-    async function createActiveOffer(storeId: string, productId: string, variantId: string, priceMinor: number, proposedBy: string) {
-      const o = await offerService.createOffer({ storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy });
-      await offerService.proposeOffer(o.id, proposedBy);
+    async function createActiveOffer(
+      storeId: string,
+      productId: string,
+      variantId: string,
+      priceMinor: number,
+      caller: ReturnType<typeof callerA>,
+    ) {
+      const o = await offerService.createOffer(
+        { storeId, productId, variantId, currency: 'SAR', basePriceMinor: priceMinor, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' },
+        caller,
+      );
+      await offerService.proposeOffer(o.id, caller);
       await offerService.approveOffer(o.id, adminUser);
       return o.id;
     }
 
-    offerA = await createActiveOffer(storeA, productA, variantA, 10000, merchantOwnerA);
-    offerB = await createActiveOffer(storeB, productB, variantB, 20000, merchantOwnerB);
+    offerA = await createActiveOffer(storeA, productA, variantA, 10000, callerA());
+    offerB = await createActiveOffer(storeB, productB, variantB, 20000, callerB());
 
     // ── Price lists & tiers ───────────────────────────────────────
     const plA = randomUUID(); const plB = randomUUID();
