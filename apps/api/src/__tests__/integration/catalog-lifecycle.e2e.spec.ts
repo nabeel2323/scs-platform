@@ -28,7 +28,7 @@ import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { catalogRequests } from '../../modules/catalog/catalog.requests.schema';
 import { searchQueries } from '../../modules/catalog/search.schema';
 import { users, organizations, organizationMembers, roles } from '../../modules/identity/identity.schema';
-import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
+import { stores, storeMembers, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { auditLogs, outboxEvents } from '../../modules/audit/audit.schema';
 import { masterOrders, orders } from '../../modules/orders/orders.schema';
@@ -102,7 +102,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
         productTypes, productTypeAttributes,
         productAttributeValues, variantAttributeValues,
         merchantOffers, catalogRequests, searchQueries,
-        stores, verificationRequests, users, organizations, disputes,
+        stores, storeMembers, verificationRequests, users, organizations, disputes,
         priceLists, priceTiers, warehouses, inventoryItems,
       },
     }) as unknown as DatabaseService['db'];
@@ -171,6 +171,12 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantA, roleId: merchantRoleId },
       { id: randomUUID(), orgId: orgB, userId: merchantB, roleId: merchantRoleId },
+    ]);
+
+    // Explicit active store memberships are required by merchant offer writes.
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantA, role: 'OWNER', status: 'ACTIVE' },
+      { id: randomUUID(), storeId: storeB, userId: merchantB, role: 'OWNER', status: 'ACTIVE' },
     ]);
   }, 180_000);
 
@@ -690,11 +696,11 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(approved.status).toBe('ACTIVE');
 
       // Suspend
-      const suspended = await offerService.suspendOffer(govOffer.id);
+      const suspended = await offerService.suspendOffer(govOffer.id, adminUser);
       expect(suspended.status).toBe('SUSPENDED');
 
       // Reactivate
-      const reactivated = await offerService.reactivateOffer(govOffer.id);
+      const reactivated = await offerService.reactivateOffer(govOffer.id, adminUser);
       expect(reactivated.status).toBe('ACTIVE');
     });
 
