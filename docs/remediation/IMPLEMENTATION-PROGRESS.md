@@ -410,3 +410,12 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **Commits:** `aab6c8faf5bfe60923a41a58a535207be5c25454`, `b44a14d9fa27a62062bfa5967ec0d5fbbb7000e7`.
 - **Status:** PARTIAL. The latest audit-attribution commits require a fresh CI run. Generic `GET /offers/:id` visibility still needs a product/API contract review before any access restriction is introduced. PR #144 remains draft and unmerged.
 - **Operational boundary:** Vercel preview quota is not a code gate and was not retried. No Render/Supabase mutation, deployment, migration, seed, worker activation, or staging business transaction.
+
+
+### 2026-11-20 — G-001 create-offer actor attribution hardening
+
+- **Review observation:** The create-offer controller validated store ownership and membership but forwarded the client-supplied `proposedBy` field unchanged. The service uses that field for both the persisted proposer (when starting PROPOSED) and the `offer.created` audit actor.
+- **Correction:** The controller now overwrites `proposedBy` with the authenticated JWT principal after store authorization. Added a regression test using a forged actor value.
+- **Files:** `apps/api/src/modules/catalog/catalog.offer.controller.ts`; `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`.
+- **Verification:** Fresh CI remains pending; no local execution is claimed.
+- **Status:** G-001 PARTIAL. Generic offer-detail/read projection and admin governance actor attribution remain under review.
