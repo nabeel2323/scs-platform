@@ -1,0 +1,27 @@
+name: G-001 Prettier diagnostic
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --version
+      - run: pnpm exec prettier --check apps/api/src/__tests__/integration/phase4-import-commerce.e2e.spec.ts
