@@ -7,9 +7,9 @@
 | Created | 18 November 2026 |
 | Baseline | Comprehensive readiness audit dated 18 November 2026 |
 | Repository | `nabeel2323/scs-platform` |
-| Baseline branch / commit | `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36` |
+| Baseline branch / commit | Audit baseline: `9f5bc397467dc92cdc8debd54797b6d730659c36`; reconciled develop HEAD (20 Nov 2026): `f74eb588cc58fc99b105e749d39dbfbacb4f9775` |
 | Runtime evidence | Render staging addendum, 18 November 2026 |
-| Status | PLANNED — implementation has not started under this plan |
+| Status | IN PROGRESS — reconciliation underway; Phase 0 partially evidenced and Phase 1 security work in progress |
 | Companion | [Implementation Progress Tracker](./IMPLEMENTATION-PROGRESS.md) |
 | Supersedes | Remediation sequencing only; historical milestone records remain intact |
 
@@ -572,3 +572,39 @@ These two files are the authoritative working references for this remediation pr
 Start with **Phase 0**, then Phase 1. Do not begin broad buyer/merchant staging testing until the P0 authorization gap and database access model are closed. Once Phase 1 passes, allow narrow controlled business tests while implementation continues. Keep full manual journey testing consolidated in Phase 6.
 
 **Current overall status: PLANNED. No remediation implementation is claimed by this document.**
+
+
+---
+
+## 15. Status reconciliation addendum — 20 November 2026
+
+This addendum supersedes earlier statements that implementation had not started. It does not change the original 22 finding definitions, acceptance criteria, sequencing or release gates.
+
+### Reconciled evidence
+
+- Current `develop` HEAD: `f74eb588cc58fc99b105e749d39dbfbacb4f9775` (merge commit for PR #140).
+- **PR #140 is merged.** It adds a manually dispatched, approval-gated, read-only database access audit entry point. It does not change grants, RLS, runtime credentials or data.
+- **PR #142 is open and draft**, head `023803d6bda1eaed66058e2ab50f4e0b031bef95`. Its API-pool runtime identity diagnostic passed all 10 executable CI jobs in run `44656130587`; k6 smoke and staging release were skipped. Vercel web/admin deployment checks failed due to `api-deployments-free-per-day`. No deployment was attempted by this reconciliation.
+- **PR #138 remains open and draft**, head `a1cd93085136db59fe82aa858ae4ff4227547d36`; its OTP redaction and broader tenant/worker changes are not merged or runtime-verified.
+- **G-002 is partial, not closed.** Actual API runtime identity remains unverified until PR #142 is reviewed, merged through normal controls and deployed in a separately authorized staging release. The 111/114 relation-count discrepancy and least-privilege/RLS design remain open.
+- OTP redaction has source/test evidence in PR #138, but remains partial until merge and authorized runtime verification. A bounded log sample is not exhaustive proof.
+- P13 remains opt-in and was not activated; worker topology and alert destination remain unresolved.
+
+### Phase status
+
+- Phase 0: **IN PROGRESS**. Current baseline has been recorded; test matrix, full 22-finding revalidation, synthetic fixtures, backup/restore evidence and complete runbooks remain outstanding.
+- Phase 1: **IN PROGRESS**. Read-only DB audit tooling is merged; runtime identity, P0 tenant authorization, database access design and remaining security acceptance criteria are not complete.
+- Phases 2–6: **NOT STARTED under this November remediation plan**. Historical product-roadmap completion claims are not closure evidence for these findings.
+
+### Change-control boundary
+
+No Render settings, environment values, secrets, deployments, restarts or worker flags were changed. No Supabase grants, RLS policies, migrations, seeds or business records were changed. No staging business transaction, provider send, shipment, payment or customer notification was initiated.
+
+### Next actions
+
+1. Finish Phase 0 inventory, test matrix, fixture strategy, baseline finding revalidation and backup/restore evidence inventory.
+2. Resolve PR #142 review and deployment-check requirements without bypassing normal controls.
+3. Obtain a separate staging change window before deploying the runtime identity diagnostic.
+4. Verify actual API `session_user`, `current_user` and role attributes; do not infer identity from Supavisor sessions.
+5. Complete reviewed least-privilege/RLS design before any database mutation.
+6. Continue G-001 tenant authorization implementation and regression tests.
