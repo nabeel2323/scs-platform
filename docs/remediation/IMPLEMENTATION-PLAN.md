@@ -1155,7 +1155,6 @@ PR #138 head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` passed GitHub Actions CI
 
 Keep PR #138 open and draft. External Vercel web/admin preview statuses remain rate-limited and failing; they are not GitHub Actions test failures and no preview deployment was initiated. This CI result does not close G-001 or G-002, authorize staging/business testing, or resolve the competing migration numbering and notification status-contract decisions. Continue with the G-002 identity/access evidence and documented integration decisions under the existing no-live-mutation/no-deployment boundary.
 
-
 ### G-002 audit compatibility and immutable revision checkpoint — 20 November 2026
 
 - Source review confirmed the repository's local development database and CI PostgreSQL integration service use PostgreSQL 16 (infra/docker-compose.dev.yml and .github/workflows/ci.yml). The audit previously called has_table_privilege(..., 'MAINTAIN') unconditionally; that privilege is PostgreSQL 17+, so the read-only audit would fail against the documented PostgreSQL 16 baseline.
