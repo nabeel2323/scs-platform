@@ -3,7 +3,7 @@
 import { type StudioState } from '../../../../hooks/useProductStudio';
 import { StepCard, Field } from './StepIdentity';
 import { ProductVariant } from '../../../../lib/buyer-api';
-import { CURRENCY_OPTIONS } from '../../../../lib/reference-data';
+import { CURRENCY_OPTIONS, currencyMinorUnits } from '../../../../lib/reference-data';
 
 interface StepOfferProps {
   state: StudioState;
@@ -55,7 +55,7 @@ export default function StepOffer({ state, setState, existingVariants = [], stor
             onChange={e => setState(prev => ({ ...prev, basePriceMinor: Number(e.target.value) }))}
           />
           <span style={{ fontSize: 11, color: '#5b6b74' }}>
-            Enter price in the smallest currency unit (e.g., halalas for SAR, cents for USD). 1 SAR = 100 halalas.
+            Enter price in the smallest unit for this currency ({currencyMinorUnits(state.currency)} decimal places).
           </span>
         </Field>
         <Field label="Minimum Order Qty">
