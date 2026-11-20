@@ -623,9 +623,12 @@ export class CatalogOfferService {
   async suspendOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'SUSPENDED');
+    // Suspension is a lifecycle state, separate from the merchant's
+    // availability preference. Preserve is_available so reactivation does
+    // not accidentally leave a previously available offer unsellable.
     await this.db.db
       .update(merchantOffers)
-      .set({ status: 'SUSPENDED', isAvailable: false, updatedAt: new Date() })
+      .set({ status: 'SUSPENDED', updatedAt: new Date() })
       .where(eq(merchantOffers.id, id));
 
     await this.audit.record({
