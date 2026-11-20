@@ -63,6 +63,8 @@ let adminUser: string;
 let storeA: string;
 let warehouseA: string;
 let merchantOwnerRoleId: string, buyerRoleId: string;
+ 
+const callerA = () => ({ sub: merchantOwnerA, role: 'MERCHANT_OWNER', activeOrg: orgA });
 
 // ── Imported entity tracking ───────────────────────────────────────────────
 let importedProductId: string;
@@ -450,8 +452,8 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         basePriceMinor: 350000,
         moq: 1,
         leadTimeDays: 5,
-        proposedBy: merchantOwnerA,
-      });
+        proposedBy: 'forged-user',
+      }, callerA());
       expect(offer.id).toBeTruthy();
       expect(offer.status).toBe('DRAFT');
       expect(offer.storeId).toBe(storeA);
@@ -461,7 +463,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     });
 
     it('offer can be proposed and approved', async () => {
-      await offerService.proposeOffer(offerId, merchantOwnerA);
+      await offerService.proposeOffer(offerId, callerA());
       const proposed = await offerService.getOffer(offerId);
       expect(proposed.status).toBe('PROPOSED');
 
@@ -702,10 +704,10 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         currency: 'SAR',
         basePriceMinor: 10000,
         moq: 1,
-        proposedBy: merchantOwnerA,
-      });
+        proposedBy: 'forged-user',
+      }, callerA());
       regOffer = o.id;
-      await offerService.proposeOffer(regOffer, merchantOwnerA);
+      await offerService.proposeOffer(regOffer, callerA());
       await offerService.approveOffer(regOffer, adminUser);
       const active = await offerService.getOffer(regOffer);
       expect(active.status).toBe('ACTIVE');
