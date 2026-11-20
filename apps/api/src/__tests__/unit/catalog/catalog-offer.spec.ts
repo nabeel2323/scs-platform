@@ -17,6 +17,8 @@ import { CatalogOfferService } from '../../../modules/catalog/catalog.offer.serv
 
 type Row = Record<string, unknown>;
 
+const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
+
 interface QueryConfig {
   // A single row (or null) for every call, or an ARRAY to return successive
   // rows on successive findFirst calls (e.g. dup-check → null, read-back → row).
@@ -105,14 +107,14 @@ describe('CatalogOfferService — create', () => {
   it('rejects an initial status other than DRAFT/PROPOSED', async () => {
     const { svc } = makeHarness();
     await expect(
-      svc.createOffer({ storeId: 's1', productId: 'p1', status: 'ACTIVE' as never }),
+      svc.createOffer({ storeId: 's1', productId: 'p1', status: 'ACTIVE' as never }, caller),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects MOQ below 1', async () => {
     const { svc } = makeHarness({ products: { findFirst: { id: 'p1' } } });
     await expect(
-      svc.createOffer({ storeId: 's1', productId: 'p1', moq: 0 }),
+      svc.createOffer({ storeId: 's1', productId: 'p1', moq: 0 }, caller),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -122,7 +124,7 @@ describe('CatalogOfferService — create', () => {
       productVariants: { findFirst: null },
     });
     await expect(
-      svc.createOffer({ storeId: 's1', productId: 'p1', variantId: 'v-other' }),
+      svc.createOffer({ storeId: 's1', productId: 'p1', variantId: 'v-other' }, caller),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -133,7 +135,7 @@ describe('CatalogOfferService — create', () => {
       merchantOffers: { findFirst: { id: 'existing', status: 'DRAFT' } },
     });
     await expect(
-      svc.createOffer({ storeId: 's1', productId: 'p1', variantId: 'v1' }),
+      svc.createOffer({ storeId: 's1', productId: 'p1', variantId: 'v1' }, caller),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(inserted.length).toBe(0);
   });
@@ -144,7 +146,7 @@ describe('CatalogOfferService — create', () => {
       // 1st merchantOffers.findFirst = dup check (none), 2nd = getOffer read-back.
       merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
     });
-    const offer = await svc.createOffer({ storeId: 's1', productId: 'p1', moq: 5 });
+    const offer = await svc.createOffer({ storeId: 's1', productId: 'p1', moq: 5 }, caller);
     expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT', moq: 5 });
     expect((offer as Row)['id']).toBe('o1');
   });
@@ -237,7 +239,6 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
 });
 
 describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
-  const caller = { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' };
 
   it('denies a same-organization non-member from withdrawing an offer', async () => {
     const { svc, updated } = makeHarness({
@@ -388,5 +389,30 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       actorId: caller.sub,
       action: 'offer.proposed',
     });
+  });
+});
+
+describe('CatalogOfferService — create tenant authorization (G-001)', () => {
+  it('denies a foreign-organization merchant from creating an offer', async () => {
+    const { svc, inserted } = makeHarness({
+      stores: { findFirst: { orgId: 'org-2' } },
+    });
+    await expect(
+      svc.createOffer({ storeId: 's2', productId: 'p1' }, caller),
+    ).rejects.toThrow('You do not have access to this store');
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('uses the authenticated caller for proposal and audit attribution', async () => {
+    const { svc, inserted, auditRecords } = makeHarness({
+      products: { findFirst: { id: 'p1' } },
+      merchantOffers: { findFirst: [null, { id: 'o1', status: 'PROPOSED', storeId: 's1' }] },
+    });
+    await svc.createOffer(
+      { storeId: 's1', productId: 'p1', status: 'PROPOSED', proposedBy: 'forged-user' },
+      caller,
+    );
+    expect(inserted[0]).toMatchObject({ proposedBy: caller.sub, status: 'PROPOSED' });
+    expect(auditRecords[0]).toMatchObject({ actorId: caller.sub, action: 'offer.created' });
   });
 });
