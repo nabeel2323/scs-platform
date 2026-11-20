@@ -35,6 +35,16 @@ function makeService(options?: {
   const insert = vi.fn(() => ({ values: vi.fn().mockResolvedValue(undefined) }));
   const db = {
     db: {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () => {
+              const membership = await storeMembersFindFirst();
+              return membership ? [membership] : [];
+            }),
+          })),
+        })),
+      })),
       query: {
         inventoryItems: {
           findMany: inventoryItemsFindMany,
