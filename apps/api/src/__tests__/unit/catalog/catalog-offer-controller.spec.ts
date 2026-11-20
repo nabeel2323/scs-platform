@@ -20,6 +20,7 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     rejectOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     suspendOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     reactivateOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    getOffer: vi.fn().mockResolvedValue({ id: 'offer-1', storeId: 'store-1' }),
   };
   const db = {
     db: {
@@ -138,5 +139,40 @@ describe('CatalogOfferController — suspension actor attribution (G-001)', () =
     const { controller, offerService } = makeController();
     await controller.reactivateOffer(admin, 'offer-1');
     expect(offerService.reactivateOffer).toHaveBeenCalledWith('offer-1', admin.sub);
+  });
+});
+
+
+describe('CatalogOfferController — offer detail object authorization (G-001)', () => {
+  it('allows an active member of the owning store to read offer detail', async () => {
+    const { controller, offerService } = makeController();
+    await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({ id: 'offer-1' });
+    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+  });
+
+  it('denies a same-organization non-member from reading offer detail', async () => {
+    const { controller, offerService } = makeController({ member: false });
+    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+  });
+
+  it('denies an admin-role caller without offer governance permission', async () => {
+    const adminWithoutPermission = {
+      ...merchant,
+      role: 'ADMIN',
+      perms: [],
+    } as JwtPayload;
+    const { controller } = makeController();
+    await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows a privileged admin with offer governance permission', async () => {
+    const admin = {
+      ...merchant,
+      role: 'ADMIN',
+      perms: ['catalog:offers:govern'],
+    } as JwtPayload;
+    const { controller } = makeController();
+    await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({ id: 'offer-1' });
   });
 });
