@@ -428,7 +428,16 @@ const currencyOptions = <CurrencyOption>[
   CurrencyOption("ZWL", "Zimbabwean Dollar", 2),
 ];
 
-int currencyMinorUnitScale(String code) => switch (currencyMinorUnits(code)) {\n      0 => 1,\n      1 => 10,\n      2 => 100,\n      3 => 1000,\n      4 => 10000,\n      _ => 100,\n    };\n\nint currencyMinorUnits(String code) {
+int currencyMinorUnitScale(String code) => switch (currencyMinorUnits(code)) {
+  0 => 1,
+  1 => 10,
+  2 => 100,
+  3 => 1000,
+  4 => 10000,
+  _ => 100,
+};
+
+int currencyMinorUnits(String code) {
   for (final currency in currencyOptions) {
     if (currency.code == code) return currency.minorUnits;
   }
