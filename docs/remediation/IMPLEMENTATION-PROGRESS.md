@@ -1002,3 +1002,11 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - Seeded explicit ACTIVE store memberships for the merchant owners (and merchant staff where applicable) in the PostgreSQL marketplace, multi-merchant, security, import-commerce and transaction lifecycle fixtures. The catalog lifecycle fixture already seeded these rows.
 - The one-time formatter has been removed. The formatted implementation head is `8ea6e1a02ffaa9483d92e1427b6081c556a3ad98`; a new exact-head CI run is required. CI #1098 is recorded as failed and is not accepted as validation.
 - G-001 remains **PARTIAL** pending exact-head CI, independent security review and the complete authorization acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and runtime identity evidence.
+
+### 20 November 2026 — active store membership enforcement follow-up
+
+- CI #1098 showed that the relational query accessor for `storeMembers` was unavailable. The shared `assertStoreMember` helper now uses a direct Drizzle table select, preserving the ACTIVE membership predicate and failing closed when no row exists.
+- Added explicit ACTIVE `store_members` fixtures for the merchant owners and applicable merchant staff in the affected PostgreSQL lifecycle suites. Updated the service/controller unit mocks to exercise the direct select surface and corrected the proposal-controller caller-context assertion.
+- CI #1106 reported a formatting warning for `phase4-import-commerce.e2e.spec.ts`. A branch-scoped diagnostic using the repository-locked Prettier 3.9.6 ran `prettier --write` followed by `prettier --check` successfully for that exact file. The temporary diagnostic workflow has been removed; a fresh exact-head CI run remains required.
+- Latest source and fixture changes are present on the branch; G-001 remains **PARTIAL** pending exact-head CI, independent security review and the complete authorization acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and runtime identity evidence.
+- No staging/production database changes, grants/default-ACL changes, RLS changes, migrations, worker activation, environment-protection changes or deployments were performed.
