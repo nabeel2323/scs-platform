@@ -994,3 +994,11 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - Latest implementation head before this tracker update: `bee2469f573c96b23dbd786a31c02aa9938c302e`. A fresh exact-head CI run is required; no result is claimed for the formatted service-boundary changes yet.
 - G-001 remains **PARTIAL** pending exact-head CI, independent security review, and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and actual runtime identity evidence.
 - No staging or production database changes, grants/default-ACL changes, RLS changes, migrations, worker activation, environment-protection changes or deployments were performed.
+
+### 20 November 2026 — store-membership lookup correction
+
+- CI #1098 exposed that `assertStoreMember` attempted to use `db.query.storeMembers.findFirst()`, but the runtime Drizzle relational query object did not expose that table query. Replaced it with a typed direct `select().from(storeMembers).where(...).limit(1)` lookup.
+- Updated the offer-service unit harness and controller tests to mock the direct query surface and to assert the current proposal caller-context signature.
+- Seeded explicit ACTIVE store memberships for the merchant owners (and merchant staff where applicable) in the PostgreSQL marketplace, multi-merchant, security, import-commerce and transaction lifecycle fixtures. The catalog lifecycle fixture already seeded these rows.
+- The one-time formatter has been removed. The formatted implementation head is `8ea6e1a02ffaa9483d92e1427b6081c556a3ad98`; a new exact-head CI run is required. CI #1098 is recorded as failed and is not accepted as validation.
+- G-001 remains **PARTIAL** pending exact-head CI, independent security review and the complete authorization acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and runtime identity evidence.
