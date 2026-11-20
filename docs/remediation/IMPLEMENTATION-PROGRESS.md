@@ -854,3 +854,16 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - The plan and tracker reconciliation were pushed as documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`.
 - CI #948 passed on the preceding PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36`; it does not verify these later documentation commits.
 - GitHub currently returns no PR-triggered workflow run for either documentation commit. Latest-head CI remains pending; keep PR #138 draft and do not treat the documentation update as fully verified until CI covers the new head.
+
+
+### Integration-control and register reconciliation — 20 November 2026
+
+- Corrected the finding register to include G-024–G-029. These six findings were already evidenced in the Phase 1 task history, but were missing from the register itself. Their statuses and CI references are now represented explicitly.
+- Reconciled the 35-finding totals: 24 closed, 5 partially remediated, 2 in progress, 2 blocked and 2 open. Priority unresolved counts now include partial/in-progress/blocked items: P1 = 2 (G-002, G-007), P2 = 7 (G-010, G-012–G-015, G-018, G-020), P3 = 2 (G-021, G-022).
+- Reviewed the latest focused PR CI and documented overlap/landing controls in the implementation plan. In particular, PR #145's 0070 migration filename conflicts with the broader 0070 migration already on this branch; PRs #144, #147, #148, #149 and #150 overlap implementation files/behavior already present here.
+- Fixed PR #147's TS4111 test-mock typing issue in commit `590ac8922bcacc03d18d4bf62eb163155dc2188b`. CI #1024 is running; do not mark G-003 newly reverified from that PR until it completes. The existing remediation-branch G-003 evidence remains CI #687.
+- PR #150 CI #1023 and PR #151 CI #1022 passed all ten executable jobs. PR #149 CI #1016, PR #148 CI #1015, PR #145 CI #1012 and PR #144 CI #1011 also passed all ten executable jobs. k6 and staging release were skipped in these runs.
+- PR #146 CI #1013 failed in API unit tests; PR #150 is the newer G-009 candidate and passed CI #1023. Do not merge both.
+- The implementation plan integration-control addendum was committed as `3d287b11994be1159d21fdfd0b80f4422751ea63`. The resulting plan/tracker documentation changes are not yet covered by a CI run on the current PR #138 head. Keep PR #138 draft.
+
+No PR merge, deployment, shared database mutation, worker activation, external provider call, shipment, payment or customer notification was performed.
