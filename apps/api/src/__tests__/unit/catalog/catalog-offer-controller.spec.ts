@@ -15,6 +15,7 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     listOfferAnalytics: vi.fn().mockResolvedValue([{ offerId: 'offer-1' }]),
     listOfferTrend: vi.fn().mockResolvedValue([{ bucket: '2026-11-20' }]),
     proposeOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    createOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
   };
   const db = {
     db: {
@@ -80,5 +81,24 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
       merchant.sub,
       { sub: merchant.sub, role: merchant.role, activeOrg: merchant.activeOrg },
     );
+  });
+});
+
+
+describe('CatalogOfferController — create offer actor attribution (G-001)', () => {
+  it('overrides a forged proposedBy value with the authenticated principal', async () => {
+    const { controller, offerService } = makeController();
+    await controller.createOffer(merchant, {
+      storeId: 'store-1',
+      productId: 'product-1',
+      status: 'PROPOSED',
+      proposedBy: 'attacker-user',
+    });
+    expect(offerService.createOffer).toHaveBeenCalledWith({
+      storeId: 'store-1',
+      productId: 'product-1',
+      status: 'PROPOSED',
+      proposedBy: merchant.sub,
+    });
   });
 });
