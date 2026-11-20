@@ -66,3 +66,45 @@ describe('NotificationsService — IN_APP channel filter on bell-facing queries'
     expect(dump).toMatch(/IN_APP/);
   });
 });
+
+
+describe('NotificationsService — truthful delivery states (G-009)', () => {
+  it('does not mark push as sent when the user has no device token', async () => {
+    let update: Record<string, unknown> | undefined;
+    const db = {
+      query: { },
+      select: () => ({ from: () => ({ where: async () => [] }) }),
+      update: () => ({
+        set: (values: Record<string, unknown>) => {
+          update = values;
+          return { where: async () => undefined };
+        },
+      }),
+    };
+    const svc = new NotificationsService({ db } as any);
+    await (svc as any).sendPush('n-1', 'u-1', 'Title', 'Body');
+    expect(update?.['status']).toBe('FAILED');
+    expect(update?.['failureReason']).toBe('FCM_NOT_CONFIGURED_NO_DEVICE_TOKEN');
+    expect(update?.['sentAt']).toBeUndefined();
+  });
+
+  it('fails closed for the unimplemented WhatsApp channel', async () => {
+    const svc = new NotificationsService({} as any);
+    await expect((svc as any).sendWhatsApp('n-1', 'u-1', 'Body'))
+      .rejects.toThrow('WHATSAPP_NOT_CONFIGURED');
+  });
+
+  it('fails closed for placeholder SMS providers', async () => {
+    const svc = new NotificationsService({} as any);
+    await expect((svc as any).smsProviderPrimary('+10000000000', 'Body'))
+      .rejects.toThrow('PRIMARY_SMS_NOT_CONFIGURED');
+    await expect((svc as any).smsProviderFallback('+10000000000', 'Body'))
+      .rejects.toThrow('FALLBACK_SMS_NOT_CONFIGURED');
+  });
+
+  it('fails closed when FCM adapter is not configured', async () => {
+    const svc = new NotificationsService({} as any);
+    await expect((svc as any).fcmSend(['token'], 'Title', 'Body'))
+      .rejects.toThrow('FCM_NOT_CONFIGURED');
+  });
+});
