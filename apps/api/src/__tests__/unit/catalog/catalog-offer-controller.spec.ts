@@ -43,6 +43,14 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
             .mockResolvedValue(opts.member === false ? null : { id: 'membership-1' }),
         },
       },
+      select: vi.fn(() => ({
+        from: () => ({
+          where: () => ({
+            limit: async () =>
+              opts.member === false ? [] : [{ id: 'membership-1' }],
+          }),
+        }),
+      })),
     },
   };
   // @ts-expect-error — only the database query surface used by tenant-scope is needed.
@@ -107,10 +115,10 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
     expect(offerService.listOffersForStore).not.toHaveBeenCalled();
   });
 
-  it('uses the authenticated principal instead of a client-supplied proposal actor', async () => {
+  it('passes authenticated caller context instead of a client-supplied proposal actor', async () => {
     const { controller, offerService } = makeController();
     await controller.proposeOffer(merchant, 'offer-1', { proposedBy: 'attacker-user' });
-    expect(offerService.proposeOffer).toHaveBeenCalledWith('offer-1', merchant.sub, {
+    expect(offerService.proposeOffer).toHaveBeenCalledWith('offer-1', {
       sub: merchant.sub,
       role: merchant.role,
       activeOrg: merchant.activeOrg,
