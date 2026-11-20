@@ -276,14 +276,17 @@ export async function assertStoreMember(
 ): Promise<void> {
   if (isTenantPrivileged(caller)) return;
 
-  const membership = await db.db.query.storeMembers.findFirst({
-    where: and(
-      eq(storeMembers.storeId, storeId),
-      eq(storeMembers.userId, caller.sub),
-      eq(storeMembers.status, 'ACTIVE'),
-    ),
-    columns: { id: true },
-  });
+  const [membership] = await db.db
+    .select({ id: storeMembers.id })
+    .from(storeMembers)
+    .where(
+      and(
+        eq(storeMembers.storeId, storeId),
+        eq(storeMembers.userId, caller.sub),
+        eq(storeMembers.status, 'ACTIVE'),
+      ),
+    )
+    .limit(1);
 
   if (!membership) {
     throw new ForbiddenException('You are not authorized for this store');
