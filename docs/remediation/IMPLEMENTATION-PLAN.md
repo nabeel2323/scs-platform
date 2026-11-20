@@ -199,7 +199,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 ## 4. Phase 0 — Baseline reconciliation & testability foundation
 
-**Priority:** Critical prerequisite  
+**Priority:** Critical prerequisite
 **Purpose:** Establish a safe, repeatable way to implement and later test fixes without repeatedly asking the user to troubleshoot the environment.
 
 ### Work packages
@@ -255,7 +255,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Priority:** P0 / P1  
+**Priority:** P0 / P1
 **Release significance:** This phase establishes the minimum safe platform boundary for authenticated testing.
 
 ### 1.1 Close G-001 — merchant offer authorization (P0)
@@ -345,7 +345,7 @@ Only after the P0 is closed, G-023 is fixed, the DB access model is verified, an
 
 ## 6. Phase 2 — Commercial correctness & checkout contract
 
-**Priority:** P1  
+**Priority:** P1
 **Purpose:** Make prices, seller identity, quantity, currency, payment method and tax/fulfillment terms consistent between the API and all clients.
 
 ### 2.1 Close G-004 — search offer attribution
@@ -411,7 +411,7 @@ API contract, generated clients and web/mobile commercial calculations agree. Ta
 
 ## 7. Phase 3 — Event, worker & fulfillment reliability
 
-**Priority:** P1 / P2  
+**Priority:** P1 / P2
 **Purpose:** Prevent silent event loss, duplicate side effects and disabled/unguarded lifecycle jobs.
 
 ### 3.1 Close G-003 — outbox consumer ownership
@@ -463,7 +463,7 @@ Carrier, outbox and order-worker processing are proven with automated integratio
 
 ## 8. Phase 4 — Client workflow parity & truthful notifications
 
-**Priority:** P2  
+**Priority:** P2
 **Purpose:** Complete the agreed user-facing workflow without promising behavior the backend does not deliver.
 
 ### 4.1 Complete G-007 mobile parity
@@ -502,7 +502,7 @@ The agreed buyer and merchant operations are supported across API/web/mobile wit
 
 ## 9. Phase 5 — Operational hardening, CI, data hygiene & documentation
 
-**Priority:** P2 / P3  
+**Priority:** P2 / P3
 **Purpose:** Make the final release reproducible, reviewable and recoverable.
 
 ### 5.1 Close G-014 — branch protection
@@ -1163,9 +1163,12 @@ Keep PR #138 open and draft. External Vercel web/admin preview statuses remain r
 - The workflow remains manual-dispatch only and protected by the staging environment. It was not dispatched and no approval was requested. No staging secret was accessed; no deployment, migration, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business side effect occurred.
 - PR #138 remains open and draft. G-002 remains BLOCKED until an authorized operator dispatches the reviewed immutable revision, approves the protected environment, and the actual API and migration identities are independently established. The audit report is evidence gathering only; it does not authorize privilege or RLS changes.
 
-
 ### G-002 PostgreSQL CI execution coverage — 20 November 2026
 
 - PR #138 exact source head `3e856985893a5eb5da63434b856f0eacd20bcb29` passed GitHub Actions CI #1049: all 10 executable jobs succeeded, including PostgreSQL integration, full migration apply, formatting, typecheck, container smoke and build. k6 and staging release were skipped. The Vercel web/admin preview contexts remain externally rate-limited and are not part of the successful GitHub Actions result.
 - Extended the disposable PostgreSQL migration job to execute `pnpm db:audit-access` immediately after the full migration apply. This exercises the actual read-only audit against the CI PostgreSQL instance, after application roles and schema are provisioned; it uses no staging credentials and does not touch a shared database. Commit: `d8652850adf84d0b61986683a97d29149cd7670d`.
 - The new workflow step is not yet verified: it requires a new CI run on the updated workflow commit. Keep PR #138 draft. Do not dispatch the protected staging audit, deploy, migrate a shared database, alter grants/default ACLs, enable RLS, or activate workers as part of this gate.
+
+### PostgreSQL CI audit gate — 20 November 2026
+
+CI #1051 on the PR merge ref stopped at the changed-file formatting gate. Lint and typecheck passed; the Flutter analysis and tests passed. Prettier flagged `.github/workflows/ci.yml` and both remediation tracking documents. Because the lint job failed, Migration Full Apply and the newly added read-only database audit step were skipped. The formatting corrections are being applied before rerunning the complete gate. No staging audit, deployment, shared-database mutation or release action was performed.
