@@ -127,12 +127,15 @@ describe('CatalogOfferController — create offer actor attribution (G-001)', ()
       status: 'PROPOSED',
       proposedBy: 'attacker-user',
     });
-    expect(offerService.createOffer).toHaveBeenCalledWith({
-      storeId: 'store-1',
-      productId: 'product-1',
-      status: 'PROPOSED',
-      proposedBy: merchant.sub,
-    });
+    expect(offerService.createOffer).toHaveBeenCalledWith(
+      {
+        storeId: 'store-1',
+        productId: 'product-1',
+        status: 'PROPOSED',
+        proposedBy: 'attacker-user',
+      },
+      { sub: merchant.sub, role: merchant.role, activeOrg: merchant.activeOrg },
+    );
   });
 });
 
