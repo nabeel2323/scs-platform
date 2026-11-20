@@ -1010,3 +1010,9 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - CI #1106 reported a formatting warning for `phase4-import-commerce.e2e.spec.ts`. A branch-scoped diagnostic using the repository-locked Prettier 3.9.6 ran `prettier --write` followed by `prettier --check` successfully for that exact file. The temporary diagnostic workflow has been removed; a fresh exact-head CI run remains required.
 - Latest source and fixture changes are present on the branch; G-001 remains **PARTIAL** pending exact-head CI, independent security review and the complete authorization acceptance matrix. G-002 remains **BLOCKED** pending protected staging verification and runtime identity evidence.
 - No staging/production database changes, grants/default-ACL changes, RLS changes, migrations, worker activation, environment-protection changes or deployments were performed.
+
+### 20 November 2026 — phase4 fixture formatting verification
+
+- CI #1110 confirmed lint and TypeScript typecheck passed but still reported `phase4-import-commerce.e2e.spec.ts` at the formatting gate.
+- A diagnostic run using the locked Prettier 3.9.6 performed `--write` followed by `--check` successfully. Its formatted file was then committed to the branch; the resulting Git blob is `57603a05e605983bc1f1fe49f5f1850066fc0f65`. The temporary formatter workflow has been removed.
+- Latest formatted source head before this tracker update: `c4e4d3e70b01d179fbabb7cf869c73c1a19009cb`. Fresh exact-head CI remains required; earlier failed/cancelled runs are not accepted as validation.
