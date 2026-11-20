@@ -589,7 +589,7 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async suspendOffer(id: string) {
+  async suspendOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'SUSPENDED');
     await this.db.db
@@ -599,6 +599,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.suspended',
       resource: 'merchant_offer',
       resourceId: id,
@@ -608,7 +609,7 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async reactivateOffer(id: string) {
+  async reactivateOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'ACTIVE');
     await this.db.db
@@ -618,6 +619,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.reactivated',
       resource: 'merchant_offer',
       resourceId: id,
