@@ -452,7 +452,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(offer.currency).toBe('SAR');
 
       // Activate the offer
-      const proposed = await offerService.proposeOffer(offerA, merchantA);
+      const proposed = await offerService.proposeOffer(offerA, callerA());
       expect(proposed.status).toBe('PROPOSED');
 
       const activated = await offerService.approveOffer(offerA, adminUser);
@@ -484,7 +484,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(offer.variantId).toBe(variant16_512);
 
       // Activate
-      await offerService.proposeOffer(offerB, merchantB);
+      await offerService.proposeOffer(offerB, callerB());
       await offerService.approveOffer(offerB, adminUser);
 
       // Verify: exactly ONE canonical product, TWO offers for same variant
@@ -795,7 +795,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       });
 
       // Propose → Approve
-      await offerService.proposeOffer(govOffer.id, merchantA);
+      await offerService.proposeOffer(govOffer.id, callerA());
       const approved = await offerService.approveOffer(govOffer.id, adminUser);
       expect(approved.status).toBe('ACTIVE');
 
