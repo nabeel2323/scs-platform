@@ -11,6 +11,7 @@ const merchant = {
 
 function makeController(opts: { orgId?: string | null; member?: boolean } = {}) {
   const offerService = {
+    listOffersForProduct: vi.fn().mockResolvedValue([{ id: 'active-offer' }]),
     listOffersForStore: vi.fn().mockResolvedValue([{ id: 'offer-1' }]),
     listOfferAnalytics: vi.fn().mockResolvedValue([{ offerId: 'offer-1' }]),
     listOfferTrend: vi.fn().mockResolvedValue([{ bucket: '2026-11-20' }]),
@@ -47,6 +48,16 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
   // @ts-expect-error — only the database query surface used by tenant-scope is needed.
   return { controller: new CatalogOfferController(offerService as never, db), offerService, db };
 }
+
+describe('CatalogOfferController — buyer product offer visibility (G-001)', () => {
+  it('does not accept a caller-selected status filter on the buyer endpoint', async () => {
+    const { controller, offerService } = makeController();
+    await expect(controller.listOffersForProduct('product-1')).resolves.toEqual([
+      { id: 'active-offer' },
+    ]);
+    expect(offerService.listOffersForProduct).toHaveBeenCalledWith('product-1');
+  });
+});
 
 describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {
   it('allows an active store member to list only the requested store offers', async () => {
