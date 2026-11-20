@@ -69,6 +69,10 @@ let storeA: string, storeB: string;
 let warehouseA: string, warehouseB: string;
 let merchantRoleId: string, buyerRoleId: string, moderatorRoleId: string;
 
+// Tenant contexts are created lazily because beforeAll populates the UUIDs.
+const callerA = () => ({ sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA });
+const callerB = () => ({ sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB });
+
 describe('Phase 1 — Core Marketplace E2E', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
@@ -201,19 +205,19 @@ describe('Phase 1 — Core Marketplace E2E', () => {
     variant2Id = v2.id;
 
     // ── Offers ────────────────────────────────────────────────────
-    const oA = await offerService.createOffer({ storeId: storeA, productId, variantId, currency: 'SAR', basePriceMinor: 10000, moq: 1, leadTimeDays: 3, proposedBy: merchantA });
+    const oA = await offerService.createOffer({ storeId: storeA, productId, variantId, currency: 'SAR', basePriceMinor: 10000, moq: 1, leadTimeDays: 3, proposedBy: 'forged-user' }, callerA());
     offerA = oA.id;
-    await offerService.proposeOffer(offerA, merchantA);
+    await offerService.proposeOffer(offerA, callerA());
     await offerService.approveOffer(offerA, adminUser);
 
-    const oB = await offerService.createOffer({ storeId: storeB, productId, variantId, currency: 'SAR', basePriceMinor: 9500, moq: 1, leadTimeDays: 5, proposedBy: merchantB });
+    const oB = await offerService.createOffer({ storeId: storeB, productId, variantId, currency: 'SAR', basePriceMinor: 9500, moq: 1, leadTimeDays: 5, proposedBy: 'forged-user' }, callerB());
     offerB = oB.id;
-    await offerService.proposeOffer(offerB, merchantB);
+    await offerService.proposeOffer(offerB, callerB());
     await offerService.approveOffer(offerB, adminUser);
 
-    const oB2 = await offerService.createOffer({ storeId: storeB, productId, variantId: variant2Id, currency: 'SAR', basePriceMinor: 11000, moq: 1, leadTimeDays: 5, proposedBy: merchantB });
+    const oB2 = await offerService.createOffer({ storeId: storeB, productId, variantId: variant2Id, currency: 'SAR', basePriceMinor: 11000, moq: 1, leadTimeDays: 5, proposedBy: 'forged-user' }, callerB());
     offerB2 = oB2.id;
-    await offerService.proposeOffer(offerB2, merchantB);
+    await offerService.proposeOffer(offerB2, callerB());
     await offerService.approveOffer(offerB2, adminUser);
 
     // ── Price lists & tiers ───────────────────────────────────────
@@ -394,14 +398,14 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       const originalPrice = Number(itemsRes.rows[0].unit_price_minor);
 
       // Change offer price dramatically
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 99999 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 99999 }, callerA());
 
       // Historical order unchanged
       const afterRes = await pool.query(`SELECT unit_price_minor FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.master_order_id = $1`, [masterRes.rows[0].id]);
       expect(Number(afterRes.rows[0].unit_price_minor)).toBe(originalPrice);
 
       // Restore
-      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 });
+      await offerService.updateOfferPricing(offerA, { basePriceMinor: 10000 }, callerA());
     });
   });
 
@@ -458,7 +462,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         .where(and(eq(priceTiers.priceListId, plId), eq(priceTiers.variantId, concVariant.id)));
 
       // Create offer
-      const concOffer = await offerService.createOffer({ storeId: storeA, productId, variantId: concVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: merchantA });
+      const concOffer = await offerService.createOffer({ storeId: storeA, productId, variantId: concVariant.id, currency: 'SAR', basePriceMinor: 5000, moq: 1, proposedBy: 'forged-user' }, callerA());
       await offerService.proposeOffer(concOffer.id, merchantA);
       await offerService.approveOffer(concOffer.id, adminUser);
 
