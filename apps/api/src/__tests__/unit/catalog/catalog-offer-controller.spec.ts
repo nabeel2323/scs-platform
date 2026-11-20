@@ -219,9 +219,9 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       perms: [],
     } as JwtPayload;
     const { controller, offerService } = makeController();
-    await expect(
-      controller.getOffer(adminWithoutPermission, 'offer-1'),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 

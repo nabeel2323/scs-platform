@@ -172,14 +172,14 @@ A read-only Render connector inspection was repeated after PR #142 added startup
 
 Observed service metadata for `scs-api-staging`:
 
-| Setting          | Observed value                       |
-| ---------------- | ------------------------------------ |
-| Service branch   | `develop`                            |
-| Auto-deploy      | Disabled                             |
-| Configured instances | 1                                |
-| Region / plan    | Frankfurt / Free                     |
-| Health check     | `/v1/readyz`                         |
-| Start command    | `pnpm --filter @scs/api start:prod`  |
+| Setting              | Observed value                      |
+| -------------------- | ----------------------------------- |
+| Service branch       | `develop`                           |
+| Auto-deploy          | Disabled                            |
+| Configured instances | 1                                   |
+| Region / plan        | Frankfurt / Free                    |
+| Health check         | `/v1/readyz`                        |
+| Start command        | `pnpm --filter @scs/api start:prod` |
 
 PR #142 (`security/runtime-db-identity-diagnostics`, source head `023803d6bda1eaed66058e2ab50f4e0b031bef95`) is still open and draft. Its CI passed. Source review confirms the diagnostic queries identity through the API's own `pg.Pool`, logs session/effective role names and privilege flags plus database name/TLS state, does not log the DSN, host, address or SQL, and catches diagnostic failures so they do not prevent API startup.
 
