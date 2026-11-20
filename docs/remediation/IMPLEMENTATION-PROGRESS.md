@@ -5,8 +5,9 @@
 **Plan:** [Audit-Driven Remediation & Testability Implementation Plan](./IMPLEMENTATION-PLAN.md)  
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)  
 **Repository:** `nabeel2323/scs-platform`  
-**Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`  
-**Tracker status:** INITIALIZED — no remediation phase has been started or closed under this tracker.
+**Original audit baseline:** `9f5bc397467dc92cdc8debd54797b6d730659c36`  
+**Reconciled develop HEAD (20 Nov 2026):** `f74eb588cc58fc99b105e749d39dbfbacb4f9775`  
+**Tracker status:** IN PROGRESS — Phase 0 partially evidenced; Phase 1 remediation underway; no finding is fully closed by this reconciliation.
 
 ---
 
@@ -16,21 +17,21 @@
 |---|---:|
 | Planned phases | 7 (0–6) |
 | Phases completed | 0 |
-| Phases in progress | 0 |
+| Phases in progress | 2 (Phase 0 and Phase 1) |
 | Original audit findings | 22 |
 | P0 open | 1 |
 | P1 open | 7 |
 | P2 open | 12 |
 | P3 open | 2 |
 | Findings closed under this plan | 0 |
-| Findings partially remediated under this plan | 0 |
+| Findings partially remediated under this plan | 1 (G-002) |
 | Final full test campaign | NOT STARTED |
 
 **Important:** These counts represent the starting audit register, not a claim that every finding has been revalidated on the current HEAD. Phase 0 must reconcile the current branch and update counts if later commits already fixed or changed a finding.
 
 ### Overall status
 
-<badge>PLANNED</badge> Implementation has not started under this remediation tracker. The existing September roadmap contains historical phase-completion statements; those are not counted as closure evidence for the November audit findings.
+<badge color="warning">IN PROGRESS</badge> Remediation work has started. PR #140 is merged; PR #142 and PR #138 remain unmerged draft work. No original audit finding is closed by this reconciliation. Historical September roadmap completion statements are not closure evidence for the November audit findings.
 
 ---
 
@@ -38,8 +39,8 @@
 
 | Order | Phase | Status | Entry/exit condition | Progress |
 |---:|---|---|---|---:|
-| 0 | Baseline reconciliation & testability foundation | NOT STARTED | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
-| 1 | Tenant security & database access safety | NOT STARTED | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
+| 0 | Baseline reconciliation & testability foundation | IN PROGRESS | Current baseline, test matrix, staging safety and evidence discrepancies reconciled | 0% |
+| 1 | Tenant security & database access safety | IN PROGRESS | P0 tenant boundary and DB role/grant/RLS design verified; limited staging testing may be authorized | 0% |
 | 2 | Commercial correctness & checkout contract | NOT STARTED | Seller attribution, quantity, currency, payment and tax/fulfillment contracts consistent | 0% |
 | 3 | Event, worker & fulfillment reliability | NOT STARTED | Outbox ownership, carrier processing, durable claims and P13 alert/lease plan verified | 0% |
 | 4 | Client workflow parity & truthful notifications | NOT STARTED | Agreed buyer/merchant client workflows and notification semantics coherent | 0% |
@@ -55,7 +56,7 @@ Status vocabulary: NOT STARTED · IN PROGRESS · BLOCKED · READY FOR VERIFICATI
 | ID | Priority | Finding | Planned phase | Status | Evidence / notes |
 |---|---:|---|---:|---|---|
 | G-001 | P0 | Merchant offer list/analytics lack tenant authorization | 1 | OPEN | Must close before authenticated business testing |
-| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | OPEN | Table count differs between snapshots (114 vs 111); inventory first |
+| G-002 | P1 | RLS disabled / excessive anon-auth grants; access model needs reconciliation | 1 | PARTIAL | PR #140 merged with read-only audit entry point. PR #142 adds API-pool identity diagnostics but remains draft/unmerged; runtime identity, 111/114 reconciliation and least-privilege/RLS design remain unverified. |
 | G-003 | P1 | Generic outbox dispatcher competes with carrier worker | 3 | OPEN | Source-level consumer ownership conflict |
 | G-004 | P1 | Search result seller/offer differs from cart attribution | 2 | OPEN | Seller and offer identity must be consistent end-to-end |
 | G-005 | P1 | Mixed-currency checkout total incorrectly aggregates/formats | 2 | OPEN | No cross-currency sum without disclosed FX |
@@ -89,40 +90,40 @@ Status definitions:
 
 ## 4. Phase 0 — Baseline reconciliation & testability foundation
 
-**Status:** NOT STARTED  
+**Status:** IN PROGRESS  
 **Phase owner:** Remediation lead / repository maintainer  
-**Entry commit:** `develop` — to be refreshed at phase start.
+**Reconciled entry commit:** `develop` / `f74eb588cc58fc99b105e749d39dbfbacb4f9775` (20 November 2026).
 
 | Task | Description | Status | Evidence / result |
 |---|---|---|---|
-| P0-01 | Record current branch HEAD and compare with audit baseline | TODO | |
+| P0-01 | Record current branch HEAD and compare with audit baseline | DONE | Current develop HEAD `f74eb588cc58fc99b105e749d39dbfbacb4f9775`; compared with audit baseline `9f5bc397...`. |
 | P0-02 | Revalidate all 22 findings against current source | TODO | |
 | P0-03 | Identify fixes already present after audit commit | TODO | |
 | P0-04 | Inventory API/web/admin/mobile/DB test commands and prerequisites | TODO | |
 | P0-05 | Define synthetic buyer/merchant/admin test identities and fixtures | TODO | |
 | P0-06 | Define final full test campaign command manifest | TODO | |
-| P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | TODO | |
-| P0-08 | Review startup migration/seed and safe deploy/forward-fix procedure | TODO | |
-| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | TODO | |
-| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | TODO | |
-| P0-11 | Document worker registration/flags/leases and protected-job safety | TODO | |
+| P0-07 | Document Render manual-deploy and disabled auto-deploy behavior | PARTIAL | Read-only inspection confirms staging auto-deploy disabled and manual deployment boundary; full runbook remains required. |
+| P0-08 | Review startup migration/seed and safe deploy/forward-fix procedure | PARTIAL | Source review confirms API start command is separate from release migration job; development/test startup can migrate/seed. Complete operational runbook remains outstanding. |
+| P0-09 | Reconcile database table counts, grants, RLS, roles and migration ledger | PARTIAL | Read-only audit entry point merged in PR #140; inventory count discrepancy (111 vs 114) and actual API runtime role remain unresolved. |
+| P0-10 | Trace OTP logging and exception paths; preserve redaction tests | PARTIAL | PR #138 contains sanitized provider-error logging and regression tests, but remains draft/unmerged; bounded staging log sample is not exhaustive. |
+| P0-11 | Document worker registration/flags/leases and protected-job safety | PARTIAL | Source inspection confirms P13 is opt-in and disabled by default; topology, alert sink and activation runbook remain open. |
 | P0-12 | Establish backup/restore evidence availability and staging runbook | TODO | |
 
 **Exit gate:** test matrix and runbooks accepted; baseline discrepancies resolved or explicitly blocked; no unsafe staging/production writes or worker activation performed.
 
 **Phase evidence:**  
-- Baseline SHA: TBD  
-- Test matrix: TBD  
-- Staging runbook: TBD  
-- DB access inventory: TBD  
-- OTP logging review: TBD  
-- Phase decision: NOT STARTED
+- Baseline SHA: `f74eb588cc58fc99b105e749d39dbfbacb4f9775`  
+- Test matrix: NOT COMPLETE  
+- Staging runbook: PARTIAL  
+- DB access inventory: PARTIAL — PR #140 merged; runtime identity pending PR #142 and authorized staging verification  
+- OTP logging review: PARTIAL — PR #138 source/test evidence; staging verification incomplete  
+- Phase decision: IN PROGRESS
 
 ---
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — evidence and tooling work only; tenant/database security exit criteria are not met.
 
 | Task | Description | Finding | Status | Evidence / result |
 |---|---|---|---|---|
@@ -131,14 +132,14 @@ Status definitions:
 | P1-03 | Enforce scope for analytics and trend routes | G-001 | TODO | |
 | P1-04 | Audit adjacent storeId/orgId object-read endpoints | G-001 + new findings | TODO | |
 | P1-05 | Add owner/staff/buyer/foreign merchant/admin authorization matrix tests | G-001 | TODO | |
-| P1-06 | Identify API runtime DB role and all database access paths | G-002 | TODO | |
+| P1-06 | Identify API runtime DB role and all database access paths | G-002 | PARTIAL | PR #140 provides read-only inventory; PR #142 adds an API-pool diagnostic but is unmerged and not deployed. Actual runtime role NOT VERIFIED. |
 | P1-07 | Reconcile table count and classify all tables by access boundary | G-002 | TODO | |
 | P1-08 | Audit grants, default privileges, sequences, functions and schemas | G-002 | TODO | |
 | P1-09 | Design least-privilege and table-specific RLS policies | G-002 | TODO | |
 | P1-10 | Implement reviewed privilege/RLS migration if required | G-002 | TODO | |
 | P1-11 | Add DB/client access negative tests and API tenant tests | G-002 | TODO | |
 | P1-12 | Harden normalize_arabic search_path safely | G-020 | TODO | |
-| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | TODO | |
+| P1-13 | Verify OTP redaction across success/failure/exception paths | Security safeguard | PARTIAL | PR #138 includes exception-message sanitization and regression coverage; draft/unmerged and staging runtime verification remains outstanding. |
 
 **Exit gate:** P0 tenant isolation PASS; database access model and migration verified; focused security tests pass; limited staging business tests may then be considered with authorization.
 
@@ -334,3 +335,46 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
 **Current state:** no remediation code has been changed by initializing these documents.
+
+
+---
+
+## 14. Reconciliation update — 20 November 2026
+
+This update supersedes the original tracker initialization statement and dashboard where they conflict. Original finding IDs and acceptance criteria remain unchanged.
+
+### Verified repository and pull-request facts
+
+| Item | Current evidence | Tracker interpretation |
+|---|---|---|
+| `develop` baseline | `f74eb588cc58fc99b105e749d39dbfbacb4f9775` | Reconciled baseline for this update |
+| PR #140 | Merged 20 Nov 2026; merge commit equals current `develop` HEAD | Read-only audit entry point is in develop; no DB mutation performed |
+| PR #142 | Open, draft; head `023803d6bda1eaed66058e2ab50f4e0b031bef95` | Runtime DB identity diagnostic source is proposed, not deployed |
+| PR #142 CI | Run `44656130587`: 10 executable jobs succeeded; k6 smoke and staging release skipped | TEST VERIFIED for those CI jobs only |
+| PR #142 Vercel checks | Web and admin deployment checks failed due `api-deployments-free-per-day` quota | External deployment gate unresolved; not a code-test failure |
+| PR #138 | Open, draft; head `a1cd93085136db59fe82aa858ae4ff4227547d36` | OTP redaction and broad tenant/worker changes remain unmerged |
+| Supabase/Render runtime | Read-only evidence only; API identity not established from pooler session correlation | STAGING VERIFIED identity: NO |
+
+### Updated status interpretation
+
+- **Phase 0 — IN PROGRESS.** P0-01 is DONE. P0-07, P0-08, P0-09, P0-10 and P0-11 have partial evidence. Test matrix, deterministic fixture plan, complete baseline revalidation, backup/restore evidence and several runbook deliverables remain outstanding.
+- **Phase 1 — IN PROGRESS.** P1-06 and P1-13 have partial evidence. G-001 is still OPEN. G-002 is PARTIAL, not closed. G-020 and remaining Phase 1 acceptance criteria remain open.
+- **Phases 2–6 — NOT STARTED under this November remediation tracker.** Do not import completion claims from historical product roadmap phases.
+- **Original finding closure count: 0.** A PR, a passing CI run, a read-only audit or source inspection is not equivalent to a verified production fix.
+- **Full release-candidate campaign: NOT STARTED.**
+
+### Current blockers and next actions
+
+1. Complete Phase 0 test matrix, synthetic fixture plan, findings revalidation and backup/restore evidence inventory.
+2. Resolve PR #142 review and deployment-check gate through normal repository controls. Do not bypass failed required checks or force-merge.
+3. Obtain a separately authorized staging release window before deploying the runtime identity diagnostic.
+4. Verify actual API `session_user` / `current_user` and role flags from the deployed API log; do not infer from Supavisor sessions.
+5. Reconcile the live relation count and complete the least-privilege/RLS design before any grants or policies are changed.
+6. Continue G-001 tenant authorization implementation and tests. The P0 gate remains closed to authenticated staging business testing until its acceptance criteria pass.
+
+### Change-control record
+
+- No Render configuration, environment value, secret, deployment, restart or worker flag was changed.
+- No Supabase grants, RLS policies, migrations, seeds or business records were changed.
+- No staging transaction, provider send, shipment, payment or customer notification was initiated.
+- PR #142 CI was observed only; no merge, release dispatch or deployment was triggered.
