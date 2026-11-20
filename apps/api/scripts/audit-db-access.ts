@@ -40,6 +40,7 @@ async function main(): Promise<void> {
              session_user AS login_role,
              current_database() AS database_name,
              current_setting('server_version') AS server_version,
+             current_setting('server_version_num')::int AS server_version_num,
              current_setting('application_name') AS application_name,
              current_setting('search_path') AS search_path,
              r.rolsuper AS is_superuser,
@@ -70,6 +71,9 @@ async function main(): Promise<void> {
       ORDER BY rolname
     `);
 
+    const serverVersionNum = Number(identity.rows[0]?.['server_version_num'] ?? 0);
+    const supportsMaintainPrivilege = serverVersionNum >= 170000;
+
     const clientRoles = await client.query<QueryResultRow>(`
       WITH role_names AS (
         SELECT rolname AS role_name
@@ -92,7 +96,9 @@ async function main(): Promise<void> {
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRUNCATE'))::int AS truncate_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'REFERENCES'))::int AS references_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRIGGER'))::int AS trigger_count,
-             count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int AS maintain_count
+             ${supportsMaintainPrivilege
+               ? "count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int"
+               : 'NULL::int'} AS maintain_count
       FROM role_names r CROSS JOIN tables t
       GROUP BY r.role_name
       ORDER BY r.role_name
