@@ -3,6 +3,7 @@
 import { type StudioState } from '../../../../hooks/useProductStudio';
 import { StepCard, Field } from './StepIdentity';
 import { ProductVariant } from '../../../../lib/buyer-api';
+import { CURRENCY_OPTIONS } from '../../../../lib/reference-data';
 
 interface StepOfferProps {
   state: StudioState;
@@ -44,14 +45,7 @@ export default function StepOffer({ state, setState, existingVariants = [], stor
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <Field label="Currency">
           <select value={state.currency} onChange={e => setState(prev => ({ ...prev, currency: e.target.value }))}>
-            <option value="SAR">SAR (Saudi Riyal)</option>
-            <option value="USD">USD (US Dollar)</option>
-            <option value="EUR">EUR (Euro)</option>
-            <option value="AED">AED (UAE Dirham)</option>
-            <option value="KWD">KWD (Kuwaiti Dinar)</option>
-            <option value="BHD">BHD (Bahraini Dinar)</option>
-            <option value="QAR">QAR (Qatari Riyal)</option>
-            <option value="OMR">OMR (Omani Rial)</option>
+            {CURRENCY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </Field>
         <Field label="Base Price (minor units) *">
