@@ -47,7 +47,7 @@ import {
   organizationMembers,
   roles,
 } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
@@ -308,6 +308,9 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantOwnerA, roleId: merchantOwnerRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
+    ]);
+    await db.insert(storeMembers).values([
+      { id: randomUUID(), storeId: storeA, userId: merchantOwnerA, role: 'OWNER', status: 'ACTIVE' },
     ]);
   }, 180_000);
 
