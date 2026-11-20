@@ -18,6 +18,8 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     createOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     approveOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     rejectOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    suspendOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    reactivateOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
   };
   const db = {
     db: {
@@ -119,5 +121,22 @@ describe('CatalogOfferController — admin offer actor attribution (G-001)', () 
     const { controller, offerService } = makeController();
     await controller.rejectOffer(admin, 'offer-1', { reason: 'Policy violation' });
     expect(offerService.rejectOffer).toHaveBeenCalledWith('offer-1', admin.sub, 'Policy violation');
+  });
+});
+
+
+describe('CatalogOfferController — suspension actor attribution (G-001)', () => {
+  const admin = { sub: 'admin-user-1', role: 'ADMIN', activeOrg: null } as JwtPayload;
+
+  it('uses the authenticated admin for suspension', async () => {
+    const { controller, offerService } = makeController();
+    await controller.suspendOffer(admin, 'offer-1');
+    expect(offerService.suspendOffer).toHaveBeenCalledWith('offer-1', admin.sub);
+  });
+
+  it('uses the authenticated admin for reactivation', async () => {
+    const { controller, offerService } = makeController();
+    await controller.reactivateOffer(admin, 'offer-1');
+    expect(offerService.reactivateOffer).toHaveBeenCalledWith('offer-1', admin.sub);
   });
 });
