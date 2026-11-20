@@ -388,3 +388,12 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **CI at failure snapshot:** API lint/boundary checks and web/admin tests passed; API unit/coverage and integration jobs failed on the same fixture defect. PR #143 documentation branch CI passed its executable jobs.
 - **Next:** Re-run PR #144 CI, inspect any remaining failures, then continue endpoint authorization review. G-001 remains PARTIAL until full authorization matrix and review are complete.
 - **Operational boundary:** No Render or Supabase changes, deployment, migration, seed, worker activation, or staging business transaction.
+
+
+### 2026-11-20 — G-001 proposal audit-actor hardening
+
+- **Finding:** G-001 (adjacent merchant mutation audit integrity)
+- **Review observation:** The proposal endpoint accepted a client-provided `proposedBy` value and forwarded it as the proposal/audit actor. Although tenant authorization was applied in the service, a caller could spoof the recorded actor identifier.
+- **Correction:** The controller now always supplies the authenticated JWT principal (`user.sub`) to `proposeOffer`; the request-body field is ignored for actor attribution. Added a regression test proving a forged `proposedBy` value cannot replace the authenticated principal.
+- **Commits:** `9034a79e0672dfdd5ae3ff09adbecbd23a55e0a6`, `3aa3e72b60863b45344b2c53b86d508c879905f9`
+- **Status:** PARTIAL — pending CI for the updated head and broader review of offer-detail visibility and all merchant mutation paths.
