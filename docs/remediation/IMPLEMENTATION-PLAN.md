@@ -1094,12 +1094,12 @@ The remediation branch contains a broad, integrated implementation set and remai
 
 | Focused PR | Finding | Integration observation |
 |---:|---|---|
-| #144 | G-001 | The focused controller/service authorization, actor-attribution tests and lifecycle-fixture hardening have now been ported into PR #138's remediation branch. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending. |
+| #144 | G-001 | Ported into PR #138: offer-detail authorization, service-level active store membership, JWT actor attribution, tests and lifecycle fixtures. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending. |
 | #145 | G-020 | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered. |
 | #147 | G-003 | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending. |
-| #148 | G-008 | Changes the payments service and adds a separate unsupported-DIGITAL test, overlapping the payment-method guard already present on PR #138 and verified in CI #714. |
-| #149 | G-005 | Changes the web checkout page already changed on PR #138; compare presentation behavior and tests before merging either copy. |
-| #150 | G-009 | Changes the notification service also changed on PR #138. CI #1023 passed; this is the preferred focused candidate over the failed earlier PR #146, subject to exact behavior review. |
+| #148 | G-008 | Adds a DIGITAL-only guard, but PR #138 already uses the broader `SUPPORTED_PAYMENT_METHODS` allowlist and rejects unsupported methods before provider resolution/payment writes (CI #714). The focused patch is weaker/overlapping; do not merge independently. |
+| #149 | G-005 | Its client-side currency buckets are superseded by PR #138's server checkout preview, per-supplier totals, VAT disclosure and `totalsByCurrency` rendering. Do not replace the more complete server-authoritative checkout surface with this UI-only patch. |
+| #150 | G-009 | CI #1023 passed and it supersedes failed PR #146, but its delivery status semantics differ from PR #138: PR #150 records missing-token push as FAILED and throws for unconfigured channels; PR #138 persists NOT_CONFIGURED with stable reason codes. Reconcile the canonical status contract before porting/merging either version. |
 | #151 | UX reference data | Adds country/currency selectors and reference data across web/mobile. This is not a direct duplicate of the G-001–G-009 fixes but touches mobile models also changed on PR #138; review generated/model compatibility during integration. |
 
 ### CI checkpoint — 20 November 2026
