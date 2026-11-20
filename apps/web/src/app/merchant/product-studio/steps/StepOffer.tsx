@@ -88,7 +88,7 @@ export default function StepOffer({ state, setState, existingVariants = [], stor
         <div style={{ padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4 }}>Price Preview</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#166534' }}>
-            {(state.basePriceMinor / 100).toFixed(2)} {state.currency}
+            {(state.basePriceMinor / (10 ** currencyMinorUnits(state.currency))).toFixed(currencyMinorUnits(state.currency))} {state.currency}
           </div>
           <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 4 }}>
             MOQ: {state.moq} unit(s) · Lead time: {state.leadTimeDays} day(s)
