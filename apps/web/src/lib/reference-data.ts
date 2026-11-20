@@ -1,8 +1,8 @@
 /**
  * ISO reference data for registration and pricing selectors.
  * Countries: ISO 3166-1 alpha-2 (249 entries).
- * Currencies: currently supported national/territorial ISO 4217 codes (fund codes excluded).
- * Country names: datasets/country-list; currency names/minor units: ourworldincode/currency.
+ * Currencies: 155 current ISO 4217 national/territorial currencies (fund codes excluded).
+ * Country names: datasets/country-list; currency names/minor units: SIX Group List One (ISO 4217 Maintenance Agency), 2026-09-17 snapshot.
  * Refresh this file when upstream ISO lists change. This is not an FX-rate source.
  */
 export const COUNTRY_OPTIONS = [
@@ -1007,17 +1007,17 @@ export const COUNTRY_OPTIONS = [
 export const CURRENCY_OPTIONS = [
   {
     "value": "AED",
-    "label": "AED — United Arab Emirates Dirham",
+    "label": "AED — UAE Dirham",
     "minorUnits": 2
   },
   {
     "value": "AFN",
-    "label": "AFN — Afghan Afghani",
+    "label": "AFN — Afghani",
     "minorUnits": 2
   },
   {
     "value": "ALL",
-    "label": "ALL — Albanian Lek",
+    "label": "ALL — Lek",
     "minorUnits": 2
   },
   {
@@ -1026,13 +1026,8 @@ export const CURRENCY_OPTIONS = [
     "minorUnits": 2
   },
   {
-    "value": "ANG",
-    "label": "ANG — Netherlands Antillean Guilder",
-    "minorUnits": 2
-  },
-  {
     "value": "AOA",
-    "label": "AOA — Angolan Kwanza",
+    "label": "AOA — Kwanza",
     "minorUnits": 2
   },
   {
@@ -1052,27 +1047,22 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "AZN",
-    "label": "AZN — Azerbaijani Manat",
+    "label": "AZN — Azerbaijan Manat",
     "minorUnits": 2
   },
   {
     "value": "BAM",
-    "label": "BAM — Bosnia and Herzegovina Convertible Mark",
+    "label": "BAM — Convertible Mark",
     "minorUnits": 2
   },
   {
     "value": "BBD",
-    "label": "BBD — Barbadian Dollar",
+    "label": "BBD — Barbados Dollar",
     "minorUnits": 2
   },
   {
     "value": "BDT",
-    "label": "BDT — Bangladeshi Taka",
-    "minorUnits": 2
-  },
-  {
-    "value": "BGN",
-    "label": "BGN — Bulgarian Lev",
+    "label": "BDT — Taka",
     "minorUnits": 2
   },
   {
@@ -1082,7 +1072,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "BIF",
-    "label": "BIF — Burundian Franc",
+    "label": "BIF — Burundi Franc",
     "minorUnits": 0
   },
   {
@@ -1097,7 +1087,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "BOB",
-    "label": "BOB — Bolivian Boliviano",
+    "label": "BOB — Boliviano",
     "minorUnits": 2
   },
   {
@@ -1112,12 +1102,12 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "BTN",
-    "label": "BTN — Bhutanese Ngultrum",
+    "label": "BTN — Ngultrum",
     "minorUnits": 2
   },
   {
     "value": "BWP",
-    "label": "BWP — Botswana Pula",
+    "label": "BWP — Pula",
     "minorUnits": 2
   },
   {
@@ -1152,7 +1142,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "CNY",
-    "label": "CNY — Chinese Yuan",
+    "label": "CNY — Yuan Renminbi",
     "minorUnits": 2
   },
   {
@@ -1166,18 +1156,13 @@ export const CURRENCY_OPTIONS = [
     "minorUnits": 2
   },
   {
-    "value": "CUC",
-    "label": "CUC — Cuban convertible Peso",
-    "minorUnits": 2
-  },
-  {
     "value": "CUP",
     "label": "CUP — Cuban Peso",
     "minorUnits": 2
   },
   {
     "value": "CVE",
-    "label": "CVE — Cabo Verdean Escudo",
+    "label": "CVE — Cabo Verde Escudo",
     "minorUnits": 2
   },
   {
@@ -1187,7 +1172,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "DJF",
-    "label": "DJF — Djiboutian Franc",
+    "label": "DJF — Djibouti Franc",
     "minorUnits": 0
   },
   {
@@ -1212,7 +1197,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "ERN",
-    "label": "ERN — Eritrean Nakfa",
+    "label": "ERN — Nakfa",
     "minorUnits": 2
   },
   {
@@ -1227,7 +1212,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "FJD",
-    "label": "FJD — Fijian Dollar",
+    "label": "FJD — Fiji Dollar",
     "minorUnits": 2
   },
   {
@@ -1242,12 +1227,12 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "GEL",
-    "label": "GEL — Georgian Lari",
+    "label": "GEL — Lari",
     "minorUnits": 2
   },
   {
     "value": "GHS",
-    "label": "GHS — Ghanaian Cedi",
+    "label": "GHS — Ghana Cedi",
     "minorUnits": 2
   },
   {
@@ -1257,7 +1242,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "GMD",
-    "label": "GMD — Gambian Dalasi",
+    "label": "GMD — Dalasi",
     "minorUnits": 2
   },
   {
@@ -1267,12 +1252,12 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "GTQ",
-    "label": "GTQ — Guatemalan Quetzal",
+    "label": "GTQ — Quetzal",
     "minorUnits": 2
   },
   {
     "value": "GYD",
-    "label": "GYD — Guyanese Dollar",
+    "label": "GYD — Guyana Dollar",
     "minorUnits": 2
   },
   {
@@ -1282,32 +1267,27 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "HNL",
-    "label": "HNL — Honduran Lempira",
-    "minorUnits": 2
-  },
-  {
-    "value": "HRK",
-    "label": "HRK — Croatian Kuna",
+    "label": "HNL — Lempira",
     "minorUnits": 2
   },
   {
     "value": "HTG",
-    "label": "HTG — Haitian Gourde",
+    "label": "HTG — Gourde",
     "minorUnits": 2
   },
   {
     "value": "HUF",
-    "label": "HUF — Hungarian Forint",
+    "label": "HUF — Forint",
     "minorUnits": 2
   },
   {
     "value": "IDR",
-    "label": "IDR — Indonesian Rupiah",
+    "label": "IDR — Rupiah",
     "minorUnits": 2
   },
   {
     "value": "ILS",
-    "label": "ILS — Israeli new Shekel",
+    "label": "ILS — New Israeli Sheqel",
     "minorUnits": 2
   },
   {
@@ -1327,7 +1307,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "ISK",
-    "label": "ISK — Icelandic Krona",
+    "label": "ISK — Iceland Krona",
     "minorUnits": 0
   },
   {
@@ -1342,7 +1322,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "JPY",
-    "label": "JPY — Japanese Yen",
+    "label": "JPY — Yen",
     "minorUnits": 0
   },
   {
@@ -1352,17 +1332,17 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "KGS",
-    "label": "KGS — Kyrgyzstani Som",
+    "label": "KGS — Som",
     "minorUnits": 2
   },
   {
     "value": "KHR",
-    "label": "KHR — Cambodian Riel",
+    "label": "KHR — Riel",
     "minorUnits": 2
   },
   {
     "value": "KMF",
-    "label": "KMF — Comorian Franc",
+    "label": "KMF — 'Comorian Franc '",
     "minorUnits": 0
   },
   {
@@ -1372,7 +1352,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "KRW",
-    "label": "KRW — South Korean Won",
+    "label": "KRW — Won",
     "minorUnits": 0
   },
   {
@@ -1387,7 +1367,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "KZT",
-    "label": "KZT — Kazakhstani Tenge",
+    "label": "KZT — Tenge",
     "minorUnits": 2
   },
   {
@@ -1402,7 +1382,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "LKR",
-    "label": "LKR — Sri Lankan Rupee",
+    "label": "LKR — Sri Lanka Rupee",
     "minorUnits": 2
   },
   {
@@ -1412,7 +1392,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "LSL",
-    "label": "LSL — Lesotho Loti",
+    "label": "LSL — Loti",
     "minorUnits": 2
   },
   {
@@ -1437,42 +1417,42 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "MKD",
-    "label": "MKD — Macedonian Denar",
+    "label": "MKD — Denar",
     "minorUnits": 2
   },
   {
     "value": "MMK",
-    "label": "MMK — Myanmar Kyat",
+    "label": "MMK — Kyat",
     "minorUnits": 2
   },
   {
     "value": "MNT",
-    "label": "MNT — Mongolian Tögrög",
+    "label": "MNT — Tugrik",
     "minorUnits": 2
   },
   {
     "value": "MOP",
-    "label": "MOP — Macanese Pataca",
+    "label": "MOP — Pataca",
     "minorUnits": 2
   },
   {
     "value": "MRU",
-    "label": "MRU — Mauritanian Ouguiya",
+    "label": "MRU — Ouguiya",
     "minorUnits": 2
   },
   {
     "value": "MUR",
-    "label": "MUR — Mauritian Rupee",
+    "label": "MUR — Mauritius Rupee",
     "minorUnits": 2
   },
   {
     "value": "MVR",
-    "label": "MVR — Maldivian Rufiyaa",
+    "label": "MVR — Rufiyaa",
     "minorUnits": 2
   },
   {
     "value": "MWK",
-    "label": "MWK — Malawian Kwacha",
+    "label": "MWK — Malawi Kwacha",
     "minorUnits": 2
   },
   {
@@ -1487,22 +1467,22 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "MZN",
-    "label": "MZN — Mozambican Metical",
+    "label": "MZN — Mozambique Metical",
     "minorUnits": 2
   },
   {
     "value": "NAD",
-    "label": "NAD — Namibian Dollar",
+    "label": "NAD — Namibia Dollar",
     "minorUnits": 2
   },
   {
     "value": "NGN",
-    "label": "NGN — Nigerian Naira",
+    "label": "NGN — Naira",
     "minorUnits": 2
   },
   {
     "value": "NIO",
-    "label": "NIO — Nicaraguan Córdoba",
+    "label": "NIO — Cordoba Oro",
     "minorUnits": 2
   },
   {
@@ -1522,22 +1502,22 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "OMR",
-    "label": "OMR — Omani Rial",
+    "label": "OMR — Rial Omani",
     "minorUnits": 3
   },
   {
     "value": "PAB",
-    "label": "PAB — Panamanian Balboa",
+    "label": "PAB — Balboa",
     "minorUnits": 2
   },
   {
     "value": "PEN",
-    "label": "PEN — Peruvian Sol",
+    "label": "PEN — Sol",
     "minorUnits": 2
   },
   {
     "value": "PGK",
-    "label": "PGK — Papua New Guinean Kina",
+    "label": "PGK — Kina",
     "minorUnits": 2
   },
   {
@@ -1547,22 +1527,22 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "PKR",
-    "label": "PKR — Pakistani Rupee",
+    "label": "PKR — Pakistan Rupee",
     "minorUnits": 2
   },
   {
     "value": "PLN",
-    "label": "PLN — Polish Zloty",
+    "label": "PLN — Zloty",
     "minorUnits": 2
   },
   {
     "value": "PYG",
-    "label": "PYG — Paraguayan Guaraní",
+    "label": "PYG — Guarani",
     "minorUnits": 0
   },
   {
     "value": "QAR",
-    "label": "QAR — Qatari Riyal",
+    "label": "QAR — Qatari Rial",
     "minorUnits": 2
   },
   {
@@ -1582,7 +1562,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "RWF",
-    "label": "RWF — Rwandan Franc",
+    "label": "RWF — Rwanda Franc",
     "minorUnits": 0
   },
   {
@@ -1597,7 +1577,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "SCR",
-    "label": "SCR — Seychellois Rupee",
+    "label": "SCR — Seychelles Rupee",
     "minorUnits": 2
   },
   {
@@ -1621,8 +1601,8 @@ export const CURRENCY_OPTIONS = [
     "minorUnits": 2
   },
   {
-    "value": "SLL",
-    "label": "SLL — Sierra Leonean Leone",
+    "value": "SLE",
+    "label": "SLE — Leone",
     "minorUnits": 2
   },
   {
@@ -1632,7 +1612,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "SRD",
-    "label": "SRD — Surinamese Dollar",
+    "label": "SRD — Surinam Dollar",
     "minorUnits": 2
   },
   {
@@ -1642,12 +1622,12 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "STN",
-    "label": "STN — Sao Tome and Príncipe Dobra",
+    "label": "STN — Dobra",
     "minorUnits": 2
   },
   {
     "value": "SVC",
-    "label": "SVC — Salvadoran Colón",
+    "label": "SVC — El Salvador Colon",
     "minorUnits": 2
   },
   {
@@ -1657,22 +1637,22 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "SZL",
-    "label": "SZL — Swazi Lilangeni",
+    "label": "SZL — Lilangeni",
     "minorUnits": 2
   },
   {
     "value": "THB",
-    "label": "THB — Thai Baht",
+    "label": "THB — Baht",
     "minorUnits": 2
   },
   {
     "value": "TJS",
-    "label": "TJS — Tajikistani Somoni",
+    "label": "TJS — Somoni",
     "minorUnits": 2
   },
   {
     "value": "TMT",
-    "label": "TMT — Turkmenistan Manat",
+    "label": "TMT — Turkmenistan New Manat",
     "minorUnits": 2
   },
   {
@@ -1682,7 +1662,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "TOP",
-    "label": "TOP — Tongan Paʻanga",
+    "label": "TOP — Pa’anga",
     "minorUnits": 2
   },
   {
@@ -1707,52 +1687,57 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "UAH",
-    "label": "UAH — Ukrainian Hryvnia",
+    "label": "UAH — Hryvnia",
     "minorUnits": 2
   },
   {
     "value": "UGX",
-    "label": "UGX — Ugandan Shilling",
+    "label": "UGX — Uganda Shilling",
     "minorUnits": 0
   },
   {
     "value": "USD",
-    "label": "USD — United States Dollar",
+    "label": "USD — US Dollar",
     "minorUnits": 2
   },
   {
     "value": "UYU",
-    "label": "UYU — Uruguayan Peso",
+    "label": "UYU — Peso Uruguayo",
     "minorUnits": 2
   },
   {
     "value": "UZS",
-    "label": "UZS — Uzbekistani Som",
+    "label": "UZS — Uzbekistan Sum",
+    "minorUnits": 2
+  },
+  {
+    "value": "VED",
+    "label": "VED — Bolívar Soberano",
     "minorUnits": 2
   },
   {
     "value": "VES",
-    "label": "VES — Venezuelan Bolívar Soberano",
+    "label": "VES — Bolívar Soberano",
     "minorUnits": 2
   },
   {
     "value": "VND",
-    "label": "VND — Vietnamese Dong",
+    "label": "VND — Dong",
     "minorUnits": 0
   },
   {
     "value": "VUV",
-    "label": "VUV — Vanuatu Vatu",
+    "label": "VUV — Vatu",
     "minorUnits": 0
   },
   {
     "value": "WST",
-    "label": "WST — Samoan Tala",
+    "label": "WST — Tala",
     "minorUnits": 2
   },
   {
     "value": "XAF",
-    "label": "XAF — Central African CFA Franc BEAC",
+    "label": "XAF — CFA Franc BEAC",
     "minorUnits": 0
   },
   {
@@ -1761,13 +1746,18 @@ export const CURRENCY_OPTIONS = [
     "minorUnits": 2
   },
   {
+    "value": "XCG",
+    "label": "XCG — Caribbean Guilder",
+    "minorUnits": 2
+  },
+  {
     "value": "XOF",
-    "label": "XOF — West African CFA Franc BCEAO",
+    "label": "XOF — CFA Franc BCEAO",
     "minorUnits": 0
   },
   {
     "value": "XPF",
-    "label": "XPF — CFP Franc (Franc Pacifique)",
+    "label": "XPF — CFP Franc",
     "minorUnits": 0
   },
   {
@@ -1777,7 +1767,7 @@ export const CURRENCY_OPTIONS = [
   },
   {
     "value": "ZAR",
-    "label": "ZAR — South African Rand",
+    "label": "ZAR — Rand",
     "minorUnits": 2
   },
   {
@@ -1786,8 +1776,8 @@ export const CURRENCY_OPTIONS = [
     "minorUnits": 2
   },
   {
-    "value": "ZWL",
-    "label": "ZWL — Zimbabwean Dollar",
+    "value": "ZWG",
+    "label": "ZWG — Zimbabwe Gold",
     "minorUnits": 2
   }
 ] as const;
