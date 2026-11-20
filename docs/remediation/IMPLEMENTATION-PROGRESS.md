@@ -939,7 +939,6 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - This run verifies the current source head against the executable CI suite only. k6, staging release, staging runtime verification and production release remain unverified/not authorized. G-001 remains PARTIAL; G-002 remains blocked pending approved runtime identity evidence and reviewed least-privilege/RLS design. Migration-numbering and notification status-contract conflicts remain open.
 - No merge, deployment, staging release, shared database mutation, migration, grant/default-ACL change, RLS enablement, worker activation or external business side effect was performed.
 
-
 ### G-002 audit compatibility and immutable revision checkpoint — 20 November 2026
 
 - Source review confirmed the repository's local development database and CI PostgreSQL integration service use PostgreSQL 16 (infra/docker-compose.dev.yml and .github/workflows/ci.yml). The audit previously called has_table_privilege(..., 'MAINTAIN') unconditionally; that privilege is PostgreSQL 17+, so the read-only audit would fail against the documented PostgreSQL 16 baseline.
