@@ -13,7 +13,7 @@ import { priceLists } from '../pricing/pricing.schema';
 import { orderItems } from '../orders/orders.schema';
 import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
 import crypto from 'node:crypto';
-import { assertStoreInOrg, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 const OFFER_STATUSES: ReadonlySet<OfferStatus> = new Set<OfferStatus>([
   'DRAFT', 'PROPOSED', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'WITHDRAWN',
@@ -101,9 +101,9 @@ export class CatalogOfferService {
       throw new BadRequestException('A new offer may only start as DRAFT or PROPOSED');
     }
     const moq = input.moq ?? 1;
-    if (!Number.isInteger(moq) || moq < 1) throw new BadRequestException('MOQ must be a positive integer');
-    if (input.orderIncrement != null && (!Number.isInteger(input.orderIncrement) || input.orderIncrement < 1)) {
-      throw new BadRequestException('Order increment must be a positive integer');
+    if (moq < 1) throw new BadRequestException('MOQ must be at least 1');
+    if (input.orderIncrement != null && input.orderIncrement < 1) {
+      throw new BadRequestException('Order increment must be at least 1');
     }
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
@@ -504,7 +504,10 @@ export class CatalogOfferService {
 
   async proposeOffer(id: string, proposedBy?: string | null, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
+    }
     this.assertTransition(offer.status, 'PROPOSED');
     await this.db.db
       .update(merchantOffers)
@@ -586,7 +589,7 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async suspendOffer(id: string) {
+  async suspendOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'SUSPENDED');
     await this.db.db
@@ -596,6 +599,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.suspended',
       resource: 'merchant_offer',
       resourceId: id,
@@ -605,16 +609,17 @@ export class CatalogOfferService {
     return this.getOffer(id);
   }
 
-  async reactivateOffer(id: string) {
+  async reactivateOffer(id: string, reviewerId: string) {
     const offer = await this.getOrThrow(id);
     this.assertTransition(offer.status, 'ACTIVE');
     await this.db.db
       .update(merchantOffers)
-      .set({ status: 'ACTIVE', isAvailable: true, activatedAt: new Date(), updatedAt: new Date() })
+      .set({ status: 'ACTIVE', activatedAt: new Date(), updatedAt: new Date() })
       .where(eq(merchantOffers.id, id));
 
     await this.audit.record({
       actorType: 'ADMIN',
+      actorId: reviewerId,
       action: 'offer.reactivated',
       resource: 'merchant_offer',
       resourceId: id,
@@ -626,7 +631,10 @@ export class CatalogOfferService {
 
   async withdrawOffer(id: string, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
+    }
     this.assertTransition(offer.status, 'WITHDRAWN');
     await this.db.db
       .update(merchantOffers)
@@ -635,7 +643,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller?.sub ?? offer.proposedBy,
       action: 'offer.withdrawn',
       resource: 'merchant_offer',
       resourceId: id,
@@ -655,11 +663,11 @@ export class CatalogOfferService {
    */
   async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller?: CallerContext) {
     const offer = await this.getOrThrow(id);
-    if (caller) await assertStoreInOrg(this.db, caller, offer.storeId);
-    if (input.moq != null && (!Number.isInteger(input.moq) || input.moq < 1)) throw new BadRequestException('MOQ must be a positive integer');
-    if (input.orderIncrement != null && (!Number.isInteger(input.orderIncrement) || input.orderIncrement < 1)) {
-      throw new BadRequestException('Order increment must be a positive integer');
+    if (caller) {
+      await assertStoreInOrg(this.db, caller, offer.storeId);
+      await assertStoreMember(this.db, caller, offer.storeId);
     }
+    if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
     }
@@ -690,7 +698,7 @@ export class CatalogOfferService {
         basePriceMinor: input.basePriceMinor ?? offer.basePriceMinor,
         compareAtPriceMinor: input.compareAtPriceMinor ?? offer.compareAtPriceMinor,
         moq: input.moq ?? offer.moq,
-        orderIncrement: input.orderIncrement !== undefined ? input.orderIncrement : offer.orderIncrement,
+        orderIncrement: input.orderIncrement ?? offer.orderIncrement,
         leadTimeDays: input.leadTimeDays ?? offer.leadTimeDays,
         isAvailable: input.isAvailable ?? offer.isAvailable,
         priceListId: input.priceListId ?? offer.priceListId,
@@ -701,7 +709,7 @@ export class CatalogOfferService {
 
     await this.audit.record({
       actorType: 'MERCHANT',
-      actorId: offer.proposedBy,
+      actorId: caller?.sub ?? offer.proposedBy,
       action: 'offer.pricing_updated',
       resource: 'merchant_offer',
       resourceId: id,
