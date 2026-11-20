@@ -326,14 +326,14 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       await cartService.addItem(buyerB, { variantId, quantity: 1, offerId: offerA });
 
       // Suspend the offer
-      await offerService.suspendOffer(offerA);
+      await offerService.suspendOffer(offerA, adminUser);
 
       // Validate cart — should detect stale
       const validation = await cartService.validateCart(buyerB);
       expect(validation.stale.length + validation.repriced.length).toBeGreaterThanOrEqual(1);
 
       // Reactivate for subsequent tests
-      await offerService.reactivateOffer(offerA);
+      await offerService.reactivateOffer(offerA, adminUser);
     });
   });
 
