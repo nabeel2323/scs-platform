@@ -17,10 +17,13 @@ jobs:
     timeout-minutes: 10
     environment: staging
     steps:
-      - name: Checkout develop
+      # Audit the immutable revision selected in workflow_dispatch, not a hard-coded
+      # develop checkout. This ensures the reviewed script and workflow are the ones
+      # executed behind the protected staging-environment approval gate.
+      - name: Checkout selected audit revision
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
