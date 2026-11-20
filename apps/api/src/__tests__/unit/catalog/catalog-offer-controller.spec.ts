@@ -224,4 +224,19 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
     expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
     expect(db.db.query.storeMembers.findFirst).not.toHaveBeenCalled();
   });
+
+  it('denies a privileged administrator without offer governance permission', async () => {
+    const admin = {
+      sub: 'admin-user-1',
+      role: 'ADMIN',
+      activeOrg: null,
+      perms: [],
+    } as JwtPayload;
+    const { controller, offerService, db } = makeController();
+    await expect(controller.listMerchantOffers(admin, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+    expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+  });
 });
