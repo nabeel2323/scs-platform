@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   CatalogOfferService,
@@ -22,7 +23,7 @@ import {
   RequirePermission,
 } from '../../common/guards/current-user.decorator';
 import { DatabaseService } from '../../common/database/database.service';
-import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
+import { assertStoreInOrg, assertStoreMember, isTenantPrivileged, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * Merchant Offer API — canonical-product multi-seller offers (§ Merchant Offer).
@@ -46,10 +47,12 @@ export class CatalogOfferController {
     private readonly db: DatabaseService,
   ) {}
 
-  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+  /** Merchant dashboards are store-scoped, not merely organization-scoped. */
+  private async authorizeMerchantStore(user: JwtPayload, storeId: string): Promise<CallerContext> {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
     await assertStoreInOrg(this.db, caller, storeId);
     await assertStoreMember(this.db, caller, storeId);
+    return caller;
   }
 
   // ── Read routes ───────────────────────────────────────────────
@@ -81,7 +84,7 @@ export class CatalogOfferController {
     @Query('storeId') storeId?: string,
   ) {
     if (!storeId) return [];
-    await this.assertMerchantStoreAccess(user, storeId);
+    await this.authorizeMerchantStore(user, storeId);
     return this.offerService.listOffersForStore(storeId);
   }
 
@@ -99,7 +102,7 @@ export class CatalogOfferController {
     @Query('days') days?: string,
   ) {
     if (!storeId) return [];
-    await this.assertMerchantStoreAccess(user, storeId);
+    await this.authorizeMerchantStore(user, storeId);
     const gran: 'day' | 'week' = granularity === 'week' ? 'week' : 'day';
     // Range semantics: explicit `from` (ISO date) wins; else derive a rolling
     // window from `days` (default 90, capped 365). `to` is always "now".
@@ -132,13 +135,30 @@ export class CatalogOfferController {
     @Query('storeId') storeId?: string,
   ) {
     if (!storeId) return [];
-    await this.assertMerchantStoreAccess(user, storeId);
+    await this.authorizeMerchantStore(user, storeId);
     return this.offerService.listOfferAnalytics(storeId);
   }
 
   @Get('offers/:id')
-  getOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.getOffer(id);
+  async getOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const offer = await this.offerService.getOffer(id);
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+
+    // Admin detail consumers require the same governance permission as the admin UI.
+    if (isTenantPrivileged(caller)) {
+      if (!user.perms?.includes('catalog:offers:govern')) {
+        throw new ForbiddenException('Insufficient permissions');
+      }
+      return offer;
+    }
+
+    // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
+    await assertStoreInOrg(this.db, caller, offer.storeId);
+    await assertStoreMember(this.db, caller, offer.storeId);
+    return offer;
   }
 
   // ── Merchant write routes ─────────────────────────────────────
@@ -147,11 +167,9 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
-    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    await assertStoreInOrg(this.db, caller, input.storeId);
-    // P7 Phase 1 — F-SEC-02: require store membership for offer creation.
-    await assertStoreMember(this.db, caller, input.storeId);
-    return this.offerService.createOffer(input);
+    await this.authorizeMerchantStore(user, input.storeId);
+    // The authenticated principal owns proposal and audit attribution; never trust input.proposedBy.
+    return this.offerService.createOffer({ ...input, proposedBy: user.sub });
   }
 
   @Post('merchant/offers/:id/propose')
@@ -163,7 +181,9 @@ export class CatalogOfferController {
     @Body() body: { proposedBy?: string },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    return this.offerService.proposeOffer(id, body.proposedBy, caller);
+    // The authenticated principal is the sole source of the audit actor.
+    // Never trust a client-supplied proposedBy value.
+    return this.offerService.proposeOffer(id, user.sub, caller);
   }
 
   @Patch('merchant/offers/:id/pricing')
@@ -195,33 +215,40 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
   approveOffer(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string },
   ) {
-    return this.offerService.approveOffer(id, body.reviewerId);
+    return this.offerService.approveOffer(id, user.sub);
   }
 
   @Post('admin/offers/:id/reject')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
   rejectOffer(
+    @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string; reason: string },
+    @Body() body: { reason: string },
   ) {
-    return this.offerService.rejectOffer(id, body.reviewerId, body.reason);
+    return this.offerService.rejectOffer(id, user.sub, body.reason);
   }
 
   @Post('admin/offers/:id/suspend')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  suspendOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.suspendOffer(id);
+  suspendOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.offerService.suspendOffer(id, user.sub);
   }
 
   @Post('admin/offers/:id/activate')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:govern')
-  reactivateOffer(@Param('id', ParseUUIDPipe) id: string) {
-    return this.offerService.reactivateOffer(id);
+  reactivateOffer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.offerService.reactivateOffer(id, user.sub);
   }
 }
