@@ -58,6 +58,10 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
     return async () => (spec as Row | undefined | null) ?? null;
   };
 
+  const storeMemberFindFirst = firstFn(
+    queries.storeMembers === undefined ? { id: 'membership-1' } : queries.storeMembers.findFirst,
+  );
+
   const q = (cfg?: QueryConfig) => ({
     findFirst: firstFn(cfg?.findFirst),
     findMany: async (config?: unknown) => {
@@ -68,6 +72,16 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   const db = {
     db: {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            limit: async () => {
+              const membership = await storeMemberFindFirst();
+              return membership ? [membership] : [];
+            },
+          }),
+        }),
+      }),
       query: {
         merchantOffers: q(queries.merchantOffers),
         products: q(queries.products),
