@@ -754,7 +754,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     final price = double.tryParse(_priceCtrl.text);
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
     final lead = int.tryParse(_leadTimeCtrl.text);
-    final priceMinor = price != null ? (price * 100).round() : null;
+    final priceMinor = price != null ? (price * currencyMinorUnitScale(_currency)).round() : null;
 
     setState(() => _submitting = true);
     try {
