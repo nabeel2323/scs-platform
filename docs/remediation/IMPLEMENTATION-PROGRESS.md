@@ -334,3 +334,43 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 **Start Phase 0, task P0-01:** retrieve current `develop` HEAD and compare it with audit baseline `9f5bc397...`. Then revalidate the 22 findings before implementation. Do not start Phase 1 based solely on the historical audit if the branch has moved.
 
 **Current state:** no remediation code has been changed by initializing these documents.
+
+
+---
+
+## 15. G-001 implementation progress — 20 November 2026
+
+**Status: PARTIAL / IN PROGRESS.** This entry supersedes the earlier initialization statement that no remediation code had changed. It does not close G-001 or any release gate.
+
+### Baseline and implementation
+
+- Baseline: `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Implementation branch: `security/g001-merchant-offer-authorization`.
+- Pull request: [#144](https://github.com/nabeel2323/scs-platform/pull/144) (draft; not merged).
+- Latest implementation commit at this entry: `4385624fee39d9fe2bda3931d76b52b3cc55b249`.
+- Merchant offer list, store analytics and trend endpoints now require both active-organization ownership and ACTIVE store membership before querying merchant data.
+- Propose, pricing-update and withdraw service operations now apply the same organization + store-membership checks when called with authenticated caller context.
+- Buyer-facing canonical-product offer discovery routes remain distinct from merchant dashboard routes.
+- Added controller tests for active membership, same-org non-member denial, cross-org denial, analytics trend authorization and missing storeId; added service tests for authorized, non-member and cross-org mutation cases.
+- No schema or migration change.
+
+### Files changed
+
+- `apps/api/src/modules/catalog/catalog.offer.controller.ts`
+- `apps/api/src/modules/catalog/catalog.offer.service.ts`
+- `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`
+- `apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts`
+
+### Verification
+
+- GitHub Actions CI run `44660050627` was observed in progress after the initial PR push; its checks must be refreshed against the latest head before claiming results.
+- No local test execution is claimed.
+- G-001 remains **PARTIAL** until the focused unit tests, API lint/typecheck, broader merchant/tenant authorization matrix, and review/merge controls pass.
+- No Render deployment, Supabase mutation, staging transaction, customer notification, provider send, payment, shipment, migration, seed or worker activation occurred.
+
+### Next actions
+
+1. Refresh PR #144 CI for the latest head and fix any failures.
+2. Review adjacent offer/object read routes and the complete G-001 acceptance criteria for bypass paths.
+3. Add any missing role-matrix or cross-tenant negative tests, then request normal review.
+4. Keep G-001 PARTIAL until all acceptance criteria are evidenced on the integrated baseline.
