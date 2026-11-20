@@ -886,3 +886,12 @@ No PR merge, deployment, shared database mutation, worker activation, external p
 - Added/ported focused controller and service tests, including same-organization non-member denial, foreign organization denial, detail authorization, forged actor rejection, and audit actor attribution. Updated PostgreSQL lifecycle fixtures with active store memberships and passed authenticated reviewer IDs to governance methods.
 - The source changes were ported from PR #144, whose CI #1011 passed all ten executable jobs. This does not verify the combined PR #138 branch head. G-001 remains PARTIAL until current-head CI, independent review and the full acceptance matrix are complete.
 - PR #144 remains a draft duplicate candidate until the combined remediation-branch verification is complete; do not merge both copies independently.
+
+
+### Current remediation-head checks — 20 November 2026
+
+- Current PR #138 head at this checkpoint: `45a4c9359965df5eb609dbcc9b11ee8c13dcfa42` (the plan integration-control addendum). GitHub Actions returned no workflow run/check-run for this exact head; prior CI #948 is not exact-head evidence.
+- The commit status API reports two failing external statuses on this head: `Vercel – scs-platform-admin` and `Vercel – scs-platform-web`, both with the message `Deployment rate limited — retry in 24 hours`. These are preview/deployment rate-limit failures, not API test, typecheck, migration or GitHub Actions results. They must remain visible as external check failures until the provider allows a retry; do not claim the PR is green.
+- No Vercel deployment was requested or manually initiated by this remediation work. No release or staging action was triggered.
+- PR #147 CI #1024 remains in progress on corrected test commit `590ac8922bcacc03d18d4bf62eb163155dc2188b`; lint/typecheck, Flutter, web/admin, migration full apply and E6 have passed, while API unit/coverage and PostgreSQL integration are still running.
+- The G-001 code/test hardening from PR #144 has been ported into this branch. The focused PR #144 CI #1011 is supporting evidence only; the combined current branch still needs a full test run and independent review.
