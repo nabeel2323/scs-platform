@@ -429,3 +429,13 @@ Do not block unrelated engineering work on a decision that can be safely isolate
 - **Commits:** `5b14497b8ff4af6d19c5dea18f6843612e357922`, `75d4549229aa688feb90e7a61de8e47eb622860b`.
 - **Verification:** CI for the updated branch head is pending. No local execution is claimed.
 - **Status:** G-001 PARTIAL. Generic offer-detail/read projection and governance audit attribution for suspend/reactivate remain to be reviewed.
+
+
+### 2026-11-20 — G-001 admin suspend/reactivate audit attribution
+
+- **Review observation:** Admin suspension and reactivation audit records omitted the actor ID, even though the authenticated admin was available at the controller boundary.
+- **Correction:** Both controller routes now pass the authenticated principal to the service; service audit events record that principal as `actorId`. Added controller and service regression tests.
+- **Files:** `apps/api/src/modules/catalog/catalog.offer.controller.ts`; `apps/api/src/modules/catalog/catalog.offer.service.ts`; corresponding catalog offer controller/service unit tests.
+- **Commits:** `5902dd759d209cd1b186cd89ecbd74df78fa829f`, `5179380041bc1bba077637592d29a393b01367b4`, `94f5abf6ab57daa7977c4aa0f8fdd36a41b0fe73`, `d599c67d1b68f5957831edeb081d426255b6924b`.
+- **Verification:** CI for the final implementation head is pending. No local execution is claimed.
+- **Status:** G-001 PARTIAL. The generic `GET /offers/:id` response still needs a consumer/visibility contract review before changing its behavior.
