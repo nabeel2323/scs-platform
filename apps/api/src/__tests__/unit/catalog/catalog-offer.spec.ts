@@ -190,7 +190,13 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
       priceLists: { findFirst: { id: 'pl1', storeId: 's2' } },
     });
-    await expect(svc.updateOfferPricing('o1', { priceListId: 'pl1' }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toBeInstanceOf(
+    await expect(
+      svc.updateOfferPricing(
+        'o1',
+        { priceListId: 'pl1' },
+        { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
+      ),
+    ).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
@@ -200,7 +206,13 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       merchantOffers: { findFirst: { id: 'o1', storeId: 's1', status: 'DRAFT' } },
       warehouses: { findFirst: { id: 'wh1', storeId: 's2' } },
     });
-    await expect(svc.updateOfferPricing('o1', { warehouseId: 'wh1' }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' })).rejects.toBeInstanceOf(
+    await expect(
+      svc.updateOfferPricing(
+        'o1',
+        { warehouseId: 'wh1' },
+        { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
+      ),
+    ).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
@@ -215,7 +227,11 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       },
       priceLists: { findFirst: { id: 'pl1', storeId: 's1' } },
     });
-    await svc.updateOfferPricing('o1', { priceListId: 'pl1', basePriceMinor: 1200 }, { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' });
+    await svc.updateOfferPricing(
+      'o1',
+      { priceListId: 'pl1', basePriceMinor: 1200 },
+      { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
+    );
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
   });
 });
