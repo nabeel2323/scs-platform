@@ -165,3 +165,24 @@ The live role graph confirms:
 The grants are excessive and should be removed from public client roles as planned, but this query does not prove that PostgREST exposes a TRUNCATE or table-maintenance HTTP operation. It also does not demonstrate that the Render API uses these roles. The immediate proven facts are the explicit PostgreSQL privileges and their default-ACL recurrence; exploitability through any specific public endpoint requires separate route/function-path analysis.
 
 RLS remains disabled on all 114 tables. No database mutation, privilege change, migration, RLS enablement, deployment or staging write was performed.
+
+## Render API runtime identity follow-up — 21 November 2026
+
+A read-only Render connector inspection was repeated after PR #142 added startup identity diagnostics.
+
+Observed service metadata for `scs-api-staging`:
+
+| Setting | Observed value |
+| --- | --- |
+| Service branch | `develop` |
+| Auto-deploy | Disabled |
+| Configured instances | 1 |
+| Region / plan | Frankfurt / Free |
+| Health check | `/v1/readyz` |
+| Start command | `pnpm --filter @scs/api start:prod` |
+
+PR #142 (`security/runtime-db-identity-diagnostics`, source head `023803d6bda1eaed66058e2ab50f4e0b031bef95`) is still open and draft. Its CI passed. Source review confirms the diagnostic queries identity through the API's own `pg.Pool`, logs session/effective role names and privilege flags plus database name/TLS state, does not log the DSN, host, address or SQL, and catches diagnostic failures so they do not prevent API startup.
+
+The staging service remains on `develop` with auto-deploy disabled, so PR #142 is not running there. A read-only app-log search for the diagnostic marker during 20–21 November returned no matches. This is expected for the currently deployed source and does not establish the API runtime role.
+
+**G-002 remains blocked on runtime identity evidence.** Do not trigger a Render deploy or change environment variables as part of this verification. The next authorized path is: complete PR #142 review, obtain the required merge/release approval, then deploy through the controlled release workflow and capture the non-secret startup identity output. Until then, API runtime identity and migration identity remain unverified; the connected Management API `postgres` identity must not be substituted for either.
