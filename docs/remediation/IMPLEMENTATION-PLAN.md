@@ -1122,3 +1122,10 @@ No PR was merged, no deployment/release was triggered, no shared database migrat
 ### G-001 integration update — 20 November 2026
 
 The focused PR #144 G-001 hardening has been ported into `remediation/phase-0-1-tenant-security`: offer detail object authorization, service-level active store-membership checks on propose/update/withdraw, JWT-derived actor attribution for merchant/admin actions, controller/service regression tests, and PostgreSQL lifecycle fixture updates. PR #144 CI #1011 is supporting evidence for the focused patch, but the combined remediation branch still requires exact-head CI and independent review. G-001 remains PARTIAL and the Phase 1 authenticated-business-testing gate remains closed until its full acceptance criteria are satisfied. PR #144 must not be merged independently while the same changes are present on PR #138.
+
+
+### Develop history reconciliation — 20 November 2026
+
+PR #140's read-only database access audit was already merged into `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The remediation branch was reconciled with that commit using merge commit `92cb3d2498ea6539923cc3e5ef67e7b6eb738451`. The root package now exposes the `db:audit-access` forwarding script, the read-only audit workflow matches the canonical develop version, and the audit script was already identical. The branch compares as 547 commits ahead / 0 behind develop. The audit workflow remains manually dispatched and read-only; it was not run as part of this merge.
+
+The current combined remediation head still has no exact-head GitHub Actions run. The Vercel web/admin commit statuses report `Deployment rate limited — retry in 24 hours`; treat these as external preview-provider failures, not as successful CI or application-test results. Keep PR #138 draft.
