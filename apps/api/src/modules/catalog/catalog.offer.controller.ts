@@ -145,16 +145,16 @@ export class CatalogOfferController {
 
   @Get('offers/:id')
   async getOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
-    const offer = await this.offerService.getOffer(id);
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
 
-    // Admin detail consumers require the same governance permission as the admin UI.
-    if (isTenantPrivileged(caller)) {
-      if (!user.perms?.includes('catalog:offers:govern')) {
-        throw new ForbiddenException('Insufficient permissions');
-      }
-      return offer;
+    // Reject privileged callers before loading the target object. This avoids
+    // disclosing object existence through an otherwise unauthorized detail read.
+    if (isTenantPrivileged(caller) && !user.perms?.includes('catalog:offers:govern')) {
+      throw new ForbiddenException('Insufficient permissions');
     }
+
+    const offer = await this.offerService.getOffer(id);
+    if (isTenantPrivileged(caller)) return offer;
 
     // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
     await assertStoreInOrg(this.db, caller, offer.storeId);
