@@ -309,17 +309,15 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
       { id: randomUUID(), orgId: orgA, userId: merchantOwnerA, roleId: merchantOwnerRoleId },
       { id: randomUUID(), orgId: orgA, userId: buyerA, roleId: buyerRoleId },
     ]);
-    await db
-      .insert(storeMembers)
-      .values([
-        {
-          id: randomUUID(),
-          storeId: storeA,
-          userId: merchantOwnerA,
-          role: 'OWNER',
-          status: 'ACTIVE',
-        },
-      ]);
+    await db.insert(storeMembers).values([
+      {
+        id: randomUUID(),
+        storeId: storeA,
+        userId: merchantOwnerA,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      },
+    ]);
   }, 180_000);
 
   afterAll(async () => {
