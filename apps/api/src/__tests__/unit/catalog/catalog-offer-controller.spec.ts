@@ -191,10 +191,11 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       role: 'ADMIN',
       perms: [],
     } as JwtPayload;
-    const { controller } = makeController();
+    const { controller, offerService } = makeController();
     await expect(controller.getOffer(adminWithoutPermission, 'offer-1')).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 
   it('allows a privileged admin with offer governance permission', async () => {
@@ -241,6 +242,29 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
       ForbiddenException,
     );
     expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+    expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('denies privileged analytics and trend reads without governance permission', async () => {
+    const admin = {
+      sub: 'admin-user-1',
+      role: 'ADMIN',
+      activeOrg: null,
+      perms: [],
+      iat: 1,
+      exp: 2,
+    } as JwtPayload;
+    const { controller, offerService, db } = makeController();
+
+    await expect(controller.listMerchantOfferAnalytics(admin, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    await expect(controller.listMerchantOfferTrend(admin, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(offerService.listOfferAnalytics).not.toHaveBeenCalled();
+    expect(offerService.listOfferTrend).not.toHaveBeenCalled();
     expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
   });
 });
