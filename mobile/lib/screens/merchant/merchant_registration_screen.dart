@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/theme.dart';
+import '../../core/reference_data.dart';
 import '../../providers/providers.dart';
 
 /// 5-step merchant registration wizard mirroring the web /merchant/register page.
@@ -30,50 +31,11 @@ class _MerchantRegistrationScreenState
     ('LOGISTICS', 'Logistics Provider'),
   ];
 
-  static const _countries = [
-    // GCC
-    ('SA', 'Saudi Arabia'),
-    ('AE', 'United Arab Emirates'),
-    ('KW', 'Kuwait'),
-    ('BH', 'Bahrain'),
-    ('OM', 'Oman'),
-    ('QA', 'Qatar'),
-    // Middle East
-    ('JO', 'Jordan'),
-    ('LB', 'Lebanon'),
-    ('IQ', 'Iraq'),
-    ('EG', 'Egypt'),
-    // International
-    ('US', 'United States'),
-    ('GB', 'United Kingdom'),
-    ('DE', 'Germany'),
-    ('FR', 'France'),
-    ('IN', 'India'),
-    ('PK', 'Pakistan'),
-    ('CN', 'China'),
-  ];
-
   static const _docTypes = [
     ('COMMERCIAL_REG', 'Commercial Registration'),
     ('TAX_CERT', 'Tax Certificate'),
     ('BANK_LETTER', 'Bank Letter'),
     ('NATIONAL_ID', 'National ID'),
-  ];
-
-  static const _currencies = [
-    'SAR',
-    'AED',
-    'KWD',
-    'BHD',
-    'OMR',
-    'QAR',
-    'JOD',
-    'EGP',
-    'USD',
-    'EUR',
-    'GBP',
-    'PKR',
-    'INR',
   ];
 
   final _pageCtrl = PageController();
@@ -555,8 +517,8 @@ class _MerchantRegistrationScreenState
                 labelText: 'Country *',
                 border: OutlineInputBorder(),
               ),
-              items: _countries
-                  .map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2)))
+              items: countryOptions
+                  .map((c) => DropdownMenuItem(value: c.code, child: Text(c.name)))
                   .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _country = v);
@@ -610,8 +572,8 @@ class _MerchantRegistrationScreenState
                   labelText: 'Currency',
                   border: OutlineInputBorder(),
                 ),
-                items: _currencies
-                    .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                items: currencyOptions
+                    .map((c) => DropdownMenuItem(value: c.code, child: Text(c.label)))
                     .toList(),
                 onChanged: (v) {
                   if (v != null) setState(() => _currency = v);
@@ -743,7 +705,7 @@ class _MerchantRegistrationScreenState
 
   Widget _reviewStep() {
     String orgTypeLabel = _orgTypes.firstWhere((t) => t.$1 == _orgType).$2;
-    String countryLabel = _countries.firstWhere((c) => c.$1 == _country).$2;
+    String countryLabel = countryOptions.firstWhere((c) => c.code == _country).name;
 
     return ListView(
       padding: const EdgeInsets.all(16),

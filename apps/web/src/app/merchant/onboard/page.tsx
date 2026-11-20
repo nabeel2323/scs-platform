@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createStore, createWarehouse, registerDocument, submitVerification, fetchProfile } from '../../../lib/api';
 import { getSession } from '../../../lib/auth';
 import { PageHeader } from '@scs/ui-kit';
+import { CURRENCY_OPTIONS } from '../../../lib/reference-data';
 
 const STEPS = ['Store Info', 'Warehouse', 'Documents', 'Review & Submit'] as const;
 type Step = (typeof STEPS)[number];
@@ -237,12 +238,7 @@ export default function MerchantOnboardingPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Field label="Currency">
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={inputStyle}>
-                <option value="SAR">SAR</option>
-                <option value="AED">AED</option>
-                <option value="KWD">KWD</option>
-                <option value="BHD">BHD</option>
-                <option value="OMR">OMR</option>
-                <option value="QAR">QAR</option>
+                {CURRENCY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
             </Field>
             <Field label="Locale">

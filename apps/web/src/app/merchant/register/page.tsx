@@ -17,6 +17,7 @@ import {
 } from '../../../lib/api';
 import { getUser, switchOrg } from '../../../lib/auth';
 import { PageHeader } from '@scs/ui-kit';
+import { COUNTRY_OPTIONS, CURRENCY_OPTIONS } from '../../../lib/reference-data';
 
 const STEPS = [
   'Your Profile',
@@ -31,48 +32,6 @@ const ORG_TYPES = [
   { value: 'WHOLESALER', label: 'Wholesaler' },
   { value: 'RETAILER', label: 'Retailer' },
   { value: 'LOGISTICS', label: 'Logistics Provider' },
-] as const;
-
-const COUNTRIES = [
-  // GCC
-  { value: 'SA', label: 'Saudi Arabia' },
-  { value: 'AE', label: 'United Arab Emirates' },
-  { value: 'KW', label: 'Kuwait' },
-  { value: 'BH', label: 'Bahrain' },
-  { value: 'OM', label: 'Oman' },
-  { value: 'QA', label: 'Qatar' },
-  // Middle East
-  { value: 'JO', label: 'Jordan' },
-  { value: 'LB', label: 'Lebanon' },
-  { value: 'IQ', label: 'Iraq' },
-  { value: 'EG', label: 'Egypt' },
-  // International
-  { value: 'US', label: 'United States' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'FR', label: 'France' },
-  { value: 'IN', label: 'India' },
-  { value: 'PK', label: 'Pakistan' },
-  { value: 'CN', label: 'China' },
-] as const;
-
-const CURRENCIES = [
-  // GCC
-  { value: 'SAR', label: 'Saudi Riyal (SAR)' },
-  { value: 'AED', label: 'UAE Dirham (AED)' },
-  { value: 'KWD', label: 'Kuwaiti Dinar (KWD)' },
-  { value: 'BHD', label: 'Bahraini Dinar (BHD)' },
-  { value: 'OMR', label: 'Omani Rial (OMR)' },
-  { value: 'QAR', label: 'Qatari Riyal (QAR)' },
-  // Middle East
-  { value: 'JOD', label: 'Jordanian Dinar (JOD)' },
-  { value: 'EGP', label: 'Egyptian Pound (EGP)' },
-  // International
-  { value: 'USD', label: 'US Dollar (USD)' },
-  { value: 'EUR', label: 'Euro (EUR)' },
-  { value: 'GBP', label: 'British Pound (GBP)' },
-  { value: 'PKR', label: 'Pakistani Rupee (PKR)' },
-  { value: 'INR', label: 'Indian Rupee (INR)' },
 ] as const;
 
 const DOC_TYPES = [
@@ -536,7 +495,7 @@ export default function MerchantRegistrationPage() {
                     onChange={(e) => setCountry(e.target.value)}
                     style={inputStyle}
                   >
-                    {COUNTRIES.map((c) => (
+                    {COUNTRY_OPTIONS.map((c) => (
                       <option key={c.value} value={c.value}>
                         {c.label}
                       </option>
@@ -589,7 +548,7 @@ export default function MerchantRegistrationPage() {
                 onChange={(e) => setCurrency(e.target.value)}
                 style={inputStyle}
               >
-                {CURRENCIES.map((c) => (
+                {CURRENCY_OPTIONS.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
@@ -755,7 +714,7 @@ export default function MerchantRegistrationPage() {
             />
             <SummaryRow
               label="Country"
-              value={COUNTRIES.find((c) => c.value === country)?.label || country}
+              value={COUNTRY_OPTIONS.find((c) => c.value === country)?.label || country}
             />
             {taxId && <SummaryRow label="Tax ID" value={taxId} />}
             <div style={{ height: 8 }} />
