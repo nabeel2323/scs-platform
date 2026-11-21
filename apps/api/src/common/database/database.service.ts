@@ -7,6 +7,11 @@ import { randomUUID } from 'node:crypto';
 import * as schema from '../../drizzle/schema';
 import { resolveDatabaseUrl } from '../../config/env-gate';
 import { PERMISSIONS, ROLES } from './rbac-seed.data';
+import {
+  logRuntimeDatabaseIdentity,
+  RUNTIME_DATABASE_IDENTITY_SQL,
+  type RuntimeDatabaseIdentity,
+} from './runtime-database-identity';
 
 /**
  * Resolve the migrations directory. Works for both:
@@ -49,6 +54,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         },
       }),
     });
+
+    await logRuntimeDatabaseIdentity(
+      () => this.pool.query<RuntimeDatabaseIdentity>(RUNTIME_DATABASE_IDENTITY_SQL),
+      DatabaseService.logger,
+    );
 
     // Auto-migrate and seed in development mode so debugging "just works".
     const nodeEnv = (process.env['NODE_ENV'] ?? 'development').trim().toLowerCase();
