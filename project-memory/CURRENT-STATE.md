@@ -209,3 +209,13 @@ The user approved the Implementation Completion Program and requested that this 
 - Created `project-memory/IMPLEMENTATION-GAP-REGISTER.md` and recorded the user's approved implementation-first programme in START-HERE, DECISIONS-AND-CONSTRAINTS, IMPLEMENTATION-ROADMAP, OPEN-ISSUES, CURRENT-STATE, RELEASE-AND-CI-STATUS and WORK-LOG.
 - This is a documentation-only change. Workflow-run lookup and combined-status lookup returned no checks for the exact current head; it is NOT CI-VERIFIED. Earlier CI #44954371615 on source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` remains historical evidence only.
 - Next: complete MAP-001 by auditing actual source modules, routes, screens, database entities, permissions, workflows and docs. Then implement the highest-priority confirmed gap in a cohesive batch. Keep broad regression testing for Phase 3 and all existing security/release restrictions intact.
+
+
+## MAP-001 source inventory checkpoint — 22 November 2026
+
+- Added [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md) and linked it from START-HERE.
+- Static recursive tree at inspected source head `2cca47aa34abd1a014ea16217cfee204c9e9f803`: 1,625 tracked files; 20 API modules, 28 module controllers, 25 module schema files, 49 web pages, 56 admin pages, 32 Flutter screens, 71 SQL migrations, 152 API unit test files and 82 API integration test files. Also 18 web tests, 15 admin tests, 10 Flutter test files and 2 Playwright E2E test files.
+- Current-source gaps added to the programme register: Admin order operations UX; admin refund approval; dashboard import/catalog-request widgets; 33-entry flat sidebar; merchant Product Studio offer-step UX; granular mobile permission affordances; support-ticket scope/module; nearby-offers API/UI contract discrepancy; full admin route permission audit.
+- Important corrections: the generic admin ManagementPage does apply its configured permission check; mobile has merchant/driver role redirects; payment list/verification, promotions, disputes and analytics UI exist. The September UI audit is historical, not a current status authority.
+- This is a static source inventory only. No tests were run, no live database was queried or modified, and no deployment/staging/worker operation occurred. Current branch head must be re-fetched after the documentation updates; current head CI must not be assumed.
+- Next: complete route-to-permission/API matrices and DB/worker operation mapping, then begin the highest-priority confirmed UX implementation batch only after confirming its backend state/permission contracts.
