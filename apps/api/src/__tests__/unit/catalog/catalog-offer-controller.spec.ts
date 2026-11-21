@@ -92,9 +92,7 @@ describe('CatalogOfferController — merchant role acceptance (G-001)', () => {
   it('denies a buyer from merchant offer detail before loading the target offer', async () => {
     const buyer = { ...merchant, role: 'BUYER' } as JwtPayload;
     const { controller, offerService } = makeController();
-    await expect(controller.getOffer(buyer, 'offer-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(controller.getOffer(buyer, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
     expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 });
