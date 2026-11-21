@@ -168,12 +168,7 @@ export class CatalogOfferController {
     }
 
     this.assertMerchantPrincipal(caller);
-    const offer = await this.offerService.getOffer(id);
-
-    // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
-    await assertStoreInOrg(this.db, caller, offer.storeId);
-    await assertStoreMember(this.db, caller, offer.storeId);
-    return offer;
+    return this.offerService.getOfferForMerchant(id, caller);
   }
 
   // ── Merchant write routes ─────────────────────────────────────
