@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   logRuntimeDatabaseIdentity,
   type RuntimeDatabaseIdentity,
-} from '../../../../common/database/runtime-database-identity';
+} from '../../../common/database/runtime-database-identity';
 
 const identity: RuntimeDatabaseIdentity = {
   session_user: 'api_login',
