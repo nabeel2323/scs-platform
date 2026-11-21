@@ -32,12 +32,12 @@ The `analytics_events` partitioned parent is represented in the Drizzle schema. 
 
 ## Interpretation and required follow-up
 
-| Relation(s) | Current source-level interpretation | Required verification |
-| --- | --- | --- |
-| `_migration_log` | Migration-runner ledger; not a browser/mobile business resource | Confirm only the approved migration identity needs ledger access and inspect any bootstrap path that creates or reads it |
-| `backfill_errors` | Not represented in the API Drizzle schemas; its authoritative writer/reader and ownership path are not established by this reconciliation | Trace its DDL, every insert/select/update/delete path, retention and whether records carry a tenant or job owner before assigning a predicate |
-| `analytics_events` partitions | Physical partitions under the Drizzle-modeled `analytics_events` parent | Inspect parent/partition privileges and policy behavior, partition routing, worker access and whether direct partition access is possible; keep raw event data internal |
-| Other 99 relations | Have a Drizzle `pgTable` declaration | Derive the exact owner path, allowed operations and deny-by-default row predicate from the schema, service queries and authorization rules |
+| Relation(s)                   | Current source-level interpretation                                                                                                       | Required verification                                                                                                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_migration_log`              | Migration-runner ledger; not a browser/mobile business resource                                                                           | Confirm only the approved migration identity needs ledger access and inspect any bootstrap path that creates or reads it                                                |
+| `backfill_errors`             | Not represented in the API Drizzle schemas; its authoritative writer/reader and ownership path are not established by this reconciliation | Trace its DDL, every insert/select/update/delete path, retention and whether records carry a tenant or job owner before assigning a predicate                           |
+| `analytics_events` partitions | Physical partitions under the Drizzle-modeled `analytics_events` parent                                                                   | Inspect parent/partition privileges and policy behavior, partition routing, worker access and whether direct partition access is possible; keep raw event data internal |
+| Other 99 relations            | Have a Drizzle `pgTable` declaration                                                                                                      | Derive the exact owner path, allowed operations and deny-by-default row predicate from the schema, service queries and authorization rules                              |
 
 ## Source-observed tenant anchors
 
