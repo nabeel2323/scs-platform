@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Pool, type PoolClient } from 'pg';
 import { acquireMigrationLock, releaseMigrationLock } from './migration-lock';
+import { readMigrationDatabaseIdentity } from './migration-identity';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
@@ -48,6 +49,19 @@ async function main(): Promise<void> {
   try {
     client = await pool.connect();
     await client.query('SELECT 1');
+
+    // Capture the migration credential's actual identity independently of the API pool.
+    // Diagnostics are non-fatal and never print connection details or SQL.
+    try {
+      const identity = await readMigrationDatabaseIdentity(client);
+      if (identity) {
+        console.log(`   Migration database identity: ${JSON.stringify(identity)}`);
+      } else {
+        console.warn('   Migration database identity returned no role metadata; identity remains unverified.');
+      }
+    } catch {
+      console.warn('   Migration database identity diagnostics failed; identity remains unverified.');
+    }
 
     // Hold this session lock for the entire ledger-check/apply sequence.
     // PostgreSQL releases it automatically if this process or connection dies.

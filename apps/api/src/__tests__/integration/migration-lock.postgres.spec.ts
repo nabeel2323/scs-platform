@@ -7,6 +7,7 @@ import {
   releaseMigrationLock,
 } from '../../../infra/drizzle/migration-lock';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { readMigrationDatabaseIdentity } from '../../../infra/drizzle/migration-identity';
 
 let container: StartedPostgreSqlContainer;
 let pool: Pool;
@@ -28,6 +29,18 @@ afterAll(async () => {
 });
 
 describe('migration advisory lock', () => {
+  it('reads the actual migration session identity without exposing connection details', async () => {
+    const identity = await readMigrationDatabaseIdentity(first);
+    expect(identity).not.toBeNull();
+    expect(identity?.session_user).toBe('postgres');
+    expect(identity?.current_user).toBe('postgres');
+    expect(identity?.database_name).toBeTruthy();
+    expect(identity?.session_role_superuser).toBe(true);
+    expect(identity?.session_role_bypassrls).toBe(true);
+    expect(identity?.ssl).toBe(false);
+    expect(JSON.stringify(identity)).not.toMatch(/postgresql:\/\/|password|host|address/i);
+  });
+
   it('prevents independent runner sessions from entering concurrently', async () => {
     await acquireMigrationLock(first);
 
