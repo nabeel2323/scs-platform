@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Live inspected branch head:** `ffd3961c32164c2af00090b32dbafb06b997a581`
+**Live inspected branch head:** `5572a86bc7d74a415b7e1879930001f54c2c2cc2`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ----------------------------------------------------------------------- |
 | Repository           | nabeel2323/scs-platform                                                 |
 | Branch               | remediation/phase-0-1-tenant-security                                   |
-| Live branch head     | `b73f72e34406c1260f214610539139d0d096b2de`                              |
-| Latest commit        | `style: apply repository Prettier to tenant security fixtures`          |
+| Live branch head     | `ffd3961c32164c2af00090b32dbafb06b997a581`                              |
+| Latest commit        | `style(docs): format G-001 verification handover`                       |
 | PR #138              | Open; draft; not merged                                                 |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                 |
-| Latest exact-head CI | #1268 — success                                                         |
+| Latest exact-head CI | #1280 — success on source SHA `ffd3961c...`                              |
 | CI #1268 tested SHA  | `b73f72e34406c1260f214610539139d0d096b2de`                              |
-| CI #1268 status      | All 10 executable jobs passed; k6 and protected staging release skipped |
+| CI #1280 status      | All 10 executable jobs passed; k6 and protected staging release skipped |
 
 ## Current remediation status
 

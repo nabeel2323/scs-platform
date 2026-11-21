@@ -16,10 +16,10 @@ Implemented:
 - Governance-read permission checks for ADMIN, MODERATOR, SYSTEM and SUPER_ADMIN.
 - Controller-level positive/negative role regression coverage.
 
-Verified in CI #1268 on exact head `b73f72e34406c1260f214610539139d0d096b2de`:
+Verified in exact-head CI #1280 on source SHA `ffd3961c32164c2af00090b32dbafb06b997a581`:
 
 - API unit/coverage and real PostgreSQL integration passed, together with every other executable CI job.
-- Controller/service/PostgreSQL tests cover supported merchant roles, buyer denial from merchant surfaces, foreign-organization and same-organization non-member confidentiality, missing active organization, revoked membership, DRAFT-store buyer exclusion, governance-permission reads, authenticated actor attribution, buyer-field allowlisting and same-store price-list/warehouse references.
+- Controller/service/PostgreSQL tests cover supported merchant roles, buyer denial from merchant surfaces, foreign-organization and same-organization non-member confidentiality, missing active organization, revoked membership, DRAFT- and INACTIVE-store buyer exclusion, governance-permission reads, authenticated actor attribution, buyer-field allowlisting and same-store price-list/warehouse references.
 - Evidence map and review checklist: [G-001 Independent Security Review Packet](../docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md).
 
 Remaining:
