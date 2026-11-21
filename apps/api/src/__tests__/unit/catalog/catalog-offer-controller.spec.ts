@@ -179,7 +179,6 @@ describe('CatalogOfferController — create offer actor attribution (G-001)', ()
   });
 });
 
-
 describe('CatalogOfferController — merchant mutation role authorization (G-001)', () => {
   it.each(['MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT'])(
     'allows %s to use merchant offer mutations when store membership is active',
