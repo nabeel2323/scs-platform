@@ -109,3 +109,12 @@ For every run, record:
 - The earlier Vercel web/admin status failures were build-rate-limit provider failures, not application test failures. They do not substitute for GitHub Actions CI.
 - No staging release, k6 run, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
+
+
+## Latest exact-head check — 21 November 2026
+
+- Inspected branch head: `ae2d3ea97a16b7ebb916e390dbf6433733c31438`.
+- GitHub Actions workflow-run lookup returned no associated runs for this SHA.
+- Combined status reports Vercel web and admin failures pointing to the external build-rate-limit page. These are provider quota failures, not evidence of failed application tests, and they do not count as passing CI.
+- GitHub Actions exact-head verification remains pending. No k6, staging release, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
+- PR #138 remains open and draft; G-001 remains PARTIAL and G-002 remains IN PROGRESS.
