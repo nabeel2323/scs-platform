@@ -28,18 +28,18 @@ The review is limited to G-001. It does not approve G-002 database/RLS changes, 
 
 ## 3. Acceptance evidence map
 
-| Acceptance dimension                    | Automated evidence                                                                                                                                                                                                  |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Supported merchant principals           | Controller and service unit suites exercise `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT` on merchant surfaces and mutation entry points.                                                                |
-| Non-merchant mutation denial            | Controller/service suites deny `BUYER`, `FINANCE`, `ADMIN`, `MODERATOR`, `SYSTEM` and `SUPER_ADMIN`, including service entry points before database mutation.                                                       |
-| Buyer cannot use merchant surfaces      | Controller tests deny buyer list/detail access even when a store-membership fixture exists.                                                                                                                         |
+| Acceptance dimension                    | Automated evidence                                                                                                                                                                                                                                                                           |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supported merchant principals           | Controller and service unit suites exercise `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT` on merchant surfaces and mutation entry points.                                                                                                                                         |
+| Non-merchant mutation denial            | Controller/service suites deny `BUYER`, `FINANCE`, `ADMIN`, `MODERATOR`, `SYSTEM` and `SUPER_ADMIN`, including service entry points before database mutation.                                                                                                                                |
+| Buyer cannot use merchant surfaces      | Controller tests deny buyer list/detail access even when a store-membership fixture exists.                                                                                                                                                                                                  |
 | Buyer offer visibility                  | Service tests assert ACTIVE-store, ACTIVE-offer and available predicates and the explicit allowlisted projection; PostgreSQL integration proves DRAFT-store offers disappear from buyer list and ranked results. A new INACTIVE-store PostgreSQL scenario is added and awaits exact-head CI. |
-| Foreign merchant confidentiality        | Scope-first service and PostgreSQL tests compare foreign-organization and same-organization non-member detail responses; both use the not-found class.                                                              |
-| Organization and membership enforcement | Controller tests cover missing active organization, foreign organization, same-organization non-member and revoked/inactive membership; PostgreSQL tests cover foreign merchant, non-member and revoked membership. |
-| Analytics and trend reads               | Controller tests apply the same store organization/membership checks to list, store analytics and trend; denial cases assert protected services are not called.                                                     |
-| Privileged governance reads             | Controller tests require `catalog:offers:govern` for privileged offer list, analytics, trend and detail; negative and positive privileged-role cases are present.                                                   |
-| Authenticated actor attribution         | Controller/service tests verify proposal, pricing and governance audit attribution uses the authenticated principal rather than caller-supplied actor fields.                                                       |
-| Same-store resource references          | Service unit tests reject foreign-store price-list/warehouse references on create/update and accept same-store references; PostgreSQL integration verifies cross-store create rejection without inserting an offer. |
+| Foreign merchant confidentiality        | Scope-first service and PostgreSQL tests compare foreign-organization and same-organization non-member detail responses; both use the not-found class.                                                                                                                                       |
+| Organization and membership enforcement | Controller tests cover missing active organization, foreign organization, same-organization non-member and revoked/inactive membership; PostgreSQL tests cover foreign merchant, non-member and revoked membership.                                                                          |
+| Analytics and trend reads               | Controller tests apply the same store organization/membership checks to list, store analytics and trend; denial cases assert protected services are not called.                                                                                                                              |
+| Privileged governance reads             | Controller tests require `catalog:offers:govern` for privileged offer list, analytics, trend and detail; negative and positive privileged-role cases are present.                                                                                                                            |
+| Authenticated actor attribution         | Controller/service tests verify proposal, pricing and governance audit attribution uses the authenticated principal rather than caller-supplied actor fields.                                                                                                                                |
+| Same-store resource references          | Service unit tests reject foreign-store price-list/warehouse references on create/update and accept same-store references; PostgreSQL integration verifies cross-store create rejection without inserting an offer.                                                                          |
 
 ## 4. Test files and exact CI evidence
 
@@ -103,7 +103,6 @@ The reviewer should inspect source and tests rather than rely only on this summa
 | Final disposition                      | PENDING        |
 
 **G-001 status remains PARTIAL until this reviewer record is completed and all findings are dispositioned.**
-
 
 ## Addendum — INACTIVE-store buyer visibility test
 

@@ -1242,7 +1242,6 @@ The G-001 role/tenant acceptance coverage is mapped in [G-001 Independent Securi
 
 G-002 remains IN PROGRESS. The actual staging API/migration identities, protected read-only staging audit and reviewed least-privilege/RLS design remain unresolved. No shared database grants/default ACL, RLS, migration 0070, staging deployment/write, environment or worker changes were performed.
 
-
 ## G-001 INACTIVE-store buyer-visibility acceptance extension — 21 November 2026
 
 Added `hides buyer offers for an INACTIVE store` to `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts`. Against disposable PostgreSQL, the test sets Merchant B's store to `INACTIVE`, verifies its offers are excluded from both buyer list and ranked results while Merchant A's ACTIVE store remains visible, then restores the status in `finally`. This closes the explicit inactive-store buyer-visibility test dimension without defining merchant-management behavior for inactive stores. The test is committed but awaits exact-head PostgreSQL integration CI. G-001 remains PARTIAL pending that CI and independent security review.

@@ -110,7 +110,6 @@ The tenant-membership fixture correction is committed in `52336f7`, but CI #1266
 
 CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) passed all 10 executable jobs on exact head `b73f72e34406c1260f214610539139d0d096b2de`. API unit/coverage, real PostgreSQL integration, migration full-apply/read-only audit, Web/Admin, Flutter, E6 boundary lint, contract/codegen, build, container smoke and lint/typecheck/format all passed. k6 and protected staging release were skipped. Automated acceptance coverage is now verified; the remaining G-001 gate is an independent security review and reviewer-directed remediation, if any.
 
-
 ## G-001 INACTIVE-store buyer visibility — 21 November 2026
 
 Added a disposable-PostgreSQL integration case proving an `INACTIVE` merchant store is excluded from both buyer product-offer list and ranked-offer results, while a separate ACTIVE store remains visible. The test restores the modified fixture in `finally` and does not define merchant-management permissions for inactive stores. Exact-head CI is pending; G-001 remains PARTIAL pending verification and independent security review.
