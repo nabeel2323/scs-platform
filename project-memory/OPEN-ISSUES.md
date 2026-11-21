@@ -194,3 +194,20 @@ The immediate programme task is to complete the repository-wide implementation-g
 - G-002 remains IN PROGRESS until actual runtime identity evidence, protected read-only staging audit, complete operation/ownership matrix and reviewed design gates are satisfied.
 - PR #138 and PR #142 remain draft/unmerged. No staging deployment, shared DB mutation, migration 0070, grants/default-ACL change, RLS enablement or worker activation is authorized by the programme decision.
 - Product-scope decisions such as automatic gateway/payout remain explicit decisions, not implementation assumptions.
+
+
+## Whole-product inventory findings — 22 November 2026
+
+See [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md) for source paths and qualifications. The following current-source items are now tracked as UX-001–UX-009 in the programme gap register:
+
+- Admin order list/detail lacks an explicit, confirmed admin operational action workflow despite backend order cancellation API support; define the intended state/permission contract before adding controls.
+- Admin payments UI provides payment verification/list views but no refund-approval workflow was found, while the API exposes an admin refund approval endpoint.
+- Admin dashboard currently surfaces KPIs and pending organization updates, not recent catalog imports or pending catalog requests.
+- Admin sidebar has 33 flat navigation entries.
+- Merchant Product Studio StepOffer has a raw warehouse-ID field rather than a store-scoped selector.
+- Mobile route guards enforce merchant/driver roles, but granular permission-level UI affordances are not mapped.
+- SupportModule is empty; basic support-ticket scope needs a product decision.
+- The old nearby-offers audit claim cannot be confirmed in the inspected current catalog/offer controllers; reconcile API/contract first.
+- Complete route-level permission audit across all admin pages; do not repeat the older blanket assertion because generic ManagementPage has a configured permission gate.
+
+These are implementation candidates, not automatically verified defects or permission to expand future-phase scope.
