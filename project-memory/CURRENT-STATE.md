@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected branch head before this checkpoint reconciliation:** 148cdca4f8bef1cdeca02fc3c0fa88bd5d621052  
+**Last inspected branch head before this current-state refresh:** 48cffc5bccc9027ae1c42d5d2ba8dd34f97b0da9  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,8 +18,8 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | ------------------------------------ | ---------------------------------------------------------------------------- |
 | Repository                           | nabeel2323/scs-platform                                                      |
 | Branch                               | remediation/phase-0-1-tenant-security                                        |
-| Last inspected PR head               | 148cdca4f8bef1cdeca02fc3c0fa88bd5d621052                                     |
-| Last inspected commit                | docs(project): refresh SCS project starting point                             |
+| Last inspected PR head               | 48cffc5bccc9027ae1c42d5d2ba8dd34f97b0da9                                     |
+| Last inspected commit                | docs(ci): reconcile latest PR verification evidence                            |
 | PR #138                              | Open; draft; not merged                                                      |
 | PR base                              | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                          |
 | Latest completed CI at checkpoint    | [#1184](https://github.com/nabeel2323/scs-platform/actions/runs/44858627846) |
@@ -43,7 +43,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 - CI #1184 tested PR head fe675e76a8cace78ac2513da08118dd9c7527428 and failed only the changed-file Prettier gate for project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. ESLint reported 0 errors (311 warnings), TypeScript passed and Flutter passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped; staging and k6 were not run.
 - Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit f1cb7c7467c0fee6c829eec5fe557e3734c9c275 removed the temporary formatter and the resulting tree was checked for its absence.
 - Later helper-workflow checkpoint commits were cleaned up; the final branch tree contains no temporary formatter workflow.
-- CI #1187–#1189 were cancelled during successive helper/checkpoint commits. CI #1190 was queued on an intermediate helper commit and is not exact-head verification for the current G-001 source/test changes.
+- CI #1187–#1190 were cancelled during successive helper/checkpoint commits. No workflow run has yet been returned for the latest source/test and documentation head; the latest completed CI remains #1184, which predates the G-001 changes.
 - G-001 scope-first confidentiality implementation commits: dd52aaf (service), bca32b0 (controller), 39a0437 (controller tests), a1602bc (service tests). Focused API tests and exact-head CI remain pending.
 
 ## Historical CI #1176 failure
