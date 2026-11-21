@@ -70,7 +70,6 @@ Never promote one state to another by implication. A skipped job is not a pass; 
 - Before updating a branch ref, verify the expected current SHA and use a lease/expected-SHA check where supported.
 - If a commit or push fails, inspect branch state before retrying; do not assume the action succeeded.
 
-
 ## Buyer-facing offer data contract — 21 November 2026
 
 Buyer product-offer endpoints must return explicit allowlisted public commercial fields only. They must not expose merchant metadata, external references, actor identifiers, review details, internal price-list IDs or warehouse IDs. Merchant-management endpoints may retain their richer offer shape behind tenant and role authorization.

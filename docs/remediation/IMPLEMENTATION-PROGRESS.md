@@ -1183,7 +1183,6 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - The test marks its temporary membership INACTIVE in a `finally` block so the shared integration fixture remains deterministic for later scenarios.
 - This adds real database evidence for the owner/staff distinction; controller role coverage remains complementary. Exact-head API/PostgreSQL CI is still pending.
 
-
 ## G-001 buyer projection and create-reference hardening — 21 November 2026
 
 The buyer-facing product offer endpoint now returns an explicit allowlist of public commercial fields instead of full merchant-offer rows. It excludes merchant metadata, external references, proposer/reviewer identifiers and timestamps, review details, price-list IDs and warehouse IDs. The ranked buyer endpoint no longer returns the internal price-list reference.

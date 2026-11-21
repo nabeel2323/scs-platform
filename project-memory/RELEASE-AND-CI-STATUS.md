@@ -143,7 +143,6 @@ For every run, record:
 - Latest inspected source/test head before this status refresh: `bf625aefd6faf47c60fd1bf01b1c23148de66ca0`.
 - Exact-head API/PostgreSQL CI remains pending. No shared database or staging mutation was performed.
 
-
 ## G-001 buyer projection/reference fix — verification pending — 21 November 2026
 
 The previous exact-head run #1252 on parent commit `ab3a2af` had passed lint, typecheck, changed-file formatting, Flutter, Web/Admin, boundary lint and full isolated migration/read-only audit. API unit/coverage and PostgreSQL integration were still running when this follow-up commit superseded that head; those partial results are not a pass for the new changes. Verify all required jobs on the new PR head before advancing G-001. Vercel preview rate-limit failures remain external to application CI. PR #138 stays open and draft; no staging release or shared-database operation was performed.

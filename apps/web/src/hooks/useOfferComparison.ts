@@ -54,9 +54,9 @@ export function useOfferComparison(
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   const toggleSort = useCallback((key: OfferSortKey) => {
-    setSortKey(prev => {
+    setSortKey((prev) => {
       if (prev === key) {
-        setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
         return key;
       }
       setSortDir(key === 'price' ? 'asc' : 'asc');
@@ -64,13 +64,10 @@ export function useOfferComparison(
     });
   }, []);
 
-  const rankedByOffer = useMemo(
-    () => new Map(ranked.map(r => [r.offerId, r])),
-    [ranked],
-  );
+  const rankedByOffer = useMemo(() => new Map(ranked.map((r) => [r.offerId, r])), [ranked]);
 
   const { competing, currentSellerRow } = useMemo(() => {
-    const activeOffers = offers.filter(o => o.status === 'ACTIVE');
+    const activeOffers = offers.filter((o) => o.status === 'ACTIVE');
     let currentSellerRow: OfferComparisonRow | null = null;
     const competing: OfferComparisonRow[] = [];
 

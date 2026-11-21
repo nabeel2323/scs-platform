@@ -208,10 +208,7 @@ describe('CatalogOfferService — create-time store reference ownership (G-001)'
     });
 
     await expect(
-      svc.createOffer(
-        { storeId: 's1', productId: 'p1', warehouseId: 'foreign-warehouse' },
-        caller,
-      ),
+      svc.createOffer({ storeId: 's1', productId: 'p1', warehouseId: 'foreign-warehouse' }, caller),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(inserted).toHaveLength(0);
   });
