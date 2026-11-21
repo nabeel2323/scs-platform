@@ -30,6 +30,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
 - [Remediation documentation directory](../docs/remediation/) — detailed audits, database access evidence and finding-specific records.
 - [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) — programme phases, evidence-backed implementation gaps, statuses and completion rules.
+- [Whole-Product Implementation Inventory](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md) — source-backed repository/module/screen/API/database/worker inventory and confirmed UX/workflow gaps.
 - [Repository README](../README.md) — architecture, development setup and documentation index.
 - [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) — active draft remediation PR.
 
@@ -108,3 +109,10 @@ The user approved a revised project-wide sequence: (1) baseline/gap mapping, (2)
 During implementation, keep checks lightweight and targeted rather than repeatedly running the full suite. Comprehensive unit/API/PostgreSQL/migration/tenant-security/concurrency/web-admin-mobile E2E/performance testing is reserved for the dedicated testing phase. This does not permit knowingly deferring a concrete security or correctness defect. Keep the existing G-001/G-002 review, staging, database and release gates intact.
 
 Use the status vocabulary in the gap register: IMPLEMENTATION_PENDING, IMPLEMENTATION_IN_PROGRESS, IMPLEMENTED, INTEGRATION_PENDING, TESTING_PENDING, VERIFIED, BLOCKED and DEFERRED_BY_DECISION. Update this programme register and the authoritative finding tracker together when applicable.
+
+
+## MAP-001 inventory checkpoint — 22 November 2026
+
+The initial static whole-product inventory is recorded in [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md). It inspected the recursive Git tree and selected source files at branch head `2cca47aa34abd1a014ea16217cfee204c9e9f803`: 1,625 tracked files, 20 API modules, 49 web routes, 56 admin routes, 32 Flutter screens, 25 module schema files, 71 SQL migrations, 152 API unit test files and 82 API integration test files. This is not a complete route/permission/database ownership audit and not test verification.
+
+Confirmed current-source UX candidates are now listed in the gap register: Admin order actions, refund approval UI, dashboard import/catalog-request widgets, flat 33-item admin navigation, Product Studio offer-step UX, mobile permission-level affordances, empty support-ticket module (scope decision needed), nearby-offers API/UI discrepancy, and the full Admin route permission audit. Older September UI audit statements were corrected where current source disproves them; see the inventory for details.
