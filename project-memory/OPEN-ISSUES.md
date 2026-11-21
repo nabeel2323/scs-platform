@@ -71,36 +71,29 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 5. Continue G-002 read-only identity/schema/access design evidence only; wait for authorized protected staging audit.
 6. Keep the PR draft and all release/database restrictions intact.
 
-
 ## G-001 confidentiality follow-up — 21 November 2026
 
 The merchant detail and mutation paths now normalize unknown, foreign-organization and same-organization non-member offer IDs to the same 404 response after scope checks. The focused tests and exact-head CI are not yet verified. Remaining acceptance work includes the store lifecycle/inactive-store policy, complete analytics/trend matrix and independent review.
-
 
 ### G-001 inactive-store buyer visibility — 21 November 2026
 
 Buyer product offer lists and ranked seller results now require an ACTIVE owning store. DRAFT stores can still manage offers, but buyers cannot discover those offers before activation. Unit coverage is added; exact-head CI remains pending.
 
-
 ### G-001 live continuation — 21 November 2026
 
 Controller regression coverage now includes foreign-organization offer-list denial, missing-active-organization denial, and revoked/inactive-membership denial on analytics, with assertions that the offer service is not called. The source test increment is committed, but exact-head GitHub Actions verification is pending. Vercel web/admin status contexts currently fail due to external build-rate limits and are not application test results. Continue remaining store lifecycle/service acceptance; G-001 remains PARTIAL and PR #138 remains draft.
-
 
 ### G-001 store lifecycle and tenant-denial matrix follow-up — 21 November 2026
 
 The controller suite now explicitly denies foreign-organization offer-list access, missing-active-organization reads, and revoked/inactive-member analytics access before calling the offer service. It also confirms active members retain merchant offer-management access for DRAFT stores, while buyer discovery remains limited to ACTIVE stores. No SUSPENDED-store behavior was inferred. Exact-head CI and remaining service/HTTP acceptance evidence are pending; G-001 remains PARTIAL.
 
-
 ### G-001 PostgreSQL buyer-visibility fixture correction — 21 November 2026
 
 Catalog lifecycle integration stores are now explicitly ACTIVE for buyer-discovery scenarios, avoiding accidental dependence on the schema's DRAFT default. A real PostgreSQL regression transitions one merchant store to DRAFT and verifies exclusion from both buyer offer list and ranked results while preserving the other ACTIVE store, then restores status. Exact-head CI is pending; this is not yet verified evidence.
 
-
 ### G-001 PostgreSQL detail confidentiality and revoked membership
 
 The disposable PostgreSQL catalog lifecycle suite now tests scope-first merchant offer detail against a foreign-organization merchant and a same-organization non-member, expecting the same not-found class. It also revokes an active store membership, verifies detail access is denied, and restores the fixture. The suite additionally verifies DRAFT stores are excluded from both buyer offer list and ranked results. Exact-head CI is pending; G-001 remains PARTIAL.
-
 
 ### G-001 merchant-staff service acceptance
 
