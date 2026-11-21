@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected PR head before this checkpoint-documentation commit:** f7f3ff6837f67f17cc00d5129a20f50e608bf3b6  
+**Last inspected formatted-tree commit before this checkpoint-documentation commit:** 2d416c99700de8b511a7c376085a107cc24a854c  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -45,7 +45,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 - Formatter cleanup commit [2776f97](https://github.com/nabeel2323/scs-platform/commit/2776f97e902f7569afdc08ba75db8109238e9fcf) removed the temporary .github/workflows/format-fix.yml; the resulting tree was checked and the helper was absent.
 - CI #1179 on the formatter cleanup commit was cancelled when the subsequent app-authored commit arrived; it is not verification.
 - CI #1178 targeted the pre-format input commit ea77cbb3ff68ba01c94c5fb7ff7bfb7920a8cef9 and failed; it is not exact-head evidence for the formatted tree.
-- CI #1180 completed with failure on f7f3ff6837f67f17cc00d5129a20f50e608bf3b6. Lint had 0 errors (311 warnings), typecheck succeeded and Flutter passed. Prettier flagged docs/remediation/IMPLEMENTATION-PROGRESS.md, project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md; dependent jobs were skipped. Formatter run #15 is being used to correct these Markdown-only formatting issues. Inspect the next exact-head CI run after formatter cleanup and the subsequent app-authored checkpoint commit.
+- CI #1180 completed with failure on f7f3ff6837f67f17cc00d5129a20f50e608bf3b6. Lint had 0 errors (311 warnings), typecheck succeeded and Flutter passed. Prettier flagged docs/remediation/IMPLEMENTATION-PROGRESS.md, project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md; dependent jobs were skipped. Formatter run #15 completed successfully and formatted the three flagged Markdown files. Cleanup commit 2d416c99700de8b511a7c376085a107cc24a854c removed the helper workflow; the resulting tree was checked and the helper is absent. CI #1183 on the cleanup commit has action_required with no jobs; CI #1182 is on the pre-format helper commit and is not verification of the formatted tree. A new app-authored checkpoint commit is being created to trigger full CI on the formatted state.
 
 ## Historical CI #1176 failure
 
@@ -53,7 +53,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Complete formatter run #15 for the three Markdown files flagged by CI #1180, confirm the helper workflow removes itself, then trigger and inspect a fresh exact-head CI run.
+1. Inspect the fresh exact-head CI run triggered by this app-authored checkpoint commit. Confirm its SHA and all jobs; do not treat #1182 or #1183 as successful verification.
 2. If formatting or other gates fail, fix related issues in one cohesive commit with corresponding documentation updates.
 3. Once exact-head CI passes, continue G-001 service/controller tenant acceptance work and prepare the independent-review package.
 4. Keep G-001 PARTIAL until an independent reviewer records findings and the full acceptance evidence is complete.
