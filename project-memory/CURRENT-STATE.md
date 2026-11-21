@@ -79,3 +79,12 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Exact-head GitHub Actions workflow lookup returned no associated runs. Combined status contains two Vercel failures, both targeting the external build-rate-limit page. No application test failure is reported by those Vercel contexts, but they are not green checks. GitHub Actions exact-head verification remains pending.
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
 - Next: complete remaining G-001 lifecycle/service acceptance and obtain exact-head API + integration CI. Independent review remains separate. All database/staging/deployment restrictions remain unchanged.
+
+
+## Latest continuation checkpoint — 21 November 2026
+
+- Latest branch commit before this checkpoint update: `e814f871b2b027c5c44ff614dfcac66eaa06c56e`.
+- G-001 controller tests now cover foreign-organization offer-list denial, missing active organization, revoked/inactive membership on analytics, and merchant management of DRAFT stores. The DRAFT-store test preserves the documented distinction between merchant management and buyer visibility; no SUSPENDED-store policy was inferred.
+- Test-source commits: `ca641eb2a73bd1d3da27700e9a85c6ec2dfe0dad` and `9dcd87bd688d3d7f7bcccaad4660d0976e4e848a`. Progress tracker and project-memory work log were synchronized.
+- Exact-head CI remains unverified; prior Vercel contexts were external build-rate-limit failures. Obtain a fresh Actions result before considering these tests validated.
+- Remaining G-001 work: service/integration coverage for store membership revocation and full buyer/foreign-merchant/admin HTTP behavior, then independent security review. G-001 remains PARTIAL. G-002 remains IN PROGRESS. PR #138 remains draft.
