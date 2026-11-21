@@ -66,7 +66,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. CI #1266 on 52336f7 passed Flutter and lint/typecheck (zero errors) but failed the changed-file Prettier gate on nine files; dependent tests were skipped. The test-only correction is committed: five PostgreSQL suites now register `storeMembers` in their Drizzle schema maps and use ACTIVE stores for buyer-discovery scenarios. The immediate next step is repository-locked formatting, followed by exact-head CI to verify the actual tests. Preserve the production authorization guard.
+See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. Live GitHub verification on 21 November 2026 confirms branch head `b73f72e34406c1260f214610539139d0d096b2de`, PR #138 open/draft, and exact-head CI #1268 successful. All 10 executable CI jobs passed, including API unit/coverage, real PostgreSQL integration, migration full-apply/read-only audit, Web/Admin, Flutter, boundary lint, contracts/codegen, build and container smoke. k6 and protected staging release were skipped. The five PostgreSQL fixture corrections are now CI-verified. G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS. The next work is to prepare the independent G-001 review packet and continue G-002 only within its read-only/authorized evidence boundary.
 
 ## Safety reminder
 
@@ -78,7 +78,7 @@ The buyer-facing product offer endpoint now returns an explicit allowlist of pub
 
 Offer creation now enforces the same-store ownership invariant for optional price-list and warehouse references, matching the existing pricing-update behavior. Unit tests cover foreign-store denial, same-store acceptance and the public projection. PostgreSQL integration tests cover cross-store reference rejection without inserting an offer and verify that private offer fields are absent from buyer and ranked responses.
 
-The implementation and documentation are synchronized in this change. Exact-head CI must verify the resulting commit before G-001 status changes. G-001 remains PARTIAL pending full CI, remaining role/tenant acceptance and independent security review. G-002 remains IN PROGRESS. No shared database, staging, migration, grants, RLS, deployment or worker changes were performed.
+The implementation and documentation are synchronized. Exact-head CI #1268 on `b73f72e34406c1260f214610539139d0d096b2de` passed API unit/coverage and PostgreSQL integration, plus all other executable CI jobs. The current controller, service and PostgreSQL tests cover the recorded owner/staff, buyer, foreign-merchant, membership, store-visibility, governance-role, public-projection and same-store-reference cases. G-001 remains PARTIAL solely pending an independent security review and any reviewer-directed remediation. G-002 remains IN PROGRESS. No shared database, staging, migration, grants, RLS, deployment or worker changes were performed.
 
 ## CI #1259 regression analysis and correction — 21 November 2026
 

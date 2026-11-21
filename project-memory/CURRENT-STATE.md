@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected branch head before this current-state refresh:** 52336f751dc2558b10834940034833b4573c5ca4
+**Live inspected branch head:** `b73f72e34406c1260f214610539139d0d096b2de`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | --------------------------------- | ----------------------------------------------------------------------------------------- |
 | Repository                        | nabeel2323/scs-platform                                                                   |
 | Branch                            | remediation/phase-0-1-tenant-security                                                     |
-| Last inspected PR head            | 52336f751dc2558b10834940034833b4573c5ca4                                                  |
-| Last inspected commit             | test(security): repair tenant membership integration fixtures                             |
+| Live branch head                  | `b73f72e34406c1260f214610539139d0d096b2de`                                                  |
+| Latest commit                     | `style: apply repository Prettier to tenant security fixtures`                            |
 | PR #138                           | Open; draft; not merged                                                                   |
-| PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                                       |
-| Latest completed CI at checkpoint | #1266 (Prettier gate failed; dependent jobs skipped)                                      |
-| CI #1266 tested SHA               | 52336f751dc2558b10834940034833b4573c5ca4                                                  |
-| CI #1266 status                   | Flutter and lint/typecheck passed; changed-file Prettier failed on 9 files; tests skipped |
+| PR base                           | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                                   |
+| Latest exact-head CI               | #1268 — success                                                                            |
+| CI #1268 tested SHA               | `b73f72e34406c1260f214610539139d0d096b2de`                                                  |
+| CI #1268 status                   | All 10 executable jobs passed; k6 and protected staging release skipped                   |
 
 ## Current remediation status
 
@@ -52,11 +52,10 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Verify the exact current PR head with a fresh CI run. The latest completed CI (#1184) predates the new G-001 code and is not verification.
-2. Confirm the focused offer service/controller unit tests pass, then inspect downstream integration, migration, build, boundary and contract jobs on the same exact SHA.
-3. Complete remaining G-001 acceptance dimensions: owner/staff, revoked membership, store lifecycle/inactive-store policy, buyer, foreign merchant, analytics/trend and privileged-admin behavior.
-4. Prepare an independent security-review package. Keep G-001 PARTIAL until the complete acceptance evidence and reviewer findings are recorded.
-5. Continue G-002 only within the read-only/authorized evidence boundary in DECISIONS-AND-CONSTRAINTS.md.
+1. CI #1268 now verifies the exact current branch head: API unit/coverage, PostgreSQL integration and all other executable gates passed.
+2. The G-001 acceptance matrix is implemented and CI-verified across controller, service and PostgreSQL tests; see `docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md` for the evidence map and reviewer checklist.
+3. Obtain an independent security review from the user or a separately appointed qualified reviewer. Keep G-001 PARTIAL until the reviewer records findings and any required remediation is verified.
+4. Continue G-002 only within the read-only/authorized evidence boundary in DECISIONS-AND-CONSTRAINTS.md; actual staging identities and protected staging audit remain gated.
 
 ## Safety reminder
 
@@ -134,3 +133,13 @@ The current grouped source correction adds the missing model to all five test sc
 ## Exact-head CI #1266 formatting gate — 21 November 2026
 
 CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and completed lint/typecheck with zero errors, but failed changed-file Prettier on nine files. All dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, contract, container and build jobs were skipped. The five PostgreSQL fixture corrections are committed, but this run did not execute them. Repository-locked formatting is the immediate task; exact-head CI after the formatting commit must verify the test changes. G-001 remains PARTIAL and PR #138 remains draft.
+
+
+## Live checkpoint — exact-head CI #1268 — 21 November 2026
+
+- GitHub branch head: `b73f72e34406c1260f214610539139d0d096b2de`; latest commit applies repository Prettier to the tenant-security fixtures and handover docs.
+- PR #138 is open, draft and unmerged; base is `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) passed all 10 executable jobs on the exact head: lint/typecheck/format, API unit/coverage, PostgreSQL integration, Web/Admin, migration full-apply/read-only DB audit, E6 boundary lint, Flutter, contract/codegen, build and container smoke. k6 and protected staging release were skipped.
+- The five `storeMembers` Drizzle schema-map corrections and ACTIVE buyer-discovery fixtures are now verified by API unit/coverage and real PostgreSQL integration. Production authorization guards were not relaxed.
+- G-001 remains PARTIAL pending independent security review; G-002 remains IN PROGRESS. No staging deployment, shared DB mutation, migration 0070, grants/default ACL, RLS, worker activation or environment change occurred.
+- Next: independent G-001 review using the review packet, then continue G-002 read-only evidence and identity/access design within existing approval restrictions.

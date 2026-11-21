@@ -34,10 +34,10 @@ Implemented in source and controller tests:
 
 Remaining:
 
-- Exact-head CI for scope-first offer confidentiality and ACTIVE-store buyer visibility, then complete the remaining tenant/role acceptance matrix.
-- Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence, including service-level tenant ownership and active membership.
-- Independent security review. The implementation author must not label their own work independently reviewed.
-- Record reviewer findings, remediate any issues, and update the evidence register. Keep G-001 PARTIAL until then.
+- Exact-head CI #1268 passed on `b73f72e34406c1260f214610539139d0d096b2de`, including API unit/coverage and real PostgreSQL integration.
+- The owner/staff/buyer/foreign-merchant/platform-admin matrix, membership revocation, DRAFT-store buyer exclusion, scope-first detail confidentiality, authenticated actor attribution, buyer allowlisting and same-store reference checks are implemented and CI-verified; see the G-001 review packet.
+- Obtain independent security review. The implementation author must not label their own work independently reviewed.
+- Record reviewer findings, remediate any issues and update the evidence register. Keep G-001 PARTIAL until the independent review is recorded.
 
 ### 2. G-002 — P1 database access and RLS
 
@@ -105,3 +105,8 @@ The latest exact-head CI exposed test-harness omissions rather than a production
 ## G-001 — CI #1266 formatting-only blocker — 21 November 2026
 
 The tenant-membership fixture correction is committed in `52336f7`, but CI #1266 stopped at changed-file Prettier. Lint/typecheck passed with zero errors and Flutter passed; dependent API, PostgreSQL, migration, Web/Admin, boundary, contract, container and build jobs were skipped. Format the nine flagged files using the repository-locked formatter, then obtain exact-head CI before claiming the fixture correction verified.
+
+
+## G-001 exact-head verification — 21 November 2026
+
+CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) passed all 10 executable jobs on exact head `b73f72e34406c1260f214610539139d0d096b2de`. API unit/coverage, real PostgreSQL integration, migration full-apply/read-only audit, Web/Admin, Flutter, E6 boundary lint, contract/codegen, build, container smoke and lint/typecheck/format all passed. k6 and protected staging release were skipped. Automated acceptance coverage is now verified; the remaining G-001 gate is an independent security review and reviewer-directed remediation, if any.

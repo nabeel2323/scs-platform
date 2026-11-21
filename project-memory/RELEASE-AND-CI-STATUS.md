@@ -175,3 +175,15 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Interpretation:** no functional test result for the fixture correction was produced by this run.
 - **Next:** repository-locked formatting of the changed files, then exact-head CI.
 - **Release state:** PR #138 remains open/draft; no staging dispatch, deployment or shared database mutation occurred.
+
+
+## CI #1268 — exact-head full verification — 21 November 2026
+
+- **Run:** [GitHub Actions CI #1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784).
+- **Exact tested SHA:** `b73f72e34406c1260f214610539139d0d096b2de` (`style: apply repository Prettier to tenant security fixtures`).
+- **Branch:** `remediation/phase-0-1-tenant-security`.
+- **PR:** #138, open, draft, not merged; base `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- **Passed (10 jobs):** Lint & Typecheck (including changed-file Prettier), API Unit Tests + Coverage Gates, Integration Tests (disposable PostgreSQL), Web & Admin App Tests, Migration Full Apply (including read-only DB access audit and public-schema hardening), Boundary Lint (E6), Mobile (Flutter analyze/tests), Contract Spec & Codegen, Build, and Container Build & Smoke Test.
+- **Skipped:** k6 Smoke Test and Trigger Staging Release. These are not passes and do not imply staging approval or runtime verification.
+- **Interpretation:** the five `storeMembers` test schema-map corrections and ACTIVE buyer-discovery fixtures now pass both API unit/coverage and real PostgreSQL integration on the exact head. Production authorization code was not weakened to satisfy the fixtures.
+- **Security status:** G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS. No shared database grants/default ACL, RLS, migration 0070, staging configuration, deployment, worker activation or staging business writes were performed.

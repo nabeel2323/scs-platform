@@ -16,13 +16,17 @@ Implemented:
 - Governance-read permission checks for ADMIN, MODERATOR, SYSTEM and SUPER_ADMIN.
 - Controller-level positive/negative role regression coverage.
 
+Verified in CI #1268 on exact head `b73f72e34406c1260f214610539139d0d096b2de`:
+
+- API unit/coverage and real PostgreSQL integration passed, together with every other executable CI job.
+- Controller/service/PostgreSQL tests cover supported merchant roles, buyer denial from merchant surfaces, foreign-organization and same-organization non-member confidentiality, missing active organization, revoked membership, DRAFT-store buyer exclusion, governance-permission reads, authenticated actor attribution, buyer-field allowlisting and same-store price-list/warehouse references.
+- Evidence map and review checklist: [G-001 Independent Security Review Packet](../docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md).
+
 Remaining:
 
-- Verify scope-first offer confidentiality and ACTIVE-store buyer visibility with focused tests and exact-head CI.
-- Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix across controller and service boundaries.
-- Verify organization ownership, active store membership, actor attribution and unauthorized detail/analytics disclosure behavior.
-- Obtain independent security review from the user or a separately appointed qualified reviewer.
-- Record review findings, remediate them and attach evidence to the authoritative tracker.
+- Obtain independent security review from the user or a separately appointed qualified reviewer; the implementation author cannot self-certify it.
+- Record reviewer findings, remediate any issues, and attach the review outcome to the authoritative tracker.
+- Do not infer a SUSPENDED-store policy beyond the explicit ACTIVE-only buyer visibility predicate.
 
 The implementation author must not mark their own work independently reviewed.
 
@@ -64,12 +68,9 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 
 ## Next action order
 
-1. Verify the new scope-first offer confidentiality changes with focused API tests and exact-head CI.
-2. Complete the remaining G-001 acceptance matrix, including owner/staff, revoked membership, store lifecycle, buyer, foreign merchant, analytics/trend and privileged-admin behavior.
-3. Prepare the independent security-review package; keep G-001 PARTIAL until review evidence is recorded.
-4. Continue G-002 only within the documented read-only database-evidence boundary.
-5. Continue G-002 read-only identity/schema/access design evidence only; wait for authorized protected staging audit.
-6. Keep the PR draft and all release/database restrictions intact.
+1. Obtain independent security review of G-001 using the review packet; record reviewer identity, date, scope, findings and disposition. Keep G-001 PARTIAL until this is complete.
+2. Continue G-002 read-only identity/schema/access design evidence; wait for authorized protected staging audit and do not mutate shared DB state.
+3. Keep PR #138 draft and all release/database restrictions intact.
 
 ## G-001 confidentiality follow-up — 21 November 2026
 
@@ -126,3 +127,8 @@ G-001 remains PARTIAL pending verified acceptance evidence and independent secur
 ## CI #1266 formatting gate — 21 November 2026
 
 CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and lint/typecheck with zero errors, but failed Prettier on nine changed files. API unit/coverage, PostgreSQL integration and all dependent gates were skipped; this run provides no test verification for the fixture correction. Apply the repository-locked formatter and rerun exact-head CI. The production authorization code remains unchanged.
+
+
+## Exact-head CI #1268 — 21 November 2026
+
+CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) passed all 10 executable jobs on current branch head `b73f72e34406c1260f214610539139d0d096b2de`. API unit/coverage and PostgreSQL integration both passed, verifying the previously corrected tenant-membership test fixtures. k6 and protected staging release were skipped. G-001 remains PARTIAL only pending independent security review; G-002 remains IN PROGRESS with actual staging API/migration identities, protected read-only staging audit and reviewed least-privilege/RLS design still outstanding.
