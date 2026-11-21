@@ -1122,3 +1122,11 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - The formatter removed its temporary workflow; verified the resulting tree does not contain .github/workflows/format-fix.yml.
 - CI #1179 on cleanup commit 2776f97e902f7569afdc08ba75db8109238e9fcf returned action_required with no jobs; CI #1178 is on the pre-format input commit. Neither is accepted as exact-head verification of the formatted tree.
 - Next app-authored checkpoint commit must trigger full CI on the formatted tree. G-001 remains PARTIAL; G-002 remains IN PROGRESS. PR #138 remains open and draft; all staging/database safety restrictions remain unchanged.
+
+ 
+### G-001 offer existence confidentiality hardening — 21 November 2026
+
+- Added a scope-first merchant offer service boundary: owning-organization and ACTIVE store-membership checks occur before full offer detail is loaded.
+- Unknown, foreign-organization and same-organization non-member offer identifiers now share the same 404 response on merchant detail, proposal, pricing-update and withdrawal paths.
+- Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and separation of permission-gated governance reads.
+- Source and tests are committed. Focused API unit tests and exact-head CI remain pending; G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
