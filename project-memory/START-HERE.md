@@ -126,3 +126,13 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 - The earlier source CI #44954371615 on `741a09f68721898a5bed6601bc3bc636867c78c2` and PR #142 CI #44953735602 on `dddff20c170737dc4694008bb807b2b90e177f77` remain historical exact-SHA evidence only.
 - No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
 - Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
+
+
+## Latest continuation checkpoint — 22 November 2026
+
+- Active repository: `nabeel2323/scs-platform`; branch `remediation/phase-0-1-tenant-security`.
+- Latest implementation commit: `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1` (Admin refund request queue and approval UX). PR #138 is open/draft/unmerged at this head; PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- Added permission-guarded `GET /admin/refunds` (only REQUESTED, newest-first, limit 100), Admin Payments Refund Requests tab, explicit approval confirmation, API helper/type, and a controller delegation test. See UX-002 in [IMPLEMENTATION-GAP-REGISTER.md](./IMPLEMENTATION-GAP-REGISTER.md).
+- Exact-head GitHub Actions lookup for `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1` returned no workflow run. Combined statuses show Vercel web/admin build-rate-limit failures only. The change is NOT CI-VERIFIED.
+- Continue with MAP-001 route/permission/operation mapping, then admin order operations and remaining grouped UX gaps. Keep the full test campaign in Phase 3.
+- No merge, deployment, staging write, live DB change, migration, grant/default-ACL change, RLS enablement, worker activation or release authorization.

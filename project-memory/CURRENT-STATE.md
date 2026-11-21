@@ -229,3 +229,11 @@ The user approved the Implementation Completion Program and requested that this 
 - The earlier source CI #44954371615 on `741a09f68721898a5bed6601bc3bc636867c78c2` and PR #142 CI #44953735602 on `dddff20c170737dc4694008bb807b2b90e177f77` remain historical exact-SHA evidence only.
 - No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
 - Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
+
+
+## Live continuation — 22 November 2026
+
+- Current PR #138 head: `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; PR remains open and draft. PR #142 remains open/draft at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- Implemented UX-002 Admin refund queue: API list endpoint protected by `admin:refunds:approve`, REQUESTED-only newest-first queue capped at 100, Admin Payments tab and explicit confirmation before invoking existing approval. Focused controller delegation test added. Comprehensive testing remains pending.
+- Exact-head GitHub Actions lookup for the current source commit returned no run. Vercel web/admin statuses are external build-rate-limit failures, not application test evidence. No CI verification is claimed.
+- Next: finish API route-to-contract/permission mapping and admin/mobile route matrix; map order-operation state machine/authorization before implementing order actions. No safety gates changed.

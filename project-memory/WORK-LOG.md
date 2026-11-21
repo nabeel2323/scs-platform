@@ -253,3 +253,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 
 - Follow-up commit `f477755cccfdecab8673fdd047935e42e0e85c9c` added the permission-guarded refund queue API, refund request tab, and a focused controller delegation test. Exact-head workflow lookup returned no GitHub Actions run for that commit; combined statuses only showed the Vercel build-rate-limit failures. Do not claim CI verification.
 - This follow-up corrects the payments screen layout and initial/tab visibility for users who have refund-approval permission without payment-read permission. The new head must receive its own exact-SHA verification.
+
+
+## 22 November 2026 — branch and CI checkpoint after refund queue
+
+- Live PR #138 head is `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`, open/draft/unmerged; PR #142 is still open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- GitHub Actions exact-head lookup returned no run for `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; combined status only reported Vercel web/admin build-rate-limit failures. Do not claim CI verification.
+- UX-002 is implemented: requested-refund API queue, Admin Payments Refund Requests tab, explicit confirmation, API types/helper and focused controller delegation test. Full tests remain queued for Phase 3.
+- Next implementation target: finish route-to-contract/permission and operation mapping, then safely scope order operations. Preserve all no-merge/no-deploy/database/staging/worker restrictions.
