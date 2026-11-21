@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected formatted-tree commit before this checkpoint-documentation commit:** 2d416c99700de8b511a7c376085a107cc24a854c  
+**Last inspected branch head before this checkpoint reconciliation:** 148cdca4f8bef1cdeca02fc3c0fa88bd5d621052  
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,19 +18,19 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | ------------------------------------ | ---------------------------------------------------------------------------- |
 | Repository                           | nabeel2323/scs-platform                                                      |
 | Branch                               | remediation/phase-0-1-tenant-security                                        |
-| Last inspected PR head               | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6                                     |
-| Last inspected commit                | docs(project): reconcile handover checkpoint after formatting                |
+| Last inspected PR head               | 148cdca4f8bef1cdeca02fc3c0fa88bd5d621052                                     |
+| Last inspected commit                | docs(project): refresh SCS project starting point                             |
 | PR #138                              | Open; draft; not merged                                                      |
 | PR base                              | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                          |
-| Latest app-authored CI at checkpoint | [#1180](https://github.com/nabeel2323/scs-platform/actions/runs/44858308974) |
-| CI #1180 tested SHA                  | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6                                     |
-| CI #1180 status                      | Failed at changed-file Prettier gate; not a full verification                |
+| Latest completed CI at checkpoint    | [#1184](https://github.com/nabeel2323/scs-platform/actions/runs/44858627846) |
+| CI #1184 tested SHA                  | fe675e76a8cace78ac2513da08118dd9c7527428                                     |
+| CI #1184 status                      | Failed at changed-file Prettier gate; not a full verification                |
 
 ## Current remediation status
 
 | Area                                 | Status                   | Meaning                                                                                                                                                                            |
 | ------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G-001 — merchant offer authorization | **PARTIAL**              | Merchant mutation role gate and expanded controller role tests are implemented. Complete tenant/role acceptance evidence and independent security review remain.                   |
+| G-001 — merchant offer authorization | **PARTIAL**              | Merchant role gates, tenant checks and scope-first offer-existence confidentiality are implemented with focused regression tests. Exact-head CI, remaining acceptance evidence and independent review remain. |
 | G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
 | Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                              |
 | Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                        |
@@ -40,12 +40,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Formatter and verification evidence
 
-- [One-time formatter run #14](https://github.com/nabeel2323/scs-platform/actions/runs/44858112060) succeeded on formatter input commit ea77cbb3ff68ba01c94c5fb7ff7bfb7920a8cef9.
-- It formatted the new project-memory Markdown, README, remediation plan/progress tracker and G-001 controller test.
-- Formatter cleanup commit [2776f97](https://github.com/nabeel2323/scs-platform/commit/2776f97e902f7569afdc08ba75db8109238e9fcf) removed the temporary .github/workflows/format-fix.yml; the resulting tree was checked and the helper was absent.
-- CI #1179 on the formatter cleanup commit was cancelled when the subsequent app-authored commit arrived; it is not verification.
-- CI #1178 targeted the pre-format input commit ea77cbb3ff68ba01c94c5fb7ff7bfb7920a8cef9 and failed; it is not exact-head evidence for the formatted tree.
-- CI #1180 completed with failure on f7f3ff6837f67f17cc00d5129a20f50e608bf3b6. Lint had 0 errors (311 warnings), typecheck succeeded and Flutter passed. Prettier flagged docs/remediation/IMPLEMENTATION-PROGRESS.md, project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md; dependent jobs were skipped. Formatter run #15 completed successfully and formatted the three flagged Markdown files. Cleanup commit 2d416c99700de8b511a7c376085a107cc24a854c removed the helper workflow; the resulting tree was checked and the helper is absent. CI #1183 on the cleanup commit has action_required with no jobs; CI #1182 is on the pre-format helper commit and is not verification of the formatted tree. A new app-authored checkpoint commit is being created to trigger full CI on the formatted state.
+- CI #1184 tested PR head fe675e76a8cace78ac2513da08118dd9c7527428 and failed only the changed-file Prettier gate for project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. ESLint reported 0 errors (311 warnings), TypeScript passed and Flutter passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped; staging and k6 were not run.
+- Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit f1cb7c7467c0fee6c829eec5fe557e3734c9c275 removed the temporary formatter and the resulting tree was checked for its absence.
+- Later helper-workflow checkpoint commits were cleaned up; the final branch tree contains no temporary formatter workflow.
+- CI #1187–#1189 were cancelled during successive helper/checkpoint commits. CI #1190 was queued on an intermediate helper commit and is not exact-head verification for the current G-001 source/test changes.
+- G-001 scope-first confidentiality implementation commits: dd52aaf (service), bca32b0 (controller), 39a0437 (controller tests), a1602bc (service tests). Focused API tests and exact-head CI remain pending.
 
 ## Historical CI #1176 failure
 
@@ -53,11 +52,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Inspect the fresh exact-head CI run triggered by this app-authored checkpoint commit. Confirm its SHA and all jobs; do not treat #1182 or #1183 as successful verification.
-2. If formatting or other gates fail, fix related issues in one cohesive commit with corresponding documentation updates.
-3. Once exact-head CI passes, continue G-001 service/controller tenant acceptance work and prepare the independent-review package.
-4. Keep G-001 PARTIAL until an independent reviewer records findings and the full acceptance evidence is complete.
-5. Continue G-002 only within the read-only/authorized evidence boundary in [DECISIONS-AND-CONSTRAINTS.md](./DECISIONS-AND-CONSTRAINTS.md).
+1. Verify the exact current PR head with a fresh CI run. The latest completed CI (#1184) predates the new G-001 code and is not verification.
+2. Confirm the focused offer service/controller unit tests pass, then inspect downstream integration, migration, build, boundary and contract jobs on the same exact SHA.
+3. Complete remaining G-001 acceptance dimensions: owner/staff, revoked membership, store lifecycle/inactive-store policy, buyer, foreign merchant, analytics/trend and privileged-admin behavior.
+4. Prepare an independent security-review package. Keep G-001 PARTIAL until the complete acceptance evidence and reviewer findings are recorded.
+5. Continue G-002 only within the read-only/authorized evidence boundary in DECISIONS-AND-CONSTRAINTS.md.
 
 ## Safety reminder
 
