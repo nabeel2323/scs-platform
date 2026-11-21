@@ -22,7 +22,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Latest commit        | `style(docs): format G-001 verification handover`                       |
 | PR #138              | Open; draft; not merged                                                 |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                 |
-| Latest exact-head CI | #1280 — success on source SHA `ffd3961c...`                              |
+| Latest exact-head CI | #1280 — success on source SHA `ffd3961c...`                             |
 | CI #1268 tested SHA  | `b73f72e34406c1260f214610539139d0d096b2de`                              |
 | CI #1280 status      | All 10 executable jobs passed; k6 and protected staging release skipped |
 
