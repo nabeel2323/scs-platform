@@ -148,3 +148,10 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 - Exact-head GitHub Actions lookup for `c61b06241025b7ed5207f8ada533be120faadbec` returned no workflow run. Combined statuses show only Vercel web/admin build-rate-limit failures; no CI verification is claimed.
 - Continue full Admin route permission mapping, navigation grouping, then Product Studio warehouse selector using existing store-scoped APIs. Phase 3 remains the consolidated comprehensive test campaign.
 - No merge, deploy, staging write, DB change, migration, grant/default-ACL change, RLS enablement, worker activation or release action.
+
+
+## Latest formatting checkpoint — 22 November 2026
+
+- Formatting commit: `635ef98cccb7f9690410b56ed9caa631e92268a4`. A one-time self-removing formatter workflow ran repository-locked Prettier against the changed application and project-memory files, then removed its own workflow file. The formatter job succeeded; no temporary workflow remains.
+- The formatter's push triggered a pull-request CI run on the preceding helper-workflow commit `c6d964ea1973e71ff292a0c30d2392ff74ec0ce1`; that is not exact-head verification of the formatted commit. Run a fresh CI check on the next branch head.
+- PR #138 remains open/draft/unmerged; PR #142 remains open/draft/unmerged. No merge/deploy or database/staging gate changed.

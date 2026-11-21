@@ -245,3 +245,9 @@ The user approved the Implementation Completion Program and requested that this 
 - UX-001 order cancellation, UX-002 refund queue, UX-003 dashboard catalog widgets are implemented. UX-009 route guard discrepancy on /requests corrected to `catalog:requests:manage`; full 56-page Admin permission audit remains in progress.
 - Exact-head workflow lookup returned no Actions run; Vercel build-rate-limit statuses are not application test evidence. No CI verification is claimed.
 - Next: complete route mapping and Product Studio warehouse selection. Comprehensive tests remain Phase 3.
+
+
+## Formatting remediation — 22 November 2026
+
+- The changed-file formatting failure in CI #1330 was corrected using repository-locked Prettier 3.9.6 through a one-time formatter workflow. The formatter job completed successfully and self-removed; commit `635ef98cccb7f9690410b56ed9caa631e92268a4` contains the formatted source/docs and no temporary workflow file.
+- CI run #44961636474 was triggered on helper commit `c6d964ea1973e71ff292a0c30d2392ff74ec0ce1`; it is not evidence for the formatted commit. Require exact-head CI after the next branch update.
