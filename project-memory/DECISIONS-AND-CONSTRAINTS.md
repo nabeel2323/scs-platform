@@ -85,3 +85,20 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 ## Buyer visibility query implementation note — 21 November 2026
 
 Use an uncorrelated store-ID subquery for ACTIVE-store visibility in the Drizzle relational offer queries. The correlated EXISTS form produced an invalid outer-table reference in PostgreSQL integration tests; the IN-subquery expresses the same visibility condition while remaining valid in this query shape.
+
+
+## User-approved implementation-first programme — 22 November 2026
+
+The user approved a change to the project-wide execution sequence:
+
+1. Complete baseline/gap mapping against the actual repository and requirements.
+2. Prioritize implementation completion across backend/API, database/schema, permissions/tenant security, web, admin, mobile, POS/merchant, workflows/integrations, operations and documentation.
+3. Complete cross-component integration before the consolidated full regression campaign.
+4. Run one coordinated comprehensive testing phase after planned implementation is complete, covering unit/API, PostgreSQL/migrations, tenant isolation/security, concurrency, web/admin/mobile E2E and performance.
+5. Stabilize and fix the defects discovered by that campaign, then perform release-readiness gates.
+
+During implementation, use narrow, proportionate developer checks and focused tests where a critical invariant or safe implementation requires them. Do not repeatedly run the entire regression suite after every small enhancement. Do not knowingly defer a concrete security or correctness defect discovered during implementation; fix it immediately. This sequencing decision does not waive any existing independent-review, staging, database, deployment, business-signoff or release restriction.
+
+The [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) is the programme-level sequencing register. The audit-driven [implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) remain authoritative for finding definitions, acceptance criteria and evidence. The programme register must not overwrite their historical records or promote a finding status without evidence.
+
+Use these programme statuses consistently: `IMPLEMENTATION_PENDING`, `IMPLEMENTATION_IN_PROGRESS`, `IMPLEMENTED`, `INTEGRATION_PENDING`, `TESTING_PENDING`, `VERIFIED`, `BLOCKED` and `DEFERRED_BY_DECISION`. Implementation, integration, test verification, runtime verification, independent review, approval and release are separate states.
