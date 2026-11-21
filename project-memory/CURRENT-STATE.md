@@ -108,3 +108,11 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Related source/test commits: `5f74662dfcb2f4e5745e0738cc8c0e352b83bdcd` and `f8e6d19f912027c094ba0721736cc8080843fc0f`. Remediation tracker and work log synchronized.
 - Exact-head API unit/PostgreSQL CI remains pending; no tests are claimed as executed. G-001 remains PARTIAL pending CI, full acceptance evidence and independent security review. G-002 remains IN PROGRESS.
 - No shared database or staging state was touched; all new database tests run against disposable PostgreSQL containers.
+
+
+## Merchant-staff PostgreSQL acceptance checkpoint — 21 November 2026
+
+- Latest branch commit before this checkpoint update: `bf625aefd6faf47c60fd1bf01b1c23148de66ca0`.
+- Added disposable-PostgreSQL service coverage proving an active store MEMBER using `MERCHANT_STAFF` caller context can read offer detail. Temporary membership is marked INACTIVE in `finally`.
+- The same integration suite covers foreign-merchant/same-org-non-member 404 parity, revoked membership denial, and ACTIVE/DRAFT buyer-visibility behavior.
+- Exact-head API/PostgreSQL CI remains pending; no new tests are claimed as executed. G-001 remains PARTIAL pending exact-head CI and independent security review.
