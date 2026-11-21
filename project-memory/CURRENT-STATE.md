@@ -24,7 +24,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | PR base | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775 |
 | Latest app-authored CI at checkpoint | [#1180](https://github.com/nabeel2323/scs-platform/actions/runs/44858308974) |
 | CI #1180 tested SHA | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 |
-| CI #1180 status | In progress when this checkpoint was prepared; no pass/fail conclusion yet |
+| CI #1180 status | Failed at changed-file Prettier gate; not a full verification |
 
 ## Current remediation status
 
@@ -45,7 +45,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 - Formatter cleanup commit [2776f97](https://github.com/nabeel2323/scs-platform/commit/2776f97e902f7569afdc08ba75db8109238e9fcf) removed the temporary .github/workflows/format-fix.yml; the resulting tree was checked and the helper was absent.
 - CI #1179 on the formatter cleanup commit was cancelled when the subsequent app-authored commit arrived; it is not verification.
 - CI #1178 targeted the pre-format input commit ea77cbb3ff68ba01c94c5fb7ff7bfb7920a8cef9 and failed; it is not exact-head evidence for the formatted tree.
-- CI #1180 was running on f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 when this checkpoint was prepared. Inspect its final conclusion and jobs. This checkpoint-only documentation commit may trigger another run; verify the actual latest run and exact SHA.
+- CI #1180 completed with failure on f7f3ff6837f67f17cc00d5129a20f50e608bf3b6. Lint had 0 errors (311 warnings), typecheck succeeded and Flutter passed. Prettier flagged docs/remediation/IMPLEMENTATION-PROGRESS.md, project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md; dependent jobs were skipped. Formatter run #15 is being used to correct these Markdown-only formatting issues. Inspect the next exact-head CI run after formatter cleanup and the subsequent app-authored checkpoint commit.
 
 ## Historical CI #1176 failure
 
@@ -53,7 +53,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. Verify the final status of CI #1180 and any newer run triggered by this checkpoint update. Confirm the exact tested SHA and inspect all jobs, not only the overall conclusion.
+1. Complete formatter run #15 for the three Markdown files flagged by CI #1180, confirm the helper workflow removes itself, then trigger and inspect a fresh exact-head CI run.
 2. If formatting or other gates fail, fix related issues in one cohesive commit with corresponding documentation updates.
 3. Once exact-head CI passes, continue G-001 service/controller tenant acceptance work and prepare the independent-review package.
 4. Keep G-001 PARTIAL until an independent reviewer records findings and the full acceptance evidence is complete.

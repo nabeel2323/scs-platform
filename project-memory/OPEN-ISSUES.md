@@ -60,7 +60,7 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 - CI #1176 failed only at the changed-file Prettier gate on the controller test and progress tracker.
 - Lint had zero errors (311 warnings), TypeScript typecheck succeeded and Flutter analysis/tests passed.
 - API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped due to the lint job failure.
-- Formatting correction is complete: formatter run #14 passed and the temporary workflow removed itself. CI #1180 was running on app-authored checkpoint f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 when this note was prepared. Verify its final result and any newer exact-head run before proceeding.
+- Formatting correction is complete: formatter run #14 passed and the temporary workflow removed itself. CI #1180 on app-authored checkpoint f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 failed the changed-file Prettier gate on three Markdown files. Lint/typecheck and Flutter passed; dependent jobs were skipped. Formatter run #15 is correcting the three files. A fresh exact-head CI run is required afterward.
 
 ## Next action order
 
