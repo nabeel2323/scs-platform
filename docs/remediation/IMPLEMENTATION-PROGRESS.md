@@ -1123,7 +1123,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - CI #1179 on cleanup commit 2776f97e902f7569afdc08ba75db8109238e9fcf returned action_required with no jobs; CI #1178 is on the pre-format input commit. Neither is accepted as exact-head verification of the formatted tree.
 - Next app-authored checkpoint commit must trigger full CI on the formatted tree. G-001 remains PARTIAL; G-002 remains IN PROGRESS. PR #138 remains open and draft; all staging/database safety restrictions remain unchanged.
 
- 
 ### G-001 offer existence confidentiality hardening — 21 November 2026
 
 - Added a scope-first merchant offer service boundary: owning-organization and ACTIVE store-membership checks occur before full offer detail is loaded.
@@ -1131,18 +1130,15 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and separation of permission-gated governance reads.
 - Source and tests are committed. Focused API unit tests and exact-head CI remain pending; G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
 
- 
 ### G-001 active-store buyer visibility — 21 November 2026
 
 - Buyer-facing product offer lists and ranked seller results now require the owning store to have status ACTIVE in addition to the offer being ACTIVE and available.
 - DRAFT stores retain merchant management access but their offers are not exposed through buyer discovery.
 - Added unit coverage for both buyer query paths and the no-active-store case. Focused API tests and exact-head CI remain pending; G-001 remains PARTIAL.
 
- 
 ### G-001 active-store query efficiency refinement — 21 November 2026
 
 The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS predicate in both product offer list queries. This avoids fetching every active store ID into application memory and keeps the store lifecycle check in the database query. Unit tests assert the correlated EXISTS predicate for both list and ranked paths.
-
 
 ### G-001 merchant read-surface acceptance expansion — 21 November 2026
 
@@ -1152,7 +1148,6 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - These are source-level regression additions only. Focused API tests and exact-head CI are pending; G-001 remains PARTIAL pending the full acceptance evidence and independent security review.
 - No database, staging, deployment, worker or environment changes were made.
 
-
 ### G-001 missing-organization and membership-denial coverage — 21 November 2026
 
 - Extended the controller authorization regression matrix to deny foreign-organization merchants from offer lists before service access.
@@ -1161,14 +1156,12 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - These are source-level test additions only. Focused API tests and exact-head CI remain pending; G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
 - No database, staging, deployment, worker or environment changes were made.
 
-
 ### G-001 store lifecycle acceptance — 21 November 2026
 
 - Added controller regression coverage confirming an ACTIVE store member retains merchant-side offer-management access while the store is DRAFT.
 - This preserves the recorded lifecycle distinction: DRAFT stores remain manageable by their merchant members, while buyer-facing offer discovery is restricted to ACTIVE stores by the correlated SQL visibility predicate.
 - This is test-source coverage only; focused API tests and exact-head CI remain pending. No policy was inferred for SUSPENDED stores.
 - G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
-
 
 ### G-001 PostgreSQL ACTIVE-store visibility regression — 21 November 2026
 
@@ -1177,14 +1170,12 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - This directly exercises the correlated SQL EXISTS lifecycle predicate against PostgreSQL. The test has been committed but not yet executed in CI; exact-head API unit and PostgreSQL integration results remain pending.
 - G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
 
-
 ### G-001 PostgreSQL offer-detail confidentiality and revocation regression — 21 November 2026
 
 - Added real PostgreSQL service-boundary coverage proving foreign-organization merchants and same-organization non-members receive the same not-found result from merchant offer detail.
 - Added a membership-revocation scenario that marks the owning store membership INACTIVE, verifies detail access is denied, and restores the fixture to ACTIVE in a `finally` block.
 - These tests complement the controller role matrix and the PostgreSQL buyer-visibility lifecycle test. They are committed but not yet CI-executed.
 - G-001 remains PARTIAL pending exact-head API/PostgreSQL CI, remaining acceptance evidence and independent security review.
-
 
 ### G-001 PostgreSQL merchant-staff detail acceptance — 21 November 2026
 
