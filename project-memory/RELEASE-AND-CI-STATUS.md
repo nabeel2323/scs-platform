@@ -134,3 +134,10 @@ For every run, record:
 - Added a PostgreSQL test for DRAFT-store exclusion from both buyer product-offer list and ranked seller results, with status restoration in `finally`.
 - Latest inspected commit before this status refresh: `05fe9c6ecb9590586d9117af6d6ce547dd7e29b6`.
 - Exact-head GitHub Actions run and API/PostgreSQL job results are pending. No shared database or staging mutation was performed.
+
+
+## Latest G-001 PostgreSQL security tests — 21 November 2026
+
+- Catalog lifecycle integration now covers DRAFT-store exclusion from buyer offer list/ranked results, same-404 confidentiality for foreign merchant and same-organization non-member detail reads, and denial after membership is marked INACTIVE (fixture restored in `finally`).
+- Latest inspected branch commit before this status refresh: `bf8feed6ebf0064bbf95b0a80910b002988d18ad`.
+- Exact-head GitHub Actions/API/PostgreSQL results remain pending. No shared database or staging mutation was performed.
