@@ -839,15 +839,15 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       }
     });
 
-    it('Merchant B cannot update Merchant A offer pricing → 403', async () => {
+    it('Merchant B cannot update Merchant A offer pricing → 404', async () => {
       await expect(
         offerService.updateOfferPricing(offerA, { basePriceMinor: 100 }, callerB()),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('Merchant B cannot withdraw Merchant A offer → 403', async () => {
-      await expect(offerService.withdrawOffer(offerA, callerB())).rejects.toThrow(
-        ForbiddenException,
+    it('Merchant B cannot withdraw Merchant A offer → 404', async () => {
+      await expect(offerService.withdrawOffer(offerA, callerB())).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
 
