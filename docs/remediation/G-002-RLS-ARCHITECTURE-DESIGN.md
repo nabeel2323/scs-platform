@@ -39,7 +39,7 @@ This document records a proposed target architecture and current evidence. It do
 
 PR #142 adds a non-secret identity query through the API's own pool. It reports login/effective role names, database name, elevated role flags and TLS state. Diagnostic failure is non-fatal and uses a fixed warning without printing connection details.
 
-The PR #142 unit tests cover success, missing metadata and diagnostic failure. The PostgreSQL integration test added on 22 November exercises the query against a disposable PostgreSQL instance using distinct login and effective roles. The first exact-head CI run for this integration test is still in progress at this checkpoint; record its final result separately from live staging evidence.
+The PR #142 unit tests cover success, missing metadata and diagnostic failure. The PostgreSQL integration test added on 22 November exercises the query against disposable PostgreSQL 16 using distinct login and effective roles, a non-owner/non-superuser/non-BYPASSRLS login, and a test-only password. Exact-head CI #44953735602 passed on source SHA dddff20c170737dc4694008bb807b2b90e177f77. This verifies the test against disposable PostgreSQL only; it is not live staging identity evidence.
 
 The migration runner on PR #138 queries identity through the exact client that applies migrations. Its unit test covers metadata, no-row and query-failure behavior.
 
@@ -104,7 +104,7 @@ Custom GUCs are a useful defense against accidental query omissions, but values 
 
 ## 5. Initial ownership classification
 
-This is an initial module-level inventory based on the Drizzle schema and inspected tenant-scope helpers. It is not yet the complete 116-table access matrix. Each table still needs operation-by-operation route, worker and ownership-path evidence before a policy is approved.
+This is an initial module-level inventory based on the Drizzle schema and inspected tenant-scope helpers. The companion G-002-TABLE-OWNERSHIP-MATRIX.md enumerates the 99 named tables exported through apps/api/src/drizzle/schema.ts on the reviewed branch. This is not the complete live 116-table inventory and is not yet an operation-by-operation access matrix. Each table still needs exact column/FK, route, worker and ownership-path evidence before a policy is approved.
 
 - **Identity and organization:** `users`, `sessions`, `device_credentials`, `credential_audit_log`, `account_link_log`, `organizations`, `organization_members` and `organization_update_requests`. Candidate ownership is user ID or organization ID; authentication/session records are private to the subject user and platform security workflows.
 - **Merchant and store:** `stores` are organization-owned; `warehouses`, `store_members`, shipping methods and delivery zones are store-owned; business documents and verification requests carry organization/store ownership and may contain restricted evidence.
@@ -133,7 +133,7 @@ For every physical table (including tables not exported through the Drizzle sche
 - required SQL privileges separately from row policies;
 - positive and negative PostgreSQL tests for every role and operation.
 
-The final matrix must cover all 116 tables observed in the 19 November live inventory plus any additional tables discovered by the refreshed inventory. The 116 count is a historical live observation, not a current count guarantee.
+The final matrix must reconcile the 99-table Drizzle export with all 116 tables observed in the 19 November live inventory plus any additional objects discovered by a refreshed inventory. The 116 count is historical, not a current count guarantee. The companion matrix deliberately marks every candidate classification as unverified until direct columns, FK paths and operation evidence are added.
 
 ## 7. Required isolated PostgreSQL acceptance tests
 
@@ -180,3 +180,11 @@ Required cases:
 3. Expand the schema inventory into the required operation/ownership matrix, starting with identity, merchant/store, catalog/offers, inventory/pricing and orders/financial tables.
 4. Design the transaction-bound Drizzle context and worker context contracts, then implement them behind tests before adding policies.
 5. Obtain independent review of the role model, context mechanism and first policy group before any staging release or shared-database change.
+
+
+## 9. CI verification checkpoint — 22 November 2026
+
+- PR #138 exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2; k6 and protected staging release were skipped.
+- PR #142 exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77, including the new real-PostgreSQL identity integration test; k6 and protected staging release were skipped.
+- Both PRs remain open, draft and unmerged. CI verification is limited to disposable environments. Actual staging API/migration identities remain unverified.
+- G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS pending live identity evidence, refreshed protected read-only inventory, completed operation matrix, transaction-bound context, isolated RLS tests and approval.
