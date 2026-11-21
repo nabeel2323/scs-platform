@@ -93,3 +93,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added a missing-active-organization denial case and revoked/inactive-membership analytics denial before service access.
 - The test increment is not yet CI-verified. G-001 remains PARTIAL pending exact-head CI, remaining lifecycle acceptance and independent security review.
 - No shared database, staging, deployment, environment, grant, RLS or worker changes were made.
+
+
+### 21 November 2026 — G-001 store lifecycle acceptance
+
+- Added a controller regression test confirming an active store member can continue merchant offer management while the store remains DRAFT.
+- This complements the buyer-facing ACTIVE-store visibility predicate; no unrecorded policy for SUSPENDED stores was assumed.
+- Exact-head API CI remains pending. G-001 remains PARTIAL.
