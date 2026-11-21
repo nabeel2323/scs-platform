@@ -85,3 +85,11 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added FINANCE to the negative privileged-read matrix and a foreign-organization trend-denial test that asserts no service query occurs.
 - This is a test-only acceptance increment. It does not close G-001; exact-head CI, remaining tenant/store lifecycle evidence and independent security review are still required.
 - No shared database, staging, deployment, environment or worker action was performed.
+
+
+### 21 November 2026 — G-001 missing-organization and membership-denial coverage
+
+- Added controller tests denying foreign-organization offer-list access before service queries.
+- Added a missing-active-organization denial case and revoked/inactive-membership analytics denial before service access.
+- The test increment is not yet CI-verified. G-001 remains PARTIAL pending exact-head CI, remaining lifecycle acceptance and independent security review.
+- No shared database, staging, deployment, environment, grant, RLS or worker changes were made.
