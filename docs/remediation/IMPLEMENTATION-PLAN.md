@@ -16,7 +16,7 @@
 
 > **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
 >
-> **Execution snapshot — 21 November 2026:** PR #138's last fully green exact head is `c0377ba8d43f21ceb36b296061d432b8cd6db102` (CI #1156, all 10 executable jobs passed). The migration runtime identity diagnostic was added afterward. CI #1161 passed lint/typecheck and isolated migration full apply but failed one integration assertion (and the same test in coverage) because it hard-coded the disposable PostgreSQL role as `postgres`; that assertion is now role-agnostic. CI #1165 stopped at Prettier on the new G-002 schema reconciliation and progress files; the repository-locked formatter corrected them. CI #1166 runs on the temporary formatter insertion commit; CI #1167 on the bot-authored cleanup commit had `action_required` with no jobs. Fresh full CI is being triggered on the formatted app-authored head. G-006 remains CLOSED by CI #718's real PostgreSQL two-session contention evidence. G-001 remains PARTIAL; G-002 remains IN PROGRESS pending live API/migration identities, the complete per-table predicates and reviewed least-privilege/RLS design. Do not alter shared grants/default ACLs, enable RLS, apply migration 0070, deploy or activate workers. PR #138 remains draft; Phase 6 is not started.
+> **Execution snapshot — 21 November 2026:** CI #1164 completed successfully on prior commit `122b6662281e1df37ba3f57ff1881c3291e3f6a3` with all executable jobs green; this does not verify the subsequent documentation and merchant-role changes. CI #1165 failed the changed-file Prettier gate on the G-002 reconciliation and progress files; the repository-locked formatter corrected them. CI #1166/#1167 were superseded/cancelled during the temporary formatter sequence. CI #1168 attempt 2 was running on the preceding documentation-only head and is superseded by the grouped merchant-role authorization commit; exact-head CI is required. Vercel web/admin preview statuses report a deployment rate limit and are not GitHub approval requests. G-006 remains CLOSED by CI #718's real PostgreSQL two-session contention evidence. G-001 remains PARTIAL pending exact-head CI, independent security review and complete role/tenant acceptance; G-002 remains IN PROGRESS pending live API/migration identities, complete per-table predicates and reviewed least-privilege/RLS design. Do not alter shared grants/default ACLs, enable RLS, apply migration 0070, deploy or activate workers. PR #138 remains draft; Phase 6 is not started.
 
 ---
 
@@ -262,12 +262,12 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 - Trace `GET /v1/merchant/offers`, `/analytics`, `/analytics/trend` and every related controller/service/query.
 - Derive store/organization scope from authenticated membership, not a caller-supplied store ID alone.
-- Verify owner, manager/staff roles, active organization, revoked membership, inactive store and admin exception behavior.
+- Verify owner/staff roles, active organization, revoked membership, inactive store and admin read-governance behavior. Merchant create/propose/pricing-update/withdraw routes must reject every non-merchant role even if a merchant permission is accidentally assigned; platform administration remains on the dedicated governance routes.
 - Apply consistent object-level authorization to list, detail, analytics, exports and mutations where relevant.
 - Avoid leaking whether a foreign store or offer exists; choose consistent 403/404 behavior based on the established API policy.
 - Audit adjacent `storeId`/`orgId` read endpoints for the same pattern; add linked findings for newly discovered omissions.
 
-**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin policy.
+**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin read policy; non-merchant roles cannot mutate merchant offers even when a merchant write permission is present.
 
 ### 1.2 Close G-002 — database privileges and RLS architecture
 

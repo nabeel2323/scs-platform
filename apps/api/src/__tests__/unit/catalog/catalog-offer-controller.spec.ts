@@ -17,6 +17,8 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     listOfferTrend: vi.fn().mockResolvedValue([{ bucket: '2026-11-20' }]),
     proposeOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     createOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    updateOfferPricing: vi.fn().mockResolvedValue({ id: 'offer-1' }),
+    withdrawOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     approveOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     rejectOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     suspendOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
@@ -175,6 +177,62 @@ describe('CatalogOfferController — create offer actor attribution (G-001)', ()
       { sub: merchant.sub, role: merchant.role, activeOrg: merchant.activeOrg },
     );
   });
+});
+
+
+describe('CatalogOfferController — merchant mutation role authorization (G-001)', () => {
+  it.each(['MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT'])(
+    'allows %s to use merchant offer mutations when store membership is active',
+    async (role) => {
+      const caller = { ...merchant, role } as JwtPayload;
+      const { controller, offerService } = makeController();
+
+      await controller.createOffer(caller, {
+        storeId: 'store-1',
+        productId: 'product-1',
+        status: 'PROPOSED',
+      });
+      await controller.proposeOffer(caller, 'offer-1', {});
+      await controller.updateOfferPricing(caller, 'offer-1', { basePriceMinor: 1200 });
+      await controller.withdrawOffer(caller, 'offer-1');
+
+      expect(offerService.createOffer).toHaveBeenCalled();
+      expect(offerService.proposeOffer).toHaveBeenCalled();
+      expect(offerService.updateOfferPricing).toHaveBeenCalled();
+      expect(offerService.withdrawOffer).toHaveBeenCalled();
+    },
+  );
+
+  it.each(['BUYER', 'ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+    'denies %s from merchant mutations even when merchant permissions are present',
+    async (role) => {
+      const caller = {
+        ...merchant,
+        role,
+        perms: ['catalog:offers:write', 'catalog:offers:govern'],
+      } as JwtPayload;
+      const { controller, offerService, db } = makeController();
+
+      await expect(
+        controller.createOffer(caller, { storeId: 'store-1', productId: 'product-1' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(controller.proposeOffer(caller, 'offer-1', {})).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(
+        controller.updateOfferPricing(caller, 'offer-1', { basePriceMinor: 1200 }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(controller.withdrawOffer(caller, 'offer-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+      expect(offerService.createOffer).not.toHaveBeenCalled();
+      expect(offerService.proposeOffer).not.toHaveBeenCalled();
+      expect(offerService.updateOfferPricing).not.toHaveBeenCalled();
+      expect(offerService.withdrawOffer).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('CatalogOfferController — admin offer actor attribution (G-001)', () => {

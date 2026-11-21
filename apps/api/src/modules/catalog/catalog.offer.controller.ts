@@ -52,9 +52,8 @@ export class CatalogOfferController {
     private readonly db: DatabaseService,
   ) {}
 
-  /** Only merchant principals may use merchant offer surfaces; platform staff need governance permission. */
+  /** Merchant mutations are restricted to merchant principals; governance is a separate surface. */
   private assertMerchantPrincipal(caller: CallerContext): void {
-    if (isTenantPrivileged(caller)) return;
     if (!['MERCHANT', 'MERCHANT_OWNER', 'MERCHANT_STAFF'].includes(caller.role ?? '')) {
       throw new ForbiddenException('Merchant role required');
     }
@@ -63,10 +62,13 @@ export class CatalogOfferController {
   /** Merchant dashboards are store-scoped, not merely organization-scoped. */
   private async authorizeMerchantStore(user: JwtPayload, storeId: string): Promise<CallerContext> {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
-    // Platform staff bypass tenant membership, not the functional permission
-    // boundary. Keep merchant dashboard reads aligned with GET /offers/:id.
-    if (isTenantPrivileged(caller) && !user.perms?.includes('catalog:offers:govern')) {
-      throw new ForbiddenException('Insufficient permissions');
+    // Platform staff may inspect merchant surfaces only through the explicit
+    // governance permission. They do not gain merchant mutation authority.
+    if (isTenantPrivileged(caller)) {
+      if (!user.perms?.includes('catalog:offers:govern')) {
+        throw new ForbiddenException('Insufficient permissions');
+      }
+      return caller;
     }
     this.assertMerchantPrincipal(caller);
     await assertStoreInOrg(this.db, caller, storeId);
@@ -156,15 +158,17 @@ export class CatalogOfferController {
   async getOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
 
-    // Reject privileged callers before loading the target object. This avoids
-    // disclosing object existence through an otherwise unauthorized detail read.
-    if (isTenantPrivileged(caller) && !user.perms?.includes('catalog:offers:govern')) {
-      throw new ForbiddenException('Insufficient permissions');
+    // Platform staff may inspect the detail only with the governance permission.
+    // Check this before loading the object to avoid disclosing its existence.
+    if (isTenantPrivileged(caller)) {
+      if (!user.perms?.includes('catalog:offers:govern')) {
+        throw new ForbiddenException('Insufficient permissions');
+      }
+      return this.offerService.getOffer(id);
     }
 
     this.assertMerchantPrincipal(caller);
     const offer = await this.offerService.getOffer(id);
-    if (isTenantPrivileged(caller)) return offer;
 
     // The generic detail route is used by merchant offer detail screens, not buyer PDPs.
     await assertStoreInOrg(this.db, caller, offer.storeId);
@@ -178,7 +182,9 @@ export class CatalogOfferController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
   async createOffer(@CurrentUser() user: JwtPayload, @Body() input: CreateOfferInput) {
-    const caller = await this.authorizeMerchantStore(user, input.storeId);
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    this.assertMerchantPrincipal(caller);
+    await this.authorizeMerchantStore(user, input.storeId);
     // The service rechecks tenant ownership; authenticated caller owns audit attribution.
     return this.offerService.createOffer(input, caller);
   }
@@ -192,6 +198,7 @@ export class CatalogOfferController {
     @Body() body: { proposedBy?: string },
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    this.assertMerchantPrincipal(caller);
     // The authenticated principal is the sole source of the audit actor.
     // Never trust a client-supplied proposedBy value.
     return this.offerService.proposeOffer(id, caller);
@@ -206,6 +213,7 @@ export class CatalogOfferController {
     @Body() input: UpdateOfferPricingInput,
   ) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    this.assertMerchantPrincipal(caller);
     return this.offerService.updateOfferPricing(id, input, caller);
   }
 
@@ -214,6 +222,7 @@ export class CatalogOfferController {
   @RequirePermission('catalog:offers:write')
   async withdrawOffer(@CurrentUser() user: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    this.assertMerchantPrincipal(caller);
     return this.offerService.withdrawOffer(id, caller);
   }
 
