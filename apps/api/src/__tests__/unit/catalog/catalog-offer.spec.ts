@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CatalogOfferService } from '../../../modules/catalog/catalog.offer.service';
 
 /**
@@ -269,6 +269,49 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
       { sub: 'merchant-user-1', role: 'MERCHANT', activeOrg: 'org-1' },
     );
     expect(updated[0]).toMatchObject({ priceListId: 'pl1', basePriceMinor: 1200 });
+  });
+});
+
+describe('CatalogOfferService — merchant principal boundary (G-001)', () => {
+  it.each(['BUYER', 'FINANCE', 'ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+    'rejects %s from merchant service entry points before database access',
+    async (role) => {
+      const unauthorized = { ...caller, role };
+      const { svc, inserted, updated, merchantOfferFindFirstCalls } = makeHarness();
+
+      await expect(
+        svc.createOffer({ storeId: 's1', productId: 'p1' }, unauthorized),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.getOfferForMerchant('o1', unauthorized)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(svc.proposeOffer('o1', unauthorized)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(
+        svc.updateOfferPricing('o1', { basePriceMinor: 100 }, unauthorized),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(svc.withdrawOffer('o1', unauthorized)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(inserted).toHaveLength(0);
+      expect(updated).toHaveLength(0);
+      expect(merchantOfferFindFirstCalls).toHaveLength(0);
+    },
+  );
+
+  it('allows an active MERCHANT_STAFF member to create an offer', async () => {
+    const staff = { ...caller, role: 'MERCHANT_STAFF' };
+    const { svc, inserted } = makeHarness({
+      products: { findFirst: { id: 'p1' } },
+      merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
+    });
+
+    await expect(svc.createOffer({ storeId: 's1', productId: 'p1' }, staff)).resolves.toMatchObject({
+      id: 'o1',
+    });
+    expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT' });
   });
 });
 
