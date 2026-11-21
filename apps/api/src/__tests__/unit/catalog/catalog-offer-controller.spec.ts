@@ -345,6 +345,78 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
     expect(db.db.query.storeMembers.findFirst).not.toHaveBeenCalled();
   });
 
+  it.each(['ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+    'allows %s to inspect merchant offer surfaces only through governance permission',
+    async (role) => {
+      const privileged = {
+        sub: 'platform-user-1',
+        role,
+        activeOrg: null,
+        perms: ['catalog:offers:govern'],
+        iat: 1,
+        exp: 2,
+      } as JwtPayload;
+      const { controller, offerService, db } = makeController();
+
+      await expect(controller.listMerchantOffers(privileged, 'store-1')).resolves.toEqual([
+        { id: 'offer-1' },
+      ]);
+      await expect(controller.listMerchantOfferAnalytics(privileged, 'store-1')).resolves.toEqual([
+        { offerId: 'offer-1' },
+      ]);
+      await expect(controller.listMerchantOfferTrend(privileged, 'store-1')).resolves.toEqual([
+        { bucket: '2026-11-20' },
+      ]);
+      await expect(controller.getOffer(privileged, 'offer-1')).resolves.toMatchObject({
+        id: 'offer-1',
+      });
+
+      expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
+      expect(offerService.listOfferAnalytics).toHaveBeenCalledWith('store-1');
+      expect(offerService.listOfferTrend).toHaveBeenCalledWith(
+        expect.objectContaining({ storeId: 'store-1' }),
+      );
+      expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+      expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+      expect(db.db.query.storeMembers.findFirst).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+    'denies %s from every privileged offer read without governance permission before object lookup',
+    async (role) => {
+      const privileged = {
+        sub: 'platform-user-1',
+        role,
+        activeOrg: null,
+        perms: [],
+        iat: 1,
+        exp: 2,
+      } as JwtPayload;
+      const { controller, offerService, db } = makeController();
+
+      await expect(controller.listMerchantOffers(privileged, 'store-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(
+        controller.listMerchantOfferAnalytics(privileged, 'store-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        controller.listMerchantOfferTrend(privileged, 'store-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(controller.getOffer(privileged, 'offer-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+
+      expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+      expect(offerService.listOfferAnalytics).not.toHaveBeenCalled();
+      expect(offerService.listOfferTrend).not.toHaveBeenCalled();
+      expect(offerService.getOffer).not.toHaveBeenCalled();
+      expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+      expect(db.db.query.storeMembers.findFirst).not.toHaveBeenCalled();
+    },
+  );
+
   it('denies a privileged administrator without offer governance permission', async () => {
     const admin = {
       sub: 'admin-user-1',
