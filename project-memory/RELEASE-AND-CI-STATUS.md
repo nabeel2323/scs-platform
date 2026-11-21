@@ -3,38 +3,39 @@
 **Checkpoint:** 21 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Checkpoint SHA:** `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`
+**Last inspected pre-release-status-update SHA:** `8d947b6282793c4f7b13eed4cb4f2b1a659683d3`
 
 ## Latest CI run
 
-### CI #1176
+### CI #1184
 
-- [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/44856823290)
-- Tested exact head: `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`
+- [Workflow run](https://github.com/nabeel2323/scs-platform/actions/runs/44858627846)
+- Tested exact PR head: `fe675e76a8cace78ac2513da08118dd9c7527428`
 - Conclusion: **FAILURE**
-- Failure point: `Lint & Typecheck` job, changed-file formatting gate.
+- Failure point: changed-file Prettier gate in the Lint & Typecheck job.
 
-| Job                             | Result  | Evidence / interpretation                                                                                 |
-| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
-| Mobile (Flutter analyze · test) | PASS    | Completed successfully.                                                                                   |
-| Lint & Typecheck                | FAIL    | Lint: 0 errors, 311 warnings. Typecheck: passed. Prettier failed on controller test and progress tracker. |
-| Unit Tests + Coverage Gates     | SKIPPED | Upstream lint job failed.                                                                                 |
-| Integration Tests               | SKIPPED | Upstream lint job failed.                                                                                 |
-| Migration Full Apply            | SKIPPED | Upstream lint job failed.                                                                                 |
-| Web & Admin App Tests           | SKIPPED | Upstream lint job failed.                                                                                 |
-| Boundary Lint (E6)              | SKIPPED | Upstream lint job failed.                                                                                 |
-| Build                           | SKIPPED | Upstream dependencies failed/skipped.                                                                     |
-| Container Build & Smoke Test    | SKIPPED | Upstream dependencies failed/skipped.                                                                     |
-| Contract Spec & Codegen         | SKIPPED | Upstream dependency failed/skipped.                                                                       |
-| Trigger Staging Release         | SKIPPED | No staging release executed.                                                                              |
-| k6 Smoke Test                   | SKIPPED | No k6 performance verification executed.                                                                  |
+| Job | Result | Evidence / interpretation |
+| --- | --- | --- |
+| ESLint | PASS | 0 errors; 311 warnings. |
+| TypeScript typecheck | PASS | Completed successfully. |
+| Changed-file Prettier | FAIL | Flagged project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. |
+| Mobile (Flutter analysis/tests) | PASS | Completed successfully. |
+| API unit tests + coverage | SKIPPED | Upstream lint/format gate failed. |
+| PostgreSQL integration | SKIPPED | Upstream lint/format gate failed. |
+| Migration full apply | SKIPPED | Upstream lint/format gate failed. |
+| Web & Admin tests | SKIPPED | Upstream lint/format gate failed. |
+| Boundary lint | SKIPPED | Upstream lint/format gate failed. |
+| Build / container smoke | SKIPPED | Upstream dependency failed/skipped. |
+| Contract spec & codegen | SKIPPED | Upstream dependency failed/skipped. |
+| Staging release | SKIPPED | No staging release executed. |
+| k6 smoke | SKIPPED | No performance verification executed. |
 
-Formatting failures:
+## Formatter and subsequent checkpoint runs
 
-- `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`
-- `docs/remediation/IMPLEMENTATION-PROGRESS.md`
-
-A new exact-head CI run is required after the formatting correction and handover commit. Do not claim #1176 is a full test pass.
+- Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit [f1cb7c7](https://github.com/nabeel2323/scs-platform/commit/f1cb7c7467c0fee6c829eec5fe557e3734c9c275) removed the temporary helper; the resulting tree was checked and the helper was absent.
+- CI #1187–#1189 were cancelled during successive helper/checkpoint commits. CI #1190 was queued on an intermediate helper commit; it does not verify the current source/test implementation.
+- The current source/test implementation is committed as service dd52aaf, controller bca32b0, controller tests 39a0437 and service tests a1602bc. Documentation checkpoint commits followed. A new exact-head CI result is required; no API/integration/build result has yet verified this implementation.
+- Vercel web/admin previews continue to report the external daily build quota gate. This is not an application test result.
 
 ## Earlier evidence — context only
 
