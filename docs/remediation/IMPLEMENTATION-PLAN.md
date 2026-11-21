@@ -1205,17 +1205,14 @@ The first CI attempt on this change failed only at changed-file formatting; the 
 
 This closes the formatting/test-execution blocker for this change, but it does not close G-001: independent security review and the full owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix remain required. G-002 remains blocked pending authorized protected staging identity evidence and a reviewed least-privilege/RLS design. Keep PR #138 draft. Do not deploy, write to staging, alter shared database privileges/default ACLs, apply migration 0070, enable RLS, or activate workers under this verification step.
 
- 
 ## G-001 offer existence confidentiality follow-up — 21 November 2026
 
 Merchant offer detail and mutation paths now share a scope-first service boundary. The service resolves the offer's store scope, verifies active-organization ownership and ACTIVE store membership, and only then loads full offer detail. Unknown, foreign-organization and same-organization non-member identifiers return the same 404 response. Governance reads remain on the separate permission-gated admin path. Focused regression coverage and exact-head CI are required before treating this increment as verified; G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
 
- 
 ## G-001 inactive-store buyer visibility follow-up — 21 November 2026
 
 Buyer-facing product offer lists and ranked seller results now require the owning store to be ACTIVE as well as the offer being ACTIVE and available. DRAFT stores can continue merchant-side setup and offer management, but their offers are excluded from buyer discovery until store activation. Unit coverage checks both query paths and the no-active-store case. Exact-head CI and the remaining acceptance/review gates are still required.
 
- 
 ### G-001 query-shape refinement — 21 November 2026
 
 The ACTIVE-store visibility boundary uses a correlated SQL EXISTS predicate in both buyer-facing offer queries rather than materializing all active store IDs. This keeps tenant/store visibility filtering in the database and avoids an application-side list of store identifiers. The unit tests assert the query shape; exact-head CI remains the verification gate.
