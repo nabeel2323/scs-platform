@@ -112,3 +112,13 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added a real PostgreSQL service test for an active store MEMBER using the `MERCHANT_STAFF` caller context to read offer detail.
 - The temporary membership is marked INACTIVE in `finally` to keep the lifecycle fixture deterministic.
 - Exact-head API/PostgreSQL CI remains pending.
+
+## 21 November 2026 — latest continuation and CI #1230
+
+- Re-read the repository handover documents and authoritative remediation plan/progress tracker at the PR #138 head.
+- Latest inspected PR head before this entry: `af8970c2817caf8c89ffc51cf4d4a3eb4374f8c8`; PR #138 remains open and draft.
+- CI [#1230](https://github.com/nabeel2323/scs-platform/actions/runs/44860925152) failed only at changed-file Prettier. Lint and TypeScript typecheck passed, as did Flutter analysis/tests. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped. k6 and staging release were skipped.
+- Prettier identified nine files: the G-001 controller and service test files, remediation plan/progress tracker, and five project-memory Markdown files (CURRENT-STATE, IMPLEMENTATION-ROADMAP, OPEN-ISSUES, RELEASE-AND-CI-STATUS and WORK-LOG).
+- A one-time self-removing formatter workflow was added to the remediation branch to format exactly those nine files. The workflow file must remove itself in the formatter commit; verify it is absent before continuing.
+- Next: obtain a fresh app-authored checkpoint commit after formatting, inspect exact-head full CI, then continue G-001 acceptance only if the focused API and PostgreSQL tests pass. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
+- No shared database mutation, staging write, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
