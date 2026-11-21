@@ -100,3 +100,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added a controller regression test confirming an active store member can continue merchant offer management while the store remains DRAFT.
 - This complements the buyer-facing ACTIVE-store visibility predicate; no unrecorded policy for SUSPENDED stores was assumed.
 - Exact-head API CI remains pending. G-001 remains PARTIAL.
+
+
+### 21 November 2026 — G-001 PostgreSQL buyer visibility regression
+
+- Updated catalog lifecycle integration fixtures so the two merchant stores used in buyer discovery are explicitly ACTIVE instead of inheriting the DRAFT schema default.
+- Added a PostgreSQL test that sets one store to DRAFT and verifies its offers disappear from both buyer list and ranked queries while the other ACTIVE store remains visible; store status is restored in a `finally` block.
+- Exact-head API and PostgreSQL CI verification remains pending. No shared database or staging data was touched; this test uses the disposable integration database.
