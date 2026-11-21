@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  ForbiddenException,
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
@@ -188,6 +189,31 @@ export class CatalogOfferService {
   async getOffer(id: string) {
     const offer = await this.getOrThrow(id);
     return offer;
+  }
+
+  /**
+   * Resolve merchant scope before loading full offer detail. Unknown,
+   * foreign-organization and non-member offer IDs share one 404 response
+   * so callers cannot enumerate another tenant's offers.
+   */
+  async getOfferForMerchant(id: string, caller: CallerContext) {
+    const scope = await this.db.db.query.merchantOffers.findFirst({
+      where: eq(merchantOffers.id, id),
+      columns: { storeId: true },
+    });
+    if (!scope) throw new NotFoundException('Offer not found');
+
+    try {
+      await assertStoreInOrg(this.db, caller, scope.storeId);
+      await assertStoreMember(this.db, caller, scope.storeId);
+    } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new NotFoundException('Offer not found');
+      }
+      throw error;
+    }
+
+    return this.getOffer(id);
   }
 
   /**
@@ -548,9 +574,7 @@ export class CatalogOfferService {
   // ── Lifecycle transitions ────────────────────────────────────
 
   async proposeOffer(id: string, caller: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    await assertStoreInOrg(this.db, caller, offer.storeId);
-    await assertStoreMember(this.db, caller, offer.storeId);
+    const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'PROPOSED');
     await this.db.db
       .update(merchantOffers)
@@ -676,9 +700,7 @@ export class CatalogOfferService {
   }
 
   async withdrawOffer(id: string, caller: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    await assertStoreInOrg(this.db, caller, offer.storeId);
-    await assertStoreMember(this.db, caller, offer.storeId);
+    const offer = await this.getOfferForMerchant(id, caller);
     this.assertTransition(offer.status, 'WITHDRAWN');
     await this.db.db
       .update(merchantOffers)
@@ -706,9 +728,7 @@ export class CatalogOfferService {
    * store's price book or stock.
    */
   async updateOfferPricing(id: string, input: UpdateOfferPricingInput, caller: CallerContext) {
-    const offer = await this.getOrThrow(id);
-    await assertStoreInOrg(this.db, caller, offer.storeId);
-    await assertStoreMember(this.db, caller, offer.storeId);
+    const offer = await this.getOfferForMerchant(id, caller);
     if (input.moq != null && input.moq < 1) throw new BadRequestException('MOQ must be at least 1');
     if (input.basePriceMinor != null && input.basePriceMinor < 0) {
       throw new BadRequestException('Base price cannot be negative');
