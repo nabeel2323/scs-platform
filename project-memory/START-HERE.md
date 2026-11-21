@@ -66,7 +66,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-See [CURRENT-STATE.md](./CURRENT-STATE.md). At this checkpoint, PR #138 is open and draft; G-001 is PARTIAL; G-002 is IN PROGRESS; CI #1176 failed the changed-file Prettier gate and did not execute downstream API/integration/build jobs. The immediate task is to complete the grouped formatting and handover update, then obtain a fresh exact-head CI result.
+See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. The current implementation increment is the scope-first merchant offer confidentiality fix, followed by exact-head CI, completion of the tenant/role acceptance matrix and independent security review.
 
 ## Safety reminder
 
