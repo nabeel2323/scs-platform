@@ -37,6 +37,8 @@ describe('readMigrationDatabaseIdentity', () => {
   it('propagates query failures for the runner to handle with a fixed warning', async () => {
     const query = vi.fn().mockRejectedValue(new Error('sensitive connection detail'));
     const client = { query } as unknown as Pick<PoolClient, 'query'>;
-    await expect(readMigrationDatabaseIdentity(client)).rejects.toThrow('sensitive connection detail');
+    await expect(readMigrationDatabaseIdentity(client)).rejects.toThrow(
+      'sensitive connection detail',
+    );
   });
 });
