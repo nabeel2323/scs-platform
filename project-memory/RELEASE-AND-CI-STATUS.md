@@ -79,3 +79,10 @@ For every run, record:
 - The self-removing helper workflow was deleted by cleanup commit [2776f97](https://github.com/nabeel2323/scs-platform/commit/2776f97e902f7569afdc08ba75db8109238e9fcf); the resulting repository tree was checked and contains no .github/workflows/format-fix.yml.
 - CI #1179 on the formatter cleanup commit returned action_required with no jobs; it is not verification. CI #1178 was on the pre-format commit and is not exact-head evidence for the formatted tree.
 - A new app-authored documentation checkpoint commit is being used to trigger a full CI run against the formatted state. Record the exact new SHA and every job result when it completes.
+
+
+## Latest checkpoint update — 21 November 2026
+
+- Formatter run #14 succeeded and removed its temporary workflow. Cleanup commit 2776f97e902f7569afdc08ba75db8109238e9fcf was checked and the helper file is absent.
+- App-authored checkpoint commit f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 triggered CI #1180. At the time this documentation update was prepared, #1180 was still in progress. Verify its final status and any newer run against the actual current branch head.
+- Earlier CI #1176 failed the Prettier gate; formatter #14 corrected both flagged files. CI #1178 was on the pre-format commit; CI #1179 on the cleanup commit was cancelled/superseded. Neither is a passing verification result.
