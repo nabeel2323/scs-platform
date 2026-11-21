@@ -302,3 +302,10 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - The current PR #138 head at the last verification checkpoint was `a6a5cf24bdb2661673268d229bfcf917c2cc00eb`. Both commit-associated workflow lookup and the Actions runs endpoint filtered by this exact SHA returned no GitHub Actions run.
 - Combined commit status contains only Vercel web/admin failures pointing to the external build-rate-limit page. These are not application test results.
 - Refund queue implementation remains IMPLEMENTED / NOT CI-VERIFIED. No merge or deployment authorization is implied.
+
+
+## 22 November 2026 — current source verification checkpoint
+
+- PR #138 is open/draft/unmerged at `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`; PR #142 is open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- Exact-head GitHub Actions lookup for PR #138 head returned no workflow run. Combined status includes only Vercel web/admin build-rate-limit failures; these are not application test results.
+- Admin refund queue and guarded Admin order cancellation are implementation-complete but not CI-verified. No merge, deploy, staging release, k6, live DB mutation, migration, grant/default-ACL change, RLS enablement, worker activation or staging write occurred.

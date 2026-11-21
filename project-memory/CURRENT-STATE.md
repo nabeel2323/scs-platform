@@ -237,3 +237,11 @@ The user approved the Implementation Completion Program and requested that this 
 - Implemented UX-002 Admin refund queue: API list endpoint protected by `admin:refunds:approve`, REQUESTED-only newest-first queue capped at 100, Admin Payments tab and explicit confirmation before invoking existing approval. Focused controller delegation test added. Comprehensive testing remains pending.
 - Exact-head GitHub Actions lookup for the current source commit returned no run. Vercel web/admin statuses are external build-rate-limit failures, not application test evidence. No CI verification is claimed.
 - Next: finish API route-to-contract/permission mapping and admin/mobile route matrix; map order-operation state machine/authorization before implementing order actions. No safety gates changed.
+
+
+## Live continuation — 22 November 2026
+
+- PR #138 head: `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`, open/draft/unmerged. PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- UX-001 Admin order cancellation and UX-002 Admin refund queue/approval are implemented. Order cancellation uses the existing endpoint, canonical cancellation reasons and notes, state guard, explicit confirmation and refresh. The UI is gated by `orders:cancel` and only appears in cancellable states.
+- Exact-head workflow lookup returned no GitHub Actions run for `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`; Vercel web/admin failures point to the external build-rate-limit page. Neither constitutes application CI verification.
+- Next: complete MAP-001 API route-to-contract/permission and admin/mobile route matrix; then continue grouped dashboard/navigation and Product Studio UX work. Comprehensive regression remains Phase 3.

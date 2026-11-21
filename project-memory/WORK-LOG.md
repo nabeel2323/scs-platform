@@ -268,3 +268,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - The Admin refund queue implementation and permission-only access correction are present on PR #138. Source implementation is in `f477755cccfdecab8673fdd047935e42e0e85c9c` and `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; this follow-up only normalizes the API additions to the repository's multiline formatting style and synchronizes handover metadata.
 - Latest branch/PR head before this follow-up: `a6a5cf24bdb2661673268d229bfcf917c2cc00eb`. GitHub Actions run lookup (both commit-associated and Actions API filtered by exact head SHA) returned no runs. Combined status contained only Vercel build-rate-limit failures.
 - Keep the implementation marked IMPLEMENTED, not VERIFIED. Phase 3 API/UI regression and exact-head CI evidence are still required.
+
+
+## 22 November 2026 — Admin order cancellation implementation checkpoint
+
+- Commit `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef` adds Admin order cancellation UX through the existing cancellation API. It is gated by `orders:cancel`, matches the service's allowed states and canonical reason set, requires notes for OTHER, confirms the action and reloads the order detail/history.
+- The permission grant was verified in `rbac-seed.data.ts`: ADMIN explicitly has `orders:cancel`, and SUPER_ADMIN receives all permissions. Existing backend service enforces object access and transactionally handles inventory, shipment, exception, history and outbox effects.
+- Exact-head GitHub Actions lookup returned no workflow run for this commit; combined status only showed Vercel build-rate-limit failures. The new UI/API integration is IMPLEMENTED, NOT VERIFIED.
+- PR #138 remains draft/open/unmerged; PR #142 remains draft/open/unmerged. No merge, deploy, staging/database mutation, migration, grants, RLS, worker activation or release action.

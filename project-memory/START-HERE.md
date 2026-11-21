@@ -136,3 +136,13 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 - Exact-head GitHub Actions lookup for `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1` returned no workflow run. Combined statuses show Vercel web/admin build-rate-limit failures only. The change is NOT CI-VERIFIED.
 - Continue with MAP-001 route/permission/operation mapping, then admin order operations and remaining grouped UX gaps. Keep the full test campaign in Phase 3.
 - No merge, deployment, staging write, live DB change, migration, grant/default-ACL change, RLS enablement, worker activation or release authorization.
+
+
+## Latest implementation checkpoint — 22 November 2026
+
+- PR #138 source head: `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`, open/draft/unmerged. PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- Implemented UX-001 Admin order cancellation using the existing `orders:cancel` permission and `POST /orders/:id/cancel` lifecycle; Admin order detail now provides canonical reason/notes, confirmation, feedback and refresh. ADMIN/SUPER_ADMIN permission grants were verified in `apps/api/src/common/database/rbac-seed.data.ts`. See gap register and work log.
+- UX-002 Admin refund queue/approval tab was implemented in the preceding commits. Both items are IMPLEMENTED, not VERIFIED.
+- Exact-head GitHub Actions lookup for `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef` returned no workflow run. Combined statuses show only Vercel web/admin build-rate-limit failures. No application CI verification is claimed.
+- Continue MAP-001 route/permission/operation mapping; then dashboard widgets/navigation and Product Studio improvements. Keep Phase 3 as the consolidated comprehensive test campaign.
+- No merge, deploy, staging write, DB change, migration, grants/default-ACL change, RLS enablement, worker activation or release action.
