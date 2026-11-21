@@ -1,0 +1,38 @@
+name: One-time G-001 role-boundary formatter
+
+on:
+  push:
+    paths:
+      - ".github/workflows/format-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.ref == 'refs/heads/remediation/phase-0-1-tenant-security'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: remediation/phase-0-1-tenant-security
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format role-boundary tests and tracker with repository-locked Prettier
+        run: |
+          pnpm exec prettier --write apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts docs/remediation/IMPLEMENTATION-PROGRESS.md
+          pnpm exec prettier --check apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts docs/remediation/IMPLEMENTATION-PROGRESS.md
+      - name: Commit formatting and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/format-fix.yml
+          git add apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts docs/remediation/IMPLEMENTATION-PROGRESS.md .github/workflows/format-fix.yml
+          git commit -m "style(security): format merchant role authorization tests"
+          git push origin HEAD:remediation/phase-0-1-tenant-security
