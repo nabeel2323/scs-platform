@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `4adf87a07e8156e04ca008b6d236770704603eda`                               |
+| Live branch head     | `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae` |
 | Latest commit        | `docs(security): add G-002 database access architecture design`          |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No workflow/status returned for documentation head `562dbc6...`; NOT CI-VERIFIED |
+| Latest exact-head CI | No workflow run or status contexts for `7be3e2d...`; NOT CI-VERIFIED |
 | PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
 | PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped            |
 
@@ -219,3 +219,13 @@ The user approved the Implementation Completion Program and requested that this 
 - Important corrections: the generic admin ManagementPage does apply its configured permission check; mobile has merchant/driver role redirects; payment list/verification, promotions, disputes and analytics UI exist. The September UI audit is historical, not a current status authority.
 - This is a static source inventory only. No tests were run, no live database was queried or modified, and no deployment/staging/worker operation occurred. Current branch head must be re-fetched after the documentation updates; current head CI must not be assumed.
 - Next: complete route-to-permission/API matrices and DB/worker operation mapping, then begin the highest-priority confirmed UX implementation batch only after confirming its backend state/permission contracts.
+
+
+## MAP-001 documentation checkpoint and live CI reconciliation — 22 November 2026
+
+- Current branch and PR #138 head: `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; PR #138 remains open/draft/unmerged.
+- The static inventory source inspected was commit `2cca47aa34abd1a014ea16217cfee204c9e9f803`; subsequent commits in this batch are project-memory/documentation updates only.
+- GitHub Actions workflow-run lookup returned no run for exact head `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; combined status returned no contexts. This documentation head is NOT CI-VERIFIED.
+- The earlier source CI #44954371615 on `741a09f68721898a5bed6601bc3bc636867c78c2` and PR #142 CI #44953735602 on `dddff20c170737dc4694008bb807b2b90e177f77` remain historical exact-SHA evidence only.
+- No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
+- Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
