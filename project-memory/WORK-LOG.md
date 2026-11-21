@@ -77,3 +77,11 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Replaced the initial active-store ID materialization with a correlated SQL EXISTS predicate in both buyer-facing offer queries.
 - The store lifecycle boundary remains enforced in SQL without loading all active store IDs into application memory.
 - Unit tests assert the EXISTS predicate for the regular and ranked buyer query paths.
+
+
+### 21 November 2026 — G-001 merchant read-surface acceptance expansion
+
+- Expanded the catalog offer controller test matrix for supported merchant principals across list, analytics, trend and offer-detail reads.
+- Added FINANCE to the negative privileged-read matrix and a foreign-organization trend-denial test that asserts no service query occurs.
+- This is a test-only acceptance increment. It does not close G-001; exact-head CI, remaining tenant/store lifecycle evidence and independent security review are still required.
+- No shared database, staging, deployment, environment or worker action was performed.
