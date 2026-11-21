@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import type { Offer, RankedProductOffer } from '../lib/buyer-api';
+import type { BuyerProductOffer, RankedProductOffer } from '../lib/buyer-api';
 
 /** A single row in the offer comparison table, merging base + ranked data. */
 export interface OfferComparisonRow {
@@ -46,7 +46,7 @@ interface UseOfferComparisonResult {
  * competing offers.
  */
 export function useOfferComparison(
-  offers: Offer[],
+  offers: BuyerProductOffer[],
   ranked: RankedProductOffer[],
   currentStoreId: string | null,
 ): UseOfferComparisonResult {

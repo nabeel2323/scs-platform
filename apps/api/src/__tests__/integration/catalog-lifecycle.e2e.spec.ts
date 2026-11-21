@@ -455,6 +455,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
           moq: 1,
           leadTimeDays: 5,
           externalRef: 'SKU-A-001',
+          metadata: { merchantInternalNote: 'do-not-expose' },
           proposedBy: 'forged-user',
         },
         callerA(),
@@ -511,6 +512,22 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(productRow).toBeTruthy();
 
       const offers = await offerService.listOffersForProduct(productId);
+      const publicOffer = offers.find((o) => o.id === offerA);
+      expect(publicOffer).toBeDefined();
+      expect(publicOffer).not.toHaveProperty('externalRef');
+      expect(publicOffer).not.toHaveProperty('metadata');
+      expect(publicOffer).not.toHaveProperty('proposedBy');
+      expect(publicOffer).not.toHaveProperty('reviewedBy');
+      expect(publicOffer).not.toHaveProperty('reviewedAt');
+      expect(publicOffer).not.toHaveProperty('rejectionReason');
+      expect(publicOffer).not.toHaveProperty('priceListId');
+      expect(publicOffer).not.toHaveProperty('warehouseId');
+
+      const ranked = await offerService.listOffersForProductRanked(productId);
+      const rankedOffer = ranked.find((o) => o.offerId === offerA);
+      expect(rankedOffer).toBeDefined();
+      expect(rankedOffer).not.toHaveProperty('priceListId');
+
       const offersForVariant = offers.filter((o) => o.variantId === variant16_512);
       expect(offersForVariant).toHaveLength(2);
 

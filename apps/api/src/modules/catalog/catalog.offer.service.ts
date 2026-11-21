@@ -109,6 +109,34 @@ export class CatalogOfferService {
     }
   }
 
+  private async assertStoreReferencesBelongToStore(
+    storeId: string,
+    priceListId?: string | null,
+    warehouseId?: string | null,
+  ): Promise<void> {
+    if (priceListId != null) {
+      const priceList = await this.db.db.query.priceLists.findFirst({
+        where: eq(priceLists.id, priceListId),
+        columns: { id: true, storeId: true },
+      });
+      if (!priceList) throw new NotFoundException('Price list not found');
+      if (priceList.storeId !== storeId) {
+        throw new BadRequestException('Price list does not belong to the offer store');
+      }
+    }
+
+    if (warehouseId != null) {
+      const warehouse = await this.db.db.query.warehouses.findFirst({
+        where: eq(warehouses.id, warehouseId),
+        columns: { id: true, storeId: true },
+      });
+      if (!warehouse) throw new NotFoundException('Warehouse not found');
+      if (warehouse.storeId !== storeId) {
+        throw new BadRequestException('Warehouse does not belong to the offer store');
+      }
+    }
+  }
+
   async createOffer(input: CreateOfferInput, caller: CallerContext) {
     this.assertMerchantCaller(caller);
     if (!input.storeId?.trim()) throw new BadRequestException('Offer requires a store');
@@ -128,6 +156,11 @@ export class CatalogOfferService {
 
     await assertStoreInOrg(this.db, caller, input.storeId);
     await assertStoreMember(this.db, caller, input.storeId);
+    await this.assertStoreReferencesBelongToStore(
+      input.storeId,
+      input.priceListId,
+      input.warehouseId,
+    );
 
     const product = await this.db.db.query.products.findFirst({
       where: eq(products.id, input.productId),
@@ -247,6 +280,20 @@ export class CatalogOfferService {
         eq(merchantOffers.isAvailable, true),
         this.activeStoreVisibilityPredicate(),
       ),
+      columns: {
+        id: true,
+        storeId: true,
+        productId: true,
+        variantId: true,
+        status: true,
+        currency: true,
+        basePriceMinor: true,
+        compareAtPriceMinor: true,
+        moq: true,
+        orderIncrement: true,
+        leadTimeDays: true,
+        isAvailable: true,
+      },
       orderBy: [asc(merchantOffers.createdAt)],
     });
   }
@@ -284,7 +331,6 @@ export class CatalogOfferService {
         basePriceMinor: true,
         moq: true,
         leadTimeDays: true,
-        priceListId: true,
         activatedAt: true,
       },
     });
@@ -341,7 +387,6 @@ export class CatalogOfferService {
         basePriceMinor: o.basePriceMinor,
         moq: o.moq,
         leadTimeDays: o.leadTimeDays,
-        priceListId: o.priceListId,
         activatedAt: o.activatedAt,
         ordersCount: agg.ordersCount,
         unitsSold: agg.unitsSold,
@@ -378,7 +423,6 @@ export class CatalogOfferService {
           basePriceMinor: row.basePriceMinor,
           moq: row.moq,
           leadTimeDays: row.leadTimeDays,
-          priceListId: row.priceListId,
           ordersCount: 0,
           unitsSold: 0,
           rank: null as number | null,
@@ -397,7 +441,6 @@ export class CatalogOfferService {
         basePriceMinor: row.basePriceMinor,
         moq: row.moq,
         leadTimeDays: row.leadTimeDays,
-        priceListId: row.priceListId,
         ordersCount: row.ordersCount,
         unitsSold: row.unitsSold,
         rank: i + 1,
@@ -754,24 +797,11 @@ export class CatalogOfferService {
       throw new BadRequestException('Base price cannot be negative');
     }
 
-    if (input.priceListId) {
-      const pl = await this.db.db.query.priceLists.findFirst({
-        where: eq(priceLists.id, input.priceListId),
-      });
-      if (!pl) throw new NotFoundException('Price list not found');
-      if (pl.storeId !== offer.storeId) {
-        throw new BadRequestException('Price list does not belong to the offer store');
-      }
-    }
-    if (input.warehouseId) {
-      const wh = await this.db.db.query.warehouses.findFirst({
-        where: eq(warehouses.id, input.warehouseId),
-      });
-      if (!wh) throw new NotFoundException('Warehouse not found');
-      if (wh.storeId !== offer.storeId) {
-        throw new BadRequestException('Warehouse does not belong to the offer store');
-      }
-    }
+    await this.assertStoreReferencesBelongToStore(
+      offer.storeId,
+      input.priceListId,
+      input.warehouseId,
+    );
 
     await this.db.db
       .update(merchantOffers)

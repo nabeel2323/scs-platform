@@ -91,6 +91,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
             if (selection !== undefined) {
               return {
                 getSQL: () => sql`SELECT 1 FROM stores WHERE ${condition}`,
+                groupBy: async () => [],
               };
             }
             return {
@@ -186,13 +187,85 @@ describe('CatalogOfferService — create', () => {
   });
 });
 
+describe('CatalogOfferService — create-time store reference ownership (G-001)', () => {
+  it('rejects a price list owned by another store before inserting an offer', async () => {
+    const { svc, inserted } = makeHarness({
+      priceLists: { findFirst: { id: 'foreign-price-list', storeId: 's2' } },
+    });
+
+    await expect(
+      svc.createOffer(
+        { storeId: 's1', productId: 'p1', priceListId: 'foreign-price-list' },
+        caller,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('rejects a warehouse owned by another store before inserting an offer', async () => {
+    const { svc, inserted } = makeHarness({
+      warehouses: { findFirst: { id: 'foreign-warehouse', storeId: 's2' } },
+    });
+
+    await expect(
+      svc.createOffer(
+        { storeId: 's1', productId: 'p1', warehouseId: 'foreign-warehouse' },
+        caller,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('accepts price list and warehouse references owned by the offer store', async () => {
+    const { svc, inserted } = makeHarness({
+      products: { findFirst: { id: 'p1' } },
+      priceLists: { findFirst: { id: 'price-list-1', storeId: 's1' } },
+      warehouses: { findFirst: { id: 'warehouse-1', storeId: 's1' } },
+      merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
+    });
+
+    await svc.createOffer(
+      {
+        storeId: 's1',
+        productId: 'p1',
+        priceListId: 'price-list-1',
+        warehouseId: 'warehouse-1',
+      },
+      caller,
+    );
+
+    expect(inserted[0]).toMatchObject({
+      storeId: 's1',
+      priceListId: 'price-list-1',
+      warehouseId: 'warehouse-1',
+    });
+  });
+});
+
 describe('CatalogOfferService — buyer product offer visibility (G-001)', () => {
   it('requires an ACTIVE store and ACTIVE, available offers for a canonical product', async () => {
     const { svc, findManyCalls } = makeHarness();
     await svc.listOffersForProduct('product-1');
 
     expect(findManyCalls).toHaveLength(1);
-    const query = findManyCalls[0] as { where?: unknown };
+    const query = findManyCalls[0] as {
+      where?: unknown;
+      columns?: Record<string, boolean>;
+    };
+    expect(query.columns).toEqual({
+      id: true,
+      storeId: true,
+      productId: true,
+      variantId: true,
+      status: true,
+      currency: true,
+      basePriceMinor: true,
+      compareAtPriceMinor: true,
+      moq: true,
+      orderIncrement: true,
+      leadTimeDays: true,
+      isAvailable: true,
+    });
     const compiled = new PgDialect().sqlToQuery(query.where as SQL);
     expect(compiled.sql.toLowerCase()).toContain('exists');
     expect(compiled.sql).toContain('stores');
@@ -211,6 +284,49 @@ describe('CatalogOfferService — buyer product offer visibility (G-001)', () =>
     expect(compiled.sql).toContain('stores');
     expect(compiled.params).toContain('ACTIVE');
     expect(compiled.params).toContain(true);
+  });
+
+  it('returns an allowlisted buyer projection from ranked offers', async () => {
+    const { svc } = makeHarness({
+      merchantOffers: {
+        findMany: [
+          {
+            id: 'offer-1',
+            storeId: 'store-1',
+            productId: 'product-1',
+            variantId: null,
+            currency: 'SAR',
+            basePriceMinor: 1200,
+            moq: 1,
+            leadTimeDays: 3,
+            activatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          },
+        ],
+      },
+      stores: {
+        findMany: [
+          {
+            id: 'store-1',
+            displayName: 'Store One',
+            slug: 'store-one',
+            currency: 'SAR',
+            verificationStatus: 'VERIFIED',
+            hidePopularityBadge: false,
+          },
+        ],
+      },
+    });
+
+    const ranked = await svc.listOffersForProductRanked('product-1');
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0]).toMatchObject({
+      offerId: 'offer-1',
+      storeId: 'store-1',
+      storeName: 'Store One',
+      basePriceMinor: 1200,
+      moq: 1,
+    });
+    expect(ranked[0]).not.toHaveProperty('priceListId');
   });
 });
 
@@ -311,20 +427,21 @@ describe('CatalogOfferService — merchant principal boundary (G-001)', () => {
     },
   );
 
-  it('allows an active MERCHANT_STAFF member to create an offer', async () => {
-    const staff = { ...caller, role: 'MERCHANT_STAFF' };
-    const { svc, inserted } = makeHarness({
-      products: { findFirst: { id: 'p1' } },
-      merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
-    });
+  it.each(['MERCHANT', 'MERCHANT_OWNER', 'MERCHANT_STAFF'])(
+    'allows an active %s member to create an offer',
+    async (role) => {
+      const merchantCaller = { ...caller, role };
+      const { svc, inserted } = makeHarness({
+        products: { findFirst: { id: 'p1' } },
+        merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
+      });
 
-    await expect(svc.createOffer({ storeId: 's1', productId: 'p1' }, staff)).resolves.toMatchObject(
-      {
-        id: 'o1',
-      },
-    );
-    expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT' });
-  });
+      await expect(
+        svc.createOffer({ storeId: 's1', productId: 'p1' }, merchantCaller),
+      ).resolves.toMatchObject({ id: 'o1' });
+      expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT' });
+    },
+  );
 });
 
 describe('CatalogOfferService — merchant offer existence confidentiality (G-001)', () => {

@@ -1693,6 +1693,22 @@ export async function fetchStoreVariants(storeId: string): Promise<ProductVarian
 
 // ── Merchant Offers (PHASE 5) ─────────────────────────────────
 
+export interface BuyerProductOffer {
+  id: string;
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  status: 'ACTIVE';
+  currency: string;
+  basePriceMinor: number;
+  compareAtPriceMinor: number | null;
+  moq: number;
+  orderIncrement: number | null;
+  leadTimeDays: number | null;
+  isAvailable: boolean;
+}
+
+/** Full merchant-management offer record; do not use this shape for buyer APIs. */
 export interface Offer {
   id: string;
   storeId: string;
@@ -1733,7 +1749,7 @@ export interface CreateOfferInput {
   externalRef?: string;
 }
 
-export async function fetchProductOffers(productId: string): Promise<Offer[]> {
+export async function fetchProductOffers(productId: string): Promise<BuyerProductOffer[]> {
   const res = await authFetch(`${API_URL}/v1/products/${productId}/offers`);
   if (!res.ok) throw await ApiError.from(res, `Product offers failed (${res.status})`);
   return res.json();
@@ -1756,7 +1772,6 @@ export interface RankedProductOffer {
   basePriceMinor: number | null;
   moq: number;
   leadTimeDays: number | null;
-  priceListId: string | null;
   ordersCount: number;
   unitsSold: number;
   /**

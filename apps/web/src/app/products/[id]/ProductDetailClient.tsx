@@ -8,7 +8,7 @@ import {
   ProductDetail,
   ProductVariant,
   fetchProductOffers,
-  Offer,
+  BuyerProductOffer,
   fetchProductOffersRanked,
   RankedProductOffer,
 } from '../../../lib/buyer-api';
@@ -278,7 +278,7 @@ export default function ProductDetailClient() {
   // Per-variant add feedback: one flag would light every row at once.
   const [addedId, setAddedId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
-  const [productOffers, setProductOffers] = useState<Offer[]>([]);
+  const [productOffers, setProductOffers] = useState<BuyerProductOffer[]>([]);
   // PHASE 22: `offerId -> ranked row` map so the "Other Sellers" list can badge
   // the top-ranked seller and hint units sold without re-sorting. Kept separate
   // from `productOffers` so a failure of the analytics endpoint degrades to the

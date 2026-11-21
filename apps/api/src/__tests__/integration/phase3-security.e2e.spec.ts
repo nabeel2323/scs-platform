@@ -559,6 +559,43 @@ describe('Phase 3 — RBAC + Tenant Isolation + Security', () => {
       ).rejects.toThrow(/access/i);
     });
 
+    it('Merchant A cannot attach another store price list or warehouse to a new offer', async () => {
+      const foreignPriceList = await db.query.priceLists.findFirst({
+        where: eq(priceLists.storeId, storeB),
+        columns: { id: true },
+      });
+      const foreignWarehouse = await db.query.warehouses.findFirst({
+        where: eq(warehouses.storeId, storeB),
+        columns: { id: true },
+      });
+      expect(foreignPriceList).toBeTruthy();
+      expect(foreignWarehouse).toBeTruthy();
+
+      const before = await pool.query(
+        'SELECT COUNT(*)::int AS cnt FROM merchant_offers WHERE store_id = $1',
+        [storeA],
+      );
+
+      await expect(
+        offerService.createOffer(
+          { storeId: storeA, productId: productA, priceListId: foreignPriceList!.id },
+          callerA(),
+        ),
+      ).rejects.toThrow('Price list does not belong to the offer store');
+      await expect(
+        offerService.createOffer(
+          { storeId: storeA, productId: productA, warehouseId: foreignWarehouse!.id },
+          callerA(),
+        ),
+      ).rejects.toThrow('Warehouse does not belong to the offer store');
+
+      const after = await pool.query(
+        'SELECT COUNT(*)::int AS cnt FROM merchant_offers WHERE store_id = $1',
+        [storeA],
+      );
+      expect(after.rows[0].cnt).toBe(before.rows[0].cnt);
+    });
+
     it('Merchant Owner A cannot read Store B order detail', async () => {
       // orderA belongs to storeA (Org Alpha). Merchant B should not access it.
       await expect(

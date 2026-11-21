@@ -268,7 +268,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 - Avoid leaking whether a foreign store or offer exists; choose consistent 403/404 behavior based on the established API policy.
 - Audit adjacent `storeId`/`orgId` read endpoints for the same pattern; add linked findings for newly discovered omissions.
 
-**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin read policy; non-merchant roles cannot mutate merchant offers even when a merchant write permission is present.
+**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin read policy; non-merchant roles cannot mutate merchant offers even when a merchant write permission is present. Buyer-facing offer responses use explicit allowlisted fields and exclude merchant-private metadata, actor IDs and internal resource references. Create and update paths must verify that price-list and warehouse references belong to the offer's store.
 
 ### 1.2 Close G-002 — database privileges and RLS architecture
 

@@ -1182,3 +1182,12 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - Added a disposable-PostgreSQL service test that creates an ACTIVE MEMBER row and verifies a `MERCHANT_STAFF` caller in the owning organization can read the store's offer detail.
 - The test marks its temporary membership INACTIVE in a `finally` block so the shared integration fixture remains deterministic for later scenarios.
 - This adds real database evidence for the owner/staff distinction; controller role coverage remains complementary. Exact-head API/PostgreSQL CI is still pending.
+
+
+## G-001 buyer projection and create-reference hardening — 21 November 2026
+
+The buyer-facing product offer endpoint now returns an explicit allowlist of public commercial fields instead of full merchant-offer rows. It excludes merchant metadata, external references, proposer/reviewer identifiers and timestamps, review details, price-list IDs and warehouse IDs. The ranked buyer endpoint no longer returns the internal price-list reference.
+
+Offer creation now enforces the same-store ownership invariant for optional price-list and warehouse references, matching the existing pricing-update behavior. Unit tests cover foreign-store denial, same-store acceptance and the public projection. PostgreSQL integration tests cover cross-store reference rejection without inserting an offer and verify that private offer fields are absent from buyer and ranked responses.
+
+The implementation and documentation are synchronized in this change. Exact-head CI must verify the resulting commit before G-001 status changes. G-001 remains PARTIAL pending full CI, remaining role/tenant acceptance and independent security review. G-002 remains IN PROGRESS. No shared database, staging, migration, grants, RLS, deployment or worker changes were performed.

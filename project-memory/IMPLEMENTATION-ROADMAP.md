@@ -74,3 +74,22 @@ A green PR CI run is not a staging approval, independent security review, releas
 The offer detail and merchant mutation paths now use the scope-first service boundary and normalize foreign/non-member identifiers to 404. Focused tests and exact-head CI are pending. Remaining: verify store lifecycle policy, complete analytics/trend and role matrix, and obtain independent security review.
 
 The buyer offer list and ranked seller query now exclude offers from DRAFT stores while preserving merchant setup access. This addresses the inactive-store buyer visibility dimension; CI verification and the remaining role/analytics matrix are still open.
+
+
+## G-001 buyer projection and create-reference hardening — 21 November 2026
+
+The buyer-facing product offer endpoint now returns an explicit allowlist of public commercial fields instead of full merchant-offer rows. It excludes merchant metadata, external references, proposer/reviewer identifiers and timestamps, review details, price-list IDs and warehouse IDs. The ranked buyer endpoint no longer returns the internal price-list reference.
+
+Offer creation now enforces the same-store ownership invariant for optional price-list and warehouse references, matching the existing pricing-update behavior. Unit tests cover foreign-store denial, same-store acceptance and the public projection. PostgreSQL integration tests cover cross-store reference rejection without inserting an offer and verify that private offer fields are absent from buyer and ranked responses.
+
+The implementation and documentation are synchronized in this change. Exact-head CI must verify the resulting commit before G-001 status changes. G-001 remains PARTIAL pending full CI, remaining role/tenant acceptance and independent security review. G-002 remains IN PROGRESS. No shared database, staging, migration, grants, RLS, deployment or worker changes were performed.
+
+
+### G-001 acceptance extension — buyer projection and same-store references
+
+- [x] Explicit allowlist for buyer offer response fields; merchant-private fields are not serialized.
+- [x] Ranked buyer response excludes internal price-list references.
+- [x] Create-time price-list and warehouse ownership validation matches update-time enforcement.
+- [x] Unit and PostgreSQL regression coverage added.
+- [ ] Exact-head CI on the combined PR branch.
+- [ ] Complete remaining tenant/role acceptance matrix and independent security review.
