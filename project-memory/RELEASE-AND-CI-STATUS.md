@@ -141,3 +141,10 @@ For every run, record:
 - Catalog lifecycle integration now covers DRAFT-store exclusion from buyer offer list/ranked results, same-404 confidentiality for foreign merchant and same-organization non-member detail reads, and denial after membership is marked INACTIVE (fixture restored in `finally`).
 - Latest inspected branch commit before this status refresh: `bf8feed6ebf0064bbf95b0a80910b002988d18ad`.
 - Exact-head GitHub Actions/API/PostgreSQL results remain pending. No shared database or staging mutation was performed.
+
+
+## Merchant-staff PostgreSQL acceptance — 21 November 2026
+
+- Added active store-member service coverage for `MERCHANT_STAFF` offer-detail access, with temporary membership deactivation in `finally`.
+- Latest inspected source/test head before this status refresh: `bf625aefd6faf47c60fd1bf01b1c23148de66ca0`.
+- Exact-head API/PostgreSQL CI remains pending. No shared database or staging mutation was performed.
