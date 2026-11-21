@@ -99,3 +99,13 @@ For every run, record:
 - Cleanup commit [2d416c9](https://github.com/nabeel2323/scs-platform/commit/2d416c99700de8b511a7c376085a107cc24a854c) removed the temporary formatter workflow; the resulting tree was checked and the helper file is absent.
 - CI #1182 is associated with the pre-format helper commit; CI #1183 on the cleanup commit returned action_required with no jobs. Neither is a passing verification result.
 - A new app-authored checkpoint commit is being created to trigger full CI on the formatted tree. Inspect that run's exact SHA and all jobs.
+
+
+## Live branch verification — 21 November 2026
+
+- The G-001 controller acceptance expansion is committed in `0d00dbac10b4c7de53aef4bbf860850668cf39fd`; the remediation tracker and project-memory work log were updated in subsequent commits.
+- The inspected branch head before this status-document refresh was `e935e24a5983a028e3922ab5e7728c61aeba11b9`.
+- `fetch_commit_workflow_runs` returned no associated GitHub Actions runs for the inspected head, and the combined commit status contained no status contexts. Therefore exact-head CI is **PENDING / NOT VERIFIED**. CI #1184 is historical and predates the current source/test changes.
+- The earlier Vercel web/admin status failures were build-rate-limit provider failures, not application test failures. They do not substitute for GitHub Actions CI.
+- No staging release, k6 run, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
+- PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
