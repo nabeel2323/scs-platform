@@ -1041,7 +1041,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - G-001 remains **PARTIAL** pending independent security review and a documented owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains **BLOCKED** pending the protected staging audit, actual API and migration runtime identity evidence, and reviewed least-privilege/RLS design.
 - PR #138 remains open and draft. No staging deployment, k6 run, live OTP exercise, shared-database mutation, migration, grant/default-ACL change, RLS enablement, environment change or worker activation was performed.
 
-
 ### Exact-head CI #1148 — 21 November 2026
 
 - PR #138 head `ade4cd70141d31d465981d77b894a03061e1f33c` completed [CI #1148](https://github.com/nabeel2323/scs-platform/actions/runs/44838126165) successfully. All 10 executable jobs passed, including lint/typecheck/changed-file formatting, Flutter analysis/tests, Web/Admin tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, isolated full migration apply/read-only DB audit, contract/codegen, build and container smoke.
