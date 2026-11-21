@@ -227,7 +227,13 @@ describe('Phase 2 — Multi-Merchant Commerce + Order Lifecycle', () => {
       { id: buyerB, fullName: 'Buyer Beta', phone: '+10000000005' },
     ]);
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'alpha-store', displayName: 'Alpha Store', status: 'ACTIVE' },
+      {
+        id: storeA,
+        orgId: orgA,
+        slug: 'alpha-store',
+        displayName: 'Alpha Store',
+        status: 'ACTIVE',
+      },
       { id: storeB, orgId: orgB, slug: 'beta-store', displayName: 'Beta Store', status: 'ACTIVE' },
     ]);
     await db.insert(warehouses).values([

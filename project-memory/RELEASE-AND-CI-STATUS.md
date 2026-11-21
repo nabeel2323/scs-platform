@@ -153,7 +153,6 @@ Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXI
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
 
-
 ## CI #1265 — exact-head regression analysis — 21 November 2026
 
 - **Commit tested:** `36399ce6704b0774f0ebb0f670a3e7d735b19295`.
@@ -165,7 +164,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Failure cause:** `storeMembers` was missing from five explicit Drizzle schema maps used by PostgreSQL integration tests. This caused `db.query.storeMembers` to be undefined in `assertStoreMember`. Phase 4 offer/cart/checkout failures cascaded from the initial offer-creation failure. Buyer discovery fixtures also need explicit ACTIVE store status.
 - **Correction:** grouped test-only fixture change; production tenant authorization remains intact. Exact-head CI on the corrected commit is pending.
 - **Release state:** PR #138 remains open/draft. No staging dispatch/approval, deployment, shared DB mutation, migration, grants/default ACL, RLS or worker activation occurred.
-
 
 ## CI #1266 — formatting gate failure — 21 November 2026
 

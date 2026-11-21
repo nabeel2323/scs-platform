@@ -1197,7 +1197,6 @@ Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXI
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
 
-
 ## CI #1265 regression analysis and tenant-fixture correction — 21 November 2026
 
 Exact-head CI [#1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038) evaluated branch head `36399ce6704b0774f0ebb0f670a3e7d735b19295`. Lint/typecheck/changed-file formatting, Flutter, E6 boundary lint, migration full-apply (including the disposable-PostgreSQL read-only access audit and public-schema hardening checks), and Web/Admin tests passed. API unit/coverage and PostgreSQL integration failed; Contract Spec & Codegen, Container Build & Smoke, Build, k6 and staging release were skipped after upstream failures. The two Vercel web/admin status contexts separately reported the provider's build-rate-limit page and are not application test results.
@@ -1222,7 +1221,6 @@ A subsequent read-only database check reported:
 - The configured startup command runs migrations and RBAC seed; logs reported 63 migrations applied. A safe repeatable deployment procedure remains to be established before any restart/deployment.
 
 The earlier schema inventory reported 114 relations, while this check reports 111 tables. These are not assumed to be equivalent scopes; reconcile the inventory query/table/partition definitions before finalizing the per-table matrix. No grants, policies, migrations, workers, deployment configuration or shared data were changed by this read-only review.
-
 
 ## CI #1266 formatting-gate regression — 21 November 2026
 

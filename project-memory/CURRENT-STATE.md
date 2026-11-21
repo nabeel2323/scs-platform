@@ -14,17 +14,17 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item                              | Last inspected value                                          |
-| --------------------------------- | ------------------------------------------------------------- |
-| Repository                        | nabeel2323/scs-platform                                       |
-| Branch                            | remediation/phase-0-1-tenant-security                         |
-| Last inspected PR head            | 52336f751dc2558b10834940034833b4573c5ca4                      |
-| Last inspected commit             | test(security): repair tenant membership integration fixtures |
-| PR #138                           | Open; draft; not merged                                       |
-| PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775           |
-| Latest completed CI at checkpoint | #1266 (Prettier gate failed; dependent jobs skipped)          |
-| CI #1266 tested SHA                | 52336f751dc2558b10834940034833b4573c5ca4                      |
-| CI #1266 status                    | Flutter and lint/typecheck passed; changed-file Prettier failed on 9 files; tests skipped |
+| Item                              | Last inspected value                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------- |
+| Repository                        | nabeel2323/scs-platform                                                                   |
+| Branch                            | remediation/phase-0-1-tenant-security                                                     |
+| Last inspected PR head            | 52336f751dc2558b10834940034833b4573c5ca4                                                  |
+| Last inspected commit             | test(security): repair tenant membership integration fixtures                             |
+| PR #138                           | Open; draft; not merged                                                                   |
+| PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                                       |
+| Latest completed CI at checkpoint | #1266 (Prettier gate failed; dependent jobs skipped)                                      |
+| CI #1266 tested SHA               | 52336f751dc2558b10834940034833b4573c5ca4                                                  |
+| CI #1266 status                   | Flutter and lint/typecheck passed; changed-file Prettier failed on 9 files; tests skipped |
 
 ## Current remediation status
 
@@ -125,13 +125,11 @@ Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXI
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
 
-
 ## Exact-head CI #1265 reconciliation — 21 November 2026
 
 The live PR #138 head at inspection was `36399ce6704b0774f0ebb0f670a3e7d735b19295`. CI [#1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038) completed with lint/typecheck/formatting, Flutter, E6 boundary lint, migration full apply/read-only audit and Web/Admin tests passing. API unit/coverage and PostgreSQL integration failed on the missing `storeMembers` model in five explicit Drizzle test schema maps; Phase 4's offer/cart/checkout failures were downstream cascades. Contract/codegen, container smoke, build, k6 and staging release were skipped. Vercel web/admin contexts were separate provider build-rate-limit failures.
 
 The current grouped source correction adds the missing model to all five test schema maps and sets the test stores ACTIVE where buyer-discovery flows are expected. Production authorization logic is unchanged. Exact-head CI on the corrected commit remains the next verification gate. G-001 remains PARTIAL; G-002 remains IN PROGRESS; PR #138 remains open and draft. No staging/shared-database/deployment actions were performed.
-
 
 ## Exact-head CI #1266 formatting gate — 21 November 2026
 
