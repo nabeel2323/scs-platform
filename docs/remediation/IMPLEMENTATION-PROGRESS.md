@@ -1058,7 +1058,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - P1-07 inventory/domain classification remains partial pending exact per-table ownership predicates. P1-08 catalog/ACL review remains partial pending the full schema/function/default-ACL and role matrix. P1-09 remains blocked until actual API/migration identities and safe transaction-local tenant context across pooled API requests and background workers are proven. P1-10 migration 0070 remains CI-verified but not deployed.
 - PR #138 remains open and draft. No protected staging audit was dispatched or approved; no deployment, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement, environment change or worker activation was performed.
 
-
 ### Migration runtime identity diagnostic — CI #1161 follow-up — 21 November 2026
 
 - Added `readMigrationDatabaseIdentity` to query `session_user`, `current_user`, database name, login/effective role superuser/BYPASSRLS/CREATEROLE/CREATEDB flags and TLS state from the exact `PoolClient` used by the migration runner. The migration runner emits only this non-secret fingerprint and a fixed warning on diagnostic failure; it does not log DSNs, hostnames, addresses or raw query errors.
