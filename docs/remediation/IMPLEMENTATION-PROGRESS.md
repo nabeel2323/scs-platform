@@ -1275,3 +1275,15 @@ PR #142 CI [#44948310469](https://github.com/nabeel2323/scs-platform/actions/run
 The new [G-002 RLS architecture design](./G-002-RLS-ARCHITECTURE-DESIGN.md) records the target role model, transaction-bound tenant context, initial ownership classification, test requirements and rollout gates. The key blocker is that the current API uses a process-wide Drizzle pool and the inspected middleware does not bind every request query to a transaction with verified tenant context. A session-level tenant variable on a pooled connection would risk cross-request leakage. RLS remains disabled until transaction-local context is established and all HTTP, worker, webhook, audit and bootstrap paths use explicit transaction handles.
 
 G-002 remains IN PROGRESS. Actual staging API/migration identities and the protected read-only staging audit remain unverified. No staging deployment, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## G-002 schema inventory and exact-head CI — 22 November 2026
+
+Exact-head CI is now complete for both open draft remediation PRs:
+
+- PR #138 source SHA 741a09f68721898a5bed6601bc3bc636867c78c2 — [CI #44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs. k6 and protected staging release skipped.
+- PR #142 source SHA dddff20c170737dc4694008bb807b2b90e177f77 — [CI #44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs, including the added disposable-PostgreSQL integration test that verifies distinct login/effective roles using a non-owner, non-superuser, non-BYPASSRLS login. k6 and protected staging release skipped.
+
+Added G-002-TABLE-OWNERSHIP-MATRIX.md. It enumerates 99 named tables from the Drizzle schema export and records candidate row scopes plus required completion evidence. It does not claim completeness against the historical 116-table live inventory; exact columns/FKs, route/service/worker operation paths and raw-SQL-only objects remain to be reconciled. All candidate scopes remain unapproved.
+
+Both PRs remain open, draft and unmerged. G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS pending actual staging API/migration identity evidence, refreshed protected read-only inventory, completed per-operation matrix, transaction-bound tenant context, isolated RLS tests and approval. No staging deployment, shared DB mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation occurred.

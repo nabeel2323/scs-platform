@@ -184,3 +184,11 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 ## G-002 architecture checkpoint — 22 November 2026
 
 The read-only design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) records the current architecture blocker: the API uses a global process-wide Drizzle pool, and the inspected request middleware does not bind all service queries to a transaction carrying verified tenant context. A pooled session-level tenant variable would risk cross-request context leakage. RLS remains disabled until transaction-bound context, complete per-table operation mapping, non-owner role tests, independent review and staging approval are complete.
+
+
+## G-002 inventory and CI checkpoint — 22 November 2026
+
+- PR #138 exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2. PR #142 exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77, including the distinct-login/effective-role PostgreSQL integration test. k6 and protected staging release were skipped in both runs.
+- Added docs/remediation/G-002-TABLE-OWNERSHIP-MATRIX.md. It enumerates 99 Drizzle-exported tables and records candidate row scopes, but deliberately marks exact owner columns, FK paths and route/service operations as incomplete. The historical 116-table live inventory still requires refreshed protected reconciliation.
+- Both PRs remain open, draft and unmerged. CI used disposable services only. Actual staging API/migration identities remain unverified; G-002 is IN PROGRESS and RLS must remain disabled.
+- No shared database mutation, migration 0070, grants/default-ACL changes, RLS enablement, worker activation, environment change or deployment was performed.

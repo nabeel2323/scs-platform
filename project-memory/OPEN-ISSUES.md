@@ -167,3 +167,10 @@ PR #142 CI [#44948310469](https://github.com/nabeel2323/scs-platform/actions/run
 The G-002 design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) records the transaction-context blocker and proposed sequence. The API currently exposes a process-wide Drizzle pool and service-layer tenant checks; the inspected middleware does not provide a request-bound transaction context. Before RLS, every tenant-aware request must establish transaction-local actor/organization context and route all service queries through the same transaction handle. Workers, webhooks, audit writes and bootstrap paths need explicit contexts too.
 
 No staging identity has been observed. The staging audit workflow remains gated on the workflow revision being present on the default branch and protected staging approval. No staging deployment, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation occurred.
+
+
+## G-002 current blockers — 22 November 2026
+
+- Exact-head PR #138 CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2. Exact-head PR #142 CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77, including the new disposable-PostgreSQL identity test. k6 and protected staging release were skipped.
+- The new G-002-TABLE-OWNERSHIP-MATRIX.md enumerates 99 Drizzle-exported tables with candidate scope only. It is not the complete 116-table live inventory; exact owner columns/FKs, operation mapping and raw-SQL-only objects remain open work.
+- Live API/migration identities and refreshed protected read-only staging audit remain unverified. Keep both PRs draft/unmerged; do not apply migration 0070, alter grants/default ACLs, enable RLS, activate workers or deploy without independent review and explicit authorization.

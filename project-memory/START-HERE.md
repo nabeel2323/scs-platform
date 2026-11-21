@@ -86,3 +86,12 @@ The implementation and documentation are synchronized. Exact-head CI #1268 on `b
 Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.getSQL()`, `.limit()` and `.groupBy()` for the relevant query shapes.
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## Latest continuation checkpoint — 22 November 2026
+
+- PR #138 head 741a09f68721898a5bed6601bc3bc636867c78c2; exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed every executable job. k6 and protected staging release were skipped.
+- PR #142 head dddff20c170737dc4694008bb807b2b90e177f77; exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed every executable job, including the new PostgreSQL identity integration test. k6 and protected staging release were skipped.
+- Added G-002-TABLE-OWNERSHIP-MATRIX.md: 99 named tables exported by apps/api/src/drizzle/schema.ts, with candidate scopes. It is explicitly not the complete historical 116-table live inventory and not an approved policy matrix.
+- Both PRs remain open, draft and unmerged. G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS; staging identities and refreshed protected read-only inventory remain unverified.
+- No staging release, shared DB mutation, migration 0070, grants/default ACL changes, RLS enablement, worker activation or deployment.

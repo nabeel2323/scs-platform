@@ -205,3 +205,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md), documenting the role model, transaction-local context requirement, initial ownership classification, isolated PostgreSQL acceptance criteria and staged rollout gates.
 - Source review found a global process-wide Drizzle pool and service-layer tenant checks; the inspected request middleware does not provide a universal request-scoped transaction context. RLS must remain disabled until transaction-bound context and all request/worker query paths are covered.
 - No staging deployment, shared database write, migration 0070, grant/default-ACL mutation, RLS enablement, environment change or worker activation occurred.
+
+
+## Work log — 22 November 2026
+
+- Confirmed exact-head PR #142 CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77. The real-PostgreSQL integration test verified distinct session_user/current_user values under a non-owner, non-superuser, non-BYPASSRLS login. This is disposable CI evidence only.
+- Confirmed exact-head PR #138 CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2.
+- Added G-002-TABLE-OWNERSHIP-MATRIX.md, enumerating 99 exported Drizzle tables with candidate scopes and explicit completion requirements. Updated G-002-RLS-ARCHITECTURE-DESIGN.md with final CI results and inventory link.
+- Both PRs remain draft/unmerged. No staging release, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation.

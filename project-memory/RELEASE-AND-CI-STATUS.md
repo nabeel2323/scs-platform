@@ -260,3 +260,11 @@ The PostgreSQL integration command ran against disposable CI services. This is n
 - k6 and protected staging release were skipped on the preceding successful run. No staging deploy was performed.
 
 Neither PR is merged. CI results are disposable-environment verification only; live staging API/migration identities remain unverified.
+
+
+## Exact-head CI and G-002 inventory — 22 November 2026
+
+- PR #138 head 741a09f68721898a5bed6601bc3bc636867c78c2: [CI #44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs; k6 and protected staging release skipped.
+- PR #142 head dddff20c170737dc4694008bb807b2b90e177f77: [CI #44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs, including PostgreSQL integration for distinct session/effective roles; k6 and protected staging release skipped.
+- Added G-002-TABLE-OWNERSHIP-MATRIX.md with 99 named Drizzle-exported tables and candidate scopes. This is not the complete historical 116-table live inventory or an approved policy matrix.
+- Both PRs remain open/draft/unmerged. Live staging identities remain unverified. No staging deployment or shared DB mutation.
