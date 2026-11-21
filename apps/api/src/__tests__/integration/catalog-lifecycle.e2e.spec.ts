@@ -53,7 +53,7 @@ import {
   assertStoreInOrg,
   type CallerContext,
 } from '../../common/tenant-scope';
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 
 /**
  * REAL E2E Catalog Lifecycle Test
@@ -778,6 +778,39 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       await expect(assertStoreInOrg(database, callerB(), storeA)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('returns the same 404 for a foreign merchant and a same-organization non-member', async () => {
+      await expect(offerService.getOfferForMerchant(offerA, callerB())).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+
+      const sameOrgNonMember: CallerContext = {
+        sub: buyerUser,
+        role: 'MERCHANT',
+        activeOrg: orgA,
+      };
+      await expect(
+        offerService.getOfferForMerchant(offerA, sameOrgNonMember),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('denies offer detail after store membership is revoked, then restores the fixture', async () => {
+      await db
+        .update(storeMembers)
+        .set({ status: 'INACTIVE' })
+        .where(and(eq(storeMembers.storeId, storeA), eq(storeMembers.userId, merchantA)));
+
+      try {
+        await expect(offerService.getOfferForMerchant(offerA, callerA())).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      } finally {
+        await db
+          .update(storeMembers)
+          .set({ status: 'ACTIVE' })
+          .where(and(eq(storeMembers.storeId, storeA), eq(storeMembers.userId, merchantA)));
+      }
     });
 
     it('Merchant B cannot update Merchant A offer pricing → 403', async () => {
