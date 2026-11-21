@@ -1232,7 +1232,6 @@ The additional read-only check reports 111/111 tables with RLS disabled, while t
 
 The additional audit note's claim that the Render startup command runs migrations/RBAC seed and that 63 migrations were applied conflicts with the existing source/topology evidence: the inspected production start command is `pnpm --filter @scs/api start:prod`, while the release workflow runs migrations and RBAC seed separately; the DB verification report recorded 69 custom-ledger rows at its inspection time. Treat the 63 count/command claim as unverified until the exact service command and log timestamp are reconciled. No restart or deployment is authorized to resolve this discrepancy. The absence of a separate worker service is consistent with the existing topology evidence that the outbox, shipping carrier, auto-complete and monitor workers are embedded in the API process; verify the deployed revision before making a new runtime claim.
 
-
 ## G-001 exact-head CI #1268 and independent review handoff — 21 November 2026
 
 Live GitHub state was verified before this checkpoint: branch `remediation/phase-0-1-tenant-security` at `b73f72e34406c1260f214610539139d0d096b2de`; PR #138 remains open, draft and unmerged; base `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.

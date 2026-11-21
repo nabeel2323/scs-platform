@@ -14,17 +14,17 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item                              | Last inspected value                                                                      |
-| --------------------------------- | ----------------------------------------------------------------------------------------- |
-| Repository                        | nabeel2323/scs-platform                                                                   |
-| Branch                            | remediation/phase-0-1-tenant-security                                                     |
-| Live branch head                  | `b73f72e34406c1260f214610539139d0d096b2de`                                                  |
-| Latest commit                     | `style: apply repository Prettier to tenant security fixtures`                            |
-| PR #138                           | Open; draft; not merged                                                                   |
-| PR base                           | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                                   |
-| Latest exact-head CI               | #1268 — success                                                                            |
-| CI #1268 tested SHA               | `b73f72e34406c1260f214610539139d0d096b2de`                                                  |
-| CI #1268 status                   | All 10 executable jobs passed; k6 and protected staging release skipped                   |
+| Item                 | Last inspected value                                                    |
+| -------------------- | ----------------------------------------------------------------------- |
+| Repository           | nabeel2323/scs-platform                                                 |
+| Branch               | remediation/phase-0-1-tenant-security                                   |
+| Live branch head     | `b73f72e34406c1260f214610539139d0d096b2de`                              |
+| Latest commit        | `style: apply repository Prettier to tenant security fixtures`          |
+| PR #138              | Open; draft; not merged                                                 |
+| PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                 |
+| Latest exact-head CI | #1268 — success                                                         |
+| CI #1268 tested SHA  | `b73f72e34406c1260f214610539139d0d096b2de`                              |
+| CI #1268 status      | All 10 executable jobs passed; k6 and protected staging release skipped |
 
 ## Current remediation status
 
@@ -133,7 +133,6 @@ The current grouped source correction adds the missing model to all five test sc
 ## Exact-head CI #1266 formatting gate — 21 November 2026
 
 CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and completed lint/typecheck with zero errors, but failed changed-file Prettier on nine files. All dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, contract, container and build jobs were skipped. The five PostgreSQL fixture corrections are committed, but this run did not execute them. Repository-locked formatting is the immediate task; exact-head CI after the formatting commit must verify the test changes. G-001 remains PARTIAL and PR #138 remains draft.
-
 
 ## Live checkpoint — exact-head CI #1268 — 21 November 2026
 

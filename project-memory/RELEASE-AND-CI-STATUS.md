@@ -176,7 +176,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Next:** repository-locked formatting of the changed files, then exact-head CI.
 - **Release state:** PR #138 remains open/draft; no staging dispatch, deployment or shared database mutation occurred.
 
-
 ## CI #1268 — exact-head full verification — 21 November 2026
 
 - **Run:** [GitHub Actions CI #1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784).
