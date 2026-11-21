@@ -247,3 +247,9 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added the Admin Payments Refund Requests tab, permission-aware queue loading, order/payment references, amount/currency, reason and request time, plus explicit confirmation before calling the existing approval endpoint. No automatic approval or gateway payout is implied.
 - Added a focused controller delegation regression test and extended the Admin API refund type/helper. Comprehensive API/UI regression remains in Phase 3; check exact-head CI after this commit.
 - No staging writes, DB changes, migrations, grants/default-ACL changes, RLS enablement, worker activation, deployment, merge or release action.
+
+
+## 22 November 2026 — Admin refund queue follow-up
+
+- Follow-up commit `f477755cccfdecab8673fdd047935e42e0e85c9c` added the permission-guarded refund queue API, refund request tab, and a focused controller delegation test. Exact-head workflow lookup returned no GitHub Actions run for that commit; combined statuses only showed the Vercel build-rate-limit failures. Do not claim CI verification.
+- This follow-up corrects the payments screen layout and initial/tab visibility for users who have refund-approval permission without payment-read permission. The new head must receive its own exact-SHA verification.
