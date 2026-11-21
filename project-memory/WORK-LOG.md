@@ -114,3 +114,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Added disposable-PostgreSQL service tests proving foreign-organization merchants and same-organization non-members receive the same not-found response for offer detail.
 - Added an inactive-membership scenario that denies merchant offer detail and restores the membership to ACTIVE in `finally`.
 - Exact-head API/PostgreSQL CI remains pending; no shared database or staging state was touched.
+
+
+### 21 November 2026 — G-001 PostgreSQL merchant-staff acceptance
+
+- Added a real PostgreSQL service test for an active store MEMBER using the `MERCHANT_STAFF` caller context to read offer detail.
+- The temporary membership is marked INACTIVE in `finally` to keep the lifecycle fixture deterministic.
+- Exact-head API/PostgreSQL CI remains pending.
