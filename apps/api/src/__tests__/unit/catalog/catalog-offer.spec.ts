@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SQL } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import {
   BadRequestException,
@@ -85,14 +85,21 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   const db = {
     db: {
-      select: () => ({
+      select: (selection?: unknown) => ({
         from: () => ({
-          where: () => ({
-            limit: async () => {
-              const membership = await storeMemberFindFirst();
-              return membership ? [membership] : [];
-            },
-          }),
+          where: (condition?: unknown) => {
+            if (selection !== undefined) {
+              return {
+                getSQL: () => sql`SELECT 1 FROM stores WHERE ${condition}`,
+              };
+            }
+            return {
+              limit: async () => {
+                const membership = await storeMemberFindFirst();
+                return membership ? [membership] : [];
+              },
+            };
+          },
         }),
       }),
       query: {
