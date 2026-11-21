@@ -29,6 +29,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 - [Audit-driven implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) — authoritative finding register, current progress and evidence log.
 - [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
 - [Remediation documentation directory](../docs/remediation/) — detailed audits, database access evidence and finding-specific records.
+- [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) — programme phases, evidence-backed implementation gaps, statuses and completion rules.
 - [Repository README](../README.md) — architecture, development setup and documentation index.
 - [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) — active draft remediation PR.
 
@@ -41,8 +42,11 @@ At the start of a new conversation:
 3. Query GitHub for the active branch head, PR #138 state/head/base, recent commits and the latest CI run/checks. Never rely only on the recorded SHA or CI status below.
 4. Compare live state with `CURRENT-STATE.md`; reconcile any drift before implementation.
 5. Identify the highest-priority unfinished task and its dependencies. Continue autonomously without asking for approval for every small implementation step.
-6. Group related implementation, tests and documentation changes into cohesive commits where practical.
-7. Do not claim implementation, tests, review, approval, deployment or database changes without direct evidence.
+6. Follow the user's implementation-first programme: complete implementation and integration gaps before the consolidated full testing campaign.
+7. During implementation, run only proportionate developer checks; add focused tests when needed for critical invariants or safe changes. Do not repeatedly run the full regression suite after each small enhancement.
+8. Never knowingly leave a concrete security or correctness defect exploitable until the later test phase; fix it when discovered.
+9. Group related implementation and documentation changes into cohesive commits where practical.
+10. Do not claim implementation, tests, review, approval, deployment or database changes without direct evidence.
 
 ## Mandatory checkpoint update procedure
 
@@ -95,3 +99,12 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - Added G-002-TABLE-OWNERSHIP-MATRIX.md: 99 named tables exported by apps/api/src/drizzle/schema.ts, with candidate scopes. It is explicitly not the complete historical 116-table live inventory and not an approved policy matrix.
 - Both PRs remain open, draft and unmerged. G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS; staging identities and refreshed protected read-only inventory remain unverified.
 - No staging release, shared DB mutation, migration 0070, grants/default ACL changes, RLS enablement, worker activation or deployment.
+
+
+## Implementation Completion Program — user-approved 22 November 2026
+
+The user approved a revised project-wide sequence: (1) baseline/gap mapping, (2) implementation completion across backend, database/security, web, admin, mobile, POS/merchant, workflows, operations and documentation, (3) integration completion, (4) one comprehensive testing campaign, (5) stabilization of discovered defects, and (6) release readiness. The detailed programme and evidence-backed initial register are in [IMPLEMENTATION-GAP-REGISTER.md](./IMPLEMENTATION-GAP-REGISTER.md).
+
+During implementation, keep checks lightweight and targeted rather than repeatedly running the full suite. Comprehensive unit/API/PostgreSQL/migration/tenant-security/concurrency/web-admin-mobile E2E/performance testing is reserved for the dedicated testing phase. This does not permit knowingly deferring a concrete security or correctness defect. Keep the existing G-001/G-002 review, staging, database and release gates intact.
+
+Use the status vocabulary in the gap register: IMPLEMENTATION_PENDING, IMPLEMENTATION_IN_PROGRESS, IMPLEMENTED, INTEGRATION_PENDING, TESTING_PENDING, VERIFIED, BLOCKED and DEFERRED_BY_DECISION. Update this programme register and the authoritative finding tracker together when applicable.
