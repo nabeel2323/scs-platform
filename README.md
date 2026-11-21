@@ -123,6 +123,11 @@ pnpm --filter @scs/admin test             # Admin UI tests (Vitest + jsdom)
 
 Integration tests require Docker (Testcontainers PostgreSQL 16). Two migrations (`0013_analytics.sql`, `0018_analytics_retention.sql`) are excluded from the test harness because they depend on `pg_partman`.
 
+## Project Handover Memory
+
+- [Start Here — Project Memory](./project-memory/START-HERE.md) — mandatory entry point for resuming work in a new ChatGPT conversation; links to the current checkpoint, roadmap, decisions, work log, open issues and CI/release evidence.
+- The project-memory files are a handover index and checkpoint. The remediation plan and progress tracker remain authoritative for technical scope, finding status and acceptance evidence.
+
 ## Documentation
 
 ### Current remediation programme (November 2026)
