@@ -18,7 +18,7 @@ Implemented:
 
 Remaining:
 
-- Correct current formatting failures and obtain a fresh exact-head CI result.
+- Verify the scope-first offer confidentiality implementation with focused tests and exact-head CI.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix across controller and service boundaries.
 - Verify organization ownership, active store membership, actor attribution and unauthorized detail/analytics disclosure behavior.
 - Obtain independent security review from the user or a separately appointed qualified reviewer.
@@ -64,9 +64,14 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 
 ## Next action order
 
-1. Complete formatting and commit the handover system plus tracker reconciliation as one grouped change where practical.
-2. Confirm the temporary formatting helper workflow (if used) is absent from the final branch tree.
-3. Inspect fresh exact-head CI; fix any failures in grouped changes.
-4. Continue G-001 tenant/role acceptance coverage and prepare independent-review package.
+1. Verify the new scope-first offer confidentiality changes with focused API tests and exact-head CI.
+2. Complete the remaining G-001 acceptance matrix, including owner/staff, revoked membership, store lifecycle, buyer, foreign merchant, analytics/trend and privileged-admin behavior.
+3. Prepare the independent security-review package; keep G-001 PARTIAL until review evidence is recorded.
+4. Continue G-002 only within the documented read-only database-evidence boundary.
 5. Continue G-002 read-only identity/schema/access design evidence only; wait for authorized protected staging audit.
 6. Keep the PR draft and all release/database restrictions intact.
+
+
+## G-001 confidentiality follow-up — 21 November 2026
+
+The merchant detail and mutation paths now normalize unknown, foreign-organization and same-organization non-member offer IDs to the same 404 response after scope checks. The focused tests and exact-head CI are not yet verified. Remaining acceptance work includes the store lifecycle/inactive-store policy, complete analytics/trend matrix and independent review.
