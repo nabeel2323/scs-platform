@@ -176,42 +176,29 @@ describe('CatalogOfferService — create', () => {
 
 describe('CatalogOfferService — buyer product offer visibility (G-001)', () => {
   it('requires an ACTIVE store and ACTIVE, available offers for a canonical product', async () => {
-    const { svc, findManyCalls } = makeHarness({
-      stores: { findMany: [{ id: 'active-store-1' }] },
-    });
+    const { svc, findManyCalls } = makeHarness();
     await svc.listOffersForProduct('product-1');
 
-    expect(findManyCalls).toHaveLength(2);
-    const storeQuery = findManyCalls[0] as { where?: unknown };
-    const offerQuery = findManyCalls[1] as { where?: unknown };
-    const storeFilter = new PgDialect().sqlToQuery(storeQuery.where as SQL);
-    const offerFilter = new PgDialect().sqlToQuery(offerQuery.where as SQL);
-    expect(storeFilter.params).toContain('ACTIVE');
-    expect(offerFilter.params).toContain('ACTIVE');
-    expect(offerFilter.params).toContain(true);
-    expect(offerFilter.params).toContain('active-store-1');
-  });
-
-  it('does not expose offers when the owning store is not ACTIVE', async () => {
-    const { svc, findManyCalls } = makeHarness({ stores: { findMany: [] } });
-    await expect(svc.listOffersForProduct('product-1')).resolves.toEqual([]);
     expect(findManyCalls).toHaveLength(1);
+    const query = findManyCalls[0] as { where?: unknown };
+    const compiled = new PgDialect().sqlToQuery(query.where as SQL);
+    expect(compiled.sql.toLowerCase()).toContain('exists');
+    expect(compiled.sql).toContain('stores');
+    expect(compiled.params).toContain('ACTIVE');
+    expect(compiled.params).toContain(true);
   });
 
-  it('applies the ACTIVE-store boundary to ranked buyer offers as well', async () => {
-    const { svc, findManyCalls } = makeHarness({
-      stores: { findMany: [{ id: 'active-store-1' }] },
-    });
+  it('applies the same ACTIVE-store predicate to ranked buyer offers', async () => {
+    const { svc, findManyCalls } = makeHarness();
     await expect(svc.listOffersForProductRanked('product-1')).resolves.toEqual([]);
 
-    expect(findManyCalls).toHaveLength(2);
-    const storeQuery = findManyCalls[0] as { where?: unknown };
-    const offerQuery = findManyCalls[1] as { where?: unknown };
-    expect(new PgDialect().sqlToQuery(storeQuery.where as SQL).params).toContain('ACTIVE');
-    const offerParams = new PgDialect().sqlToQuery(offerQuery.where as SQL).params;
-    expect(offerParams).toContain('ACTIVE');
-    expect(offerParams).toContain(true);
-    expect(offerParams).toContain('active-store-1');
+    expect(findManyCalls).toHaveLength(1);
+    const query = findManyCalls[0] as { where?: unknown };
+    const compiled = new PgDialect().sqlToQuery(query.where as SQL);
+    expect(compiled.sql.toLowerCase()).toContain('exists');
+    expect(compiled.sql).toContain('stores');
+    expect(compiled.params).toContain('ACTIVE');
+    expect(compiled.params).toContain(true);
   });
 });
 
