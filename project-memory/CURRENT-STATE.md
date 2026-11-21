@@ -192,3 +192,12 @@ The read-only design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation
 - Added docs/remediation/G-002-TABLE-OWNERSHIP-MATRIX.md. It enumerates 99 Drizzle-exported tables and records candidate row scopes, but deliberately marks exact owner columns, FK paths and route/service operations as incomplete. The historical 116-table live inventory still requires refreshed protected reconciliation.
 - Both PRs remain open, draft and unmerged. CI used disposable services only. Actual staging API/migration identities remain unverified; G-002 is IN PROGRESS and RLS must remain disabled.
 - No shared database mutation, migration 0070, grants/default-ACL changes, RLS enablement, worker activation, environment change or deployment was performed.
+
+
+## User-approved programme direction — 22 November 2026
+
+The user approved the Implementation Completion Program and requested that this decision persist in project memory for future sessions. The new [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) is the programme-level entry point for the evidence-backed initial gaps and statuses.
+
+**Execution sequence:** baseline/gap mapping → implementation completion → integration completion → comprehensive testing → stabilization → release readiness. During implementation, run only targeted developer checks and focused tests needed for critical invariants; defer the broad regression campaign until implementation and integration are ready. Fix any known security/correctness defect immediately. This sequencing does not waive independent review, protected staging, database, deployment, business sign-off or release restrictions.
+
+**Next task:** expand MAP-001 into a repository-wide, source-referenced inventory of modules, user journeys, APIs, screens, database entities, permissions, integrations and documentation; then select the highest-priority confirmed implementation gap. Do not assume historical UI/UX issues are still open without checking current source. Keep the authoritative remediation finding tracker synchronized.
