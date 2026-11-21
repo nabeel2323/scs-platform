@@ -18,7 +18,7 @@ Implemented:
 
 Remaining:
 
-- Verify the scope-first offer confidentiality implementation with focused tests and exact-head CI.
+- Verify scope-first offer confidentiality and ACTIVE-store buyer visibility with focused tests and exact-head CI.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix across controller and service boundaries.
 - Verify organization ownership, active store membership, actor attribution and unauthorized detail/analytics disclosure behavior.
 - Obtain independent security review from the user or a separately appointed qualified reviewer.
@@ -75,3 +75,8 @@ For exact statuses, priorities, evidence and dependencies, consult the 35-row re
 ## G-001 confidentiality follow-up — 21 November 2026
 
 The merchant detail and mutation paths now normalize unknown, foreign-organization and same-organization non-member offer IDs to the same 404 response after scope checks. The focused tests and exact-head CI are not yet verified. Remaining acceptance work includes the store lifecycle/inactive-store policy, complete analytics/trend matrix and independent review.
+
+
+### G-001 inactive-store buyer visibility — 21 November 2026
+
+Buyer product offer lists and ranked seller results now require an ACTIVE owning store. DRAFT stores can still manage offers, but buyers cannot discover those offers before activation. Unit coverage is added; exact-head CI remains pending.
