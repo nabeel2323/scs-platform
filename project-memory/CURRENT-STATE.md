@@ -148,3 +148,14 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 - Added a disposable-PostgreSQL integration scenario to `catalog-lifecycle.e2e.spec.ts`: set Merchant B's store to `INACTIVE`, verify buyer list and ranked results exclude its offers while Merchant A's ACTIVE store remains visible, and restore the fixture in `finally`.
 - This explicitly tests the inactive-store buyer-visibility dimension without defining merchant-management behavior for inactive stores.
 - The test awaits exact-head CI. CI #1268 verifies the preceding G-001 code; CI #1269 failed Prettier, formatter workflow #1 succeeded and removed itself, and CI #1271 returned `action_required` with no jobs. The next commit is user-authored to trigger fresh exact-head CI.
+
+
+## Live checkpoint — INACTIVE-store regression and exact-head CI recovery — 21 November 2026
+
+- Live branch head at reconciliation: `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`; PR #138 remains open, draft and unmerged, based on `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- The source commit `6a7a620f9a68528ec7f638dbf85ad3c13031a5e5` adds a real PostgreSQL test that sets Merchant B's store to `INACTIVE`, checks both buyer list and ranked-offer results exclude it while Merchant A remains visible, and restores the fixture in `finally`.
+- CI #1271 passed all 10 executable jobs on `71550c4c6d71de1b3b54f6d2230b308251a73e23`; that run does not include the INACTIVE-store test.
+- CI #1272 on `6a7a620f9a68528ec7f638dbf85ad3c13031a5e5` failed only changed-file Prettier on seven Markdown files. Lint/typecheck passed; all dependent API/integration and other jobs were skipped.
+- Temporary formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded, applied repository-locked Prettier and removed its temporary workflow. The formatted docs commit is `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`.
+- CI #1273 for that formatter-bot commit returned `action_required` with zero jobs. This is not a pass or a test result. The exact current head still needs a normal CI execution before the INACTIVE-store test is considered verified.
+- G-001 remains PARTIAL pending exact-head API/PostgreSQL verification and independent security review. G-002 remains IN PROGRESS. PR stays draft; no staging deployment, shared DB mutation, migration 0070, grants/default ACL, RLS or worker activation occurred.

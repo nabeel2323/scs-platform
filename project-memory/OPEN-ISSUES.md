@@ -134,4 +134,7 @@ CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) 
 
 ## G-001 INACTIVE-store visibility regression — CI pending
 
-The PostgreSQL lifecycle suite now includes an explicit `INACTIVE` store scenario for both buyer list and ranked-offer endpoints, with fixture restoration in `finally`. This is source implementation only until the exact-head PostgreSQL integration job passes. CI #1268 verified the preceding implementation; CI #1269 was a Prettier-only failure, and CI #1271 returned `action_required` with no jobs after the formatter bot push. A fresh user-authored commit is being used to obtain exact-head verification.
+The PostgreSQL lifecycle suite now includes an explicit `INACTIVE` store scenario for both buyer list and ranked-offer endpoints, with fixture restoration in `finally`. CI #1271 passed all 10 executable jobs on the prior formatted commit but predates this test. CI #1272 on the test commit failed only Prettier, skipping API/integration jobs. Formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded and pushed formatted docs at `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`; CI #1273 returned `action_required` with zero jobs. Exact-head API/PostgreSQL verification of this test remains outstanding.
+
+
+**Next action:** obtain a normal exact-head CI run for the formatted branch commit. Do not mark the INACTIVE-store test verified until API unit/coverage and disposable-PostgreSQL integration have actually run and passed. Keep G-001 PARTIAL pending that evidence and independent review; keep G-002 within the read-only/authorized boundary.
