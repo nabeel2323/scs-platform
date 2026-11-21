@@ -213,3 +213,15 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Confirmed exact-head PR #138 CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2.
 - Added G-002-TABLE-OWNERSHIP-MATRIX.md, enumerating 99 exported Drizzle tables with candidate scopes and explicit completion requirements. Updated G-002-RLS-ARCHITECTURE-DESIGN.md with final CI results and inventory link.
 - Both PRs remain draft/unmerged. No staging release, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation.
+
+
+## 22 November 2026 — user approval: Implementation Completion Program
+
+- The user approved the revised project-wide execution approach and explicitly requested that the instructions be retained in project memory for future sessions.
+- Created [IMPLEMENTATION-GAP-REGISTER.md](./IMPLEMENTATION-GAP-REGISTER.md) as the programme-level register. It defines the implementation-first phases, status vocabulary, evidence requirements, initial workstreams and completion rules.
+- Recorded the binding direction in START-HERE, DECISIONS-AND-CONSTRAINTS, IMPLEMENTATION-ROADMAP, OPEN-ISSUES and CURRENT-STATE.
+- Agreed sequence: baseline/gap mapping → implementation completion → integration completion → comprehensive testing → stabilization → release readiness.
+- During implementation, use proportionate targeted checks rather than repeatedly running full regression. Fix any concrete security/correctness defect immediately; do not knowingly defer it to the later test campaign.
+- Existing remediation plan/progress tracker remain authoritative for G-001–G-035 definitions and evidence. Existing independent-review, staging approval, shared-database, migration 0070, grants/default-ACL, RLS, worker, no-merge/no-deploy and release restrictions remain unchanged.
+- Baseline CI evidence in the project memory: PR #138 exact-head CI #44954371615 on 741a09f68721898a5bed6601bc3bc636867c78c2 passed all executable jobs; PR #142 exact-head CI #44953735602 on dddff20c170737dc4694008bb807b2b90e177f77 passed all executable jobs including its disposable PostgreSQL identity test. k6 and protected staging release were skipped. Vercel web/admin checks reported the external build-rate-limit page; they are not application test failures.
+- No merge, deployment, staging write, live database mutation, migration, grant, RLS or worker action was performed.
