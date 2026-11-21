@@ -206,14 +206,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Source review found a global process-wide Drizzle pool and service-layer tenant checks; the inspected request middleware does not provide a universal request-scoped transaction context. RLS must remain disabled until transaction-bound context and all request/worker query paths are covered.
 - No staging deployment, shared database write, migration 0070, grant/default-ACL mutation, RLS enablement, environment change or worker activation occurred.
 
-
 ## Work log — 22 November 2026
 
 - Confirmed exact-head PR #142 CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77. The real-PostgreSQL integration test verified distinct session_user/current_user values under a non-owner, non-superuser, non-BYPASSRLS login. This is disposable CI evidence only.
 - Confirmed exact-head PR #138 CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2.
 - Added G-002-TABLE-OWNERSHIP-MATRIX.md, enumerating 99 exported Drizzle tables with candidate scopes and explicit completion requirements. Updated G-002-RLS-ARCHITECTURE-DESIGN.md with final CI results and inventory link.
 - Both PRs remain draft/unmerged. No staging release, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation.
-
 
 ## 22 November 2026 — user approval: Implementation Completion Program
 
@@ -226,7 +224,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Baseline CI evidence in the project memory: PR #138 exact-head CI #44954371615 on 741a09f68721898a5bed6601bc3bc636867c78c2 passed all executable jobs; PR #142 exact-head CI #44953735602 on dddff20c170737dc4694008bb807b2b90e177f77 passed all executable jobs including its disposable PostgreSQL identity test. k6 and protected staging release were skipped. Vercel web/admin checks reported the external build-rate-limit page; they are not application test failures.
 - No merge, deployment, staging write, live database mutation, migration, grant, RLS or worker action was performed.
 
-
 ## 22 November 2026 — MAP-001 static whole-product inventory
 
 - Reconciled live branch/PR state: branch `remediation/phase-0-1-tenant-security`, head before this inventory documentation batch `2cca47aa34abd1a014ea16217cfee204c9e9f803`; PR #138 open/draft/unmerged; PR #142 open/draft/unmerged.
@@ -238,7 +235,6 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Reviewed the uploaded `Advanced UX Enhancement Prompt.txt`; its actual content is a read-only database/staging audit note, not a UX enhancement specification. Its RLS/function/role/FK-index observations are preserved as uploaded evidence only and were not independently re-run.
 - No tests were run; no code, shared DB, staging configuration, migration, grants, deployment or worker state changed. The exact current documentation head still needs a fresh CI lookup and is not CI-verified unless a run is found.
 
-
 ## 22 November 2026 — Admin refund approval queue implementation
 
 - Refreshed live GitHub state: branch `remediation/phase-0-1-tenant-security` at `d02b296982bb2d5b11bb2a6f6a7f8c9b3723f9f0`; PR #138 and PR #142 remain open/draft/unmerged.
@@ -248,12 +244,10 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Added a focused controller delegation regression test and extended the Admin API refund type/helper. Comprehensive API/UI regression remains in Phase 3; check exact-head CI after this commit.
 - No staging writes, DB changes, migrations, grants/default-ACL changes, RLS enablement, worker activation, deployment, merge or release action.
 
-
 ## 22 November 2026 — Admin refund queue follow-up
 
 - Follow-up commit `f477755cccfdecab8673fdd047935e42e0e85c9c` added the permission-guarded refund queue API, refund request tab, and a focused controller delegation test. Exact-head workflow lookup returned no GitHub Actions run for that commit; combined statuses only showed the Vercel build-rate-limit failures. Do not claim CI verification.
 - This follow-up corrects the payments screen layout and initial/tab visibility for users who have refund-approval permission without payment-read permission. The new head must receive its own exact-SHA verification.
-
 
 ## 22 November 2026 — branch and CI checkpoint after refund queue
 
@@ -262,13 +256,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - UX-002 is implemented: requested-refund API queue, Admin Payments Refund Requests tab, explicit confirmation, API types/helper and focused controller delegation test. Full tests remain queued for Phase 3.
 - Next implementation target: finish route-to-contract/permission and operation mapping, then safely scope order operations. Preserve all no-merge/no-deploy/database/staging/worker restrictions.
 
-
 ## 22 November 2026 — formatting and exact-head CI reconciliation
 
 - The Admin refund queue implementation and permission-only access correction are present on PR #138. Source implementation is in `f477755cccfdecab8673fdd047935e42e0e85c9c` and `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; this follow-up only normalizes the API additions to the repository's multiline formatting style and synchronizes handover metadata.
 - Latest branch/PR head before this follow-up: `a6a5cf24bdb2661673268d229bfcf917c2cc00eb`. GitHub Actions run lookup (both commit-associated and Actions API filtered by exact head SHA) returned no runs. Combined status contained only Vercel build-rate-limit failures.
 - Keep the implementation marked IMPLEMENTED, not VERIFIED. Phase 3 API/UI regression and exact-head CI evidence are still required.
-
 
 ## 22 November 2026 — Admin order cancellation implementation checkpoint
 
@@ -277,14 +269,12 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Exact-head GitHub Actions lookup returned no workflow run for this commit; combined status only showed Vercel build-rate-limit failures. The new UI/API integration is IMPLEMENTED, NOT VERIFIED.
 - PR #138 remains draft/open/unmerged; PR #142 remains draft/open/unmerged. No merge, deploy, staging/database mutation, migration, grants, RLS, worker activation or release action.
 
-
 ## 22 November 2026 — Admin dashboard and permission alignment checkpoint
 
 - Added permission-aware Recent Catalog Imports and Pending Catalog Requests widgets to the Admin dashboard, reusing existing APIs and only loading each widget when its canonical permission is present.
 - Fixed the Admin `/requests` page guard to `catalog:requests:manage`, matching `CatalogRequestsController`; previously it used `catalog:categories:write`. This closes a concrete route-to-endpoint permission mismatch.
 - Renumbered the broad whole-product UX inventory row as UX-010 to avoid collision with the new Admin order-operations UX-001 row.
 - Latest source commit `c61b06241025b7ed5207f8ada533be120faadbec` has no associated GitHub Actions run; combined status only shows Vercel build-rate-limit failures. Do not claim CI verification.
-
 
 ## 22 November 2026 — Admin navigation grouping
 

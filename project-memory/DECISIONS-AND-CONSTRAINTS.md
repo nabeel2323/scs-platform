@@ -86,7 +86,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 
 Use an uncorrelated store-ID subquery for ACTIVE-store visibility in the Drizzle relational offer queries. The correlated EXISTS form produced an invalid outer-table reference in PostgreSQL integration tests; the IN-subquery expresses the same visibility condition while remaining valid in this query shape.
 
-
 ## User-approved implementation-first programme — 22 November 2026
 
 The user approved a change to the project-wide execution sequence:

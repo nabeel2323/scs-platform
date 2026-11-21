@@ -1276,7 +1276,6 @@ The new [G-002 RLS architecture design](./G-002-RLS-ARCHITECTURE-DESIGN.md) reco
 
 G-002 remains IN PROGRESS. Actual staging API/migration identities and the protected read-only staging audit remain unverified. No staging deployment, shared database mutation, migration 0070, grant/default-ACL change, RLS enablement or worker activation occurred.
 
-
 ## G-002 schema inventory and exact-head CI — 22 November 2026
 
 Exact-head CI is now complete for both open draft remediation PRs:

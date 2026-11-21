@@ -54,9 +54,7 @@ export default function AdminPaymentsPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:payments:read']);
   const { hasAccess: canVerifyPayments } = useRequirePerms(['admin:payments:verify']);
   const { hasAccess: canApproveRefunds } = useRequirePerms(['admin:refunds:approve']);
-  const [tab, setTab] = useState<Tab>(
-    canVerifyPayments ? 'queue' : hasAccess ? 'all' : 'refunds',
-  );
+  const [tab, setTab] = useState<Tab>(canVerifyPayments ? 'queue' : hasAccess ? 'all' : 'refunds');
   const [payments, setPayments] = useState<AdminPayment[]>([]);
   const [refunds, setRefunds] = useState<AdminRefund[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,9 +113,7 @@ export default function AdminPaymentsPage() {
     const amount = formatMinor(refund.amountMinor, refund.currency);
     if (
       !canApproveRefunds ||
-      !window.confirm(
-        `Approve refund of ${amount} for order ${refund.orderId.slice(0, 8)}?`,
-      )
+      !window.confirm(`Approve refund of ${amount} for order ${refund.orderId.slice(0, 8)}?`)
     ) {
       return;
     }
@@ -146,12 +142,7 @@ export default function AdminPaymentsPage() {
   ];
 
   if (!hasAccess && !canApproveRefunds) {
-    return (
-      <AccessDenied
-        requiredPerms={['admin:payments:read']}
-        missingPerms={missingPerms}
-      />
-    );
+    return <AccessDenied requiredPerms={['admin:payments:read']} missingPerms={missingPerms} />;
   }
 
   return (
@@ -200,9 +191,7 @@ export default function AdminPaymentsPage() {
       )}
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>
-          Loading…
-        </div>
+        <div style={{ padding: 40, textAlign: 'center', color: colors.muted }}>Loading…</div>
       ) : tab === 'refunds' ? (
         refunds.length === 0 ? (
           <Card style={{ padding: 32, textAlign: 'center', color: colors.muted }}>
@@ -223,10 +212,7 @@ export default function AdminPaymentsPage() {
               </thead>
               <tbody>
                 {refunds.map((refund) => (
-                  <tr
-                    key={refund.id}
-                    style={{ borderBottom: `1px solid ${colors.borderLight}` }}
-                  >
+                  <tr key={refund.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                     <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
                       {refund.orderId.slice(0, 8)}
                     </td>
@@ -236,9 +222,7 @@ export default function AdminPaymentsPage() {
                     <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 600 }}>
                       {formatMinor(refund.amountMinor, refund.currency)}
                     </td>
-                    <td style={{ padding: '10px 8px' }}>
-                      {refund.reason.replace(/_/g, ' ')}
-                    </td>
+                    <td style={{ padding: '10px 8px' }}>{refund.reason.replace(/_/g, ' ')}</td>
                     <td style={{ padding: '10px 8px', fontSize: 11 }}>
                       {new Date(refund.createdAt).toLocaleString()}
                     </td>
@@ -280,10 +264,7 @@ export default function AdminPaymentsPage() {
             </thead>
             <tbody>
               {payments.map((payment) => (
-                <tr
-                  key={payment.id}
-                  style={{ borderBottom: `1px solid ${colors.borderLight}` }}
-                >
+                <tr key={payment.id} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                   <td style={{ padding: '10px 8px', fontFamily: 'monospace', fontSize: 11 }}>
                     {(payment.orderId || '').slice(0, 8)}
                   </td>

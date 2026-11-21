@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae` |
+| Live branch head     | `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`                               |
 | Latest commit        | `docs(security): add G-002 database access architecture design`          |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | No workflow run or status contexts for `7be3e2d...`; NOT CI-VERIFIED |
+| Latest exact-head CI | No workflow run or status contexts for `7be3e2d...`; NOT CI-VERIFIED     |
 | PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
 | PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped            |
 
@@ -185,14 +185,12 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 
 The read-only design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) records the current architecture blocker: the API uses a global process-wide Drizzle pool, and the inspected request middleware does not bind all service queries to a transaction carrying verified tenant context. A pooled session-level tenant variable would risk cross-request context leakage. RLS remains disabled until transaction-bound context, complete per-table operation mapping, non-owner role tests, independent review and staging approval are complete.
 
-
 ## G-002 inventory and CI checkpoint — 22 November 2026
 
 - PR #138 exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2. PR #142 exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77, including the distinct-login/effective-role PostgreSQL integration test. k6 and protected staging release were skipped in both runs.
 - Added docs/remediation/G-002-TABLE-OWNERSHIP-MATRIX.md. It enumerates 99 Drizzle-exported tables and records candidate row scopes, but deliberately marks exact owner columns, FK paths and route/service operations as incomplete. The historical 116-table live inventory still requires refreshed protected reconciliation.
 - Both PRs remain open, draft and unmerged. CI used disposable services only. Actual staging API/migration identities remain unverified; G-002 is IN PROGRESS and RLS must remain disabled.
 - No shared database mutation, migration 0070, grants/default-ACL changes, RLS enablement, worker activation, environment change or deployment was performed.
-
 
 ## User-approved programme direction — 22 November 2026
 
@@ -202,14 +200,12 @@ The user approved the Implementation Completion Program and requested that this 
 
 **Next task:** expand MAP-001 into a repository-wide, source-referenced inventory of modules, user journeys, APIs, screens, database entities, permissions, integrations and documentation; then select the highest-priority confirmed implementation gap. Do not assume historical UI/UX issues are still open without checking current source. Keep the authoritative remediation finding tracker synchronized.
 
-
 ## Live project-memory update — 22 November 2026
 
 - Current branch head after this checkpoint: `4adf87a07e8156e04ca008b6d236770704603eda` on `remediation/phase-0-1-tenant-security`.
 - Created `project-memory/IMPLEMENTATION-GAP-REGISTER.md` and recorded the user's approved implementation-first programme in START-HERE, DECISIONS-AND-CONSTRAINTS, IMPLEMENTATION-ROADMAP, OPEN-ISSUES, CURRENT-STATE, RELEASE-AND-CI-STATUS and WORK-LOG.
 - This is a documentation-only change. Workflow-run lookup and combined-status lookup returned no checks for the exact current head; it is NOT CI-VERIFIED. Earlier CI #44954371615 on source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` remains historical evidence only.
 - Next: complete MAP-001 by auditing actual source modules, routes, screens, database entities, permissions, workflows and docs. Then implement the highest-priority confirmed gap in a cohesive batch. Keep broad regression testing for Phase 3 and all existing security/release restrictions intact.
-
 
 ## MAP-001 source inventory checkpoint — 22 November 2026
 
@@ -220,7 +216,6 @@ The user approved the Implementation Completion Program and requested that this 
 - This is a static source inventory only. No tests were run, no live database was queried or modified, and no deployment/staging/worker operation occurred. Current branch head must be re-fetched after the documentation updates; current head CI must not be assumed.
 - Next: complete route-to-permission/API matrices and DB/worker operation mapping, then begin the highest-priority confirmed UX implementation batch only after confirming its backend state/permission contracts.
 
-
 ## MAP-001 documentation checkpoint and live CI reconciliation — 22 November 2026
 
 - Current branch and PR #138 head: `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; PR #138 remains open/draft/unmerged.
@@ -230,7 +225,6 @@ The user approved the Implementation Completion Program and requested that this 
 - No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
 - Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
 
-
 ## Live continuation — 22 November 2026
 
 - Current PR #138 head: `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; PR remains open and draft. PR #142 remains open/draft at `dddff20c170737dc4694008bb807b2b90e177f77`.
@@ -238,14 +232,12 @@ The user approved the Implementation Completion Program and requested that this 
 - Exact-head GitHub Actions lookup for the current source commit returned no run. Vercel web/admin statuses are external build-rate-limit failures, not application test evidence. No CI verification is claimed.
 - Next: finish API route-to-contract/permission mapping and admin/mobile route matrix; map order-operation state machine/authorization before implementing order actions. No safety gates changed.
 
-
 ## Live continuation — 22 November 2026
 
 - PR #138 head: `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`, open/draft/unmerged. PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
 - UX-001 Admin order cancellation and UX-002 Admin refund queue/approval are implemented. Order cancellation uses the existing endpoint, canonical cancellation reasons and notes, state guard, explicit confirmation and refresh. The UI is gated by `orders:cancel` and only appears in cancellable states.
 - Exact-head workflow lookup returned no GitHub Actions run for `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`; Vercel web/admin failures point to the external build-rate-limit page. Neither constitutes application CI verification.
 - Next: complete MAP-001 API route-to-contract/permission and admin/mobile route matrix; then continue grouped dashboard/navigation and Product Studio UX work. Comprehensive regression remains Phase 3.
-
 
 ## Live continuation — 22 November 2026
 

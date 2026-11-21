@@ -132,7 +132,6 @@ Added a disposable-PostgreSQL integration case proving an `INACTIVE` merchant st
 2. Continue G-002 read-only identity/access design. The next runtime evidence depends on the separately reviewed and approved runtime-identity diagnostic change and controlled release; do not deploy or trigger it from this remediation branch.
 3. Preserve the staging/database restrictions and defer Phase 6 until all phase entry criteria are met.
 
-
 ## User-approved Implementation Completion Program — 22 November 2026
 
 The project now follows an implementation-first sequence. See the [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) for the evidence-backed initial gap list, status definitions and row-level acceptance requirements.
@@ -145,7 +144,6 @@ The project now follows an implementation-first sequence. See the [Implementatio
 6. **Release readiness:** independent review, authorized staging acceptance, migration/rollback/recovery, business sign-off and explicit go/no-go.
 
 Lightweight developer checks continue during implementation; full regression is not run repeatedly after every small change. A concrete security or correctness defect found during implementation is fixed immediately, not deferred. The programme changes sequencing only: all existing G-001/G-002, protected staging, shared database, no-merge/no-deploy and release gates remain binding. Do not mark an item VERIFIED merely because it is IMPLEMENTED.
-
 
 ## MAP-001 source inventory — 22 November 2026
 

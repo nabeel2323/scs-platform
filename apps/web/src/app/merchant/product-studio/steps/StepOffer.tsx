@@ -69,25 +69,63 @@ export default function StepOffer({
       title="Merchant Offer"
       subtitle="Set your pricing, minimum order, and fulfillment details"
     >
-      <div style={{ padding: 12, background: '#e0f2fe', borderRadius: 6, fontSize: 13, color: '#16232b' }}>
-        <strong>Note:</strong> Product specs describe WHAT you&apos;re selling. Offer info describes HOW YOU SELL IT — price, MOQ, lead time.
+      <div
+        style={{
+          padding: 12,
+          background: '#e0f2fe',
+          borderRadius: 6,
+          fontSize: 13,
+          color: '#16232b',
+        }}
+      >
+        <strong>Note:</strong> Product specs describe WHAT you&apos;re selling. Offer info describes
+        HOW YOU SELL IT — price, MOQ, lead time.
       </div>
 
       {selectedVariant && (
-        <div style={{ padding: 10, background: '#fefce8', borderRadius: 6, fontSize: 12, color: '#713f12', border: '1px solid #fde68a' }}>
-          Offer attached to variant: <strong style={{ fontFamily: 'monospace' }}>{selectedVariant.sku}</strong> — {selectedVariant.title || 'Untitled'}
+        <div
+          style={{
+            padding: 10,
+            background: '#fefce8',
+            borderRadius: 6,
+            fontSize: 12,
+            color: '#713f12',
+            border: '1px solid #fde68a',
+          }}
+        >
+          Offer attached to variant:{' '}
+          <strong style={{ fontFamily: 'monospace' }}>{selectedVariant.sku}</strong> —{' '}
+          {selectedVariant.title || 'Untitled'}
         </div>
       )}
       {state.useExistingProductId && !selectedVariant && (
-        <div style={{ padding: 10, background: '#fefce8', borderRadius: 6, fontSize: 12, color: '#713f12', border: '1px solid #fde68a' }}>
+        <div
+          style={{
+            padding: 10,
+            background: '#fefce8',
+            borderRadius: 6,
+            fontSize: 12,
+            color: '#713f12',
+            border: '1px solid #fde68a',
+          }}
+        >
           Offer at product level (no specific variant selected).
         </div>
       )}
 
       {storeCurrency && storeCurrency !== state.currency && (
-        <div style={{ padding: 10, background: '#fef2f2', borderRadius: 6, fontSize: 12, color: '#991b1b', border: '1px solid #fecaca' }}>
-          Your store currency is <strong>{storeCurrency}</strong>, but you&apos;re pricing in <strong>{state.currency}</strong>.
-          Make sure this is intentional.
+        <div
+          style={{
+            padding: 10,
+            background: '#fef2f2',
+            borderRadius: 6,
+            fontSize: 12,
+            color: '#991b1b',
+            border: '1px solid #fecaca',
+          }}
+        >
+          Your store currency is <strong>{storeCurrency}</strong>, but you&apos;re pricing in{' '}
+          <strong>{state.currency}</strong>. Make sure this is intentional.
         </div>
       )}
 
@@ -119,7 +157,8 @@ export default function StepOffer({
             }
           />
           <span style={{ fontSize: 11, color: '#5b6b74' }}>
-            Enter price in the smallest currency unit (e.g., halalas for SAR, cents for USD). 1 SAR = 100 halalas.
+            Enter price in the smallest currency unit (e.g., halalas for SAR, cents for USD). 1 SAR
+            = 100 halalas.
           </span>
         </Field>
         <Field label="Minimum Order Qty">
@@ -152,9 +191,7 @@ export default function StepOffer({
         <select
           value={state.warehouseId}
           disabled={!state.storeId || warehousesLoading || Boolean(warehouseError)}
-          onChange={(event) =>
-            setState((prev) => ({ ...prev, warehouseId: event.target.value }))
-          }
+          onChange={(event) => setState((prev) => ({ ...prev, warehouseId: event.target.value }))}
         >
           <option value="">
             {!state.storeId
@@ -175,7 +212,8 @@ export default function StepOffer({
           ))}
         </select>
         <span style={{ fontSize: 11, color: '#5b6b74' }}>
-          Choose an active warehouse belonging to the selected store. Leave blank if this offer is not tied to a specific warehouse.
+          Choose an active warehouse belonging to the selected store. Leave blank if this offer is
+          not tied to a specific warehouse.
         </span>
         {warehouseError && (
           <span role="alert" style={{ fontSize: 12, color: '#b91c1c' }}>
@@ -184,13 +222,21 @@ export default function StepOffer({
         )}
         {selectedWarehouseUnavailable && !warehouseError && (
           <span role="status" style={{ fontSize: 12, color: '#92400e' }}>
-            The previously selected warehouse is no longer active. Select an active warehouse or clear the selection.
+            The previously selected warehouse is no longer active. Select an active warehouse or
+            clear the selection.
           </span>
         )}
       </Field>
 
       {state.basePriceMinor > 0 && (
-        <div style={{ padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+        <div
+          style={{
+            padding: 12,
+            background: '#f0fdf4',
+            borderRadius: 8,
+            border: '1px solid #bbf7d0',
+          }}
+        >
           <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4 }}>
             Price Preview
           </div>

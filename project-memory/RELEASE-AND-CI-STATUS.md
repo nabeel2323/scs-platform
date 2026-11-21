@@ -261,14 +261,12 @@ The PostgreSQL integration command ran against disposable CI services. This is n
 
 Neither PR is merged. CI results are disposable-environment verification only; live staging API/migration identities remain unverified.
 
-
 ## Exact-head CI and G-002 inventory — 22 November 2026
 
 - PR #138 head 741a09f68721898a5bed6601bc3bc636867c78c2: [CI #44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs; k6 and protected staging release skipped.
 - PR #142 head dddff20c170737dc4694008bb807b2b90e177f77: [CI #44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs, including PostgreSQL integration for distinct session/effective roles; k6 and protected staging release skipped.
 - Added G-002-TABLE-OWNERSHIP-MATRIX.md with 99 named Drizzle-exported tables and candidate scopes. This is not the complete historical 116-table live inventory or an approved policy matrix.
 - Both PRs remain open/draft/unmerged. Live staging identities remain unverified. No staging deployment or shared DB mutation.
-
 
 ## Implementation Completion Program documentation checkpoint — 22 November 2026
 
@@ -279,7 +277,6 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - Vercel web/admin statuses on the earlier PR #138 checkpoint pointed to the external build-rate-limit page; they are not application test failures.
 - No application code, database, staging, deployment, migration, grant, RLS or worker behavior was changed by this documentation checkpoint.
 
-
 ## MAP-001 documentation checkpoint and live CI reconciliation — 22 November 2026
 
 - Current branch and PR #138 head: `7be3e2da3a26ab565f6c5dd391a9bba486d3bcae`; PR #138 remains open/draft/unmerged.
@@ -289,13 +286,11 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - No application source was changed in this inventory batch. No tests, staging/database writes, migrations, grants, RLS changes, deployments or worker activations occurred.
 - Next: complete API route-to-contract/permission mapping, admin/mobile route permission mapping, and worker/provider operation ownership; then implement the highest-priority confirmed UX gap in a cohesive batch.
 
-
 ## 22 November 2026 — current branch verification
 
 - PR #138 remains open/draft/unmerged at source head `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
 - No GitHub Actions workflow run was returned for exact source head `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`. Combined statuses contain only Vercel web/admin build-rate-limit failures. Current implementation is NOT CI-VERIFIED.
 - No merge, deployment, staging release, k6, live DB mutation, migration, grants/default ACL changes, RLS enablement, worker activation or staging write occurred.
-
 
 ## 22 November 2026 — exact-head CI status after refund queue
 
@@ -303,13 +298,11 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - Combined commit status contains only Vercel web/admin failures pointing to the external build-rate-limit page. These are not application test results.
 - Refund queue implementation remains IMPLEMENTED / NOT CI-VERIFIED. No merge or deployment authorization is implied.
 
-
 ## 22 November 2026 — current source verification checkpoint
 
 - PR #138 is open/draft/unmerged at `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`; PR #142 is open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
 - Exact-head GitHub Actions lookup for PR #138 head returned no workflow run. Combined status includes only Vercel web/admin build-rate-limit failures; these are not application test results.
 - Admin refund queue and guarded Admin order cancellation are implementation-complete but not CI-verified. No merge, deploy, staging release, k6, live DB mutation, migration, grant/default-ACL change, RLS enablement, worker activation or staging write occurred.
-
 
 ## 22 November 2026 — current branch verification
 

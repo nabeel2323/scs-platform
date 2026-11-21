@@ -181,7 +181,6 @@ Required cases:
 4. Design the transaction-bound Drizzle context and worker context contracts, then implement them behind tests before adding policies.
 5. Obtain independent review of the role model, context mechanism and first policy group before any staging release or shared-database change.
 
-
 ## 9. CI verification checkpoint — 22 November 2026
 
 - PR #138 exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2; k6 and protected staging release were skipped.

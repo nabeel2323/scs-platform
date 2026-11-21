@@ -50,9 +50,14 @@ export async function adminRequest<T>(path: string, init?: RequestInit): Promise
   return response.json();
 }
 
-export function fetchAdminTable<T = AdminRecord>(endpoint: string, query: AdminTableQuery, signal?: AbortSignal): Promise<PaginatedResult<T>> {
+export function fetchAdminTable<T = AdminRecord>(
+  endpoint: string,
+  query: AdminTableQuery,
+  signal?: AbortSignal,
+): Promise<PaginatedResult<T>> {
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));
+  for (const [key, value] of Object.entries(query))
+    if (value !== undefined && value !== '') params.set(key, String(value));
   return adminRequest(`admin/${endpoint}?${params}`, { signal });
 }
 
@@ -60,11 +65,17 @@ export function fetchAdminProduct(id: string, signal?: AbortSignal): Promise<Adm
   return adminRequest(`products/${encodeURIComponent(id)}`, { signal });
 }
 
-export function moderateAdminProduct(id: string, decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED', updatedAt?: string) {
+export function moderateAdminProduct(
+  id: string,
+  decision: 'APPROVED' | 'REJECTED' | 'ARCHIVED',
+  updatedAt?: string,
+) {
   const payload: Record<string, unknown> = { decision };
   if (updatedAt) payload['updatedAt'] = updatedAt;
   return adminRequest(`admin/products/${encodeURIComponent(id)}/moderate`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
 }
 
@@ -428,9 +439,15 @@ export interface OfferRevenueKpiResponse {
   offers: OfferRevenueRow[];
 }
 
-export async function fetchOfferRevenueKpis(params: {
-  from?: string; to?: string; storeId?: string; status?: string; limit?: number;
-} = {}): Promise<OfferRevenueKpiResponse> {
+export async function fetchOfferRevenueKpis(
+  params: {
+    from?: string;
+    to?: string;
+    storeId?: string;
+    status?: string;
+    limit?: number;
+  } = {},
+): Promise<OfferRevenueKpiResponse> {
   const sp = new URLSearchParams();
   if (params.from) sp.set('from', params.from);
   if (params.to) sp.set('to', params.to);
@@ -477,11 +494,18 @@ export interface OfferTrendResponse {
   topStores: OfferTrendTopStore[];
 }
 
-export async function fetchAdminOfferTrend(params: {
-  from?: string; to?: string; days?: number;
-  storeId?: string; offerId?: string; status?: string;
-  granularity?: 'day' | 'week'; topStores?: number;
-} = {}): Promise<OfferTrendResponse> {
+export async function fetchAdminOfferTrend(
+  params: {
+    from?: string;
+    to?: string;
+    days?: number;
+    storeId?: string;
+    offerId?: string;
+    status?: string;
+    granularity?: 'day' | 'week';
+    topStores?: number;
+  } = {},
+): Promise<OfferTrendResponse> {
   const sp = new URLSearchParams();
   if (params.from) sp.set('from', params.from);
   if (params.to) sp.set('to', params.to);
@@ -547,10 +571,49 @@ export interface AdminOrg {
 }
 
 export interface AdminOrgDetail extends AdminOrg {
-  stores: { id: string; orgId: string; slug: string; displayName: string; description: string | null; currency: string; locale: string; verificationStatus: string; address: Record<string, unknown>; createdAt: string }[];
-  warehouses: { id: string; storeId: string; name: string; address: Record<string, unknown>; managerName: string | null; managerPhone: string | null; status: string; createdAt: string }[];
-  documents: { id: string; orgId: string; storeId: string | null; docType: string; fileName: string; mimeType: string | null; fileSize: number; verificationStatus: string; createdAt: string }[];
-  members: { id: string; orgId: string; userId: string; roleId: string; status: string; createdAt: string; user: { id: string; fullName: string; phone: string; email: string | null }; role: { id: string; name: string; key: string } }[];
+  stores: {
+    id: string;
+    orgId: string;
+    slug: string;
+    displayName: string;
+    description: string | null;
+    currency: string;
+    locale: string;
+    verificationStatus: string;
+    address: Record<string, unknown>;
+    createdAt: string;
+  }[];
+  warehouses: {
+    id: string;
+    storeId: string;
+    name: string;
+    address: Record<string, unknown>;
+    managerName: string | null;
+    managerPhone: string | null;
+    status: string;
+    createdAt: string;
+  }[];
+  documents: {
+    id: string;
+    orgId: string;
+    storeId: string | null;
+    docType: string;
+    fileName: string;
+    mimeType: string | null;
+    fileSize: number;
+    verificationStatus: string;
+    createdAt: string;
+  }[];
+  members: {
+    id: string;
+    orgId: string;
+    userId: string;
+    roleId: string;
+    status: string;
+    createdAt: string;
+    user: { id: string; fullName: string; phone: string; email: string | null };
+    role: { id: string; name: string; key: string };
+  }[];
 }
 
 export async function fetchAdminOrganizationDetail(orgId: string): Promise<AdminOrgDetail> {
@@ -621,7 +684,10 @@ export async function fetchAdminOrganizations(): Promise<AdminOrg[]> {
   return res.json();
 }
 
-export async function deactivateAdminOrganization(id: string, isActive: boolean): Promise<{ success: boolean }> {
+export async function deactivateAdminOrganization(
+  id: string,
+  isActive: boolean,
+): Promise<{ success: boolean }> {
   const res = await authFetch(`${API_URL}/v1/admin/organizations/${id}/deactivate`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -646,7 +712,9 @@ export interface AdminOrgUpdateRequest {
   createdAt: string;
 }
 
-export async function fetchAdminOrgUpdateRequests(status?: string): Promise<AdminOrgUpdateRequest[]> {
+export async function fetchAdminOrgUpdateRequests(
+  status?: string,
+): Promise<AdminOrgUpdateRequest[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : '';
   const res = await authFetch(`${API_URL}/v1/admin/org-update-requests${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch update requests: ${res.status}`);
@@ -779,11 +847,14 @@ export async function updateRolePermissions(
   roleId: string,
   permissionIds: string[],
 ): Promise<{ id: string; key: string; name: string; permissions: string[] }> {
-  const res = await authFetch(`${API_URL}/v1/admin/roles/${encodeURIComponent(roleId)}/permissions`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ permissionIds }),
-  });
+  const res = await authFetch(
+    `${API_URL}/v1/admin/roles/${encodeURIComponent(roleId)}/permissions`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissionIds }),
+    },
+  );
   if (!res.ok) throw new Error(`Failed to update role permissions: ${res.status}`);
   return res.json();
 }
@@ -851,7 +922,10 @@ export interface AdminProductTypeSummary {
   categoryId: string | null;
 }
 
-export async function fetchAdminCategories(opts?: { all?: boolean; includeInactive?: boolean }): Promise<AdminCategory[]> {
+export async function fetchAdminCategories(opts?: {
+  all?: boolean;
+  includeInactive?: boolean;
+}): Promise<AdminCategory[]> {
   const sp = new URLSearchParams();
   // Admin needs the full tree — always pass all=true to get child categories
   sp.set('all', 'true');
@@ -904,7 +978,9 @@ export async function deleteAdminCategory(id: string): Promise<void> {
 /**
  * PHASE 10: fetch published product types associated with a category.
  */
-export async function fetchCategoryProductTypes(categoryId: string): Promise<AdminProductTypeSummary[]> {
+export async function fetchCategoryProductTypes(
+  categoryId: string,
+): Promise<AdminProductTypeSummary[]> {
   const res = await authFetch(`${API_URL}/v1/categories/${categoryId}/product-types`);
   if (!res.ok) throw new Error(`Failed to fetch category product types: ${res.status}`);
   return res.json();
@@ -946,7 +1022,12 @@ export async function fetchAdminBrandsEnriched(includeInactive = false): Promise
   return res.json();
 }
 
-export async function createAdminBrand(data: { name: string; nameAr?: string; logoUrl?: string; description?: string }): Promise<AdminBrand> {
+export async function createAdminBrand(data: {
+  name: string;
+  nameAr?: string;
+  logoUrl?: string;
+  description?: string;
+}): Promise<AdminBrand> {
   const res = await authFetch(`${API_URL}/v1/brands`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -975,8 +1056,20 @@ export async function deactivateAdminBrand(id: string): Promise<void> {
 
 export type AttributeScope = 'PRODUCT' | 'VARIANT' | 'OFFER';
 export type AttributeType =
-  | 'TEXT' | 'LONG_TEXT' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'DATE' | 'DATETIME'
-  | 'SELECT' | 'MULTI_SELECT' | 'COLOR' | 'URL' | 'FILE' | 'MEASUREMENT' | 'CURRENCY';
+  | 'TEXT'
+  | 'LONG_TEXT'
+  | 'INTEGER'
+  | 'DECIMAL'
+  | 'BOOLEAN'
+  | 'DATE'
+  | 'DATETIME'
+  | 'SELECT'
+  | 'MULTI_SELECT'
+  | 'COLOR'
+  | 'URL'
+  | 'FILE'
+  | 'MEASUREMENT'
+  | 'CURRENCY';
 
 export interface AttributeOption {
   id: string;
@@ -1016,7 +1109,9 @@ export interface AttributeGroup {
 }
 
 export async function fetchAttributes(params?: {
-  scope?: string; type?: string; includeDeprecated?: boolean;
+  scope?: string;
+  type?: string;
+  includeDeprecated?: boolean;
 }): Promise<AttributeDefinition[]> {
   const sp = new URLSearchParams();
   if (params?.scope) sp.set('scope', params.scope);
@@ -1035,8 +1130,13 @@ export async function fetchAttribute(id: string): Promise<AttributeDefinition> {
 }
 
 export async function createAttribute(data: {
-  code: string; name: string; nameAr?: string; description?: string;
-  type?: AttributeType; unit?: string; scope?: AttributeScope;
+  code: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
+  type?: AttributeType;
+  unit?: string;
+  scope?: AttributeScope;
   validation?: Record<string, unknown>;
   options?: Array<{ value: string; valueAr?: string; label?: string; sortOrder?: number }>;
 }): Promise<AttributeDefinition> {
@@ -1052,11 +1152,17 @@ export async function createAttribute(data: {
   return res.json();
 }
 
-export async function updateAttribute(id: string, data: {
-  name?: string; nameAr?: string; description?: string;
-  unit?: string; status?: 'ACTIVE' | 'DEPRECATED';
-  validation?: Record<string, unknown>;
-}): Promise<AttributeDefinition> {
+export async function updateAttribute(
+  id: string,
+  data: {
+    name?: string;
+    nameAr?: string;
+    description?: string;
+    unit?: string;
+    status?: 'ACTIVE' | 'DEPRECATED';
+    validation?: Record<string, unknown>;
+  },
+): Promise<AttributeDefinition> {
   const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -1071,9 +1177,15 @@ export async function deleteAttribute(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to deactivate attribute: ${res.status}`);
 }
 
-export async function addAttributeOption(id: string, data: {
-  value: string; valueAr?: string; label?: string; sortOrder?: number;
-}): Promise<AttributeOption> {
+export async function addAttributeOption(
+  id: string,
+  data: {
+    value: string;
+    valueAr?: string;
+    label?: string;
+    sortOrder?: number;
+  },
+): Promise<AttributeOption> {
   const res = await authFetch(`${API_URL}/v1/admin/attributes/${id}/options`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1092,7 +1204,9 @@ export async function fetchAttributeGroups(): Promise<AttributeGroup[]> {
 }
 
 export async function createAttributeGroup(data: {
-  name: string; nameAr?: string; kind?: string;
+  name: string;
+  nameAr?: string;
+  kind?: string;
 }): Promise<AttributeGroup> {
   const res = await authFetch(`${API_URL}/v1/admin/attribute-groups`, {
     method: 'POST',
@@ -1122,7 +1236,8 @@ export interface ProductType {
 }
 
 export async function fetchProductTypes(params?: {
-  categoryId?: string; status?: string;
+  categoryId?: string;
+  status?: string;
 }): Promise<ProductType[]> {
   const sp = new URLSearchParams();
   if (params?.categoryId) sp.set('categoryId', params.categoryId);
@@ -1141,7 +1256,10 @@ export async function fetchProductType(id: string): Promise<ProductType> {
 }
 
 export async function createProductType(data: {
-  code: string; name: string; nameAr?: string; description?: string;
+  code: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
   categoryId?: string | null;
 }): Promise<ProductType> {
   const res = await authFetch(`${API_URL}/v1/admin/product-types`, {
@@ -1157,7 +1275,9 @@ export async function createProductType(data: {
 }
 
 export async function publishProductType(id: string): Promise<ProductType> {
-  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/publish`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/publish`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error(`Failed to publish product type: ${res.status}`);
   return res.json();
 }
@@ -1186,18 +1306,21 @@ export async function fetchProductTypeSchema(id: string): Promise<ProductTypeSch
   return res.json();
 }
 
-export async function setProductTypeAttributes(id: string, attributes: Array<{
-  attributeDefinitionId: string;
-  displayOrder?: number;
-  isRequired?: boolean;
-  isFilterable?: boolean;
-  isSearchable?: boolean;
-  isComparable?: boolean;
-  visibleInListing?: boolean;
-  visibleInDetail?: boolean;
-  conditionalRules?: Record<string, unknown> | null;
-  validationOverride?: Record<string, unknown> | null;
-}>): Promise<void> {
+export async function setProductTypeAttributes(
+  id: string,
+  attributes: Array<{
+    attributeDefinitionId: string;
+    displayOrder?: number;
+    isRequired?: boolean;
+    isFilterable?: boolean;
+    isSearchable?: boolean;
+    isComparable?: boolean;
+    visibleInListing?: boolean;
+    visibleInDetail?: boolean;
+    conditionalRules?: Record<string, unknown> | null;
+    validationOverride?: Record<string, unknown> | null;
+  }>,
+): Promise<void> {
   const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/attributes`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -1232,7 +1355,9 @@ export async function updateProductTypeCategory(
 }
 
 export async function createNewVersion(id: string): Promise<ProductType> {
-  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/versions`, { method: 'POST' });
+  const res = await authFetch(`${API_URL}/v1/admin/product-types/${id}/versions`, {
+    method: 'POST',
+  });
   if (!res.ok) throw new Error(`Failed to create new version: ${res.status}`);
   return res.json();
 }
@@ -1253,7 +1378,10 @@ export interface AdminCatalogRequest {
   updatedAt: string;
 }
 
-export async function fetchAdminCatalogRequests(filters?: { type?: string; status?: string }): Promise<AdminCatalogRequest[]> {
+export async function fetchAdminCatalogRequests(filters?: {
+  type?: string;
+  status?: string;
+}): Promise<AdminCatalogRequest[]> {
   const params = new URLSearchParams();
   if (filters?.type) params.set('type', filters.type);
   if (filters?.status) params.set('status', filters.status);
@@ -1263,7 +1391,10 @@ export async function fetchAdminCatalogRequests(filters?: { type?: string; statu
   return res.json();
 }
 
-export async function approveCatalogRequest(id: string, reviewerId: string): Promise<AdminCatalogRequest> {
+export async function approveCatalogRequest(
+  id: string,
+  reviewerId: string,
+): Promise<AdminCatalogRequest> {
   const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1273,7 +1404,11 @@ export async function approveCatalogRequest(id: string, reviewerId: string): Pro
   return res.json();
 }
 
-export async function rejectCatalogRequest(id: string, reviewerId: string, reason: string): Promise<AdminCatalogRequest> {
+export async function rejectCatalogRequest(
+  id: string,
+  reviewerId: string,
+  reason: string,
+): Promise<AdminCatalogRequest> {
   const res = await authFetch(`${API_URL}/v1/admin/requests/${id}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1376,7 +1511,9 @@ export async function uploadCatalogImport(file: File): Promise<CatalogImport> {
 }
 
 export async function fetchCatalogImports(params?: {
-  limit?: number; offset?: number; status?: string;
+  limit?: number;
+  offset?: number;
+  status?: string;
 }): Promise<CatalogImport[]> {
   const sp = new URLSearchParams();
   if (params?.limit) sp.set('limit', String(params.limit));
@@ -1406,7 +1543,11 @@ export async function executeCatalogImport(
   id: string,
   overrides?: ImportOverrides,
 ): Promise<{
-  created: number; updated: number; unchanged: number; rejected: number; errors: string[];
+  created: number;
+  updated: number;
+  unchanged: number;
+  rejected: number;
+  errors: string[];
 }> {
   const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/execute`, {
     method: 'POST',
@@ -1415,7 +1556,9 @@ export async function executeCatalogImport(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail || body.message || `Failed to execute catalog import: ${res.status}`);
+    throw new Error(
+      body.detail || body.message || `Failed to execute catalog import: ${res.status}`,
+    );
   }
   return res.json();
 }
@@ -1426,11 +1569,15 @@ export async function fetchCatalogImportErrors(id: string): Promise<CatalogImpor
   return res.json();
 }
 
-export async function retryCatalogImport(
-  id: string,
-): Promise<{
-  created: number; updated: number; unchanged: number; rejected: number; skipped: number;
-  errors: string[]; entityBreakdown: Record<string, any>; structuredErrors: any[];
+export async function retryCatalogImport(id: string): Promise<{
+  created: number;
+  updated: number;
+  unchanged: number;
+  rejected: number;
+  skipped: number;
+  errors: string[];
+  entityBreakdown: Record<string, any>;
+  structuredErrors: any[];
 }> {
   const res = await authFetch(`${API_URL}/v1/admin/catalog-imports/${id}/retry`, {
     method: 'POST',
@@ -1510,13 +1657,20 @@ export interface AnalyticsActivityEntry {
   properties: Record<string, unknown> | null;
 }
 
-export async function fetchAnalyticsEvents(from: string, to: string): Promise<AnalyticsEventCount[]> {
-  const res = await authFetch(`${API_URL}/v1/analytics/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+export async function fetchAnalyticsEvents(
+  from: string,
+  to: string,
+): Promise<AnalyticsEventCount[]> {
+  const res = await authFetch(
+    `${API_URL}/v1/analytics/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  );
   if (!res.ok) throw new Error(`Failed to fetch analytics events: ${res.status}`);
   return res.json();
 }
 
-export async function fetchAnalyticsActivity(limit?: string | number): Promise<AnalyticsActivityEntry[]> {
+export async function fetchAnalyticsActivity(
+  limit?: string | number,
+): Promise<AnalyticsActivityEntry[]> {
   const qs = limit ? `?limit=${limit}` : '';
   const res = await authFetch(`${API_URL}/v1/analytics/activity${qs}`);
   if (!res.ok) throw new Error(`Failed to fetch analytics activity: ${res.status}`);
@@ -1651,7 +1805,9 @@ export async function fetchCategoryProductTypesForAdmin(
   return res.json();
 }
 
-export async function fetchProductTypePublishReadiness(id: string): Promise<PublishValidationResult> {
+export async function fetchProductTypePublishReadiness(
+  id: string,
+): Promise<PublishValidationResult> {
   const res = await authFetch(
     `${API_URL}/v1/admin/product-types/${encodeURIComponent(id)}/publish-readiness`,
   );
@@ -1713,7 +1869,10 @@ export async function adminCreateProduct(input: AdminProductCreateInput): Promis
 }
 
 /** PHASE 4 P3: Admin product update (PATCH /v1/admin/products/:id). */
-export async function adminUpdateProduct(id: string, input: AdminProductEditInput): Promise<AdminProduct> {
+export async function adminUpdateProduct(
+  id: string,
+  input: AdminProductEditInput,
+): Promise<AdminProduct> {
   return adminRequest(`admin/products/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -1722,16 +1881,18 @@ export async function adminUpdateProduct(id: string, input: AdminProductEditInpu
 }
 
 /** PHASE 4 P3: Load typed product attribute values. */
-export async function adminGetProductAttributeValues(productId: string): Promise<Array<{
-  id: string;
-  productId: string;
-  attributeDefinitionId: string;
-  valueText: string | null;
-  valueNumber: string | null;
-  valueBoolean: boolean | null;
-  optionValue: string | null;
-  createdAt: string;
-}>> {
+export async function adminGetProductAttributeValues(productId: string): Promise<
+  Array<{
+    id: string;
+    productId: string;
+    attributeDefinitionId: string;
+    valueText: string | null;
+    valueNumber: string | null;
+    valueBoolean: boolean | null;
+    optionValue: string | null;
+    createdAt: string;
+  }>
+> {
   return adminRequest(`admin/products/${encodeURIComponent(productId)}/attribute-values`);
 }
 
@@ -1817,7 +1978,9 @@ export async function verifyPayment(
   });
 }
 
-export async function fetchRequestedRefunds(): Promise<AdminRefund[]> { return adminRequest('admin/refunds'); }
+export async function fetchRequestedRefunds(): Promise<AdminRefund[]> {
+  return adminRequest('admin/refunds');
+}
 
 export async function approveRefund(refundId: string): Promise<AdminRefund> {
   return adminRequest(`admin/refunds/${encodeURIComponent(refundId)}/approve`, {
@@ -1856,4 +2019,3 @@ export async function fetchAdminSettlements(params?: {
   const qs = sp.toString();
   return adminRequest(`admin/settlements${qs ? `?${qs}` : ''}`);
 }
-
