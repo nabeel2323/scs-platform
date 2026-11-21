@@ -14,7 +14,7 @@ const files = [
   'project-memory/WORK-LOG.md',
 ];
 
-execFileSync('pnpm', ['exec', 'prettier', '--write', ...files], {
+execFileSync('./node_modules/.bin/prettier', ['--write', ...files], {
   stdio: 'inherit',
 });
 
