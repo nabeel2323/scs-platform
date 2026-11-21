@@ -1168,3 +1168,11 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - This preserves the recorded lifecycle distinction: DRAFT stores remain manageable by their merchant members, while buyer-facing offer discovery is restricted to ACTIVE stores by the correlated SQL visibility predicate.
 - This is test-source coverage only; focused API tests and exact-head CI remain pending. No policy was inferred for SUSPENDED stores.
 - G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
+
+
+### G-001 PostgreSQL ACTIVE-store visibility regression — 21 November 2026
+
+- Corrected the catalog lifecycle PostgreSQL fixture to create both merchant stores as ACTIVE, matching the buyer-discovery scenario rather than inheriting the schema's DRAFT default.
+- Added a real PostgreSQL regression that changes Merchant B's store to DRAFT, verifies its offer disappears from both buyer product-offer list and ranked seller results while Merchant A remains visible, and restores ACTIVE in a `finally` block.
+- This directly exercises the correlated SQL EXISTS lifecycle predicate against PostgreSQL. The test has been committed but not yet executed in CI; exact-head API unit and PostgreSQL integration results remain pending.
+- G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
