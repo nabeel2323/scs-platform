@@ -139,3 +139,21 @@ The PostgreSQL lifecycle suite now includes an explicit `INACTIVE` store scenari
 **Next action:** obtain a normal exact-head CI run for the formatted branch commit. Do not mark the INACTIVE-store test verified until API unit/coverage and disposable-PostgreSQL integration have actually run and passed. Keep G-001 PARTIAL pending that evidence and independent review; keep G-002 within the read-only/authorized boundary.
 
 **Latest verification:** CI #1275 passed lint/typecheck and Flutter analysis/tests but failed Prettier on five Markdown files. API unit/coverage and PostgreSQL integration were skipped, so the INACTIVE-store regression remains unverified. Format the five files with the repository-locked tool and rerun exact-head CI before closing this acceptance item.
+
+## Latest verification update — 21 November 2026
+
+## Latest verified checkpoint — 21 November 2026
+
+- Branch: `remediation/phase-0-1-tenant-security`; source commit: `ffd3961c32164c2af00090b32dbafb06b997a581`.
+- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) remains open, draft and unmerged; base `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) completed successfully on that SHA. All 10 executable jobs passed: lint/typecheck/changed-file formatting; Flutter analysis/tests; API unit/coverage; PostgreSQL integration; Web/Admin tests; E6 boundary lint; migration full apply and read-only access audit; container build/smoke; build; and contract/codegen. k6 and protected staging release were skipped.
+- The PostgreSQL integration job executed `pnpm --filter @scs/api test:integration` against disposable PostgreSQL 16 and Redis services and passed. The `catalog-lifecycle.e2e.spec.ts` suite, including `hides buyer offers for an INACTIVE store`, is included in that integration test command. The test verifies both buyer list and ranked results exclude the INACTIVE store while the ACTIVE store remains visible, and restores the fixture in `finally`.
+- G-001 remains PARTIAL only pending independent security review and disposition of reviewer findings. The review packet is prepared but is not itself an independent review.
+- G-002 remains IN PROGRESS. Actual staging API/migration runtime identities and the protected read-only staging audit remain unverified. The connected Supabase Management API `postgres` identity is not a substitute.
+- No staging deployment/write, shared database mutation, migration 0070, grants/default ACL change, RLS enablement, environment change or worker activation was performed.
+
+### Remaining work order
+
+1. Independent G-001 security review and reviewer-directed remediation, if any.
+2. G-002 actual API/migration runtime identity evidence through the authorized release process; protected read-only staging audit; reviewed per-table least-privilege/RLS design.
+3. Continue the remaining finding register in priority order. Keep PR #138 draft and do not make shared database or staging changes.

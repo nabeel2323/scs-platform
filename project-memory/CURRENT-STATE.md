@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Live inspected branch head:** `b73f72e34406c1260f214610539139d0d096b2de`
+**Live inspected branch head:** `ffd3961c32164c2af00090b32dbafb06b997a581`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -52,10 +52,10 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. CI #1268 now verifies the exact current branch head: API unit/coverage, PostgreSQL integration and all other executable gates passed.
-2. The G-001 acceptance matrix is implemented and CI-verified across controller, service and PostgreSQL tests; see `docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md` for the evidence map and reviewer checklist.
-3. Obtain an independent security review from the user or a separately appointed qualified reviewer. Keep G-001 PARTIAL until the reviewer records findings and any required remediation is verified.
-4. Continue G-002 only within the read-only/authorized evidence boundary in DECISIONS-AND-CONSTRAINTS.md; actual staging identities and protected staging audit remain gated.
+1. G-001 implementation and automated acceptance tests are CI-verified on source SHA `ffd3961c32164c2af00090b32dbafb06b997a581`, including the INACTIVE-store buyer visibility integration case.
+2. Obtain an independent security review using `docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md`; record reviewer identity, scope, findings and disposition. Keep G-001 PARTIAL until this gate is complete.
+3. Continue G-002 read-only evidence/design work. Actual staging API/migration runtime identities and protected staging audit remain gated behind the separate approved release path.
+4. Keep PR #138 draft; do not merge, deploy or mutate shared database state.
 
 ## Safety reminder
 
@@ -166,3 +166,16 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 - The changed-file Prettier gate failed on five Markdown files: `docs/remediation/IMPLEMENTATION-PROGRESS.md`, `project-memory/CURRENT-STATE.md`, `project-memory/OPEN-ISSUES.md`, `project-memory/RELEASE-AND-CI-STATUS.md` and `project-memory/WORK-LOG.md`.
 - API unit/coverage, PostgreSQL integration, Web/Admin, boundary lint, migration, contract/codegen, container and build jobs were skipped after the formatting gate failed. The INACTIVE-store regression has therefore not yet run in CI.
 - Next: apply repository-locked Prettier to all changed handover documents, then obtain a normal exact-head CI run. G-001 remains PARTIAL; do not claim the new test as verified. G-002 remains IN PROGRESS. No staging/shared DB changes occurred.
+
+## Latest live reconciliation — 21 November 2026
+
+## Latest verified checkpoint — 21 November 2026
+
+- Branch: `remediation/phase-0-1-tenant-security`; source commit: `ffd3961c32164c2af00090b32dbafb06b997a581`.
+- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) remains open, draft and unmerged; base `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) completed successfully on that SHA. All 10 executable jobs passed: lint/typecheck/changed-file formatting; Flutter analysis/tests; API unit/coverage; PostgreSQL integration; Web/Admin tests; E6 boundary lint; migration full apply and read-only access audit; container build/smoke; build; and contract/codegen. k6 and protected staging release were skipped.
+- The PostgreSQL integration job executed `pnpm --filter @scs/api test:integration` against disposable PostgreSQL 16 and Redis services and passed. The `catalog-lifecycle.e2e.spec.ts` suite, including `hides buyer offers for an INACTIVE store`, is included in that integration test command. The test verifies both buyer list and ranked results exclude the INACTIVE store while the ACTIVE store remains visible, and restores the fixture in `finally`.
+- G-001 remains PARTIAL only pending independent security review and disposition of reviewer findings. The review packet is prepared but is not itself an independent review.
+- G-002 remains IN PROGRESS. Actual staging API/migration runtime identities and the protected read-only staging audit remain unverified. The connected Supabase Management API `postgres` identity is not a substitute.
+- No staging deployment/write, shared database mutation, migration 0070, grants/default ACL change, RLS enablement, environment change or worker activation was performed.
+

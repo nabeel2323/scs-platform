@@ -1257,3 +1257,12 @@ CI #1271 passed all 10 executable jobs on `71550c4c6d71de1b3b54f6d2230b308251a73
 ## CI #1275 — handover-document formatting correction required — 21 November 2026
 
 Exact-head CI [#1275](https://github.com/nabeel2323/scs-platform/actions/runs/44922283263) on `d67875507a07a75f2945b44beb7bfbec387f169e` passed lint, TypeScript typecheck, Flutter analysis and Flutter tests. The changed-file Prettier gate failed on five Markdown files: this tracker, `project-memory/CURRENT-STATE.md`, `project-memory/OPEN-ISSUES.md`, `project-memory/RELEASE-AND-CI-STATUS.md` and `project-memory/WORK-LOG.md`. API unit/coverage, PostgreSQL integration and all dependent jobs were skipped. The newly added INACTIVE-store PostgreSQL test has not yet executed in CI. Apply repository-locked formatting and obtain a normal exact-head run; keep G-001 PARTIAL until API unit/coverage and PostgreSQL integration pass and independent security review is recorded.
+
+
+## G-001 INACTIVE-store buyer visibility — exact-head CI verification — 21 November 2026
+
+The source commit `ffd3961c32164c2af00090b32dbafb06b997a581` contains the PostgreSQL lifecycle test `hides buyer offers for an INACTIVE store`. It changes Merchant B's store to `INACTIVE`, verifies both buyer product-offer list and ranked-offer results exclude that store while Merchant A's ACTIVE store remains visible, and restores the fixture in `finally`.
+
+Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) completed successfully on that source SHA. The PostgreSQL integration job passed while executing `pnpm --filter @scs/api test:integration` against disposable PostgreSQL 16 and Redis services; API unit/coverage and all other executable jobs also passed. Therefore the INACTIVE-store regression is now **CI-verified**. k6 and protected staging release were skipped. This CI result does not establish staging/production runtime behavior.
+
+G-001 remains PARTIAL solely pending an independent security review and disposition of any reviewer findings. G-002 remains IN PROGRESS. No shared database, staging, deployment, migration 0070, grants/default ACL, RLS or worker changes were performed.

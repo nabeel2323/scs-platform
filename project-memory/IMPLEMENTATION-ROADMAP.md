@@ -113,3 +113,21 @@ CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) 
 ## G-001 INACTIVE-store buyer visibility — 21 November 2026
 
 Added a disposable-PostgreSQL integration case proving an `INACTIVE` merchant store is excluded from both buyer product-offer list and ranked-offer results, while a separate ACTIVE store remains visible. The test restores the modified fixture in `finally` and does not define merchant-management permissions for inactive stores. Exact-head CI is pending; G-001 remains PARTIAL pending verification and independent security review.
+
+## Latest execution checkpoint — 21 November 2026
+
+## Latest verified checkpoint — 21 November 2026
+
+- Branch: `remediation/phase-0-1-tenant-security`; source commit: `ffd3961c32164c2af00090b32dbafb06b997a581`.
+- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) remains open, draft and unmerged; base `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) completed successfully on that SHA. All 10 executable jobs passed: lint/typecheck/changed-file formatting; Flutter analysis/tests; API unit/coverage; PostgreSQL integration; Web/Admin tests; E6 boundary lint; migration full apply and read-only access audit; container build/smoke; build; and contract/codegen. k6 and protected staging release were skipped.
+- The PostgreSQL integration job executed `pnpm --filter @scs/api test:integration` against disposable PostgreSQL 16 and Redis services and passed. The `catalog-lifecycle.e2e.spec.ts` suite, including `hides buyer offers for an INACTIVE store`, is included in that integration test command. The test verifies both buyer list and ranked results exclude the INACTIVE store while the ACTIVE store remains visible, and restores the fixture in `finally`.
+- G-001 remains PARTIAL only pending independent security review and disposition of reviewer findings. The review packet is prepared but is not itself an independent review.
+- G-002 remains IN PROGRESS. Actual staging API/migration runtime identities and the protected read-only staging audit remain unverified. The connected Supabase Management API `postgres` identity is not a substitute.
+- No staging deployment/write, shared database mutation, migration 0070, grants/default ACL change, RLS enablement, environment change or worker activation was performed.
+
+### Next sequence
+
+1. Complete independent G-001 review and disposition any findings; do not self-certify independence.
+2. Continue G-002 read-only identity/access design. The next runtime evidence depends on the separately reviewed and approved runtime-identity diagnostic change and controlled release; do not deploy or trigger it from this remediation branch.
+3. Preserve the staging/database restrictions and defer Phase 6 until all phase entry criteria are met.

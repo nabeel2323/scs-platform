@@ -211,3 +211,34 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Skipped:** API unit/coverage, PostgreSQL integration, Web/Admin, boundary lint, migration, contract/codegen, container, build and k6. Dependent jobs did not execute.
 - **Interpretation:** the INACTIVE-store PostgreSQL test has not been executed by CI. This is a documentation-formatting gate failure, not a functional test result.
 - **Next:** run repository-locked Prettier on the changed handover documents and obtain a normal exact-head CI run.
+
+## Latest exact-source verification — CI #1280 — 21 November 2026
+
+## Latest verified checkpoint — 21 November 2026
+
+- Branch: `remediation/phase-0-1-tenant-security`; source commit: `ffd3961c32164c2af00090b32dbafb06b997a581`.
+- PR [#138](https://github.com/nabeel2323/scs-platform/pull/138) remains open, draft and unmerged; base `develop` is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
+- Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) completed successfully on that SHA. All 10 executable jobs passed: lint/typecheck/changed-file formatting; Flutter analysis/tests; API unit/coverage; PostgreSQL integration; Web/Admin tests; E6 boundary lint; migration full apply and read-only access audit; container build/smoke; build; and contract/codegen. k6 and protected staging release were skipped.
+- The PostgreSQL integration job executed `pnpm --filter @scs/api test:integration` against disposable PostgreSQL 16 and Redis services and passed. The `catalog-lifecycle.e2e.spec.ts` suite, including `hides buyer offers for an INACTIVE store`, is included in that integration test command. The test verifies both buyer list and ranked results exclude the INACTIVE store while the ACTIVE store remains visible, and restores the fixture in `finally`.
+- G-001 remains PARTIAL only pending independent security review and disposition of reviewer findings. The review packet is prepared but is not itself an independent review.
+- G-002 remains IN PROGRESS. Actual staging API/migration runtime identities and the protected read-only staging audit remain unverified. The connected Supabase Management API `postgres` identity is not a substitute.
+- No staging deployment/write, shared database mutation, migration 0070, grants/default ACL change, RLS enablement, environment change or worker activation was performed.
+
+### Executable job results
+
+| Job | Result |
+| --- | --- |
+| Lint, TypeScript typecheck and changed-file Prettier | PASS |
+| Flutter analysis and tests | PASS |
+| API unit tests and coverage gates | PASS |
+| PostgreSQL integration tests | PASS |
+| Web and Admin tests | PASS |
+| E6 boundary lint | PASS |
+| Migration full apply and read-only database-access audit | PASS |
+| Container build and smoke tests | PASS |
+| Build | PASS |
+| Contract specification and code generation | PASS |
+| k6 smoke test | SKIPPED |
+| Protected staging release | SKIPPED |
+
+The PostgreSQL integration command ran against disposable CI services. This is not a staging runtime test or approval to deploy. The INACTIVE-store regression is part of the integration suite executed by this job. No shared database changes were made.

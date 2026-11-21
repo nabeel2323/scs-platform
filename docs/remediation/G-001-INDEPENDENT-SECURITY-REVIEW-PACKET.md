@@ -3,9 +3,9 @@
 **Prepared:** 21 November 2026  
 **Repository:** `nabeel2323/scs-platform`  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Commit under review:** `b73f72e34406c1260f214610539139d0d096b2de`  
+**Commit under review:** `ffd3961c32164c2af00090b32dbafb06b997a581`  
 **Pull request:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, unmerged  
-**Exact-head CI:** [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) — 10 executable jobs passed
+**Exact-head CI:** [#1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) — 10 executable jobs passed
 
 > **Review independence:** This packet was assembled by the implementation author from repository source and CI evidence. It is not an independent security review and must not be treated as one. A reviewer other than the implementation author must inspect the code and record a conclusion.
 
@@ -33,7 +33,7 @@ The review is limited to G-001. It does not approve G-002 database/RLS changes, 
 | Supported merchant principals           | Controller and service unit suites exercise `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT` on merchant surfaces and mutation entry points.                                                                                                                                         |
 | Non-merchant mutation denial            | Controller/service suites deny `BUYER`, `FINANCE`, `ADMIN`, `MODERATOR`, `SYSTEM` and `SUPER_ADMIN`, including service entry points before database mutation.                                                                                                                                |
 | Buyer cannot use merchant surfaces      | Controller tests deny buyer list/detail access even when a store-membership fixture exists.                                                                                                                                                                                                  |
-| Buyer offer visibility                  | Service tests assert ACTIVE-store, ACTIVE-offer and available predicates and the explicit allowlisted projection; PostgreSQL integration proves DRAFT-store offers disappear from buyer list and ranked results. A new INACTIVE-store PostgreSQL scenario is added and awaits exact-head CI. |
+| Buyer offer visibility                  | Service tests assert ACTIVE-store, ACTIVE-offer and available predicates and the explicit allowlisted projection; PostgreSQL integration proves DRAFT-store offers disappear from buyer list and ranked results. A new INACTIVE-store PostgreSQL scenario is included in the exact-head CI #1280 integration run and passed. |
 | Foreign merchant confidentiality        | Scope-first service and PostgreSQL tests compare foreign-organization and same-organization non-member detail responses; both use the not-found class.                                                                                                                                       |
 | Organization and membership enforcement | Controller tests cover missing active organization, foreign organization, same-organization non-member and revoked/inactive membership; PostgreSQL tests cover foreign merchant, non-member and revoked membership.                                                                          |
 | Analytics and trend reads               | Controller tests apply the same store organization/membership checks to list, store analytics and trend; denial cases assert protected services are not called.                                                                                                                              |
@@ -45,10 +45,10 @@ The review is limited to G-001. It does not approve G-002 database/RLS changes, 
 
 - Controller unit tests: `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`.
 - Service unit tests: `apps/api/src/__tests__/unit/catalog/catalog-offer.spec.ts`.
-- PostgreSQL lifecycle/tenant integration: `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts` (includes DRAFT-store coverage; the new INACTIVE-store buyer-visibility case awaits exact-head CI).
+- PostgreSQL lifecycle/tenant integration: `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts` (includes DRAFT-store coverage; the INACTIVE-store buyer-visibility case passed exact-head CI #1280).
 - Additional PostgreSQL fixture suites repaired in the latest change: Phase 1 marketplace, Phase 2 multi-merchant, Phase 3 security, Phase 4 import-commerce and transaction-lifecycle suites. Each explicit Drizzle schema map now registers `storeMembers`; buyer-discovery fixtures use ACTIVE stores where that behavior is under test.
 
-CI #1268 on exact commit `b73f72e34406c1260f214610539139d0d096b2de` passed:
+CI #1280 on exact source commit `ffd3961c32164c2af00090b32dbafb06b997a581` passed:
 
 - Lint, TypeScript typecheck and changed-file Prettier.
 - API unit tests and coverage gates.
@@ -104,6 +104,13 @@ The reviewer should inspect source and tests rather than rely only on this summa
 
 **G-001 status remains PARTIAL until this reviewer record is completed and all findings are dispositioned.**
 
-## Addendum — INACTIVE-store buyer visibility test
+## Addendum — INACTIVE-store buyer visibility test (CI-verified)
 
-A real PostgreSQL scenario now changes Merchant B's store status to `INACTIVE`, asserts the store's offers are absent from both buyer list and ranked results while the other ACTIVE store remains visible, and restores the fixture in `finally`. This test is newly implemented and is **not yet CI-verified** at the packet's current commit. It does not establish a merchant-management policy for inactive stores.
+A real PostgreSQL scenario now changes Merchant B's store status to `INACTIVE`, asserts the store's offers are absent from both buyer list and ranked results while the other ACTIVE store remains visible, and restores the fixture in `finally`. This test is included in the PostgreSQL integration suite that passed exact-head CI #1280 on `ffd3961c32164c2af00090b32dbafb06b997a581`. It does not establish a merchant-management policy for inactive stores.
+
+
+## Exact-head CI verification update — 21 November 2026
+
+[CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44922582006) passed all 10 executable jobs on source commit `ffd3961c32164c2af00090b32dbafb06b997a581`. The PostgreSQL integration job ran the integration directory against disposable PostgreSQL 16 and Redis services and passed, including this packet's INACTIVE-store buyer-visibility test. API unit/coverage, Web/Admin, Flutter, E6 boundary lint, migration full apply/read-only audit, contract/codegen, build, container smoke and lint/typecheck/format also passed. k6 and protected staging release were skipped. No staging or production runtime verification is claimed.
+
+The packet remains a handoff artifact, not an independent review. G-001 remains PARTIAL until a reviewer other than the implementation author completes the reviewer record and any findings are dispositioned.
