@@ -126,3 +126,11 @@ For every run, record:
 - Controller regression coverage expanded for foreign-organization offer-list denial, missing active organization, revoked/inactive membership on analytics, and DRAFT-store merchant management.
 - Exact-head GitHub Actions verification is still pending. The previously inspected Vercel web/admin statuses were build-rate-limit provider failures, not application test results.
 - No SUSPENDED-store policy was inferred. No staging release, k6, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
+
+
+## PostgreSQL buyer-visibility regression — 21 November 2026
+
+- Catalog lifecycle integration fixtures now explicitly create ACTIVE stores for buyer discovery.
+- Added a PostgreSQL test for DRAFT-store exclusion from both buyer product-offer list and ranked seller results, with status restoration in `finally`.
+- Latest inspected commit before this status refresh: `05fe9c6ecb9590586d9117af6d6ce547dd7e29b6`.
+- Exact-head GitHub Actions run and API/PostgreSQL job results are pending. No shared database or staging mutation was performed.
