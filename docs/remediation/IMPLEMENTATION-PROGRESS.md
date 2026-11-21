@@ -1160,3 +1160,11 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - Added analytics denial coverage for revoked/inactive store membership, asserting the analytics service is not called.
 - These are source-level test additions only. Focused API tests and exact-head CI remain pending; G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
 - No database, staging, deployment, worker or environment changes were made.
+
+
+### G-001 store lifecycle acceptance — 21 November 2026
+
+- Added controller regression coverage confirming an ACTIVE store member retains merchant-side offer-management access while the store is DRAFT.
+- This preserves the recorded lifecycle distinction: DRAFT stores remain manageable by their merchant members, while buyer-facing offer discovery is restricted to ACTIVE stores by the correlated SQL visibility predicate.
+- This is test-source coverage only; focused API tests and exact-head CI remain pending. No policy was inferred for SUSPENDED stores.
+- G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
