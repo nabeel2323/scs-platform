@@ -66,7 +66,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. Exact-head CI #1265 on 36399ce passed lint/typecheck/formatting, Flutter, boundary lint, migration/audit and Web/Admin checks but failed API unit/coverage and PostgreSQL integration because five test Drizzle schema maps omitted `storeMembers`. The next implementation task is a test-fixture-only correction: register `storeMembers` in those maps and mark buyer-discovery fixture stores ACTIVE. Preserve the production authorization guard. Then rerun exact-head CI and continue the remaining acceptance matrix and independent review.
+See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. CI #1266 on 52336f7 passed Flutter and lint/typecheck (zero errors) but failed the changed-file Prettier gate on nine files; dependent tests were skipped. The test-only correction is committed: five PostgreSQL suites now register `storeMembers` in their Drizzle schema maps and use ACTIVE stores for buyer-discovery scenarios. The immediate next step is repository-locked formatting, followed by exact-head CI to verify the actual tests. Preserve the production authorization guard.
 
 ## Safety reminder
 

@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected branch head before this current-state refresh:** 36399ce6704b0774f0ebb0f670a3e7d735b19295
+**Last inspected branch head before this current-state refresh:** 52336f751dc2558b10834940034833b4573c5ca4
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | --------------------------------- | ------------------------------------------------------------- |
 | Repository                        | nabeel2323/scs-platform                                       |
 | Branch                            | remediation/phase-0-1-tenant-security                         |
-| Last inspected PR head            | 36399ce6704b0774f0ebb0f670a3e7d735b19295                      |
-| Last inspected commit             | test(security): complete Drizzle query mock for buyer visibility |
+| Last inspected PR head            | 52336f751dc2558b10834940034833b4573c5ca4                      |
+| Last inspected commit             | test(security): repair tenant membership integration fixtures |
 | PR #138                           | Open; draft; not merged                                       |
 | PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775           |
-| Latest completed CI at checkpoint | #1265 (API unit/coverage + integration failed)                 |
-| CI #1265 tested SHA                | 36399ce6704b0774f0ebb0f670a3e7d735b19295                      |
-| CI #1265 status                    | Lint/typecheck/format, Flutter, E6, migration/audit and Web/Admin passed; API unit/coverage and PostgreSQL integration failed |
+| Latest completed CI at checkpoint | #1266 (Prettier gate failed; dependent jobs skipped)          |
+| CI #1266 tested SHA                | 52336f751dc2558b10834940034833b4573c5ca4                      |
+| CI #1266 status                    | Flutter and lint/typecheck passed; changed-file Prettier failed on 9 files; tests skipped |
 
 ## Current remediation status
 
@@ -131,3 +131,8 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 The live PR #138 head at inspection was `36399ce6704b0774f0ebb0f670a3e7d735b19295`. CI [#1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038) completed with lint/typecheck/formatting, Flutter, E6 boundary lint, migration full apply/read-only audit and Web/Admin tests passing. API unit/coverage and PostgreSQL integration failed on the missing `storeMembers` model in five explicit Drizzle test schema maps; Phase 4's offer/cart/checkout failures were downstream cascades. Contract/codegen, container smoke, build, k6 and staging release were skipped. Vercel web/admin contexts were separate provider build-rate-limit failures.
 
 The current grouped source correction adds the missing model to all five test schema maps and sets the test stores ACTIVE where buyer-discovery flows are expected. Production authorization logic is unchanged. Exact-head CI on the corrected commit remains the next verification gate. G-001 remains PARTIAL; G-002 remains IN PROGRESS; PR #138 remains open and draft. No staging/shared-database/deployment actions were performed.
+
+
+## Exact-head CI #1266 formatting gate — 21 November 2026
+
+CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and completed lint/typecheck with zero errors, but failed changed-file Prettier on nine files. All dependent API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, contract, container and build jobs were skipped. The five PostgreSQL fixture corrections are committed, but this run did not execute them. Repository-locked formatting is the immediate task; exact-head CI after the formatting commit must verify the test changes. G-001 remains PARTIAL and PR #138 remains draft.

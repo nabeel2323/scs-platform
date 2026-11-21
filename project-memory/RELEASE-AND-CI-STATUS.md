@@ -165,3 +165,15 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Failure cause:** `storeMembers` was missing from five explicit Drizzle schema maps used by PostgreSQL integration tests. This caused `db.query.storeMembers` to be undefined in `assertStoreMember`. Phase 4 offer/cart/checkout failures cascaded from the initial offer-creation failure. Buyer discovery fixtures also need explicit ACTIVE store status.
 - **Correction:** grouped test-only fixture change; production tenant authorization remains intact. Exact-head CI on the corrected commit is pending.
 - **Release state:** PR #138 remains open/draft. No staging dispatch/approval, deployment, shared DB mutation, migration, grants/default ACL, RLS or worker activation occurred.
+
+
+## CI #1266 — formatting gate failure — 21 November 2026
+
+- **Commit tested:** `52336f751dc2558b10834940034833b4573c5ca4`.
+- **Run:** [GitHub Actions CI #1266](https://github.com/nabeel2323/scs-platform/actions/runs/44906522797).
+- **Passed:** Flutter analysis/tests; lint and TypeScript typecheck completed with 0 errors (309 warnings).
+- **Failed:** changed-file Prettier check on nine files (three integration test files and six documentation/memory files).
+- **Skipped:** API unit/coverage, PostgreSQL integration, boundary lint, migration full apply, contract/codegen, container smoke, build, Web/Admin and k6; dependent jobs were skipped after the formatting gate.
+- **Interpretation:** no functional test result for the fixture correction was produced by this run.
+- **Next:** repository-locked formatting of the changed files, then exact-head CI.
+- **Release state:** PR #138 remains open/draft; no staging dispatch, deployment or shared database mutation occurred.
