@@ -101,3 +101,15 @@ During implementation, use narrow, proportionate developer checks and focused te
 The [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) is the programme-level sequencing register. The audit-driven [implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) and [progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) remain authoritative for finding definitions, acceptance criteria and evidence. The programme register must not overwrite their historical records or promote a finding status without evidence.
 
 Use these programme statuses consistently: `IMPLEMENTATION_PENDING`, `IMPLEMENTATION_IN_PROGRESS`, `IMPLEMENTED`, `INTEGRATION_PENDING`, `TESTING_PENDING`, `VERIFIED`, `BLOCKED` and `DEFERRED_BY_DECISION`. Implementation, integration, test verification, runtime verification, independent review, approval and release are separate states.
+
+
+## GitHub Actions budget and grouped validation — 22 November 2026
+
+The user reports that approximately 90% of the GitHub Actions minutes allowance has been consumed. Treat remaining Actions minutes as a constrained project resource:
+
+- Group related implementation, focused tests, documentation and project-memory updates into one cohesive branch commit whenever practical.
+- Avoid triggering a workflow for each small change or for documentation-only edits that can be included with the next implementation batch.
+- Keep change-local checks narrow; reserve the comprehensive CI/regression campaign for the consolidated implementation/integration checkpoint.
+- Do not create repeated temporary formatter workflows. Follow repository formatting conventions and batch formatting with the same implementation commit.
+- Do not disable required checks, bypass workflow approval, or misrepresent unrun checks. A single meaningful CI run is preferred over many incremental runs, but required validation remains mandatory before merge/release.
+- When a workflow fails, inspect job outcomes and rerun only failed jobs when the workflow and GitHub permissions support that safely; do not rerun successful jobs unnecessarily.

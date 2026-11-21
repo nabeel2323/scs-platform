@@ -159,3 +159,17 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 
 - PR #138 head `10a890a3a69f7281b93f4a8e80b735f2228825cb` completed CI run #44961723564. Lint and TypeScript typecheck passed; Flutter analysis and tests passed. The changed-file Prettier gate failed on four handover documents. API unit/coverage, PostgreSQL integration, web/admin tests, migration, boundary lint, build and smoke jobs were skipped.
 - Those four documents are being normalized with repository-locked Prettier 3.9.6. Require a fresh exact-head CI run after the formatter commit; do not treat this run as implementation verification.
+
+
+## GitHub Actions budget — user instruction, 22 November 2026
+
+The user reports that about 90% of the GitHub Actions minutes allowance is already consumed. Batch related source, focused tests, documentation and project-memory changes into cohesive commits; avoid per-change CI runs and repeated temporary formatter workflows; keep developer checks narrow and reserve the comprehensive campaign for the consolidated testing phase. Never disable required checks, bypass approvals or claim skipped jobs passed.
+
+## Admin permission audit continuation checkpoint — 22 November 2026
+
+- The live branch was reconciled at base head `cd1d7de837d3c519db4a249479effe65db5fce53`; PR #138 is open/draft/unmerged and targets `develop`.
+- Latest associated workflow run #1336 / [run 44961921062](https://github.com/nabeel2323/scs-platform/actions/runs/44961921062) is `action_required` with no jobs exposed. The prior #1330 run failed the changed-file Prettier gate on four project-memory documents; downstream API/PostgreSQL/Web/Admin/build jobs were skipped. Vercel web/admin checks are external build-rate-limit failures.
+- Reviewed all 56 Admin route page files plus `AuthGuard`, `useRequirePerms`, `ManagementPage`, `managementTables` and the relevant API permission declarations.
+- Fixed two action-level UI permission gaps: `/calendar` holiday add/remove and `/returns/[id]` escalation resolution now require `admin:returns:write`. Added focused Admin component tests and `docs/admin-route-permission-matrix.md`.
+- UX-009 is IMPLEMENTED at source level; full role/deep-link/action regression remains in Phase 3. UX-006 mobile permission affordances and remaining MAP-001 mapping remain outstanding.
+- No database, staging, deployment, migration, grants, RLS, worker activation or release restrictions changed.

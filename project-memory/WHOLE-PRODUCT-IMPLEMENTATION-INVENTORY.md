@@ -200,3 +200,10 @@ This document is a first static inventory checkpoint, not a claim that every rou
 ## Admin navigation structure update — 22 November 2026
 
 The Admin sidebar has 32 destinations grouped by operational domain: Overview, Platform Management, Orders & Fulfillment, Catalog, Finance, Analytics & Governance, and Account. Grouping preserves all destinations, permission checks, active matching, collapsed tooltips and mobile overlay behavior. The Requests destination uses the endpoint's canonical `catalog:requests:manage` permission.
+
+
+## Admin route permission audit — 22 November 2026
+
+Completed a source-level review of all 56 `apps/admin/src/app/**/page.tsx` files, the root `AuthGuard`, `useRequirePerms`, generic `ManagementPage`, and `managementTables` permission configuration. The complete route/action map is maintained in [Admin Route and Action Permission Matrix](../docs/admin-route-permission-matrix.md). Two UI action-gating gaps were found and corrected: calendar holiday add/remove and escalated-return resolution now require `admin:returns:write`, matching existing API guards. Focused Admin component tests were added. This is not a claim that every API endpoint, role combination, or deep-link workflow has completed Phase 3 verification.
+
+The next mapping priority is the 32 mobile screens/routes and their granular permission/action affordances; then finish web route-to-API and worker/provider operation ownership mapping.

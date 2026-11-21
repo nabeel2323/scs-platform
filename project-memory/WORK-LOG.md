@@ -294,3 +294,14 @@ The current-state handover metadata was reconciled to the latest documentation h
 
 - CI run #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint and TypeScript typecheck passed; Flutter analysis and tests passed. Prettier failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. All downstream application/database/build jobs were skipped.
 - Running repository-locked Prettier 3.9.6 against those four handover files, then a fresh exact-head CI run is required. Do not claim full verification from this run.
+
+
+## 22 November 2026 — Admin route permission audit and action-gate fixes
+
+- Reviewed all 56 Admin page route files, global `AuthGuard`, `useRequirePerms`, generic `ManagementPage`, and `managementTables` permission configuration. Added `docs/admin-route-permission-matrix.md` with page-level and observed action-level permission requirements.
+- Found that `/calendar` exposed holiday add/remove controls to users with `admin:returns:read` only, although the API requires `admin:returns:write`. Added write permission gating to both controls and mutation handlers, plus a read-only explanation.
+- Found that `/returns/[id]` exposed the escalation resolution form/link to users with read permission only, although `POST /admin/returns/:id/resolve` requires `admin:returns:write`. Gated the form, link and submit handler; read-only users now see the required permission.
+- Added focused Admin component tests for read-only and write-authorized calendar/return workflows. Comprehensive role/deep-link/action verification remains in Phase 3; no local or CI test execution is claimed in this handover.
+- Updated UX-009 and whole-product inventory. Next: map the 32 mobile screens/routes and granular permission/action affordances, then complete remaining web/API and worker/provider ownership mapping.
+- Actions budget constraint recorded: approximately 90% of GitHub Actions minutes consumed; related work is batched and the comprehensive campaign is deferred until implementation/integration completion.
+- The pre-batch branch head was `cd1d7de837d3c519db4a249479effe65db5fce53`; this grouped commit is the implementation checkpoint following it. PR #138 remains draft. No database/staging/deployment/migration/grant/RLS/worker/release action occurred.

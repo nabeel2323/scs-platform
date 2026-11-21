@@ -53,6 +53,7 @@ function fmtDate(s: string | null) {
 
 function ReturnDetailContent({ id }: { id: string }) {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:returns:read']);
+  const { hasAccess: canResolve } = useRequirePerms(['admin:returns:write']);
   const searchParams = useSearchParams();
   const [ready, setReady] = useState(false);
   const [ret, setRet] = useState<ReturnDetail | null>(null);
@@ -82,7 +83,7 @@ function ReturnDetailContent({ id }: { id: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ret || ret.status !== 'ESCALATED') return;
+    if (!canResolve || !ret || ret.status !== 'ESCALATED') return;
     setSubmitting(true);
     setSubmitError('');
     setSubmitSuccess(false);
@@ -201,7 +202,7 @@ function ReturnDetailContent({ id }: { id: string }) {
       </div>
 
       {/* Resolution Form (only for ESCALATED returns) */}
-      {isEscalated && showResolveForm && !submitSuccess && (
+      {isEscalated && showResolveForm && canResolve && !submitSuccess && (
         <div style={{
           border: '1px solid rgba(220,38,38,0.3)', borderRadius: radii.lg,
           padding: 20, marginBottom: 24, background: 'rgba(220,38,38,0.05)',
@@ -318,6 +319,12 @@ function ReturnDetailContent({ id }: { id: string }) {
         </div>
       )}
 
+      {isEscalated && !canResolve && (
+        <p role="note" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginBottom: 24 }}>
+          Resolving an escalated return requires the <code>admin:returns:write</code> permission.
+        </p>
+      )}
+
       {/* Success message */}
       {submitSuccess && (
         <div style={{
@@ -330,7 +337,7 @@ function ReturnDetailContent({ id }: { id: string }) {
       )}
 
       {/* Resolve button if ESCALATED but form not shown */}
-      {isEscalated && !showResolveForm && !submitSuccess && (
+      {isEscalated && canResolve && !showResolveForm && !submitSuccess && (
         <div style={{ marginBottom: 24 }}>
           <Link
             href={`/returns/${id}?resolve=1`}

@@ -51,6 +51,7 @@ function fmtDate(s: string) {
 
 export default function CalendarAdminPage() {
   const { hasAccess, missingPerms } = useRequirePerms(['admin:returns:read']);
+  const { hasAccess: canWrite } = useRequirePerms(['admin:returns:write']);
   const [ready, setReady] = useState(false);
   const [calendars, setCalendars] = useState<CalendarConfig[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
@@ -90,7 +91,7 @@ export default function CalendarAdminPage() {
   useEffect(() => { load(); }, [load]);
 
   const addHoliday = async () => {
-    if (!selectedCal || !newHolidayDate) return;
+    if (!canWrite || !selectedCal || !newHolidayDate) return;
     try {
       await adminRequest(`admin/business-calendars/${selectedCal.id}/holidays`, {
         method: 'POST',
@@ -105,7 +106,7 @@ export default function CalendarAdminPage() {
   };
 
   const removeHoliday = async (date: string) => {
-    if (!selectedCal) return;
+    if (!canWrite || !selectedCal) return;
     try {
       await adminRequest(`admin/business-calendars/${selectedCal.id}/holidays/${date}`, { method: 'DELETE' });
       setSuccess('Holiday removed');
@@ -182,15 +183,21 @@ export default function CalendarAdminPage() {
             <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#fff' }}>Holidays ({holidays.length})</h2>
 
             {/* Add holiday form */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-              <input type="text" value={newHolidayDesc} onChange={e => setNewHolidayDesc(e.target.value)} placeholder="Description (optional)" style={{ ...inputStyle, flex: 1 }} />
-              <button onClick={addHoliday} disabled={!newHolidayDate} style={{
-                padding: '6px 14px', borderRadius: radii.md, fontSize: 13, fontWeight: 600,
-                background: newHolidayDate ? '#3b82f6' : 'rgba(255,255,255,0.1)',
-                color: '#fff', border: 'none', cursor: newHolidayDate ? 'pointer' : 'not-allowed',
-              }}>Add</button>
-            </div>
+            {canWrite ? (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                <input type="text" value={newHolidayDesc} onChange={e => setNewHolidayDesc(e.target.value)} placeholder="Description (optional)" style={{ ...inputStyle, flex: 1 }} />
+                <button onClick={addHoliday} disabled={!newHolidayDate} style={{
+                  padding: '6px 14px', borderRadius: radii.md, fontSize: 13, fontWeight: 600,
+                  background: newHolidayDate ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                  color: '#fff', border: 'none', cursor: newHolidayDate ? 'pointer' : 'not-allowed',
+                }}>Add</button>
+              </div>
+            ) : (
+              <p role="note" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, marginBottom: 16 }}>
+                Holiday changes require the <code>admin:returns:write</code> permission.
+              </p>
+            )}
 
             {/* Holiday list */}
             {holidays.length === 0 ? (
@@ -206,10 +213,12 @@ export default function CalendarAdminPage() {
                       <span style={{ color: '#fff', fontSize: 13, fontWeight: 600 }}>{h.holidayDate}</span>
                       {h.description && <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, marginLeft: 8 }}>{h.description}</span>}
                     </div>
-                    <button onClick={() => removeHoliday(h.holidayDate)} style={{
-                      padding: '2px 8px', borderRadius: radii.md, fontSize: 11,
-                      background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: 'none', cursor: 'pointer',
-                    }}>Remove</button>
+                    {canWrite && (
+                      <button onClick={() => removeHoliday(h.holidayDate)} style={{
+                        padding: '2px 8px', borderRadius: radii.md, fontSize: 11,
+                        background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: 'none', cursor: 'pointer',
+                      }}>Remove</button>
+                    )}
                   </div>
                 ))}
               </div>
