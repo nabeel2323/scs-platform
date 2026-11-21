@@ -24,9 +24,8 @@ describe('runtime database identity SQL — PostgreSQL', () => {
     adminPool = new Pool({ connectionString: container.getConnectionUri() });
 
     await adminPool.query(
-      `CREATE ROLE ${LOGIN_ROLE} LOGIN PASSWORD $1
+      `CREATE ROLE ${LOGIN_ROLE} LOGIN PASSWORD '${LOGIN_PASSWORD}'
        NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`,
-      [LOGIN_PASSWORD],
     );
     await adminPool.query(
       `CREATE ROLE ${EFFECTIVE_ROLE}
