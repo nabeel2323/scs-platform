@@ -118,3 +118,11 @@ For every run, record:
 - Combined status reports Vercel web and admin failures pointing to the external build-rate-limit page. These are provider quota failures, not evidence of failed application tests, and they do not count as passing CI.
 - GitHub Actions exact-head verification remains pending. No k6, staging release, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
 - PR #138 remains open and draft; G-001 remains PARTIAL and G-002 remains IN PROGRESS.
+
+
+## G-001 continuation status — 21 November 2026
+
+- Current inspected source/test branch head before this status refresh: `e814f871b2b027c5c44ff614dfcac66eaa06c56e`.
+- Controller regression coverage expanded for foreign-organization offer-list denial, missing active organization, revoked/inactive membership on analytics, and DRAFT-store merchant management.
+- Exact-head GitHub Actions verification is still pending. The previously inspected Vercel web/admin statuses were build-rate-limit provider failures, not application test results.
+- No SUSPENDED-store policy was inferred. No staging release, k6, database mutation, migration, grant/default-ACL change, RLS enablement, environment change, worker activation or deployment was performed.
