@@ -261,3 +261,10 @@ The current-state handover metadata was reconciled to the latest documentation h
 - GitHub Actions exact-head lookup returned no run for `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; combined status only reported Vercel web/admin build-rate-limit failures. Do not claim CI verification.
 - UX-002 is implemented: requested-refund API queue, Admin Payments Refund Requests tab, explicit confirmation, API types/helper and focused controller delegation test. Full tests remain queued for Phase 3.
 - Next implementation target: finish route-to-contract/permission and operation mapping, then safely scope order operations. Preserve all no-merge/no-deploy/database/staging/worker restrictions.
+
+
+## 22 November 2026 — formatting and exact-head CI reconciliation
+
+- The Admin refund queue implementation and permission-only access correction are present on PR #138. Source implementation is in `f477755cccfdecab8673fdd047935e42e0e85c9c` and `593bc1dfb0948a2b52d29731ab7037a1fa2c9dd1`; this follow-up only normalizes the API additions to the repository's multiline formatting style and synchronizes handover metadata.
+- Latest branch/PR head before this follow-up: `a6a5cf24bdb2661673268d229bfcf917c2cc00eb`. GitHub Actions run lookup (both commit-associated and Actions API filtered by exact head SHA) returned no runs. Combined status contained only Vercel build-rate-limit failures.
+- Keep the implementation marked IMPLEMENTED, not VERIFIED. Phase 3 API/UI regression and exact-head CI evidence are still required.

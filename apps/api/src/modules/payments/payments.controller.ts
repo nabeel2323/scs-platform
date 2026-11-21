@@ -120,7 +120,9 @@ export class PaymentsController {
   @Get('admin/refunds')
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
-  async requestedRefunds() { return this.payments.getRequestedRefunds(); }
+  async requestedRefunds() {
+    return this.payments.getRequestedRefunds();
+  }
 
   /** POST /v1/admin/refunds/:id/approve — admin approves a refund. */
   @Post('admin/refunds/:id/approve')

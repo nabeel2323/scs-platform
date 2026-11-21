@@ -1223,7 +1223,11 @@ export class PaymentsService {
    * The queue is read-only; approval remains a separate guarded action.
    */
   async getRequestedRefunds() {
-    return this.db.db.query.refunds.findMany({ where: eq(refunds.status, 'REQUESTED'), orderBy: [desc(refunds.createdAt)], limit: 100 });
+    return this.db.db.query.refunds.findMany({
+      where: eq(refunds.status, 'REQUESTED'),
+      orderBy: [desc(refunds.createdAt)],
+      limit: 100,
+    });
   }
 
   /**
