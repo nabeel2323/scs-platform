@@ -48,7 +48,7 @@ type TypeFilter = '' | 'CATEGORY' | 'BRAND' | 'ATTRIBUTE' | 'OPTION';
 type StatusFilter = '' | 'PENDING' | 'APPROVED' | 'REJECTED';
 
 function RequestsPageContent() {
-  const { hasAccess, missingPerms } = useRequirePerms(['catalog:categories:write']);
+  const { hasAccess, missingPerms } = useRequirePerms(['catalog:requests:manage']);
   const [requests, setRequests] = useState<AdminCatalogRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -84,7 +84,7 @@ function RequestsPageContent() {
     }
   };
 
-  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:categories:write']} missingPerms={missingPerms} />;
+  if (!hasAccess) return <AccessDenied requiredPerms={['catalog:requests:manage']} missingPerms={missingPerms} />;
 
   return (
     <div style={css.shell}>

@@ -2,7 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { fetchKpis, fetchAdminOrgUpdateRequests, KpiResponse, AdminOrgUpdateRequest } from '../lib/api';
+import {
+  fetchKpis,
+  fetchAdminOrgUpdateRequests,
+  fetchCatalogImports,
+  fetchAdminCatalogRequests,
+  type KpiResponse,
+  type AdminOrgUpdateRequest,
+  type CatalogImport,
+  type AdminCatalogRequest,
+} from '../lib/api';
+import { useRequirePerms } from '../hooks/useRequirePerms';
 import {
   PageHeader, KpiCard, QuickLink,
   IconUsers, IconShield, IconPackage, IconDollar, IconActivity,
@@ -16,6 +26,12 @@ export default function AdminHomePage() {
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [updateReqs, setUpdateReqs] = useState<AdminOrgUpdateRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const { hasAccess: canManageImports } = useRequirePerms(['catalog:imports:manage']);
+  const { hasAccess: canManageRequests } = useRequirePerms(['catalog:requests:manage']);
+  const [recentImports, setRecentImports] = useState<CatalogImport[]>([]);
+  const [pendingCatalogRequests, setPendingCatalogRequests] = useState<AdminCatalogRequest[]>([]);
+  const [operationsLoading, setOperationsLoading] = useState(true);
+  const [operationsError, setOperationsError] = useState('');
   // Effect-initialized like the Buyer home page: the server and the first
   // client render both emit no clock, so a wall-clock or timezone difference
   // between the two passes can no longer produce mismatched text at the root.
@@ -31,6 +47,29 @@ export default function AdminHomePage() {
       fetchAdminOrgUpdateRequests('PENDING').then(setUpdateReqs).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const tasks: Promise<void>[] = [];
+    setOperationsLoading(true);
+    setOperationsError('');
+    if (canManageImports) {
+      tasks.push(
+        fetchCatalogImports({ limit: 5 })
+          .then((rows) => { if (active) setRecentImports(rows); })
+          .catch((error) => { if (active) setOperationsError(error instanceof Error ? error.message : 'Unable to load catalog imports'); }),
+      );
+    }
+    if (canManageRequests) {
+      tasks.push(
+        fetchAdminCatalogRequests({ status: 'PENDING' })
+          .then((rows) => { if (active) setPendingCatalogRequests(rows); })
+          .catch((error) => { if (active) setOperationsError(error instanceof Error ? error.message : 'Unable to load catalog requests'); }),
+      );
+    }
+    Promise.all(tasks).finally(() => { if (active) setOperationsLoading(false); });
+    return () => { active = false; };
+  }, [canManageImports, canManageRequests]);
 
   const fmt = (n: number) =>
     (n / 100).toLocaleString(undefined, { minimumFractionDigits: 2 });
@@ -145,6 +184,43 @@ export default function AdminHomePage() {
             </table>
           )}
         </div>
+
+        {(canManageImports || canManageRequests) && (
+          <>
+            <SectionTitle>Catalog Operations</SectionTitle>
+            {operationsError && <p role="alert" style={{ color: '#b91c1c', ...typeScale.bodySm }}>{operationsError}</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(270px, 1fr))', gap: 14, marginBottom: 32 }}>
+              {canManageImports && (
+                <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, boxShadow: shadows.md, padding: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                    <h3 style={{ ...typeScale.h4, color: colors.brand[700], margin: 0 }}>Recent Catalog Imports</h3>
+                    <Link href="/catalog-import" style={{ ...typeScale.bodySm, color: colors.brand[500], textDecoration: 'none' }}>View all →</Link>
+                  </div>
+                  {operationsLoading ? <p style={{ color: colors.muted }}>Loading imports…</p> : recentImports.length === 0 ? <p style={{ color: colors.muted }}>No catalog imports yet.</p> : recentImports.map((item) => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderTop: `1px solid ${colors.borderLight}` }}>
+                      <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, color: colors.brand[700], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fileName}</div><div style={{ ...typeScale.caption, color: colors.muted }}>{item.totalRows} rows · {new Date(item.createdAt).toLocaleDateString()}</div></div>
+                      <span style={{ ...typeScale.caption, color: item.status === 'FAILED' ? colors.danger : colors.muted, whiteSpace: 'nowrap' }}>{item.status.replace(/_/g, ' ')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {canManageRequests && (
+                <div style={{ background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: radii.md, boxShadow: shadows.md, padding: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                    <h3 style={{ ...typeScale.h4, color: colors.brand[700], margin: 0 }}>Pending Catalog Requests</h3>
+                    <Link href="/requests" style={{ ...typeScale.bodySm, color: colors.brand[500], textDecoration: 'none' }}>Review all →</Link>
+                  </div>
+                  {operationsLoading ? <p style={{ color: colors.muted }}>Loading requests…</p> : pendingCatalogRequests.length === 0 ? <p style={{ color: colors.muted }}>No pending catalog requests.</p> : pendingCatalogRequests.slice(0, 5).map((request) => (
+                    <div key={request.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderTop: `1px solid ${colors.borderLight}` }}>
+                      <div><div style={{ fontWeight: 600, color: colors.brand[700] }}>{request.type}</div><div style={{ ...typeScale.caption, color: colors.muted }}>Store {request.storeId.slice(0, 8)} · {new Date(request.createdAt).toLocaleDateString()}</div></div>
+                      <span style={{ ...typeScale.caption, color: colors.warn, whiteSpace: 'nowrap' }}>Pending</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Quick Access */}
         <SectionTitle>Quick Access</SectionTitle>
