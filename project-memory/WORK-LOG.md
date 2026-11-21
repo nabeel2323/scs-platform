@@ -225,3 +225,15 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Existing remediation plan/progress tracker remain authoritative for G-001–G-035 definitions and evidence. Existing independent-review, staging approval, shared-database, migration 0070, grants/default-ACL, RLS, worker, no-merge/no-deploy and release restrictions remain unchanged.
 - Baseline CI evidence in the project memory: PR #138 exact-head CI #44954371615 on 741a09f68721898a5bed6601bc3bc636867c78c2 passed all executable jobs; PR #142 exact-head CI #44953735602 on dddff20c170737dc4694008bb807b2b90e177f77 passed all executable jobs including its disposable PostgreSQL identity test. k6 and protected staging release were skipped. Vercel web/admin checks reported the external build-rate-limit page; they are not application test failures.
 - No merge, deployment, staging write, live database mutation, migration, grant, RLS or worker action was performed.
+
+
+## 22 November 2026 — MAP-001 static whole-product inventory
+
+- Reconciled live branch/PR state: branch `remediation/phase-0-1-tenant-security`, head before this inventory documentation batch `2cca47aa34abd1a014ea16217cfee204c9e9f803`; PR #138 open/draft/unmerged; PR #142 open/draft/unmerged.
+- Inspected the recursive repository tree (1,625 files) and selected API, web, admin, mobile, shared-contract, schema, migration, test, UX and remediation sources.
+- Recorded 20 API modules, 28 module controllers, 25 schema files, 49 web pages, 56 admin pages, 32 Flutter screens, 71 SQL migration files, 152 API unit test files, 82 API integration test files, 18 web test files, 15 admin test files, 10 Flutter test files and 2 Playwright E2E files.
+- Created [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md). Added UX-001–UX-009 to the Implementation Completion Gap Register with exact source paths, acceptance directions and guardrails.
+- Reconciled historical UI audit claims: promotions, buyer disputes/evidence, admin audit and analytics, payment list/verification, admin detail views and generic-list permission checks exist in current source. Mobile has role-level merchant/driver route redirects. Historical S3/S4 statuses are not accepted without source revalidation.
+- Confirmed current candidates include Admin order actions, refund approval UI, dashboard import/catalog request widgets, flat admin navigation, Product Studio offer step, mobile granular permission affordances, empty SupportModule (scope decision needed), nearby-offers API/UI discrepancy and a complete admin route-permission audit.
+- Reviewed the uploaded `Advanced UX Enhancement Prompt.txt`; its actual content is a read-only database/staging audit note, not a UX enhancement specification. Its RLS/function/role/FK-index observations are preserved as uploaded evidence only and were not independently re-run.
+- No tests were run; no code, shared DB, staging configuration, migration, grants, deployment or worker state changed. The exact current documentation head still needs a fresh CI lookup and is not CI-verified unless a run is found.
