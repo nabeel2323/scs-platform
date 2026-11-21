@@ -34,7 +34,7 @@ Implemented in source and controller tests:
 
 Remaining:
 
-- Fresh exact-head CI after the current Prettier correction.
+- Exact-head CI for the scope-first offer confidentiality hardening and completion of the tenant/role acceptance matrix.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence, including service-level tenant ownership and active membership.
 - Independent security review. The implementation author must not label their own work independently reviewed.
 - Record reviewer findings, remediate any issues, and update the evidence register. Keep G-001 PARTIAL until then.
@@ -68,3 +68,8 @@ Use the authoritative finding register to sequence G-007, G-010, G-012–G-015, 
 ## Release decision
 
 A green PR CI run is not a staging approval, independent security review, release authorization or production go/no-go. Follow all release gates in the authoritative plan. PR #138 remains draft until the outstanding gates are explicitly satisfied.
+
+
+### G-001 follow-up — 21 November 2026
+
+The offer detail and merchant mutation paths now use the scope-first service boundary and normalize foreign/non-member identifiers to 404. Focused tests and exact-head CI are pending. Remaining: verify store lifecycle policy, complete analytics/trend and role matrix, and obtain independent security review.
