@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected branch head before this handover update:** `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`
+**Current branch head after project-memory updates:** `562dbc6bdcf8ce06e0c639a08c006276eac33168`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,11 +18,11 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`                               |
+| Live branch head     | `562dbc6bdcf8ce06e0c639a08c006276eac33168`                               |
 | Latest commit        | `docs(security): add G-002 database access architecture design`          |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
-| Latest exact-head CI | #44948332893 — success on `05e7a0ea...`                                  |
+| Latest exact-head CI | No workflow/status returned for documentation head `562dbc6...`; NOT CI-VERIFIED |
 | PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
 | PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped            |
 
@@ -201,3 +201,11 @@ The user approved the Implementation Completion Program and requested that this 
 **Execution sequence:** baseline/gap mapping → implementation completion → integration completion → comprehensive testing → stabilization → release readiness. During implementation, run only targeted developer checks and focused tests needed for critical invariants; defer the broad regression campaign until implementation and integration are ready. Fix any known security/correctness defect immediately. This sequencing does not waive independent review, protected staging, database, deployment, business sign-off or release restrictions.
 
 **Next task:** expand MAP-001 into a repository-wide, source-referenced inventory of modules, user journeys, APIs, screens, database entities, permissions, integrations and documentation; then select the highest-priority confirmed implementation gap. Do not assume historical UI/UX issues are still open without checking current source. Keep the authoritative remediation finding tracker synchronized.
+
+
+## Live project-memory update — 22 November 2026
+
+- Current branch head after this checkpoint: `562dbc6bdcf8ce06e0c639a08c006276eac33168` on `remediation/phase-0-1-tenant-security`.
+- Created `project-memory/IMPLEMENTATION-GAP-REGISTER.md` and recorded the user's approved implementation-first programme in START-HERE, DECISIONS-AND-CONSTRAINTS, IMPLEMENTATION-ROADMAP, OPEN-ISSUES, CURRENT-STATE, RELEASE-AND-CI-STATUS and WORK-LOG.
+- This is a documentation-only change. Workflow-run lookup and combined-status lookup returned no checks for the exact current head; it is NOT CI-VERIFIED. Earlier CI #44954371615 on source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` remains historical evidence only.
+- Next: complete MAP-001 by auditing actual source modules, routes, screens, database entities, permissions, workflows and docs. Then implement the highest-priority confirmed gap in a cohesive batch. Keep broad regression testing for Phase 3 and all existing security/release restrictions intact.
