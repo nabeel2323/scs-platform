@@ -42,6 +42,7 @@ interface Harness {
   updated: unknown[];
   auditRecords: unknown[];
   findManyCalls: unknown[];
+  merchantOfferFindFirstCalls: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
@@ -49,21 +50,28 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
   const updated: unknown[] = [];
   const auditRecords: unknown[] = [];
   const findManyCalls: unknown[] = [];
+  const merchantOfferFindFirstCalls: unknown[] = [];
 
-  const firstFn = (spec?: Row | Array<Row | null> | null) => {
+  const firstFn = (spec?: Row | Array<Row | null> | null, calls?: unknown[]) => {
     if (Array.isArray(spec)) {
       let i = 0;
-      return async () => spec[Math.min(i++, spec.length - 1)] ?? null;
+      return async (config?: unknown) => {
+        calls?.push(config);
+        return spec[Math.min(i++, spec.length - 1)] ?? null;
+      };
     }
-    return async () => (spec as Row | undefined | null) ?? null;
+    return async (config?: unknown) => {
+      calls?.push(config);
+      return (spec as Row | undefined | null) ?? null;
+    };
   };
 
   const storeMemberFindFirst = firstFn(
     queries.storeMembers === undefined ? { id: 'membership-1' } : queries.storeMembers.findFirst,
   );
 
-  const q = (cfg?: QueryConfig) => ({
-    findFirst: firstFn(cfg?.findFirst),
+  const q = (cfg?: QueryConfig, calls?: unknown[]) => ({
+    findFirst: firstFn(cfg?.findFirst, calls),
     findMany: async (config?: unknown) => {
       findManyCalls.push(config);
       return cfg?.findMany ?? [];
@@ -83,7 +91,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         }),
       }),
       query: {
-        merchantOffers: q(queries.merchantOffers),
+        merchantOffers: q(queries.merchantOffers, merchantOfferFindFirstCalls),
         products: q(queries.products),
         productVariants: q(queries.productVariants),
         priceLists: q(queries.priceLists),
@@ -114,7 +122,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
       auditRecords.push(entry);
     },
   });
-  return { svc, inserted, updated, auditRecords, findManyCalls };
+  return { svc, inserted, updated, auditRecords, findManyCalls, merchantOfferFindFirstCalls };
 }
 
 describe('CatalogOfferService — create', () => {
@@ -235,6 +243,7 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
         findFirst: [
           { id: 'o1', storeId: 's1', status: 'DRAFT' },
           { id: 'o1', storeId: 's1', status: 'DRAFT' },
+          { id: 'o1', storeId: 's1', status: 'DRAFT' },
         ],
       },
       priceLists: { findFirst: { id: 'pl1', storeId: 's1' } },
@@ -248,6 +257,38 @@ describe('CatalogOfferService — pricing/stock linkage', () => {
   });
 });
 
+describe('CatalogOfferService — merchant offer existence confidentiality (G-001)', () => {
+  it('returns not found for a foreign-organization offer before loading full detail', async () => {
+    const { svc, merchantOfferFindFirstCalls } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's2' } },
+      stores: { findFirst: { orgId: 'org-2' } },
+    });
+    await expect(svc.getOfferForMerchant('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
+    expect(merchantOfferFindFirstCalls).toHaveLength(1);
+  });
+
+  it('returns the same not-found response for a same-organization non-member', async () => {
+    const { svc, merchantOfferFindFirstCalls } = makeHarness({
+      merchantOffers: { findFirst: { id: 'o1', storeId: 's1' } },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: null },
+    });
+    await expect(svc.getOfferForMerchant('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
+    expect(merchantOfferFindFirstCalls).toHaveLength(1);
+  });
+
+  it('loads full offer detail only after active organization and membership checks', async () => {
+    const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
+    const { svc, merchantOfferFindFirstCalls } = makeHarness({
+      merchantOffers: { findFirst: [{ storeId: 's1' }, offer] },
+      stores: { findFirst: { orgId: 'org-1' } },
+      storeMembers: { findFirst: { id: 'membership-1' } },
+    });
+    await expect(svc.getOfferForMerchant('o1', caller)).resolves.toMatchObject({ id: 'o1' });
+    expect(merchantOfferFindFirstCalls).toHaveLength(2);
+  });
+});
+
 describe('CatalogOfferService — merchant mutation tenant authorization (G-001)', () => {
   it('denies a same-organization non-member from withdrawing an offer', async () => {
     const { svc, updated } = makeHarness({
@@ -255,14 +296,14 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow('not authorized for this store');
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
   it('allows an active store member to withdraw an offer in their organization', async () => {
     const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
     const { svc, updated } = makeHarness({
-      merchantOffers: { findFirst: [offer, { ...offer, status: 'WITHDRAWN' }] },
+      merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'WITHDRAWN' }] },
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
@@ -276,16 +317,14 @@ describe('CatalogOfferService — merchant mutation tenant authorization (G-001)
       stores: { findFirst: { orgId: 'org-2' } },
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
-    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow(
-      'You do not have access to this store',
-    );
+    await expect(svc.withdrawOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
   it('attributes pricing audit events to the authenticated member, not the original proposer', async () => {
     const offer = { id: 'o1', storeId: 's1', status: 'DRAFT', proposedBy: 'original-proposer' };
     const { svc, auditRecords } = makeHarness({
-      merchantOffers: { findFirst: [offer, offer] },
+      merchantOffers: { findFirst: [offer, offer, offer] },
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
@@ -335,7 +374,7 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow('not authorized for this store');
+    await expect(svc.proposeOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
@@ -345,9 +384,7 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
-      'not authorized for this store',
-    );
+    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 });
@@ -361,9 +398,7 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       stores: { findFirst: { orgId: 'org-2' } },
     });
 
-    await expect(svc.proposeOffer('o1', caller)).rejects.toThrow(
-      'You do not have access to this store',
-    );
+    await expect(svc.proposeOffer('o1', caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
@@ -373,16 +408,14 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       stores: { findFirst: { orgId: 'org-2' } },
     });
 
-    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
-      'You do not have access to this store',
-    );
+    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
   it('allows an active member to propose and attributes the event to that member', async () => {
     const offer = { id: 'o1', storeId: 's1', status: 'DRAFT' };
     const { svc, updated, auditRecords } = makeHarness({
-      merchantOffers: { findFirst: [offer, { ...offer, status: 'PROPOSED' }] },
+      merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'PROPOSED' }] },
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: { id: 'membership-1' } },
     });
