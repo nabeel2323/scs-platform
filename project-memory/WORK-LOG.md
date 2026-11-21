@@ -107,3 +107,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Updated catalog lifecycle integration fixtures so the two merchant stores used in buyer discovery are explicitly ACTIVE instead of inheriting the DRAFT schema default.
 - Added a PostgreSQL test that sets one store to DRAFT and verifies its offers disappear from both buyer list and ranked queries while the other ACTIVE store remains visible; store status is restored in a `finally` block.
 - Exact-head API and PostgreSQL CI verification remains pending. No shared database or staging data was touched; this test uses the disposable integration database.
+
+
+### 21 November 2026 — G-001 PostgreSQL offer-detail confidentiality and revocation
+
+- Added disposable-PostgreSQL service tests proving foreign-organization merchants and same-organization non-members receive the same not-found response for offer detail.
+- Added an inactive-membership scenario that denies merchant offer detail and restores the membership to ACTIVE in `finally`.
+- Exact-head API/PostgreSQL CI remains pending; no shared database or staging state was touched.
