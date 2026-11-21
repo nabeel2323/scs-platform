@@ -554,6 +554,22 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       }
     });
 
+    it('hides buyer offers for an INACTIVE store', async () => {
+      await db.update(stores).set({ status: 'INACTIVE' }).where(eq(stores.id, storeB));
+
+      try {
+        const listed = await offerService.listOffersForProduct(productId);
+        const ranked = await offerService.listOffersForProductRanked(productId);
+
+        expect(listed.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(ranked.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(listed.some((offer) => offer.storeId === storeA)).toBe(true);
+        expect(ranked.some((offer) => offer.storeId === storeA)).toBe(true);
+      } finally {
+        await db.update(stores).set({ status: 'ACTIVE' }).where(eq(stores.id, storeB));
+      }
+    });
+
     it('does NOT create a second canonical product', async () => {
       // Count products with same title
       const result = await pool.query(

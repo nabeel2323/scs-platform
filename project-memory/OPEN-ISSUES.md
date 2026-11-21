@@ -131,3 +131,8 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and lint/t
 ## Exact-head CI #1268 — 21 November 2026
 
 CI [#1268](https://github.com/nabeel2323/scs-platform/actions/runs/44907038784) passed all 10 executable jobs on current branch head `b73f72e34406c1260f214610539139d0d096b2de`. API unit/coverage and PostgreSQL integration both passed, verifying the previously corrected tenant-membership test fixtures. k6 and protected staging release were skipped. G-001 remains PARTIAL only pending independent security review; G-002 remains IN PROGRESS with actual staging API/migration identities, protected read-only staging audit and reviewed least-privilege/RLS design still outstanding.
+
+
+## G-001 INACTIVE-store visibility regression — CI pending
+
+The PostgreSQL lifecycle suite now includes an explicit `INACTIVE` store scenario for both buyer list and ranked-offer endpoints, with fixture restoration in `finally`. This is source implementation only until the exact-head PostgreSQL integration job passes. CI #1268 verified the preceding implementation; CI #1269 was a Prettier-only failure, and CI #1271 returned `action_required` with no jobs after the formatter bot push. A fresh user-authored commit is being used to obtain exact-head verification.

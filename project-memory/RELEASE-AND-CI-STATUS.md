@@ -186,3 +186,11 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - **Skipped:** k6 Smoke Test and Trigger Staging Release. These are not passes and do not imply staging approval or runtime verification.
 - **Interpretation:** the five `storeMembers` test schema-map corrections and ACTIVE buyer-discovery fixtures now pass both API unit/coverage and real PostgreSQL integration on the exact head. Production authorization code was not weakened to satisfy the fixtures.
 - **Security status:** G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS. No shared database grants/default ACL, RLS, migration 0070, staging configuration, deployment, worker activation or staging business writes were performed.
+
+
+## G-001 INACTIVE-store regression and CI handoff — 21 November 2026
+
+- CI #1269 on `5580e79f603705abc9120fc5cc68aa4495935166` failed only the changed-file Prettier gate on seven Markdown files; lint and typecheck passed, while dependent API/integration/migration/build jobs were skipped.
+- Temporary formatter workflow run [#1](https://github.com/nabeel2323/scs-platform/actions/runs/44917785644) succeeded, formatted all seven files using repository-locked Prettier, removed its own workflow file, and pushed `71550c4c6d71de1b3b54f6d2230b308251a73e23`. The temporary workflow is verified absent from the resulting tree.
+- CI #1270 on temporary-workflow insertion commit `7b57052b65d049811733ffb0cfd1e208b7fa17f1` failed the same formatting gate because it preceded formatter output. CI #1271 on the formatted bot commit returned `action_required` with no jobs; it is not a test result.
+- A user-authored follow-up commit adds an explicit INACTIVE-store buyer-visibility PostgreSQL test and synchronizes this documentation. Exact-head CI for that commit is required; no test result is claimed yet.
