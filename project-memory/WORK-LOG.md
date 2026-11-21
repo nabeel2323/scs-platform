@@ -63,3 +63,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Unknown, foreign-organization and same-organization non-member offer identifiers now share a 404 response on merchant detail, proposal, pricing-update and withdrawal paths. Governance reads remain permission-gated and separate.
 - Added service/controller regression coverage for 404 parity, lookup ordering, active-member access and governance separation.
 - Source/test commits: dd52aaf, bca32b0, 39a0437 and a1602bc. Focused tests and exact-head CI are pending; G-001 remains PARTIAL.
+
+ 
+## 21 November 2026 — G-001 inactive-store buyer visibility
+
+- Buyer product offer lists and ranked seller results now require an ACTIVE owning store in addition to an ACTIVE, available offer.
+- DRAFT stores remain manageable by their active merchant members, but their offers are hidden from buyer discovery until store activation.
+- Added unit coverage for both buyer query paths and the no-active-store case. Exact-head CI is pending.
