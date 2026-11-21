@@ -228,6 +228,36 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
   });
 });
 
+describe('CatalogOfferController — MERCHANT_STAFF write acceptance (G-001)', () => {
+  it('allows an active MERCHANT_STAFF principal through all merchant write handlers', async () => {
+    const staff = { ...merchant, role: 'MERCHANT_STAFF' } as JwtPayload;
+    const { controller, offerService } = makeController();
+
+    await controller.createOffer(staff, { storeId: 'store-1', productId: 'product-1' });
+    await controller.proposeOffer(staff, 'offer-1', {});
+    await controller.updateOfferPricing(staff, 'offer-1', { basePriceMinor: 1200 });
+    await controller.withdrawOffer(staff, 'offer-1');
+
+    expect(offerService.createOffer).toHaveBeenCalledWith(
+      { storeId: 'store-1', productId: 'product-1' },
+      expect.objectContaining({ sub: staff.sub, role: 'MERCHANT_STAFF' }),
+    );
+    expect(offerService.proposeOffer).toHaveBeenCalledWith(
+      'offer-1',
+      expect.objectContaining({ sub: staff.sub, role: 'MERCHANT_STAFF' }),
+    );
+    expect(offerService.updateOfferPricing).toHaveBeenCalledWith(
+      'offer-1',
+      { basePriceMinor: 1200 },
+      expect.objectContaining({ sub: staff.sub, role: 'MERCHANT_STAFF' }),
+    );
+    expect(offerService.withdrawOffer).toHaveBeenCalledWith(
+      'offer-1',
+      expect.objectContaining({ sub: staff.sub, role: 'MERCHANT_STAFF' }),
+    );
+  });
+});
+
 describe('CatalogOfferController — create offer actor attribution (G-001)', () => {
   it('passes tenant context while leaving actor attribution to the service', async () => {
     const { controller, offerService } = makeController();
