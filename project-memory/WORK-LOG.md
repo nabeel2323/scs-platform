@@ -237,3 +237,13 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Confirmed current candidates include Admin order actions, refund approval UI, dashboard import/catalog request widgets, flat admin navigation, Product Studio offer step, mobile granular permission affordances, empty SupportModule (scope decision needed), nearby-offers API/UI discrepancy and a complete admin route-permission audit.
 - Reviewed the uploaded `Advanced UX Enhancement Prompt.txt`; its actual content is a read-only database/staging audit note, not a UX enhancement specification. Its RLS/function/role/FK-index observations are preserved as uploaded evidence only and were not independently re-run.
 - No tests were run; no code, shared DB, staging configuration, migration, grants, deployment or worker state changed. The exact current documentation head still needs a fresh CI lookup and is not CI-verified unless a run is found.
+
+
+## 22 November 2026 — Admin refund approval queue implementation
+
+- Refreshed live GitHub state: branch `remediation/phase-0-1-tenant-security` at `d02b296982bb2d5b11bb2a6f6a7f8c9b3723f9f0`; PR #138 and PR #142 remain open/draft/unmerged.
+- Exact-head CI run #1320 (run ID 44960328088) was found pending on `d02b296982bb2d5b11bb2a6f6a7f8c9b3723f9f0`. Combined statuses show Vercel build-rate-limit failures; these are external preview-provider failures, not application test evidence.
+- Implemented a read-only admin refund queue endpoint (`GET /admin/refunds`) requiring `admin:refunds:approve`, returning only REQUESTED refunds, newest first, capped at 100. Approval remains a separate guarded action.
+- Added the Admin Payments Refund Requests tab, permission-aware queue loading, order/payment references, amount/currency, reason and request time, plus explicit confirmation before calling the existing approval endpoint. No automatic approval or gateway payout is implied.
+- Added a focused controller delegation regression test and extended the Admin API refund type/helper. Comprehensive API/UI regression remains in Phase 3; check exact-head CI after this commit.
+- No staging writes, DB changes, migrations, grants/default-ACL changes, RLS enablement, worker activation, deployment, merge or release action.

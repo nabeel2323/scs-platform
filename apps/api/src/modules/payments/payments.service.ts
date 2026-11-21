@@ -1219,6 +1219,14 @@ export class PaymentsService {
   }
 
   /**
+   * List refund requests awaiting an explicit admin decision.
+   * The queue is read-only; approval remains a separate guarded action.
+   */
+  async getRequestedRefunds() {
+    return this.db.db.query.refunds.findMany({ where: eq(refunds.status, 'REQUESTED'), orderBy: [desc(refunds.createdAt)], limit: 100 });
+  }
+
+  /**
    * Get payments pending verification (for admin queue).
    */
   async getVerificationQueue() {

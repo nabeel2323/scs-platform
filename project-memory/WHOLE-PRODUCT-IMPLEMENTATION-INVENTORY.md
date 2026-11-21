@@ -177,7 +177,7 @@ For G-002, continue to prohibit shared database grants/privileges/default-ACL/ow
 ## 7. Priority order after MAP-001
 
 1. Complete the remaining route-to-permission matrix for Admin and mobile; fix any concrete authorization defect immediately.
-2. Implement Admin refund approval and order-operation UX only after confirming the exact backend state machine, permissions and service-side authorization contract.
+2. Admin refund request queue and approval UX is implemented against the existing API permission and REQUESTED refund state. Next, map order-operation state transitions and authorization before exposing order actions.
 3. Improve the Admin dashboard operational widgets and navigation grouping in one cohesive admin UX batch.
 4. Improve the Merchant Product Studio offer step using existing store/warehouse and offer APIs; avoid inventing new commercial behavior.
 5. Resolve Support ticket scope and nearby-offer API discrepancy as explicit product/API decisions.

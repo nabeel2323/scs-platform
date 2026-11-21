@@ -1752,11 +1752,14 @@ export interface AdminPayment extends AdminRecord {
 
 export interface AdminRefund extends AdminRecord {
   paymentRecordId: string;
+  orderId: string;
   amountMinor: number;
   currency: string;
   status: string;
   reason: string;
+  requestedBy: string | null;
   approvedBy: string | null;
+  notes?: string | null;
   createdAt: string;
 }
 
@@ -1801,6 +1804,8 @@ export async function verifyPayment(
     body: JSON.stringify({ decision, notes, verifiedAmountMinor }),
   });
 }
+
+export async function fetchRequestedRefunds(): Promise<AdminRefund[]> { return adminRequest('admin/refunds'); }
 
 export async function approveRefund(refundId: string): Promise<AdminRefund> {
   return adminRequest(`admin/refunds/${encodeURIComponent(refundId)}/approve`, {

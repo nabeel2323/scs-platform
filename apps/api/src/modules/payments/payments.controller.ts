@@ -116,6 +116,12 @@ export class PaymentsController {
     });
   }
 
+  /** GET /v1/admin/refunds — refund requests awaiting admin approval. */
+  @Get('admin/refunds')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('admin:refunds:approve')
+  async requestedRefunds() { return this.payments.getRequestedRefunds(); }
+
   /** POST /v1/admin/refunds/:id/approve — admin approves a refund. */
   @Post('admin/refunds/:id/approve')
   @UseGuards(PermissionsGuard)
