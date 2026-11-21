@@ -34,7 +34,7 @@ Implemented in source and controller tests:
 
 Remaining:
 
-- Exact-head CI for the scope-first offer confidentiality hardening and completion of the tenant/role acceptance matrix.
+- Exact-head CI for scope-first offer confidentiality and ACTIVE-store buyer visibility, then complete the remaining tenant/role acceptance matrix.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence, including service-level tenant ownership and active membership.
 - Independent security review. The implementation author must not label their own work independently reviewed.
 - Record reviewer findings, remediate any issues, and update the evidence register. Keep G-001 PARTIAL until then.
@@ -73,3 +73,6 @@ A green PR CI run is not a staging approval, independent security review, releas
 ### G-001 follow-up — 21 November 2026
 
 The offer detail and merchant mutation paths now use the scope-first service boundary and normalize foreign/non-member identifiers to 404. Focused tests and exact-head CI are pending. Remaining: verify store lifecycle policy, complete analytics/trend and role matrix, and obtain independent security review.
+
+
+The buyer offer list and ranked seller query now exclude offers from DRAFT stores while preserving merchant setup access. This addresses the inactive-store buyer visibility dimension; CI verification and the remaining role/analytics matrix are still open.
