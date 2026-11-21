@@ -6,9 +6,9 @@
  * Route: /orders/[id]
  * Shows order summary, items, financials, and status history.
  */
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchAdminOrderDetail, type AdminOrderDetail } from '../../../lib/api';
+import { cancelAdminOrder, fetchAdminOrderDetail, type AdminOrderDetail } from '../../../lib/api';
 import { useRequirePerms } from '../../../hooks/useRequirePerms';
 import {
   AdminDetailHeader,
@@ -30,13 +30,29 @@ import {
   type TimelineEntry,
 } from '../../../components/detail';
 
+const CANCELLABLE_ORDER_STATUSES = [
+  'PENDING_CONFIRMATION', 'ACCEPTED', 'PARTIALLY_ACCEPTED', 'PREPARING', 'READY',
+  'PAYMENT_PENDING', 'PAYMENT_CONFIRMED', 'OUT_FOR_DELIVERY',
+];
+const CANCELLATION_REASONS = [
+  'CUSTOMER_REQUEST', 'DUPLICATE_ORDER', 'MERCHANT_UNABLE_TO_FULFILL', 'OUT_OF_STOCK',
+  'PRICE_ERROR', 'ADDRESS_PROBLEM', 'PAYMENT_PROBLEM', 'CARRIER_PROBLEM',
+  'SYSTEM_ERROR', 'ADMINISTRATIVE', 'OTHER',
+];
+
 function OrderDetailContent({ id }: { id: string }) {
   const { hasAccess } = useRequirePerms(['admin:orders:read']);
+  const { hasAccess: canCancelOrder } = useRequirePerms(['orders:cancel']);
   const [ready, setReady] = useState(false);
   const [order, setOrder] = useState<AdminOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [cancelReason, setCancelReason] = useState('ADMINISTRATIVE');
+  const [cancelNotes, setCancelNotes] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const [actionSuccess, setActionSuccess] = useState('');
 
   useEffect(() => setReady(true), []);
   useEffect(() => {
@@ -46,6 +62,29 @@ function OrderDetailContent({ id }: { id: string }) {
       .then(data => { setOrder(data); setLoading(false); })
       .catch(err => { setError(err instanceof Error ? err.message : 'Failed to load order'); setLoading(false); });
   }, [id, ready, hasAccess]);
+
+  const handleCancel = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!order || !canCancelOrder) return;
+    if (cancelReason === 'OTHER' && !cancelNotes.trim()) {
+      setActionError('Add explanatory notes when the reason is Other.');
+      return;
+    }
+    if (!window.confirm(`Cancel order ${id.slice(0, 12)}? This will release stock and synchronize its shipment.`)) return;
+
+    setCancelLoading(true);
+    setActionError('');
+    setActionSuccess('');
+    try {
+      await cancelAdminOrder(id, { reason: cancelReason, notes: cancelNotes.trim() || undefined });
+      setOrder(await fetchAdminOrderDetail(id));
+      setActionSuccess('Order cancelled successfully.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to cancel order');
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   if (!ready) return <AdminLoadingSkeleton kvRows={8} />;
   if (!hasAccess) return <div style={{ padding: 32, color: '#991b1b' }}>Access denied. Required: admin:orders:read</div>;
@@ -152,6 +191,25 @@ function OrderDetailContent({ id }: { id: string }) {
       <AdminDetailTabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
       <div style={{ padding: '0 32px 48px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {actionSuccess && <p role="status" style={{ color: '#166534', margin: 0 }}>{actionSuccess}</p>}
+        {actionError && <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>{actionError}</p>}
+        {canCancelOrder && CANCELLABLE_ORDER_STATUSES.includes(order.status) && (
+          <AdminDetailSection title="Order actions">
+            <form onSubmit={handleCancel} style={{ display: 'grid', gap: 12, maxWidth: 560 }}>
+              <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                Cancellation reason
+                <select value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} disabled={cancelLoading} style={{ padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff' }}>
+                  {CANCELLATION_REASONS.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, ' ')}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600 }}>
+                Notes {cancelReason === 'OTHER' ? '(required)' : '(optional)'}
+                <textarea value={cancelNotes} onChange={(event) => setCancelNotes(event.target.value)} rows={3} maxLength={2000} required={cancelReason === 'OTHER'} disabled={cancelLoading} placeholder="Add context for the order audit history" style={{ padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: 6, resize: 'vertical' }} />
+              </label>
+              <div><button type="submit" disabled={cancelLoading || (cancelReason === 'OTHER' && !cancelNotes.trim())} style={{ padding: '9px 16px', border: 0, borderRadius: 6, background: '#b91c1c', color: '#fff', fontWeight: 600, cursor: cancelLoading ? 'wait' : 'pointer', opacity: cancelLoading ? 0.65 : 1 }}>{cancelLoading ? 'Cancelling…' : 'Cancel order'}</button></div>
+            </form>
+          </AdminDetailSection>
+        )}
         {activeTab === 'overview' && (
           <AdminDetailSection title="Order Summary">
             <AdminKeyValueGrid items={overviewItems} />

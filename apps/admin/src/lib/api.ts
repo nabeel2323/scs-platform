@@ -314,6 +314,18 @@ export async function fetchAdminOrderDetail(id: string): Promise<AdminOrderDetai
   return res.json();
 }
 
+/** Cancel an order through the existing state-guarded order lifecycle endpoint. */
+export async function cancelAdminOrder(
+  id: string,
+  input: { reason: string; notes?: string },
+): Promise<AdminOrder> {
+  return adminRequest(`orders/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
 // ── Admin Merchants ──────────────────────────────────────────
 
 export interface AdminMerchant {
