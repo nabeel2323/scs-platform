@@ -75,3 +75,14 @@ Never promote one state to another by implication. A skipped job is not a pass; 
 Buyer product-offer endpoints must return explicit allowlisted public commercial fields only. They must not expose merchant metadata, external references, actor identifiers, review details, internal price-list IDs or warehouse IDs. Merchant-management endpoints may retain their richer offer shape behind tenant and role authorization.
 
 Create and update operations that attach a price list or warehouse to an offer must verify that each referenced resource belongs to the same store as the offer. This invariant is enforced at the service boundary, not solely by controller validation.
+
+## CI #1259 regression analysis and correction — 21 November 2026
+
+Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.limit()` and `.groupBy()` for the relevant query shapes.
+
+CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## Buyer visibility query implementation note — 21 November 2026
+
+Use an uncorrelated store-ID subquery for ACTIVE-store visibility in the Drizzle relational offer queries. The correlated EXISTS form produced an invalid outer-table reference in PostgreSQL integration tests; the IN-subquery expresses the same visibility condition while remaining valid in this query shape.

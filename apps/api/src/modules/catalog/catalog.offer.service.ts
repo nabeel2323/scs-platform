@@ -12,7 +12,7 @@ import { products, productVariants } from './catalog.schema';
 import { stores, warehouses } from '../merchant/merchant.schema';
 import { priceLists } from '../pricing/pricing.schema';
 import { orderItems } from '../orders/orders.schema';
-import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt, exists } from 'drizzle-orm';
+import { eq, and, isNull, asc, desc, inArray, sql, count, gte, lt } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
@@ -264,11 +264,9 @@ export class CatalogOfferService {
    * and unavailable inventory must remain inside merchant/admin workflows.
    */
   private activeStoreVisibilityPredicate() {
-    return exists(
-      this.db.db
-        .select({ id: stores.id })
-        .from(stores)
-        .where(and(eq(stores.id, merchantOffers.storeId), eq(stores.status, 'ACTIVE'))),
+    return inArray(
+      merchantOffers.storeId,
+      this.db.db.select({ id: stores.id }).from(stores).where(eq(stores.status, 'ACTIVE')),
     );
   }
 

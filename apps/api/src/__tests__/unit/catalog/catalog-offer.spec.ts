@@ -90,7 +90,11 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
           where: (condition?: unknown) => {
             if (selection !== undefined) {
               return {
-                getSQL: () => sql`SELECT 1 FROM stores WHERE ${condition}`,
+                getSQL: () => sql`SELECT id FROM stores WHERE ${condition}`,
+                limit: async () => {
+                  const membership = await storeMemberFindFirst();
+                  return membership ? [membership] : [];
+                },
                 groupBy: async () => [],
               };
             }
@@ -264,7 +268,7 @@ describe('CatalogOfferService — buyer product offer visibility (G-001)', () =>
       isAvailable: true,
     });
     const compiled = new PgDialect().sqlToQuery(query.where as SQL);
-    expect(compiled.sql.toLowerCase()).toContain('exists');
+    expect(compiled.sql.toLowerCase()).toContain(' in ');
     expect(compiled.sql).toContain('stores');
     expect(compiled.params).toContain('ACTIVE');
     expect(compiled.params).toContain(true);

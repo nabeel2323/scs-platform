@@ -146,3 +146,9 @@ For every run, record:
 ## G-001 buyer projection/reference fix — verification pending — 21 November 2026
 
 The previous exact-head run #1252 on parent commit `ab3a2af` had passed lint, typecheck, changed-file formatting, Flutter, Web/Admin, boundary lint and full isolated migration/read-only audit. API unit/coverage and PostgreSQL integration were still running when this follow-up commit superseded that head; those partial results are not a pass for the new changes. Verify all required jobs on the new PR head before advancing G-001. Vercel preview rate-limit failures remain external to application CI. PR #138 stays open and draft; no staging release or shared-database operation was performed.
+
+## CI #1259 regression analysis and correction — 21 November 2026
+
+Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.limit()` and `.groupBy()` for the relevant query shapes.
+
+CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
