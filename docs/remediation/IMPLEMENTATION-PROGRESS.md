@@ -1137,3 +1137,8 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - Buyer-facing product offer lists and ranked seller results now require the owning store to have status ACTIVE in addition to the offer being ACTIVE and available.
 - DRAFT stores retain merchant management access but their offers are not exposed through buyer discovery.
 - Added unit coverage for both buyer query paths and the no-active-store case. Focused API tests and exact-head CI remain pending; G-001 remains PARTIAL.
+
+ 
+### G-001 active-store query efficiency refinement — 21 November 2026
+
+The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS predicate in both product offer list queries. This avoids fetching every active store ID into application memory and keeps the store lifecycle check in the database query. Unit tests assert the correlated EXISTS predicate for both list and ranked paths.
