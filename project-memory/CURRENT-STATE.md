@@ -98,3 +98,13 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Related implementation/test commits include `5f74662dfcb2f4e5745e0738cc8c0e352b83bdcd`. Progress tracker and work log were synchronized.
 - This regression has not yet executed in CI. Exact-head GitHub Actions, API unit and PostgreSQL integration verification remain pending.
 - G-001 remains PARTIAL; G-002 remains IN PROGRESS. PR #138 remains open/draft. No shared database or staging data was modified.
+
+
+## Latest G-001 PostgreSQL security checkpoint — 21 November 2026
+
+- Latest branch commit before this checkpoint update: `bf8feed6ebf0064bbf95b0a80910b002988d18ad`.
+- Added real PostgreSQL coverage for scope-first offer detail: foreign-organization merchants and same-organization non-members both receive the same 404 class; inactive/revoked store membership denies detail and is restored to ACTIVE in `finally`.
+- The catalog lifecycle PostgreSQL suite also now uses explicitly ACTIVE stores for buyer-discovery fixtures and verifies DRAFT-store exclusion from both buyer offer list and ranked results.
+- Related source/test commits: `5f74662dfcb2f4e5745e0738cc8c0e352b83bdcd` and `f8e6d19f912027c094ba0721736cc8080843fc0f`. Remediation tracker and work log synchronized.
+- Exact-head API unit/PostgreSQL CI remains pending; no tests are claimed as executed. G-001 remains PARTIAL pending CI, full acceptance evidence and independent security review. G-002 remains IN PROGRESS.
+- No shared database or staging state was touched; all new database tests run against disposable PostgreSQL containers.
