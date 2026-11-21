@@ -1142,3 +1142,12 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 ### G-001 active-store query efficiency refinement — 21 November 2026
 
 The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS predicate in both product offer list queries. This avoids fetching every active store ID into application memory and keeps the store lifecycle check in the database query. Unit tests assert the correlated EXISTS predicate for both list and ranked paths.
+
+
+### G-001 merchant read-surface acceptance expansion — 21 November 2026
+
+- Expanded the positive merchant-principal controller matrix so MERCHANT_OWNER, MERCHANT_STAFF and legacy MERCHANT are exercised across merchant offer lists, analytics, trends and scope-first offer detail.
+- Added FINANCE to the negative privileged-read matrix, preserving the requirement for explicit offer-governance permission rather than relying on a generic platform role.
+- Added a foreign-organization trend-denial regression assertion that verifies the trend service is not called after tenant authorization fails.
+- These are source-level regression additions only. Focused API tests and exact-head CI are pending; G-001 remains PARTIAL pending the full acceptance evidence and independent security review.
+- No database, staging, deployment, worker or environment changes were made.
