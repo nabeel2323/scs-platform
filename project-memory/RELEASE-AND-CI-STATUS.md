@@ -226,19 +226,19 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 
 ### Executable job results
 
-| Job | Result |
-| --- | --- |
-| Lint, TypeScript typecheck and changed-file Prettier | PASS |
-| Flutter analysis and tests | PASS |
-| API unit tests and coverage gates | PASS |
-| PostgreSQL integration tests | PASS |
-| Web and Admin tests | PASS |
-| E6 boundary lint | PASS |
-| Migration full apply and read-only database-access audit | PASS |
-| Container build and smoke tests | PASS |
-| Build | PASS |
-| Contract specification and code generation | PASS |
-| k6 smoke test | SKIPPED |
-| Protected staging release | SKIPPED |
+| Job                                                      | Result  |
+| -------------------------------------------------------- | ------- |
+| Lint, TypeScript typecheck and changed-file Prettier     | PASS    |
+| Flutter analysis and tests                               | PASS    |
+| API unit tests and coverage gates                        | PASS    |
+| PostgreSQL integration tests                             | PASS    |
+| Web and Admin tests                                      | PASS    |
+| E6 boundary lint                                         | PASS    |
+| Migration full apply and read-only database-access audit | PASS    |
+| Container build and smoke tests                          | PASS    |
+| Build                                                    | PASS    |
+| Contract specification and code generation               | PASS    |
+| k6 smoke test                                            | SKIPPED |
+| Protected staging release                                | SKIPPED |
 
 The PostgreSQL integration command ran against disposable CI services. This is not a staging runtime test or approval to deploy. The INACTIVE-store regression is part of the integration suite executed by this job. No shared database changes were made.
