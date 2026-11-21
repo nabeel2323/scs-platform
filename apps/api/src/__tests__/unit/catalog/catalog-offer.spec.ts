@@ -399,7 +399,9 @@ describe('CatalogOfferService — proposal and pricing mutation membership enfor
       stores: { findFirst: { orgId: 'org-1' } },
       storeMembers: { findFirst: null },
     });
-    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 });
@@ -423,7 +425,9 @@ describe('CatalogOfferService — cross-tenant merchant mutation denial (G-001)'
       stores: { findFirst: { orgId: 'org-2' } },
     });
 
-    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(updated).toHaveLength(0);
   });
 
