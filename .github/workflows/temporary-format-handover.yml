@@ -1,0 +1,85 @@
+name: Temporary format handover docs and self-remove
+
+on:
+  push:
+    branches:
+      - remediation/phase-0-1-tenant-security
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-format-handover-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Record exact-head CI result and format handover docs
+        run: |
+          cat >> project-memory/START-HERE.md <<'EOF'
+
+          ## Exact-head CI checkpoint — 22 November 2026
+
+          - PR #138 head `10a890a3a69f7281b93f4a8e80b735f2228825cb` completed CI run #44961723564. Lint and TypeScript typecheck passed; Flutter analysis and tests passed. The changed-file Prettier gate failed on four handover documents. API unit/coverage, PostgreSQL integration, web/admin tests, migration, boundary lint, build and smoke jobs were skipped.
+          - Those four documents are being normalized with repository-locked Prettier 3.9.6. Require a fresh exact-head CI run after the formatter commit; do not treat this run as implementation verification.
+          EOF
+          cat >> project-memory/CURRENT-STATE.md <<'EOF'
+
+          ## Exact-head CI result — 22 November 2026
+
+          - CI #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint/typecheck passed; Flutter analysis/tests passed; formatting failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. Downstream API, PostgreSQL, Web/Admin, migration, build and smoke jobs were skipped.
+          - The four documents are being formatted with repository-locked Prettier 3.9.6. This run is not full verification.
+          EOF
+          cat >> project-memory/RELEASE-AND-CI-STATUS.md <<'EOF'
+
+          ## 22 November 2026 — exact-head run #44961723564
+
+          - Source head: `10a890a3a69f7281b93f4a8e80b735f2228825cb`. Lint/typecheck and Flutter analysis/tests passed. The only completed gate failure was Prettier on four project-memory documents. API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary lint, build and smoke jobs were skipped.
+          - A repository-locked Prettier correction is being applied to the four documents. Exact-head CI must be rerun after formatting.
+          EOF
+          cat >> project-memory/WORK-LOG.md <<'EOF'
+
+          ## 22 November 2026 — exact-head CI and documentation formatting
+
+          - CI run #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint and TypeScript typecheck passed; Flutter analysis and tests passed. Prettier failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. All downstream application/database/build jobs were skipped.
+          - Running repository-locked Prettier 3.9.6 against those four handover files, then a fresh exact-head CI run is required. Do not claim full verification from this run.
+          EOF
+          pnpm exec prettier --write \
+            "project-memory/CURRENT-STATE.md" \
+            "project-memory/RELEASE-AND-CI-STATUS.md" \
+            "project-memory/START-HERE.md" \
+            "project-memory/WORK-LOG.md"
+      - name: Remove temporary workflow and commit formatted handover
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            "project-memory/CURRENT-STATE.md" \
+            "project-memory/RELEASE-AND-CI-STATUS.md" \
+            "project-memory/START-HERE.md" \
+            "project-memory/WORK-LOG.md"
+          git rm .github/workflows/temporary-format-handover.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "docs(project-memory): record exact-head CI and format handover"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
