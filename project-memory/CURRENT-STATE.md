@@ -3,7 +3,7 @@
 **Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Current branch head after project-memory updates:** `562dbc6bdcf8ce06e0c639a08c006276eac33168`
+**Current branch head after project-memory updates:** `4adf87a07e8156e04ca008b6d236770704603eda`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,7 +18,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ------------------------------------------------------------------------ |
 | Repository           | nabeel2323/scs-platform                                                  |
 | Branch               | remediation/phase-0-1-tenant-security                                    |
-| Live branch head     | `562dbc6bdcf8ce06e0c639a08c006276eac33168`                               |
+| Live branch head     | `4adf87a07e8156e04ca008b6d236770704603eda`                               |
 | Latest commit        | `docs(security): add G-002 database access architecture design`          |
 | PR #138              | Open; draft; not merged                                                  |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
@@ -205,7 +205,7 @@ The user approved the Implementation Completion Program and requested that this 
 
 ## Live project-memory update — 22 November 2026
 
-- Current branch head after this checkpoint: `562dbc6bdcf8ce06e0c639a08c006276eac33168` on `remediation/phase-0-1-tenant-security`.
+- Current branch head after this checkpoint: `4adf87a07e8156e04ca008b6d236770704603eda` on `remediation/phase-0-1-tenant-security`.
 - Created `project-memory/IMPLEMENTATION-GAP-REGISTER.md` and recorded the user's approved implementation-first programme in START-HERE, DECISIONS-AND-CONSTRAINTS, IMPLEMENTATION-ROADMAP, OPEN-ISSUES, CURRENT-STATE, RELEASE-AND-CI-STATUS and WORK-LOG.
 - This is a documentation-only change. Workflow-run lookup and combined-status lookup returned no checks for the exact current head; it is NOT CI-VERIFIED. Earlier CI #44954371615 on source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` remains historical evidence only.
 - Next: complete MAP-001 by auditing actual source modules, routes, screens, database entities, permissions, workflows and docs. Then implement the highest-priority confirmed gap in a cohesive batch. Keep broad regression testing for Phase 3 and all existing security/release restrictions intact.
