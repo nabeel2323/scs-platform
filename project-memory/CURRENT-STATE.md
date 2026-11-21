@@ -69,3 +69,13 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Supported merchant roles are now exercised across list, analytics, trend and offer-detail reads; FINANCE is included in the negative privileged-read matrix; foreign-organization trend access is explicitly denied before service access.
 - This test-only increment is not yet test-verified. The latest completed CI remains historical #1184; no Actions run or combined status was returned for the inspected head. Obtain exact-head CI before claiming verification.
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS. All staging, shared-database and deployment restrictions remain unchanged.
+
+
+## Live continuation checkpoint — 21 November 2026
+
+- Latest branch commit inspected: `ae2d3ea97a16b7ebb916e390dbf6433733c31438`.
+- Added G-001 controller denial tests for foreign-organization offer lists, missing active organization, and revoked/inactive membership on analytics. Tests assert that protected service methods are not called after denial.
+- Source test commit: `ca641eb2a73bd1d3da27700e9a85c6ec2dfe0dad`; remediation progress and project-memory work log were synchronized afterward.
+- Exact-head GitHub Actions workflow lookup returned no associated runs. Combined status contains two Vercel failures, both targeting the external build-rate-limit page. No application test failure is reported by those Vercel contexts, but they are not green checks. GitHub Actions exact-head verification remains pending.
+- PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
+- Next: complete remaining G-001 lifecycle/service acceptance and obtain exact-head API + integration CI. Independent review remains separate. All database/staging/deployment restrictions remain unchanged.
