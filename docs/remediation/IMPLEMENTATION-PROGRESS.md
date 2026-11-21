@@ -1151,3 +1151,12 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - Added a foreign-organization trend-denial regression assertion that verifies the trend service is not called after tenant authorization fails.
 - These are source-level regression additions only. Focused API tests and exact-head CI are pending; G-001 remains PARTIAL pending the full acceptance evidence and independent security review.
 - No database, staging, deployment, worker or environment changes were made.
+
+
+### G-001 missing-organization and membership-denial coverage — 21 November 2026
+
+- Extended the controller authorization regression matrix to deny foreign-organization merchants from offer lists before service access.
+- Added a fail-closed case for merchant principals with no active organization.
+- Added analytics denial coverage for revoked/inactive store membership, asserting the analytics service is not called.
+- These are source-level test additions only. Focused API tests and exact-head CI remain pending; G-001 remains PARTIAL pending complete acceptance evidence and independent security review.
+- No database, staging, deployment, worker or environment changes were made.
