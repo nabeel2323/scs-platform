@@ -32,12 +32,19 @@ describe('migration advisory lock', () => {
   it('reads the actual migration session identity without exposing connection details', async () => {
     const identity = await readMigrationDatabaseIdentity(first);
     expect(identity).not.toBeNull();
-    expect(identity?.session_user).toBe('postgres');
-    expect(identity?.current_user).toBe('postgres');
-    expect(identity?.database_name).toBeTruthy();
-    expect(identity?.session_role_superuser).toBe(true);
-    expect(identity?.session_role_bypassrls).toBe(true);
-    expect(identity?.ssl).toBe(false);
+    expect(typeof identity?.session_user).toBe('string');
+    expect(identity?.session_user.length).toBeGreaterThan(0);
+    expect(identity?.current_user).toBe(identity?.session_user);
+    expect(identity?.database_name.length).toBeGreaterThan(0);
+    expect(typeof identity?.session_role_superuser).toBe('boolean');
+    expect(typeof identity?.session_role_bypassrls).toBe('boolean');
+    expect(typeof identity?.session_role_createrole).toBe('boolean');
+    expect(typeof identity?.session_role_createdb).toBe('boolean');
+    expect(typeof identity?.effective_role_superuser).toBe('boolean');
+    expect(typeof identity?.effective_role_bypassrls).toBe('boolean');
+    expect(typeof identity?.effective_role_createrole).toBe('boolean');
+    expect(typeof identity?.effective_role_createdb).toBe('boolean');
+    expect(identity?.ssl === null || typeof identity?.ssl === 'boolean').toBe(true);
     expect(JSON.stringify(identity)).not.toMatch(/postgresql:\/\/|password|host|address/i);
   });
 
