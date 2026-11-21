@@ -199,7 +199,7 @@ export default function AdminHomePage() {
                   {operationsLoading ? <p style={{ color: colors.muted }}>Loading imports…</p> : recentImports.length === 0 ? <p style={{ color: colors.muted }}>No catalog imports yet.</p> : recentImports.map((item) => (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderTop: `1px solid ${colors.borderLight}` }}>
                       <div style={{ minWidth: 0 }}><div style={{ fontWeight: 600, color: colors.brand[700], overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fileName}</div><div style={{ ...typeScale.caption, color: colors.muted }}>{item.totalRows} rows · {new Date(item.createdAt).toLocaleDateString()}</div></div>
-                      <span style={{ ...typeScale.caption, color: item.status === 'FAILED' ? colors.danger : colors.muted, whiteSpace: 'nowrap' }}>{item.status.replace(/_/g, ' ')}</span>
+                      <span style={{ ...typeScale.caption, color: item.status === 'FAILED' ? colors.err : colors.muted, whiteSpace: 'nowrap' }}>{item.status.replace(/_/g, ' ')}</span>
                     </div>
                   ))}
                 </div>
