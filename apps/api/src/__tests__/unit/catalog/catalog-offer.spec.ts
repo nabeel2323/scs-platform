@@ -81,6 +81,17 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   const db = {
     db: {
+      // The ranked-offer service uses a query-builder aggregate after loading
+      // offers. Membership checks use the relational query API above, so this
+      // generic aggregate mock must not be coupled to store membership fixtures.
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            groupBy: async () => [],
+            limit: async () => [],
+          }),
+        }),
+      }),
       query: {
         merchantOffers: q(queries.merchantOffers, merchantOfferFindFirstCalls),
         products: q(queries.products),
