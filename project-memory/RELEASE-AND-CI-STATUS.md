@@ -268,3 +268,13 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - PR #142 head dddff20c170737dc4694008bb807b2b90e177f77: [CI #44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs, including PostgreSQL integration for distinct session/effective roles; k6 and protected staging release skipped.
 - Added G-002-TABLE-OWNERSHIP-MATRIX.md with 99 named Drizzle-exported tables and candidate scopes. This is not the complete historical 116-table live inventory or an approved policy matrix.
 - Both PRs remain open/draft/unmerged. Live staging identities remain unverified. No staging deployment or shared DB mutation.
+
+
+## Implementation Completion Program documentation checkpoint — 22 November 2026
+
+- User-approved implementation-first sequencing and the programme-level gap register were recorded in project memory.
+- Latest documentation commit at this checkpoint: `545a185e9645dcfea6bcabea5f4f68a5adc3a178` on `remediation/phase-0-1-tenant-security`.
+- The GitHub Actions workflow lookup and combined-status lookup returned no checks for this documentation-only head. Therefore this checkpoint is **NOT CI-VERIFIED**; do not transfer the earlier CI #44954371615 result from source SHA `741a09f68721898a5bed6601bc3bc636867c78c2` to this newer commit.
+- The earlier exact-head CI #44954371615 passed all executable jobs on PR #138 source SHA `741a09f68721898a5bed6601bc3bc636867c78c2`; k6 and protected staging release were skipped. PR #142 CI #44953735602 passed all executable jobs on `dddff20c170737dc4694008bb807b2b90e177f77`, including the disposable PostgreSQL identity test; k6 and protected staging release were skipped.
+- Vercel web/admin statuses on the earlier PR #138 checkpoint pointed to the external build-rate-limit page; they are not application test failures.
+- No application code, database, staging, deployment, migration, grant, RLS or worker behavior was changed by this documentation checkpoint.
