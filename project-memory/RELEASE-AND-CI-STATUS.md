@@ -194,7 +194,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - CI #1270 on temporary-workflow insertion commit `7b57052b65d049811733ffb0cfd1e208b7fa17f1` failed the same formatting gate because it preceded formatter output. CI #1271 on the formatted bot commit returned `action_required` with no jobs; it is not a test result.
 - A user-authored follow-up commit adds an explicit INACTIVE-store buyer-visibility PostgreSQL test and synchronizes this documentation. Exact-head CI for that commit is required; no test result is claimed yet.
 
-
 ## INACTIVE-store acceptance and formatter recovery — 21 November 2026
 
 - CI #1271 passed all 10 executable jobs on formatted commit `71550c4c6d71de1b3b54f6d2230b308251a73e23`; this predates the additional INACTIVE-store PostgreSQL test.
@@ -202,7 +201,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - Formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded and pushed formatted documentation at `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`; the temporary workflow removed itself.
 - CI #1273 for the formatter-bot commit returned `action_required` with zero jobs. This is neither a pass nor a test result. Exact-head API/PostgreSQL verification of the INACTIVE-store regression remains outstanding.
 - PR #138 remains open/draft/unmerged. No staging release, protected environment approval, shared database mutation, migration 0070, grants/default ACL, RLS, deployment or worker activation occurred.
-
 
 ## CI #1275 — formatting gate failure — 21 November 2026
 

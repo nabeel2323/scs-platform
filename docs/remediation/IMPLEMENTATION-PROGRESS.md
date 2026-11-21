@@ -1246,7 +1246,6 @@ G-002 remains IN PROGRESS. The actual staging API/migration identities, protecte
 
 Added `hides buyer offers for an INACTIVE store` to `apps/api/src/__tests__/integration/catalog-lifecycle.e2e.spec.ts`. Against disposable PostgreSQL, the test sets Merchant B's store to `INACTIVE`, verifies its offers are excluded from both buyer list and ranked results while Merchant A's ACTIVE store remains visible, then restores the status in `finally`. This closes the explicit inactive-store buyer-visibility test dimension without defining merchant-management behavior for inactive stores. The test is committed but awaits exact-head PostgreSQL integration CI. G-001 remains PARTIAL pending that CI and independent security review.
 
-
 ## G-001 INACTIVE-store test and exact-head CI handoff — 21 November 2026
 
 The disposable-PostgreSQL lifecycle test now explicitly sets Merchant B's store to `INACTIVE`, verifies that both buyer list and ranked-offer paths exclude its offers while Merchant A's ACTIVE store remains visible, and restores the fixture in `finally`. This adds test-source coverage only; the behavior is not considered CI-verified yet.
@@ -1254,7 +1253,6 @@ The disposable-PostgreSQL lifecycle test now explicitly sets Merchant B's store 
 CI #1271 passed all 10 executable jobs on `71550c4c6d71de1b3b54f6d2230b308251a73e23`, before this test was added. CI #1272 on test commit `6a7a620f9a68528ec7f638dbf85ad3c13031a5e5` failed only changed-file Prettier on seven Markdown files; API unit/coverage and PostgreSQL integration were skipped. Temporary formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded and removed itself, producing formatted documentation commit `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`. CI #1273 for that formatter-bot commit returned `action_required` with no jobs; it is not a test result.
 
 **Next:** obtain a normal exact-head CI run for the formatted branch commit and inspect API unit/coverage plus real PostgreSQL integration. Keep G-001 PARTIAL until those pass and an independent security reviewer records findings and disposition. G-002 remains IN PROGRESS; no protected staging or shared-database changes are authorized.
-
 
 ## CI #1275 — handover-document formatting correction required — 21 November 2026
 

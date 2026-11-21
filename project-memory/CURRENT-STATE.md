@@ -149,7 +149,6 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 - This explicitly tests the inactive-store buyer-visibility dimension without defining merchant-management behavior for inactive stores.
 - The test awaits exact-head CI. CI #1268 verifies the preceding G-001 code; CI #1269 failed Prettier, formatter workflow #1 succeeded and removed itself, and CI #1271 returned `action_required` with no jobs. The next commit is user-authored to trigger fresh exact-head CI.
 
-
 ## Live checkpoint — INACTIVE-store regression and exact-head CI recovery — 21 November 2026
 
 - Live branch head at reconciliation: `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`; PR #138 remains open, draft and unmerged, based on `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`.
@@ -159,7 +158,6 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 - Temporary formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded, applied repository-locked Prettier and removed its temporary workflow. The formatted docs commit is `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`.
 - CI #1273 for that formatter-bot commit returned `action_required` with zero jobs. This is not a pass or a test result. The exact current head still needs a normal CI execution before the INACTIVE-store test is considered verified.
 - G-001 remains PARTIAL pending exact-head API/PostgreSQL verification and independent security review. G-002 remains IN PROGRESS. PR stays draft; no staging deployment, shared DB mutation, migration 0070, grants/default ACL, RLS or worker activation occurred.
-
 
 ## CI #1275 — documentation formatting regression — 21 November 2026
 
