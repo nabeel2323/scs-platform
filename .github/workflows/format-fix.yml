@@ -262,8 +262,8 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
           "  const firstFn = (spec?: Row | Array<Row | null> | null, calls?: unknown[]) => {")
           replace(service_test,
           """      return async () => spec[Math.min(i++, spec.length - 1)] ?? null;
-            }
-            return async () => (spec as Row | undefined | null) ?? null;""",
+              }
+              return async () => (spec as Row | undefined | null) ?? null;""",
           """      return async (config?: unknown) => {
                 calls?.push(config);
                 return spec[Math.min(i++, spec.length - 1)] ?? null;
