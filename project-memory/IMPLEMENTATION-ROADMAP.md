@@ -145,3 +145,8 @@ The project now follows an implementation-first sequence. See the [Implementatio
 6. **Release readiness:** independent review, authorized staging acceptance, migration/rollback/recovery, business sign-off and explicit go/no-go.
 
 Lightweight developer checks continue during implementation; full regression is not run repeatedly after every small change. A concrete security or correctness defect found during implementation is fixed immediately, not deferred. The programme changes sequencing only: all existing G-001/G-002, protected staging, shared database, no-merge/no-deploy and release gates remain binding. Do not mark an item VERIFIED merely because it is IMPLEMENTED.
+
+
+## MAP-001 source inventory — 22 November 2026
+
+The first static inventory is documented in [WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md](./WHOLE-PRODUCT-IMPLEMENTATION-INVENTORY.md). It establishes current API/web/admin/mobile/database/test/documentation surfaces and corrects several stale September UI audit claims. MAP-001 remains IN PROGRESS: the full route-to-contract/permission matrix, all physical database relation operation paths, and worker/provider ownership/activation matrix remain incomplete. Confirmed UI/workflow candidates are now tracked as UX-001–UX-009 in the programme register. Do not start broad regression testing; use targeted source checks during implementation and preserve Phase 3 for the consolidated test campaign.
