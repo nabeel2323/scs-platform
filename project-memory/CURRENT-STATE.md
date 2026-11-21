@@ -22,7 +22,7 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | Last inspected commit                | docs(ci): record G-001 correlated query verification state                          |
 | PR #138                              | Open; draft; not merged                                                      |
 | PR base                              | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                          |
-| Latest completed CI at checkpoint    | [#1184](https://github.com/nabeel2323/scs-platform/actions/runs/44858627846) |
+| Latest completed CI at checkpoint    | #1184 (historical; predates current source/test head) |
 | CI #1184 tested SHA                  | fe675e76a8cace78ac2513da08118dd9c7527428                                     |
 | CI #1184 status                      | Failed at changed-file Prettier gate; not a full verification                |
 
@@ -40,7 +40,7 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Formatter and verification evidence
 
-- CI #1184 tested PR head fe675e76a8cace78ac2513da08118dd9c7527428 and failed only the changed-file Prettier gate for project-memory/RELEASE-AND-CI-STATUS.md and project-memory/WORK-LOG.md. ESLint reported 0 errors (311 warnings), TypeScript passed and Flutter passed. API unit/coverage, PostgreSQL integration, migration, Web/Admin, boundary, build/container and contract jobs were skipped; staging and k6 were not run.
+- CI #1184 is historical and tested fe675e76a8cace78ac2513da08118dd9c7527428, not the current branch head. The latest branch commit `a6c4b924f1899717c745d41fc6a8a1b4b7dc02c9` has no associated GitHub Actions workflow run returned by the commit-workflow lookup and no combined status contexts. Vercel web/admin rate-limit failures were reported on the earlier head; they are external preview-provider failures, not application CI results. Exact-head CI remains pending.
 - Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit f1cb7c7467c0fee6c829eec5fe557e3734c9c275 removed the temporary formatter and the resulting tree was checked for its absence.
 - Later helper-workflow checkpoint commits were cleaned up; the final branch tree contains no temporary formatter workflow.
 - CI #1187–#1190 and #1207 were cancelled during successive helper/checkpoint commits. CI #1210 is pending on pre-refresh head fb805dd with no jobs started yet. The latest completed CI remains #1184, which predates the G-001 changes; the current-state refresh will require a new exact-head run.
@@ -61,3 +61,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 ## Safety reminder
 
 PR #138 must remain open and draft. Do not merge or deploy it, bypass protected staging approval, change shared database grants/default ACLs, apply migration 0070, enable RLS, change staging/production configuration, perform staging writes or activate workers without the explicitly required authorization.
+
+
+## Live reconciliation — 21 November 2026
+
+- The branch advanced from `e039715b8f05cc3146dddf64d476df4aabe43868` with a G-001 controller test expansion and synchronized remediation tracker/work-log entries. The pre-refresh branch head inspected here is `a6c4b924f1899717c745d41fc6a8a1b4b7dc02c9`.
+- Supported merchant roles are now exercised across list, analytics, trend and offer-detail reads; FINANCE is included in the negative privileged-read matrix; foreign-organization trend access is explicitly denied before service access.
+- This test-only increment is not yet test-verified. The latest completed CI remains historical #1184; no Actions run or combined status was returned for the inspected head. Obtain exact-head CI before claiming verification.
+- PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS. All staging, shared-database and deployment restrictions remain unchanged.
