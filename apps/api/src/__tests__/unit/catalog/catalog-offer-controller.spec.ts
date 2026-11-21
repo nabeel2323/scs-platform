@@ -138,6 +138,23 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
     expect(offerService.listOffersForStore).not.toHaveBeenCalled();
   });
 
+  it('denies a foreign-organization merchant from the offer list before querying offers', async () => {
+    const { controller, offerService } = makeController({ orgId: 'org-2' });
+    await expect(controller.listMerchantOffers(merchant, 'store-2')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+  });
+
+  it('denies a merchant without an active organization from store-scoped reads', async () => {
+    const noActiveOrg = { ...merchant, activeOrg: null } as JwtPayload;
+    const { controller, offerService } = makeController();
+    await expect(controller.listMerchantOffers(noActiveOrg, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+  });
+
   it('denies a store belonging to another organization before querying offers', async () => {
     const { controller, offerService } = makeController({ orgId: 'org-2' });
     await expect(controller.listMerchantOfferAnalytics(merchant, 'store-2')).rejects.toBeInstanceOf(
@@ -160,6 +177,14 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
       ForbiddenException,
     );
     expect(offerService.listOfferTrend).not.toHaveBeenCalled();
+  });
+
+  it('denies a revoked or inactive store member from analytics before querying data', async () => {
+    const { controller, offerService } = makeController({ member: false });
+    await expect(controller.listMerchantOfferAnalytics(merchant, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.listOfferAnalytics).not.toHaveBeenCalled();
   });
 
   it('applies the same membership check to store-wide analytics', async () => {
