@@ -554,6 +554,7 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       }
     });
 
+    // Buyer visibility is ACTIVE-store-only; restore the shared fixture even on assertion failure.
     it('hides buyer offers for an INACTIVE store', async () => {
       await db.update(stores).set({ status: 'INACTIVE' }).where(eq(stores.id, storeB));
 
