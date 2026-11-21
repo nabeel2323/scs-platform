@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CatalogOfferController } from '../../../modules/catalog/catalog.offer.controller';
 import type { JwtPayload } from '../../../common/guards/current-user.decorator';
 
@@ -9,7 +9,7 @@ const merchant = {
   activeOrg: 'org-1',
 } as JwtPayload;
 
-function makeController(opts: { orgId?: string | null; member?: boolean } = {}) {
+function makeController(opts: { orgId?: string | null; member?: boolean; offerAccessDenied?: boolean } = {}) {
   const offerService = {
     listOffersForProduct: vi.fn().mockResolvedValue([{ id: 'active-offer' }]),
     listOffersForStore: vi.fn().mockResolvedValue([{ id: 'offer-1' }]),
@@ -24,6 +24,10 @@ function makeController(opts: { orgId?: string | null; member?: boolean } = {}) 
     suspendOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     reactivateOffer: vi.fn().mockResolvedValue({ id: 'offer-1' }),
     getOffer: vi.fn().mockResolvedValue({ id: 'offer-1', storeId: 'store-1' }),
+    getOfferForMerchant: vi.fn().mockImplementation(async () => {
+      if (opts.offerAccessDenied) throw new NotFoundException('Offer not found');
+      return { id: 'offer-1', storeId: 'store-1' };
+    }),
   };
   const db = {
     db: {
@@ -96,6 +100,7 @@ describe('CatalogOfferController — merchant role acceptance (G-001)', () => {
     const { controller, offerService } = makeController();
     await expect(controller.getOffer(buyer, 'offer-1')).rejects.toBeInstanceOf(ForbiddenException);
     expect(offerService.getOffer).not.toHaveBeenCalled();
+    expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
   });
 });
 
@@ -267,40 +272,53 @@ describe('CatalogOfferController — suspension actor attribution (G-001)', () =
 });
 
 describe('CatalogOfferController — offer detail object authorization (G-001)', () => {
-  it('allows an active member of the owning store to read offer detail', async () => {
+  it('delegates merchant detail reads to the scope-first service boundary', async () => {
     const { controller, offerService } = makeController();
     await expect(controller.getOffer(merchant, 'offer-1')).resolves.toMatchObject({
       id: 'offer-1',
     });
-    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
-  });
-
-  it('denies a same-organization non-member from reading offer detail', async () => {
-    const { controller, offerService } = makeController({ member: false });
-    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
+    expect(offerService.getOfferForMerchant).toHaveBeenCalledWith(
+      'offer-1',
+      expect.objectContaining({ sub: merchant.sub, activeOrg: merchant.activeOrg }),
     );
-    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+    expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 
-  it('denies a foreign-organization merchant from reading offer detail', async () => {
-    const { controller, offerService } = makeController({ orgId: 'org-2' });
+  it('returns not found for a same-organization non-member', async () => {
+    const { controller, offerService } = makeController({
+      member: false,
+      offerAccessDenied: true,
+    });
     await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
-    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+    expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+    expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 
-  it('fails closed when the merchant has no active organization', async () => {
+  it('returns not found for a foreign-organization merchant', async () => {
+    const { controller, offerService } = makeController({
+      orgId: 'org-2',
+      offerAccessDenied: true,
+    });
+    await expect(controller.getOffer(merchant, 'offer-1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+    expect(offerService.getOffer).not.toHaveBeenCalled();
+  });
+
+  it('returns not found when the merchant has no active organization', async () => {
     const noActiveOrg = { ...merchant, activeOrg: null } as JwtPayload;
-    const { controller, offerService } = makeController();
+    const { controller, offerService } = makeController({ offerAccessDenied: true });
     await expect(controller.getOffer(noActiveOrg, 'offer-1')).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
-    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+    expect(offerService.getOfferForMerchant).toHaveBeenCalled();
+    expect(offerService.getOffer).not.toHaveBeenCalled();
   });
 
-  it('denies an admin-role caller without offer governance permission', async () => {
+  it('denies an admin-role caller without governance permission before lookup', async () => {
     const adminWithoutPermission = {
       ...merchant,
       role: 'ADMIN',
@@ -311,18 +329,21 @@ describe('CatalogOfferController — offer detail object authorization (G-001)',
       ForbiddenException,
     );
     expect(offerService.getOffer).not.toHaveBeenCalled();
+    expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
   });
 
-  it('allows a privileged admin with offer governance permission', async () => {
+  it('allows a privileged admin with governance permission through the admin read', async () => {
     const admin = {
       ...merchant,
       role: 'ADMIN',
       perms: ['catalog:offers:govern'],
     } as JwtPayload;
-    const { controller } = makeController();
+    const { controller, offerService } = makeController();
     await expect(controller.getOffer(admin, 'offer-1')).resolves.toMatchObject({
       id: 'offer-1',
     });
+    expect(offerService.getOffer).toHaveBeenCalledWith('offer-1');
+    expect(offerService.getOfferForMerchant).not.toHaveBeenCalled();
   });
 });
 
