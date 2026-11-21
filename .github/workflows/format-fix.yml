@@ -334,7 +334,12 @@ describe('CatalogOfferController — merchant offer tenant authorization (G-001)
           "merchantOffers: { findFirst: [offer, offer, { ...offer, status: 'PROPOSED' }] },")
           replace(service_test,
           "rejects.toThrow('not authorized for this store')",
-          "rejects.toBeInstanceOf(NotFoundException)", 3)
+          "rejects.toBeInstanceOf(NotFoundException)", 2)
+          replace(service_test,
+          """    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toThrow(
+                'not authorized for this store',
+              );""",
+          """    await expect(svc.updateOfferPricing('o1', { basePriceMinor: 2500 }, caller)).rejects.toBeInstanceOf(NotFoundException);""")
           replace(service_test,
           """    await expect(svc.withdrawOffer('o1', caller)).rejects.toThrow(
                 'You do not have access to this store',
