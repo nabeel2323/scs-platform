@@ -1176,3 +1176,11 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - Added a real PostgreSQL regression that changes Merchant B's store to DRAFT, verifies its offer disappears from both buyer product-offer list and ranked seller results while Merchant A remains visible, and restores ACTIVE in a `finally` block.
 - This directly exercises the correlated SQL EXISTS lifecycle predicate against PostgreSQL. The test has been committed but not yet executed in CI; exact-head API unit and PostgreSQL integration results remain pending.
 - G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
+
+
+### G-001 PostgreSQL offer-detail confidentiality and revocation regression — 21 November 2026
+
+- Added real PostgreSQL service-boundary coverage proving foreign-organization merchants and same-organization non-members receive the same not-found result from merchant offer detail.
+- Added a membership-revocation scenario that marks the owning store membership INACTIVE, verifies detail access is denied, and restores the fixture to ACTIVE in a `finally` block.
+- These tests complement the controller role matrix and the PostgreSQL buyer-visibility lifecycle test. They are committed but not yet CI-executed.
+- G-001 remains PARTIAL pending exact-head API/PostgreSQL CI, remaining acceptance evidence and independent security review.
