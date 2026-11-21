@@ -795,6 +795,32 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it('allows an active MERCHANT_STAFF member to read the store offer', async () => {
+      const membershipId = randomUUID();
+      await db.insert(storeMembers).values({
+        id: membershipId,
+        storeId: storeA,
+        userId: buyerUser,
+        role: 'MEMBER',
+        status: 'ACTIVE',
+      });
+
+      try {
+        await expect(
+          offerService.getOfferForMerchant(offerA, {
+            sub: buyerUser,
+            role: 'MERCHANT_STAFF',
+            activeOrg: orgA,
+          }),
+        ).resolves.toMatchObject({ id: offerA });
+      } finally {
+        await db
+          .update(storeMembers)
+          .set({ status: 'INACTIVE' })
+          .where(eq(storeMembers.id, membershipId));
+      }
+    });
+
     it('denies offer detail after store membership is revoked, then restores the fixture', async () => {
       await db
         .update(storeMembers)
