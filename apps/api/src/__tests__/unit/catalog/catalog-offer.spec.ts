@@ -86,7 +86,8 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
       // generic aggregate mock must not be coupled to store membership fixtures.
       select: () => ({
         from: () => ({
-          where: () => ({
+          where: (condition?: unknown) => ({
+            getSQL: () => sql`SELECT id FROM stores WHERE ${condition}`,
             groupBy: async () => [],
             limit: async () => [],
           }),
