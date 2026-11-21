@@ -309,3 +309,10 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - PR #138 is open/draft/unmerged at `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef`; PR #142 is open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
 - Exact-head GitHub Actions lookup for PR #138 head returned no workflow run. Combined status includes only Vercel web/admin build-rate-limit failures; these are not application test results.
 - Admin refund queue and guarded Admin order cancellation are implementation-complete but not CI-verified. No merge, deploy, staging release, k6, live DB mutation, migration, grant/default-ACL change, RLS enablement, worker activation or staging write occurred.
+
+
+## 22 November 2026 — current branch verification
+
+- PR #138 current source head: `c61b06241025b7ed5207f8ada533be120faadbec`, open/draft/unmerged. PR #142 remains open/draft/unmerged.
+- No GitHub Actions workflow run was returned for exact head `c61b06241025b7ed5207f8ada533be120faadbec`. Combined statuses contain only Vercel web/admin build-rate-limit failures, not application test results.
+- UX-001 through UX-003 implementation is recorded in the gap register; UX-009 route guard discrepancy corrected. These changes are not CI-verified. No merge, deploy, staging write, DB mutation, migration, grants, RLS or worker activation occurred.

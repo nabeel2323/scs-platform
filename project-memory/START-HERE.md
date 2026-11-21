@@ -146,3 +146,12 @@ Confirmed current-source UX candidates are now listed in the gap register: Admin
 - Exact-head GitHub Actions lookup for `d4938bc9bdefd9d48d77b21ce5eb96973154c4ef` returned no workflow run. Combined statuses show only Vercel web/admin build-rate-limit failures. No application CI verification is claimed.
 - Continue MAP-001 route/permission/operation mapping; then dashboard widgets/navigation and Product Studio improvements. Keep Phase 3 as the consolidated comprehensive test campaign.
 - No merge, deploy, staging write, DB change, migration, grants/default-ACL change, RLS enablement, worker activation or release action.
+
+
+## Latest continuation checkpoint — 22 November 2026
+
+- PR #138 head: `c61b06241025b7ed5207f8ada533be120faadbec`, open/draft/unmerged. PR #142 remains open/draft/unmerged at `dddff20c170737dc4694008bb807b2b90e177f77`.
+- Implemented UX-001 Admin order cancellation, UX-002 Admin refund request queue/approval, and UX-003 permission-aware dashboard catalog widgets. Corrected UX-009 catalog requests page permission from `catalog:categories:write` to the endpoint's canonical `catalog:requests:manage`. See gap register and work log.
+- Exact-head GitHub Actions lookup for `c61b06241025b7ed5207f8ada533be120faadbec` returned no workflow run. Combined statuses show only Vercel web/admin build-rate-limit failures; no CI verification is claimed.
+- Continue full Admin route permission mapping, navigation grouping, then Product Studio warehouse selector using existing store-scoped APIs. Phase 3 remains the consolidated comprehensive test campaign.
+- No merge, deploy, staging write, DB change, migration, grant/default-ACL change, RLS enablement, worker activation or release action.

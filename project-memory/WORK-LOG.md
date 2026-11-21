@@ -276,3 +276,11 @@ The current-state handover metadata was reconciled to the latest documentation h
 - The permission grant was verified in `rbac-seed.data.ts`: ADMIN explicitly has `orders:cancel`, and SUPER_ADMIN receives all permissions. Existing backend service enforces object access and transactionally handles inventory, shipment, exception, history and outbox effects.
 - Exact-head GitHub Actions lookup returned no workflow run for this commit; combined status only showed Vercel build-rate-limit failures. The new UI/API integration is IMPLEMENTED, NOT VERIFIED.
 - PR #138 remains draft/open/unmerged; PR #142 remains draft/open/unmerged. No merge, deploy, staging/database mutation, migration, grants, RLS, worker activation or release action.
+
+
+## 22 November 2026 — Admin dashboard and permission alignment checkpoint
+
+- Added permission-aware Recent Catalog Imports and Pending Catalog Requests widgets to the Admin dashboard, reusing existing APIs and only loading each widget when its canonical permission is present.
+- Fixed the Admin `/requests` page guard to `catalog:requests:manage`, matching `CatalogRequestsController`; previously it used `catalog:categories:write`. This closes a concrete route-to-endpoint permission mismatch.
+- Renumbered the broad whole-product UX inventory row as UX-010 to avoid collision with the new Admin order-operations UX-001 row.
+- Latest source commit `c61b06241025b7ed5207f8ada533be120faadbec` has no associated GitHub Actions run; combined status only shows Vercel build-rate-limit failures. Do not claim CI verification.
