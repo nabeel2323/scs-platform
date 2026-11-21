@@ -2,8 +2,8 @@ name: One-time G-001 confidentiality remediation
 
 on:
   push:
-    paths:
-      - ".github/workflows/format-fix.yml"
+    branches:
+      - remediation/phase-0-1-tenant-security
 
 permissions:
   contents: write
