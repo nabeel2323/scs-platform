@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { readMigrationDatabaseIdentity } from '../../../infra/drizzle/migration-identity';
 
+// Identity evidence must come from the same client that the migration runner later uses.
 describe('readMigrationDatabaseIdentity', () => {
   it('returns only non-secret role and database metadata from its client', async () => {
     const identity = {
