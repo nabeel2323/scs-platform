@@ -1184,3 +1184,10 @@ The ACTIVE-store buyer visibility rule is enforced with a correlated SQL EXISTS 
 - Added a membership-revocation scenario that marks the owning store membership INACTIVE, verifies detail access is denied, and restores the fixture to ACTIVE in a `finally` block.
 - These tests complement the controller role matrix and the PostgreSQL buyer-visibility lifecycle test. They are committed but not yet CI-executed.
 - G-001 remains PARTIAL pending exact-head API/PostgreSQL CI, remaining acceptance evidence and independent security review.
+
+
+### G-001 PostgreSQL merchant-staff detail acceptance — 21 November 2026
+
+- Added a disposable-PostgreSQL service test that creates an ACTIVE MEMBER row and verifies a `MERCHANT_STAFF` caller in the owning organization can read the store's offer detail.
+- The test marks its temporary membership INACTIVE in a `finally` block so the shared integration fixture remains deterministic for later scenarios.
+- This adds real database evidence for the owner/staff distinction; controller role coverage remains complementary. Exact-head API/PostgreSQL CI is still pending.
