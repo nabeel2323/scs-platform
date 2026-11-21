@@ -70,3 +70,10 @@ Append newest first. Include date, branch/commit, concise changes, test commands
 - Buyer product offer lists and ranked seller results now require an ACTIVE owning store in addition to an ACTIVE, available offer.
 - DRAFT stores remain manageable by their active merchant members, but their offers are hidden from buyer discovery until store activation.
 - Added unit coverage for both buyer query paths and the no-active-store case. Exact-head CI is pending.
+
+ 
+## 21 November 2026 — G-001 active-store query efficiency
+
+- Replaced the initial active-store ID materialization with a correlated SQL EXISTS predicate in both buyer-facing offer queries.
+- The store lifecycle boundary remains enforced in SQL without loading all active store IDs into application memory.
+- Unit tests assert the EXISTS predicate for the regular and ranked buyer query paths.
