@@ -52,6 +52,14 @@ export class CatalogOfferController {
     private readonly db: DatabaseService,
   ) {}
 
+  /** Only merchant principals may use merchant offer surfaces; platform staff need governance permission. */
+  private assertMerchantPrincipal(caller: CallerContext): void {
+    if (isTenantPrivileged(caller)) return;
+    if (!['MERCHANT', 'MERCHANT_OWNER', 'MERCHANT_STAFF'].includes(caller.role ?? '')) {
+      throw new ForbiddenException('Merchant role required');
+    }
+  }
+
   /** Merchant dashboards are store-scoped, not merely organization-scoped. */
   private async authorizeMerchantStore(user: JwtPayload, storeId: string): Promise<CallerContext> {
     const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
@@ -60,6 +68,7 @@ export class CatalogOfferController {
     if (isTenantPrivileged(caller) && !user.perms?.includes('catalog:offers:govern')) {
       throw new ForbiddenException('Insufficient permissions');
     }
+    this.assertMerchantPrincipal(caller);
     await assertStoreInOrg(this.db, caller, storeId);
     await assertStoreMember(this.db, caller, storeId);
     return caller;
@@ -153,6 +162,7 @@ export class CatalogOfferController {
       throw new ForbiddenException('Insufficient permissions');
     }
 
+    this.assertMerchantPrincipal(caller);
     const offer = await this.offerService.getOffer(id);
     if (isTenantPrivileged(caller)) return offer;
 

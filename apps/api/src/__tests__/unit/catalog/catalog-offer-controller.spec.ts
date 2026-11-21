@@ -66,6 +66,39 @@ describe('CatalogOfferController — buyer product offer visibility (G-001)', ()
   });
 });
 
+describe('CatalogOfferController — merchant role acceptance (G-001)', () => {
+  it.each(['MERCHANT_OWNER', 'MERCHANT_STAFF', 'MERCHANT'])(
+    'allows an active store member with the %s role to read merchant offers',
+    async (role) => {
+      const caller = { ...merchant, role } as JwtPayload;
+      const { controller, offerService } = makeController();
+      await expect(controller.listMerchantOffers(caller, 'store-1')).resolves.toEqual([
+        { id: 'offer-1' },
+      ]);
+      expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
+    },
+  );
+
+  it('denies a buyer from merchant offer lists even if a store membership row exists', async () => {
+    const buyer = { ...merchant, role: 'BUYER' } as JwtPayload;
+    const { controller, offerService, db } = makeController();
+    await expect(controller.listMerchantOffers(buyer, 'store-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(db.db.query.stores.findFirst).not.toHaveBeenCalled();
+    expect(offerService.listOffersForStore).not.toHaveBeenCalled();
+  });
+
+  it('denies a buyer from merchant offer detail before loading the target offer', async () => {
+    const buyer = { ...merchant, role: 'BUYER' } as JwtPayload;
+    const { controller, offerService } = makeController();
+    await expect(controller.getOffer(buyer, 'offer-1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(offerService.getOffer).not.toHaveBeenCalled();
+  });
+});
+
 describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {
   it('allows an active store member to list only the requested store offers', async () => {
     const { controller, offerService } = makeController();
