@@ -127,6 +127,7 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
         variantAttributeValues,
         merchantOffers,
         stores,
+        storeMembers,
         warehouses,
         users,
         organizations,
@@ -225,8 +226,8 @@ describe('Transaction Foundation E2E — real PostgreSQL', () => {
       { id: buyerB, fullName: 'Buyer B', phone: '+10000000005' },
     ]);
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
     ]);
     await db.insert(warehouses).values([
       { id: warehouseA, storeId: storeA, name: 'Warehouse A' },

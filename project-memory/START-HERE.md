@@ -66,7 +66,7 @@ After each meaningful implementation group, and before ending a work session:
 
 ## Current starting point
 
-See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. The current implementation increment is the scope-first merchant offer confidentiality fix, followed by exact-head CI, completion of the tenant/role acceptance matrix and independent security review.
+See [CURRENT-STATE.md](./CURRENT-STATE.md) for the live branch and CI checkpoint. PR #138 remains open and draft; G-001 remains PARTIAL; G-002 remains IN PROGRESS. Exact-head CI #1265 on 36399ce passed lint/typecheck/formatting, Flutter, boundary lint, migration/audit and Web/Admin checks but failed API unit/coverage and PostgreSQL integration because five test Drizzle schema maps omitted `storeMembers`. The next implementation task is a test-fixture-only correction: register `storeMembers` in those maps and mark buyer-discovery fixture stores ACTIVE. Preserve the production authorization guard. Then rerun exact-head CI and continue the remaining acceptance matrix and independent review.
 
 ## Safety reminder
 

@@ -152,3 +152,16 @@ The previous exact-head run #1252 on parent commit `ab3a2af` had passed lint, ty
 Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.getSQL()`, `.limit()` and `.groupBy()` for the relevant query shapes.
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## CI #1265 — exact-head regression analysis — 21 November 2026
+
+- **Commit tested:** `36399ce6704b0774f0ebb0f670a3e7d735b19295`.
+- **Run:** [GitHub Actions CI #1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038).
+- **Passed:** Lint & Typecheck (including changed-file formatting), Flutter analysis/tests, E6 boundary lint, Migration Full Apply (including disposable PostgreSQL read-only DB-access audit and public-schema hardening checks), Web & Admin tests.
+- **Failed:** Unit Tests + Coverage; Integration Tests.
+- **Skipped:** Contract Spec & Codegen, Container Build & Smoke, Build, k6 Smoke Test and Trigger Staging Release because upstream gates failed.
+- **External statuses:** Vercel web/admin contexts point to the provider build-rate-limit page; they are not GitHub Actions application test results.
+- **Failure cause:** `storeMembers` was missing from five explicit Drizzle schema maps used by PostgreSQL integration tests. This caused `db.query.storeMembers` to be undefined in `assertStoreMember`. Phase 4 offer/cart/checkout failures cascaded from the initial offer-creation failure. Buyer discovery fixtures also need explicit ACTIVE store status.
+- **Correction:** grouped test-only fixture change; production tenant authorization remains intact. Exact-head CI on the corrected commit is pending.
+- **Release state:** PR #138 remains open/draft. No staging dispatch/approval, deployment, shared DB mutation, migration, grants/default ACL, RLS or worker activation occurred.

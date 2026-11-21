@@ -97,3 +97,8 @@ The implementation and documentation are synchronized in this change. Exact-head
 Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.getSQL()`, `.limit()` and `.groupBy()` for the relevant query shapes.
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## G-001 CI #1265 fixture correction — 21 November 2026
+
+The latest exact-head CI exposed test-harness omissions rather than a production authorization defect: five PostgreSQL integration suites constructed Drizzle schema maps without `storeMembers`, while the production offer service now correctly requires an ACTIVE store membership. The grouped correction registers the model in each schema map and explicitly marks buyer-discovery stores ACTIVE. Preserve the guard and rerun full exact-head CI before advancing G-001. G-001 remains PARTIAL pending the full role/tenant acceptance matrix and independent review.

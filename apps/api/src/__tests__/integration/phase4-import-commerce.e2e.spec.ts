@@ -207,6 +207,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
         variantAttributeValues,
         merchantOffers,
         stores,
+        storeMembers,
         warehouses,
         users,
         organizations,
@@ -303,7 +304,7 @@ describe('Phase 4 — Import → Catalog → Offer → Commerce', () => {
     ]);
     await db
       .insert(stores)
-      .values([{ id: storeA, orgId: orgA, slug: 'p4-store', displayName: 'P4 Store' }]);
+      .values([{ id: storeA, orgId: orgA, slug: 'p4-store', displayName: 'P4 Store', status: 'ACTIVE' }]);
     await db.insert(warehouses).values([{ id: warehouseA, storeId: storeA, name: 'P4 Warehouse' }]);
     await db.insert(organizationMembers).values([
       { id: randomUUID(), orgId: orgA, userId: merchantOwnerA, roleId: merchantOwnerRoleId },

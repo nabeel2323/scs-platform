@@ -42,7 +42,7 @@ import {
   organizationMembers,
   roles,
 } from '../../modules/identity/identity.schema';
-import { stores, warehouses } from '../../modules/merchant/merchant.schema';
+import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { priceLists, priceTiers } from '../../modules/pricing/pricing.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
@@ -139,6 +139,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
         variantAttributeValues,
         merchantOffers,
         stores,
+        storeMembers,
         warehouses,
         users,
         organizations,
@@ -223,7 +224,7 @@ describe('Phase 1 — Core Marketplace E2E', () => {
       prefix: 'Phase1 Marketplace',
       country: 'SA',
       currency: 'SAR',
-      storeStatus: 'DRAFT',
+      storeStatus: 'ACTIVE',
       verificationStatus: 'PENDING',
       users: {
         buyerA: { fullName: 'Buyer Alpha' },

@@ -1196,3 +1196,29 @@ The implementation and documentation are synchronized in this change. Exact-head
 Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.getSQL()`, `.limit()` and `.groupBy()` for the relevant query shapes.
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## CI #1265 regression analysis and tenant-fixture correction — 21 November 2026
+
+Exact-head CI [#1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038) evaluated branch head `36399ce6704b0774f0ebb0f670a3e7d735b19295`. Lint/typecheck/changed-file formatting, Flutter, E6 boundary lint, migration full-apply (including the disposable-PostgreSQL read-only access audit and public-schema hardening checks), and Web/Admin tests passed. API unit/coverage and PostgreSQL integration failed; Contract Spec & Codegen, Container Build & Smoke, Build, k6 and staging release were skipped after upstream failures. The two Vercel web/admin status contexts separately reported the provider's build-rate-limit page and are not application test results.
+
+The failure summary reported 7 failed assertions in the PostgreSQL integration suite (1,486/1,646 passed) and 5 failed test files in the coverage run (4,405 passed, 7 failed, 263 skipped). The common root cause was test-only Drizzle schema metadata: five real-PostgreSQL suites created `DatabaseService` with explicit schema maps that omitted `storeMembers`, so the newly enforced `assertStoreMember` lookup reached an undefined `db.query.storeMembers`. The affected suites were Phase 1 marketplace, Phase 2 multi-merchant, Phase 3 security, Phase 4 import-commerce and transaction-lifecycle. Phase 4 offer/cart/checkout failures were downstream cascades after offer creation failed.
+
+The grouped correction adds `storeMembers` to all five Drizzle schema maps (and its missing import in Phase 1). Buyer-discovery fixtures are explicitly ACTIVE in all five suites because the G-001 buyer offer query now intentionally excludes offers belonging to DRAFT stores. This changes test fixtures only; it does not weaken or bypass the production membership authorization guard. Exact-head CI after this correction is required before treating the acceptance coverage as verified. G-001 remains PARTIAL pending the complete role/tenant matrix and independent security review.
+
+No shared database, staging, grants, RLS, migration, deployment, worker or external business side effects were changed.
+
+## G-002 additional read-only database checks — 21 November 2026
+
+A subsequent read-only database check reported:
+
+- PostgreSQL confirmed RLS is disabled on 111 of 111 tables in the query's table scope.
+- 32 public-schema functions were found; none were marked `SECURITY DEFINER`.
+- `anon` and `authenticated` do not have `BYPASSRLS`; the privileged `service_role` does and must remain server-side.
+- The performance advisor reports 55 foreign-key constraints without covering indexes. Treat this as a workload/performance follow-up, not immediate schema-change authorization.
+- Earlier direct privilege checks found no DML grants to `anon`/`authenticated` on sampled tables, but the complete grant/ACL audit and application access model remain unresolved.
+- The separate Render review found OTP verification codes in plaintext logs. The source-level cause and redaction fix remain to be traced and verified.
+- Render showed one API service and no separate worker service in the inspected workspace; this does not prove whether workers run inside the API process. Worker registration and startup flags still need source/runtime reconciliation.
+- The configured startup command runs migrations and RBAC seed; logs reported 63 migrations applied. A safe repeatable deployment procedure remains to be established before any restart/deployment.
+
+The earlier schema inventory reported 114 relations, while this check reports 111 tables. These are not assumed to be equivalent scopes; reconcile the inventory query/table/partition definitions before finalizing the per-table matrix. No grants, policies, migrations, workers, deployment configuration or shared data were changed by this read-only review.

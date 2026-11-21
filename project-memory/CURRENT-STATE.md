@@ -3,7 +3,7 @@
 **Checkpoint date:** 21 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Last inspected branch head before this current-state refresh:** fb805ddbb48aab4575503900c557ecb371d0cb32  
+**Last inspected branch head before this current-state refresh:** 36399ce6704b0774f0ebb0f670a3e7d735b19295
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | --------------------------------- | ------------------------------------------------------------- |
 | Repository                        | nabeel2323/scs-platform                                       |
 | Branch                            | remediation/phase-0-1-tenant-security                         |
-| Last inspected PR head            | fb805ddbb48aab4575503900c557ecb371d0cb32                      |
-| Last inspected commit             | docs(ci): record G-001 correlated query verification state    |
+| Last inspected PR head            | 36399ce6704b0774f0ebb0f670a3e7d735b19295                      |
+| Last inspected commit             | test(security): complete Drizzle query mock for buyer visibility |
 | PR #138                           | Open; draft; not merged                                       |
 | PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775           |
-| Latest completed CI at checkpoint | #1184 (historical; predates current source/test head)         |
-| CI #1184 tested SHA               | fe675e76a8cace78ac2513da08118dd9c7527428                      |
-| CI #1184 status                   | Failed at changed-file Prettier gate; not a full verification |
+| Latest completed CI at checkpoint | #1265 (API unit/coverage + integration failed)                 |
+| CI #1265 tested SHA                | 36399ce6704b0774f0ebb0f670a3e7d735b19295                      |
+| CI #1265 status                    | Lint/typecheck/format, Flutter, E6, migration/audit and Web/Admin passed; API unit/coverage and PostgreSQL integration failed |
 
 ## Current remediation status
 
@@ -124,3 +124,10 @@ The implementation and documentation are synchronized in this change. Exact-head
 Exact-head CI #1259 exposed two defects. PostgreSQL rejected the correlated `EXISTS` predicate used by the buyer offer relational query because the outer `merchant_offers` reference was not valid in the generated query shape. The store-visibility predicate is being changed to an uncorrelated `store_id IN (SELECT id FROM stores WHERE status = 'ACTIVE')` subquery, preserving the visibility rule without the invalid outer reference. The catalog-offer unit harness also lacked `.limit()` on its selected-query branch, which broke tenant-membership tests; the harness now supports `.getSQL()`, `.limit()` and `.groupBy()` for the relevant query shapes.
 
 CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migration/read-only audit passed. API unit/coverage and PostgreSQL integration failed for the two issues above. The correction is committed with regression coverage; exact-head CI must pass before G-001 advances. No staging/database writes or deployment actions were performed.
+
+
+## Exact-head CI #1265 reconciliation — 21 November 2026
+
+The live PR #138 head at inspection was `36399ce6704b0774f0ebb0f670a3e7d735b19295`. CI [#1265](https://github.com/nabeel2323/scs-platform/actions/runs/44897469038) completed with lint/typecheck/formatting, Flutter, E6 boundary lint, migration full apply/read-only audit and Web/Admin tests passing. API unit/coverage and PostgreSQL integration failed on the missing `storeMembers` model in five explicit Drizzle test schema maps; Phase 4's offer/cart/checkout failures were downstream cascades. Contract/codegen, container smoke, build, k6 and staging release were skipped. Vercel web/admin contexts were separate provider build-rate-limit failures.
+
+The current grouped source correction adds the missing model to all five test schema maps and sets the test stores ACTIVE where buyer-discovery flows are expected. Production authorization logic is unchanged. Exact-head CI on the corrected commit remains the next verification gate. G-001 remains PARTIAL; G-002 remains IN PROGRESS; PR #138 remains open and draft. No staging/shared-database/deployment actions were performed.
