@@ -217,8 +217,8 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
 
     // Stores (each org owns one store)
     await db.insert(stores).values([
-      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A' },
-      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B' },
+      { id: storeA, orgId: orgA, slug: 'store-a', displayName: 'Store A', status: 'ACTIVE' },
+      { id: storeB, orgId: orgB, slug: 'store-b', displayName: 'Store B', status: 'ACTIVE' },
     ]);
 
     // Fetch the MERCHANT_OWNER role ID for reference
@@ -519,6 +519,22 @@ describe('Catalog Lifecycle E2E — real PostgreSQL', () => {
       expect(storeIds.size).toBe(2);
       expect(storeIds.has(storeA)).toBe(true);
       expect(storeIds.has(storeB)).toBe(true);
+    });
+
+    it('hides buyer offers when a merchant store is DRAFT and restores them after activation', async () => {
+      await db.update(stores).set({ status: 'DRAFT' }).where(eq(stores.id, storeB));
+
+      try {
+        const listed = await offerService.listOffersForProduct(productId);
+        const ranked = await offerService.listOffersForProductRanked(productId);
+
+        expect(listed.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(ranked.some((offer) => offer.storeId === storeB)).toBe(false);
+        expect(listed.some((offer) => offer.storeId === storeA)).toBe(true);
+        expect(ranked.some((offer) => offer.storeId === storeA)).toBe(true);
+      } finally {
+        await db.update(stores).set({ status: 'ACTIVE' }).where(eq(stores.id, storeB));
+      }
     });
 
     it('does NOT create a second canonical product', async () => {
