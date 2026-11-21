@@ -401,9 +401,9 @@ describe('CatalogOfferController — privileged merchant-list policy (G-001)', (
       await expect(
         controller.listMerchantOfferAnalytics(privileged, 'store-1'),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(
-        controller.listMerchantOfferTrend(privileged, 'store-1'),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(controller.listMerchantOfferTrend(privileged, 'store-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
       await expect(controller.getOffer(privileged, 'offer-1')).rejects.toBeInstanceOf(
         ForbiddenException,
       );

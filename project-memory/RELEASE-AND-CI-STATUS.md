@@ -14,22 +14,23 @@
 - Conclusion: **FAILURE**
 - Failure point: `Lint & Typecheck` job, changed-file formatting gate.
 
-| Job | Result | Evidence / interpretation |
-|---|---|---|
-| Mobile (Flutter analyze · test) | PASS | Completed successfully. |
-| Lint & Typecheck | FAIL | Lint: 0 errors, 311 warnings. Typecheck: passed. Prettier failed on controller test and progress tracker. |
-| Unit Tests + Coverage Gates | SKIPPED | Upstream lint job failed. |
-| Integration Tests | SKIPPED | Upstream lint job failed. |
-| Migration Full Apply | SKIPPED | Upstream lint job failed. |
-| Web & Admin App Tests | SKIPPED | Upstream lint job failed. |
-| Boundary Lint (E6) | SKIPPED | Upstream lint job failed. |
-| Build | SKIPPED | Upstream dependencies failed/skipped. |
-| Container Build & Smoke Test | SKIPPED | Upstream dependencies failed/skipped. |
-| Contract Spec & Codegen | SKIPPED | Upstream dependency failed/skipped. |
-| Trigger Staging Release | SKIPPED | No staging release executed. |
-| k6 Smoke Test | SKIPPED | No k6 performance verification executed. |
+| Job                             | Result  | Evidence / interpretation                                                                                 |
+| ------------------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| Mobile (Flutter analyze · test) | PASS    | Completed successfully.                                                                                   |
+| Lint & Typecheck                | FAIL    | Lint: 0 errors, 311 warnings. Typecheck: passed. Prettier failed on controller test and progress tracker. |
+| Unit Tests + Coverage Gates     | SKIPPED | Upstream lint job failed.                                                                                 |
+| Integration Tests               | SKIPPED | Upstream lint job failed.                                                                                 |
+| Migration Full Apply            | SKIPPED | Upstream lint job failed.                                                                                 |
+| Web & Admin App Tests           | SKIPPED | Upstream lint job failed.                                                                                 |
+| Boundary Lint (E6)              | SKIPPED | Upstream lint job failed.                                                                                 |
+| Build                           | SKIPPED | Upstream dependencies failed/skipped.                                                                     |
+| Container Build & Smoke Test    | SKIPPED | Upstream dependencies failed/skipped.                                                                     |
+| Contract Spec & Codegen         | SKIPPED | Upstream dependency failed/skipped.                                                                       |
+| Trigger Staging Release         | SKIPPED | No staging release executed.                                                                              |
+| k6 Smoke Test                   | SKIPPED | No k6 performance verification executed.                                                                  |
 
 Formatting failures:
+
 - `apps/api/src/__tests__/unit/catalog/catalog-offer-controller.spec.ts`
 - `docs/remediation/IMPLEMENTATION-PROGRESS.md`
 
@@ -62,6 +63,7 @@ Always verify the latest run and exact tested SHA before using this history.
 ## How to record a new CI run
 
 For every run, record:
+
 1. Run number and URL.
 2. Exact tested head SHA and branch/PR.
 3. Overall conclusion.

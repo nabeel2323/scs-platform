@@ -11,7 +11,7 @@
 | Runtime evidence         | Render staging addendum, 18 November 2026                                                                |
 | Status                   | IN PROGRESS — P0/P1 remediation is underway on PR #138                                                   |
 | Companion                | [Implementation Progress Tracker](./IMPLEMENTATION-PROGRESS.md)                                          |
-| Project handover          | [Project Memory — Start Here](../../project-memory/START-HERE.md)                                         |
+| Project handover         | [Project Memory — Start Here](../../project-memory/START-HERE.md)                                        |
 | Active branch / PR       | `remediation/phase-0-1-tenant-security` / [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) |
 | Supersedes               | Remediation sequencing only; historical milestone records remain intact                                  |
 

@@ -1099,7 +1099,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - A normal app-authored commit is being used to trigger the full CI suite on the formatted source. G-001 remains PARTIAL until exact-head CI, independent security review and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix are recorded. G-002 remains IN PROGRESS; no live API/migration identity or RLS readiness is inferred from source/CI evidence.
 - PR #138 remains open and draft. No staging release, deployment, shared database mutation, migration 0070 application, grant/default-ACL change, RLS enablement or worker activation was performed.
 
-
 ### G-001 expanded merchant role matrix and formatter reconciliation — 21 November 2026
 
 - The merchant-offer mutation regression matrix covers supported merchant roles `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT`, and denies `BUYER`, `FINANCE`, `ADMIN`, `MODERATOR`, `SYSTEM` and `SUPER_ADMIN` even when merchant write/govern permissions are present.
@@ -1109,7 +1108,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - Formatter run #13 completed successfully and removed its temporary workflow. CI #1173 on the temporary-workflow insertion commit is superseded; CI #1174 on the formatter cleanup commit returned `action_required` with no jobs. Neither is accepted as code verification or a request for repository-owner approval.
 - A new app-authored documentation reconciliation commit is triggering exact-head CI against the formatted expanded role matrix. G-001 remains PARTIAL pending that exact-head result, independent security review and complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence. G-002 remains IN PROGRESS; no live API/migration identity or RLS readiness is inferred from source/CI evidence.
 - PR #138 remains open and draft. No staging release, deployment, shared database mutation, migration 0070 application, grant/default-ACL change, RLS enablement or worker activation was performed.
-
 
 ### Project-memory handover system established — 21 November 2026
 

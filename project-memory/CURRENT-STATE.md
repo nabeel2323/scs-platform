@@ -14,28 +14,28 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item | Last verified value |
-|---|---|
-| Repository | [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform) |
-| Active branch | `remediation/phase-0-1-tenant-security` |
-| Branch head | `1c1cf2f5032cf789789f0efc527e3c976a9ceb78` |
-| Latest commit message | `test(security): complete merchant offer governance role matrix` |
-| Pull request | [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138) |
-| PR state | Open; draft; not merged |
-| PR base | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775` |
-| Latest observed CI | [#1176](https://github.com/nabeel2323/scs-platform/actions/runs/44856823290) |
-| CI #1176 tested SHA | `1c1cf2f5032cf789789f0efc527e3c976a9ceb78` |
-| CI #1176 result | Failed at changed-file Prettier gate; not a full verification |
+| Item                  | Last verified value                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------- |
+| Repository            | [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)               |
+| Active branch         | `remediation/phase-0-1-tenant-security`                                             |
+| Branch head           | `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`                                          |
+| Latest commit message | `test(security): complete merchant offer governance role matrix`                    |
+| Pull request          | [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138) |
+| PR state              | Open; draft; not merged                                                             |
+| PR base               | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                             |
+| Latest observed CI    | [#1176](https://github.com/nabeel2323/scs-platform/actions/runs/44856823290)        |
+| CI #1176 tested SHA   | `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`                                          |
+| CI #1176 result       | Failed at changed-file Prettier gate; not a full verification                       |
 
 ## Current remediation status
 
-| Area | Status | Meaning |
-|---|---|---|
-| G-001 — merchant offer authorization | **PARTIAL** | Merchant mutation role gate and expanded controller role tests are implemented. Independent security review and complete tenant/role acceptance evidence remain. |
-| G-002 — database access/RLS | **IN PROGRESS** | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
-| Phases 0–5 | **IN PROGRESS** | Work continues across remediation phases; see authoritative tracker. |
-| Phase 6 | **NOT STARTED** | Consolidated full verification and release go/no-go campaign has not begun. |
-| PR #138 | **DRAFT — DO NOT MERGE** | Not release authorization. |
+| Area                                 | Status                   | Meaning                                                                                                                                                                            |
+| ------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G-001 — merchant offer authorization | **PARTIAL**              | Merchant mutation role gate and expanded controller role tests are implemented. Independent security review and complete tenant/role acceptance evidence remain.                   |
+| G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
+| Phases 0–5                           | **IN PROGRESS**          | Work continues across remediation phases; see authoritative tracker.                                                                                                               |
+| Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                        |
+| PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                         |
 
 The complete 35-finding register and detailed phase progress live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). Do not reproduce or independently recalculate its finding totals here.
 

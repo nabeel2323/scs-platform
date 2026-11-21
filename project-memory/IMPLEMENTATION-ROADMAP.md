@@ -11,27 +11,29 @@ Stabilize the existing B2B marketplace rather than rewrite it. Close cross-merch
 
 ## Phase overview
 
-| Phase | Focus | Checkpoint status | Main exit direction |
-|---:|---|---|---|
-| 0 | Baseline reconciliation and testability foundation | IN PROGRESS | Baseline, testability, safety and evidence discrepancies reconciled. |
-| 1 | Tenant security and database access safety | IN PROGRESS | P0 tenant boundary and DB access model verified; authorized limited staging testing only. |
-| 2 | Commercial correctness and checkout contract | IN PROGRESS | Seller/offer attribution, quantity, currency, payment, tax and fulfillment contracts are consistent. |
-| 3 | Event, worker and fulfillment reliability | IN PROGRESS | Outbox ownership, durable claims, carrier workflows and operational controls verified. |
-| 4 | Client workflow parity and truthful notifications | IN PROGRESS | Buyer, merchant and admin workflows are coherent across API, web and mobile; remaining UAT is evidenced. |
-| 5 | Operational hardening, CI, data hygiene and documentation | IN PROGRESS | Repeatable CI, deployment, recovery, security and documentation controls are ready. |
-| 6 | Consolidated full verification and release decision | NOT STARTED | One controlled full test campaign and documented evidence-based go/no-go decision. |
+| Phase | Focus                                                     | Checkpoint status | Main exit direction                                                                                      |
+| ----: | --------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------- |
+|     0 | Baseline reconciliation and testability foundation        | IN PROGRESS       | Baseline, testability, safety and evidence discrepancies reconciled.                                     |
+|     1 | Tenant security and database access safety                | IN PROGRESS       | P0 tenant boundary and DB access model verified; authorized limited staging testing only.                |
+|     2 | Commercial correctness and checkout contract              | IN PROGRESS       | Seller/offer attribution, quantity, currency, payment, tax and fulfillment contracts are consistent.     |
+|     3 | Event, worker and fulfillment reliability                 | IN PROGRESS       | Outbox ownership, durable claims, carrier workflows and operational controls verified.                   |
+|     4 | Client workflow parity and truthful notifications         | IN PROGRESS       | Buyer, merchant and admin workflows are coherent across API, web and mobile; remaining UAT is evidenced. |
+|     5 | Operational hardening, CI, data hygiene and documentation | IN PROGRESS       | Repeatable CI, deployment, recovery, security and documentation controls are ready.                      |
+|     6 | Consolidated full verification and release decision       | NOT STARTED       | One controlled full test campaign and documented evidence-based go/no-go decision.                       |
 
 ## Priority sequence at this checkpoint
 
 ### 1. G-001 — P0 merchant offer authorization
 
 Implemented in source and controller tests:
+
 - Merchant mutation routes explicitly allow `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT`.
 - Create, propose, pricing update and withdrawal are covered by the explicit merchant-role gate in addition to permission and active store membership/organization checks.
 - Platform-privileged roles must use the dedicated governance surface; governance reads require `catalog:offers:govern`.
 - Regression tests cover supported merchant roles and denied buyer/finance/platform roles; governance-read permission tests cover ADMIN, MODERATOR, SYSTEM and SUPER_ADMIN.
 
 Remaining:
+
 - Fresh exact-head CI after the current Prettier correction.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence, including service-level tenant ownership and active membership.
 - Independent security review. The implementation author must not label their own work independently reviewed.
@@ -40,6 +42,7 @@ Remaining:
 ### 2. G-002 — P1 database access and RLS
 
 Continue evidence gathering and design only within authorized boundaries:
+
 - Verify the actual API and migration runtime identities, not merely a management API identity.
 - Obtain the protected read-only staging audit through the authorized `staging` environment approval.
 - Review table-specific operation and row-ownership predicates, transaction-local tenant context feasibility, and a least-privilege access model.

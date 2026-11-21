@@ -10,12 +10,14 @@
 **Status: PARTIAL — do not close yet.**
 
 Implemented:
+
 - Merchant mutation role gate for `MERCHANT_OWNER`, `MERCHANT_STAFF` and legacy `MERCHANT`.
 - Explicit denial of BUYER, FINANCE and platform roles on merchant mutation routes, even where permissions may otherwise be present.
 - Governance-read permission checks for ADMIN, MODERATOR, SYSTEM and SUPER_ADMIN.
 - Controller-level positive/negative role regression coverage.
 
 Remaining:
+
 - Correct current formatting failures and obtain a fresh exact-head CI result.
 - Complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix across controller and service boundaries.
 - Verify organization ownership, active store membership, actor attribution and unauthorized detail/analytics disclosure behavior.
@@ -29,6 +31,7 @@ The implementation author must not mark their own work independently reviewed.
 **Status: IN PROGRESS.**
 
 Remaining:
+
 - Actual API and migration runtime identity evidence from authorized staging execution.
 - Protected read-only staging audit, with authorized approval of the `staging` environment.
 - Exact per-table operation/row-ownership predicate review and transaction-local tenant-context feasibility.
