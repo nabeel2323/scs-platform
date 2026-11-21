@@ -8,15 +8,15 @@
 
 The inspected workspace contains one web service, `scs-api-staging`:
 
-| Setting | Observed value |
-| --- | --- |
-| Source branch | `develop` |
-| Auto-deploy | Disabled |
-| Configured instance count | 1 |
-| Region / plan | Frankfurt / Free |
-| Health check | `/v1/readyz` |
-| Build command | Install dependencies, then build `@scs/api` |
-| Start command | `pnpm --filter @scs/api start:prod` |
+| Setting                   | Observed value                              |
+| ------------------------- | ------------------------------------------- |
+| Source branch             | `develop`                                   |
+| Auto-deploy               | Disabled                                    |
+| Configured instance count | 1                                           |
+| Region / plan             | Frankfurt / Free                            |
+| Health check              | `/v1/readyz`                                |
+| Build command             | Install dependencies, then build `@scs/api` |
+| Start command             | `pnpm --filter @scs/api start:prod`         |
 
 The start command does not run migrations or seeds. The repository release workflow separately runs `db:migrate`, the RBAC-only `db:seed`, verifies the migration ledger, and then deploys the same commit SHA.
 
@@ -26,13 +26,13 @@ No separate Render background-worker service or Render-managed PostgreSQL instan
 
 The 2026-11-19 02:51:19 UTC startup log sample from instance `srv-daklr78ae00c73bstr50-d4zbk` contains the following registrations:
 
-| Component | Runtime behavior | Registration |
-| --- | --- | --- |
-| `OutboxDispatcher` | Polls every 1 second | Embedded in API process |
-| `ShippingCarrierWorker` | Polls every 5 seconds | Embedded in API process |
-| `AutoCompleteWorker` | Polls every 60 seconds | Embedded in API process |
-| `P13MonitorService` | Scans every 60 seconds via log-only alert channel | Embedded in API process |
-| `ReturnExpirationWorker` | Disabled; `P13_WORKER_ENABLED` is unset | No protected P13 return work |
+| Component                | Runtime behavior                                  | Registration                 |
+| ------------------------ | ------------------------------------------------- | ---------------------------- |
+| `OutboxDispatcher`       | Polls every 1 second                              | Embedded in API process      |
+| `ShippingCarrierWorker`  | Polls every 5 seconds                             | Embedded in API process      |
+| `AutoCompleteWorker`     | Polls every 60 seconds                            | Embedded in API process      |
+| `P13MonitorService`      | Scans every 60 seconds via log-only alert channel | Embedded in API process      |
+| `ReturnExpirationWorker` | Disabled; `P13_WORKER_ENABLED` is unset           | No protected P13 return work |
 
 The API module graph registers the outbox, orders, shipping, returns and operations modules. Their providers run in the same Nest application process. Repeated registrations across different Render instance IDs in the sampled logs are consistent with restarts; they do not establish simultaneous execution by multiple instances.
 
@@ -49,6 +49,7 @@ The API module graph registers the outbox, orders, shipping, returns and operati
 The P13 return worker remains off by default. Source defaults are: worker disabled, expected holder count zero while disabled, 90-second lease TTL, 30-second heartbeat (clamped to no more than half the lease TTL), 45-second startup delay and 120-second poll cadence.
 
 Before any staging/prod activation:
+
 1. Select exactly one intended P13 holder and set the expected holder count explicitly.
 2. Establish and verify the durable pause control before enabling the worker.
 3. Configure `P13_OPS_ALERT_WEBHOOK_URL` and a matching signing secret of at least 32 characters. If the URL is present but the secret is missing/too short, the code fails closed to log-only; unsigned alerts are never sent.
