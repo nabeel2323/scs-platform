@@ -310,9 +310,13 @@ Neither PR is merged. CI results are disposable-environment verification only; l
 - No GitHub Actions workflow run was returned for exact head `c61b06241025b7ed5207f8ada533be120faadbec`. Combined statuses contain only Vercel web/admin build-rate-limit failures, not application test results.
 - UX-001 through UX-003 implementation is recorded in the gap register; UX-009 route guard discrepancy corrected. These changes are not CI-verified. No merge, deploy, staging write, DB mutation, migration, grants, RLS or worker activation occurred.
 
-
 ## 22 November 2026 — formatting gate remediation
 
 - CI #1330 failed only the changed-file Prettier gate; lint and TypeScript typecheck passed, Flutter analysis/tests passed, and downstream test/build/migration jobs were skipped.
 - A temporary self-removing formatter workflow ran repository-locked Prettier 3.9.6 on the affected source and project-memory files, committed the formatted result as `635ef98cccb7f9690410b56ed9caa631e92268a4`, and removed itself. The formatter job succeeded.
 - The PR CI run triggered by the temporary workflow is attached to helper commit `c6d964ea1973e71ff292a0c30d2392ff74ec0ce1`, not the formatted commit. Exact-head CI remains required; do not mark the implementation verified yet.
+
+## 22 November 2026 — exact-head run #44961723564
+
+- Source head: `10a890a3a69f7281b93f4a8e80b735f2228825cb`. Lint/typecheck and Flutter analysis/tests passed. The only completed gate failure was Prettier on four project-memory documents. API unit/coverage, PostgreSQL integration, Web/Admin tests, migration, boundary lint, build and smoke jobs were skipped.
+- A repository-locked Prettier correction is being applied to the four documents. Exact-head CI must be rerun after formatting.

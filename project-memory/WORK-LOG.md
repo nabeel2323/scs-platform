@@ -283,10 +283,14 @@ The current-state handover metadata was reconciled to the latest documentation h
 - Corrected the Requests sidebar permission to `catalog:requests:manage`, consistent with the page and API controller. Source inventory count is 32 destinations (not the earlier rough 33 estimate).
 - UX-004 is IMPLEMENTED, not Phase 3 verified. No backend, database, staging, worker, deployment or release changes.
 
-
 ## 22 November 2026 — Prettier remediation checkpoint
 
 - CI #1330 exposed a changed-file formatting failure. Lint, typecheck and Flutter analysis/tests passed; the formatter failure prevented downstream test/build/migration jobs from running.
 - Used the repository-locked Prettier 3.9.6 in a temporary GitHub Actions formatter workflow to format the touched source and project-memory/remediation docs. Formatter run `44961632176` completed successfully; it committed `635ef98cccb7f9690410b56ed9caa631e92268a4` and removed the temporary workflow from the branch.
 - The resulting pull-request CI run `44961636474` is attached to the helper commit `c6d964ea1973e71ff292a0c30d2392ff74ec0ce1`, not the formatted head. A fresh exact-head CI run is still required.
 - No staging write, DB change, migration, grant/default-ACL change, RLS enablement, worker activation, merge or deployment occurred.
+
+## 22 November 2026 — exact-head CI and documentation formatting
+
+- CI run #44961723564 on `10a890a3a69f7281b93f4a8e80b735f2228825cb`: lint and TypeScript typecheck passed; Flutter analysis and tests passed. Prettier failed only on CURRENT-STATE.md, RELEASE-AND-CI-STATUS.md, START-HERE.md and WORK-LOG.md. All downstream application/database/build jobs were skipped.
+- Running repository-locked Prettier 3.9.6 against those four handover files, then a fresh exact-head CI run is required. Do not claim full verification from this run.
