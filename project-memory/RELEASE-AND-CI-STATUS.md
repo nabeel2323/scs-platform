@@ -202,3 +202,14 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 - Formatter workflow run [#2](https://github.com/nabeel2323/scs-platform/actions/runs/44922086383) succeeded and pushed formatted documentation at `cba6fb76ede53efefc2683c3372df1fdb7e6e1a4`; the temporary workflow removed itself.
 - CI #1273 for the formatter-bot commit returned `action_required` with zero jobs. This is neither a pass nor a test result. Exact-head API/PostgreSQL verification of the INACTIVE-store regression remains outstanding.
 - PR #138 remains open/draft/unmerged. No staging release, protected environment approval, shared database mutation, migration 0070, grants/default ACL, RLS, deployment or worker activation occurred.
+
+
+## CI #1275 — formatting gate failure — 21 November 2026
+
+- **Exact tested commit:** `d67875507a07a75f2945b44beb7bfbec387f169e`.
+- **Run:** [GitHub Actions CI #1275](https://github.com/nabeel2323/scs-platform/actions/runs/44922283263).
+- **Passed:** lint, TypeScript typecheck, Flutter analysis and Flutter tests.
+- **Failed:** changed-file Prettier on five Markdown files: implementation progress, current state, open issues, release/CI status and work log.
+- **Skipped:** API unit/coverage, PostgreSQL integration, Web/Admin, boundary lint, migration, contract/codegen, container, build and k6. Dependent jobs did not execute.
+- **Interpretation:** the INACTIVE-store PostgreSQL test has not been executed by CI. This is a documentation-formatting gate failure, not a functional test result.
+- **Next:** run repository-locked Prettier on the changed handover documents and obtain a normal exact-head CI run.
