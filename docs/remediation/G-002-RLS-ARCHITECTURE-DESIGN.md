@@ -39,7 +39,7 @@ This document records a proposed target architecture and current evidence. It do
 
 PR #142 adds a non-secret identity query through the API's own pool. It reports login/effective role names, database name, elevated role flags and TLS state. Diagnostic failure is non-fatal and uses a fixed warning without printing connection details.
 
-The PR #142 unit tests cover success, missing metadata and diagnostic failure. The PostgreSQL integration test added on 22 November exercises the query against a disposable PostgreSQL instance using distinct login and effective roles. Its CI result must be recorded separately from live staging evidence.
+The PR #142 unit tests cover success, missing metadata and diagnostic failure. The PostgreSQL integration test added on 22 November exercises the query against a disposable PostgreSQL instance using distinct login and effective roles. The first exact-head CI run for this integration test is still in progress at this checkpoint; record its final result separately from live staging evidence.
 
 The migration runner on PR #138 queries identity through the exact client that applies migrations. Its unit test covers metadata, no-row and query-failure behavior.
 

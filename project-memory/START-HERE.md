@@ -2,7 +2,7 @@
 
 > **Mandatory entry point for every new ChatGPT conversation about this repository.**
 >
-> Last reconciled: 21 November 2026  
+> Last reconciled: 22 November 2026  
 > Repository: [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 > Current work branch: `remediation/phase-0-1-tenant-security`
 
@@ -27,6 +27,7 @@ Then read the relevant authoritative technical documents linked below. Do not du
 
 - [Audit-driven remediation implementation plan](../docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phases, findings, acceptance criteria and release gates.
 - [Audit-driven implementation progress tracker](../docs/remediation/IMPLEMENTATION-PROGRESS.md) — authoritative finding register, current progress and evidence log.
+- [G-002 RLS architecture design](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) — read-only target database role model, transaction-bound tenant context, ownership classification and rollout gates.
 - [Remediation documentation directory](../docs/remediation/) — detailed audits, database access evidence and finding-specific records.
 - [Repository README](../README.md) — architecture, development setup and documentation index.
 - [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) — active draft remediation PR.

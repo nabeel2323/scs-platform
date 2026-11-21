@@ -196,3 +196,13 @@ A temporary repository-locked Prettier workflow was added to format the synchron
 ## 21 November 2026 — current-state checkpoint formatting
 
 The current-state handover metadata was reconciled to the latest documentation head and CI #1280 source evidence. A temporary repository-locked Prettier workflow is formatting this checkpoint and will remove itself after the formatting commit.
+
+
+## 22 November 2026 — G-002 architecture review and PR #142 PostgreSQL identity test
+
+- Rechecked PR #138 and PR #142. Both remain open, draft and unmerged; PR #138 head before this documentation reconciliation was `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`; PR #142 source head was `dddff20c170737dc4694008bb807b2b90e177f77`.
+- PR #138 CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs. The migration full-apply job ran the read-only audit under a separate `scs_audit` login with no elevated role flags and only database CONNECT. The report confirmed the utility can inspect the disposable PostgreSQL 16 catalog without application table privileges. The migration identity `scs` was a disposable CI superuser and is not staging evidence.
+- PR #142 CI [#44948310469](https://github.com/nabeel2323/scs-platform/actions/runs/44948310469) passed all 10 executable jobs on its prior source SHA. Added a real-PostgreSQL integration test on `dddff20c170737dc4694008bb807b2b90e177f77` to validate distinct session/effective roles using a non-owner, non-superuser, non-BYPASSRLS login. Exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) is in progress; do not mark the new integration test verified until its result is confirmed.
+- Added [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md), documenting the role model, transaction-local context requirement, initial ownership classification, isolated PostgreSQL acceptance criteria and staged rollout gates.
+- Source review found a global process-wide Drizzle pool and service-layer tenant checks; the inspected request middleware does not provide a universal request-scoped transaction context. RLS must remain disabled until transaction-bound context and all request/worker query paths are covered.
+- No staging deployment, shared database write, migration 0070, grant/default-ACL mutation, RLS enablement, environment change or worker activation occurred.

@@ -242,3 +242,22 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 | Protected staging release                                | SKIPPED |
 
 The PostgreSQL integration command ran against disposable CI services. This is not a staging runtime test or approval to deploy. The INACTIVE-store regression is part of the integration suite executed by this job. No shared database changes were made.
+
+
+## Exact-head security verification — 22 November 2026
+
+### PR #138 — G-001/G-002 remediation
+
+- [CI #44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs on source SHA `05e7a0ea602913c445e6766a1046fc3b8068be7b`.
+- API unit/coverage, PostgreSQL integration, migration full apply, read-only database-access audit under a separate `scs_audit` login, Web/Admin, Flutter, E6 boundary lint, container build/smoke, build, contract/codegen and formatting passed.
+- k6 and protected staging release were skipped.
+- The CI migration runner logged its disposable fixture identity as `scs` with elevated flags. The audit utility ran separately as `scs_audit` with superuser/BYPASSRLS/CREATEROLE/CREATEDB all false and only CONNECT granted. Neither identity represents staging.
+
+### PR #142 — API runtime identity diagnostics
+
+- [CI #44948310469](https://github.com/nabeel2323/scs-platform/actions/runs/44948310469) passed all 10 executable jobs on source SHA `6567eb3b94de62514b5e8c5b9512cef995a8dd7f`.
+- A follow-up PostgreSQL integration test was committed on `dddff20c170737dc4694008bb807b2b90e177f77` to validate the exact identity SQL with distinct login/effective roles and a non-owner, non-superuser, non-BYPASSRLS login.
+- Exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) is in progress at this checkpoint. Its lint/typecheck/format, Flutter, Web/Admin, boundary lint and migration full-apply jobs have passed; API unit/coverage and PostgreSQL integration are still running.
+- k6 and protected staging release were skipped on the preceding successful run. No staging deploy was performed.
+
+Neither PR is merged. CI results are disposable-environment verification only; live staging API/migration identities remain unverified.

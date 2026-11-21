@@ -1,9 +1,9 @@
 # SCS Platform — Current State
 
-**Checkpoint date:** 21 November 2026  
+**Checkpoint date:** 22 November 2026  
 **Repository:** [nabeel2323/scs-platform](https://github.com/nabeel2323/scs-platform)  
 **Branch:** remediation/phase-0-1-tenant-security  
-**Live inspected branch head:** `5572a86bc7d74a415b7e1879930001f54c2c2cc2`
+**Last inspected branch head before this handover update:** `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`
 **Current PR:** [#138 — Remediation Phase 0–1](https://github.com/nabeel2323/scs-platform/pull/138), open and draft.
 
 > This is a dated checkpoint. At the beginning of every new session, re-fetch the live branch head, PR, commits and CI. This checkpoint-documentation update itself advances the branch; resolve its exact SHA from GitHub rather than assuming the SHA above is still HEAD.
@@ -18,13 +18,13 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 | -------------------- | ----------------------------------------------------------------------- |
 | Repository           | nabeel2323/scs-platform                                                 |
 | Branch               | remediation/phase-0-1-tenant-security                                   |
-| Live branch head     | `ffd3961c32164c2af00090b32dbafb06b997a581`                              |
-| Latest commit        | `style(docs): format G-001 verification handover`                       |
+| Live branch head     | `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`                              |
+| Latest commit        | `docs(security): add G-002 database access architecture design`         |
 | PR #138              | Open; draft; not merged                                                 |
 | PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                 |
-| Latest exact-head CI | #1280 — success on source SHA `ffd3961c...`                             |
-| CI #1268 tested SHA  | `b73f72e34406c1260f214610539139d0d096b2de`                              |
-| CI #1280 status      | All 10 executable jobs passed; k6 and protected staging release skipped |
+| Latest exact-head CI | #44948332893 — success on `05e7a0ea...`                                 |
+| PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
+| PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped           |
 
 ## Current remediation status
 
@@ -38,13 +38,14 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 The complete finding register, phase dashboard and technical evidence live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). The detailed acceptance criteria and release gates live in [IMPLEMENTATION-PLAN.md](../docs/remediation/IMPLEMENTATION-PLAN.md).
 
-## Formatter and verification evidence
+## Latest CI and security verification evidence — 22 November 2026
 
-- CI #1184 is historical and tested fe675e76a8cace78ac2513da08118dd9c7527428, not the current branch head. The latest branch commit `a6c4b924f1899717c745d41fc6a8a1b4b7dc02c9` has no associated GitHub Actions workflow run returned by the commit-workflow lookup and no combined status contexts. Vercel web/admin rate-limit failures were reported on the earlier head; they are external preview-provider failures, not application CI results. Exact-head CI remains pending.
-- Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit f1cb7c7467c0fee6c829eec5fe557e3734c9c275 removed the temporary formatter and the resulting tree was checked for its absence.
-- Later helper-workflow checkpoint commits were cleaned up; the final branch tree contains no temporary formatter workflow.
-- CI #1187–#1190 and #1207 were cancelled during successive helper/checkpoint commits. CI #1210 is pending on pre-refresh head fb805dd with no jobs started yet. The latest completed CI remains #1184, which predates the G-001 changes; the current-state refresh will require a new exact-head run.
-- G-001 implementation commits: dd52aaf (scope-first service), bca32b0 (controller), 39a0437 (controller tests), a1602bc (service tests), 512dc0e (initial ACTIVE-store filter), 6ff59aa (buyer visibility tests), e039715 (correlated SQL EXISTS refinement) and 5cdeb09 (query-shape tests). Focused API tests and exact-head CI remain pending.
+- PR #138 CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs on branch source SHA `05e7a0ea602913c445e6766a1046fc3b8068be7b`. This includes API unit/coverage, PostgreSQL integration, migration full apply and read-only database-access audit, Web/Admin, Flutter, E6 boundary lint, container smoke, build, contract/codegen and formatting. k6 and protected staging release were skipped.
+- The migration job created a separate `scs_audit` login with no superuser, BYPASSRLS, role-creation or database-creation flags and only database CONNECT, then ran the audit utility. It successfully inspected the disposable PostgreSQL 16 catalog with no application table privileges. This is CI-fixture evidence, not live staging evidence.
+- PR #142 CI [#44948310469](https://github.com/nabeel2323/scs-platform/actions/runs/44948310469) passed all 10 executable jobs on source SHA `6567eb3b94de62514b5e8c5b9512cef995a8dd7f`. The API identity logger unit cases, API unit/coverage, PostgreSQL integration, migration full apply, Web/Admin, Flutter, boundary lint, container smoke, build, contract/codegen and formatting passed. k6 and protected staging release were skipped.
+- A further real-PostgreSQL test was added to PR #142 to exercise distinct login/effective roles through the API identity SQL using a non-owner, non-superuser, non-BYPASSRLS account. Its exact-head run [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) is still in progress at this checkpoint on `dddff20c170737dc4694008bb807b2b90e177f77`.
+- PR #138 now includes [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md). It records why RLS activation is premature until a transaction-bound tenant context and complete operation/ownership matrix exist.
+- PR #138 remains open and draft. PR #142 remains open and draft. Neither is merged or deployed.
 
 ## Historical CI #1176 failure
 
@@ -52,10 +53,11 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 ## Immediate next actions
 
-1. G-001 implementation and automated acceptance tests are CI-verified on source SHA `ffd3961c32164c2af00090b32dbafb06b997a581`, including the INACTIVE-store buyer visibility integration case.
-2. Obtain an independent security review using `docs/remediation/G-001-INDEPENDENT-SECURITY-REVIEW-PACKET.md`; record reviewer identity, scope, findings and disposition. Keep G-001 PARTIAL until this gate is complete.
-3. Continue G-002 read-only evidence/design work. Actual staging API/migration runtime identities and protected staging audit remain gated behind the separate approved release path.
-4. Keep PR #138 draft; do not merge, deploy or mutate shared database state.
+1. Complete and record PR #142's real-PostgreSQL login/effective-role integration test on its exact head.
+2. Expand the G-002 table inventory into a complete operation/ownership matrix, including HTTP, worker, webhook, audit and bootstrap paths.
+3. Design and test a transaction-bound Drizzle context before writing or enabling any RLS policies. Use transaction-local context only; never set tenant identity at pooled-session scope.
+4. Obtain independent G-001 security review and record findings/disposition. Keep G-001 PARTIAL until this is complete.
+5. Keep PR #138 and PR #142 draft. Do not merge, deploy, alter shared grants/default ACLs, apply migration 0070 or enable RLS without the required independent review and explicit authorization.
 
 ## Safety reminder
 
@@ -178,3 +180,8 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 - G-001 remains PARTIAL only pending independent security review and disposition of reviewer findings. The review packet is prepared but is not itself an independent review.
 - G-002 remains IN PROGRESS. Actual staging API/migration runtime identities and the protected read-only staging audit remain unverified. The connected Supabase Management API `postgres` identity is not a substitute.
 - No staging deployment/write, shared database mutation, migration 0070, grants/default ACL change, RLS enablement, environment change or worker activation was performed.
+
+## G-002 architecture checkpoint — 22 November 2026
+
+The read-only design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) records the current architecture blocker: the API uses a global process-wide Drizzle pool, and the inspected request middleware does not bind all service queries to a transaction carrying verified tenant context. A pooled session-level tenant variable would risk cross-request context leakage. RLS remains disabled until transaction-bound context, complete per-table operation mapping, non-owner role tests, independent review and staging approval are complete.
+
