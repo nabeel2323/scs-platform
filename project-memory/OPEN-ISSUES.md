@@ -158,7 +158,6 @@ The PostgreSQL lifecycle suite now includes an explicit `INACTIVE` store scenari
 2. G-002 actual API/migration runtime identity evidence through the authorized release process; protected read-only staging audit; reviewed per-table least-privilege/RLS design.
 3. Continue the remaining finding register in priority order. Keep PR #138 draft and do not make shared database or staging changes.
 
-
 ## G-002 architecture and CI evidence update — 22 November 2026
 
 PR #138 CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed the migration full-apply and read-only database-access audit jobs. The CI workflow created a distinct `scs_audit` login with no elevated role flags and only database CONNECT, then ran the audit utility successfully against disposable PostgreSQL 16. The migration runner reported the disposable fixture identity as `scs` with superuser/BYPASSRLS privileges; this is not the live staging migration identity.

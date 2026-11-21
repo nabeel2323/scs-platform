@@ -14,17 +14,17 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item                 | Last inspected value                                                    |
-| -------------------- | ----------------------------------------------------------------------- |
-| Repository           | nabeel2323/scs-platform                                                 |
-| Branch               | remediation/phase-0-1-tenant-security                                   |
-| Live branch head     | `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`                              |
-| Latest commit        | `docs(security): add G-002 database access architecture design`         |
-| PR #138              | Open; draft; not merged                                                 |
-| PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                 |
-| Latest exact-head CI | #44948332893 — success on `05e7a0ea...`                                 |
+| Item                 | Last inspected value                                                     |
+| -------------------- | ------------------------------------------------------------------------ |
+| Repository           | nabeel2323/scs-platform                                                  |
+| Branch               | remediation/phase-0-1-tenant-security                                    |
+| Live branch head     | `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`                               |
+| Latest commit        | `docs(security): add G-002 database access architecture design`          |
+| PR #138              | Open; draft; not merged                                                  |
+| PR base              | `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`                  |
+| Latest exact-head CI | #44948332893 — success on `05e7a0ea...`                                  |
 | PR #142 CI           | #44948310469 — success on `6567eb3b...`; new PostgreSQL SQL test pending |
-| PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped           |
+| PR #138 CI           | All 10 executable jobs passed; k6 and staging release skipped            |
 
 ## Current remediation status
 
@@ -184,4 +184,3 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and comple
 ## G-002 architecture checkpoint — 22 November 2026
 
 The read-only design note [G-002-RLS-ARCHITECTURE-DESIGN.md](../docs/remediation/G-002-RLS-ARCHITECTURE-DESIGN.md) records the current architecture blocker: the API uses a global process-wide Drizzle pool, and the inspected request middleware does not bind all service queries to a transaction carrying verified tenant context. A pooled session-level tenant variable would risk cross-request context leakage. RLS remains disabled until transaction-bound context, complete per-table operation mapping, non-owner role tests, independent review and staging approval are complete.
-

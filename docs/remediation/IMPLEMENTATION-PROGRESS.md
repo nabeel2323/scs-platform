@@ -1266,7 +1266,6 @@ Exact-head [CI #1280](https://github.com/nabeel2323/scs-platform/actions/runs/44
 
 G-001 remains PARTIAL solely pending an independent security review and disposition of any reviewer findings. G-002 remains IN PROGRESS. No shared database, staging, deployment, migration 0070, grants/default ACL, RLS or worker changes were performed.
 
-
 ## G-002 database identity and RLS architecture checkpoint — 22 November 2026
 
 PR #138 exact-head CI [#44948332893](https://github.com/nabeel2323/scs-platform/actions/runs/44948332893) passed all 10 executable jobs, including migration full apply and the read-only database-access audit. The migration CI job created a separate `scs_audit` login with `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE` and `NOINHERIT`, granted only database CONNECT, and ran the audit utility successfully against disposable PostgreSQL 16. The audit role could inspect catalog metadata without application table privileges. The migration runner's `scs` identity in this run was a disposable CI superuser; it is not the live staging migration identity.

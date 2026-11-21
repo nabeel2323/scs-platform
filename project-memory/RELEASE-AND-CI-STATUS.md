@@ -243,7 +243,6 @@ CI #1259: lint/typecheck, formatting, mobile, Web/Admin, boundary lint and migra
 
 The PostgreSQL integration command ran against disposable CI services. This is not a staging runtime test or approval to deploy. The INACTIVE-store regression is part of the integration suite executed by this job. No shared database changes were made.
 
-
 ## Exact-head security verification — 22 November 2026
 
 ### PR #138 — G-001/G-002 remediation

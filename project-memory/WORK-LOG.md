@@ -197,7 +197,6 @@ A temporary repository-locked Prettier workflow was added to format the synchron
 
 The current-state handover metadata was reconciled to the latest documentation head and CI #1280 source evidence. A temporary repository-locked Prettier workflow is formatting this checkpoint and will remove itself after the formatting commit.
 
-
 ## 22 November 2026 — G-002 architecture review and PR #142 PostgreSQL identity test
 
 - Rechecked PR #138 and PR #142. Both remain open, draft and unmerged; PR #138 head before this documentation reconciliation was `0fcb7867b7ce8a6085f28ffbcdee5f79a1aa5233`; PR #142 source head was `dddff20c170737dc4694008bb807b2b90e177f77`.
