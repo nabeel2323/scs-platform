@@ -202,7 +202,7 @@ describe('CatalogOfferController — merchant mutation role authorization (G-001
     },
   );
 
-  it.each(['BUYER', 'ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
+  it.each(['BUYER', 'FINANCE', 'ADMIN', 'MODERATOR', 'SYSTEM', 'SUPER_ADMIN'])(
     'denies %s from merchant mutations even when merchant permissions are present',
     async (role) => {
       const caller = {
