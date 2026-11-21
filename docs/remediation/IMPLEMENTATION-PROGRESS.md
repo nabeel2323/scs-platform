@@ -6,7 +6,7 @@
 **Baseline audit:** [Comprehensive B2B Platform Readiness Audit](../audits/b2b-platform-readiness/SCS-B2B-PLATFORM-COMPREHENSIVE-READINESS-AUDIT.html)
 **Repository:** `nabeel2323/scs-platform`
 **Baseline branch/commit:** `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`
-**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. Latest code/test head is `dc2436ef6e2fadd1a982e44f935fcc5f56bc6d0b`; the current documentation/branch head is being reconciled after grouped formatting. CI #1136 on pre-format head `e8afb2d8713217e9b4f77de3f2b534046fa6202e` passed lint, typecheck and Flutter analysis/tests but failed Prettier on the implementation plan and progress tracker; downstream API, PostgreSQL, migration, web/admin, boundary and build jobs were skipped. The repository-locked formatter subsequently passed write/check on both documents and removed its temporary workflow. Exact-head full CI is pending. G-001 remains PARTIAL pending independent security review and complete role/tenant acceptance evidence. G-002 remains BLOCKED pending live runtime identity proof and approved least-privilege/RLS design. No shared database mutation, staging write, environment change, worker activation or deployment was performed.
+**Tracker status:** ACTIVE — Phases 0–5 remain in progress; Phase 6 is not started. Latest exact source/test head is `ade4cd70141d31d465981d77b894a03061e1f33c`; CI #1148 passed all 10 executable jobs on this exact head. k6 smoke and staging release were skipped, so no performance or staging-runtime verification is claimed. G-001 remains PARTIAL pending independent security review and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains BLOCKED pending the protected staging audit, actual API/migration runtime identity evidence, and reviewed least-privilege/RLS design. No shared database mutation, staging write, environment change, worker activation or deployment was performed.
 
 ---
 
@@ -36,7 +36,7 @@
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> CI #1126 passed all 10 executable jobs on earlier code head `ad0c50f2c6e8b93633be31c11bb1fb19243553bc`; it does not verify the later G-001 tests. CI #1136 passed lint, typecheck and Flutter analysis/tests but failed the Prettier gate on the two remediation tracking documents. The repository-locked formatter subsequently passed `--write` and `--check` for both documents. A new full CI run on the post-format exact head is required. G-001 remains PARTIAL pending independent review and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains BLOCKED pending verified API/migration runtime identities and an approved least-privilege/RLS design. No shared database mutation, live staging write, environment change, worker activation or deployment was performed.
+<badge color="success">IN PROGRESS</badge> CI #1148 passed all 10 executable jobs on exact source/test head `ade4cd70141d31d465981d77b894a03061e1f33c`: lint/typecheck/format, Flutter analysis/tests, Web/Admin tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, isolated full migration apply/read-only audit, contract/codegen, build and container smoke. k6 smoke and staging release were skipped. This is CI evidence only, not staging or production verification. G-001 remains PARTIAL pending independent security review and the complete owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains BLOCKED pending protected staging audit, actual API/migration runtime identities and reviewed least-privilege/RLS design. No shared database mutation, live staging write, environment change, worker activation or deployment was performed.
 ---
 
 ## 2. Phase dashboard
@@ -1040,3 +1040,11 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - This is the first successful exact-head CI run after the G-001 offer-detail authorization tests and the remediation-document formatting corrections. The successful run verifies the source and tests at this exact head; it does not establish independent security approval or staging runtime behavior.
 - G-001 remains **PARTIAL** pending independent security review and a documented owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix. G-002 remains **BLOCKED** pending the protected staging audit, actual API and migration runtime identity evidence, and reviewed least-privilege/RLS design.
 - PR #138 remains open and draft. No staging deployment, k6 run, live OTP exercise, shared-database mutation, migration, grant/default-ACL change, RLS enablement, environment change or worker activation was performed.
+
+
+### Exact-head CI #1148 — 21 November 2026
+
+- PR #138 head `ade4cd70141d31d465981d77b894a03061e1f33c` completed [CI #1148](https://github.com/nabeel2323/scs-platform/actions/runs/44838126165) successfully. All 10 executable jobs passed, including lint/typecheck/changed-file formatting, Flutter analysis/tests, Web/Admin tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, isolated full migration apply/read-only DB audit, contract/codegen, build and container smoke.
+- k6 Smoke Test and Trigger Staging Release were skipped. No performance, staging runtime, live OTP or business UAT evidence is claimed.
+- G-001 remains PARTIAL pending independent security review and complete owner/staff/buyer/foreign-merchant/platform-admin acceptance evidence. G-002 remains BLOCKED pending protected staging identity audit, actual API/migration runtime identities and reviewed least-privilege/RLS design.
+- PR #138 remains open and draft. No shared database mutation, migration, grant/default-ACL change, RLS enablement, Render configuration change, worker activation, staging write or deployment was performed.
