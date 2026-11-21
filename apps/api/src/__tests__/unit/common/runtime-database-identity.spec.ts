@@ -53,7 +53,7 @@ describe('logRuntimeDatabaseIdentity', () => {
 
     expect(logger.log).not.toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalledOnce();
-    expect(logger.warn.mock.calls[0][0]).toBe(
+    expect(logger.warn).toHaveBeenCalledWith(
       'Runtime database identity diagnostics failed; identity remains unverified.',
     );
   });
