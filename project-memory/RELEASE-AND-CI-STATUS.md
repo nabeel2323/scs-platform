@@ -3,7 +3,7 @@
 **Checkpoint:** 21 November 2026  
 **PR:** [#138](https://github.com/nabeel2323/scs-platform/pull/138) — open, draft, not merged.  
 **Branch:** `remediation/phase-0-1-tenant-security`  
-**Last inspected pre-release-status-update SHA:** `8d947b6282793c4f7b13eed4cb4f2b1a659683d3`
+**Last inspected pre-release-status-update SHA:** `d0e9988e83008d68f1b3845ec87ec9f452494687`
 
 ## Latest CI run
 
@@ -34,7 +34,7 @@
 
 - Formatter run #15 completed successfully and corrected the handover Markdown. Cleanup commit [f1cb7c7](https://github.com/nabeel2323/scs-platform/commit/f1cb7c7467c0fee6c829eec5fe557e3734c9c275) removed the temporary helper; the resulting tree was checked and the helper was absent.
 - CI #1187–#1189 were cancelled during successive helper/checkpoint commits. CI #1190 was queued on an intermediate helper commit; it does not verify the current source/test implementation.
-- The current source/test implementation is committed as service dd52aaf, controller bca32b0, controller tests 39a0437 and service tests a1602bc. Documentation checkpoint commits followed. A new exact-head CI result is required; no API/integration/build result has yet verified this implementation.
+- The current G-001 source/test implementation is committed as service dd52aaf, controller bca32b0, controller tests 39a0437, service tests a1602bc, ACTIVE-store buyer filtering 512dc0e and buyer visibility tests 6ff59aa. Documentation checkpoint commits followed through d0e9988. A new exact-head CI result is required; no API/integration/build result has yet verified these changes.
 - Vercel web/admin previews continue to report the external daily build quota gate. This is not an application test result.
 
 ## Earlier evidence — context only
