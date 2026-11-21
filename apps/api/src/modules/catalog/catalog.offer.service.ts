@@ -85,6 +85,13 @@ export class CatalogOfferService {
     private readonly audit: AuditService,
   ) {}
 
+  /** Defense in depth: merchant service entry points must not trust controller-only role checks. */
+  private assertMerchantCaller(caller: CallerContext): void {
+    if (!['MERCHANT', 'MERCHANT_OWNER', 'MERCHANT_STAFF'].includes(caller.role ?? '')) {
+      throw new ForbiddenException('Merchant role required');
+    }
+  }
+
   private async getOrThrow(id: string) {
     const offer = await this.db.db.query.merchantOffers.findFirst({
       where: eq(merchantOffers.id, id),
@@ -103,6 +110,7 @@ export class CatalogOfferService {
   }
 
   async createOffer(input: CreateOfferInput, caller: CallerContext) {
+    this.assertMerchantCaller(caller);
     if (!input.storeId?.trim()) throw new BadRequestException('Offer requires a store');
     if (!input.productId?.trim()) throw new BadRequestException('Offer requires a product');
     const status = input.status ?? 'DRAFT';
@@ -197,6 +205,7 @@ export class CatalogOfferService {
    * so callers cannot enumerate another tenant's offers.
    */
   async getOfferForMerchant(id: string, caller: CallerContext) {
+    this.assertMerchantCaller(caller);
     const scope = await this.db.db.query.merchantOffers.findFirst({
       where: eq(merchantOffers.id, id),
       columns: { storeId: true },
