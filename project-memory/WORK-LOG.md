@@ -192,3 +192,7 @@ CI #1266 on `52336f751dc2558b10834940034833b4573c5ca4` passed Flutter and lint/t
 ## 21 November 2026 — documentation formatting workflow
 
 A temporary repository-locked Prettier workflow was added to format the synchronized G-001 CI verification handover. The workflow is self-removing and will not remain in the branch after formatting.
+
+## 21 November 2026 — current-state checkpoint formatting
+
+The current-state handover metadata was reconciled to the latest documentation head and CI #1280 source evidence. A temporary repository-locked Prettier workflow is formatting this checkpoint and will remove itself after the formatting commit.
