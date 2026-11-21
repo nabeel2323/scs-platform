@@ -131,3 +131,17 @@ Added a disposable-PostgreSQL integration case proving an `INACTIVE` merchant st
 1. Complete independent G-001 review and disposition any findings; do not self-certify independence.
 2. Continue G-002 read-only identity/access design. The next runtime evidence depends on the separately reviewed and approved runtime-identity diagnostic change and controlled release; do not deploy or trigger it from this remediation branch.
 3. Preserve the staging/database restrictions and defer Phase 6 until all phase entry criteria are met.
+
+
+## User-approved Implementation Completion Program — 22 November 2026
+
+The project now follows an implementation-first sequence. See the [Implementation Completion Gap Register](./IMPLEMENTATION-GAP-REGISTER.md) for the evidence-backed initial gap list, status definitions and row-level acceptance requirements.
+
+1. **Baseline and gap mapping:** inspect the actual source, modules, routes, screens, schemas, permissions, workflows, docs and audit evidence; record every confirmed gap without assuming historical findings remain unfixed.
+2. **Implementation completion:** complete missing backend, database, security/tenant, web, admin, mobile, POS/merchant, operational and documentation behavior. Batch related changes into cohesive commits.
+3. **Integration completion:** close API-contract-database-client-worker and cross-module wiring gaps.
+4. **Comprehensive testing:** defer the broad coordinated unit/API/PostgreSQL/migration/security/tenant/concurrency/web-admin-mobile E2E/performance campaign until implementation and integration are ready.
+5. **Stabilization:** fix issues revealed by the campaign and rerun the required affected/full suites.
+6. **Release readiness:** independent review, authorized staging acceptance, migration/rollback/recovery, business sign-off and explicit go/no-go.
+
+Lightweight developer checks continue during implementation; full regression is not run repeatedly after every small change. A concrete security or correctness defect found during implementation is fixed immediately, not deferred. The programme changes sequencing only: all existing G-001/G-002, protected staging, shared database, no-merge/no-deploy and release gates remain binding. Do not mark an item VERIFIED merely because it is IMPLEMENTED.
