@@ -10,7 +10,12 @@ const merchant = {
 } as JwtPayload;
 
 function makeController(
-  opts: { orgId?: string | null; storeStatus?: string; member?: boolean; offerAccessDenied?: boolean } = {},
+  opts: {
+    orgId?: string | null;
+    storeStatus?: string;
+    member?: boolean;
+    offerAccessDenied?: boolean;
+  } = {},
 ) {
   const offerService = {
     listOffersForProduct: vi.fn().mockResolvedValue([{ id: 'active-offer' }]),
