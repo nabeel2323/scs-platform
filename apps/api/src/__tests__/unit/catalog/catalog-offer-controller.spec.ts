@@ -9,7 +9,9 @@ const merchant = {
   activeOrg: 'org-1',
 } as JwtPayload;
 
-function makeController(opts: { orgId?: string | null; member?: boolean; offerAccessDenied?: boolean } = {}) {
+function makeController(
+  opts: { orgId?: string | null; storeStatus?: string; member?: boolean; offerAccessDenied?: boolean } = {},
+) {
   const offerService = {
     listOffersForProduct: vi.fn().mockResolvedValue([{ id: 'active-offer' }]),
     listOffersForStore: vi.fn().mockResolvedValue([{ id: 'offer-1' }]),
@@ -37,9 +39,9 @@ function makeController(opts: { orgId?: string | null; member?: boolean; offerAc
             .fn()
             .mockResolvedValue(
               opts.orgId === undefined
-                ? { orgId: 'org-1' }
+                ? { orgId: 'org-1', status: opts.storeStatus ?? 'ACTIVE' }
                 : opts.orgId
-                  ? { orgId: opts.orgId }
+                  ? { orgId: opts.orgId, status: opts.storeStatus ?? 'ACTIVE' }
                   : null,
             ),
         },
@@ -124,6 +126,14 @@ describe('CatalogOfferController — merchant role acceptance (G-001)', () => {
 describe('CatalogOfferController — merchant offer tenant authorization (G-001)', () => {
   it('allows an active store member to list only the requested store offers', async () => {
     const { controller, offerService } = makeController();
+    await expect(controller.listMerchantOffers(merchant, 'store-1')).resolves.toEqual([
+      { id: 'offer-1' },
+    ]);
+    expect(offerService.listOffersForStore).toHaveBeenCalledWith('store-1');
+  });
+
+  it('preserves merchant management access to a DRAFT store before buyer activation', async () => {
+    const { controller, offerService } = makeController({ storeStatus: 'DRAFT' });
     await expect(controller.listMerchantOffers(merchant, 'store-1')).resolves.toEqual([
       { id: 'offer-1' },
     ]);
