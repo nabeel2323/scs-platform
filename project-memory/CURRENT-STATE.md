@@ -4,7 +4,7 @@
 **Repository:** `nabeel2323/scs-platform`  
 **Branch:** `remediation/phase-0-1-tenant-security`  
 **Checkpoint source:** GitHub PR #138, branch ref and Actions run #1176  
-**Checkpoint commit:** `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`
+**Last inspected formatted-tree commit:** `2776f97e902f7569afdc08ba75db8109238e9fcf` (the current checkpoint reconciliation commit will advance the branch; always resolve live HEAD from GitHub)
 
 > This is a dated snapshot. At the beginning of every new session, re-fetch GitHub state and update this file if anything has changed.
 
@@ -39,7 +39,16 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 The complete 35-finding register and detailed phase progress live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). Do not reproduce or independently recalculate its finding totals here.
 
-## Latest CI #1176 evidence
+## Latest formatter and CI checkpoint
+
+- One-time formatter run [#14](https://github.com/nabeel2323/scs-platform/actions/runs/44858112060) completed successfully on formatter input commit `ea77cbb3ff68ba01c94c5fb7ff7bfb7920a8cef9`.
+- It formatted the project-memory Markdown, README, remediation plan/progress tracker and G-001 controller test, then removed `.github/workflows/format-fix.yml`.
+- Formatter cleanup commit: [2776f97](https://github.com/nabeel2323/scs-platform/commit/2776f97e902f7569afdc08ba75db8109238e9fcf). The helper workflow is absent from the resulting tree.
+- CI [#1179](https://github.com/nabeel2323/scs-platform/actions/runs/44858153550) on the cleanup commit is action_required with no jobs; it is not a test result or a request for user approval.
+- CI [#1178](https://github.com/nabeel2323/scs-platform/actions/runs/44858116585) is associated with the pre-format input commit and is not exact-head evidence for the formatted tree.
+- A new app-authored documentation reconciliation commit is being created to trigger full CI on the formatted branch state. Inspect that new run and its exact SHA before claiming verification.
+
+## Earlier CI #1176 evidence
 
 Run: [GitHub Actions #1176](https://github.com/nabeel2323/scs-platform/actions/runs/44856823290)  
 Exact tested head: `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`  
