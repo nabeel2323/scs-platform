@@ -14,27 +14,27 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item                                 | Last inspected value                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------- |
-| Repository                           | nabeel2323/scs-platform                                                      |
-| Branch                               | remediation/phase-0-1-tenant-security                                        |
-| Last inspected PR head               | fb805ddbb48aab4575503900c557ecb371d0cb32                                     |
-| Last inspected commit                | docs(ci): record G-001 correlated query verification state                          |
-| PR #138                              | Open; draft; not merged                                                      |
-| PR base                              | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                          |
-| Latest completed CI at checkpoint    | #1184 (historical; predates current source/test head) |
-| CI #1184 tested SHA                  | fe675e76a8cace78ac2513da08118dd9c7527428                                     |
-| CI #1184 status                      | Failed at changed-file Prettier gate; not a full verification                |
+| Item                              | Last inspected value                                          |
+| --------------------------------- | ------------------------------------------------------------- |
+| Repository                        | nabeel2323/scs-platform                                       |
+| Branch                            | remediation/phase-0-1-tenant-security                         |
+| Last inspected PR head            | fb805ddbb48aab4575503900c557ecb371d0cb32                      |
+| Last inspected commit             | docs(ci): record G-001 correlated query verification state    |
+| PR #138                           | Open; draft; not merged                                       |
+| PR base                           | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775           |
+| Latest completed CI at checkpoint | #1184 (historical; predates current source/test head)         |
+| CI #1184 tested SHA               | fe675e76a8cace78ac2513da08118dd9c7527428                      |
+| CI #1184 status                   | Failed at changed-file Prettier gate; not a full verification |
 
 ## Current remediation status
 
-| Area                                 | Status                   | Meaning                                                                                                                                                                            |
-| ------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Area                                 | Status                   | Meaning                                                                                                                                                                                                             |
+| ------------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | G-001 — merchant offer authorization | **PARTIAL**              | Merchant role gates, scope-first offer confidentiality and ACTIVE-store buyer visibility are implemented with focused regression tests. Exact-head CI, remaining acceptance evidence and independent review remain. |
-| G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
-| Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                              |
-| Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                        |
-| PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                         |
+| G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain.                                  |
+| Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                                                               |
+| Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                                                         |
+| PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                                                          |
 
 The complete finding register, phase dashboard and technical evidence live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). The detailed acceptance criteria and release gates live in [IMPLEMENTATION-PLAN.md](../docs/remediation/IMPLEMENTATION-PLAN.md).
 
@@ -62,14 +62,12 @@ The complete finding register, phase dashboard and technical evidence live in [I
 
 PR #138 must remain open and draft. Do not merge or deploy it, bypass protected staging approval, change shared database grants/default ACLs, apply migration 0070, enable RLS, change staging/production configuration, perform staging writes or activate workers without the explicitly required authorization.
 
-
 ## Live reconciliation — 21 November 2026
 
 - The branch advanced from `e039715b8f05cc3146dddf64d476df4aabe43868` with a G-001 controller test expansion and synchronized remediation tracker/work-log entries. The pre-refresh branch head inspected here is `a6c4b924f1899717c745d41fc6a8a1b4b7dc02c9`.
 - Supported merchant roles are now exercised across list, analytics, trend and offer-detail reads; FINANCE is included in the negative privileged-read matrix; foreign-organization trend access is explicitly denied before service access.
 - This test-only increment is not yet test-verified. The latest completed CI remains historical #1184; no Actions run or combined status was returned for the inspected head. Obtain exact-head CI before claiming verification.
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS. All staging, shared-database and deployment restrictions remain unchanged.
-
 
 ## Live continuation checkpoint — 21 November 2026
 
@@ -80,7 +78,6 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - PR #138 remains open and draft. G-001 remains PARTIAL; G-002 remains IN PROGRESS.
 - Next: complete remaining G-001 lifecycle/service acceptance and obtain exact-head API + integration CI. Independent review remains separate. All database/staging/deployment restrictions remain unchanged.
 
-
 ## Latest continuation checkpoint — 21 November 2026
 
 - Latest branch commit before this checkpoint update: `e814f871b2b027c5c44ff614dfcac66eaa06c56e`.
@@ -88,7 +85,6 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Test-source commits: `ca641eb2a73bd1d3da27700e9a85c6ec2dfe0dad` and `9dcd87bd688d3d7f7bcccaad4660d0976e4e848a`. Progress tracker and project-memory work log were synchronized.
 - Exact-head CI remains unverified; prior Vercel contexts were external build-rate-limit failures. Obtain a fresh Actions result before considering these tests validated.
 - Remaining G-001 work: service/integration coverage for store membership revocation and full buyer/foreign-merchant/admin HTTP behavior, then independent security review. G-001 remains PARTIAL. G-002 remains IN PROGRESS. PR #138 remains draft.
-
 
 ## Latest PostgreSQL acceptance checkpoint — 21 November 2026
 
@@ -99,7 +95,6 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - This regression has not yet executed in CI. Exact-head GitHub Actions, API unit and PostgreSQL integration verification remain pending.
 - G-001 remains PARTIAL; G-002 remains IN PROGRESS. PR #138 remains open/draft. No shared database or staging data was modified.
 
-
 ## Latest G-001 PostgreSQL security checkpoint — 21 November 2026
 
 - Latest branch commit before this checkpoint update: `bf8feed6ebf0064bbf95b0a80910b002988d18ad`.
@@ -108,7 +103,6 @@ PR #138 must remain open and draft. Do not merge or deploy it, bypass protected 
 - Related source/test commits: `5f74662dfcb2f4e5745e0738cc8c0e352b83bdcd` and `f8e6d19f912027c094ba0721736cc8080843fc0f`. Remediation tracker and work log synchronized.
 - Exact-head API unit/PostgreSQL CI remains pending; no tests are claimed as executed. G-001 remains PARTIAL pending CI, full acceptance evidence and independent security review. G-002 remains IN PROGRESS.
 - No shared database or staging state was touched; all new database tests run against disposable PostgreSQL containers.
-
 
 ## Merchant-staff PostgreSQL acceptance checkpoint — 21 November 2026
 
