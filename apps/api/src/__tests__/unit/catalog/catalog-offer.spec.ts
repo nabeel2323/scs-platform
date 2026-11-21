@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CatalogOfferService } from '../../../modules/catalog/catalog.offer.service';
 
 /**
@@ -285,9 +290,7 @@ describe('CatalogOfferService — merchant principal boundary (G-001)', () => {
       await expect(svc.getOfferForMerchant('o1', unauthorized)).rejects.toBeInstanceOf(
         ForbiddenException,
       );
-      await expect(svc.proposeOffer('o1', unauthorized)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
+      await expect(svc.proposeOffer('o1', unauthorized)).rejects.toBeInstanceOf(ForbiddenException);
       await expect(
         svc.updateOfferPricing('o1', { basePriceMinor: 100 }, unauthorized),
       ).rejects.toBeInstanceOf(ForbiddenException);
@@ -308,9 +311,11 @@ describe('CatalogOfferService — merchant principal boundary (G-001)', () => {
       merchantOffers: { findFirst: [null, { id: 'o1', status: 'DRAFT', storeId: 's1' }] },
     });
 
-    await expect(svc.createOffer({ storeId: 's1', productId: 'p1' }, staff)).resolves.toMatchObject({
-      id: 'o1',
-    });
+    await expect(svc.createOffer({ storeId: 's1', productId: 'p1' }, staff)).resolves.toMatchObject(
+      {
+        id: 'o1',
+      },
+    );
     expect(inserted[0]).toMatchObject({ storeId: 's1', productId: 'p1', status: 'DRAFT' });
   });
 });
