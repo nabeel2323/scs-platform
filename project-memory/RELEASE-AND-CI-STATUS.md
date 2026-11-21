@@ -72,7 +72,6 @@ For every run, record:
 6. External preview-provider failures separately from GitHub Actions jobs.
 7. Whether staging, k6, deployment or database operations were actually executed.
 
-
 ## 21 November 2026 — formatter cleanup and handover checkpoint
 
 - Formatter run [#14](https://github.com/nabeel2323/scs-platform/actions/runs/44858112060) completed successfully and formatted the new project-memory docs, README, remediation documents and G-001 controller test.
@@ -80,13 +79,11 @@ For every run, record:
 - CI #1179 on the formatter cleanup commit returned action_required with no jobs; it is not verification. CI #1178 was on the pre-format commit and is not exact-head evidence for the formatted tree.
 - A new app-authored documentation checkpoint commit is being used to trigger a full CI run against the formatted state. Record the exact new SHA and every job result when it completes.
 
-
 ## Latest checkpoint update — 21 November 2026
 
 - Formatter run #14 succeeded and removed its temporary workflow. Cleanup commit 2776f97e902f7569afdc08ba75db8109238e9fcf was checked and the helper file is absent.
 - App-authored checkpoint commit f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 triggered CI #1180. At the time this documentation update was prepared, #1180 was still in progress. Verify its final status and any newer run against the actual current branch head.
 - Earlier CI #1176 failed the Prettier gate; formatter #14 corrected both flagged files. CI #1178 was on the pre-format commit; CI #1179 on the cleanup commit was cancelled/superseded. Neither is a passing verification result.
-
 
 ## CI #1180 — 21 November 2026
 

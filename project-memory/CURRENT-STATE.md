@@ -14,27 +14,27 @@ SCS Platform is a B2B-first multi-merchant commerce and supply marketplace. The 
 
 ## GitHub checkpoint
 
-| Item | Last inspected value |
-|---|---|
-| Repository | nabeel2323/scs-platform |
-| Branch | remediation/phase-0-1-tenant-security |
-| Last inspected PR head | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 |
-| Last inspected commit | docs(project): reconcile handover checkpoint after formatting |
-| PR #138 | Open; draft; not merged |
-| PR base | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775 |
+| Item                                 | Last inspected value                                                         |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| Repository                           | nabeel2323/scs-platform                                                      |
+| Branch                               | remediation/phase-0-1-tenant-security                                        |
+| Last inspected PR head               | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6                                     |
+| Last inspected commit                | docs(project): reconcile handover checkpoint after formatting                |
+| PR #138                              | Open; draft; not merged                                                      |
+| PR base                              | develop at f74eb588cc58fc99b105e749d39dbfbacb4f9775                          |
 | Latest app-authored CI at checkpoint | [#1180](https://github.com/nabeel2323/scs-platform/actions/runs/44858308974) |
-| CI #1180 tested SHA | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6 |
-| CI #1180 status | Failed at changed-file Prettier gate; not a full verification |
+| CI #1180 tested SHA                  | f7f3ff6837f67f17cc00d5129a20f50e608bf3b6                                     |
+| CI #1180 status                      | Failed at changed-file Prettier gate; not a full verification                |
 
 ## Current remediation status
 
-| Area | Status | Meaning |
-|---|---|---|
-| G-001 — merchant offer authorization | **PARTIAL** | Merchant mutation role gate and expanded controller role tests are implemented. Complete tenant/role acceptance evidence and independent security review remain. |
-| G-002 — database access/RLS | **IN PROGRESS** | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
-| Phases 0–5 | **IN PROGRESS** | See the authoritative progress tracker for phase and finding details. |
-| Phase 6 | **NOT STARTED** | Consolidated full verification and release go/no-go campaign has not begun. |
-| PR #138 | **DRAFT — DO NOT MERGE** | Not release authorization. |
+| Area                                 | Status                   | Meaning                                                                                                                                                                            |
+| ------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G-001 — merchant offer authorization | **PARTIAL**              | Merchant mutation role gate and expanded controller role tests are implemented. Complete tenant/role acceptance evidence and independent security review remain.                   |
+| G-002 — database access/RLS          | **IN PROGRESS**          | Read-only source/schema work exists. Actual staging API/migration identities, protected staging audit, per-table access predicates and reviewed least-privilege/RLS design remain. |
+| Phases 0–5                           | **IN PROGRESS**          | See the authoritative progress tracker for phase and finding details.                                                                                                              |
+| Phase 6                              | **NOT STARTED**          | Consolidated full verification and release go/no-go campaign has not begun.                                                                                                        |
+| PR #138                              | **DRAFT — DO NOT MERGE** | Not release authorization.                                                                                                                                                         |
 
 The complete finding register, phase dashboard and technical evidence live in [IMPLEMENTATION-PROGRESS.md](../docs/remediation/IMPLEMENTATION-PROGRESS.md). The detailed acceptance criteria and release gates live in [IMPLEMENTATION-PLAN.md](../docs/remediation/IMPLEMENTATION-PLAN.md).
 

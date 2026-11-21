@@ -1116,7 +1116,6 @@ CI #1136 evaluated the pre-format documentation head `e8afb2d8713217e9b4f77de3f2
 - The checkpoint was reconciled against GitHub PR #138, branch head `1c1cf2f5032cf789789f0efc527e3c976a9ceb78`, and CI #1176. CI #1176 failed the changed-file Prettier gate on the controller test and this tracker; lint/typecheck completed, Flutter passed, and dependent jobs were skipped. Do not treat this run as full test verification.
 - Next: finish the grouped formatting correction, obtain a new exact-head CI result, then continue G-001 role/tenant acceptance work. G-001 remains PARTIAL; G-002 remains IN PROGRESS. PR #138 remains draft. All database, staging and deployment safety restrictions remain in force.
 
-
 ### Project-memory formatter follow-up — 21 November 2026
 
 - Repository-locked Prettier formatter run #14 completed successfully and formatted the new handover files, README, remediation documents and G-001 controller test.
